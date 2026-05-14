@@ -19,6 +19,20 @@ The pet owner PWA is the **data-collection layer** — it is and must be valuabl
 
 This North Star reframes some design choices and locks in others. Every event a pet owner records is potentially a public-health signal. Every screen — owner timeline, public credential, government dashboard, vet record — is a projection over the same source-of-truth event log.
 
+## Project context (why CABA, why now)
+
+DIM is rooted in concrete data about the city it was designed for. Figures below come from the CABA *Encuesta Anual de Hogares 2018* (EAH) and the 2021 CONAIISI paper authored by the original team. They both ground the North Star and become the baseline DIM should eventually measure itself against.
+
+**Population (CABA, EAH 2018):** ~475,000 dogs and ~295,000 cats in households — roughly 16 dogs and 10 cats per 100 people. **Adoption / rescue is the growing acquisition modality**; intentional purchase is shrinking. Implication: `pet_registered` payloads will eventually want an `acquisition_method` field for adoption-trend tracking.
+
+**Vaccination gaps:** ~15% of dogs received no vaccine in the prior 12 months. ~6% of cats lacked the antirábica, ~15% lacked the triple felina. Cat vaccination *deteriorated* between surveys — 36.6% of cats unvaccinated in 2018. Implication: campaign targeting needs species-level segmentation, not just regional.
+
+**Veterinary access by zone — validates the jurisdiction columns on `pets`:** dogs un-attended in the prior year: 22.7% in Zona Sur, 15.5% Centro, 9.7% Norte. That 13-point gap is exactly the inequity the sanitary-authority dashboard exists to surface.
+
+**Civic awareness:** 89% of households do not help street animals. The dominant channel for government pet-health information is social media (38% in 2018, up from 17% in 2014). Implication: notifications and shareability are first-order, not optional polish.
+
+**Mascotas CABA** — the GCBA program offering free veterinary attention — operates today but is **not digitalized**. There's no central record of who was attended, with what, where, or when. DIM is the missing data layer this program needs more than it is a competitor to it; integration is a long-term ambition, not a confrontation.
+
 ## Core principles (locked, do not relitigate)
 
 1. **The pet is the credential.** Not "data in an app" — an identity document for an animal with a globally-unique public token that resolves to a QR-verifiable public page.
@@ -71,6 +85,21 @@ DIM recognizes three primary user roles, stored as `profiles.role` (enum `user_r
 **Role does not restrict owning pets.** Anyone can have an `Ownership` row tying them to a pet. Role gates *portal access*, not personhood.
 
 **Role assignment in v1.** Self-serve signup always produces `role='owner'`. Vet and govt accounts get their role flipped manually (Studio → `profiles` table → edit `role`) until we build admin tools and verified-invite flows. That's a deliberate v1 simplification; vet/govt account onboarding is high-stakes and shouldn't be self-serve.
+
+**Future actor refinement — vet (individual) vs. clinic (organization).** The 2021 CONAIISI paper distinguishes the individual *veterinario* (a licensed person who diagnoses, prescribes, certifies) from the *centro de atención veterinaria* (a clinic, an organization, that owns and publishes vaccination / sterilization campaigns). v1 collapses both into the `vet` role on `profiles`. The proper expansion when we build the vet portal is a separate `clinics` table plus a `clinic_memberships` join table — campaigns and clinic-level config belong to the clinic, while diagnoses and prescriptions belong to the individual vet. Open question listed below; the current schema doesn't fight this future.
+
+## Legal framework
+
+DIM must be designed around — not against — the Argentine legal landscape for animal health and welfare. Four laws bear directly on what the app supports:
+
+| Law                              | Scope                                                                                  | What it implies for DIM                                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration.                                     |
+| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. |
+| **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload should carry a `disposition_method` field (`cremation` / `burial` / `other`) for traceability.        |
+| **Ley Nacional 14.346 (1954)**   | Malos tratos / actos de crueldad contra animales.                                      | `maltreatment_reported` events need to eventually feed real complaint pipelines (denuncia integration is downstream of UI).          |
+
+None of these are blockers for v1. Every one is a hook the data model should accept without rework, and the table above is the checklist for when we wire up the owner-facing forms behind each.
 
 ## Data model
 
@@ -150,6 +179,12 @@ Self-scans (owner viewing own pet's public page) are recorded with `is_self_scan
 
 Events with a real-world location should populate the `PetEvent.location_point` column (top-level), not duplicate it inside `payload`. The payload is for event-type-specific data; `location_point` is universal across event types and used by every geographic projection.
 
+**Payload enrichments to add when their forms get built** (already justified by the legal framework above and the CABA acquisition-trend data):
+
+- `pet_registered.payload.acquisition_method` — `adopted | rescued | purchased | bred | gift | unknown`. Adoption/rescue is the growing modality per EAH 2018; surfacing it lets us measure that trend over time.
+- `pet_registered.payload.potentially_dangerous_breed` (boolean) — flips on the Ley CABA 4078 / Ley Prov 14.107 attestation requirement. Possibly a dedicated `dangerous_breed_attested` event for the legal record itself.
+- `death_recorded.payload.disposition_method` — `cremation | burial | rendering | unknown`, plus optional `facility` (the cremation center / vet clinic that handled the disposition). Ley CABA 5470 traceability.
+
 ## Privacy tiers (the public surface)
 
 | Tier | Audience                              | What's visible                                                                                                                       |
@@ -217,12 +252,17 @@ Keeping **DIM**. Acronym lands ("Documento de Identificación para Mascotas"), s
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - Vet portal (separate Next.js route group or sibling app, sharing DB)
+- **Clinic entity + clinic_memberships join** — distinguish individual vet (person, diagnoses/prescribes) from veterinary clinic (organization, owns campaigns). Today both collapse into `profiles.role = 'vet'`.
 - Government dashboards: three audiences in scope (sanitary authority, analyst, welfare officer); build order TBD by where adoption lands first
-- Non-owner reporting flow for `abandonment_reported`, `maltreatment_reported`, `symptom_observed` on unregistered pets — requires schema additions for "report subject = unowned animal" plus moderation
+- **Mascotas CABA program integration** — the GCBA's existing (non-digitalized) free-vet-attention program. DIM is the data layer it lacks; explore as a partnership path.
+- **Dangerous breed registry support** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event + (eventually) export to provincial registry.
+- **Disposition method on death_recorded** — Ley CABA 5470 (cremation traceability). Payload field plus optional facility.
+- **Acquisition method on pet_registered** — adoption-trend measurement (EAH 2018 shows adoption is the growing modality).
+- Non-owner reporting flow for `abandonment_reported`, `maltreatment_reported`, `symptom_observed` on unregistered pets — requires schema additions for "report subject = unowned animal" plus moderation. `maltreatment_reported` ultimately wants integration with Ley Nacional 14.346 denuncia pipelines.
 - Materialized views for expensive projections — keep event log as source of truth, cache when query latency justifies
-- Campaign management UX (gov-side scheduling, slot allocation) — referenced by `campaign_id` in vaccination/sterilization events
+- Campaign management UX (gov-side scheduling, slot allocation) — referenced by `campaign_id` in vaccination/sterilization events. Campaigns belong to clinics or sanitary authorities, not individual vets.
 - Lost/found feature expansion beyond simple status flip
-- Push notifications (iOS PWA limitations — may need native shell eventually)
+- Push notifications (iOS PWA limitations — may need native shell eventually). EAH 2018 finding: social media is the dominant channel for pet-health info reaching households; shareability is first-order.
 - Native mobile via React Native sharing the data layer
 - Per-pet "emergency info" public flag toggle
 
