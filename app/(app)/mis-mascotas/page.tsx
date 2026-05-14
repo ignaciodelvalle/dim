@@ -1,7 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
-import { db, ownerships, type Pet, pets, profiles } from "@/db";
+import { attachments, db, ownerships, type Pet, pets, profiles } from "@/db";
+import { speciesLabel } from "@/lib/format";
+import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function MisMascotasPage() {
@@ -17,11 +19,12 @@ export default async function MisMascotasPage() {
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  // Pets where this user is the *current* owner.
+  // Pets where this user is the *current* owner, with their primary photo.
   const ownedPets = await db
-    .select({ pet: pets })
+    .select({ pet: pets, photo: attachments })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(and(eq(ownerships.userId, user.id), isNull(ownerships.endedAt)));
 
   return (
@@ -50,8 +53,8 @@ export default async function MisMascotasPage() {
           <EmptyState />
         ) : (
           <ul className="space-y-3">
-            {ownedPets.map(({ pet }) => (
-              <PetCard key={pet.id} pet={pet} />
+            {ownedPets.map(({ pet, photo }) => (
+              <PetCard key={pet.id} pet={pet} photoUrl={petPhotoUrl(photo?.storagePath)} />
             ))}
           </ul>
         )}
@@ -83,26 +86,38 @@ function EmptyState() {
   );
 }
 
-function PetCard({ pet }: { pet: Pet }) {
+function PetCard({ pet, photoUrl }: { pet: Pet; photoUrl: string | null }) {
   const initial = pet.name.charAt(0).toUpperCase();
-  const speciesLabel =
-    pet.species === "dog" ? "Perro" : pet.species === "cat" ? "Gato" : pet.species;
 
   return (
-    <li className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center gap-4">
-      <div className="w-14 h-14 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-xl font-semibold text-neutral-600 dark:text-neutral-400 shrink-0">
-        {initial}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-neutral-900 dark:text-neutral-50 truncate">{pet.name}</p>
-        <p className="text-sm text-neutral-500 dark:text-neutral-500 truncate">
-          {speciesLabel}
-          {pet.color && ` · ${pet.color}`}
-        </p>
-      </div>
-      <span className="text-xs text-neutral-400 dark:text-neutral-600 font-mono shrink-0">
-        {pet.publicToken}
-      </span>
+    <li>
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+      >
+        {photoUrl ? (
+          // biome-ignore lint/performance/noImgElement: switch to next/image later
+          <img
+            src={photoUrl}
+            alt={pet.name}
+            className="w-14 h-14 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-xl font-semibold text-neutral-600 dark:text-neutral-400 shrink-0">
+            {initial}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-neutral-900 dark:text-neutral-50 truncate">{pet.name}</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-500 truncate">
+            {speciesLabel(pet.species)}
+            {pet.color && ` · ${pet.color}`}
+          </p>
+        </div>
+        <span className="text-neutral-400 dark:text-neutral-600 shrink-0" aria-hidden>
+          ›
+        </span>
+      </Link>
     </li>
   );
 }

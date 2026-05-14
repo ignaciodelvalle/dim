@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createPetAction, type NewPetFormState } from "@/app/actions/pets";
 
 const initialState: NewPetFormState = { error: null };
@@ -34,9 +34,22 @@ const PROVINCIAS = [
 
 export function NewPetForm() {
   const [state, formAction, isPending] = useActionState(createPetAction, initialState);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    if (file) {
+      setPhotoPreview(URL.createObjectURL(file));
+    } else {
+      setPhotoPreview(null);
+    }
+  }
 
   return (
     <form action={formAction} className="space-y-5">
+      <PhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
+
       <Field id="name" name="name" type="text" label="Nombre" required autoComplete="off" />
 
       <SelectField id="species" name="species" label="Especie" required>
@@ -90,6 +103,54 @@ export function NewPetForm() {
         {isPending ? "Guardando..." : "Crear mascota"}
       </button>
     </form>
+  );
+}
+
+function PhotoField({
+  onFileChange,
+  preview,
+}: {
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  preview: string | null;
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+        Foto (opcional)
+      </span>
+      <label
+        htmlFor="photo"
+        className="flex items-center gap-4 p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+      >
+        {preview ? (
+          // biome-ignore lint/a11y/useAltText: preview only — server-side has full alt
+          <img
+            src={preview}
+            alt="Vista previa"
+            className="w-20 h-20 rounded-lg object-cover shrink-0"
+          />
+        ) : (
+          <div className="w-20 h-20 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-400 dark:text-neutral-600 text-xs text-center px-2 shrink-0">
+            Sin foto
+          </div>
+        )}
+        <div className="flex-1 text-sm text-neutral-600 dark:text-neutral-400">
+          {preview ? "Cambiar foto" : "Tocá para elegir una foto"}
+          <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
+            JPG o PNG, hasta 5 MB
+          </p>
+        </div>
+      </label>
+      <input
+        id="photo"
+        name="photo"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onFileChange}
+        className="sr-only"
+      />
+    </div>
   );
 }
 
