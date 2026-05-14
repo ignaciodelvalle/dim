@@ -6,9 +6,13 @@
 -- Run. Idempotent — safe to re-run.
 
 -- Auto-create a public.profiles row whenever auth.users gains a new entry.
--- The display_name comes from raw_user_meta_data if the signup flow provided
--- it; otherwise we fall back to the local-part of the email so the profile is
--- never created with a null display_name.
+--
+-- Reads from auth.users.raw_user_meta_data:
+--   - display_name (optional)  → falls back to local-part of email
+--   - user_role    (optional)  → falls back to 'owner' (the default for
+--                                self-serve signups; vet/govt accounts are
+--                                created via admin-driven flows that set this
+--                                metadata explicitly).
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -17,9 +21,13 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, display_name)
+  insert into public.profiles (id, role, display_name)
   values (
     new.id,
+    coalesce(
+      nullif(new.raw_user_meta_data->>'user_role', '')::public.user_role,
+      'owner'::public.user_role
+    ),
     coalesce(
       new.raw_user_meta_data->>'display_name',
       split_part(new.email, '@', 1)

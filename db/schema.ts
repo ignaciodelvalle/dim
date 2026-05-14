@@ -28,6 +28,11 @@ import {
 // Enums
 // ============================================================================
 
+// User's primary role at the application level. See AGENTS.md → "User roles".
+// `owner` is the default for self-serve signup. `vet` and `govt` are
+// admin-assigned (no public signup path in v1).
+export const userRoleEnum = pgEnum("user_role", ["owner", "vet", "govt"]);
+
 export const petSexEnum = pgEnum("pet_sex", ["male", "female", "unknown"]);
 
 export const petStatusEnum = pgEnum("pet_status", ["active", "lost", "deceased"]);
@@ -94,6 +99,9 @@ export const profiles = pgTable(
   "profiles",
   {
     id: uuid("id").primaryKey(),
+    // Primary user role at the application level. Always `owner` for self-serve
+    // signups; vet/govt accounts are admin-assigned. See AGENTS.md → User roles.
+    role: userRoleEnum("role").notNull().default("owner"),
     displayName: text("display_name").notNull(),
     phone: text("phone"),
     avatarUrl: text("avatar_url"),

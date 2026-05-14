@@ -56,6 +56,22 @@ This North Star reframes some design choices and locks in others. Every event a 
 - **Audience**: Pet owners only. Vet and government interfaces deferred.
 - **Auth**: email/password. "Connect with Mi Argentina" placeholder button shown but non-functional.
 
+## User roles
+
+DIM recognizes three primary user roles, stored as `profiles.role` (enum `user_role`). One user = one primary role.
+
+| Role    | Who                                                                         | Self-serve signup? | Primary portal       | Notes                                                                                                       |
+| ------- | --------------------------------------------------------------------------- | ------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `owner` | Pet owner. Default for any self-serve signup.                                | Yes                | `/mis-mascotas`      | Every authenticated user can own pets regardless of role.                                                    |
+| `vet`   | Veterinarian or other animal-health professional in the loop.                | No — admin-assigned (or verified-invite). Future flow may use RENAPER + matrícula validation. | `/profesional` (future) | Can also be a pet owner of their own pets; that's a separate `Ownership` row, not a role change.            |
+| `govt`  | Government / public-health / animal-welfare authority. High access ceiling. | No — admin-assigned.  | `/gestion` (future)  | Dashboards default to aggregated, anonymous views. PII reads are possible for legitimate case work but are audit-logged. |
+
+**Role vs. event authorship.** The `profiles.role` answers *"who is this user globally?"* The `pet_events.author_role` answers *"in what capacity did this user act when writing this specific event?"* They usually align (vet logs a vaccination → both are `vet`) but not always (vet logs their own dog's weight while acting as owner → `profiles.role='vet'` but the event's `author_role='owner'`). Keeping these separate is what lets audit trails be honest.
+
+**Role does not restrict owning pets.** Anyone can have an `Ownership` row tying them to a pet. Role gates *portal access*, not personhood.
+
+**Role assignment in v1.** Self-serve signup always produces `role='owner'`. Vet and govt accounts get their role flipped manually (Studio → `profiles` table → edit `role`) until we build admin tools and verified-invite flows. That's a deliberate v1 simplification; vet/govt account onboarding is high-stakes and shouldn't be self-serve.
+
 ## Data model
 
 ### `User`
