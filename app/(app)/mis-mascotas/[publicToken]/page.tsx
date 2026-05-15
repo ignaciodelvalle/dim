@@ -1,4 +1,5 @@
 import { attachments, db, ownerships, petEvents, pets } from "@/db";
+import { eventPayloadSummary } from "@/lib/events";
 import {
   ageFromDateOfBirth,
   eventTypeLabel,
@@ -8,6 +9,8 @@ import {
   speciesLabel,
   statusLabel,
 } from "@/lib/format";
+import { petPhotoUrl } from "@/lib/storage";
+import { createClient } from "@/lib/supabase/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -28,8 +31,6 @@ function trainingLevelLabel(level: string): string {
       return level;
   }
 }
-import { petPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function PetDetailPage({
   params,
@@ -260,66 +261,4 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       <dd className="text-neutral-900 dark:text-neutral-50">{value || "—"}</dd>
     </div>
   );
-}
-
-// Type-specific primary/secondary line for an event. Returns sensible labels
-// for the event types we render specially; falls back to null primary (which
-// the timeline replaces with the generic eventTypeLabel).
-function eventPayloadSummary(
-  eventType: string,
-  payload: unknown,
-): { primary: string | null; secondary: string | null } {
-  const p = (payload ?? {}) as Record<string, unknown>;
-  const str = (k: string): string | null => {
-    const v = p[k];
-    return typeof v === "string" && v.length > 0 ? v : null;
-  };
-
-  switch (eventType) {
-    case "vaccination_administered": {
-      const vaccine = str("vaccine_name");
-      const adminBy = str("administered_by");
-      const brand = str("brand");
-      const tail = [adminBy, brand].filter(Boolean).join(" · ") || null;
-      return {
-        primary: vaccine ? `Vacuna: ${vaccine}` : null,
-        secondary: tail,
-      };
-    }
-    case "microchip_implanted": {
-      const chip = str("chip_number");
-      const by = str("implanted_by");
-      return {
-        primary: chip ? `Microchip implantado · ${chip}` : null,
-        secondary: by,
-      };
-    }
-    case "weight_recorded": {
-      const kg = str("kg");
-      return {
-        primary: kg ? `Peso: ${kg} kg` : null,
-        secondary: null,
-      };
-    }
-    case "vet_visit_logged": {
-      const reason = str("reason");
-      const vetName = str("vet_name");
-      const clinic = str("clinic");
-      const tail = [vetName, clinic].filter(Boolean).join(" · ") || null;
-      return {
-        primary: reason ? `Visita: ${reason}` : null,
-        secondary: tail,
-      };
-    }
-    case "note_added": {
-      const text = str("text");
-      const cat = str("category");
-      return {
-        primary: text ? `Nota: ${text.length > 60 ? `${text.slice(0, 60)}…` : text}` : null,
-        secondary: cat ? cat.replace(/_/g, " ") : null,
-      };
-    }
-    default:
-      return { primary: null, secondary: null };
-  }
 }
