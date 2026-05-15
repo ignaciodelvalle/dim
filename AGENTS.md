@@ -112,14 +112,27 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `id` (uuid, pk) — internal key
 - `public_token` (unique) — short URL-safe code, used in QR (e.g. `DIM-3K4F-9P2X`)
 - `species`, `breed?`, `name`, `sex` (male|female|unknown)
-- `date_of_birth?`, `birth_date_is_estimated` (bool)
+- `date_of_birth?`, `birth_date_is_estimated` (bool) — DOB is computed from the years+months input on signup; flagged as estimated by default
 - `color?`, `distinguishing_features?`
-- `microchip_id?` (unique when present)
+- **Microchip block** (all populated together when chip is provided):
+  - `microchip_id?` (unique when present) — 15-digit ISO 11784/11785 number
+  - `microchip_country_code?` (default `'858'` for Argentina)
+  - `microchip_implanted_at?` (date)
+  - `microchip_implanted_by?` (text — vet name / clinic)
+  - `microchip_location?` (e.g. `interscapular_left`)
 - `primary_photo_id?` (fk → Attachment)
 - `status` (active|lost|deceased), `deceased_at?`
-- `jurisdiction_country` (default `'AR'`) — root for aggregation
-- `jurisdiction_province?` (e.g. `'CABA'`, `'Buenos Aires'`)
-- `jurisdiction_locality?` (e.g. `'Palermo'`, `'San Isidro'`) — barrio / partido level; the smallest unit exposed in public aggregates
+- **Health & lifestyle (owner self-reported):**
+  - `estimated_weight_kg?` — denormalized cache of latest reported weight; events are source of truth
+  - `favourite_foods?` (text[]) — predefined options + free "otros"
+  - `known_allergies?` (text[]) — same pattern; distinct from the `allergy_detected` event which records discovery
+  - `training_level?` (none|basic|intermediate|advanced|professional)
+- **Legal & insurance:**
+  - `potentially_dangerous_breed` (bool, default false) — auto-set at registration via `lib/breeds.ts` from breed + species; drives the `dangerous_breed_attested` flow (Ley CABA 4078, Ley Prov 14.107)
+  - `insurance_company?`, `insurance_policy_number?`
+- **Jurisdiction (coarse aggregation tag, never coordinates):**
+  - `jurisdiction_country` (default `'AR'`)
+  - `jurisdiction_province?`, `jurisdiction_locality?`
 - `created_at`, `updated_at`
 - **No precise home coordinates stored on pet.** Location precision lives on events when relevant, not on the pet's home.
 
@@ -151,29 +164,79 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `storage_path`, `mime_type`, `file_size`, `caption?`
 - `created_at`
 
-## Event catalog — 17 types
+## Event catalog — 23 types
 
-`UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred to a future reporting flow (typically requires non-owner reporter support).
+`UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
-| Type                       | UI     | Payload                                                                                              |
-| -------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
-| `pet_registered`           | v1     | initial profile snapshot                                                                             |
-| `pet_profile_updated`      | v1     | `{ field, old_value, new_value }`                                                                    |
-| `vaccination_administered` | v1     | `{ vaccine_name, brand?, batch?, administered_by?, campaign_id?, next_due_at? }`                     |
-| `deworming_administered`   | v1     | `{ product, type: internal\|external\|both, next_due_at? }`                                          |
-| `medication_started`       | v1     | `{ drug_name, dose, frequency, prescribed_by? }`                                                     |
-| `medication_stopped`       | v1     | `{ medication_started_event_id, reason? }`                                                           |
-| `vet_visit_logged`         | v1     | `{ reason, diagnosis?, vet_name?, clinic? }`                                                         |
-| `weight_recorded`          | v1     | `{ kg }`                                                                                             |
-| `microchip_implanted`      | v1     | `{ chip_number, implanted_by?, location_on_body? }`                                                  |
-| `sterilization_performed`  | v1     | `{ procedure: castration\|spay, performed_by?, clinic?, campaign_id? }`                              |
-| `death_recorded`           | v1     | `{ cause: known\|unknown\|natural\|disease\|accident\|euthanasia\|other, cause_detail?, confirmed_by_vet?, vet_name? }` |
-| `note_added`               | v1     | `{ category?, text }` — catch-all                                                                    |
-| `status_changed`           | v1     | `{ from_status, to_status: active\|lost, reason? }` — death uses `death_recorded`, not this          |
-| `credential_scanned`       | system | `{ viewer_user_id?, ip_country?, user_agent?, is_self_scan }` — location goes in event's `location_point` |
-| `symptom_observed`         | later  | `{ symptoms: text[], severity?, onset_at? }` — owner self-reported, weak per-pet but valuable in aggregate (early outbreak signal) |
-| `abandonment_reported`     | later  | `{ reporter_role: owner\|witness\|authority, description? }` — needs non-owner reporting flow         |
-| `maltreatment_reported`    | later  | `{ reporter_role, description, severity? }` — needs non-owner reporting flow                          |
+Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration.
+
+**Lifecycle**
+
+| Type                  | UI    | Payload                                                                                              |
+| --------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `pet_registered`      | v1    | initial profile snapshot                                                                             |
+| `pet_profile_updated` | v1    | `{ field, old_value, new_value }`                                                                    |
+| `status_changed`      | v1    | `{ from_status, to_status: active\|lost, reason? }` — death uses `death_recorded`, not this          |
+| `death_recorded`      | v1    | `{ cause: known\|unknown\|natural\|disease\|accident\|euthanasia\|other, cause_detail?, confirmed_by_vet?, vet_name?, disposition_method?: cremation\|burial\|rendering\|unknown, facility? }` |
+
+**Preventive medicine**
+
+| Type                       | UI | Payload                                                                                |
+| -------------------------- | -- | -------------------------------------------------------------------------------------- |
+| `vaccination_administered` | v1 | `{ vaccine_name, brand?, batch?, administered_by?, campaign_id?, next_due_at? }`       |
+| `deworming_administered`   | v1 | `{ product, type: internal\|external\|both, next_due_at? }`                            |
+| `sterilization_performed`  | v1 | `{ procedure: castration\|spay, performed_by?, clinic?, campaign_id? }`                |
+
+**Medication**
+
+| Type                 | UI | Payload                                                |
+| -------------------- | -- | ------------------------------------------------------ |
+| `medication_started` | v1 | `{ drug_name, dose, frequency, prescribed_by? }`       |
+| `medication_stopped` | v1 | `{ medication_started_event_id, reason? }`             |
+
+**Clinical encounters and findings**
+
+| Type                  | UI    | Payload                                                                                  |
+| --------------------- | ----- | ---------------------------------------------------------------------------------------- |
+| `vet_visit_logged`    | v1    | `{ reason, diagnosis?, vet_name?, clinic? }`                                             |
+| `lab_work_performed`  | later | `{ test_type: blood_panel\|urinalysis\|stool\|biopsy\|culture\|other, ordered_by?, summary?, attachment_id? }` |
+| `imaging_performed`   | later | `{ imaging_type: xray\|ultrasound\|ct\|mri\|endoscopy\|other, body_area?, findings?, attachment_id? }` |
+| `surgery_performed`   | later | `{ procedure_name, performed_by?, clinic?, anesthesia_type?, complications?, recovery_notes? }` — distinct from `sterilization_performed` |
+| `allergy_detected`    | later | `{ allergen, severity?: mild\|moderate\|severe, source?: test\|observation\|reaction, prescribed_by? }` — when discovered; differs from the static `pets.known_allergies` list which is the current state |
+
+**Body metrics**
+
+| Type              | UI | Payload    |
+| ----------------- | -- | ---------- |
+| `weight_recorded` | v1 | `{ kg }`   |
+
+**Identification & legal**
+
+| Type                       | UI    | Payload                                                                                              |
+| -------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `microchip_implanted`      | v1    | `{ chip_number, country_code?, implanted_by?, location_on_body?, implant_date_known? }` — fired automatically at pet creation if a chip is provided |
+| `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at, attached_documents? }` — owner registers their PPP in the official provincial registry |
+
+**Free-form**
+
+| Type         | UI | Payload                              |
+| ------------ | -- | ------------------------------------ |
+| `note_added` | v1 | `{ category?, text }` — catch-all   |
+
+**System / observed**
+
+| Type                 | UI     | Payload                                                                                                 |
+| -------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `credential_scanned` | system | `{ viewer_user_id?, ip_country?, user_agent?, is_self_scan, viewer_authenticated }` — location goes in event's `location_point` |
+| `incident_reported`  | later  | `{ incident_type: dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved? }` — distinct from `maltreatment_reported` (incident is non-human-cruelty) |
+
+**Schema-ready, requires non-owner reporting flow**
+
+| Type                    | UI    | Payload                                                                                          |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------------------ |
+| `symptom_observed`      | later | `{ symptoms: text[], severity?, onset_at? }` — owner self-reported; aggregates matter for outbreak signal |
+| `abandonment_reported`  | later | `{ reporter_role: owner\|witness\|authority, description? }`                                     |
+| `maltreatment_reported` | later | `{ reporter_role, description, severity? }` — eventually integrates with Ley Nacional 14.346 denuncia pipelines |
 
 Self-scans (owner viewing own pet's public page) are recorded with `is_self_scan: true` and hidden from default timeline UI.
 

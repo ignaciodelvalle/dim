@@ -11,6 +11,23 @@ import {
   speciesLabel,
   statusLabel,
 } from "@/lib/format";
+
+function trainingLevelLabel(level: string): string {
+  switch (level) {
+    case "none":
+      return "Ninguno";
+    case "basic":
+      return "Básico";
+    case "intermediate":
+      return "Intermedio";
+    case "advanced":
+      return "Avanzado";
+    case "professional":
+      return "Profesional";
+    default:
+      return level;
+  }
+}
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -109,8 +126,20 @@ export default async function PetDetailPage({
                 : null
             }
           />
-          <Detail label="Raza" value={pet.breed} />
+          <Detail
+            label="Raza"
+            value={
+              pet.breed
+                ? `${pet.breed}${pet.potentiallyDangerousBreed ? " ⚠ PPP" : ""}`
+                : null
+            }
+          />
           <Detail label="Color / marcas" value={pet.color} />
+          <Detail label="Peso estimado" value={pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null} />
+          <Detail
+            label="Nivel de entrenamiento"
+            value={pet.trainingLevel ? trainingLevelLabel(pet.trainingLevel) : null}
+          />
           <Detail label="Microchip" value={pet.microchipId} />
           <Detail
             label="Ubicación"
@@ -119,12 +148,29 @@ export default async function PetDetailPage({
               null
             }
           />
+          <Detail
+            label="Comidas favoritas"
+            value={pet.favouriteFoods?.length ? pet.favouriteFoods.join(", ") : null}
+          />
+          <Detail
+            label="Alergias conocidas"
+            value={pet.knownAllergies?.length ? pet.knownAllergies.join(", ") : null}
+          />
+          <Detail label="Aseguradora" value={pet.insuranceCompany} />
+          <Detail label="N° de póliza" value={pet.insurancePolicyNumber} />
           {pet.distinguishingFeatures && (
             <div className="sm:col-span-2">
               <Detail label="Señas particulares" value={pet.distinguishingFeatures} />
             </div>
           )}
         </section>
+
+        {pet.potentiallyDangerousBreed && (
+          <div className="p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
+            Esta mascota está marcada como raza potencialmente peligrosa (Ley CABA 4078, Ley
+            Provincial 14.107). Recordá registrarla en el registro provincial correspondiente.
+          </div>
+        )}
 
         {/* Action buttons — placeholders for now */}
         <section className="flex flex-wrap gap-3">

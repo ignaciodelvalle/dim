@@ -35,6 +35,14 @@ export const userRoleEnum = pgEnum("user_role", ["owner", "vet", "govt"]);
 
 export const petSexEnum = pgEnum("pet_sex", ["male", "female", "unknown"]);
 
+export const trainingLevelEnum = pgEnum("training_level", [
+  "none",
+  "basic",
+  "intermediate",
+  "advanced",
+  "professional",
+]);
+
 export const petStatusEnum = pgEnum("pet_status", ["active", "lost", "deceased"]);
 
 export const ownershipRoleEnum = pgEnum("ownership_role", [
@@ -66,20 +74,34 @@ export const reminderTypeEnum = pgEnum("reminder_type", [
 // not require a database migration. Validation happens in application code
 // using the `EVENT_TYPES` const below.
 export const EVENT_TYPES = [
+  // Lifecycle
   "pet_registered",
   "pet_profile_updated",
+  "status_changed",
+  "death_recorded",
+  // Preventive medicine
   "vaccination_administered",
   "deworming_administered",
+  "sterilization_performed",
+  // Medication
   "medication_started",
   "medication_stopped",
+  // Clinical encounters and findings
   "vet_visit_logged",
+  "lab_work_performed",
+  "imaging_performed",
+  "surgery_performed",
+  "allergy_detected",
+  // Body metrics
   "weight_recorded",
+  // Identification & legal
   "microchip_implanted",
-  "sterilization_performed",
-  "death_recorded",
+  "dangerous_breed_attested",
+  // Free-form
   "note_added",
-  "status_changed",
+  // System / observed
   "credential_scanned",
+  "incident_reported",
   // Schema-ready, UI deferred — these require a non-owner reporting flow:
   "symptom_observed",
   "abandonment_reported",
@@ -137,12 +159,40 @@ export const pets = pgTable(
     birthDateIsEstimated: boolean("birth_date_is_estimated").notNull().default(false),
     color: text("color"),
     distinguishingFeatures: text("distinguishing_features"),
+    // Microchip — full implant record. The number lives on the pet for fast
+    // lookup; the implant event is also recorded as a microchip_implanted
+    // PetEvent for the timeline. Country code defaults to '858' (Argentina,
+    // ISO 3166 numeric) — chip numbers in AR follow ISO 11784/11785 (15 digits).
     microchipId: text("microchip_id"),
+    microchipCountryCode: text("microchip_country_code"),
+    microchipImplantedAt: date("microchip_implanted_at"),
+    microchipImplantedBy: text("microchip_implanted_by"),
+    microchipLocation: text("microchip_location"), // e.g. "interscapular_left"
     // FK to attachments.id. NOT a hard FK at the DB level — circular reference
     // with attachments.pet_id. Application code keeps these in sync.
     primaryPhotoId: uuid("primary_photo_id"),
     status: petStatusEnum("status").notNull().default("active"),
     deceasedAt: timestamp("deceased_at", { withTimezone: true }),
+    // Most recent reported weight. Updated on each weight_recorded event so we
+    // don't need to scan the timeline to render the current weight on the
+    // pet card. Source of truth is the events; this is a denormalized cache.
+    estimatedWeightKg: numeric("estimated_weight_kg", { precision: 5, scale: 2 }),
+    // Free-text arrays for owner-known facts about the pet. Predefined options
+    // come from lib/lookups.ts but the columns accept anything the user types
+    // into the "otros" field.
+    favouriteFoods: text("favourite_foods").array(),
+    knownAllergies: text("known_allergies").array(),
+    // Training level — owner self-reported.
+    trainingLevel: trainingLevelEnum("training_level"),
+    // Computed at registration based on breed + species via lib/breeds.ts.
+    // Captures "what the law said about this breed at the time of registration."
+    // Driver of the dangerous_breed_attested flow (Ley CABA 4078, Ley Prov 14.107).
+    potentiallyDangerousBreed: boolean("potentially_dangerous_breed")
+      .notNull()
+      .default(false),
+    // Pet-insurance info — entirely optional, owner-provided.
+    insuranceCompany: text("insurance_company"),
+    insurancePolicyNumber: text("insurance_policy_number"),
     // Coarse administrative tagging for aggregation. Never precise coordinates.
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
