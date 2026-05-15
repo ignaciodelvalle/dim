@@ -109,6 +109,39 @@ export function eventTypeLabel(eventType: string): string {
   }
 }
 
+export function relativeTime(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const diffMs = Date.now() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "ahora";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `hace ${diffHr} h`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return "ayer";
+  if (diffDay < 7) return `hace ${diffDay} días`;
+  if (diffDay < 30) return `hace ${Math.floor(diffDay / 7)} sem`;
+  return formatDate(date);
+}
+
+export function notificationSeverityLabel(severity: string): string {
+  switch (severity) {
+    case "info":
+      return "Info";
+    case "success":
+      return "Listo";
+    case "warning":
+      return "Atención";
+    case "urgent":
+      return "Urgente";
+    default:
+      return severity;
+  }
+}
+
 export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);

@@ -1,7 +1,15 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
-import { attachments, db, ownerships, type Pet, pets, profiles } from "@/db";
+import {
+  attachments,
+  db,
+  notifications,
+  ownerships,
+  type Pet,
+  pets,
+  profiles,
+} from "@/db";
 import { speciesLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +35,18 @@ export default async function MisMascotasPage() {
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(and(eq(ownerships.userId, user.id), isNull(ownerships.endedAt)));
 
+  // Unread notification count — drives the bell badge.
+  const [{ unreadCount }] = await db
+    .select({ unreadCount: count() })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, user.id),
+        isNull(notifications.readAt),
+        isNull(notifications.archivedAt),
+      ),
+    );
+
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
@@ -41,12 +61,15 @@ export default async function MisMascotasPage() {
                 : `${ownedPets.length} mascota${ownedPets.length === 1 ? "" : "s"} en tu libreta.`}
             </p>
           </div>
-          <Link
-            href="/mis-mascotas/nueva"
-            className="shrink-0 px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-          >
-            + Agregar mascota
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <NotificationBell unreadCount={unreadCount} />
+            <Link
+              href="/mis-mascotas/nueva"
+              className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+            >
+              + Agregar mascota
+            </Link>
+          </div>
         </header>
 
         {ownedPets.length === 0 ? (
@@ -83,6 +106,39 @@ function EmptyState() {
         Agregar tu primera mascota
       </Link>
     </div>
+  );
+}
+
+function NotificationBell({ unreadCount }: { unreadCount: number }) {
+  return (
+    <Link
+      href="/notificaciones"
+      aria-label={
+        unreadCount > 0
+          ? `Notificaciones (${unreadCount} sin leer)`
+          : "Notificaciones"
+      }
+      className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-5 h-5"
+        aria-hidden
+      >
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+      {unreadCount > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
+      )}
+    </Link>
   );
 }
 
