@@ -14,20 +14,12 @@
 // there also emits a microchip_implanted event.
 
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
-import { redirect } from "next/navigation";
-import {
-  attachments,
-  db,
-  notifications,
-  ownerships,
-  type Pet,
-  petEvents,
-  pets,
-} from "@/db";
+import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
+import { and, eq, isNull } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -75,8 +67,8 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
 
   const ageYearsRaw = String(formData.get("ageYears") ?? "").trim();
   const ageMonthsRaw = String(formData.get("ageMonths") ?? "").trim();
-  const ageYears = ageYearsRaw ? Math.max(0, parseInt(ageYearsRaw, 10) || 0) : null;
-  const ageMonths = ageMonthsRaw ? Math.max(0, parseInt(ageMonthsRaw, 10) || 0) : null;
+  const ageYears = ageYearsRaw ? Math.max(0, Number.parseInt(ageYearsRaw, 10) || 0) : null;
+  const ageMonths = ageMonthsRaw ? Math.max(0, Number.parseInt(ageMonthsRaw, 10) || 0) : null;
   let dateOfBirth: string | null = null;
   let birthDateIsEstimated = false;
   if (ageYears !== null || ageMonths !== null) {
@@ -97,7 +89,10 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
   const favouriteFoodsOther = String(formData.get("favouriteFoodsOther") ?? "").trim();
   const favouriteFoods = [
     ...favouriteFoodsList,
-    ...favouriteFoodsOther.split(",").map((s) => s.trim()).filter(Boolean),
+    ...favouriteFoodsOther
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   ];
 
   const knownAllergiesList = (formData.getAll("knownAllergies") as string[])
@@ -106,7 +101,10 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
   const knownAllergiesOther = String(formData.get("knownAllergiesOther") ?? "").trim();
   const knownAllergies = [
     ...knownAllergiesList,
-    ...knownAllergiesOther.split(",").map((s) => s.trim()).filter(Boolean),
+    ...knownAllergiesOther
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   ];
 
   const trainingLevelRaw = String(formData.get("trainingLevel") ?? "").trim();
@@ -126,21 +124,24 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       birthDateIsEstimated,
       color: String(formData.get("color") ?? "").trim() || null,
       microchipId,
-      microchipCountryCode:
-        microchipId ? String(formData.get("microchipCountryCode") ?? "").trim() || null : null,
-      microchipImplantedAt:
-        microchipId ? String(formData.get("microchipImplantedAt") ?? "").trim() || null : null,
-      microchipImplantedBy:
-        microchipId ? String(formData.get("microchipImplantedBy") ?? "").trim() || null : null,
-      microchipLocation:
-        microchipId ? String(formData.get("microchipLocation") ?? "").trim() || null : null,
+      microchipCountryCode: microchipId
+        ? String(formData.get("microchipCountryCode") ?? "").trim() || null
+        : null,
+      microchipImplantedAt: microchipId
+        ? String(formData.get("microchipImplantedAt") ?? "").trim() || null
+        : null,
+      microchipImplantedBy: microchipId
+        ? String(formData.get("microchipImplantedBy") ?? "").trim() || null
+        : null,
+      microchipLocation: microchipId
+        ? String(formData.get("microchipLocation") ?? "").trim() || null
+        : null,
       estimatedWeightKg: String(formData.get("estimatedWeightKg") ?? "").trim() || null,
       favouriteFoods,
       knownAllergies,
       trainingLevel,
       insuranceCompany: String(formData.get("insuranceCompany") ?? "").trim() || null,
-      insurancePolicyNumber:
-        String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
+      insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
       jurisdictionProvince: String(formData.get("province") ?? "").trim() || null,
       jurisdictionLocality: String(formData.get("locality") ?? "").trim() || null,
       potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
@@ -152,12 +153,22 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
 async function uploadPhotoIfPresent(
   supabase: Awaited<ReturnType<typeof createClient>>,
   photoFile: File | null,
-): Promise<{ uploadedPath: string | null; mimeType: string | null; size: number | null; error: string | null }> {
+): Promise<{
+  uploadedPath: string | null;
+  mimeType: string | null;
+  size: number | null;
+  error: string | null;
+}> {
   if (!photoFile || photoFile.size === 0) {
     return { uploadedPath: null, mimeType: null, size: null, error: null };
   }
   if (!photoFile.type.startsWith("image/")) {
-    return { uploadedPath: null, mimeType: null, size: null, error: "El archivo debe ser una imagen." };
+    return {
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: "El archivo debe ser una imagen.",
+    };
   }
   if (photoFile.size > MAX_PHOTO_BYTES) {
     return {
@@ -255,10 +266,7 @@ export async function createPetAction(
             fileSize: upload.size ?? 0,
           })
           .returning();
-        await tx
-          .update(pets)
-          .set({ primaryPhotoId: attachment.id })
-          .where(eq(pets.id, newPet.id));
+        await tx.update(pets).set({ primaryPhotoId: attachment.id }).where(eq(pets.id, newPet.id));
       }
 
       const registeredEvent = await tx
@@ -334,7 +342,10 @@ export async function createPetAction(
 // Compute a diff between the existing pet record and the parsed form values.
 // Returns a list of {field, old_value, new_value} entries — these become the
 // payload of a single bundled pet_profile_updated event.
-function diffPet(existing: Pet, parsed: ParsedPet): Array<{
+function diffPet(
+  existing: Pet,
+  parsed: ParsedPet,
+): Array<{
   field: string;
   old: unknown;
   new: unknown;
@@ -451,8 +462,7 @@ export async function updatePetAction(
   const wasChipPresent = !!existing.pet.microchipId;
   const isChipPresent = !!parsed.microchipId;
   const chipNewlyAdded = !wasChipPresent && isChipPresent;
-  const becamePPP =
-    !existing.pet.potentiallyDangerousBreed && parsed.potentiallyDangerousBreed;
+  const becamePPP = !existing.pet.potentiallyDangerousBreed && parsed.potentiallyDangerousBreed;
 
   // Skip the whole transaction if nothing changed (and no new photo).
   if (changes.length === 0 && !upload.uploadedPath) {
@@ -528,9 +538,7 @@ export async function updatePetAction(
         await tx.insert(petEvents).values({
           petId: existing.pet.id,
           eventType: "microchip_implanted",
-          occurredAt: parsed.microchipImplantedAt
-            ? new Date(parsed.microchipImplantedAt)
-            : now,
+          occurredAt: parsed.microchipImplantedAt ? new Date(parsed.microchipImplantedAt) : now,
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",

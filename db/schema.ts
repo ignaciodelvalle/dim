@@ -54,23 +54,13 @@ export const notificationSeverityEnum = pgEnum("notification_severity", [
 
 export const petStatusEnum = pgEnum("pet_status", ["active", "lost", "deceased"]);
 
-export const ownershipRoleEnum = pgEnum("ownership_role", [
-  "owner",
-  "co_owner",
-  "caretaker",
-]);
+export const ownershipRoleEnum = pgEnum("ownership_role", ["owner", "co_owner", "caretaker"]);
 
 // Who authored an event. Always `owner` in v1 (only owners write events).
 // `scanner` is for the credential_scanned event when an anonymous or
 // non-owner user loads the public credential page.
 // `vet`, `govt`, `system` activate in later phases.
-export const authorRoleEnum = pgEnum("author_role", [
-  "owner",
-  "scanner",
-  "vet",
-  "govt",
-  "system",
-]);
+export const authorRoleEnum = pgEnum("author_role", ["owner", "scanner", "vet", "govt", "system"]);
 
 export const reminderTypeEnum = pgEnum("reminder_type", [
   "vaccine",
@@ -196,9 +186,7 @@ export const pets = pgTable(
     // Computed at registration based on breed + species via lib/breeds.ts.
     // Captures "what the law said about this breed at the time of registration."
     // Driver of the dangerous_breed_attested flow (Ley CABA 4078, Ley Prov 14.107).
-    potentiallyDangerousBreed: boolean("potentially_dangerous_breed")
-      .notNull()
-      .default(false),
+    potentiallyDangerousBreed: boolean("potentially_dangerous_breed").notNull().default(false),
     // Pet-insurance info — entirely optional, owner-provided.
     insuranceCompany: text("insurance_company"),
     insurancePolicyNumber: text("insurance_policy_number"),
@@ -284,10 +272,7 @@ export const petEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    petTimelineIdx: index("pet_events_pet_id_occurred_at_idx").on(
-      table.petId,
-      table.occurredAt,
-    ),
+    petTimelineIdx: index("pet_events_pet_id_occurred_at_idx").on(table.petId, table.occurredAt),
     eventTypeIdx: index("pet_events_event_type_idx").on(table.eventType),
     authorRoleIdx: index("pet_events_author_role_idx").on(table.authorRole),
     locationIdx: index("pet_events_location_idx").on(table.locationLat, table.locationLng),
@@ -415,10 +400,7 @@ export const notifications = pgTable(
     userUnreadIdx: index("notifications_user_unread_idx")
       .on(table.userId)
       .where(sql`${table.readAt} IS NULL AND ${table.archivedAt} IS NULL`),
-    userCreatedIdx: index("notifications_user_created_idx").on(
-      table.userId,
-      table.createdAt,
-    ),
+    userCreatedIdx: index("notifications_user_created_idx").on(table.userId, table.createdAt),
   }),
 );
 

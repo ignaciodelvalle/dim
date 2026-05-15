@@ -5,11 +5,11 @@
 // Privacy posture: NO owner PII (name, phone, email), NO microchip number, NO
 // medical details, NO scan history. See AGENTS.md → "Privacy tiers".
 
-import { and, eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
 import { attachments, db, petEvents, pets } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
+import { and, eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
 import { ScanLogger } from "./ScanLogger";
 
 export default async function PublicCredentialPage({
@@ -34,9 +34,7 @@ export default async function PublicCredentialPage({
   const vaccinations = await db
     .select({ id: petEvents.id })
     .from(petEvents)
-    .where(
-      and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
-    );
+    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")));
   const hasVaccinations = vaccinations.length > 0;
   const hasMicrochip = !!pet.microchipId;
 
@@ -69,7 +67,6 @@ export default async function PublicCredentialPage({
         {/* Photo */}
         <div className="flex justify-center">
           {photoUrl ? (
-            // biome-ignore lint/performance/noImgElement: switch to next/image later
             <img
               src={photoUrl}
               alt={pet.name}

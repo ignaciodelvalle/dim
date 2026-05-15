@@ -1,13 +1,13 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
-import Link from "next/link";
 import {
   archiveNotificationAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/app/actions/notifications";
-import { db, type Notification, notifications, type Pet, pets } from "@/db";
+import { type Notification, type Pet, db, notifications, pets } from "@/db";
 import { notificationSeverityLabel, relativeTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
+import Link from "next/link";
 
 export default async function NotificacionesPage() {
   const supabase = await createClient();
@@ -22,9 +22,7 @@ export default async function NotificacionesPage() {
     .select({ notification: notifications, pet: pets })
     .from(notifications)
     .leftJoin(pets, eq(notifications.relatedPetId, pets.id))
-    .where(
-      and(eq(notifications.userId, user.id), isNull(notifications.archivedAt)),
-    )
+    .where(and(eq(notifications.userId, user.id), isNull(notifications.archivedAt)))
     .orderBy(desc(notifications.createdAt));
 
   const [{ unreadCount }] = await db
@@ -112,7 +110,9 @@ function NotificationCard({
   return (
     <article
       className={`border rounded-xl p-4 flex gap-3 transition-colors ${
-        unread ? `${tone.unreadBg} ${tone.unreadBorder}` : "bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+        unread
+          ? `${tone.unreadBg} ${tone.unreadBorder}`
+          : "bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
       }`}
     >
       <div className={`w-1 self-stretch rounded-full ${tone.bar}`} aria-hidden />
@@ -125,8 +125,7 @@ function NotificationCard({
               {notification.title}
             </h3>
             <p className="text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
-              {notificationSeverityLabel(notification.severity)} ·{" "}
-              {notification.notificationType}
+              {notificationSeverityLabel(notification.severity)} · {notification.notificationType}
             </p>
           </div>
           <time className="text-xs text-neutral-500 dark:text-neutral-500 shrink-0">

@@ -3,8 +3,8 @@
 // they land here. We exchange the one-time `code` for a real session, then
 // redirect them onward.
 
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);

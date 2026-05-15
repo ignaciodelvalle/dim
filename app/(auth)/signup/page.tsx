@@ -1,6 +1,6 @@
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { SignupForm } from "./SignupForm";
 
 export default async function SignupPage() {

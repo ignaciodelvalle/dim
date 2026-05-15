@@ -5,12 +5,9 @@
 // prop — present means edit, absent means create. The action prop is bound
 // at the call site so the form doesn't need to know which it's calling.
 
-import { useActionState, useMemo, useState } from "react";
 import type { NewPetFormState } from "@/app/actions/pets";
-import {
-  breedsForSpecies,
-  isPotentiallyDangerousBreed,
-} from "@/lib/breeds";
+import type { Pet } from "@/db";
+import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -18,7 +15,7 @@ import {
   MICROCHIP_LOCATIONS,
   TRAINING_LEVELS,
 } from "@/lib/lookups";
-import type { Pet } from "@/db";
+import { useActionState, useMemo, useState } from "react";
 
 const initialState: NewPetFormState = { error: null };
 
@@ -49,10 +46,7 @@ const PROVINCIAS = [
   "Tucumán",
 ];
 
-type FormAction = (
-  prev: NewPetFormState,
-  formData: FormData,
-) => Promise<NewPetFormState>;
+type FormAction = (prev: NewPetFormState, formData: FormData) => Promise<NewPetFormState>;
 
 export function PetForm({
   action,
@@ -65,9 +59,7 @@ export function PetForm({
 }) {
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(
-    existingPhotoUrl ?? null,
-  );
+  const [photoPreview, setPhotoPreview] = useState<string | null>(existingPhotoUrl ?? null);
   const [species, setSpecies] = useState<string>(existingPet?.species ?? "");
   const [breed, setBreed] = useState<string>(existingPet?.breed ?? "");
 
@@ -81,7 +73,7 @@ export function PetForm({
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (photoPreview && photoPreview.startsWith("blob:")) {
+    if (photoPreview?.startsWith("blob:")) {
       URL.revokeObjectURL(photoPreview);
     }
     if (file) {
@@ -136,10 +128,7 @@ export function PetForm({
           <option value="female">Hembra</option>
         </SelectField>
 
-        <AgeFields
-          defaultYears={initialAge.years}
-          defaultMonths={initialAge.months}
-        />
+        <AgeFields defaultYears={initialAge.years} defaultMonths={initialAge.months} />
 
         <Field
           id="color"
@@ -177,9 +166,10 @@ export function PetForm({
           </datalist>
           {breedIsDangerous && (
             <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
-              Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
-              Ley Provincial 14.107). Vas a tener que registrarte en el registro provincial
-              correspondiente. DIM marcará tu mascota con la flag oficial y te avisará en notificaciones.
+              Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078, Ley
+              Provincial 14.107). Vas a tener que registrarte en el registro provincial
+              correspondiente. DIM marcará tu mascota con la flag oficial y te avisará en
+              notificaciones.
             </div>
           )}
         </div>
@@ -344,8 +334,7 @@ function ageFromDateOfBirth(dob: string | null): {
   const d = new Date(dob);
   if (Number.isNaN(d.getTime())) return { years: null, months: null };
   const now = new Date();
-  let totalMonths =
-    (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  let totalMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
   if (now.getDate() < d.getDate()) totalMonths -= 1;
   if (totalMonths < 0) totalMonths = 0;
   return {
@@ -547,10 +536,9 @@ function PhotoField({
         className="flex items-center gap-4 p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
       >
         {preview ? (
-          // biome-ignore lint/a11y/useAltText: preview only
           <img
             src={preview}
-            alt="Vista previa"
+            alt="Vista previa de la mascota"
             className="w-20 h-20 rounded-lg object-cover shrink-0"
           />
         ) : (
@@ -601,7 +589,10 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+      <label
+        htmlFor={id}
+        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+      >
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
@@ -642,7 +633,10 @@ function SelectField({
   const controlled = value !== undefined;
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+      <label
+        htmlFor={id}
+        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+      >
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>

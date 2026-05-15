@@ -3,8 +3,8 @@
 // Fires the credential_scanned server action exactly once when the public
 // credential page mounts. Renders nothing.
 
-import { useEffect, useRef } from "react";
 import { logScanAction } from "@/app/actions/scans";
+import { useEffect, useRef } from "react";
 
 export function ScanLogger({ publicToken }: { publicToken: string }) {
   const hasLogged = useRef(false);

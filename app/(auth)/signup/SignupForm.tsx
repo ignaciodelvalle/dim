@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
+import { useActionState } from "react";
 
 const initialState: AuthFormState = { error: null };
 
@@ -92,7 +92,10 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+      <label
+        htmlFor={id}
+        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+      >
         {label}
       </label>
       <input

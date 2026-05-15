@@ -1,18 +1,10 @@
-import { and, count, eq, isNull } from "drizzle-orm";
-import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
-import {
-  attachments,
-  db,
-  notifications,
-  ownerships,
-  type Pet,
-  pets,
-  profiles,
-} from "@/db";
+import { type Pet, attachments, db, notifications, ownerships, pets, profiles } from "@/db";
 import { speciesLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { and, count, eq, isNull } from "drizzle-orm";
+import Link from "next/link";
 
 export default async function MisMascotasPage() {
   const supabase = await createClient();
@@ -21,11 +13,7 @@ export default async function MisMascotasPage() {
   } = await supabase.auth.getUser();
   if (!user) return null; // layout guards this
 
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
 
   // Pets where this user is the *current* owner, with their primary photo.
   const ownedPets = await db
@@ -98,7 +86,9 @@ export default async function MisMascotasPage() {
 function EmptyState() {
   return (
     <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-10 text-center space-y-3">
-      <p className="text-neutral-700 dark:text-neutral-300">Empezá registrando tu primera mascota.</p>
+      <p className="text-neutral-700 dark:text-neutral-300">
+        Empezá registrando tu primera mascota.
+      </p>
       <Link
         href="/mis-mascotas/nueva"
         className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
@@ -113,11 +103,7 @@ function NotificationBell({ unreadCount }: { unreadCount: number }) {
   return (
     <Link
       href="/notificaciones"
-      aria-label={
-        unreadCount > 0
-          ? `Notificaciones (${unreadCount} sin leer)`
-          : "Notificaciones"
-      }
+      aria-label={unreadCount > 0 ? `Notificaciones (${unreadCount} sin leer)` : "Notificaciones"}
       className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
     >
       <svg
@@ -128,8 +114,8 @@ function NotificationBell({ unreadCount }: { unreadCount: number }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         className="w-5 h-5"
-        aria-hidden
       >
+        <title>Notificaciones</title>
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       </svg>
@@ -152,7 +138,6 @@ function PetCard({ pet, photoUrl }: { pet: Pet; photoUrl: string | null }) {
         className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
       >
         {photoUrl ? (
-          // biome-ignore lint/performance/noImgElement: switch to next/image later
           <img
             src={photoUrl}
             alt={pet.name}

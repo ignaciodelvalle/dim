@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
+import Link from "next/link";
 
 export default function NewPetPage() {
   // Auth is enforced by the (app) layout above us — no need to re-check here.

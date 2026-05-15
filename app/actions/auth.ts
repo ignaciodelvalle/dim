@@ -4,8 +4,8 @@
 // `useActionState` hook (React 19 / Next 15). Each action either redirects
 // on success or returns an error state so the form can re-render with it.
 
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export type AuthFormState = {
   error: string | null;

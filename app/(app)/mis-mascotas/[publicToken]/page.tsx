@@ -1,6 +1,3 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import { attachments, db, ownerships, petEvents, pets } from "@/db";
 import {
   ageFromDateOfBirth,
@@ -11,6 +8,9 @@ import {
   speciesLabel,
   statusLabel,
 } from "@/lib/format";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
 function trainingLevelLabel(level: string): string {
   switch (level) {
@@ -90,7 +90,6 @@ export default async function PetDetailPage({
         {/* Hero: photo + name + key facts */}
         <section className="flex items-start gap-5">
           {photoUrl ? (
-            // biome-ignore lint/performance/noImgElement: switch to next/image later
             <img
               src={photoUrl}
               alt={pet.name}
@@ -129,13 +128,14 @@ export default async function PetDetailPage({
           <Detail
             label="Raza"
             value={
-              pet.breed
-                ? `${pet.breed}${pet.potentiallyDangerousBreed ? " ⚠ PPP" : ""}`
-                : null
+              pet.breed ? `${pet.breed}${pet.potentiallyDangerousBreed ? " ⚠ PPP" : ""}` : null
             }
           />
           <Detail label="Color / marcas" value={pet.color} />
-          <Detail label="Peso estimado" value={pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null} />
+          <Detail
+            label="Peso estimado"
+            value={pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null}
+          />
           <Detail
             label="Nivel de entrenamiento"
             value={pet.trainingLevel ? trainingLevelLabel(pet.trainingLevel) : null}

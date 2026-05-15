@@ -3,8 +3,8 @@
 // fresh. Route-level access control (e.g. redirecting unauthenticated users
 // from /app/* to /login) will be added on top of this later.
 
-import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import type { NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   return await updateSession(request);

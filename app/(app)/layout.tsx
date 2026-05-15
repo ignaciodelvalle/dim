@@ -2,8 +2,8 @@
 // (`app/(app)/...`) requires the user to be logged in — otherwise we bounce
 // them to /login before the page ever renders.
 
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export default async function AuthenticatedLayout({
   children,

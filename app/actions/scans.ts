@@ -4,9 +4,9 @@
 // viewed. Called from a tiny client component on the page (via useEffect) so
 // the page render itself stays a pure read.
 
-import { and, eq, isNull } from "drizzle-orm";
 import { db, ownerships, petEvents, pets } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function logScanAction(publicToken: string): Promise<void> {
   if (!publicToken) return;

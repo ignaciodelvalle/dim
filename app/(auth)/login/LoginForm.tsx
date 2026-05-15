@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
+import { useActionState } from "react";
 
 const initialState: AuthFormState = { error: null };
 
@@ -27,7 +27,10 @@ export function LoginForm() {
 
       <form action={formAction} className="space-y-4">
         <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <label
+            htmlFor="email"
+            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+          >
             Correo electrónico
           </label>
           <input
@@ -40,7 +43,10 @@ export function LoginForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <label
+            htmlFor="password"
+            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+          >
             Contraseña
           </label>
           <input
