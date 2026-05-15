@@ -57,26 +57,44 @@ export const INSURANCE_COMPANIES = [
   "PetCheck",
 ];
 
-// Common vaccines administered in Argentine veterinary practice. Used as
-// autocomplete suggestions on the vaccination event form. Free text allowed.
-export const COMMON_VACCINES_DOG = [
-  "Antirrábica",
-  "Séxtuple (DHPPi-L)",
-  "Quíntuple (DHPPi)",
-  "Tos de las perreras (Bordetella)",
-  "Coronavirus canino",
-  "Giardia",
+// Common vaccines administered in Argentine veterinary practice. Used for
+// the vaccination event form datalist and to suggest next-dose dates based
+// on standard intervals. Free text is still allowed — owners can record
+// vaccines outside this catalog and just enter the next-dose date manually.
+export type VaccineDef = {
+  name: string;
+  species: ReadonlyArray<"dog" | "cat" | "other">;
+  isCore: boolean;
+  // null = single dose / owner-specified; otherwise number of months until
+  // the recommended next dose.
+  intervalMonths: number | null;
+};
+
+export const VACCINE_CATALOG: ReadonlyArray<VaccineDef> = [
+  { name: "Antirrábica", species: ["dog", "cat"], isCore: true, intervalMonths: 12 },
+  { name: "Séxtuple (DHPPi-L)", species: ["dog"], isCore: true, intervalMonths: 12 },
+  { name: "Quíntuple (DHPPi)", species: ["dog"], isCore: true, intervalMonths: 12 },
+  {
+    name: "Tos de las perreras (Bordetella)",
+    species: ["dog"],
+    isCore: false,
+    intervalMonths: 6,
+  },
+  { name: "Coronavirus canino", species: ["dog"], isCore: false, intervalMonths: 12 },
+  { name: "Giardia", species: ["dog"], isCore: false, intervalMonths: 12 },
+  { name: "Triple felina (FVRCP)", species: ["cat"], isCore: true, intervalMonths: 12 },
+  { name: "Leucemia felina (FeLV)", species: ["cat"], isCore: false, intervalMonths: 12 },
+  { name: "PIF (Peritonitis infecciosa)", species: ["cat"], isCore: false, intervalMonths: 12 },
 ];
 
-export const COMMON_VACCINES_CAT = [
-  "Antirrábica",
-  "Triple felina (FVRCP)",
-  "Leucemia felina (FeLV)",
-  "PIF (Peritonitis infecciosa)",
-];
+export function vaccinesForSpecies(species: string): VaccineDef[] {
+  if (species === "dog" || species === "cat") {
+    return VACCINE_CATALOG.filter((v) => v.species.includes(species));
+  }
+  return [...VACCINE_CATALOG];
+}
 
-export function vaccinesForSpecies(species: string): string[] {
-  if (species === "dog") return COMMON_VACCINES_DOG;
-  if (species === "cat") return COMMON_VACCINES_CAT;
-  return [...new Set([...COMMON_VACCINES_DOG, ...COMMON_VACCINES_CAT])];
+export function findVaccineByName(name: string): VaccineDef | null {
+  const target = name.trim().toLowerCase();
+  return VACCINE_CATALOG.find((v) => v.name.toLowerCase() === target) ?? null;
 }

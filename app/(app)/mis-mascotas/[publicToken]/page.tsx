@@ -1,9 +1,10 @@
 import { setPetFoundAction } from "@/app/actions/events";
-import { attachments, db, ownerships, petEvents, pets } from "@/db";
+import { deleteVaccineReminderAction } from "@/app/actions/reminders";
+import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
@@ -87,6 +88,19 @@ export default async function PetDetailPage({
     ...e,
     attachmentUrl: eventAttachmentUrls.get(e.id) ?? null,
   }));
+
+  // Pending vaccine reminders, soonest first.
+  const pendingVaccineReminders = await db
+    .select()
+    .from(reminders)
+    .where(
+      and(
+        eq(reminders.petId, pet.id),
+        eq(reminders.reminderType, "vaccine"),
+        isNull(reminders.completedAt),
+      ),
+    )
+    .orderBy(asc(reminders.dueAt));
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
@@ -225,6 +239,93 @@ export default async function PetDetailPage({
                 Marcar como perdida
               </Link>
             )
+          )}
+        </section>
+
+        {/* Upcoming vaccine reminders */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+              Próximas vacunas
+            </h2>
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}/vacunas/programar`}
+              className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              + Programar
+            </Link>
+          </div>
+          {pendingVaccineReminders.length === 0 ? (
+            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+              No tenés vacunas pendientes para {pet.name}.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {pendingVaccineReminders.map((reminder) => {
+                const dueDate = new Date(reminder.dueAt);
+                const diffDays = Math.floor(
+                  (dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+                );
+                const isSoon = diffDays >= 0 && diffDays <= 30;
+                const isOverdue = diffDays < 0;
+                return (
+                  <li
+                    key={reminder.id}
+                    className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                          {reminder.title}
+                        </p>
+                        {reminder.description && (
+                          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                            {reminder.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right text-xs shrink-0">
+                        <p className="text-neutral-700 dark:text-neutral-300">
+                          {formatDate(reminder.dueAt)}
+                        </p>
+                        {isOverdue && (
+                          <p className="text-red-600 dark:text-red-400 font-medium">
+                            Atrasada {Math.abs(diffDays)} día{Math.abs(diffDays) === 1 ? "" : "s"}
+                          </p>
+                        )}
+                        {isSoon && !isOverdue && (
+                          <p className="text-amber-600 dark:text-amber-400 font-medium">
+                            En {diffDays} día{diffDays === 1 ? "" : "s"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/vacuna?reminderId=${reminder.id}`}
+                        className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+                      >
+                        Registrar aplicación
+                      </Link>
+                      <form
+                        action={deleteVaccineReminderAction.bind(
+                          null,
+                          pet.publicToken,
+                          reminder.id,
+                        )}
+                      >
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                        >
+                          Eliminar
+                        </button>
+                      </form>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
 

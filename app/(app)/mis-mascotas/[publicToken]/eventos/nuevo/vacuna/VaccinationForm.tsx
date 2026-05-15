@@ -1,27 +1,49 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { vaccinesForSpecies } from "@/lib/lookups";
-import { useActionState } from "react";
+import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
+import { useMemo, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
+import { useActionState } from "react";
+
 export function VaccinationForm({
   action,
   species,
+  initialVaccineName,
+  sourceReminderId,
 }: {
   action: FormAction;
   species: string;
+  initialVaccineName?: string;
+  sourceReminderId?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const vaccines = vaccinesForSpecies(species);
   const today = new Date().toISOString().slice(0, 10);
 
+  const [vaccineName, setVaccineName] = useState(initialVaccineName ?? "");
+  const [nextDueAt, setNextDueAt] = useState("");
+  const [nextDueOverridden, setNextDueOverridden] = useState(false);
+
+  const suggestedNextDue = useMemo(() => {
+    const def = findVaccineByName(vaccineName);
+    if (!def || !def.intervalMonths) return "";
+    const d = new Date();
+    d.setUTCMonth(d.getUTCMonth() + def.intervalMonths);
+    return d.toISOString().slice(0, 10);
+  }, [vaccineName]);
+
+  const effectiveNextDue = nextDueOverridden ? nextDueAt : suggestedNextDue || nextDueAt;
+
   return (
     <form action={formAction} className="space-y-5">
+      {sourceReminderId && <input type="hidden" name="sourceReminderId" value={sourceReminderId} />}
+
       <div className="space-y-1.5">
         <label
           htmlFor="vaccineName"
@@ -37,11 +59,13 @@ export function VaccinationForm({
           list="vaccine-options"
           placeholder="Empezá a tipear o elegí…"
           autoComplete="off"
+          value={vaccineName}
+          onChange={(e) => setVaccineName(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
         <datalist id="vaccine-options">
           {vaccines.map((v) => (
-            <option key={v} value={v} />
+            <option key={v.name} value={v.name} />
           ))}
         </datalist>
       </div>
@@ -66,12 +90,30 @@ export function VaccinationForm({
         label="Aplicada por (vet / clínica)"
       />
 
-      <Field
-        id="nextDueAt"
-        name="nextDueAt"
-        type="date"
-        label="Próxima dosis (opcional — crea recordatorio)"
-      />
+      <div className="space-y-1.5">
+        <label
+          htmlFor="nextDueAt"
+          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+        >
+          Próxima dosis (opcional — crea recordatorio)
+        </label>
+        <input
+          id="nextDueAt"
+          name="nextDueAt"
+          type="date"
+          value={effectiveNextDue}
+          onChange={(e) => {
+            setNextDueOverridden(true);
+            setNextDueAt(e.target.value);
+          }}
+          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        />
+        {!nextDueOverridden && suggestedNextDue && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            Sugerencia automática según el catálogo. Editá libremente si corresponde.
+          </p>
+        )}
+      </div>
 
       <div className="space-y-1.5">
         <label

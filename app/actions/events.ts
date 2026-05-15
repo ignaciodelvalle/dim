@@ -73,6 +73,7 @@ export async function createVaccinationAction(
   const administeredBy = String(formData.get("administeredBy") ?? "").trim() || null;
   const nextDueAtRaw = String(formData.get("nextDueAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const sourceReminderId = String(formData.get("sourceReminderId") ?? "").trim() || null;
 
   if (!vaccineName) return { error: "Falta el nombre de la vacuna." };
   if (!occurredAtRaw) return { error: "Falta la fecha de aplicación." };
@@ -122,6 +123,14 @@ export async function createVaccinationAction(
           mimeType: upload.mimeType ?? "image/jpeg",
           fileSize: upload.size ?? 0,
         });
+      }
+
+      // Mark the source reminder (if any) as completed.
+      if (sourceReminderId) {
+        await tx
+          .update(reminders)
+          .set({ completedAt: now })
+          .where(and(eq(reminders.id, sourceReminderId), eq(reminders.petId, pet.id)));
       }
 
       // Auto-create a vaccine reminder when next dose is known.
