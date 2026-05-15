@@ -9,6 +9,9 @@ const FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }> = [
   { type: "note_added", label: "Notas" },
   { type: "weight_recorded", label: "Peso" },
   { type: "vet_visit_logged", label: "Visitas" },
+  { type: "deworming_administered", label: "Antiparasitarios" },
+  { type: "sterilization_performed", label: "Esterilización" },
+  { type: "microchip_implanted", label: "Microchip" },
 ];
 
 type Event = {

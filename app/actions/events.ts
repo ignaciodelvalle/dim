@@ -421,6 +421,254 @@ export async function setPetLostAction(
   redirect(`/mis-mascotas/${publicToken}`);
 }
 
+// ---------------------------------------------------------------------------
+// Deworming
+// ---------------------------------------------------------------------------
+
+export async function createDewormingAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const product = String(formData.get("product") ?? "").trim();
+  const type = String(formData.get("type") ?? "").trim();
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const nextDueAtRaw = String(formData.get("nextDueAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!product) return { error: "Falta el nombre del producto." };
+  if (!["internal", "external", "both"].includes(type))
+    return { error: "Tipo de antiparasitario inválido." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de aplicación." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+
+  const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
+  if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "deworming_administered",
+          occurredAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            product,
+            type,
+            next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
+      // Auto-create a reminder when next dose is known.
+      // reminderTypeEnum has no "deworming" value; use "custom" as the closest type.
+      if (nextDueAt) {
+        await tx.insert(reminders).values({
+          petId: pet.id,
+          userId: user.id,
+          reminderType: "custom",
+          dueAt: nextDueAt,
+          title: `Refuerzo antiparasitario: ${product}`,
+          description: `Próxima dosis programada para ${pet.name}.`,
+          sourceEventId: event.id,
+        });
+      }
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el antiparasitario: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Sterilization
+// ---------------------------------------------------------------------------
+
+export async function createSterilizationAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const procedure = String(formData.get("procedure") ?? "").trim();
+  const performedBy = String(formData.get("performedBy") ?? "").trim() || null;
+  const clinic = String(formData.get("clinic") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!["castration", "spay"].includes(procedure)) return { error: "Procedimiento inválido." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de la cirugía." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "sterilization_performed",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: { procedure, performed_by: performedBy, clinic },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la esterilización: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Microchip
+// ---------------------------------------------------------------------------
+
+export async function createMicrochipAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const chipNumber = String(formData.get("chipNumber") ?? "").trim();
+  const countryCode = String(formData.get("countryCode") ?? "").trim() || null;
+  const implantedBy = String(formData.get("implantedBy") ?? "").trim() || null;
+  const locationOnBody = String(formData.get("locationOnBody") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!chipNumber) return { error: "Falta el número de microchip." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de implantación." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "microchip_implanted",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            chip_number: chipNumber,
+            country_code: countryCode,
+            implanted_by: implantedBy,
+            location_on_body: locationOnBody,
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
+      // Back-fill denormalized microchip columns on the pets row only if they
+      // are currently NULL (never overwrite existing data).
+      if (!pet.microchipId) {
+        await tx
+          .update(pets)
+          .set({
+            microchipId: chipNumber,
+            microchipCountryCode: countryCode ?? pet.microchipCountryCode,
+            microchipImplantedAt: pet.microchipImplantedAt ?? occurredAt.toISOString().slice(0, 10),
+            microchipImplantedBy: pet.microchipImplantedBy ?? implantedBy,
+            microchipLocation: pet.microchipLocation ?? locationOnBody,
+            updatedAt: new Date(),
+          })
+          .where(eq(pets.id, pet.id));
+      }
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el microchip: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
 export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) {

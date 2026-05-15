@@ -21,6 +21,38 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: tail,
       };
     }
+    case "deworming_administered": {
+      const product = str("product");
+      const typeRaw = str("type");
+      const typeLabel =
+        typeRaw === "internal"
+          ? "interno"
+          : typeRaw === "external"
+            ? "externo"
+            : typeRaw === "both"
+              ? "interno + externo"
+              : null;
+      return {
+        primary: product ? `Antiparasitario: ${product}` : null,
+        secondary: typeLabel,
+      };
+    }
+    case "sterilization_performed": {
+      const procedure = str("procedure");
+      const performedBy = str("performed_by");
+      const clinic = str("clinic");
+      const procedureLabel =
+        procedure === "castration"
+          ? "castración"
+          : procedure === "spay"
+            ? "ovariectomía"
+            : procedure;
+      const tail = [performedBy, clinic].filter(Boolean).join(" · ") || null;
+      return {
+        primary: procedure ? `Esterilización: ${procedureLabel}` : null,
+        secondary: tail,
+      };
+    }
     case "microchip_implanted": {
       const chip = str("chip_number");
       const by = str("implanted_by");

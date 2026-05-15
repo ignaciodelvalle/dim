@@ -37,13 +37,13 @@ const EVENT_OPTIONS: EventOption[] = [
     slug: "antiparasitario",
     label: "Antiparasitario",
     description: "Interno o externo, próxima dosis",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "esterilizacion",
     label: "Esterilización",
     description: "Castración / ovariectomía",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "medicacion-inicio",
@@ -61,7 +61,7 @@ const EVENT_OPTIONS: EventOption[] = [
     slug: "microchip",
     label: "Microchip implantado",
     description: "Registro tardío de chip",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "estado",
