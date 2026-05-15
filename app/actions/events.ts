@@ -8,6 +8,7 @@
 // back to the pet's detail page.
 
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
+import { parseDateInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, isNull } from "drizzle-orm";
@@ -76,11 +77,11 @@ export async function createVaccinationAction(
   if (!vaccineName) return { error: "Falta el nombre de la vacuna." };
   if (!occurredAtRaw) return { error: "Falta la fecha de aplicación." };
 
-  const occurredAt = new Date(occurredAtRaw);
-  if (Number.isNaN(occurredAt.getTime())) return { error: "Fecha de aplicación inválida." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha de aplicación inválida." };
 
-  const nextDueAt = nextDueAtRaw ? new Date(nextDueAtRaw) : null;
-  if (nextDueAt && Number.isNaN(nextDueAt.getTime())) {
+  const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
+  if (nextDueAtRaw && !nextDueAt) {
     return { error: "Fecha de próxima dosis inválida." };
   }
 
@@ -170,8 +171,8 @@ export async function createWeightAction(
   const kgNum = Number.parseFloat(kgRaw);
   if (!Number.isFinite(kgNum) || kgNum <= 0) return { error: "Peso inválido." };
 
-  const occurredAt = new Date(occurredAtRaw);
-  if (Number.isNaN(occurredAt.getTime())) return { error: "Fecha inválida." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -244,8 +245,8 @@ export async function createNoteAction(
   if (!text) return { error: "Falta el contenido de la nota." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
 
-  const occurredAt = new Date(occurredAtRaw);
-  if (Number.isNaN(occurredAt.getTime())) return { error: "Fecha inválida." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
 
   const category = NOTE_CATEGORIES.includes(categoryRaw) ? categoryRaw : null;
 
@@ -314,8 +315,8 @@ export async function createVetVisitAction(
   if (!reason) return { error: "Falta el motivo de la visita." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
 
-  const occurredAt = new Date(occurredAtRaw);
-  if (Number.isNaN(occurredAt.getTime())) return { error: "Fecha inválida." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");

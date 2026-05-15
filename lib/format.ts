@@ -29,6 +29,18 @@ export function formatDateTime(value: Date | string | null | undefined): string 
   return SPANISH_DATETIME_FORMAT.format(date);
 }
 
+// Parse a "YYYY-MM-DD" string from <input type="date"> into a Date anchored at
+// noon UTC of that calendar day. Noon UTC stays on the same calendar date when
+// rendered in any timezone within ±12 hours, so the user sees the date they
+// picked instead of the previous day. Returns null if the string is empty or
+// invalid.
+export function parseDateInput(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
 export function speciesLabel(species: string): string {
   switch (species) {
     case "dog":

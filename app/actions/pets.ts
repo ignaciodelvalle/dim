@@ -15,6 +15,7 @@
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { parseDateInput } from "@/lib/format";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -244,7 +245,7 @@ export async function createPetAction(
         await tx.insert(petEvents).values({
           petId: newPet.id,
           eventType: "microchip_implanted",
-          occurredAt: parsed.microchipImplantedAt ? new Date(parsed.microchipImplantedAt) : now,
+          occurredAt: parseDateInput(parsed.microchipImplantedAt) ?? now,
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
@@ -492,7 +493,7 @@ export async function updatePetAction(
         await tx.insert(petEvents).values({
           petId: existing.pet.id,
           eventType: "microchip_implanted",
-          occurredAt: parsed.microchipImplantedAt ? new Date(parsed.microchipImplantedAt) : now,
+          occurredAt: parseDateInput(parsed.microchipImplantedAt) ?? now,
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
