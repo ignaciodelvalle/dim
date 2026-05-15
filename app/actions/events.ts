@@ -488,12 +488,11 @@ export async function createDewormingAction(
       }
 
       // Auto-create a reminder when next dose is known.
-      // reminderTypeEnum has no "deworming" value; use "custom" as the closest type.
       if (nextDueAt) {
         await tx.insert(reminders).values({
           petId: pet.id,
           userId: user.id,
-          reminderType: "custom",
+          reminderType: "deworming",
           dueAt: nextDueAt,
           title: `Refuerzo antiparasitario: ${product}`,
           description: `Próxima dosis programada para ${pet.name}.`,

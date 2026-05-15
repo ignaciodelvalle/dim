@@ -64,6 +64,7 @@ export const authorRoleEnum = pgEnum("author_role", ["owner", "scanner", "vet", 
 
 export const reminderTypeEnum = pgEnum("reminder_type", [
   "vaccine",
+  "deworming",
   "medication",
   "appointment",
   "custom",
