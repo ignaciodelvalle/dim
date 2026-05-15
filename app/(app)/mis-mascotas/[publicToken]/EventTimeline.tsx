@@ -17,6 +17,7 @@ type Event = {
   payload: unknown;
   occurredAt: Date | string;
   notes: string | null;
+  attachmentUrl: string | null;
 };
 
 type Props = {
@@ -92,6 +93,20 @@ export function EventTimeline({ events }: Props) {
                 </div>
                 {event.notes && (
                   <p className="text-sm text-neutral-700 dark:text-neutral-300">{event.notes}</p>
+                )}
+                {event.attachmentUrl && (
+                  <a
+                    href={event.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <img
+                      src={event.attachmentUrl}
+                      alt="Foto adjunta"
+                      className="max-h-48 w-auto rounded-lg border border-neutral-200 dark:border-neutral-800 object-cover"
+                    />
+                  </a>
                 )}
                 <details className="text-xs text-neutral-500 dark:text-neutral-500">
                   <summary className="cursor-pointer select-none hover:text-neutral-700 dark:hover:text-neutral-300">

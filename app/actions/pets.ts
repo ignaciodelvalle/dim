@@ -13,15 +13,13 @@
 // pet_profile_updated event with the bundled diff. Adding a chip that wasn't
 // there also emits a microchip_implanted event.
 
-import { randomUUID } from "node:crypto";
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
+import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
-
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export type NewPetFormState = {
   error: string | null;
@@ -150,50 +148,6 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
   };
 }
 
-async function uploadPhotoIfPresent(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  photoFile: File | null,
-): Promise<{
-  uploadedPath: string | null;
-  mimeType: string | null;
-  size: number | null;
-  error: string | null;
-}> {
-  if (!photoFile || photoFile.size === 0) {
-    return { uploadedPath: null, mimeType: null, size: null, error: null };
-  }
-  if (!photoFile.type.startsWith("image/")) {
-    return {
-      uploadedPath: null,
-      mimeType: null,
-      size: null,
-      error: "El archivo debe ser una imagen.",
-    };
-  }
-  if (photoFile.size > MAX_PHOTO_BYTES) {
-    return {
-      uploadedPath: null,
-      mimeType: null,
-      size: null,
-      error: "La imagen no puede superar los 5 MB.",
-    };
-  }
-  const ext = (photoFile.name.split(".").pop() ?? "jpg").toLowerCase();
-  const filename = `${randomUUID()}.${ext}`;
-  const { error: uploadError } = await supabase.storage
-    .from("pet-photos")
-    .upload(filename, photoFile, { contentType: photoFile.type });
-  if (uploadError) {
-    return {
-      uploadedPath: null,
-      mimeType: null,
-      size: null,
-      error: `No se pudo subir la foto: ${uploadError.message}`,
-    };
-  }
-  return { uploadedPath: filename, mimeType: photoFile.type, size: photoFile.size, error: null };
-}
-
 // ---------------------------------------------------------------------------
 // CREATE
 // ---------------------------------------------------------------------------
@@ -212,7 +166,7 @@ export async function createPetAction(
   if (parseError) return { error: parseError };
 
   const photoFile = formData.get("photo") as File | null;
-  const upload = await uploadPhotoIfPresent(supabase, photoFile);
+  const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
   const publicToken = generatePublicToken();
@@ -455,7 +409,7 @@ export async function updatePetAction(
   if (parseError) return { error: parseError };
 
   const photoFile = formData.get("photo") as File | null;
-  const upload = await uploadPhotoIfPresent(supabase, photoFile);
+  const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
   const changes = diffPet(existing.pet, parsed);

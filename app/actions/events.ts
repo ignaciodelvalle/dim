@@ -7,8 +7,9 @@
 // insert into pet_events (and optionally a Reminder) atomically, redirect
 // back to the pet's detail page.
 
-import { db, ownerships, petEvents, pets, reminders } from "@/db";
+import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -21,7 +22,7 @@ async function requireOwnedPet(publicToken: string) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { user: null, pet: null, error: "Sesión expirada." };
+  if (!user) return { supabase, user: null, pet: null, error: "Sesión expirada." };
 
   const [row] = await db
     .select({ pet: pets })
@@ -35,9 +36,21 @@ async function requireOwnedPet(publicToken: string) {
       ),
     )
     .limit(1);
-  if (!row) return { user, pet: null, error: "Mascota no encontrada o sin permisos." };
+  if (!row) return { supabase, user, pet: null, error: "Mascota no encontrada o sin permisos." };
 
-  return { user, pet: row.pet, error: null };
+  return { supabase, user, pet: row.pet, error: null };
+}
+
+async function cleanupAttachment(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  path: string | null,
+) {
+  if (!path) return;
+  try {
+    await supabase.storage.from("event-attachments").remove([path]);
+  } catch {
+    // Swallow — the row was never inserted, the file is orphaned at worst.
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +62,7 @@ export async function createVaccinationAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const vaccineName = String(formData.get("vaccineName") ?? "").trim();
@@ -70,6 +83,10 @@ export async function createVaccinationAction(
   if (nextDueAt && Number.isNaN(nextDueAt.getTime())) {
     return { error: "Fecha de próxima dosis inválida." };
   }
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
 
   const now = new Date();
 
@@ -95,6 +112,17 @@ export async function createVaccinationAction(
         })
         .returning();
 
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
       // Auto-create a vaccine reminder when next dose is known.
       if (nextDueAt) {
         await tx.insert(reminders).values({
@@ -109,6 +137,7 @@ export async function createVaccinationAction(
       }
     });
   } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo registrar la vacuna: ${
         err instanceof Error ? err.message : "error desconocido"
@@ -128,7 +157,7 @@ export async function createWeightAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const kgRaw = String(formData.get("kg") ?? "").trim();
@@ -144,26 +173,46 @@ export async function createWeightAction(
   const occurredAt = new Date(occurredAtRaw);
   if (Number.isNaN(occurredAt.getTime())) return { error: "Fecha inválida." };
 
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
   const now = new Date();
   const kgStr = kgNum.toFixed(2);
 
   try {
     await db.transaction(async (tx) => {
-      await tx.insert(petEvents).values({
-        petId: pet.id,
-        eventType: "weight_recorded",
-        occurredAt,
-        recordedAt: now,
-        recordedByUserId: user.id,
-        authorRole: "owner",
-        payload: { kg: kgStr },
-        notes,
-      });
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "weight_recorded",
+          occurredAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: { kg: kgStr },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
       // Update the denormalized cache so the pet card / detail show the latest
       // weight without re-scanning the event log.
       await tx.update(pets).set({ estimatedWeightKg: kgStr }).where(eq(pets.id, pet.id));
     });
   } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo registrar el peso: ${
         err instanceof Error ? err.message : "error desconocido"
@@ -185,7 +234,7 @@ export async function createNoteAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const text = String(formData.get("text") ?? "").trim();
@@ -200,18 +249,39 @@ export async function createNoteAction(
 
   const category = NOTE_CATEGORIES.includes(categoryRaw) ? categoryRaw : null;
 
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
   try {
-    await db.insert(petEvents).values({
-      petId: pet.id,
-      eventType: "note_added",
-      occurredAt,
-      recordedAt: new Date(),
-      recordedByUserId: user.id,
-      authorRole: "owner",
-      payload: { category, text },
-      notes: null,
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "note_added",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: { category, text },
+          notes: null,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
     });
   } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo guardar la nota: ${
         err instanceof Error ? err.message : "error desconocido"
@@ -231,7 +301,7 @@ export async function createVetVisitAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const reason = String(formData.get("reason") ?? "").trim();
@@ -247,18 +317,39 @@ export async function createVetVisitAction(
   const occurredAt = new Date(occurredAtRaw);
   if (Number.isNaN(occurredAt.getTime())) return { error: "Fecha inválida." };
 
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
   try {
-    await db.insert(petEvents).values({
-      petId: pet.id,
-      eventType: "vet_visit_logged",
-      occurredAt,
-      recordedAt: new Date(),
-      recordedByUserId: user.id,
-      authorRole: "owner",
-      payload: { reason, diagnosis, vet_name: vetName, clinic },
-      notes,
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "vet_visit_logged",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: { reason, diagnosis, vet_name: vetName, clinic },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
     });
   } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo registrar la visita: ${
         err instanceof Error ? err.message : "error desconocido"

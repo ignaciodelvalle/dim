@@ -1,8 +1,8 @@
 import { attachments, db, ownerships, petEvents, pets } from "@/db";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
-import { petPhotoUrl } from "@/lib/storage";
+import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
@@ -67,6 +67,25 @@ export default async function PetDetailPage({
     .from(petEvents)
     .where(eq(petEvents.petId, pet.id))
     .orderBy(desc(petEvents.occurredAt));
+
+  // Per-event attachments (private bucket — signed URLs generated server-side).
+  const eventIds = events.map((e) => e.id);
+  const eventAttachmentRows =
+    eventIds.length > 0
+      ? await db.select().from(attachments).where(inArray(attachments.eventId, eventIds))
+      : [];
+  const eventAttachmentUrls = new Map<string, string>();
+  await Promise.all(
+    eventAttachmentRows.map(async (a) => {
+      if (!a.eventId) return;
+      const url = await eventAttachmentSignedUrl(supabase, a.storagePath);
+      if (url) eventAttachmentUrls.set(a.eventId, url);
+    }),
+  );
+  const eventsWithAttachments = events.map((e) => ({
+    ...e,
+    attachmentUrl: eventAttachmentUrls.get(e.id) ?? null,
+  }));
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
@@ -194,7 +213,7 @@ export default async function PetDetailPage({
           <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
             Historial
           </h2>
-          <EventTimeline events={events} />
+          <EventTimeline events={eventsWithAttachments} />
         </section>
       </div>
     </main>

@@ -3,6 +3,7 @@
 import type { EventFormState } from "@/app/actions/events";
 import { vaccinesForSpecies } from "@/lib/lookups";
 import { useActionState } from "react";
+import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
 
@@ -86,6 +87,8 @@ export function VaccinationForm({
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
       </div>
+
+      <AttachmentField />
 
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">

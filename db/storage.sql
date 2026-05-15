@@ -40,3 +40,45 @@ create policy "pet_photos_uploader_delete"
   on storage.objects for delete
   to authenticated
   using (bucket_id = 'pet-photos' and auth.uid() = owner);
+
+-- ---------------------------------------------------------------------------
+-- event-attachments bucket
+-- ---------------------------------------------------------------------------
+-- Holds optional images attached to pet events (vaccine cards, vet receipts,
+-- weight-scale photos, free-form note photos). Private bucket: discovery is
+-- gated by the SSR layer (only the pet's owner reaches the page that renders
+-- the URLs) and the URLs themselves are short-lived signed URLs generated
+-- server-side. Tier-3 data per AGENTS.md — owner only.
+
+insert into storage.buckets (id, name, public)
+values ('event-attachments', 'event-attachments', false)
+on conflict (id) do nothing;
+
+-- Authenticated users can SELECT (needed to request signed URLs); discovery
+-- is gated by what the SSR layer shows, not by storage RLS.
+drop policy if exists "event_attachments_authenticated_read" on storage.objects;
+create policy "event_attachments_authenticated_read"
+  on storage.objects for select
+  to authenticated
+  using (bucket_id = 'event-attachments');
+
+-- Any authenticated user can upload (the server action verifies pet ownership
+-- before calling storage).
+drop policy if exists "event_attachments_authenticated_upload" on storage.objects;
+create policy "event_attachments_authenticated_upload"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'event-attachments');
+
+-- Only the uploader can update or delete their object.
+drop policy if exists "event_attachments_uploader_update" on storage.objects;
+create policy "event_attachments_uploader_update"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'event-attachments' and auth.uid() = owner);
+
+drop policy if exists "event_attachments_uploader_delete" on storage.objects;
+create policy "event_attachments_uploader_delete"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'event-attachments' and auth.uid() = owner);
