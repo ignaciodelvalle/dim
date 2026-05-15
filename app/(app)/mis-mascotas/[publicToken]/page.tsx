@@ -1,3 +1,4 @@
+import { setPetFoundAction } from "@/app/actions/events";
 import { attachments, db, ownerships, petEvents, pets } from "@/db";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
@@ -206,6 +207,25 @@ export default async function PetDetailPage({
           >
             Ver credencial pública ↗
           </Link>
+          {pet.status === "lost" ? (
+            <form action={setPetFoundAction.bind(null, pet.publicToken)}>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-green-700 dark:bg-green-600 text-white text-sm font-medium hover:bg-green-800 dark:hover:bg-green-700 transition-colors"
+              >
+                ✓ Marcar como encontrada
+              </button>
+            </form>
+          ) : (
+            pet.status === "active" && (
+              <Link
+                href={`/mis-mascotas/${pet.publicToken}/perdida`}
+                className="px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+              >
+                Marcar como perdida
+              </Link>
+            )
+          )}
         </section>
 
         {/* Event timeline */}

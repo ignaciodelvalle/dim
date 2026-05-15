@@ -54,6 +54,18 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: cat ? cat.replace(/_/g, " ") : null,
       };
     }
+    case "status_changed": {
+      const toStatus = str("to_status");
+      const loc = str("last_known_location");
+      const reason = str("reason");
+      let primary: string | null = null;
+      if (toStatus === "lost") primary = "Marcada como perdida";
+      else if (toStatus === "active") primary = "Marcada como encontrada";
+      return {
+        primary,
+        secondary: loc || reason,
+      };
+    }
     default:
       return { primary: null, secondary: null };
   }

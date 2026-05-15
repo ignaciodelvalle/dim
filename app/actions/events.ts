@@ -360,3 +360,85 @@ export async function createVetVisitAction(
 
   redirect(`/mis-mascotas/${publicToken}`);
 }
+
+// ---------------------------------------------------------------------------
+// Status changes (lost / found)
+// ---------------------------------------------------------------------------
+
+export async function setPetLostAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  if (pet.status === "lost") return { error: "Esta mascota ya está marcada como perdida." };
+  if (pet.status === "deceased")
+    return { error: "No se puede cambiar el estado de una mascota fallecida." };
+
+  const lastKnownLocation = String(formData.get("lastKnownLocation") ?? "").trim() || null;
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+
+  const now = new Date();
+  const fromStatus = pet.status;
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "status_changed",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "owner",
+        payload: {
+          from_status: fromStatus,
+          to_status: "lost",
+          last_known_location: lastKnownLocation,
+          reason,
+        },
+      });
+      await tx.update(pets).set({ status: "lost", updatedAt: now }).where(eq(pets.id, pet.id));
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo marcar como perdida: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+export async function setPetFoundAction(publicToken: string): Promise<void> {
+  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) {
+    throw new Error(ownershipError ?? "No autorizado.");
+  }
+  if (pet.status !== "lost") {
+    // Idempotent — just redirect.
+    redirect(`/mis-mascotas/${publicToken}`);
+  }
+
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    await tx.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "status_changed",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: user.id,
+      authorRole: "owner",
+      payload: {
+        from_status: "lost",
+        to_status: "active",
+      },
+    });
+    await tx.update(pets).set({ status: "active", updatedAt: now }).where(eq(pets.id, pet.id));
+  });
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
