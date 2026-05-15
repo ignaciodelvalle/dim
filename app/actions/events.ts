@@ -42,6 +42,20 @@ async function requireOwnedPet(publicToken: string) {
   return { supabase, user, pet: row.pet, error: null };
 }
 
+async function requireOwnedAndAlive(publicToken: string) {
+  const result = await requireOwnedPet(publicToken);
+  if (result.error || !result.pet) return result;
+  if (result.pet.status === "deceased") {
+    return {
+      supabase: result.supabase,
+      user: result.user,
+      pet: null,
+      error: "Esta mascota está registrada como fallecida y no acepta nuevos eventos.",
+    };
+  }
+  return result;
+}
+
 async function cleanupAttachment(
   supabase: Awaited<ReturnType<typeof createClient>>,
   path: string | null,
@@ -63,7 +77,7 @@ export async function createVaccinationAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const vaccineName = String(formData.get("vaccineName") ?? "").trim();
@@ -167,7 +181,7 @@ export async function createWeightAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const kgRaw = String(formData.get("kg") ?? "").trim();
@@ -311,7 +325,7 @@ export async function createVetVisitAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const reason = String(formData.get("reason") ?? "").trim();
@@ -430,7 +444,7 @@ export async function createDewormingAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const product = String(formData.get("product") ?? "").trim();
@@ -521,7 +535,7 @@ export async function createSterilizationAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const procedure = String(formData.get("procedure") ?? "").trim();
@@ -588,7 +602,7 @@ export async function createMicrochipAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const chipNumber = String(formData.get("chipNumber") ?? "").trim();
@@ -677,7 +691,7 @@ export async function createMedicationStartAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const drugName = String(formData.get("drugName") ?? "").trim();
@@ -752,7 +766,7 @@ export async function createMedicationEndAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
   if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
 
   const medicationStartedEventId = String(formData.get("medicationStartedEventId") ?? "").trim();
@@ -926,6 +940,9 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) {
     throw new Error(ownershipError ?? "No autorizado.");
+  }
+  if (pet.status === "deceased") {
+    throw new Error("Esta mascota está registrada como fallecida y no acepta nuevos eventos.");
   }
   if (pet.status !== "lost") {
     // Idempotent — just redirect.

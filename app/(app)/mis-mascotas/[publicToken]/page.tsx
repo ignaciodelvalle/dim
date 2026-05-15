@@ -1,6 +1,7 @@
 import { setPetFoundAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
+import type { Pet } from "@/db";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -24,6 +25,104 @@ function trainingLevelLabel(level: string): string {
     default:
       return level;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Deceased (in-memoriam) view
+// ---------------------------------------------------------------------------
+
+function deceasedSubtitle(pet: Pet): string {
+  const deceasedYear = pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null;
+  if (pet.dateOfBirth && deceasedYear) {
+    const birthYear = new Date(pet.dateOfBirth).getFullYear();
+    return `En memoria · ${birthYear} – ${deceasedYear}`;
+  }
+  if (deceasedYear) {
+    const genderedWord = pet.sex === "male" ? "Fallecido" : "Fallecida";
+    const fullDate = formatDate(pet.deceasedAt);
+    return `En memoria · ${genderedWord} el ${fullDate}`;
+  }
+  return "En memoria";
+}
+
+function DeceasedView({
+  pet,
+  photoUrl,
+  eventsWithAttachments,
+}: {
+  pet: Pet;
+  photoUrl: string | null;
+  eventsWithAttachments: Parameters<typeof EventTimeline>[0]["events"];
+}) {
+  return (
+    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <div className="max-w-2xl mx-auto pt-6 space-y-8">
+        <Link
+          href="/mis-mascotas"
+          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+        >
+          ← Volver a mis mascotas
+        </Link>
+
+        {/* In-memoriam hero — centered, muted */}
+        <section className="flex flex-col items-center gap-3 pt-4">
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt={pet.name}
+              className="w-24 h-24 rounded-full object-cover opacity-80"
+            />
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-3xl font-semibold text-neutral-400 dark:text-neutral-600 opacity-80">
+              {pet.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="text-center space-y-1">
+            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+              {pet.name}
+            </h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+              {deceasedSubtitle(pet)}
+            </p>
+          </div>
+
+          {/* Quiet action links */}
+          <p className="text-sm text-neutral-500 dark:text-neutral-500 pt-1">
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}/editar`}
+              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+            >
+              Editar mascota
+            </Link>
+            {" · "}
+            <Link
+              href={`/p/${pet.publicToken}`}
+              target="_blank"
+              rel="noopener"
+              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+            >
+              Ver credencial pública
+            </Link>
+            {" · "}
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
+              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+            >
+              + Agregar nota
+            </Link>
+          </p>
+        </section>
+
+        {/* Event timeline */}
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            Historial
+          </h2>
+          <EventTimeline events={eventsWithAttachments} />
+        </section>
+      </div>
+    </main>
+  );
 }
 
 export default async function PetDetailPage({
@@ -88,6 +187,13 @@ export default async function PetDetailPage({
     ...e,
     attachmentUrl: eventAttachmentUrls.get(e.id) ?? null,
   }));
+
+  // Deceased pets get the in-memoriam screen instead of the full detail page.
+  if (pet.status === "deceased") {
+    return (
+      <DeceasedView pet={pet} photoUrl={photoUrl} eventsWithAttachments={eventsWithAttachments} />
+    );
+  }
 
   // Pending vaccine reminders, soonest first.
   const pendingVaccineReminders = await db

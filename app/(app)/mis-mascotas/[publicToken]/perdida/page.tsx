@@ -17,6 +17,9 @@ export default async function MarkPetLostPage({
   if (pet.status === "lost") {
     redirect(`/mis-mascotas/${pet.publicToken}`);
   }
+  if (pet.status === "deceased") {
+    redirect(`/mis-mascotas/${publicToken}`);
+  }
 
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
 

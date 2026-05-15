@@ -112,6 +112,33 @@ export default async function PickEventPage({
   if (!row) notFound();
   const pet = row.pet;
 
+  // Defense in depth: deceased pets can only add notes.
+  if (pet.status === "deceased") {
+    return (
+      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+        <div className="max-w-md mx-auto pt-8 space-y-8">
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}`}
+            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          >
+            ← Volver al perfil
+          </Link>
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Esta mascota está registrada como fallecida. Solo podés agregar notas.
+            </p>
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
+              className="inline-block px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+            >
+              + Agregar nota
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-md mx-auto pt-8 space-y-8">
