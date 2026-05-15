@@ -172,7 +172,7 @@ export default async function PetDetailPage({
           </div>
         )}
 
-        {/* Action buttons — placeholders for now */}
+        {/* Action buttons */}
         <section className="flex flex-wrap gap-3">
           <button
             type="button"
@@ -182,6 +182,12 @@ export default async function PetDetailPage({
           >
             Agregar evento (próximamente)
           </button>
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}/editar`}
+            className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+          >
+            Editar mascota
+          </Link>
           <Link
             href={`/p/${pet.publicToken}`}
             target="_blank"

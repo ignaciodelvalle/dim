@@ -164,6 +164,34 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `storage_path`, `mime_type`, `file_size`, `caption?`
 - `created_at`
 
+### `Notification` — per-user message history with read/archived state
+Distinct from `PetEvent`:
+- `PetEvent` = **immutable fact** about the world (the pet's life). Append-only.
+- `Notification` = **message to a user** with **mutable state** (unread → read → archived).
+
+Notifications often *project from* events (a `pet_registered` event with `potentially_dangerous_breed=true` produces a `ppp_registration_reminder` notification for the owner). Some are pure system messages (welcome, app updates) with no source event.
+
+Fields:
+- `id`, `user_id`
+- `notification_type` (text — kept free-text not enum so adding new types doesn't need a migration; current values: `welcome`, `ppp_registration_reminder`, planned: `vaccine_due`, `scan_alert`, `system_update`)
+- `title`, `body` (markdown allowed)
+- `severity` (enum: `info` / `success` / `warning` / `urgent`) — drives badge color in UI
+- `cta_label?`, `cta_url?` — optional call-to-action button
+- `related_pet_id?`, `related_event_id?` — backlinks to source domain entities
+- `read_at?` — null = unread
+- `archived_at?` — null = visible
+- `expires_at?` — optional auto-hide
+- `created_at`
+
+Indexes: partial index on `(user_id) where read_at IS NULL AND archived_at IS NULL` for unread-count queries; `(user_id, created_at)` for the inbox list.
+
+**How notifications get created.** Three sources:
+1. **Database triggers** — `welcome` on signup (handle_new_user trigger inserts both the profile row and the welcome notification atomically).
+2. **Server actions** — `createPetAction` and `updatePetAction` insert a `ppp_registration_reminder` when a pet's breed is in the dangerous list.
+3. **Future: scheduled jobs** — `vaccine_due` reminders fire from upcoming `Reminder` rows, generating notifications a few days before the due date.
+
+UI for browsing notifications is deferred to a future round; for now the rows materialize correctly in the database and can be inspected in Studio.
+
 ## Event catalog — 23 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).

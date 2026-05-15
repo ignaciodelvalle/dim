@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { NewPetForm } from "./NewPetForm";
+import { createPetAction } from "@/app/actions/pets";
+import { PetForm } from "@/components/PetForm";
 
 export default function NewPetPage() {
   // Auth is enforced by the (app) layout above us — no need to re-check here.
@@ -20,7 +21,7 @@ export default function NewPetPage() {
             Esta es la primera entrada en la libreta digital de tu mascota.
           </p>
         </div>
-        <NewPetForm />
+        <PetForm action={createPetAction} />
       </div>
     </main>
   );

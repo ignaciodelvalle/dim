@@ -43,6 +43,15 @@ export const trainingLevelEnum = pgEnum("training_level", [
   "professional",
 ]);
 
+// Notification severity drives the visual badge / color on the notifications
+// list and any future bell-icon indicator. See AGENTS.md → "Notifications".
+export const notificationSeverityEnum = pgEnum("notification_severity", [
+  "info",
+  "success",
+  "warning",
+  "urgent",
+]);
+
 export const petStatusEnum = pgEnum("pet_status", ["active", "lost", "deceased"]);
 
 export const ownershipRoleEnum = pgEnum("ownership_role", [
@@ -364,3 +373,54 @@ export type NewReminder = typeof reminders.$inferInsert;
 
 export type Attachment = typeof attachments.$inferSelect;
 export type NewAttachment = typeof attachments.$inferInsert;
+
+// ============================================================================
+// Notifications — per-user message history with read/archived state
+// ============================================================================
+// Distinct from PetEvents:
+//   - Events are immutable facts about the world (the pet's life).
+//   - Notifications are messages TO a user, with mutable state (read, archived).
+// Notifications often *project from* events — e.g. registering a pet with a
+// dangerous breed produces a `ppp_registration_reminder`. Some are pure
+// system messages (welcome, app updates) with no source event.
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    // Free text (not enum) so adding a new notification type doesn't need a
+    // migration. Validated in app code.
+    notificationType: text("notification_type").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    severity: notificationSeverityEnum("severity").notNull().default("info"),
+    // Optional call-to-action button.
+    ctaLabel: text("cta_label"),
+    ctaUrl: text("cta_url"),
+    // Optional links back to the domain entities that triggered this.
+    relatedPetId: uuid("related_pet_id").references(() => pets.id, { onDelete: "set null" }),
+    relatedEventId: uuid("related_event_id").references(() => petEvents.id, {
+      onDelete: "set null",
+    }),
+    // State.
+    readAt: timestamp("read_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userUnreadIdx: index("notifications_user_unread_idx")
+      .on(table.userId)
+      .where(sql`${table.readAt} IS NULL AND ${table.archivedAt} IS NULL`),
+    userCreatedIdx: index("notifications_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
