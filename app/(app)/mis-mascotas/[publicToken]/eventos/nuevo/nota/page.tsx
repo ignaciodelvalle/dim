@@ -1,9 +1,9 @@
-import { createVaccinationAction } from "@/app/actions/events";
+import { createNoteAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import Link from "next/link";
-import { VaccinationForm } from "./VaccinationForm";
+import { NoteForm } from "./NoteForm";
 
-export default async function NewVaccinationPage({
+export default async function NewNotePage({
   params,
 }: {
   params: Promise<{ publicToken: string }>;
@@ -13,7 +13,7 @@ export default async function NewVaccinationPage({
   if (!session) return null;
   const { pet } = session;
 
-  const boundAction = createVaccinationAction.bind(null, pet.publicToken);
+  const boundAction = createNoteAction.bind(null, pet.publicToken);
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
@@ -26,14 +26,13 @@ export default async function NewVaccinationPage({
         </Link>
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Vacuna
+            Nota
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Registrá una vacuna aplicada a {pet.name}. Si conocés la fecha de la próxima dosis,
-            creamos un recordatorio automático.
+            Cualquier observación sobre {pet.name} que valga la pena recordar.
           </p>
         </div>
-        <VaccinationForm action={boundAction} species={pet.species} />
+        <NoteForm action={boundAction} />
       </div>
     </main>
   );

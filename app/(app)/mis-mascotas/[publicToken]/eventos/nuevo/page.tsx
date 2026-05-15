@@ -25,13 +25,13 @@ const EVENT_OPTIONS: EventOption[] = [
     slug: "peso",
     label: "Peso",
     description: "Control de peso",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "vet",
     label: "Visita al veterinario",
     description: "Consulta general, diagnóstico",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "antiparasitario",
@@ -79,7 +79,7 @@ const EVENT_OPTIONS: EventOption[] = [
     slug: "nota",
     label: "Nota",
     description: "Observación general",
-    enabled: false,
+    enabled: true,
   },
 ];
 
