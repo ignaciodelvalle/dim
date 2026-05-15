@@ -174,14 +174,12 @@ export default async function PetDetailPage({
 
         {/* Action buttons */}
         <section className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled
-            className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Próximamente"
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
+            className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
           >
-            Agregar evento (próximamente)
-          </button>
+            + Agregar evento
+          </Link>
           <Link
             href={`/mis-mascotas/${pet.publicToken}/editar`}
             className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
@@ -207,32 +205,44 @@ export default async function PetDetailPage({
             <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin eventos todavía.</p>
           ) : (
             <ol className="space-y-3">
-              {events.map((event) => (
-                <li
-                  key={event.id}
-                  className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                      {eventTypeLabel(event.eventType)}
-                    </p>
-                    <time className="text-xs text-neutral-500 dark:text-neutral-500 shrink-0">
-                      {formatDateTime(event.occurredAt)}
-                    </time>
-                  </div>
-                  {event.notes && (
-                    <p className="text-sm text-neutral-700 dark:text-neutral-300">{event.notes}</p>
-                  )}
-                  <details className="text-xs text-neutral-500 dark:text-neutral-500">
-                    <summary className="cursor-pointer select-none hover:text-neutral-700 dark:hover:text-neutral-300">
-                      Ver detalle técnico
-                    </summary>
-                    <pre className="mt-2 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 overflow-x-auto text-[11px] leading-relaxed">
-                      {JSON.stringify(event.payload, null, 2)}
-                    </pre>
-                  </details>
-                </li>
-              ))}
+              {events.map((event) => {
+                const summary = eventPayloadSummary(event.eventType, event.payload);
+                return (
+                  <li
+                    key={event.id}
+                    className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                          {summary.primary ?? eventTypeLabel(event.eventType)}
+                        </p>
+                        {summary.secondary && (
+                          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                            {summary.secondary}
+                          </p>
+                        )}
+                      </div>
+                      <time className="text-xs text-neutral-500 dark:text-neutral-500 shrink-0">
+                        {formatDateTime(event.occurredAt)}
+                      </time>
+                    </div>
+                    {event.notes && (
+                      <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                        {event.notes}
+                      </p>
+                    )}
+                    <details className="text-xs text-neutral-500 dark:text-neutral-500">
+                      <summary className="cursor-pointer select-none hover:text-neutral-700 dark:hover:text-neutral-300">
+                        Ver detalle técnico
+                      </summary>
+                      <pre className="mt-2 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 overflow-x-auto text-[11px] leading-relaxed">
+                        {JSON.stringify(event.payload, null, 2)}
+                      </pre>
+                    </details>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </section>
@@ -250,4 +260,41 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       <dd className="text-neutral-900 dark:text-neutral-50">{value || "—"}</dd>
     </div>
   );
+}
+
+// Type-specific primary/secondary line for an event. Returns sensible labels
+// for the event types we render specially; falls back to null primary (which
+// the timeline replaces with the generic eventTypeLabel).
+function eventPayloadSummary(
+  eventType: string,
+  payload: unknown,
+): { primary: string | null; secondary: string | null } {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const str = (k: string): string | null => {
+    const v = p[k];
+    return typeof v === "string" && v.length > 0 ? v : null;
+  };
+
+  switch (eventType) {
+    case "vaccination_administered": {
+      const vaccine = str("vaccine_name");
+      const adminBy = str("administered_by");
+      const brand = str("brand");
+      const tail = [adminBy, brand].filter(Boolean).join(" · ") || null;
+      return {
+        primary: vaccine ? `Vacuna: ${vaccine}` : null,
+        secondary: tail,
+      };
+    }
+    case "microchip_implanted": {
+      const chip = str("chip_number");
+      const by = str("implanted_by");
+      return {
+        primary: chip ? `Microchip implantado · ${chip}` : null,
+        secondary: by,
+      };
+    }
+    default:
+      return { primary: null, secondary: null };
+  }
 }

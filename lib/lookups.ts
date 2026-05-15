@@ -56,3 +56,27 @@ export const INSURANCE_COMPANIES = [
   "Federación Patronal",
   "PetCheck",
 ];
+
+// Common vaccines administered in Argentine veterinary practice. Used as
+// autocomplete suggestions on the vaccination event form. Free text allowed.
+export const COMMON_VACCINES_DOG = [
+  "Antirrábica",
+  "Séxtuple (DHPPi-L)",
+  "Quíntuple (DHPPi)",
+  "Tos de las perreras (Bordetella)",
+  "Coronavirus canino",
+  "Giardia",
+];
+
+export const COMMON_VACCINES_CAT = [
+  "Antirrábica",
+  "Triple felina (FVRCP)",
+  "Leucemia felina (FeLV)",
+  "PIF (Peritonitis infecciosa)",
+];
+
+export function vaccinesForSpecies(species: string): string[] {
+  if (species === "dog") return COMMON_VACCINES_DOG;
+  if (species === "cat") return COMMON_VACCINES_CAT;
+  return [...new Set([...COMMON_VACCINES_DOG, ...COMMON_VACCINES_CAT])];
+}
