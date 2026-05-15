@@ -86,6 +86,23 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: cat ? cat.replace(/_/g, " ") : null,
       };
     }
+    case "medication_started": {
+      const drugName = str("drug_name");
+      const dose = str("dose");
+      const frequency = str("frequency");
+      const secondary = [dose, frequency].filter(Boolean).join(" · ") || null;
+      return {
+        primary: drugName ? `Inicio: ${drugName}` : null,
+        secondary,
+      };
+    }
+    case "medication_stopped": {
+      const reason = str("reason");
+      return {
+        primary: "Fin de medicación",
+        secondary: reason,
+      };
+    }
     case "status_changed": {
       const toStatus = str("to_status");
       const loc = str("last_known_location");

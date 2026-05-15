@@ -12,6 +12,8 @@ const FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }> = [
   { type: "deworming_administered", label: "Antiparasitarios" },
   { type: "sterilization_performed", label: "Esterilización" },
   { type: "microchip_implanted", label: "Microchip" },
+  { type: "medication_started", label: "Medicación · inicio" },
+  { type: "medication_stopped", label: "Medicación · fin" },
 ];
 
 type Event = {

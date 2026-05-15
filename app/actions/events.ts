@@ -668,6 +668,165 @@ export async function createMicrochipAction(
   redirect(`/mis-mascotas/${publicToken}`);
 }
 
+// ---------------------------------------------------------------------------
+// Medication start
+// ---------------------------------------------------------------------------
+
+export async function createMedicationStartAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const drugName = String(formData.get("drugName") ?? "").trim();
+  const dose = String(formData.get("dose") ?? "").trim();
+  const frequency = String(formData.get("frequency") ?? "").trim();
+  const prescribedBy = String(formData.get("prescribedBy") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!drugName) return { error: "Falta el nombre del medicamento." };
+  if (!dose) return { error: "Falta la dosis." };
+  if (!frequency) return { error: "Falta la frecuencia." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de inicio." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha de inicio inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "medication_started",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            drug_name: drugName,
+            dose,
+            frequency,
+            prescribed_by: prescribedBy,
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la medicación: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Medication end
+// ---------------------------------------------------------------------------
+
+export async function createMedicationEndAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const medicationStartedEventId = String(formData.get("medicationStartedEventId") ?? "").trim();
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!medicationStartedEventId) return { error: "Falta seleccionar la medicación." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de fin." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha de fin inválida." };
+
+  // Defense in depth: verify the referenced event belongs to this pet and is medication_started.
+  const [sourceEvent] = await db
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.id, medicationStartedEventId),
+        eq(petEvents.petId, pet.id),
+        eq(petEvents.eventType, "medication_started"),
+      ),
+    )
+    .limit(1);
+
+  if (!sourceEvent) return { error: "Medicación de origen inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "medication_stopped",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            medication_started_event_id: medicationStartedEventId,
+            reason,
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el fin de medicación: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
 export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) {

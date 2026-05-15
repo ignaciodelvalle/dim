@@ -1,0 +1,119 @@
+"use client";
+
+import type { EventFormState } from "@/app/actions/events";
+import { useActionState } from "react";
+import { AttachmentField } from "../AttachmentField";
+
+const initialState: EventFormState = { error: null };
+
+type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
+
+type OpenMedication = {
+  id: string;
+  drugName: string;
+  startedDate: string; // pre-formatted label
+};
+
+export function MedicationEndForm({
+  action,
+  openMedications,
+}: {
+  action: FormAction;
+  openMedications: OpenMedication[];
+}) {
+  const [state, formAction, isPending] = useActionState(action, initialState);
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <form action={formAction} className="space-y-5">
+      <div className="space-y-1.5">
+        <label
+          htmlFor="medicationStartedEventId"
+          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+        >
+          Medicación a cerrar<span className="text-red-500 ml-0.5">*</span>
+        </label>
+        <select
+          id="medicationStartedEventId"
+          name="medicationStartedEventId"
+          required
+          defaultValue=""
+          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        >
+          <option value="" disabled>
+            Seleccioná un medicamento...
+          </option>
+          {openMedications.map((med) => (
+            <option key={med.id} value={med.id}>
+              {med.drugName} · iniciado {med.startedDate}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="occurredAt"
+          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+        >
+          Fecha de fin<span className="text-red-500 ml-0.5">*</span>
+        </label>
+        <input
+          id="occurredAt"
+          name="occurredAt"
+          type="date"
+          required
+          defaultValue={today}
+          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="reason"
+          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+        >
+          Motivo (opcional)
+        </label>
+        <input
+          id="reason"
+          name="reason"
+          type="text"
+          placeholder="Tratamiento completo, efectos adversos..."
+          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="notes"
+          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+        >
+          Notas
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={3}
+          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        />
+      </div>
+
+      <AttachmentField />
+
+      {state.error && (
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          {state.error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={isPending}
+        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {isPending ? "Guardando..." : "Registrar fin de medicación"}
+      </button>
+    </form>
+  );
+}

@@ -49,13 +49,13 @@ const EVENT_OPTIONS: EventOption[] = [
     slug: "medicacion-inicio",
     label: "Inicio de medicación",
     description: "Comienzo de tratamiento",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "medicacion-fin",
     label: "Fin de medicación",
     description: "Cierre de tratamiento",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "microchip",
