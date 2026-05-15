@@ -827,6 +827,101 @@ export async function createMedicationEndAction(
   redirect(`/mis-mascotas/${publicToken}`);
 }
 
+// ---------------------------------------------------------------------------
+// Death record
+// ---------------------------------------------------------------------------
+
+const DEATH_CAUSES = ["known", "unknown", "natural", "disease", "accident", "euthanasia", "other"];
+const DISPOSITION_METHODS = ["cremation", "burial", "rendering", "unknown"];
+
+export async function createDeathRecordAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  if (pet.status === "deceased")
+    return { error: "Esta mascota ya está registrada como fallecida." };
+
+  const cause = String(formData.get("cause") ?? "").trim();
+  const causeDetail = String(formData.get("causeDetail") ?? "").trim() || null;
+  const confirmedByVet = formData.get("confirmedByVet") === "true";
+  const vetName = String(formData.get("vetName") ?? "").trim() || null;
+  const dispositionMethodRaw = String(formData.get("dispositionMethod") ?? "").trim();
+  const facility = String(formData.get("facility") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!DEATH_CAUSES.includes(cause)) return { error: "Causa de fallecimiento inválida." };
+  if (!occurredAtRaw) return { error: "Falta la fecha." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const dispositionMethod = dispositionMethodRaw === "" ? null : dispositionMethodRaw;
+  if (dispositionMethod !== null && !DISPOSITION_METHODS.includes(dispositionMethod)) {
+    return { error: "Método de disposición inválido." };
+  }
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "death_recorded",
+          occurredAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            cause,
+            cause_detail: causeDetail,
+            confirmed_by_vet: confirmedByVet || null,
+            vet_name: vetName,
+            disposition_method: dispositionMethod,
+            facility,
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
+      await tx
+        .update(pets)
+        .set({ status: "deceased", deceasedAt: occurredAt, updatedAt: now })
+        .where(eq(pets.id, pet.id));
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el fallecimiento: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
 export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) {

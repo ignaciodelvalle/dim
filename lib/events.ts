@@ -103,6 +103,37 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: reason,
       };
     }
+    case "death_recorded": {
+      const cause = str("cause");
+      const causeDetail = str("cause_detail");
+      const disposition = str("disposition_method");
+      const facility = str("facility");
+
+      const causeLabel: Record<string, string> = {
+        known: "Conocida",
+        unknown: "Desconocida",
+        natural: "Natural / vejez",
+        disease: "Enfermedad",
+        accident: "Accidente",
+        euthanasia: "Eutanasia",
+        other: "Otra",
+      };
+      const dispositionLabel: Record<string, string> = {
+        cremation: "Cremación",
+        burial: "Entierro",
+        rendering: "Reciclaje sanitario",
+        unknown: "No sé",
+      };
+
+      const showCause = cause && cause !== "other" && causeLabel[cause];
+      const primary = showCause ? `Fallecimiento · ${causeLabel[cause]}` : "Fallecimiento";
+
+      const dispositionStr = disposition ? (dispositionLabel[disposition] ?? null) : null;
+      const facilityStr = facility;
+      const secondary = [dispositionStr, facilityStr].filter(Boolean).join(" · ") || causeDetail;
+
+      return { primary, secondary: secondary || null };
+    }
     case "status_changed": {
       const toStatus = str("to_status");
       const loc = str("last_known_location");

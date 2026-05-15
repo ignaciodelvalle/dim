@@ -12,6 +12,7 @@ type EventOption = {
   label: string;
   description: string;
   enabled: boolean;
+  href?: string;
 };
 
 const EVENT_OPTIONS: EventOption[] = [
@@ -67,13 +68,13 @@ const EVENT_OPTIONS: EventOption[] = [
     slug: "estado",
     label: "Cambio de estado",
     description: "Perdida / encontrada",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "fallecimiento",
     label: "Fallecimiento",
     description: "Registro y método de disposición",
-    enabled: false,
+    enabled: true,
   },
   {
     slug: "nota",
@@ -131,49 +132,55 @@ export default async function PickEventPage({
         </div>
 
         <ul className="grid grid-cols-1 gap-2">
-          {EVENT_OPTIONS.map((option) => (
-            <li key={option.slug}>
-              {option.enabled ? (
-                <Link
-                  href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`}
-                  className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                        {option.label}
-                      </p>
-                      <p className="text-sm text-neutral-500 dark:text-neutral-500">
-                        {option.description}
-                      </p>
+          {EVENT_OPTIONS.map((option) => {
+            const href =
+              option.slug === "estado"
+                ? `/mis-mascotas/${pet.publicToken}/perdida`
+                : (option.href ?? `/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`);
+            return (
+              <li key={option.slug}>
+                {option.enabled ? (
+                  <Link
+                    href={href}
+                    className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                          {option.label}
+                        </p>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-500">
+                          {option.description}
+                        </p>
+                      </div>
+                      <span className="text-neutral-400 dark:text-neutral-600" aria-hidden>
+                        ›
+                      </span>
                     </div>
-                    <span className="text-neutral-400 dark:text-neutral-600" aria-hidden>
-                      ›
-                    </span>
-                  </div>
-                </Link>
-              ) : (
-                <div
-                  aria-disabled
-                  className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 opacity-50 cursor-not-allowed"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                        {option.label}
-                      </p>
-                      <p className="text-sm text-neutral-500 dark:text-neutral-500">
-                        {option.description}
-                      </p>
+                  </Link>
+                ) : (
+                  <div
+                    aria-disabled
+                    className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 opacity-50 cursor-not-allowed"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                          {option.label}
+                        </p>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-500">
+                          {option.description}
+                        </p>
+                      </div>
+                      <span className="text-xs text-neutral-500 dark:text-neutral-500">
+                        próximamente
+                      </span>
                     </div>
-                    <span className="text-xs text-neutral-500 dark:text-neutral-500">
-                      próximamente
-                    </span>
                   </div>
-                </div>
-              )}
-            </li>
-          ))}
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </main>
