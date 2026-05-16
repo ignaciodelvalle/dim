@@ -1003,8 +1003,27 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
 // Death record
 // ---------------------------------------------------------------------------
 
-const DEATH_CAUSES = ["known", "unknown", "natural", "disease", "accident", "euthanasia", "other"];
-const DISPOSITION_METHODS = ["cremation", "burial", "rendering", "unknown"];
+const DEATH_CAUSES = [
+  "known",
+  "unknown",
+  "natural",
+  "disease",
+  "accident",
+  "euthanasia",
+  "sudden",
+  "violent",
+  "other",
+];
+const DISPOSITION_METHODS = [
+  "cremation_collective",
+  "cremation_individual_ashes",
+  "authorized_cemetery",
+  "owner_burial",
+  "household_waste",
+  "rendering",
+  "unknown",
+];
+const VET_CONTACT_VALUES = ["yes", "no", "not_applicable"];
 
 export async function createDeathRecordAction(
   publicToken: string,
@@ -1026,6 +1045,12 @@ export async function createDeathRecordAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
+  const deathAtClinic = formData.get("deathAtClinic") === "true";
+  const clinicName = String(formData.get("clinicName") ?? "").trim() || null;
+  const vetContactedOwnerRaw = String(formData.get("vetContactedOwner") ?? "").trim();
+  const vetDecidedAlone = formData.get("vetDecidedAlone") === "true";
+  const ownerToPrivateCrematorium = formData.get("ownerToPrivateCrematorium") === "true";
+
   if (!DEATH_CAUSES.includes(cause)) return { error: "Causa de fallecimiento inválida." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
 
@@ -1035,6 +1060,26 @@ export async function createDeathRecordAction(
   const dispositionMethod = dispositionMethodRaw === "" ? null : dispositionMethodRaw;
   if (dispositionMethod !== null && !DISPOSITION_METHODS.includes(dispositionMethod)) {
     return { error: "Método de disposición inválido." };
+  }
+
+  const vetContactedOwner = vetContactedOwnerRaw === "" ? null : vetContactedOwnerRaw;
+  if (vetContactedOwner !== null && !VET_CONTACT_VALUES.includes(vetContactedOwner)) {
+    return { error: "Valor de contacto del veterinario inválido." };
+  }
+
+  if (clinicName && !deathAtClinic) {
+    return {
+      error: "Indicaste un nombre de clínica pero no marcaste que falleció en una veterinaria.",
+    };
+  }
+  if (vetContactedOwner && !deathAtClinic) {
+    return { error: "El contacto del veterinario solo aplica si falleció en una veterinaria." };
+  }
+  if (vetDecidedAlone && vetContactedOwner !== "no") {
+    return {
+      error:
+        "Solo se puede marcar 'vet decidió sin contacto' cuando el veterinario no logró contactar al propietario.",
+    };
   }
 
   const diseaseCodeRaw = String(formData.get("diseaseCode") ?? "").trim() || null;
@@ -1072,6 +1117,12 @@ export async function createDeathRecordAction(
             vet_name: vetName,
             disposition_method: dispositionMethod,
             facility,
+            // Vet-mediated branch (owner-as-proxy in v1; promotable to authorRole='vet' when portal lands)
+            death_at_clinic: deathAtClinic || null,
+            clinic_name: clinicName,
+            vet_contacted_owner: vetContactedOwner,
+            vet_decided_alone: vetDecidedAlone || null,
+            owner_to_private_crematorium: ownerToPrivateCrematorium || null,
             // Disease enrichment (only when cause === "disease")
             disease_code: diseaseCode,
             confirmed_by_lab: diseaseCode ? confirmedByLab : null,
