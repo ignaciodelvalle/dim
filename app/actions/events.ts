@@ -7,7 +7,7 @@
 // insert into pet_events (and optionally a Reminder) atomically, redirect
 // back to the pet's detail page.
 
-import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
+import { attachments, db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
@@ -1254,6 +1254,105 @@ export async function createClinicalInfoAction(
 
   redirect(`/mis-mascotas/${publicToken}`);
 }
+
+// ---------------------------------------------------------------------------
+// Dangerous-breed attestation (Ley CABA 4078 / Ley Prov 14.107)
+// ---------------------------------------------------------------------------
+
+const DANGEROUS_BREED_REGISTRIES = ["caba_4078", "prov_14107", "other"] as const;
+
+export async function createDangerousBreedAttestationAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const registry = String(formData.get("registry") ?? "").trim();
+  const registryId = String(formData.get("registryId") ?? "").trim() || null;
+  const attestedAtRaw = String(formData.get("attestedAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!(DANGEROUS_BREED_REGISTRIES as readonly string[]).includes(registry)) {
+    return { error: "Registro inválido. Elegí uno de los disponibles." };
+  }
+  if (!attestedAtRaw) return { error: "Falta la fecha de atestación." };
+  const attestedAt = parseDateInput(attestedAtRaw);
+  if (!attestedAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      // Single insert — payload is final. attached_documents is intentionally
+      // NOT stored in the payload: the attachments table already provides the
+      // join via event_id, matching the pattern used by sterilization /
+      // microchip / vaccination actions, and preserving the append-only
+      // discipline on pet_events (AGENTS.md → Core principles #2).
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "dangerous_breed_attested",
+          occurredAt: attestedAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            registry,
+            registry_id: registryId,
+            attested_at: attestedAt.toISOString().slice(0, 10),
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
+      // Mark any unread ppp_registration_reminder for this pet as read — the
+      // owner just acted on it. Mirrors the spec: "the notification (if unread)
+      // is auto-marked-read".
+      await tx
+        .update(notifications)
+        .set({ readAt: now })
+        .where(
+          and(
+            eq(notifications.userId, user.id),
+            eq(notifications.relatedPetId, pet.id),
+            eq(notifications.notificationType, "ppp_registration_reminder"),
+            isNull(notifications.readAt),
+          ),
+        );
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la atestación: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Status: found
+// ---------------------------------------------------------------------------
 
 export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);

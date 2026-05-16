@@ -360,9 +360,31 @@ export default async function PetDetailPage({
         </section>
 
         {pet.potentiallyDangerousBreed && (
-          <div className="p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
-            Esta mascota está marcada como raza potencialmente peligrosa (Ley CABA 4078, Ley
-            Provincial 14.107). Recordá registrarla en el registro provincial correspondiente.
+          <div className="p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 space-y-2">
+            <p className="text-xs text-amber-900 dark:text-amber-200">
+              Esta mascota está marcada como raza potencialmente peligrosa (Ley CABA 4078, Ley
+              Provincial 14.107). Recordá registrarla en el registro provincial correspondiente.
+            </p>
+            {(() => {
+              const latestAttestation = eventsWithAttachments.find(
+                (e) => e.eventType === "dangerous_breed_attested",
+              );
+              return latestAttestation ? (
+                <Link
+                  href={`/mis-mascotas/${pet.publicToken}/historial`}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-100"
+                >
+                  ✓ Atestación registrada — ver historial
+                </Link>
+              ) : (
+                <Link
+                  href={`/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`}
+                  className="inline-block px-3 py-1.5 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-xs font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+                >
+                  Registrar atestación de raza peligrosa
+                </Link>
+              );
+            })()}
           </div>
         )}
 

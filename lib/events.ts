@@ -64,6 +64,24 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: by,
       };
     }
+    case "dangerous_breed_attested": {
+      const registry = str("registry");
+      const registryId = str("registry_id");
+      const registryLabel =
+        registry === "caba_4078"
+          ? "CABA · Ley 4078"
+          : registry === "prov_14107"
+            ? "Prov. Bs. As. · Ley 14.107"
+            : registry === "other"
+              ? "Otro registro"
+              : null;
+      return {
+        primary: registryLabel
+          ? `Atestación PPP · ${registryLabel}`
+          : "Atestación de raza peligrosa",
+        secondary: registryId ? `Nº ${registryId}` : null,
+      };
+    }
     case "weight_recorded": {
       const kg = str("kg");
       return {
