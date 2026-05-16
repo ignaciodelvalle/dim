@@ -122,7 +122,7 @@ export async function createWelfareReportAction(
       .where(
         and(
           eq(ownerships.petId, subjectPetId),
-          eq(ownerships.userId, user.id),
+          eq(ownerships.ownerUserId, user.id),
           isNull(ownerships.endedAt),
         ),
       )

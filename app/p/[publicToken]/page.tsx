@@ -63,7 +63,7 @@ export default async function PublicCredentialPage({
     const [ownerRow] = await db
       .select({ profile: profiles })
       .from(ownerships)
-      .innerJoin(profiles, eq(profiles.id, ownerships.userId))
+      .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
       .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
       .limit(1);
 

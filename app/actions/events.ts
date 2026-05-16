@@ -41,7 +41,7 @@ async function requireOwnedPet(publicToken: string) {
     .where(
       and(
         eq(pets.publicToken, publicToken),
-        eq(ownerships.userId, user.id),
+        eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
     )
@@ -955,7 +955,7 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
     .where(
       and(
         eq(pets.id, reminderRow.petId),
-        eq(ownerships.userId, user.id),
+        eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
     )

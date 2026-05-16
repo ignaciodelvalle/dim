@@ -11,6 +11,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   doublePrecision,
   index,
@@ -55,13 +56,37 @@ export const notificationSeverityEnum = pgEnum("notification_severity", [
 
 export const petStatusEnum = pgEnum("pet_status", ["active", "lost", "deceased"]);
 
-export const ownershipRoleEnum = pgEnum("ownership_role", ["owner", "co_owner", "caretaker"]);
+// Custody role. See AGENTS.md → Ownership for semantics.
+// `owner`: permanent legal owner (person or org).
+// `co_owner`: schema-ready, UI deferred.
+// `shelter_custody`: temporary custody pending placement — used by refugios AND by
+//   individual citizens who pick up strays (the vecino-helps-stray case).
+// `foster`: temporary physical caregiver under an org's umbrella. Business rule
+//   (not enforced at DB level): requires owner_user_id + active
+//   organization_membership on the same org that holds the parallel shelter_custody row.
+// `caretaker`: lower-stakes helper (petsitter, daycare). Schema-ready, UI deferred.
+export const ownershipRoleEnum = pgEnum("ownership_role", [
+  "owner",
+  "co_owner",
+  "shelter_custody",
+  "foster",
+  "caretaker",
+]);
 
-// Who authored an event. Always `owner` in v1 (only owners write events).
-// `scanner` is for the credential_scanned event when an anonymous or
-// non-owner user loads the public credential page.
+// Who authored an event.
+// `owner` in v1 self-serve flows.
+// `scanner` is for credential_scanned events when an anonymous or non-owner user
+// loads the public credential page.
+// `shelter` activates when refugios author events on pets they hold in custody.
 // `vet`, `govt`, `system` activate in later phases.
-export const authorRoleEnum = pgEnum("author_role", ["owner", "scanner", "vet", "govt", "system"]);
+export const authorRoleEnum = pgEnum("author_role", [
+  "owner",
+  "scanner",
+  "vet",
+  "shelter",
+  "govt",
+  "system",
+]);
 
 export const reminderTypeEnum = pgEnum("reminder_type", [
   "vaccine",
@@ -81,6 +106,31 @@ export const petAcquisitionMethodEnum = pgEnum("pet_acquisition_method", [
   "gift",
   "born_in_litter",
   "other",
+]);
+
+// Organization classification. Kept open like `event_type` so adding a new type
+// is a one-line edit. See AGENTS.md → Organizations.
+export const orgTypeEnum = pgEnum("org_type", [
+  "clinic",
+  "shelter",
+  "rescue_network",
+  "sanitary_authority",
+  "other",
+]);
+
+export const orgStatusEnum = pgEnum("org_status", ["active", "suspended", "dissolved"]);
+
+// Role within an organization. See AGENTS.md → OrganizationMembership.
+// `can_write_pet_events` on the membership row gates author privileges
+// independently from role — transportistas may have role=member with false,
+// coordinators and vets typically true.
+export const organizationMembershipRoleEnum = pgEnum("organization_membership_role", [
+  "admin",
+  "coordinator",
+  "member",
+  "volunteer",
+  "foster",
+  "vet_individual",
 ]);
 
 export const welfareReportSubjectKindEnum = pgEnum("welfare_report_subject_kind", [
@@ -158,6 +208,18 @@ export const EVENT_TYPES = [
   "maltreatment_reported",
   // Unified clinical information event (collapses lab/imaging/surgery/allergy for v1 owner flow).
   "clinical_info_logged",
+  // Custody & adoption — schema-ready, UI deferred. See AGENTS.md → Custody & adoption.
+  "shelter_intake_recorded",
+  "foster_assigned",
+  "foster_ended",
+  "adoption_application_submitted",
+  "adoption_application_reviewed",
+  "adoption_application_approved",
+  "adoption_application_rejected",
+  "adoption_finalized",
+  "post_adoption_checkin",
+  "adoption_revoked",
+  "custody_transferred",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -266,11 +328,115 @@ export const pets = pgTable(
 );
 
 // ============================================================================
-// Ownership — who owns or owned each pet, with history
+// Organizations — peer to users (clinics, refugios, rescue networks, authorities)
 // ============================================================================
-// At most one row per pet has `ended_at IS NULL` (= the current owner).
-// Enforced by the partial unique index below. Multiple rows in history are
-// fine — transfers add a new row and set the previous row's `ended_at`.
+// See AGENTS.md → Organizations. Verification is admin-stamped after document
+// review (personería jurídica for refugios, matrícula for clinics, CUIT
+// cross-check). Unverified orgs can use the system but their events write with
+// author_verified=false, branding does not appear on public credentials, and
+// they are excluded from broadcast-target queries.
+
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicToken: text("public_token").notNull().unique(),
+    legalName: text("legal_name").notNull(),
+    displayName: text("display_name").notNull(),
+    orgType: orgTypeEnum("org_type").notNull(),
+    cuit: text("cuit").unique(),
+    personeriaJuridicaNumber: text("personeria_juridica_number"),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    website: text("website"),
+    avatarUrl: text("avatar_url"),
+    verified: boolean("verified").notNull().default(false),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedByUserId: uuid("verified_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    tier0ShowBranding: boolean("tier_0_show_branding").notNull().default(false),
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    status: orgStatusEnum("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => ({
+    orgTypeIdx: index("organizations_org_type_idx").on(table.orgType),
+    verifiedIdx: index("organizations_verified_idx").on(table.verified),
+  }),
+);
+
+// Coverage zones for each org — used to target lost-pet broadcasts and to
+// filter adoption listings by region. Multiple rows per org allowed.
+export const organizationCoverage = pgTable(
+  "organization_coverage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    orgIdx: index("organization_coverage_org_id_idx").on(table.organizationId),
+    jurisdictionIdx: index("organization_coverage_jurisdiction_idx").on(
+      table.jurisdictionProvince,
+      table.jurisdictionLocality,
+    ),
+  }),
+);
+
+// People ↔ orgs link. One user can hold memberships across many orgs.
+// `can_write_pet_events` gates author privileges independently of role.
+export const organizationMemberships = pgTable(
+  "organization_memberships",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    role: organizationMembershipRoleEnum("role").notNull(),
+    title: text("title"),
+    canWritePetEvents: boolean("can_write_pet_events").notNull().default(false),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    invitedByUserId: uuid("invited_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => ({
+    orgIdx: index("organization_memberships_org_id_idx").on(table.organizationId),
+    userIdx: index("organization_memberships_user_id_idx").on(table.userId),
+    activeIdx: index("organization_memberships_active_idx")
+      .on(table.organizationId, table.userId)
+      .where(sql`${table.leftAt} IS NULL`),
+  }),
+);
+
+// ============================================================================
+// Ownership — who holds custody of each pet, with history (polymorphic)
+// ============================================================================
+// Polymorphic holder: exactly one of (owner_user_id, owner_organization_id) is
+// set per row, enforced via CHECK constraint. Ownership is the projection; the
+// source of truth for transfers is always a custody_transferred or
+// adoption_finalized event.
+//
+// Active-owner constraint: at most one active row per pet WHERE role='owner'.
+// Multiple shelter_custody, foster, caretaker, or co_owner rows can coexist
+// with an active owner, or with each other when there is no permanent owner yet.
 
 export const ownerships = pgTable(
   "ownerships",
@@ -279,9 +445,10 @@ export const ownerships = pgTable(
     petId: uuid("pet_id")
       .notNull()
       .references(() => pets.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "cascade" }),
+    ownerUserId: uuid("owner_user_id").references(() => profiles.id, { onDelete: "cascade" }),
+    ownerOrganizationId: uuid("owner_organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     role: ownershipRoleEnum("role").notNull().default("owner"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -290,10 +457,15 @@ export const ownerships = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    oneActivePerPet: uniqueIndex("ownerships_one_active_per_pet")
+    polymorphicHolder: check(
+      "ownerships_polymorphic_holder",
+      sql`((${table.ownerUserId} IS NOT NULL)::int + (${table.ownerOrganizationId} IS NOT NULL)::int) = 1`,
+    ),
+    oneActiveOwnerPerPet: uniqueIndex("ownerships_one_active_owner_per_pet")
       .on(table.petId)
-      .where(sql`${table.endedAt} IS NULL`),
-    userIdIdx: index("ownerships_user_id_idx").on(table.userId),
+      .where(sql`${table.role} = 'owner' AND ${table.endedAt} IS NULL`),
+    ownerUserIdx: index("ownerships_owner_user_id_idx").on(table.ownerUserId),
+    ownerOrgIdx: index("ownerships_owner_organization_id_idx").on(table.ownerOrganizationId),
   }),
 );
 
@@ -317,6 +489,12 @@ export const petEvents = pgTable(
       onDelete: "set null",
     }),
     authorRole: authorRoleEnum("author_role").notNull().default("owner"),
+    // Institutional actor when the author acted on behalf of an org (clinic vet,
+    // refugio coordinator, sanitary-authority employee). Distinct from
+    // recorded_by_user_id, which always names the individual person.
+    authorOrganizationId: uuid("author_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
     authorVerified: boolean("author_verified").notNull().default(false),
     payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
     notes: text("notes"),
@@ -402,6 +580,15 @@ export type NewProfile = typeof profiles.$inferInsert;
 
 export type Pet = typeof pets.$inferSelect;
 export type NewPet = typeof pets.$inferInsert;
+
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
+
+export type OrganizationCoverage = typeof organizationCoverage.$inferSelect;
+export type NewOrganizationCoverage = typeof organizationCoverage.$inferInsert;
+
+export type OrganizationMembership = typeof organizationMemberships.$inferSelect;
+export type NewOrganizationMembership = typeof organizationMemberships.$inferInsert;
 
 export type Ownership = typeof ownerships.$inferSelect;
 export type NewOwnership = typeof ownerships.$inferInsert;

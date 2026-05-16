@@ -33,7 +33,7 @@ export async function logScanAction(publicToken: string): Promise<void> {
       .where(
         and(
           eq(ownerships.petId, pet.id),
-          eq(ownerships.userId, user.id),
+          eq(ownerships.ownerUserId, user.id),
           isNull(ownerships.endedAt),
         ),
       )

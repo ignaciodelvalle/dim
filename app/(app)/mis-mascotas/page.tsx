@@ -21,7 +21,7 @@ export default async function MisMascotasPage() {
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(and(eq(ownerships.userId, user.id), isNull(ownerships.endedAt)));
+    .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)));
 
   // Unread notification count — drives the bell badge.
   const [{ unreadCount }] = await db

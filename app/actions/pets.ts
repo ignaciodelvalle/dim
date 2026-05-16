@@ -232,7 +232,7 @@ export async function createPetAction(
 
       await tx.insert(ownerships).values({
         petId: newPet.id,
-        userId: user.id,
+        ownerUserId: user.id,
         role: "owner",
         startedAt: now,
       });
@@ -432,7 +432,7 @@ export async function updatePetAction(
     .where(
       and(
         eq(pets.publicToken, publicToken),
-        eq(ownerships.userId, user.id),
+        eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
     )
