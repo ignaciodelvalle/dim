@@ -187,11 +187,12 @@ export default async function PetDetailPage({
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Fetch the pet + verify ownership in a single query. If the user doesn't
-  // own this pet (or it doesn't exist) we 404 — same response either way, so
-  // we don't leak the existence of pets the user can't access.
+  // Fetch the pet + verify custodianship in a single query. If the user
+  // doesn't have ANY active ownership (owner OR shelter_custody) over this
+  // pet we 404 — same response either way, so we don't leak the existence
+  // of pets the user can't access.
   const [result] = await db
-    .select({ pet: pets, photo: attachments })
+    .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
@@ -208,8 +209,9 @@ export default async function PetDetailPage({
     notFound();
   }
 
-  const { pet, photo } = result;
+  const { pet, photo, ownershipRole } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
+  const isTransit = ownershipRole === "shelter_custody";
 
   // Event timeline, newest first. Self-scans are filtered at the DB level
   // so the JS-side timeline doesn't have to know about credential_scanned
@@ -283,6 +285,8 @@ export default async function PetDetailPage({
         >
           ← Mis mascotas
         </Link>
+
+        {isTransit && <TransitBanner petName={pet.name} />}
 
         {/* Hero: photo + name + key facts */}
         <section className="flex items-start gap-5">
@@ -372,14 +376,31 @@ export default async function PetDetailPage({
               const latestAttestation = eventsWithAttachments.find(
                 (e) => e.eventType === "dangerous_breed_attested",
               );
-              return latestAttestation ? (
-                <Link
-                  href={`/mis-mascotas/${pet.publicToken}/historial`}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-100"
-                >
-                  ✓ Atestación registrada — ver historial
-                </Link>
-              ) : (
+              if (latestAttestation) {
+                return (
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}/historial`}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-100"
+                  >
+                    ✓ Atestación registrada — ver historial
+                  </Link>
+                );
+              }
+              // Transit custodians can't atestar — the legal PPP registry
+              // obligation belongs to the legal owner, not a caretaker.
+              if (isTransit) {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    title="Lo registra el dueño cuando aparezca"
+                    className="inline-block px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium text-amber-800 dark:text-amber-300 opacity-60 cursor-not-allowed"
+                  >
+                    Registrar atestación de raza peligrosa
+                  </button>
+                );
+              }
+              return (
                 <Link
                   href={`/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`}
                   className="inline-block px-3 py-1.5 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-xs font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
@@ -654,6 +675,35 @@ function MedicationDosesSection({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function TransitBanner({ petName }: { petName: string }) {
+  return (
+    <section className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
+      <p className="text-sm text-amber-900 dark:text-amber-200">
+        Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
+        viaja con la mascota.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled
+          title="Próximamente"
+          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200 opacity-60 cursor-not-allowed"
+        >
+          Convertir en mi mascota
+        </button>
+        <button
+          type="button"
+          disabled
+          title="Próximamente"
+          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200 opacity-60 cursor-not-allowed"
+        >
+          Buscar nuevo hogar
+        </button>
+      </div>
     </section>
   );
 }

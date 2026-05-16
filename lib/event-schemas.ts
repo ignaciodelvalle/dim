@@ -71,6 +71,12 @@ const petRegistered = z
         .nullable(),
       has_photo: z.boolean(),
       has_microchip: z.boolean(),
+      // "owner" by default; "shelter_custody_by_citizen" for the vecino-helps-
+      // stray case (AGENTS.md → Organizations). Surfaces the custody decision
+      // in the immutable log so future projections can filter without joining
+      // ownerships. Defaulted on parse so events written before this field
+      // landed still validate.
+      custody_kind: z.enum(["owner", "shelter_custody_by_citizen"]).default("owner"),
     }),
   )
   .strict();

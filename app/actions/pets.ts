@@ -73,6 +73,12 @@ type ParsedPet = {
   potentiallyDangerousBreed: boolean;
   acquisitionMethod: AcquisitionMethod | null;
   emergencyInfoVisible: boolean;
+  // "owner" by default. "foster_in_transit" is the vecino-helps-stray case
+  // (AGENTS.md → Organizations): the user is caretaking, not claiming
+  // ownership. Drives ownerships.role at insert and gets recorded in the
+  // pet_registered payload so future projections don't have to join ownerships.
+  // Edits do NOT change this — changing custody is a separate flow.
+  custodyKind: "owner" | "foster_in_transit";
 };
 
 function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | null } {
@@ -141,6 +147,10 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
     ? (acquisitionMethodRaw as AcquisitionMethod)
     : null;
 
+  const custodyKindRaw = String(formData.get("custodyKind") ?? "owner").trim();
+  const custodyKind: "owner" | "foster_in_transit" =
+    custodyKindRaw === "foster_in_transit" ? "foster_in_transit" : "owner";
+
   return {
     parsed: {
       name,
@@ -179,6 +189,7 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
       acquisitionMethod,
       emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
+      custodyKind,
     },
     error: null,
   };
@@ -240,10 +251,14 @@ export async function createPetAction(
         })
         .returning();
 
+      // Custody role: foster_in_transit → shelter_custody (vecino-helps-stray
+      // case from AGENTS.md → Organizations); default → owner.
+      const ownershipRole =
+        parsed.custodyKind === "foster_in_transit" ? "shelter_custody" : "owner";
       await tx.insert(ownerships).values({
         petId: newPet.id,
         ownerUserId: user.id,
-        role: "owner",
+        role: ownershipRole,
         startedAt: now,
       });
 
@@ -290,6 +305,8 @@ export async function createPetAction(
         acquisition_method: parsed.acquisitionMethod,
         has_photo: upload.uploadedPath !== null,
         has_microchip: parsed.microchipId !== null,
+        custody_kind:
+          parsed.custodyKind === "foster_in_transit" ? "shelter_custody_by_citizen" : "owner",
       });
       const registeredEvent = await tx
         .insert(petEvents)
@@ -324,7 +341,10 @@ export async function createPetAction(
       }
 
       // Auto-generate the PPP-registration reminder notification.
-      if (parsed.potentiallyDangerousBreed) {
+      // Suppressed for foster_in_transit custodians — the legal obligation to
+      // inscribe in the provincial PPP registry belongs to the legal owner,
+      // not a transitional caretaker. Sending it to a vecino would be misleading.
+      if (parsed.potentiallyDangerousBreed && parsed.custodyKind !== "foster_in_transit") {
         await tx.insert(notifications).values({
           userId: user.id,
           notificationType: "ppp_registration_reminder",
