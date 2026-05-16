@@ -1,15 +1,76 @@
 "use client";
 
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
-import { useActionState } from "react";
+import { createPetAction } from "@/app/actions/pets";
+import { PetForm } from "@/components/PetForm";
+import Link from "next/link";
+import { useActionState, useEffect, useState } from "react";
 
-const initialState: AuthFormState = { error: null };
+const initialAuthState: AuthFormState = { error: null };
+
+// Two-step inline signup per AGENTS.md → v1 screens §Signup. Step 1 creates
+// the auth user (signupAction returns { ok: true } instead of redirecting so
+// we can transition on the same page without a router push). Step 2 collects
+// the first pet via PetForm in compact mode. createPetAction reads the
+// active Supabase session (set by signUp in step 1) and redirects to
+// /mis-mascotas on success.
+//
+// Partial-create handling: if step 2 errors after step 1 succeeded, the
+// PetForm surfaces its own error inline, and the always-visible escape
+// note below the form points the (already authenticated) user to
+// /mis-mascotas so they can add a pet later — no rollback needed.
 
 export function SignupForm() {
-  const [state, formAction, isPending] = useActionState(signupAction, initialState);
+  const [step, setStep] = useState<"account" | "pet">("account");
+  const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
+
+  useEffect(() => {
+    if (authState.ok) setStep("pet");
+  }, [authState.ok]);
+
+  if (step === "pet") {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
+            Paso 2 de 2
+          </p>
+          <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            Cargá tu primera mascota
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto
+            después.
+          </p>
+        </div>
+
+        <PetForm
+          action={createPetAction}
+          compact
+          submitLabel="Crear mascota y entrar"
+          pendingLabel="Creando…"
+        />
+
+        <p className="text-center text-xs text-neutral-500 dark:text-neutral-500">
+          Tu cuenta ya está creada. Podés{" "}
+          <Link
+            href="/mis-mascotas"
+            className="font-medium text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          >
+            cargar tu mascota después desde Mis mascotas
+          </Link>{" "}
+          si preferís.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
+      <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500 text-center">
+        Paso 1 de 2
+      </p>
+
       <button
         type="button"
         disabled
@@ -25,7 +86,7 @@ export function SignupForm() {
         <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
       </div>
 
-      <form action={formAction} className="space-y-4">
+      <form action={authFormAction} className="space-y-4">
         <Field
           id="displayName"
           name="displayName"
@@ -53,18 +114,18 @@ export function SignupForm() {
           hint="Mínimo 8 caracteres."
         />
 
-        {state.error && (
+        {authState.error && (
           <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-            {state.error}
+            {authState.error}
           </p>
         )}
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={authPending}
           className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isPending ? "Creando cuenta..." : "Crear cuenta"}
+          {authPending ? "Creando cuenta..." : "Continuar"}
         </button>
       </form>
     </div>
