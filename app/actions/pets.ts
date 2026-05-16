@@ -70,6 +70,7 @@ type ParsedPet = {
   jurisdictionLocality: string | null;
   potentiallyDangerousBreed: boolean;
   acquisitionMethod: AcquisitionMethod | null;
+  emergencyInfoVisible: boolean;
 };
 
 function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | null } {
@@ -170,6 +171,7 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       jurisdictionLocality: String(formData.get("locality") ?? "").trim() || null,
       potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
       acquisitionMethod,
+      emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
     },
     error: null,
   };
@@ -227,6 +229,7 @@ export async function createPetAction(
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
           acquisitionMethod: parsed.acquisitionMethod,
+          emergencyInfoVisible: parsed.emergencyInfoVisible,
         })
         .returning();
 
@@ -451,9 +454,15 @@ export async function updatePetAction(
   const isChipPresent = !!parsed.microchipId;
   const chipNewlyAdded = !wasChipPresent && isChipPresent;
   const becamePPP = !existing.pet.potentiallyDangerousBreed && parsed.potentiallyDangerousBreed;
+  // emergencyInfoVisible is intentionally NOT in diffPet — it is a UI preference,
+  // not a fact about the pet, so flipping it does not emit a pet_profile_updated
+  // event. We still persist it on the row when it changes.
+  const flagChanged = parsed.emergencyInfoVisible !== existing.pet.emergencyInfoVisible;
+  const hasContentChanges = changes.length > 0 || upload.uploadedPath !== null;
 
-  // Skip the whole transaction if nothing changed (and no new photo).
-  if (changes.length === 0 && !upload.uploadedPath) {
+  // Skip the whole transaction if nothing changed at all (no edits, no new
+  // photo, no flag flip).
+  if (!hasContentChanges && !flagChanged) {
     redirect(`/mis-mascotas/${publicToken}`);
   }
 
@@ -486,6 +495,7 @@ export async function updatePetAction(
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
           acquisitionMethod: parsed.acquisitionMethod,
+          emergencyInfoVisible: parsed.emergencyInfoVisible,
           updatedAt: now,
         })
         .where(eq(pets.id, existing.pet.id));
@@ -507,21 +517,42 @@ export async function updatePetAction(
           .where(eq(pets.id, existing.pet.id));
       }
 
-      const updateEvent = await tx
-        .insert(petEvents)
-        .values({
-          petId: existing.pet.id,
-          eventType: "pet_profile_updated",
-          occurredAt: now,
-          recordedAt: now,
-          recordedByUserId: user.id,
-          authorRole: "owner",
-          payload: {
-            changes,
-            photo_replaced: upload.uploadedPath !== null,
-          },
-        })
-        .returning();
+      // Only emit pet_profile_updated when actual content (or photo) changed.
+      // A flag-only flip (e.g. emergencyInfoVisible toggle) updates the row
+      // above but produces no event — see AGENTS.md → Core principles #2:
+      // events are facts about the pet, not UI preferences.
+      if (hasContentChanges) {
+        const updateEvent = await tx
+          .insert(petEvents)
+          .values({
+            petId: existing.pet.id,
+            eventType: "pet_profile_updated",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: user.id,
+            authorRole: "owner",
+            payload: {
+              changes,
+              photo_replaced: upload.uploadedPath !== null,
+            },
+          })
+          .returning();
+
+        if (becamePPP) {
+          await tx.insert(notifications).values({
+            userId: user.id,
+            notificationType: "ppp_registration_reminder",
+            title: `${parsed.name}: registrá tu PPP en el provincial`,
+            body: `Tu mascota fue marcada como raza potencialmente peligrosa por ${parsed.breed ?? "su raza"}. La Ley CABA 4078 / Ley Provincial 14.107 requiere que la inscribas en el registro provincial correspondiente.`,
+            severity: "warning",
+            ctaLabel: "Más info sobre PPP",
+            ctaUrl:
+              "https://www.argentina.gob.ar/justicia/derechofacil/leysimple/maltrato-animales",
+            relatedPetId: existing.pet.id,
+            relatedEventId: updateEvent[0].id,
+          });
+        }
+      }
 
       if (chipNewlyAdded) {
         await tx.insert(petEvents).values({
@@ -538,20 +569,6 @@ export async function updatePetAction(
             location_on_body: parsed.microchipLocation,
             implant_date_known: !!parsed.microchipImplantedAt,
           },
-        });
-      }
-
-      if (becamePPP) {
-        await tx.insert(notifications).values({
-          userId: user.id,
-          notificationType: "ppp_registration_reminder",
-          title: `${parsed.name}: registrá tu PPP en el provincial`,
-          body: `Tu mascota fue marcada como raza potencialmente peligrosa por ${parsed.breed ?? "su raza"}. La Ley CABA 4078 / Ley Provincial 14.107 requiere que la inscribas en el registro provincial correspondiente.`,
-          severity: "warning",
-          ctaLabel: "Más info sobre PPP",
-          ctaUrl: "https://www.argentina.gob.ar/justicia/derechofacil/leysimple/maltrato-animales",
-          relatedPetId: existing.pet.id,
-          relatedEventId: updateEvent[0].id,
         });
       }
     });

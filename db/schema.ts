@@ -312,6 +312,11 @@ export const pets = pgTable(
     // How the owner came to have this pet. Nullable so existing rows survive db:push
     // without a default. Collected at registration and included in pet_registered payload.
     acquisitionMethod: petAcquisitionMethodEnum("acquisition_method"),
+    // Owner-toggled "this pet takes daily medication — contact me" banner on the
+    // public credential page. UI preference, NOT a fact about the pet — flipping
+    // this flag does NOT emit a pet_profile_updated event. Tier 0+ per
+    // AGENTS.md → Privacy tiers; the banner reveals no PII beyond itself.
+    emergencyInfoVisible: boolean("emergency_info_visible").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
