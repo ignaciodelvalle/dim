@@ -87,6 +87,7 @@ export default async function RefugioPage() {
   const canDecideRequests = granted.has("capability.grant");
   const canReadHeld = granted.has("pet.read_held");
   const canIntake = granted.has("intake.create");
+  const canReviewAdoptions = granted.has("adoption.review");
 
   // Load the most recent grant per capability for this membership so the row
   // shows the current state (pending / denied / revoked) when there's no
@@ -149,7 +150,7 @@ export default async function RefugioPage() {
           )}
         </header>
 
-        {(canReadHeld || canIntake) && (
+        {(canReadHeld || canIntake || canReviewAdoptions) && (
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {canReadHeld && (
               <Link
@@ -170,6 +171,17 @@ export default async function RefugioPage() {
                 <p className="text-sm font-semibold">Registrar ingreso</p>
                 <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                   Dar de alta un animal que entra a custodia del refugio.
+                </p>
+              </Link>
+            )}
+            {canReviewAdoptions && (
+              <Link
+                href="/refugio/checkins"
+                className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+              >
+                <p className="text-sm font-semibold">Check-ins post-adopción</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                  Seguimiento de los adoptantes en las ventanas pactadas.
                 </p>
               </Link>
             )}
