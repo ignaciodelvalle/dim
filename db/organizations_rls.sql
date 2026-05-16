@@ -120,28 +120,11 @@ create policy "Members can read peers in same org"
 
 -- No insert / update / delete in v1.
 
--- ============================================================================
--- Stub: future pet_events org-attributed write policy
--- ============================================================================
--- Activate this when the refugio / professional portal lands. Owner-self writes
--- (author_organization_id IS NULL) remain unaffected. Org-attributed writes
--- require an active membership with can_write_pet_events = true.
---
--- alter table public.pet_events enable row level security;
---
--- drop policy if exists "pet_events_org_authored_insert" on public.pet_events;
--- create policy "pet_events_org_authored_insert"
---   on public.pet_events
---   for insert
---   to authenticated
---   with check (
---     author_organization_id is null
---     or exists (
---       select 1
---       from public.organization_memberships m
---       where m.organization_id = pet_events.author_organization_id
---         and m.user_id = auth.uid()
---         and m.left_at is null
---         and m.can_write_pet_events = true
---     )
---   );
+-- ----------------------------------------------------------------------------
+-- pet_events org-attributed write policy
+-- ----------------------------------------------------------------------------
+-- Owner-self writes (author_organization_id IS NULL) are gated by db/rls.sql.
+-- The org-attributed branch (author_organization_id IS NOT NULL gated on an
+-- active organization_membership with can_write_pet_events = true) will be
+-- added in db/rls.sql when the refugio / professional portal lands. Until
+-- then, org-attributed inserts via PostgREST are denied.
