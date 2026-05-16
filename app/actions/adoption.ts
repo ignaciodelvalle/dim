@@ -14,9 +14,20 @@
 // trigger is the OTHER source of profiles rows, not the only one.
 
 import { randomUUID } from "node:crypto";
-import { db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
+import {
+  attachments,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  reminders,
+} from "@/db";
 import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { createClient } from "@/lib/supabase/server";
+import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -119,6 +130,28 @@ export async function finalizeAdoptionAction(
   const now = new Date();
   const authorVerified = organization.verified;
 
+  // Optional adoption contract upload. Upload happens BEFORE the DB
+  // transaction because storage writes are out-of-band; on tx failure
+  // we clean up the orphaned object to avoid bucket leakage. The
+  // attachment row's UUID is generated upfront so the same id can be
+  // written into the adoption_finalized payload (contract_attachment_id)
+  // and the attachments row in the same tx, giving the event payload
+  // a stable forward reference without a second update.
+  const supabase = await createClient();
+  const contractFile = formData.get("contract") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, contractFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+  const contractAttachmentId = upload.uploadedPath ? randomUUID() : null;
+
+  async function cleanupOrphan(): Promise<void> {
+    if (!upload.uploadedPath) return;
+    try {
+      await supabase.storage.from("event-attachments").remove([upload.uploadedPath]);
+    } catch {
+      // Swallow — the row was never inserted, the file is orphaned at worst.
+    }
+  }
+
   try {
     await db.transaction(async (tx) => {
       // Stub profile insert (no auth.users row). The adopter claims via DNI
@@ -160,7 +193,7 @@ export async function finalizeAdoptionAction(
         previous_owner_organization_id: organization.id,
         adopter_user_id: adopterUserId,
         foster_user_id: fosterUserId,
-        contract_attachment_id: null,
+        contract_attachment_id: contractAttachmentId,
         post_adoption_followup_months: followupMonths,
         notes,
       });
@@ -178,6 +211,20 @@ export async function finalizeAdoptionAction(
           payload,
         })
         .returning({ id: petEvents.id });
+
+      // Persist the contract attachment row with the explicit upfront UUID
+      // so the event payload's contract_attachment_id is a real FK target.
+      if (upload.uploadedPath && contractAttachmentId) {
+        await tx.insert(attachments).values({
+          id: contractAttachmentId,
+          petId: pet.id,
+          eventId: adoptionEvent.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "application/pdf",
+          fileSize: upload.size ?? 0,
+        });
+      }
 
       // Schedule post-adoption check-in reminders for the adopter. Skipped
       // for stub profiles (no auth.users row to read the reminder) and when
@@ -234,6 +281,7 @@ export async function finalizeAdoptionAction(
       }
     });
   } catch (err) {
+    await cleanupOrphan();
     return {
       error: `No se pudo finalizar la adopción: ${
         err instanceof Error ? err.message : "error desconocido"
