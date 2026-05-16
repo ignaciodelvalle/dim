@@ -5,6 +5,7 @@
 // the page render itself stays a pure read.
 
 import { db, ownerships, petEvents, pets } from "@/db";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -42,6 +43,10 @@ export async function logScanAction(publicToken: string): Promise<void> {
   }
 
   const now = new Date();
+  const eventPayload = validateEventPayload("credential_scanned", {
+    is_self_scan: isSelfScan,
+    viewer_authenticated: !!user,
+  });
   await db.insert(petEvents).values({
     petId: pet.id,
     eventType: "credential_scanned",
@@ -49,9 +54,6 @@ export async function logScanAction(publicToken: string): Promise<void> {
     recordedAt: now,
     recordedByUserId: user?.id ?? null,
     authorRole: isSelfScan ? "owner" : "scanner",
-    payload: {
-      is_self_scan: isSelfScan,
-      viewer_authenticated: !!user,
-    },
+    payload: eventPayload,
   });
 }

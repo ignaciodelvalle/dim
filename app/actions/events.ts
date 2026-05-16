@@ -11,6 +11,7 @@ import { attachments, db, notifications, ownerships, petEvents, pets, reminders 
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
 import {
@@ -118,6 +119,13 @@ export async function createVaccinationAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("vaccination_administered", {
+        vaccine_name: vaccineName,
+        brand,
+        batch,
+        administered_by: administeredBy,
+        next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -127,13 +135,7 @@ export async function createVaccinationAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            vaccine_name: vaccineName,
-            brand,
-            batch,
-            administered_by: administeredBy,
-            next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -216,6 +218,7 @@ export async function createWeightAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("weight_recorded", { kg: kgStr });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -225,7 +228,7 @@ export async function createWeightAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: { kg: kgStr },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -289,6 +292,7 @@ export async function createNoteAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("note_added", { category, text });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -298,7 +302,7 @@ export async function createNoteAction(
           recordedAt: new Date(),
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: { category, text },
+          payload: eventPayload,
           notes: null,
         })
         .returning();
@@ -357,6 +361,12 @@ export async function createVetVisitAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("vet_visit_logged", {
+        reason,
+        diagnosis,
+        vet_name: vetName,
+        clinic,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -366,7 +376,7 @@ export async function createVetVisitAction(
           recordedAt: new Date(),
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: { reason, diagnosis, vet_name: vetName, clinic },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -433,6 +443,12 @@ export async function setPetLostAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("status_changed", {
+        from_status: fromStatus,
+        to_status: "lost",
+        location_description: locationDescription,
+        reason,
+      });
       await tx.insert(petEvents).values({
         petId: pet.id,
         eventType: "status_changed",
@@ -448,12 +464,7 @@ export async function setPetLostAction(
         // a coordinate, so the rule doesn't apply.
         locationLat,
         locationLng,
-        payload: {
-          from_status: fromStatus,
-          to_status: "lost",
-          location_description: locationDescription,
-          reason,
-        },
+        payload: eventPayload,
       });
       await tx.update(pets).set({ status: "lost", updatedAt: now }).where(eq(pets.id, pet.id));
     });
@@ -505,6 +516,11 @@ export async function createDewormingAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("deworming_administered", {
+        product,
+        type,
+        next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -514,11 +530,7 @@ export async function createDewormingAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            product,
-            type,
-            next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -589,6 +601,11 @@ export async function createSterilizationAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("sterilization_performed", {
+        procedure,
+        performed_by: performedBy,
+        clinic,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -598,7 +615,7 @@ export async function createSterilizationAction(
           recordedAt: new Date(),
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: { procedure, performed_by: performedBy, clinic },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -657,6 +674,12 @@ export async function createMicrochipAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("microchip_implanted", {
+        chip_number: chipNumber,
+        country_code: countryCode,
+        implanted_by: implantedBy,
+        location_on_body: locationOnBody,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -666,12 +689,7 @@ export async function createMicrochipAction(
           recordedAt: new Date(),
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            chip_number: chipNumber,
-            country_code: countryCode,
-            implanted_by: implantedBy,
-            location_on_body: locationOnBody,
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -781,6 +799,17 @@ export async function createMedicationStartAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("medication_started", {
+        drug_name: drugName,
+        dose,
+        frequency,
+        prescribed_by: prescribedBy,
+        drug_code: matchedDrug?.code ?? null,
+        first_dose_at: firstDoseAt.toISOString(),
+        duration_days: durationDays,
+        custom_hours: frequency === "custom" ? customHours : null,
+        schedule_count: schedule.length,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -790,17 +819,7 @@ export async function createMedicationStartAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            drug_name: drugName,
-            dose,
-            frequency,
-            prescribed_by: prescribedBy,
-            drug_code: matchedDrug?.code ?? null,
-            first_dose_at: firstDoseAt.toISOString(),
-            duration_days: durationDays,
-            custom_hours: frequency === "custom" ? customHours : null,
-            schedule_count: schedule.length,
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -889,6 +908,10 @@ export async function createMedicationEndAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("medication_stopped", {
+        medication_started_event_id: medicationStartedEventId,
+        reason,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -898,10 +921,7 @@ export async function createMedicationEndAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            medication_started_event_id: medicationStartedEventId,
-            reason,
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -998,6 +1018,11 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
       await tx.update(reminders).set({ completedAt: now }).where(eq(reminders.id, reminderId));
 
       // Dual-write: insert a medication_dose_taken event for full audit trail.
+      const eventPayload = validateEventPayload("medication_dose_taken", {
+        medication_started_event_id: reminderRow.sourceEventId ?? null,
+        scheduled_for: reminderRow.dueAt.toISOString(),
+        reminder_id: reminderId,
+      });
       await tx.insert(petEvents).values({
         petId: reminderRow.petId,
         eventType: "medication_dose_taken",
@@ -1005,11 +1030,7 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
         recordedAt: now,
         recordedByUserId: user.id,
         authorRole: "owner",
-        payload: {
-          medication_started_event_id: reminderRow.sourceEventId ?? null,
-          scheduled_for: reminderRow.dueAt.toISOString(),
-          reminder_id: reminderId,
-        },
+        payload: eventPayload,
       });
     });
   } catch (err) {
@@ -1125,6 +1146,24 @@ export async function createDeathRecordAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("death_recorded", {
+        cause,
+        cause_detail: causeDetail,
+        confirmed_by_vet: confirmedByVet || null,
+        vet_name: vetName,
+        disposition_method: dispositionMethod,
+        facility,
+        // Vet-mediated branch (owner-as-proxy in v1; promotable to authorRole='vet' when portal lands)
+        death_at_clinic: deathAtClinic || null,
+        clinic_name: clinicName,
+        vet_contacted_owner: vetContactedOwner,
+        vet_decided_alone: vetDecidedAlone || null,
+        owner_to_private_crematorium: ownerToPrivateCrematorium || null,
+        // Disease enrichment (only when cause === "disease")
+        disease_code: diseaseCode,
+        confirmed_by_lab: diseaseCode ? confirmedByLab : null,
+        is_reportable: reportable,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -1134,24 +1173,7 @@ export async function createDeathRecordAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            cause,
-            cause_detail: causeDetail,
-            confirmed_by_vet: confirmedByVet || null,
-            vet_name: vetName,
-            disposition_method: dispositionMethod,
-            facility,
-            // Vet-mediated branch (owner-as-proxy in v1; promotable to authorRole='vet' when portal lands)
-            death_at_clinic: deathAtClinic || null,
-            clinic_name: clinicName,
-            vet_contacted_owner: vetContactedOwner,
-            vet_decided_alone: vetDecidedAlone || null,
-            owner_to_private_crematorium: ownerToPrivateCrematorium || null,
-            // Disease enrichment (only when cause === "disease")
-            disease_code: diseaseCode,
-            confirmed_by_lab: diseaseCode ? confirmedByLab : null,
-            is_reportable: reportable,
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -1242,6 +1264,12 @@ export async function createClinicalInfoAction(
 
   try {
     await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("clinical_info_logged", {
+        sub_kind: subKind,
+        title,
+        details,
+        performed_by: performedBy,
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -1251,7 +1279,7 @@ export async function createClinicalInfoAction(
           recordedAt: new Date(),
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: { sub_kind: subKind, title, details, performed_by: performedBy },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -1318,6 +1346,11 @@ export async function createDangerousBreedAttestationAction(
       // join via event_id, matching the pattern used by sterilization /
       // microchip / vaccination actions, and preserving the append-only
       // discipline on pet_events (AGENTS.md → Core principles #2).
+      const eventPayload = validateEventPayload("dangerous_breed_attested", {
+        registry,
+        registry_id: registryId,
+        attested_at: attestedAt.toISOString().slice(0, 10),
+      });
       const [event] = await tx
         .insert(petEvents)
         .values({
@@ -1327,11 +1360,7 @@ export async function createDangerousBreedAttestationAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            registry,
-            registry_id: registryId,
-            attested_at: attestedAt.toISOString().slice(0, 10),
-          },
+          payload: eventPayload,
           notes,
         })
         .returning();
@@ -1394,6 +1423,10 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
   const now = new Date();
 
   await db.transaction(async (tx) => {
+    const eventPayload = validateEventPayload("status_changed", {
+      from_status: "lost",
+      to_status: "active",
+    });
     await tx.insert(petEvents).values({
       petId: pet.id,
       eventType: "status_changed",
@@ -1401,10 +1434,7 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
       recordedAt: now,
       recordedByUserId: user.id,
       authorRole: "owner",
-      payload: {
-        from_status: "lost",
-        to_status: "active",
-      },
+      payload: eventPayload,
     });
     await tx.update(pets).set({ status: "active", updatedAt: now }).where(eq(pets.id, pet.id));
   });
