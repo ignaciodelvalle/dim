@@ -18,10 +18,11 @@ import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { requirePetAccess } from "@/lib/pet-access";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export type NewPetFormState = {
@@ -474,26 +475,9 @@ export async function updatePetAction(
   _previous: NewPetFormState,
   formData: FormData,
 ): Promise<NewPetFormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada. Iniciá sesión de nuevo." };
-
-  // Verify ownership and load the existing record.
-  const [existing] = await db
-    .select({ pet: pets })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-  if (!existing) return { error: "Mascota no encontrada o sin permisos." };
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet: existingPet, eventAuthorship, accessPath } = access;
 
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
@@ -502,15 +486,15 @@ export async function updatePetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
-  const changes = diffPet(existing.pet, parsed);
-  const wasChipPresent = !!existing.pet.microchipId;
+  const changes = diffPet(existingPet, parsed);
+  const wasChipPresent = !!existingPet.microchipId;
   const isChipPresent = !!parsed.microchipId;
   const chipNewlyAdded = !wasChipPresent && isChipPresent;
-  const becamePPP = !existing.pet.potentiallyDangerousBreed && parsed.potentiallyDangerousBreed;
+  const becamePPP = !existingPet.potentiallyDangerousBreed && parsed.potentiallyDangerousBreed;
   // emergencyInfoVisible is intentionally NOT in diffPet — it is a UI preference,
   // not a fact about the pet, so flipping it does not emit a pet_profile_updated
   // event. We still persist it on the row when it changes.
-  const flagChanged = parsed.emergencyInfoVisible !== existing.pet.emergencyInfoVisible;
+  const flagChanged = parsed.emergencyInfoVisible !== existingPet.emergencyInfoVisible;
   const hasContentChanges = changes.length > 0 || upload.uploadedPath !== null;
 
   // Skip the whole transaction if nothing changed at all (no edits, no new
@@ -551,13 +535,13 @@ export async function updatePetAction(
           emergencyInfoVisible: parsed.emergencyInfoVisible,
           updatedAt: now,
         })
-        .where(eq(pets.id, existing.pet.id));
+        .where(eq(pets.id, existingPet.id));
 
       if (upload.uploadedPath) {
         const [attachment] = await tx
           .insert(attachments)
           .values({
-            petId: existing.pet.id,
+            petId: existingPet.id,
             uploadedByUserId: user.id,
             storagePath: upload.uploadedPath,
             mimeType: upload.mimeType ?? "image/jpeg",
@@ -567,7 +551,7 @@ export async function updatePetAction(
         await tx
           .update(pets)
           .set({ primaryPhotoId: attachment.id })
-          .where(eq(pets.id, existing.pet.id));
+          .where(eq(pets.id, existingPet.id));
       }
 
       // Only emit pet_profile_updated when actual content (or photo) changed.
@@ -582,17 +566,21 @@ export async function updatePetAction(
         const updateEvent = await tx
           .insert(petEvents)
           .values({
-            petId: existing.pet.id,
+            petId: existingPet.id,
             eventType: "pet_profile_updated",
             occurredAt: now,
             recordedAt: now,
             recordedByUserId: user.id,
-            authorRole: "owner",
+            ...eventAuthorship,
             payload: petProfileUpdatedPayload,
           })
           .returning();
 
-        if (becamePPP) {
+        // PPP-registration reminder is a legal obligation that attaches to the
+        // permanent owner. Org-side updates (refugio, sanctuary) shouldn't send
+        // this notification to the org-member who edited — the obligation
+        // doesn't apply to org custody, and the org member isn't the owner.
+        if (becamePPP && accessPath === "owner") {
           await tx.insert(notifications).values({
             userId: user.id,
             notificationType: "ppp_registration_reminder",
@@ -602,7 +590,7 @@ export async function updatePetAction(
             ctaLabel: "Más info sobre PPP",
             ctaUrl:
               "https://www.argentina.gob.ar/justicia/derechofacil/leysimple/maltrato-animales",
-            relatedPetId: existing.pet.id,
+            relatedPetId: existingPet.id,
             relatedEventId: updateEvent[0].id,
           });
         }
@@ -617,12 +605,12 @@ export async function updatePetAction(
           implant_date_known: !!parsed.microchipImplantedAt,
         });
         await tx.insert(petEvents).values({
-          petId: existing.pet.id,
+          petId: existingPet.id,
           eventType: "microchip_implanted",
           occurredAt: parseDateInput(parsed.microchipImplantedAt) ?? now,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: microchipEventPayload,
         });
       }

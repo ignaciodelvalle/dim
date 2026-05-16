@@ -1,11 +1,15 @@
 "use server";
 
-// Server actions for owner-recordable events.
+// Server actions for pet-recordable events. Originally owner-only; since slice
+// 7 these also accept the "org-mediated" access path (active member of an org
+// that holds the pet in any active ownership role). The access helper
+// (`requirePetAccess` / `requireAlivePetAccess`, `lib/pet-access.ts`) is the
+// single security boundary; each action just spreads the returned
+// `eventAuthorship` into its petEvents insert so `authorRole` and
+// `authorOrganizationId` are set automatically.
 //
-// Each event-type form has its own action because the payloads differ. The
-// shared pattern: verify ownership of the target pet, build the event payload,
-// insert into pet_events (and optionally a Reminder) atomically, redirect
-// back to the pet's detail page.
+// Shared pattern: resolve access → validate form → insert event (+ optional
+// attachment / reminder) atomically → redirect back to the pet's detail page.
 
 import { attachments, db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { signalAuthorityReport } from "@/lib/authority";
@@ -20,6 +24,11 @@ import {
   intervalHoursForFrequency,
   parseFrequencyFields,
 } from "@/lib/medication-schedule";
+import {
+  type SupabaseServerClient,
+  requireAlivePetAccess,
+  requirePetAccess,
+} from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -29,48 +38,7 @@ export type EventFormState = {
   error: string | null;
 };
 
-async function requireOwnedPet(publicToken: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, pet: null, error: "Sesión expirada." };
-
-  const [row] = await db
-    .select({ pet: pets })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-  if (!row) return { supabase, user, pet: null, error: "Mascota no encontrada o sin permisos." };
-
-  return { supabase, user, pet: row.pet, error: null };
-}
-
-async function requireOwnedAndAlive(publicToken: string) {
-  const result = await requireOwnedPet(publicToken);
-  if (result.error || !result.pet) return result;
-  if (result.pet.status === "deceased") {
-    return {
-      supabase: result.supabase,
-      user: result.user,
-      pet: null,
-      error: "Esta mascota está registrada como fallecida y no acepta nuevos eventos.",
-    };
-  }
-  return result;
-}
-
-async function cleanupAttachment(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  path: string | null,
-) {
+async function cleanupAttachment(supabase: SupabaseServerClient, path: string | null) {
   if (!path) return;
   try {
     await supabase.storage.from("event-attachments").remove([path]);
@@ -88,8 +56,9 @@ export async function createVaccinationAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const vaccineName = String(formData.get("vaccineName") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -134,7 +103,7 @@ export async function createVaccinationAction(
           occurredAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -193,8 +162,9 @@ export async function createWeightAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const kgRaw = String(formData.get("kg") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -227,7 +197,7 @@ export async function createWeightAction(
           occurredAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -271,8 +241,9 @@ export async function createNoteAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const text = String(formData.get("text") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -301,7 +272,7 @@ export async function createNoteAction(
           occurredAt,
           recordedAt: new Date(),
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes: null,
         })
@@ -339,8 +310,9 @@ export async function createVetVisitAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const reason = String(formData.get("reason") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -375,7 +347,7 @@ export async function createVetVisitAction(
           occurredAt,
           recordedAt: new Date(),
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -413,8 +385,9 @@ export async function setPetLostAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
 
   if (pet.status === "lost") return { error: "Esta mascota ya está marcada como perdida." };
   if (pet.status === "deceased")
@@ -455,7 +428,7 @@ export async function setPetLostAction(
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: user.id,
-        authorRole: "owner",
+        ...eventAuthorship,
         // Coordinates (when present) live on top-level location_lat / location_lng
         // columns per AGENTS.md → PetEvent: "Events with a real-world location
         // should populate the PetEvent.location_point column (top-level), not
@@ -488,8 +461,9 @@ export async function createDewormingAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const product = String(formData.get("product") ?? "").trim();
   const type = String(formData.get("type") ?? "").trim();
@@ -529,7 +503,7 @@ export async function createDewormingAction(
           occurredAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -580,8 +554,9 @@ export async function createSterilizationAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const procedure = String(formData.get("procedure") ?? "").trim();
   const performedBy = String(formData.get("performedBy") ?? "").trim() || null;
@@ -614,7 +589,7 @@ export async function createSterilizationAction(
           occurredAt,
           recordedAt: new Date(),
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -652,8 +627,9 @@ export async function createMicrochipAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const chipNumber = String(formData.get("chipNumber") ?? "").trim();
   const countryCode = String(formData.get("countryCode") ?? "").trim() || null;
@@ -688,7 +664,7 @@ export async function createMicrochipAction(
           occurredAt,
           recordedAt: new Date(),
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -742,8 +718,9 @@ export async function createMedicationStartAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const drugName = String(formData.get("drugName") ?? "").trim();
   const dose = String(formData.get("dose") ?? "").trim();
@@ -818,7 +795,7 @@ export async function createMedicationStartAction(
           occurredAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -871,8 +848,9 @@ export async function createMedicationEndAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const medicationStartedEventId = String(formData.get("medicationStartedEventId") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -920,7 +898,7 @@ export async function createMedicationEndAction(
           occurredAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -1023,6 +1001,9 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
         scheduled_for: reminderRow.dueAt.toISOString(),
         reminder_id: reminderId,
       });
+      // This action is reminder-keyed (reminders.userId = user.id) rather than
+      // pet-keyed, so it stays owner-authored for now. Org-side dose tracking
+      // needs a separate reminder-ownership model and lives outside slice 7.
       await tx.insert(petEvents).values({
         petId: reminderRow.petId,
         eventType: "medication_dose_taken",
@@ -1075,8 +1056,9 @@ export async function createDeathRecordAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   if (pet.status === "deceased")
     return { error: "Esta mascota ya está registrada como fallecida." };
@@ -1172,7 +1154,7 @@ export async function createDeathRecordAction(
           occurredAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -1238,8 +1220,9 @@ export async function createClinicalInfoAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const subKindRaw = String(formData.get("subKind") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
@@ -1278,7 +1261,7 @@ export async function createClinicalInfoAction(
           occurredAt,
           recordedAt: new Date(),
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -1318,8 +1301,9 @@ export async function createDangerousBreedAttestationAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
-  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
 
   const registry = String(formData.get("registry") ?? "").trim();
   const registryId = String(formData.get("registryId") ?? "").trim() || null;
@@ -1359,7 +1343,7 @@ export async function createDangerousBreedAttestationAction(
           occurredAt: attestedAt,
           recordedAt: now,
           recordedByUserId: user.id,
-          authorRole: "owner",
+          ...eventAuthorship,
           payload: eventPayload,
           notes,
         })
@@ -1408,10 +1392,9 @@ export async function createDangerousBreedAttestationAction(
 // ---------------------------------------------------------------------------
 
 export async function setPetFoundAction(publicToken: string): Promise<void> {
-  const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
-  if (ownershipError || !user || !pet) {
-    throw new Error(ownershipError ?? "No autorizado.");
-  }
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) throw new Error(access.error);
+  const { user, pet, eventAuthorship } = access;
   if (pet.status === "deceased") {
     throw new Error("Esta mascota está registrada como fallecida y no acepta nuevos eventos.");
   }
@@ -1433,7 +1416,7 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
       occurredAt: now,
       recordedAt: now,
       recordedByUserId: user.id,
-      authorRole: "owner",
+      ...eventAuthorship,
       payload: eventPayload,
     });
     await tx.update(pets).set({ status: "active", updatedAt: now }).where(eq(pets.id, pet.id));

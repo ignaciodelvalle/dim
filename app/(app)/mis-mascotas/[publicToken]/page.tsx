@@ -4,8 +4,8 @@ import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
+import { requirePetAccess } from "@/lib/pet-access";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -181,37 +181,35 @@ export default async function PetDetailPage({
 }) {
   const { publicToken } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) notFound();
+  const { supabase, user, pet, accessPath, organization } = access;
 
-  // Fetch the pet + verify custodianship in a single query. If the user
-  // doesn't have ANY active ownership (owner OR shelter_custody) over this
-  // pet we 404 — same response either way, so we don't leak the existence
-  // of pets the user can't access.
-  const [result] = await db
-    .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(
-      and(
-        eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-
-  if (!result) {
-    notFound();
-  }
-
-  const { pet, photo, ownershipRole } = result;
+  // Photo: separate small query indexed on primaryPhotoId, only if set.
+  const [photo] = pet.primaryPhotoId
+    ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
+    : [];
   const photoUrl = petPhotoUrl(photo?.storagePath);
-  const isTransit = ownershipRole === "shelter_custody";
+
+  // "En tránsito" badge is owner-side semantics — the user is personally
+  // caretaking a stray they picked up. For org-mediated access, the org's
+  // relationship is surfaced via the org banner instead, so isTransit stays
+  // false on that path.
+  let isTransit = false;
+  if (accessPath === "owner") {
+    const [ownerRow] = await db
+      .select({ role: ownerships.role })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, pet.id),
+          eq(ownerships.ownerUserId, user.id),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    isTransit = ownerRow?.role === "shelter_custody";
+  }
 
   // Event timeline, newest first. Self-scans are filtered at the DB level
   // so the JS-side timeline doesn't have to know about credential_scanned
@@ -280,11 +278,18 @@ export default async function PetDetailPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         <Link
-          href="/mis-mascotas"
+          href={accessPath === "org" ? "/refugio/mascotas" : "/mis-mascotas"}
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
-          ← Mis mascotas
+          ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
         </Link>
+
+        {accessPath === "org" && organization && (
+          <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+            Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
+            Cualquier evento que registres queda atribuido a la organización.
+          </div>
+        )}
 
         {isTransit && <TransitBanner petName={pet.name} />}
 

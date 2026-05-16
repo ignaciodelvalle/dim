@@ -1,9 +1,7 @@
 // Picker for the "new event" flow. Lists every v1 event type. Vaccination is
 // active; the rest are placeholders that will light up one round at a time.
 
-import { db, ownerships, pets } from "@/db";
-import { createClient } from "@/lib/supabase/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { requirePetAccess } from "@/lib/pet-access";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -96,27 +94,9 @@ export default async function PickEventPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  // Ownership gate so non-owners can't browse the picker for someone else's pet.
-  const [row] = await db
-    .select({ pet: pets })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-  if (!row) notFound();
-  const pet = row.pet;
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) notFound();
+  const { pet } = access;
 
   // Defense in depth: deceased pets can only add notes.
   if (pet.status === "deceased") {
