@@ -10,6 +10,7 @@
 import { attachments, db, petEvents } from "@/db";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDateTime } from "@/lib/format";
+import { readPoint } from "@/lib/location";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { eventAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -68,9 +69,7 @@ export default async function EventDetailPage({
     })),
   );
 
-  const lat = event.locationLat !== null ? Number(event.locationLat) : null;
-  const lng = event.locationLng !== null ? Number(event.locationLng) : null;
-  const hasLocation = lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng);
+  const point = readPoint(event);
 
   const payload = (event.payload ?? {}) as Record<string, unknown>;
   const payloadEntries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined);
@@ -117,8 +116,8 @@ export default async function EventDetailPage({
           <h2 className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
             Ubicación
           </h2>
-          {hasLocation ? (
-            <EventMap lat={lat} lng={lng} />
+          {point ? (
+            <EventMap lat={point.lat} lng={point.lng} />
           ) : (
             <p className="text-sm text-neutral-500 dark:text-neutral-500 italic">
               Sin ubicación registrada.

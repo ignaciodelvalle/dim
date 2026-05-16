@@ -13,7 +13,6 @@ import {
   boolean,
   check,
   date,
-  doublePrecision,
   index,
   integer,
   jsonb,
@@ -697,8 +696,10 @@ export const welfareReports = pgTable(
     locationAddress: text("location_address"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
-    locationLat: doublePrecision("location_lat"),
-    locationLng: doublePrecision("location_lng"),
+    // Coordinate pair. Numeric(10,7) matches pet_events.location_lat/lng so
+    // both tables can flow through the same accessor (`lib/location.ts`).
+    locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
+    locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
 
     // When
     occurredAt: timestamp("occurred_at", { withTimezone: true }),
