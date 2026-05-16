@@ -9,7 +9,6 @@ import type { NewPetFormState } from "@/app/actions/pets";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/ar-provincias";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
-import { LocationFields } from "./LocationFields";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -18,6 +17,7 @@ import {
   TRAINING_LEVELS,
 } from "@/lib/lookups";
 import { useActionState, useMemo, useState } from "react";
+import { LocationFields } from "./LocationFields";
 
 const initialState: NewPetFormState = { error: null };
 
