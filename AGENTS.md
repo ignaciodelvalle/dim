@@ -269,6 +269,92 @@ Indexes: partial index on `(user_id) where read_at IS NULL AND archived_at IS NU
 
 UI for browsing notifications is deferred to a future round; for now the rows materialize correctly in the database and can be inspected in Studio.
 
+## Libreta sanitaria
+
+The **Libreta sanitaria** is the digital embodiment of the canonical Argentine pet booklet — the yellow paper book every vet stamps and every dueño carries. In DIM it is a **projection over `pet_events`** filtered to the medical subset: vaccinations, dewormings, sterilization, vet visits, weight, medications, microchip, clinical work (labs, imaging, surgeries), allergies, symptoms, incidents, death.
+
+It is not a new table, not a separate write path, not a parallel data store. Every fact that lands in the Libreta is already in the event log; the Libreta is what you get when you filter that log to medical events and present them grouped by clinical purpose.
+
+**Why this naming matters.** DIM's North Star is real public-health data at population scale, but data only flows in if the dueño understands what they're using. *"Libreta sanitaria"* is the term every Argentine pet owner already knows — collapsing the explanatory distance to zero. *"Eventos"* is a developer concept; *"libreta"* is a household concept.
+
+### Conceptual hierarchy
+
+DIM has three user-facing concepts, each backed by the same underlying data:
+
+| Concept | What it is | Backing |
+|---|---|---|
+| **Credencial DIM** | The pet's digital identity — name, photo, public token, QR. The animal's *documento* | `pets` row + Tier-0 public page at `/p/{publicToken}` |
+| **Libreta sanitaria** | The pet's medical history — vacunas, vet visits, peso, medicación. What the vet writes | Projection over `pet_events` filtered to `LIBRETA_SANITARIA_EVENT_TYPES` |
+| **Eventos** | The append-only event log itself, including non-medical entries (registrations, scans, custody transfers, welfare reports). Internal/admin concept | `pet_events` table |
+
+The Credencial is **identity**. The Libreta is **history**. The Eventos are the **immutable substrate**. Same data, different framings depending on who's looking.
+
+### Event types in the Libreta
+
+A canonical, code-locked list of `event_type`s belongs to the Libreta. Lives in `lib/libreta-sanitaria.ts`:
+
+```ts
+export const LIBRETA_SANITARIA_EVENT_TYPES = [
+  "vaccination_administered",
+  "deworming_administered",
+  "sterilization_performed",
+  "medication_started",
+  "medication_stopped",
+  "medication_dose_taken",
+  "vet_visit_logged",
+  "weight_recorded",
+  "clinical_info_logged",
+  "lab_work_performed",
+  "imaging_performed",
+  "surgery_performed",
+  "allergy_detected",
+  "microchip_implanted",
+  "incident_reported",
+  "symptom_observed",
+  "death_recorded",
+] as const satisfies readonly EventType[];
+```
+
+Explicitly **outside the Libreta** (identity, custody, welfare, or system signals — not medical records):
+
+- `pet_registered`, `pet_profile_updated` — identity / admin
+- `status_changed` — lost/found is identity-adjacent and welfare-adjacent, not strictly medical
+- `credential_scanned` — system telemetry
+- `dangerous_breed_attested` — legal attestation, not a clinical event
+- `custody_transferred`, `foster_assigned`, `foster_ended`, `adoption_*` — ownership, not health
+- `abandonment_reported`, `maltreatment_reported` — welfare denuncia, not health
+- `note_added` — owner annotations live in a separate "Notas del dueño" view, not in the Libreta proper
+
+**Rule for new event types.** Every addition to `EVENT_TYPES` declares explicitly whether it belongs to the Libreta. The decision is made at the moment of registration (one-line edit to `lib/libreta-sanitaria.ts`, OR an inline comment confirming it deliberately does not belong). The PR that adds an event type must close the question, not defer it.
+
+### UI surfaces
+
+Three surfaces over the same projection:
+
+1. **Section on the pet profile** at `/mis-mascotas/{publicToken}`. The card formerly titled *"Eventos"* renders as **"Libreta sanitaria"** and shows the latest N medical events with a *"Ver libreta completa →"* link.
+2. **Dedicated owner route** at `/mis-mascotas/{publicToken}/libreta`. The full Libreta for the authenticated owner, grouped by clinical purpose (Vacunas, Antiparasitarios, Esterilización, Visitas, Medicación, Cirugías, Estudios, Peso, Alergias y condiciones) with an optional chronological toggle. Print-friendly stylesheet. Header carries pet identity (name, photo, species, sex, microchip if any, dueño first name) **as context** — identity is not part of the Libreta as a concept, but the rendered surface needs the same cover-page context the paper libreta has, otherwise the medical entries float without anchor.
+3. **Public shareable Tier-2 route** at `/libreta/compartir/{shareToken}`. The owner-issued share link of the Privacy-tiers table, materialized. Same Libreta, accessible via a **share token distinct from `pets.publicToken`**, expiring (default 30 days, configurable per share), revocable by the owner at any moment. Footers with `Generada por DIM · {timestamp} · vence {expiry}` for vet-presentability. This is the surface a dueño hands to a vet who doesn't know DIM yet.
+
+### Tokens
+
+Tier-2 share tokens are intentionally separate from `pets.publicToken`:
+
+- `pets.publicToken` — stable, lifetime, public Tier-0 surface
+- `libreta_share_token` (new table, name TBD when implemented) — short-lived bearer credential, owner-revocable, per-share
+
+The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leaked share token exposes Tier-2 but is revocable in one click and expires on its own.
+
+### Code conventions
+
+- `lib/libreta-sanitaria.ts` owns `LIBRETA_SANITARIA_EVENT_TYPES`, `isLibretaSanitariaEvent(eventType)`, and a Drizzle clause helper for filtering queries.
+- The component formerly used as `<EventTimeline>` remains the rendering primitive but the canonical mount on the pet profile is `<LibretaSanitaria>` — a thin wrapper applying the filter and Libreta-specific empty-state copy.
+- User-facing strings consistently use *"libreta sanitaria"*, *"tu libreta"*, *"registrar en la libreta"*, *"quedó en la libreta de Negrita"* — never *"evento"* outside admin/debug surfaces.
+- Code-level identifiers (table names, function names, internal types) stay English (`pet_events`, `EventTimeline`, etc.). Spanish UI, English code — the existing rule applies.
+
+### Why this is locked
+
+The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
+
 ## Event catalog — 23 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
@@ -376,7 +462,7 @@ Events with a real-world location should populate the `PetEvent.location_point` 
 | 0    | Anyone scanning the QR                | photo, first name, species, breed, approx age (year), sex, "credential valid ✓", vaccination boolean (✓ / ⚠), microchip present (y/n), "Did you find this pet?" contact form |
 | 0+   | Tier 0 + owner-toggled emergency flag | "This pet takes daily medication — contact owner immediately" without drug names or owner phone                                       |
 | 1    | Pet status = `lost`                   | Tier 0 + owner first name + direct contact + last-known location if shared                                                            |
-| 2    | Owner-issued share link               | Tier 0 + full vaccination history, microchip number, medical conditions, current medications, recent timeline. Link expires.         |
+| 2    | Owner-issued share link               | The full **Libreta sanitaria** via a revocable, time-limited share token at `/libreta/compartir/{shareToken}`. Distinct from `pets.publicToken`. See §Libreta sanitaria for surfaces and token model.         |
 | 3    | Owner, authenticated in app           | Everything, including scan history with locations. Editable.                                                                          |
 | 4    | (future) Verified vet via portal      | Tier 2 by default + can write events                                                                                                  |
 
