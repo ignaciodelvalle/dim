@@ -8,6 +8,8 @@
 // back to the pet's detail page.
 
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
+import { signalAuthorityReport } from "@/lib/authority";
+import { findDisease, isReportable } from "@/lib/diseases";
 import { parseDateInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -879,11 +881,22 @@ export async function createDeathRecordAction(
     return { error: "Método de disposición inválido." };
   }
 
+  const diseaseCodeRaw = String(formData.get("diseaseCode") ?? "").trim() || null;
+  const confirmedByLab = formData.get("confirmedByLab") === "true";
+
+  // Disease fields only valid when cause is "disease". Strip otherwise.
+  const diseaseCode = cause === "disease" && diseaseCodeRaw ? diseaseCodeRaw : null;
+  if (diseaseCode && !findDisease(diseaseCode)) {
+    return { error: "Enfermedad no reconocida." };
+  }
+  const reportable = isReportable(diseaseCode);
+
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
 
   const now = new Date();
+  let insertedEvent: { id: string } | null = null;
 
   try {
     await db.transaction(async (tx) => {
@@ -903,10 +916,16 @@ export async function createDeathRecordAction(
             vet_name: vetName,
             disposition_method: dispositionMethod,
             facility,
+            // Disease enrichment (only when cause === "disease")
+            disease_code: diseaseCode,
+            confirmed_by_lab: diseaseCode ? confirmedByLab : null,
+            is_reportable: reportable,
           },
           notes,
         })
         .returning();
+
+      insertedEvent = event;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -931,6 +950,18 @@ export async function createDeathRecordAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (reportable && diseaseCode && insertedEvent) {
+    await signalAuthorityReport({
+      eventId: (insertedEvent as { id: string }).id,
+      petId: pet.id,
+      diseaseCode,
+      confirmedByLab,
+      occurredAt,
+      jurisdictionProvince: pet.jurisdictionProvince ?? null,
+      jurisdictionLocality: pet.jurisdictionLocality ?? null,
+    });
   }
 
   redirect(`/mis-mascotas/${publicToken}`);

@@ -1,7 +1,8 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { useActionState } from "react";
+import { diseasesForSpecies, findDisease } from "@/lib/diseases";
+import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -13,9 +14,21 @@ const inputClass =
 
 const labelClass = "block text-sm font-medium text-neutral-900 dark:text-neutral-50";
 
-export function DeathRecordForm({ action }: { action: FormAction }) {
+export function DeathRecordForm({
+  action,
+  species,
+}: {
+  action: FormAction;
+  species: string | null;
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
+  const [cause, setCause] = useState("");
+  const [selectedDiseaseCode, setSelectedDiseaseCode] = useState("");
+
+  const diseaseOptions = diseasesForSpecies(species);
+  const selectedDiseaseDef = findDisease(selectedDiseaseCode);
+  const isReportableDisease = selectedDiseaseDef?.reportable === true;
 
   return (
     <form action={formAction} className="space-y-5">
@@ -23,7 +36,17 @@ export function DeathRecordForm({ action }: { action: FormAction }) {
         <label htmlFor="cause" className={labelClass}>
           Causa<span className="text-red-500 ml-0.5">*</span>
         </label>
-        <select id="cause" name="cause" required className={inputClass}>
+        <select
+          id="cause"
+          name="cause"
+          required
+          className={inputClass}
+          value={cause}
+          onChange={(e) => {
+            setCause(e.target.value);
+            setSelectedDiseaseCode("");
+          }}
+        >
           <option value="">— Seleccioná —</option>
           <option value="known">Conocida</option>
           <option value="unknown">Desconocida</option>
@@ -34,6 +57,48 @@ export function DeathRecordForm({ action }: { action: FormAction }) {
           <option value="other">Otra</option>
         </select>
       </div>
+
+      {cause === "disease" && (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label htmlFor="diseaseCode" className={labelClass}>
+              Enfermedad<span className="text-red-500 ml-0.5">*</span>
+            </label>
+            <select
+              id="diseaseCode"
+              name="diseaseCode"
+              className={inputClass}
+              value={selectedDiseaseCode}
+              onChange={(e) => setSelectedDiseaseCode(e.target.value)}
+            >
+              <option value="">Seleccionar enfermedad</option>
+              {diseaseOptions.map((d) => (
+                <option key={d.code} value={d.code}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            {isReportableDisease && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Reportable a autoridad sanitaria
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="confirmedByLab"
+              name="confirmedByLab"
+              type="checkbox"
+              value="true"
+              className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+            />
+            <label htmlFor="confirmedByLab" className={labelClass}>
+              Confirmado por laboratorio
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <label htmlFor="causeDetail" className={labelClass}>

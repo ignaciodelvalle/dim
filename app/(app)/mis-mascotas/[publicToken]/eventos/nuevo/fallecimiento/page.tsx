@@ -38,7 +38,7 @@ export default async function NewDeathRecordPage({
             <strong>fallecida</strong> y queda en el historial permanentemente.
           </p>
         </div>
-        <DeathRecordForm action={boundAction} />
+        <DeathRecordForm action={boundAction} species={pet.species} />
       </div>
     </main>
   );

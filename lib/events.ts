@@ -1,3 +1,5 @@
+import { findDisease } from "@/lib/diseases";
+
 export type EventPayloadSummary = {
   primary: string | null;
   secondary: string | null;
@@ -108,6 +110,8 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       const causeDetail = str("cause_detail");
       const disposition = str("disposition_method");
       const facility = str("facility");
+      const diseaseCode = str("disease_code");
+      const isReportablePayload = p.is_reportable === true;
 
       const causeLabel: Record<string, string> = {
         known: "Conocida",
@@ -125,12 +129,25 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         unknown: "No sé",
       };
 
-      const showCause = cause && cause !== "other" && causeLabel[cause];
-      const primary = showCause ? `Fallecimiento · ${causeLabel[cause]}` : "Fallecimiento";
+      // When cause is "disease", use the resolved disease label if available.
+      let primary: string;
+      if (cause === "disease") {
+        const diseaseDef = findDisease(diseaseCode);
+        const diseaseLabel = diseaseDef?.label ?? causeLabel.disease;
+        primary = `Fallecimiento · ${diseaseLabel}`;
+      } else {
+        const showCause = cause && cause !== "other" && causeLabel[cause];
+        primary = showCause ? `Fallecimiento · ${causeLabel[cause]}` : "Fallecimiento";
+      }
 
       const dispositionStr = disposition ? (dispositionLabel[disposition] ?? null) : null;
       const facilityStr = facility;
-      const secondary = [dispositionStr, facilityStr].filter(Boolean).join(" · ") || causeDetail;
+      let secondary = [dispositionStr, facilityStr].filter(Boolean).join(" · ") || causeDetail;
+
+      if (isReportablePayload) {
+        const badge = "Reportable a autoridad sanitaria";
+        secondary = secondary ? `${secondary} · ${badge}` : badge;
+      }
 
       return { primary, secondary: secondary || null };
     }
