@@ -10,10 +10,17 @@
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
+import { findDrugByLabel } from "@/lib/drugs";
 import { parseDateInput } from "@/lib/format";
+import {
+  FREQUENCY_LABELS,
+  generateDoseSchedule,
+  intervalHoursForFrequency,
+  parseFrequencyFields,
+} from "@/lib/medication-schedule";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export type EventFormState = {
@@ -698,22 +705,55 @@ export async function createMedicationStartAction(
 
   const drugName = String(formData.get("drugName") ?? "").trim();
   const dose = String(formData.get("dose") ?? "").trim();
-  const frequency = String(formData.get("frequency") ?? "").trim();
   const prescribedBy = String(formData.get("prescribedBy") ?? "").trim() || null;
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
   if (!drugName) return { error: "Falta el nombre del medicamento." };
   if (!dose) return { error: "Falta la dosis." };
-  if (!frequency) return { error: "Falta la frecuencia." };
   if (!occurredAtRaw) return { error: "Falta la fecha de inicio." };
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de inicio inválida." };
 
+  // Frequency + schedule fields.
+  const frequencyRaw = String(formData.get("frequency") ?? "").trim();
+  const customHoursRaw = String(formData.get("customHours") ?? "").trim() || null;
+  const durationDaysRaw = String(formData.get("durationDays") ?? "").trim() || null;
+  const firstDoseAtRaw = String(formData.get("firstDoseAt") ?? "").trim() || null;
+
+  if (!frequencyRaw) return { error: "Falta la frecuencia." };
+
+  const parsedFreq = parseFrequencyFields(
+    frequencyRaw,
+    customHoursRaw,
+    durationDaysRaw,
+    firstDoseAtRaw,
+  );
+  if (parsedFreq.error !== null) return { error: parsedFreq.error };
+  // TypeScript needs the explicit cast here because it can't narrow after the
+  // error-field check on a discriminated union without a type predicate.
+  const { frequency, customHours, durationDays, firstDoseAt } = parsedFreq as {
+    error: null;
+    frequency: import("@/lib/drugs").FrequencyKind;
+    customHours: number | null;
+    durationDays: number | null;
+    firstDoseAt: Date;
+  };
+
+  const intervalHours = intervalHoursForFrequency(frequency, customHours);
+  const schedule = generateDoseSchedule({ firstDoseAt, intervalHours, durationDays });
+
+  // Try to match a catalog drug for richer payload.
+  const matchedDrug = findDrugByLabel(drugName);
+
+  const frequencyLabel = (FREQUENCY_LABELS as Record<string, string>)[frequency] ?? frequency;
+
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
+
+  const now = new Date();
 
   try {
     await db.transaction(async (tx) => {
@@ -723,7 +763,7 @@ export async function createMedicationStartAction(
           petId: pet.id,
           eventType: "medication_started",
           occurredAt,
-          recordedAt: new Date(),
+          recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
           payload: {
@@ -731,6 +771,11 @@ export async function createMedicationStartAction(
             dose,
             frequency,
             prescribed_by: prescribedBy,
+            drug_code: matchedDrug?.code ?? null,
+            first_dose_at: firstDoseAt.toISOString(),
+            duration_days: durationDays,
+            custom_hours: frequency === "custom" ? customHours : null,
+            schedule_count: schedule.length,
           },
           notes,
         })
@@ -745,6 +790,21 @@ export async function createMedicationStartAction(
           mimeType: upload.mimeType ?? "image/jpeg",
           fileSize: upload.size ?? 0,
         });
+      }
+
+      // Insert dose reminders if schedule is non-empty.
+      if (schedule.length > 0) {
+        await tx.insert(reminders).values(
+          schedule.map((dueAt) => ({
+            petId: pet.id,
+            userId: user.id,
+            reminderType: "medication" as const,
+            dueAt,
+            title: `${drugName} – Dosis`,
+            description: `${dose}${frequencyLabel ? ` · ${frequencyLabel}` : ""}`,
+            sourceEventId: event.id,
+          })),
+        );
       }
     });
   } catch (err) {
@@ -801,6 +861,8 @@ export async function createMedicationEndAction(
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
 
+  const now = new Date();
+
   try {
     await db.transaction(async (tx) => {
       const [event] = await tx
@@ -809,7 +871,7 @@ export async function createMedicationEndAction(
           petId: pet.id,
           eventType: "medication_stopped",
           occurredAt,
-          recordedAt: new Date(),
+          recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
           payload: {
@@ -830,6 +892,20 @@ export async function createMedicationEndAction(
           fileSize: upload.size ?? 0,
         });
       }
+
+      // Cancel future incomplete reminders tied to this medication source event.
+      // Past-due-not-marked reminders are left as-is (they stay as a record of
+      // missed doses and can still be marked by the owner).
+      await tx
+        .update(reminders)
+        .set({ completedAt: now })
+        .where(
+          and(
+            eq(reminders.sourceEventId, medicationStartedEventId),
+            isNull(reminders.completedAt),
+            gt(reminders.dueAt, now),
+          ),
+        );
     });
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
@@ -841,6 +917,86 @@ export async function createMedicationEndAction(
   }
 
   redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Medication dose taken (adherence dual-write)
+// ---------------------------------------------------------------------------
+
+// Note: this action does NOT follow the useActionState(_previous, formData) pattern
+// because it is invoked from a server-component form (no client-side state). It redirects
+// on success and throws on hard errors (same pattern as deleteVaccineReminderAction).
+export async function markMedicationDoseTakenAction(formData: FormData): Promise<void> {
+  const reminderId = String(formData.get("reminderId") ?? "").trim();
+  if (!reminderId) throw new Error("Falta el identificador del recordatorio.");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Sesión expirada.");
+
+  // Fetch the reminder and verify it belongs to a pet owned by this user.
+  const [reminderRow] = await db
+    .select()
+    .from(reminders)
+    .where(and(eq(reminders.id, reminderId), eq(reminders.userId, user.id)))
+    .limit(1);
+
+  if (!reminderRow) throw new Error("Recordatorio no encontrado o sin permisos.");
+  if (reminderRow.reminderType !== "medication") throw new Error("Tipo de recordatorio inválido.");
+  if (reminderRow.completedAt) throw new Error("Esta dosis ya fue marcada.");
+
+  // Verify the pet is alive via requireOwnedAndAlive pattern (look up pet directly).
+  const [petRow] = await db
+    .select({ pet: pets })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(pets.id, reminderRow.petId),
+        eq(ownerships.userId, user.id),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!petRow) throw new Error("Mascota no encontrada o sin permisos.");
+  if (petRow.pet.status === "deceased") {
+    throw new Error("Esta mascota está registrada como fallecida.");
+  }
+
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      // Mark reminder as completed.
+      await tx.update(reminders).set({ completedAt: now }).where(eq(reminders.id, reminderId));
+
+      // Dual-write: insert a medication_dose_taken event for full audit trail.
+      await tx.insert(petEvents).values({
+        petId: reminderRow.petId,
+        eventType: "medication_dose_taken",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "owner",
+        payload: {
+          medication_started_event_id: reminderRow.sourceEventId ?? null,
+          scheduled_for: reminderRow.dueAt.toISOString(),
+          reminder_id: reminderId,
+        },
+      });
+    });
+  } catch (err) {
+    throw new Error(
+      `No se pudo marcar la dosis: ${err instanceof Error ? err.message : "error desconocido"}`,
+    );
+  }
+
+  // Redirect to the pet's detail page using the pet's publicToken.
+  const token = petRow.pet.publicToken;
+  redirect(`/mis-mascotas/${token}`);
 }
 
 // ---------------------------------------------------------------------------

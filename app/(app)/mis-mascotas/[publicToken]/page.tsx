@@ -1,7 +1,7 @@
-import { setPetFoundAction } from "@/app/actions/events";
+import { markMedicationDoseTakenAction, setPetFoundAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
-import type { Pet } from "@/db";
+import type { Pet, Reminder } from "@/db";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -9,6 +9,49 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
+
+// Returns a human-readable proximity hint for an upcoming medication dose.
+// Examples: "Atrasada por 2h", "En 30 min", "Mañana 08:00", "Hoy 14:30".
+function formatDoseProximity(dueAt: Date | string): string {
+  const due = dueAt instanceof Date ? dueAt : new Date(dueAt);
+  const now = new Date();
+  const diffMs = due.getTime() - now.getTime();
+  const diffMin = Math.round(diffMs / (1000 * 60));
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffMin < 0) {
+    const absMins = Math.abs(diffMin);
+    if (absMins < 60) return `Atrasada por ${absMins} min`;
+    const absHours = Math.round(absMins / 60);
+    if (absHours < 24) return `Atrasada por ${absHours}h`;
+    const absDays = Math.floor(absHours / 24);
+    return `Atrasada ${absDays} día${absDays === 1 ? "" : "s"}`;
+  }
+  if (diffMin === 0) return "Ahora";
+  if (diffMin < 60) return `En ${diffMin} min`;
+  if (diffHours < 24) {
+    const timeStr = due.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    return `Hoy ${timeStr}`;
+  }
+  // Check if tomorrow.
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (
+    due.getDate() === tomorrow.getDate() &&
+    due.getMonth() === tomorrow.getMonth() &&
+    due.getFullYear() === tomorrow.getFullYear()
+  ) {
+    const timeStr = due.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    return `Mañana ${timeStr}`;
+  }
+  // Further future: show date + time.
+  return due.toLocaleString("es-AR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function trainingLevelLabel(level: string): string {
   switch (level) {
@@ -203,6 +246,19 @@ export default async function PetDetailPage({
       and(
         eq(reminders.petId, pet.id),
         eq(reminders.reminderType, "vaccine"),
+        isNull(reminders.completedAt),
+      ),
+    )
+    .orderBy(asc(reminders.dueAt));
+
+  // Pending medication dose reminders, soonest first.
+  const pendingMedicationReminders = await db
+    .select()
+    .from(reminders)
+    .where(
+      and(
+        eq(reminders.petId, pet.id),
+        eq(reminders.reminderType, "medication"),
         isNull(reminders.completedAt),
       ),
     )
@@ -435,6 +491,13 @@ export default async function PetDetailPage({
           )}
         </section>
 
+        {/* Upcoming medication dose reminders */}
+        <MedicationDosesSection
+          pet={pet}
+          reminders={pendingMedicationReminders}
+          sourceEvents={eventsWithAttachments}
+        />
+
         {/* Event timeline */}
         <section className="space-y-3">
           <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
@@ -444,6 +507,122 @@ export default async function PetDetailPage({
         </section>
       </div>
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Medication doses section — mirrors "Próximas vacunas" pattern.
+// Groups reminders by sourceEventId so all doses of the same medication
+// cluster visually.
+// ---------------------------------------------------------------------------
+
+type SourceEvent = {
+  id: string;
+  eventType: string;
+  payload: unknown;
+  occurredAt: Date | string;
+  notes: string | null;
+  attachmentUrl: string | null;
+};
+
+function MedicationDosesSection({
+  pet,
+  reminders: allReminders,
+  sourceEvents,
+}: {
+  pet: Pet;
+  reminders: Reminder[];
+  sourceEvents: SourceEvent[];
+}) {
+  // Build a map: sourceEventId → drug name (from the medication_started payload).
+  const drugNameBySourceId = new Map<string, string>();
+  for (const ev of sourceEvents) {
+    if (ev.eventType === "medication_started") {
+      const p = (ev.payload ?? {}) as Record<string, unknown>;
+      const name = typeof p.drug_name === "string" ? p.drug_name : null;
+      if (name) drugNameBySourceId.set(ev.id, name);
+    }
+  }
+
+  // Group reminders by sourceEventId.
+  const groups = new Map<string, { drugName: string; reminders: Reminder[] }>();
+  const ungroupedKey = "__ungrouped__";
+  for (const reminder of allReminders) {
+    const key = reminder.sourceEventId ?? ungroupedKey;
+    if (!groups.has(key)) {
+      const drugName = reminder.sourceEventId
+        ? (drugNameBySourceId.get(reminder.sourceEventId) ?? reminder.title)
+        : reminder.title;
+      groups.set(key, { drugName, reminders: [] });
+    }
+    (groups.get(key) as { drugName: string; reminders: Reminder[] }).reminders.push(reminder);
+  }
+
+  const boundAction = markMedicationDoseTakenAction;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          Próximas dosis
+        </h2>
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/medicacion-inicio`}
+          className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+        >
+          + Nueva medicación
+        </Link>
+      </div>
+      {allReminders.length === 0 ? (
+        <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin dosis pendientes.</p>
+      ) : (
+        <div className="space-y-4">
+          {[...groups.entries()].map(([key, group]) => (
+            <div key={key} className="space-y-2">
+              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                {group.drugName}
+              </p>
+              <ul className="space-y-2">
+                {group.reminders.map((reminder) => {
+                  const proximity = formatDoseProximity(reminder.dueAt);
+                  const isOverdue = new Date(reminder.dueAt) < new Date();
+                  return (
+                    <li
+                      key={reminder.id}
+                      className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-sm text-neutral-900 dark:text-neutral-50">
+                          {reminder.description ?? reminder.title}
+                        </p>
+                        <p
+                          className={`text-xs font-medium ${
+                            isOverdue
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-neutral-500 dark:text-neutral-500"
+                          }`}
+                        >
+                          {proximity}
+                        </p>
+                      </div>
+                      <form action={boundAction}>
+                        <input type="hidden" name="reminderId" value={reminder.id} />
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shrink-0"
+                        >
+                          Marcar dada
+                        </button>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

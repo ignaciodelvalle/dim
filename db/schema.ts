@@ -141,6 +141,8 @@ export const EVENT_TYPES = [
   // System / observed
   "credential_scanned",
   "incident_reported",
+  // Medication adherence — dual-write with reminder.completedAt.
+  "medication_dose_taken",
   // Schema-ready, UI deferred — these require a non-owner reporting flow:
   "symptom_observed",
   "abandonment_reported",

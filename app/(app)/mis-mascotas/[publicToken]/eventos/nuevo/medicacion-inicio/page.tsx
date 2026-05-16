@@ -32,7 +32,7 @@ export default async function NewMedicationStartPage({
             Registrá un tratamiento nuevo para {pet.name}.
           </p>
         </div>
-        <MedicationStartForm action={boundAction} />
+        <MedicationStartForm action={boundAction} species={pet.species} />
       </div>
     </main>
   );

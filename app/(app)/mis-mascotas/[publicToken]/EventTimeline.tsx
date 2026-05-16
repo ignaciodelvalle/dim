@@ -14,6 +14,7 @@ const FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }> = [
   { type: "microchip_implanted", label: "Microchip" },
   { type: "medication_started", label: "Medicación · inicio" },
   { type: "medication_stopped", label: "Medicación · fin" },
+  { type: "medication_dose_taken", label: "Dosis dadas" },
   { type: "death_recorded", label: "Fallecimiento" },
 ];
 

@@ -105,6 +105,13 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: reason,
       };
     }
+    case "medication_dose_taken": {
+      const scheduledFor = str("scheduled_for");
+      return {
+        primary: "Dosis dada",
+        secondary: scheduledFor ? `Programada para ${scheduledFor}` : null,
+      };
+    }
     case "death_recorded": {
       const cause = str("cause");
       const causeDetail = str("cause_detail");

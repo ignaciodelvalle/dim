@@ -94,6 +94,8 @@ export function eventTypeLabel(eventType: string): string {
       return "Inicio de medicación";
     case "medication_stopped":
       return "Fin de medicación";
+    case "medication_dose_taken":
+      return "Dosis administrada";
     case "vet_visit_logged":
       return "Visita al veterinario";
     case "weight_recorded":
