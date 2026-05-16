@@ -114,6 +114,10 @@ export default async function MisDenunciasPage() {
                     {welfareReportSeverityLabel(report.severity)}
                   </p>
 
+                  <p className="text-xs font-mono tracking-wide text-neutral-500 dark:text-neutral-500">
+                    Código {report.referenceCode}
+                  </p>
+
                   <p className="text-sm text-neutral-700 dark:text-neutral-300 line-clamp-3">
                     {report.description.length > 200
                       ? `${report.description.slice(0, 200)}…`

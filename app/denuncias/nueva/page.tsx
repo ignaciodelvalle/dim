@@ -44,6 +44,15 @@ export default async function NuevaDenunciaPage({
 
         <WelfareReportForm action={createWelfareReportAction} isAnonymous={!user} />
 
+        <div className="text-center">
+          <Link
+            href="/denuncias/buscar"
+            className="text-sm text-neutral-500 dark:text-neutral-500 underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+          >
+            ¿Ya hiciste una denuncia? Buscala con tu código →
+          </Link>
+        </div>
+
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <p className="text-xs text-neutral-400 dark:text-neutral-600">
             Ley Nacional 14.346 (1954) — Malos tratos y actos de crueldad contra animales.

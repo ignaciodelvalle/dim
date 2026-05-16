@@ -461,6 +461,11 @@ export const welfareReports = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
 
+    // Short reference code for tracking — lets anonymous reporters retrieve
+    // their own denuncia later without logging in. Format: DEN-XXXX-XXXX.
+    // Generated at insert time with retry-on-collision (see lib/welfare-codes.ts).
+    referenceCode: text("reference_code").notNull().unique(),
+
     // Reporter (null when anonymous)
     reporterUserId: uuid("reporter_user_id").references(() => profiles.id, {
       onDelete: "set null",
@@ -501,6 +506,7 @@ export const welfareReports = pgTable(
     resolutionNotes: text("resolution_notes"),
   },
   (table) => ({
+    referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
     reporterIdx: index("welfare_reports_reporter_idx").on(table.reporterUserId),
     statusIdx: index("welfare_reports_status_idx").on(table.status),
     subjectPetIdx: index("welfare_reports_subject_pet_idx").on(table.subjectPetId),

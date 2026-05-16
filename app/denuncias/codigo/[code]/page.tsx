@@ -1,4 +1,4 @@
-import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
+import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -8,11 +8,11 @@ import {
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/lib/welfare";
-import { and, eq } from "drizzle-orm";
+import { isValidReferenceCodeFormat, normalizeReferenceCode } from "@/lib/welfare-codes";
+import { eq } from "drizzle-orm";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
-// Status badge color mapping — matches mis-denuncias page.
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
@@ -50,43 +50,31 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function WelfareReportDetailPage({
+export default async function WelfareReportByCodePage({
   params,
+  searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ code: string }>;
+  searchParams: Promise<{ nueva?: string }>;
 }) {
-  const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { code: rawCode } = await params;
+  const { nueva } = await searchParams;
+  const code = normalizeReferenceCode(decodeURIComponent(rawCode));
+  if (!isValidReferenceCodeFormat(code)) notFound();
 
-  // Fetch report — only the reporter can see their own submissions.
   const [report] = await db
     .select()
     .from(welfareReports)
-    .where(and(eq(welfareReports.id, id), eq(welfareReports.reporterUserId, user.id)))
+    .where(eq(welfareReports.referenceCode, code))
     .limit(1);
   if (!report) notFound();
 
-  // Fetch subject pet info if applicable.
-  let subjectPet: { publicToken: string; name: string } | null = null;
-  if (report.subjectPetId) {
-    const [petRow] = await db
-      .select({ publicToken: pets.publicToken, name: pets.name })
-      .from(pets)
-      .where(eq(pets.id, report.subjectPetId))
-      .limit(1);
-    subjectPet = petRow ?? null;
-  }
-
-  // Fetch attachments + generate signed URLs.
   const attachmentRows = await db
     .select()
     .from(welfareReportAttachments)
     .where(eq(welfareReportAttachments.welfareReportId, report.id));
 
+  const supabase = await createClient();
   const attachments = await Promise.all(
     attachmentRows.map(async (a) => ({
       ...a,
@@ -107,34 +95,41 @@ export default async function WelfareReportDetailPage({
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         {/* Back link */}
         <Link
-          href="/denuncias/mias"
+          href="/denuncias/buscar"
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
         >
-          ← Mis denuncias
+          ← Buscar otra denuncia
         </Link>
+
+        {/* Fresh submission confirmation banner */}
+        {nueva === "1" && (
+          <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 px-5 py-5 space-y-3">
+            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+              Tu denuncia fue registrada. Gracias por animarte a denunciar.
+            </p>
+            <p className="text-xs text-green-700 dark:text-green-300">Tu código de seguimiento:</p>
+            <p className="text-3xl font-mono tracking-widest font-bold text-green-900 dark:text-green-100">
+              {report.referenceCode}
+            </p>
+            <p className="text-xs text-green-700 dark:text-green-300 leading-relaxed">
+              Guardá este código. Es la única forma de volver a esta denuncia sin sesión. Sacale
+              screenshot o imprimí esta página.
+            </p>
+          </div>
+        )}
 
         {/* Header */}
         <header className="space-y-3">
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
             {welfareReportKindLabel(report.kind)}
           </h1>
-          {/* Reference code + share hint */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
-              Código de seguimiento:{" "}
-              <span className="font-mono tracking-wide text-neutral-700 dark:text-neutral-300">
-                {report.referenceCode}
-              </span>
-            </p>
-            <a
-              href={`/denuncias/codigo/${report.referenceCode}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs underline underline-offset-4 text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-            >
-              Compartir este link
-            </a>
-          </div>
+          {/* Reference code — always visible */}
+          <p className="text-sm text-neutral-500 dark:text-neutral-500">
+            Código de seguimiento:{" "}
+            <span className="font-mono tracking-wide text-neutral-700 dark:text-neutral-300">
+              {report.referenceCode}
+            </span>
+          </p>
           <div className="flex flex-wrap gap-2">
             <span
               className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusBadgeClass(report.status)}`}
@@ -167,15 +162,6 @@ export default async function WelfareReportDetailPage({
           <p className="text-sm text-neutral-700 dark:text-neutral-300">
             {welfareReportSubjectKindLabel(report.subjectKind)}
           </p>
-          {report.subjectKind === "registered_pet" && subjectPet && (
-            <Link
-              href={`/mis-mascotas/${subjectPet.publicToken}`}
-              className="inline-flex items-center gap-1 text-sm underline underline-offset-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              {subjectPet.name}
-              <span className="text-xs font-mono text-neutral-400">{subjectPet.publicToken}</span>
-            </Link>
-          )}
           {report.subjectDescription && (
             <p className="text-sm text-neutral-700 dark:text-neutral-300">
               {report.subjectDescription}

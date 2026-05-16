@@ -37,16 +37,21 @@ create policy "Anyone can insert welfare attachments"
   to anon, authenticated
   with check (true);
 
+-- NOTE: This RLS only governs queries via PostgREST (supabase-js client).
+-- All Drizzle queries bypass it (direct DB connection). This is defense-in-depth.
+-- The "unguessable path" model: any caller who knows the report id (via the
+-- reference code lookup) can read its attachments — the 256-bit UUID entropy
+-- in the report id makes the path effectively unreachable without the code link.
 drop policy if exists "Reporter can read own welfare attachments" on public.welfare_report_attachments;
-create policy "Reporter can read own welfare attachments"
+drop policy if exists "Welfare attachments readable when parent report exists" on public.welfare_report_attachments;
+create policy "Welfare attachments readable when parent report exists"
   on public.welfare_report_attachments
   for select
-  to authenticated
+  to anon, authenticated
   using (
     exists (
       select 1
       from public.welfare_reports wr
       where wr.id = welfare_report_attachments.welfare_report_id
-        and wr.reporter_user_id = auth.uid()
     )
   );

@@ -14,6 +14,7 @@ import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { signalWelfareReport } from "@/lib/authority";
 import { parseDateInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { generateReferenceCode } from "@/lib/welfare-codes";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -108,35 +109,51 @@ export async function createWelfareReportAction(
 
   type NewWelfareReport = typeof welfareReports.$inferInsert;
 
+  // Generate reference code with retry-on-collision (unique constraint violation).
+  let referenceCode = generateReferenceCode();
+  let attempts = 0;
   let insertedId: string | null = null;
-  try {
-    const [row] = await db
-      .insert(welfareReports)
-      .values({
-        reporterUserId: user?.id ?? null,
-        reporterContactEmail,
-        reporterContactPhone,
-        kind: kind as NewWelfareReport["kind"],
-        severity: severity as NewWelfareReport["severity"],
-        description,
-        subjectKind: subjectKind as NewWelfareReport["subjectKind"],
-        subjectPetId,
-        subjectDescription,
-        locationAddress,
-        jurisdictionProvince,
-        jurisdictionLocality,
-        locationLat,
-        locationLng,
-        occurredAt,
-      })
-      .returning({ id: welfareReports.id });
-    insertedId = row.id;
-  } catch (err) {
-    return {
-      error: `No se pudo registrar la denuncia: ${
-        err instanceof Error ? err.message : "error desconocido"
-      }`,
-    };
+  while (attempts < 5) {
+    try {
+      const [row] = await db
+        .insert(welfareReports)
+        .values({
+          reporterUserId: user?.id ?? null,
+          reporterContactEmail,
+          reporterContactPhone,
+          kind: kind as NewWelfareReport["kind"],
+          severity: severity as NewWelfareReport["severity"],
+          description,
+          subjectKind: subjectKind as NewWelfareReport["subjectKind"],
+          subjectPetId,
+          subjectDescription,
+          locationAddress,
+          jurisdictionProvince,
+          jurisdictionLocality,
+          locationLat,
+          locationLng,
+          occurredAt,
+          referenceCode,
+        })
+        .returning({ id: welfareReports.id, referenceCode: welfareReports.referenceCode });
+      insertedId = row.id;
+      referenceCode = row.referenceCode;
+      break;
+    } catch (err) {
+      // Detect unique-violation on reference_code and retry with a new code.
+      const pgCode = (err as { code?: string }).code;
+      if (pgCode === "23505" && attempts < 4) {
+        referenceCode = generateReferenceCode();
+        attempts++;
+        continue;
+      }
+      return {
+        error: `No se pudo registrar la denuncia: ${err instanceof Error ? err.message : "error desconocido"}`,
+      };
+    }
+  }
+  if (!insertedId) {
+    return { error: "No se pudo generar un código único para la denuncia. Probá de nuevo." };
   }
 
   // Upload evidence files (if any). On upload error we return early — the
@@ -183,7 +200,8 @@ export async function createWelfareReportAction(
     hasContact: Boolean(reporterContactEmail || reporterContactPhone),
   });
 
-  // Authenticated users go to mis denuncias; anon goes to confirmation
-  // (use /denuncias/nueva?ok=1 for v1 — no dedicated confirmation page yet).
-  redirect(user ? "/denuncias/mias" : "/denuncias/nueva?ok=1");
+  // Authenticated users go to mis denuncias. Anonymous reporters go to
+  // their by-code detail page with a "nueva" banner — that page is the
+  // ONLY way they will be able to reach this denuncia again.
+  redirect(user ? "/denuncias/mias" : `/denuncias/codigo/${referenceCode}?nueva=1`);
 }
