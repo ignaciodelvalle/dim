@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "rls:smoke": "tsx scripts/rls-smoke.ts",
+    "rebuild:projections": "tsx scripts/rebuild-projections.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
