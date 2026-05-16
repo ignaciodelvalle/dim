@@ -5,7 +5,10 @@ import { eventTypeLabel, formatDateTime } from "@/lib/format";
 import Link from "next/link";
 import { useState } from "react";
 
-const FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }> = [
+// Default chip set — used by /historial and any caller that does not pass
+// a narrower subset. Libreta-specific surfaces import LIBRETA_FILTER_CHIPS
+// from @/lib/libreta-sanitaria instead.
+export const DEFAULT_FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }> = [
   { type: "vaccination_administered", label: "Vacunas" },
   { type: "note_added", label: "Notas" },
   { type: "weight_recorded", label: "Peso" },
@@ -39,10 +42,14 @@ type Props = {
   // Optional so legacy callers keep compiling; when absent, rows render as
   // before without the detail link.
   publicToken?: string;
+  // Optional narrower subset of filter chips (e.g. LIBRETA_FILTER_CHIPS).
+  // When absent, DEFAULT_FILTER_CHIPS is used.
+  chips?: ReadonlyArray<{ type: string; label: string }>;
 };
 
-export function EventTimeline({ events, publicToken }: Props) {
+export function EventTimeline({ events, publicToken, chips }: Props) {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const effectiveChips = chips ?? DEFAULT_FILTER_CHIPS;
 
   function toggleType(type: string) {
     setSelectedTypes((prev) => {
@@ -65,7 +72,7 @@ export function EventTimeline({ events, publicToken }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {FILTER_CHIPS.map((chip) => {
+        {effectiveChips.map((chip) => {
           const isSelected = selectedTypes.has(chip.type);
           return (
             <button
