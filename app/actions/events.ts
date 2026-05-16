@@ -409,7 +409,7 @@ export async function setPetLostAction(
   if (pet.status === "deceased")
     return { error: "No se puede cambiar el estado de una mascota fallecida." };
 
-  const lastKnownLocation = String(formData.get("lastKnownLocation") ?? "").trim() || null;
+  const locationDescription = String(formData.get("lastKnownLocation") ?? "").trim() || null;
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
   const now = new Date();
@@ -424,10 +424,17 @@ export async function setPetLostAction(
         recordedAt: now,
         recordedByUserId: user.id,
         authorRole: "owner",
+        // `location_description` is the canonical payload key for free-text
+        // location info across event types. The legacy `last_known_location`
+        // key (status_changed only) is still readable via the fallback in
+        // lib/events.ts and app/p/[publicToken]/page.tsx, so older events
+        // keep rendering. Precise lat/lng (when a map picker lands) go in
+        // pet_events.location_lat / location_lng — never duplicated in
+        // payload, per AGENTS.md → PetEvent.
         payload: {
           from_status: fromStatus,
           to_status: "lost",
-          last_known_location: lastKnownLocation,
+          location_description: locationDescription,
           reason,
         },
       });

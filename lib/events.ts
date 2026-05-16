@@ -248,7 +248,9 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
     }
     case "status_changed": {
       const toStatus = str("to_status");
-      const loc = str("last_known_location");
+      // Prefer the canonical `location_description` key; fall back to the
+      // legacy `last_known_location` for events written before the rename.
+      const loc = str("location_description") ?? str("last_known_location");
       const reason = str("reason");
       let primary: string | null = null;
       if (toStatus === "lost") primary = "Marcada como perdida";
