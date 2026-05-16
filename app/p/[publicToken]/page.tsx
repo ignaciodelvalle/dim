@@ -57,7 +57,7 @@ export default async function PublicCredentialPage({
   let lostContext: {
     ownerFirstName: string | null;
     phone: string | null;
-    lastKnownLocation: string | null;
+    locationText: string | null;
   } | null = null;
 
   if (isLost) {
@@ -88,10 +88,14 @@ export default async function PublicCredentialPage({
       .orderBy(desc(petEvents.occurredAt))
       .limit(1);
     const payload = (latestLostEvent?.payload ?? {}) as Record<string, unknown>;
+    // Prefer the canonical `location_description` key; fall back to the legacy
+    // `last_known_location` for events written before the key rename.
     const textLocation =
-      typeof payload.last_known_location === "string" && payload.last_known_location.length > 0
-        ? payload.last_known_location
-        : null;
+      typeof payload.location_description === "string" && payload.location_description.length > 0
+        ? payload.location_description
+        : typeof payload.last_known_location === "string" && payload.last_known_location.length > 0
+          ? payload.last_known_location
+          : null;
     // Fallback: precise lat/lng captured on the event row itself. setPetLostAction
     // does not write these today, but the schema supports them — when the
     // marker-pin UI lands they will be populated and surface here automatically.
@@ -110,7 +114,7 @@ export default async function PublicCredentialPage({
     lostContext = {
       ownerFirstName: firstName ?? null,
       phone: ownerRow?.profile.phone ?? null,
-      lastKnownLocation: textLocation ?? geoLocation,
+      locationText: textLocation ?? geoLocation,
     };
   }
 
@@ -216,10 +220,10 @@ export default async function PublicCredentialPage({
             ) : (
               <FoundPetForm publicToken={publicToken} />
             )}
-            {lostContext.lastKnownLocation && (
+            {lostContext.locationText && (
               <p className="text-xs text-amber-800 dark:text-amber-300">
                 <span className="font-medium">Última ubicación conocida:</span>{" "}
-                {lostContext.lastKnownLocation}
+                {lostContext.locationText}
               </p>
             )}
           </div>
