@@ -54,6 +54,7 @@ export function PetForm({
   const [photoPreview, setPhotoPreview] = useState<string | null>(existingPhotoUrl ?? null);
   const [species, setSpecies] = useState<string>(existingPet?.species ?? "");
   const [breed, setBreed] = useState<string>(existingPet?.breed ?? "");
+  const [custodyKind, setCustodyKind] = useState<"owner" | "foster_in_transit">("owner");
 
   const breedOptions = useMemo(() => breedsForSpecies(species), [species]);
   const breedIsDangerous = isPotentiallyDangerousBreed(species, breed);
@@ -81,6 +82,10 @@ export function PetForm({
         Object.entries(hiddenFields).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
         ))}
+      {/* SECTION: ¿Es tu mascota o la estás cuidando?
+          Hidden in compact mode (signup) and in edit mode — changing custody
+          is a separate flow, not a form edit. Defaults to 'owner'. */}
+      {!compact && !isEdit && <CustodyKindToggle value={custodyKind} onChange={setCustodyKind} />}
       {/* SECTION: Lo básico */}
       <Section title="Lo básico" defaultOpen>
         <PhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
@@ -361,6 +366,72 @@ export function PetForm({
 // ============================================================================
 // Helpers
 // ============================================================================
+
+function CustodyKindToggle({
+  value,
+  onChange,
+}: {
+  value: "owner" | "foster_in_transit";
+  onChange: (v: "owner" | "foster_in_transit") => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+        ¿Es tu mascota o la estás cuidando?
+      </span>
+      <input type="hidden" name="custodyKind" value={value} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <CustodyOptionCard
+          checked={value === "owner"}
+          onSelect={() => onChange("owner")}
+          title="Es mi mascota"
+          description="La adoptaste, te la regalaron, la compraste, o ya vive con vos como tuya."
+        />
+        <CustodyOptionCard
+          checked={value === "foster_in_transit"}
+          onSelect={() => onChange("foster_in_transit")}
+          title="La estoy cuidando"
+          description="La encontraste, te la pasó alguien, o la tenés en tránsito mientras buscás dueño o un refugio."
+        />
+      </div>
+      {value === "foster_in_transit" && (
+        <p className="text-xs text-neutral-600 dark:text-neutral-400 px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+          Vas a poder llevarle la libreta sanitaria mientras la cuidás. La información viaja con la
+          mascota si aparece su familia o pasa a un refugio. Si más adelante la adoptás formalmente,
+          vas a poder convertirla en tuya desde su perfil.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CustodyOptionCard({
+  checked,
+  onSelect,
+  title,
+  description,
+}: {
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={checked}
+      className={
+        checked
+          ? "text-left px-4 py-3 rounded-lg border-2 border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900 transition-colors"
+          : "text-left px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+      }
+    >
+      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">{title}</p>
+      <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">{description}</p>
+    </button>
+  );
+}
 
 function ageFromDateOfBirth(dob: string | null): {
   years: number | null;

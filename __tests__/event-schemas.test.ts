@@ -26,14 +26,10 @@ const UNIMPLEMENTED: ReadonlyArray<EventType> = [
   "surgery_performed",
   "allergy_detected",
   "incident_reported",
-  "shelter_intake_recorded",
-  "foster_assigned",
-  "foster_ended",
   "adoption_application_submitted",
   "adoption_application_reviewed",
   "adoption_application_approved",
   "adoption_application_rejected",
-  "adoption_finalized",
   "post_adoption_checkin",
   "adoption_revoked",
   "custody_transferred",
@@ -106,8 +102,102 @@ describe("PayloadSchemas — canonical writer payloads", () => {
         acquisition_method: "adopted",
         has_photo: true,
         has_microchip: false,
+        custody_kind: "owner",
       }),
     ).not.toThrow();
+  });
+
+  it("pet_registered accepts custody_kind shelter_custody_by_citizen", () => {
+    const result = validateEventPayload("pet_registered", {
+      name: "Sombra",
+      species: "dog",
+      sex: "unknown",
+      breed: null,
+      date_of_birth: null,
+      birth_date_is_estimated: false,
+      color: null,
+      microchip_id: null,
+      microchip_country_code: null,
+      microchip_implanted_at: null,
+      microchip_implanted_by: null,
+      microchip_location: null,
+      estimated_weight_kg: null,
+      favourite_foods: [],
+      known_allergies: [],
+      training_level: null,
+      insurance_company: null,
+      insurance_policy_number: null,
+      jurisdiction_province: null,
+      jurisdiction_locality: null,
+      potentially_dangerous_breed: false,
+      acquisition_method: "found_stray",
+      has_photo: false,
+      has_microchip: false,
+      custody_kind: "shelter_custody_by_citizen",
+    }) as Record<string, unknown>;
+    expect(result.custody_kind).toBe("shelter_custody_by_citizen");
+  });
+
+  it("pet_registered fills in custody_kind=owner when missing (legacy events)", () => {
+    const result = validateEventPayload("pet_registered", {
+      name: "Old",
+      species: "dog",
+      sex: "unknown",
+      breed: null,
+      date_of_birth: null,
+      birth_date_is_estimated: false,
+      color: null,
+      microchip_id: null,
+      microchip_country_code: null,
+      microchip_implanted_at: null,
+      microchip_implanted_by: null,
+      microchip_location: null,
+      estimated_weight_kg: null,
+      favourite_foods: [],
+      known_allergies: [],
+      training_level: null,
+      insurance_company: null,
+      insurance_policy_number: null,
+      jurisdiction_province: null,
+      jurisdiction_locality: null,
+      potentially_dangerous_breed: false,
+      acquisition_method: null,
+      has_photo: false,
+      has_microchip: false,
+    }) as Record<string, unknown>;
+    expect(result.custody_kind).toBe("owner");
+  });
+
+  it("pet_registered rejects invalid custody_kind values", () => {
+    expect(() =>
+      validateEventPayload("pet_registered", {
+        name: "X",
+        species: "dog",
+        sex: "unknown",
+        breed: null,
+        date_of_birth: null,
+        birth_date_is_estimated: false,
+        color: null,
+        microchip_id: null,
+        microchip_country_code: null,
+        microchip_implanted_at: null,
+        microchip_implanted_by: null,
+        microchip_location: null,
+        estimated_weight_kg: null,
+        favourite_foods: [],
+        known_allergies: [],
+        training_level: null,
+        insurance_company: null,
+        insurance_policy_number: null,
+        jurisdiction_province: null,
+        jurisdiction_locality: null,
+        potentially_dangerous_breed: false,
+        acquisition_method: null,
+        has_photo: false,
+        has_microchip: false,
+        custody_kind: "shelter_full",
+      }),
+    ).toThrow(EventPayloadValidationError);
   });
 
   it("pet_registered now rejects legacy camelCase keys (no more passthrough)", () => {

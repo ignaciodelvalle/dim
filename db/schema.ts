@@ -132,6 +132,35 @@ export const organizationMembershipRoleEnum = pgEnum("organization_membership_ro
   "vet_individual",
 ]);
 
+// Capability grants on a membership. `pending` is the initial state when an
+// employee requests access; an admin transitions it to `approved` or `denied`.
+// `revoked` is a previously-approved grant that an admin took back — kept as a
+// distinct terminal state so the audit trail preserves the prior approval.
+export const organizationCapabilityStatusEnum = pgEnum("organization_capability_status", [
+  "pending",
+  "approved",
+  "denied",
+  "revoked",
+]);
+
+// Capability catalog kept as TEXT (not an enum) so adding a new capability is
+// a one-line edit. Validation happens in `lib/capabilities.ts`. Membership
+// role=admin implicitly holds every capability and is NOT required to be
+// granted them explicitly (see lib/capabilities.ts → getGrantedCapabilities).
+export const ORGANIZATION_CAPABILITIES = [
+  "pet.read_held",
+  "intake.create",
+  "foster.assign",
+  "foster.end",
+  "adoption.review",
+  "adoption.finalize",
+  "custody.transfer",
+  "event.write",
+  "member.invite",
+  "capability.grant",
+] as const;
+export type OrganizationCapability = (typeof ORGANIZATION_CAPABILITIES)[number];
+
 export const welfareReportSubjectKindEnum = pgEnum("welfare_report_subject_kind", [
   "registered_pet",
   "unowned_animal",
@@ -430,6 +459,47 @@ export const organizationMemberships = pgTable(
   }),
 );
 
+// Per-membership capability grants. Each row is a request + decision audit
+// record: who asked for what, when, who decided, and why. `organization_id` is
+// denormalized from the membership so the admin queue (pending grants per org)
+// is a single-index scan. The server action that writes here keeps it in sync.
+export const organizationCapabilityGrants = pgTable(
+  "organization_capability_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    membershipId: uuid("membership_id")
+      .notNull()
+      .references(() => organizationMemberships.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    capability: text("capability").notNull(),
+    status: organizationCapabilityStatusEnum("status").notNull().default("pending"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    requestedReason: text("requested_reason"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedByUserId: uuid("decided_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    decisionReason: text("decision_reason"),
+  },
+  (table) => ({
+    membershipCapabilityIdx: index("org_capability_grants_membership_capability_idx").on(
+      table.membershipId,
+      table.capability,
+    ),
+    // Single-index lookup for an admin reviewing pending requests for one org.
+    orgPendingIdx: index("org_capability_grants_org_pending_idx")
+      .on(table.organizationId)
+      .where(sql`${table.status} = 'pending'`),
+    // At most one open (pending or approved) grant per (membership, capability).
+    // Denials and revocations are terminal and don't block a fresh request.
+    oneOpenGrantPerCapability: uniqueIndex("org_capability_grants_one_open_per_capability")
+      .on(table.membershipId, table.capability)
+      .where(sql`${table.status} IN ('pending', 'approved')`),
+  }),
+);
+
 // ============================================================================
 // Ownership — who holds custody of each pet, with history (polymorphic)
 // ============================================================================
@@ -593,6 +663,9 @@ export type NewOrganizationCoverage = typeof organizationCoverage.$inferInsert;
 
 export type OrganizationMembership = typeof organizationMemberships.$inferSelect;
 export type NewOrganizationMembership = typeof organizationMemberships.$inferInsert;
+
+export type OrganizationCapabilityGrant = typeof organizationCapabilityGrants.$inferSelect;
+export type NewOrganizationCapabilityGrant = typeof organizationCapabilityGrants.$inferInsert;
 
 export type Ownership = typeof ownerships.$inferSelect;
 export type NewOwnership = typeof ownerships.$inferInsert;

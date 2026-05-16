@@ -1,9 +1,9 @@
 import { updatePetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
-import { attachments, db, ownerships, pets } from "@/db";
+import { attachments, db } from "@/db";
+import { requirePetAccess } from "@/lib/pet-access";
 import { petPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -13,29 +13,15 @@ export default async function EditPetPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
 
-  // Same ownership check as the detail page — non-owners get 404.
-  const [result] = await db
-    .select({ pet: pets, photo: attachments })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(
-      and(
-        eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) notFound();
+  const { pet } = access;
 
-  if (!result) notFound();
-  const { pet, photo } = result;
+  // Photo: tiny side query indexed on primaryPhotoId.
+  const [photo] = pet.primaryPhotoId
+    ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
+    : [];
 
   // Bind the publicToken into the action so the form doesn't have to send it.
   const boundAction = updatePetAction.bind(null, publicToken);

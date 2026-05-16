@@ -4,8 +4,8 @@ import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
+import { requirePetAccess } from "@/lib/pet-access";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -181,35 +181,35 @@ export default async function PetDetailPage({
 }) {
   const { publicToken } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) notFound();
+  const { supabase, user, pet, accessPath, organization } = access;
 
-  // Fetch the pet + verify ownership in a single query. If the user doesn't
-  // own this pet (or it doesn't exist) we 404 — same response either way, so
-  // we don't leak the existence of pets the user can't access.
-  const [result] = await db
-    .select({ pet: pets, photo: attachments })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(
-      and(
-        eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerUserId, user.id),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-
-  if (!result) {
-    notFound();
-  }
-
-  const { pet, photo } = result;
+  // Photo: separate small query indexed on primaryPhotoId, only if set.
+  const [photo] = pet.primaryPhotoId
+    ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
+    : [];
   const photoUrl = petPhotoUrl(photo?.storagePath);
+
+  // "En tránsito" badge is owner-side semantics — the user is personally
+  // caretaking a stray they picked up. For org-mediated access, the org's
+  // relationship is surfaced via the org banner instead, so isTransit stays
+  // false on that path.
+  let isTransit = false;
+  if (accessPath === "owner") {
+    const [ownerRow] = await db
+      .select({ role: ownerships.role })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, pet.id),
+          eq(ownerships.ownerUserId, user.id),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    isTransit = ownerRow?.role === "shelter_custody";
+  }
 
   // Event timeline, newest first. Self-scans are filtered at the DB level
   // so the JS-side timeline doesn't have to know about credential_scanned
@@ -278,11 +278,20 @@ export default async function PetDetailPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         <Link
-          href="/mis-mascotas"
+          href={accessPath === "org" ? "/refugio/mascotas" : "/mis-mascotas"}
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
-          ← Mis mascotas
+          ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
         </Link>
+
+        {accessPath === "org" && organization && (
+          <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+            Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
+            Cualquier evento que registres queda atribuido a la organización.
+          </div>
+        )}
+
+        {isTransit && <TransitBanner petName={pet.name} />}
 
         {/* Hero: photo + name + key facts */}
         <section className="flex items-start gap-5">
@@ -372,14 +381,31 @@ export default async function PetDetailPage({
               const latestAttestation = eventsWithAttachments.find(
                 (e) => e.eventType === "dangerous_breed_attested",
               );
-              return latestAttestation ? (
-                <Link
-                  href={`/mis-mascotas/${pet.publicToken}/historial`}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-100"
-                >
-                  ✓ Atestación registrada — ver historial
-                </Link>
-              ) : (
+              if (latestAttestation) {
+                return (
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}/historial`}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-100"
+                  >
+                    ✓ Atestación registrada — ver historial
+                  </Link>
+                );
+              }
+              // Transit custodians can't atestar — the legal PPP registry
+              // obligation belongs to the legal owner, not a caretaker.
+              if (isTransit) {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    title="Lo registra el dueño cuando aparezca"
+                    className="inline-block px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium text-amber-800 dark:text-amber-300 opacity-60 cursor-not-allowed"
+                  >
+                    Registrar atestación de raza peligrosa
+                  </button>
+                );
+              }
+              return (
                 <Link
                   href={`/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`}
                   className="inline-block px-3 py-1.5 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-xs font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
@@ -654,6 +680,35 @@ function MedicationDosesSection({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+function TransitBanner({ petName }: { petName: string }) {
+  return (
+    <section className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
+      <p className="text-sm text-amber-900 dark:text-amber-200">
+        Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
+        viaja con la mascota.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled
+          title="Próximamente"
+          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200 opacity-60 cursor-not-allowed"
+        >
+          Convertir en mi mascota
+        </button>
+        <button
+          type="button"
+          disabled
+          title="Próximamente"
+          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200 opacity-60 cursor-not-allowed"
+        >
+          Buscar nuevo hogar
+        </button>
+      </div>
     </section>
   );
 }

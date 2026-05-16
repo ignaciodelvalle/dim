@@ -6,7 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-export default async function MisMascotasPage() {
+export default async function MisMascotasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reclamado?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -14,10 +18,13 @@ export default async function MisMascotasPage() {
   if (!user) return null; // layout guards this
 
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  const params = await searchParams;
+  const claimedCount = params.reclamado ? Number.parseInt(params.reclamado, 10) : null;
 
-  // Pets where this user is the *current* owner, with their primary photo.
+  // Pets where this user is the *current* custodian (any role), with the
+  // primary photo and the ownership role for the "En tránsito" badge.
   const ownedPets = await db
-    .select({ pet: pets, photo: attachments })
+    .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
@@ -60,17 +67,30 @@ export default async function MisMascotasPage() {
           </div>
         </header>
 
+        {claimedCount !== null && (
+          <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+            {claimedCount > 0
+              ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
+              : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
+          </p>
+        )}
+
         {ownedPets.length === 0 ? (
           <EmptyState />
         ) : (
           <ul className="space-y-3">
-            {ownedPets.map(({ pet, photo }) => (
-              <PetCard key={pet.id} pet={pet} photoUrl={petPhotoUrl(photo?.storagePath)} />
+            {ownedPets.map(({ pet, photo, ownershipRole }) => (
+              <PetCard
+                key={pet.id}
+                pet={pet}
+                photoUrl={petPhotoUrl(photo?.storagePath)}
+                ownershipRole={ownershipRole}
+              />
             ))}
           </ul>
         )}
 
-        <div className="flex gap-4 pt-2 text-sm">
+        <div className="flex gap-4 pt-2 text-sm flex-wrap">
           <Link
             href="/denuncias/nueva"
             className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
@@ -83,6 +103,14 @@ export default async function MisMascotasPage() {
           >
             Mis denuncias
           </Link>
+          {!profile?.dniNumber && (
+            <Link
+              href="/mis-mascotas/reclamar"
+              className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            >
+              Reclamar adopción de refugio
+            </Link>
+          )}
         </div>
 
         <form action={logoutAction} className="pt-12">
@@ -143,8 +171,17 @@ function NotificationBell({ unreadCount }: { unreadCount: number }) {
   );
 }
 
-function PetCard({ pet, photoUrl }: { pet: Pet; photoUrl: string | null }) {
+function PetCard({
+  pet,
+  photoUrl,
+  ownershipRole,
+}: {
+  pet: Pet;
+  photoUrl: string | null;
+  ownershipRole: string;
+}) {
   const initial = pet.name.charAt(0).toUpperCase();
+  const isTransit = ownershipRole === "shelter_custody";
 
   return (
     <li>
@@ -164,7 +201,14 @@ function PetCard({ pet, photoUrl }: { pet: Pet; photoUrl: string | null }) {
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-neutral-900 dark:text-neutral-50 truncate">{pet.name}</p>
+          <p className="font-medium text-neutral-900 dark:text-neutral-50 truncate">
+            {pet.name}
+            {isTransit && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900 align-middle">
+                En tránsito
+              </span>
+            )}
+          </p>
           <p className="text-sm text-neutral-500 dark:text-neutral-500 truncate">
             {speciesLabel(pet.species)}
             {pet.color && ` · ${pet.color}`}

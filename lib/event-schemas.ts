@@ -71,6 +71,19 @@ const petRegistered = z
         .nullable(),
       has_photo: z.boolean(),
       has_microchip: z.boolean(),
+      // "owner" by default — implicitly "owned by the registering user" for
+      // back-compat with pre-org rows. Newer values disambiguate the holder:
+      //   - "shelter_custody_by_citizen" — vecino-helps-stray case
+      //   - "shelter_custody_by_org"     — refugio takes intake custody
+      //   - "owner_by_org"               — org keeps the animal permanently
+      //                                    (sanctuary, internal adoption,
+      //                                    decomiso-without-rehoming)
+      // Surfaces the custody decision in the immutable log so projections can
+      // filter without joining ownerships. Defaulted on parse so events written
+      // before this field landed still validate.
+      custody_kind: z
+        .enum(["owner", "shelter_custody_by_citizen", "shelter_custody_by_org", "owner_by_org"])
+        .default("owner"),
     }),
   )
   .strict();
@@ -352,6 +365,77 @@ const symptomObserved = z
   .strict();
 
 // ---------------------------------------------------------------------------
+// Custody & adoption (refugio portal)
+// ---------------------------------------------------------------------------
+
+// Intake event fired when an org takes custody of an animal. The payload
+// captures intake-specific info (reason, body condition, jurisdiction) so
+// pet_registered can stay universal across owner / refugio / citizen flows.
+// Authority side-effects (DGSA notification on seizure, etc.) hook off this
+// event via projections in later phases — keep the payload spec'd to AGENTS.md
+// → Custody & adoption.
+const shelterIntakeRecorded = z
+  .object(
+    withVersion({
+      intake_reason: z.enum(["rescue", "surrender", "seizure", "stray_found", "other"]),
+      intake_condition: z.string().nullable(),
+      rescue_jurisdiction: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// Foster assignment — refugio assigns a member to physically care for an
+// animal it holds in shelter_custody. The foster's `ownership(role='foster')`
+// row coexists with the org's `ownership(role='shelter_custody')` row; the
+// unique-active-owner constraint only fires on role='owner', so both rows
+// stay active simultaneously by design.
+const fosterAssigned = z
+  .object(
+    withVersion({
+      foster_user_id: z.string().uuid(),
+      expected_weeks: z.number().int().min(0).nullable(),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// Foster ending — closes a foster ownership row without an adoption finalize
+// (adoption_finalized handles the foster→owner transition in one composite
+// event). Used when a tránsito returns the animal to the refugio, the foster
+// can't continue, or the refugio reassigns. `ended_reason` is free-text;
+// `ended_by` records who initiated the close.
+const fosterEnded = z
+  .object(
+    withVersion({
+      foster_user_id: z.string().uuid(),
+      foster_assigned_event_id: z.string().uuid().nullable(),
+      ended_by: z.enum(["shelter", "foster_returned", "other"]),
+      reason: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// Adoption finalization — composite event. Atomically: end the prior
+// shelter_custody row, end any active foster row, insert a new owner row.
+// The payload references the institutional ancestor (previous_owner_org) and
+// optional foster so projections can rebuild the custody chain without
+// scanning ownerships history. `contract_attachment_id` is reserved; v1 leaves
+// it null (upload flow ships in a follow-up). `post_adoption_followup_months`
+// drives the follow-up check-in window per AGENTS.md → Custody & adoption.
+const adoptionFinalized = z
+  .object(
+    withVersion({
+      previous_owner_organization_id: z.string().uuid(),
+      adopter_user_id: z.string().uuid(),
+      foster_user_id: z.string().uuid().nullable(),
+      contract_attachment_id: z.string().uuid().nullable(),
+      post_adoption_followup_months: z.number().int().min(0).max(36).nullable(),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 // Partial<Record<EventType, ...>> because some EVENT_TYPES entries are
@@ -382,6 +466,10 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   abandonment_reported: abandonmentReported,
   maltreatment_reported: maltreatmentReported,
   symptom_observed: symptomObserved,
+  shelter_intake_recorded: shelterIntakeRecorded,
+  foster_assigned: fosterAssigned,
+  foster_ended: fosterEnded,
+  adoption_finalized: adoptionFinalized,
 };
 
 /**
