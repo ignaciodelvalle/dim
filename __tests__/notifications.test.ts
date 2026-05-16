@@ -5,7 +5,7 @@
 // tears it down at the end so the file is safe to re-run.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
@@ -32,7 +32,12 @@ async function provisionFixture() {
   const found = list?.users.find((u) => u.email === EMAIL);
   if (found) {
     const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, found.id));
-    for (const o of owned) await db.delete(pets).where(eq(pets.id, o.petId));
+    // Pet cascade hits the append-only trigger on pet_events; wrap the
+    // teardown delete in a tx with the session-local escape hatch set.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
+    });
     await admin.auth.admin.deleteUser(found.id);
   }
   const { data, error } = await admin.auth.admin.createUser({
@@ -92,7 +97,11 @@ async function provisionFixture() {
 
 async function teardownFixture() {
   const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, userId));
-  for (const o of owned) await db.delete(pets).where(eq(pets.id, o.petId));
+  // See provisionFixture cleanup note: cascade hits the append-only trigger.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
+  });
   await admin.auth.admin.deleteUser(userId);
 }
 
