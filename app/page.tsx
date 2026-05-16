@@ -42,6 +42,15 @@ export default async function Home() {
           </Link>
         </div>
 
+        <div className="pt-4">
+          <Link
+            href="/denuncias/nueva"
+            className="text-sm text-neutral-500 dark:text-neutral-500 underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+          >
+            Denunciar maltrato animal
+          </Link>
+        </div>
+
         <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-12 tracking-widest uppercase">
           v0.1.0 · scaffolding · más por venir
         </p>

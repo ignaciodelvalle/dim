@@ -12,6 +12,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -68,6 +69,44 @@ export const reminderTypeEnum = pgEnum("reminder_type", [
   "medication",
   "appointment",
   "custom",
+]);
+
+// Welfare report enums — animal-cruelty / welfare denuncia system.
+// Legal frame: Ley Nacional 14.346 (1954).
+
+export const welfareReportSubjectKindEnum = pgEnum("welfare_report_subject_kind", [
+  "registered_pet",
+  "unowned_animal",
+  "location",
+  "general",
+]);
+
+export const welfareReportKindEnum = pgEnum("welfare_report_kind", [
+  "abandonment",
+  "neglect",
+  "physical_abuse",
+  "chained",
+  "no_shelter",
+  "hoarding",
+  "dog_fighting",
+  "trafficking",
+  "other",
+]);
+
+export const welfareReportSeverityEnum = pgEnum("welfare_report_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+export const welfareReportStatusEnum = pgEnum("welfare_report_status", [
+  "open",
+  "triaged",
+  "in_progress",
+  "closed",
+  "duplicate",
+  "invalid",
 ]);
 
 // Event types are kept as TEXT (not an enum) so adding a new event type does
@@ -407,3 +446,71 @@ export const notifications = pgTable(
 
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+
+// ============================================================================
+// WelfareReports — animal-cruelty / welfare denuncia (Ley 14.346)
+// ============================================================================
+// Separate domain from the pet-event catalog. Reporters can be logged-in or
+// anonymous (reporter_user_id is null for anonymous submissions). The subject
+// can be a registered DIM pet, an unowned animal (free text), or a
+// location/situation. Workflow transitions (triage, close) are done via
+// service role by welfare officers — admin UI deferred to a later slice.
+
+export const welfareReports = pgTable(
+  "welfare_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    // Reporter (null when anonymous)
+    reporterUserId: uuid("reporter_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    reporterContactEmail: text("reporter_contact_email"),
+    reporterContactPhone: text("reporter_contact_phone"),
+
+    // What
+    kind: welfareReportKindEnum("kind").notNull(),
+    severity: welfareReportSeverityEnum("severity").notNull(),
+    description: text("description").notNull(),
+
+    // Subject
+    subjectKind: welfareReportSubjectKindEnum("subject_kind").notNull(),
+    subjectPetId: uuid("subject_pet_id").references(() => pets.id, {
+      onDelete: "set null",
+    }),
+    subjectDescription: text("subject_description"),
+
+    // Where
+    locationAddress: text("location_address"),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    locationLat: doublePrecision("location_lat"),
+    locationLng: doublePrecision("location_lng"),
+
+    // When
+    occurredAt: timestamp("occurred_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+    // Workflow (admin/welfare-officer side comes later; default open)
+    status: welfareReportStatusEnum("status").notNull().default("open"),
+    triagedAt: timestamp("triaged_at", { withTimezone: true }),
+    triagedByUserId: uuid("triaged_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    resolutionNotes: text("resolution_notes"),
+  },
+  (table) => ({
+    reporterIdx: index("welfare_reports_reporter_idx").on(table.reporterUserId),
+    statusIdx: index("welfare_reports_status_idx").on(table.status),
+    subjectPetIdx: index("welfare_reports_subject_pet_idx").on(table.subjectPetId),
+    jurisdictionIdx: index("welfare_reports_jurisdiction_idx").on(
+      table.jurisdictionProvince,
+      table.jurisdictionLocality,
+    ),
+    locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
+  }),
+);
+
+export type WelfareReport = typeof welfareReports.$inferSelect;
+export type NewWelfareReport = typeof welfareReports.$inferInsert;

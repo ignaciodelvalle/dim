@@ -70,6 +70,21 @@ export default async function MisMascotasPage() {
           </ul>
         )}
 
+        <div className="flex gap-4 pt-2 text-sm">
+          <Link
+            href="/denuncias/nueva"
+            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+          >
+            + Denunciar maltrato animal
+          </Link>
+          <Link
+            href="/denuncias/mias"
+            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+          >
+            Mis denuncias
+          </Link>
+        </div>
+
         <form action={logoutAction} className="pt-12">
           <button
             type="submit"

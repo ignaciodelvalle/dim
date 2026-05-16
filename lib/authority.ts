@@ -1,14 +1,14 @@
-// Placeholder for future integration with Argentine sanitary authority
-// systems (SENASA RENSE, provincial public-health dashboards, or whatever
-// the integration target turns out to be).
+// Placeholder for future integrations with Argentine authority systems.
 //
-// When a death_recorded event lands with is_reportable=true, this function
-// is the single hook that will dispatch the structured signal. Today it is
-// a no-op — the reportable flag lives in the event payload, so the future
-// govt-side dashboard can already query the event log directly without
-// this hook firing anything.
+// signalAuthorityReport — dispatches a structured disease/death signal to
+// SENASA RENSE, provincial public-health dashboards, or equivalent. Today
+// a no-op; the reportable flag in the event payload lets future dashboards
+// query directly. Wire here when the integration target is decided.
 //
-// When the integration is built, this is the only place to wire it.
+// signalWelfareReport — dispatches an animal-welfare denuncia to the real
+// authority channel (Ley Nacional 14.346 denuncia pipeline, brigada ambiental,
+// fiscalía especializada, NGO partner triage queue, or wherever the integration
+// target is decided). Today a no-op.
 
 export type AuthorityReportInput = {
   eventId: string;
@@ -24,5 +24,22 @@ export async function signalAuthorityReport(_input: AuthorityReportInput): Promi
   // TODO(authority-integration): dispatch the report to the real authority
   // system (SENASA / provincial portal / HL7 FHIR endpoint / etc.) when
   // the destination is decided. Today: no-op.
+  return;
+}
+
+export type WelfareReportSignalInput = {
+  reportId: string;
+  kind: string;
+  severity: string;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+  hasContact: boolean;
+};
+
+export async function signalWelfareReport(_input: WelfareReportSignalInput): Promise<void> {
+  // TODO(authority-integration): dispatch the welfare report to the real
+  // animal-welfare authority channel (Ley Nacional 14.346 denuncia pipeline,
+  // brigada ambiental, fiscalía especializada, NGO partner triage queue,
+  // or wherever the integration target is decided). Today: no-op.
   return;
 }

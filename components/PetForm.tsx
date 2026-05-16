@@ -7,6 +7,7 @@
 
 import type { NewPetFormState } from "@/app/actions/pets";
 import type { Pet } from "@/db";
+import { PROVINCIAS } from "@/lib/ar-provincias";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
 import {
   COMMON_ALLERGIES,
@@ -18,33 +19,6 @@ import {
 import { useActionState, useMemo, useState } from "react";
 
 const initialState: NewPetFormState = { error: null };
-
-const PROVINCIAS = [
-  "Buenos Aires",
-  "CABA",
-  "Catamarca",
-  "Chaco",
-  "Chubut",
-  "Córdoba",
-  "Corrientes",
-  "Entre Ríos",
-  "Formosa",
-  "Jujuy",
-  "La Pampa",
-  "La Rioja",
-  "Mendoza",
-  "Misiones",
-  "Neuquén",
-  "Río Negro",
-  "Salta",
-  "San Juan",
-  "San Luis",
-  "Santa Cruz",
-  "Santa Fe",
-  "Santiago del Estero",
-  "Tierra del Fuego",
-  "Tucumán",
-];
 
 type FormAction = (prev: NewPetFormState, formData: FormData) => Promise<NewPetFormState>;
 
