@@ -43,7 +43,6 @@ type Props = {
 
 export function EventTimeline({ events, publicToken }: Props) {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-  const [showSelfScans, setShowSelfScans] = useState(false);
 
   function toggleType(type: string) {
     setSelectedTypes((prev) => {
@@ -54,19 +53,10 @@ export function EventTimeline({ events, publicToken }: Props) {
     });
   }
 
-  // First apply the self-scan filter, then the type chip filter.
-  const visibleEvents = showSelfScans
-    ? events
-    : events.filter((e) => {
-        if (e.eventType !== "credential_scanned") return true;
-        const payload = (e.payload ?? {}) as Record<string, unknown>;
-        return payload.is_self_scan !== true;
-      });
-
+  // Self-scans are excluded at the DB level (lib/events.excludeSelfScansClause)
+  // so no client-side filtering needed here.
   const filteredEvents =
-    selectedTypes.size === 0
-      ? visibleEvents
-      : visibleEvents.filter((e) => selectedTypes.has(e.eventType));
+    selectedTypes.size === 0 ? events : events.filter((e) => selectedTypes.has(e.eventType));
 
   if (events.length === 0) {
     return <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin eventos todavía.</p>;
@@ -94,13 +84,6 @@ export function EventTimeline({ events, publicToken }: Props) {
           );
         })}
       </div>
-      <button
-        type="button"
-        onClick={() => setShowSelfScans((v) => !v)}
-        className="text-xs text-neutral-500 dark:text-neutral-500 underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-      >
-        {showSelfScans ? "Ocultar mis propios escaneos" : "Mostrar mis propios escaneos"}
-      </button>
       {filteredEvents.length === 0 ? (
         <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin eventos de este tipo.</p>
       ) : (
