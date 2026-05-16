@@ -435,6 +435,25 @@ const adoptionFinalized = z
   )
   .strict();
 
+// Custody transferred — org-to-org handoff. The source org's active
+// ownership row is closed; the destination org gets a fresh ownership
+// row with the chosen role. If a foster was active on the source side,
+// that row is auto-closed and a sibling foster_ended event is emitted in
+// the same tx; its id is captured here so the timeline reads as one
+// coherent transfer rather than two unrelated events.
+const custodyTransferred = z
+  .object(
+    withVersion({
+      from_organization_id: z.string().uuid(),
+      to_organization_id: z.string().uuid(),
+      from_role: z.enum(["shelter_custody", "owner"]),
+      to_role: z.enum(["shelter_custody", "owner"]),
+      foster_ended_event_id: z.string().uuid().nullable(),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // Post-adoption check-in — adopter self-reports during the followup window
 // (1m/3m/6m/12m after adoption_finalized, capped by post_adoption_followup_months).
 // AGENTS.md → Custody & adoption: follow-up is enforced through notifications,
@@ -487,6 +506,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_ended: fosterEnded,
   adoption_finalized: adoptionFinalized,
   post_adoption_checkin: postAdoptionCheckin,
+  custody_transferred: custodyTransferred,
 };
 
 /**
