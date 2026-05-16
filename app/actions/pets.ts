@@ -261,11 +261,35 @@ export async function createPetAction(
         await tx.update(pets).set({ primaryPhotoId: attachment.id }).where(eq(pets.id, newPet.id));
       }
 
+      // Explicit snake_case payload — no `...parsed` spread. Mixing camelCase
+      // and snake_case in the same JSON column made the schema unable to be
+      // strict and let `emergencyInfoVisible` (a UI preference, not
+      // registration metadata) leak into the immutable log historically.
       const petRegisteredPayload = validateEventPayload("pet_registered", {
-        ...parsed,
+        name: parsed.name,
+        species: parsed.species,
+        sex: parsed.sex,
+        breed: parsed.breed,
+        date_of_birth: parsed.dateOfBirth,
+        birth_date_is_estimated: parsed.birthDateIsEstimated,
+        color: parsed.color,
+        microchip_id: parsed.microchipId,
+        microchip_country_code: parsed.microchipCountryCode,
+        microchip_implanted_at: parsed.microchipImplantedAt,
+        microchip_implanted_by: parsed.microchipImplantedBy,
+        microchip_location: parsed.microchipLocation,
+        estimated_weight_kg: parsed.estimatedWeightKg,
+        favourite_foods: parsed.favouriteFoods,
+        known_allergies: parsed.knownAllergies,
+        training_level: parsed.trainingLevel,
+        insurance_company: parsed.insuranceCompany,
+        insurance_policy_number: parsed.insurancePolicyNumber,
+        jurisdiction_province: parsed.jurisdictionProvince,
+        jurisdiction_locality: parsed.jurisdictionLocality,
+        potentially_dangerous_breed: parsed.potentiallyDangerousBreed,
+        acquisition_method: parsed.acquisitionMethod,
         has_photo: upload.uploadedPath !== null,
         has_microchip: parsed.microchipId !== null,
-        acquisition_method: parsed.acquisitionMethod,
       });
       const registeredEvent = await tx
         .insert(petEvents)

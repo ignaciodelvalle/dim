@@ -33,22 +33,47 @@ const trueOrNull = z.union([z.literal(true), z.null()]);
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-// pet_registered uses .passthrough() — see app/actions/pets.ts createPetAction
-// which spreads `...parsed` (the full ParsedPet object, camelCase) and then
-// appends three snake_case keys. Until that writer is normalized in a
-// follow-up PR, the schema accepts the legacy camelCase keys without
-// validating them. The 3 snake_case keys ARE validated.
+// Snake_case throughout, all required keys explicit. createPetAction was
+// normalized in a follow-up PR to write this exact shape (no more
+// `...parsed` spread that mixed cases and let emergencyInfoVisible — a UI
+// preference — leak into the immutable log). Strict: extra keys now throw.
+// Historical rows from before the rewrite still exist in the DB with the
+// old mixed-case shape, but those rows are NOT validated (validation
+// happens at insert time only) so old rows stay readable.
 const petRegistered = z
   .object(
     withVersion({
-      has_photo: z.boolean(),
-      has_microchip: z.boolean(),
+      name: z.string(),
+      species: z.string(),
+      sex: z.enum(["male", "female", "unknown"]),
+      breed: z.string().nullable(),
+      date_of_birth: z.string().nullable(),
+      birth_date_is_estimated: z.boolean(),
+      color: z.string().nullable(),
+      microchip_id: z.string().nullable(),
+      microchip_country_code: z.string().nullable(),
+      microchip_implanted_at: z.string().nullable(),
+      microchip_implanted_by: z.string().nullable(),
+      microchip_location: z.string().nullable(),
+      estimated_weight_kg: z.string().nullable(),
+      favourite_foods: z.array(z.string()),
+      known_allergies: z.array(z.string()),
+      training_level: z
+        .enum(["none", "basic", "intermediate", "advanced", "professional"])
+        .nullable(),
+      insurance_company: z.string().nullable(),
+      insurance_policy_number: z.string().nullable(),
+      jurisdiction_province: z.string().nullable(),
+      jurisdiction_locality: z.string().nullable(),
+      potentially_dangerous_breed: z.boolean(),
       acquisition_method: z
         .enum(["adopted", "purchased", "found_stray", "gift", "born_in_litter", "other"])
         .nullable(),
+      has_photo: z.boolean(),
+      has_microchip: z.boolean(),
     }),
   )
-  .passthrough();
+  .strict();
 
 const petProfileUpdated = z
   .object(
