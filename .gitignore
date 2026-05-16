@@ -40,3 +40,7 @@ next-env.d.ts
 # supabase local
 supabase/.branches/
 supabase/.temp/
+supabase/snippets/Untitled*.sql
+
+# agent tool caches
+.atl/
