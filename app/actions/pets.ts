@@ -14,6 +14,7 @@
 // there also emits a microchip_implanted event.
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
 import { parseDateInput } from "@/lib/format";
 import { generatePublicToken } from "@/lib/publicToken";
@@ -167,8 +168,13 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       trainingLevel,
       insuranceCompany: String(formData.get("insuranceCompany") ?? "").trim() || null,
       insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
-      jurisdictionProvince: String(formData.get("province") ?? "").trim() || null,
-      jurisdictionLocality: String(formData.get("locality") ?? "").trim() || null,
+      // The shared LocationFields component submits the ISO 3166-2:AR code.
+      // Resolve it to the display name for storage — the column still holds
+      // free text until the canonical-codes migration lands (deferred until
+      // gov dashboards need k-anonymity-safe rollups).
+      jurisdictionProvince:
+        provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null,
+      jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
       potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
       acquisitionMethod,
       emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",

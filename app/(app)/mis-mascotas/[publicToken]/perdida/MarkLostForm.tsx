@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { LocationFields } from "@/components/LocationFields";
 import { useActionState } from "react";
 
 const initialState: EventFormState = { error: null };
@@ -30,6 +31,11 @@ export function MarkLostForm({ action }: { action: FormAction }) {
           Opcional. Aparece en la credencial pública para ayudar a quien la encuentre.
         </p>
       </div>
+
+      {/* Map picker — drops a marker on the actual spot. Coordinates flow
+          through pet_events.location_lat / location_lng so the credential
+          page and future broadcast/hotspot maps can use them. */}
+      <LocationFields mode="point" />
 
       <div className="space-y-1.5">
         <label

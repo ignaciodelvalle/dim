@@ -3,13 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  PROVINCES,
-  PROVINCIAS,
-  type Province,
-  provinceByCode,
-  provinceByName,
-} from "@/lib/ar-provincias";
+import { PROVINCES, type Province, provinceByCode, provinceByName } from "@/lib/ar-provincias";
 
 describe("PROVINCES const", () => {
   it("has 24 entries (23 provinces + CABA)", () => {
@@ -34,19 +28,6 @@ describe("PROVINCES const", () => {
     const bsAs = PROVINCES.find((p) => p.code === "AR-B");
     expect(caba?.name).toBe("CABA");
     expect(bsAs?.name).toBe("Buenos Aires");
-  });
-});
-
-describe("PROVINCIAS legacy alias", () => {
-  it("preserves the same 24 names for back-compat with existing form call sites", () => {
-    expect(PROVINCIAS).toHaveLength(24);
-    expect(PROVINCIAS).toContain("Buenos Aires");
-    expect(PROVINCIAS).toContain("CABA");
-    expect(PROVINCIAS).toContain("Córdoba");
-  });
-
-  it("matches the order of PROVINCES (alphabetical Spanish)", () => {
-    expect(PROVINCIAS).toEqual(PROVINCES.map((p) => p.name));
   });
 });
 
