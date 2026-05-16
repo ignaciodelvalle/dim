@@ -10,7 +10,7 @@ export function FinalizeAdoptionForm({ publicToken }: { publicToken: string }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-4" encType="multipart/form-data">
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
           Adoptante
@@ -77,6 +77,18 @@ export function FinalizeAdoptionForm({ publicToken }: { publicToken: string }) {
             className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
             placeholder="Condiciones especiales, observaciones, referencia al contrato firmado…"
           />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-sm">Contrato firmado (PDF o imagen)</span>
+          <input
+            name="contract"
+            type="file"
+            accept="application/pdf,image/*"
+            className="block w-full text-sm text-neutral-700 dark:text-neutral-300 file:mr-3 file:rounded file:border-0 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-white dark:file:bg-white dark:file:text-neutral-900"
+          />
+          <span className="block text-xs text-neutral-500">
+            Opcional. Si lo subís, queda enlazado al evento de adopción y al expediente del animal.
+          </span>
         </label>
       </section>
 
