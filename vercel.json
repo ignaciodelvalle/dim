@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/vaccine-due",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/post-adoption-checkin",
+      "schedule": "0 13 * * *"
     }
   ]
 }

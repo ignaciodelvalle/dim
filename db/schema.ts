@@ -93,6 +93,7 @@ export const reminderTypeEnum = pgEnum("reminder_type", [
   "medication",
   "appointment",
   "custom",
+  "post_adoption_checkin",
 ]);
 
 // Welfare report enums — animal-cruelty / welfare denuncia system.
@@ -708,6 +709,14 @@ export const notifications = pgTable(
     // Optional links back to the domain entities that triggered this.
     relatedPetId: uuid("related_pet_id").references(() => pets.id, { onDelete: "set null" }),
     relatedEventId: uuid("related_event_id").references(() => petEvents.id, {
+      onDelete: "set null",
+    }),
+    // Cron-emitted notifications keyed off a specific reminder (e.g. the
+    // post_adoption_checkin family) carry the reminder id here so the cron
+    // can dedupe per-reminder. relatedEventId is reserved for pet_events
+    // FK semantics and is shared across all reminders that source from the
+    // same event, so it can't carry the per-reminder identity by itself.
+    relatedReminderId: uuid("related_reminder_id").references(() => reminders.id, {
       onDelete: "set null",
     }),
     // State.
