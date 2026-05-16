@@ -130,6 +130,19 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
+        {/* Tier 0+ emergency-info banner — owner-toggled. No PII beyond the
+            banner text itself. No drug names, no owner name, no contact. */}
+        {pet.emergencyInfoVisible && (
+          <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-center">
+            <p className="text-sm font-medium text-rose-900 dark:text-rose-200">
+              Esta mascota requiere atención médica
+            </p>
+            <p className="mt-0.5 text-xs text-rose-800 dark:text-rose-300">
+              Por favor contactá al dueño escaneando el QR mientras la cuidás.
+            </p>
+          </div>
+        )}
+
         {/* Credential header */}
         <div className="text-center space-y-1">
           <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">

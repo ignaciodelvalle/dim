@@ -298,6 +298,30 @@ export function PetForm({
         />
       </Section>
 
+      {/* SECTION: Credencial pública */}
+      <Section
+        title="Credencial pública"
+        defaultOpen={isEdit && !!existingPet?.emergencyInfoVisible}
+      >
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="emergencyInfoVisible"
+            value="true"
+            defaultChecked={!!existingPet?.emergencyInfoVisible}
+            className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+              Mostrar aviso de emergencia médica en la credencial pública
+            </span>
+            <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+              Aparece en la página pública sin revelar tu nombre ni datos sensibles.
+            </span>
+          </span>
+        </label>
+      </Section>
+
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">
           {state.error}
