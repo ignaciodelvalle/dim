@@ -166,7 +166,7 @@ function DeceasedView({
           <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
             Historial
           </h2>
-          <EventTimeline events={eventsWithAttachments} />
+          <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />
         </section>
       </div>
     </main>
