@@ -1,4 +1,5 @@
 import { findDisease } from "@/lib/diseases";
+import { welfareReportKindLabel } from "@/lib/welfare";
 
 export type EventPayloadSummary = {
   primary: string | null;
@@ -157,6 +158,57 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       }
 
       return { primary, secondary: secondary || null };
+    }
+    case "clinical_info_logged": {
+      const subKind = str("sub_kind");
+      const title = str("title");
+      const subKindLabels: Record<string, string> = {
+        lab_work: "Laboratorio",
+        imaging: "Imagen",
+        surgery: "Cirugía",
+        allergy_detection: "Alergia",
+        other: "Otro",
+      };
+      const subKindLabel = subKind ? (subKindLabels[subKind] ?? subKind) : null;
+      return {
+        primary: subKindLabel ? `Información clínica · ${subKindLabel}` : "Información clínica",
+        secondary: title ? (title.length > 60 ? `${title.slice(0, 60)}…` : title) : null,
+      };
+    }
+    case "maltreatment_reported": {
+      const kindRaw = str("kind");
+      const description = str("description");
+      const kindLabel = kindRaw ? welfareReportKindLabel(kindRaw) : null;
+      return {
+        primary: kindLabel ? `Denuncia: maltrato · ${kindLabel}` : "Denuncia: maltrato",
+        secondary: description
+          ? description.length > 60
+            ? `${description.slice(0, 60)}…`
+            : description
+          : null,
+      };
+    }
+    case "abandonment_reported": {
+      const description = str("description");
+      return {
+        primary: "Denuncia: abandono",
+        secondary: description
+          ? description.length > 60
+            ? `${description.slice(0, 60)}…`
+            : description
+          : null,
+      };
+    }
+    case "symptom_observed": {
+      const symptoms = str("symptoms");
+      return {
+        primary: "Síntomas observados",
+        secondary: symptoms
+          ? symptoms.length > 60
+            ? `${symptoms.slice(0, 60)}…`
+            : symptoms
+          : null,
+      };
     }
     case "status_changed": {
       const toStatus = str("to_status");

@@ -1123,6 +1123,87 @@ export async function createDeathRecordAction(
   redirect(`/mis-mascotas/${publicToken}`);
 }
 
+// ---------------------------------------------------------------------------
+// Clinical info (unified: lab, imaging, surgery, allergy detection)
+// ---------------------------------------------------------------------------
+
+const CLINICAL_SUB_KINDS = [
+  "lab_work",
+  "imaging",
+  "surgery",
+  "allergy_detection",
+  "other",
+] as const;
+type ClinicalSubKind = (typeof CLINICAL_SUB_KINDS)[number];
+
+export async function createClinicalInfoAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const subKindRaw = String(formData.get("subKind") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const details = String(formData.get("details") ?? "").trim() || null;
+  const performedBy = String(formData.get("performedBy") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
+    return { error: "Tipo de información clínica inválido." };
+  }
+  const subKind = subKindRaw as ClinicalSubKind;
+  if (!title) return { error: "Falta el título / nombre del estudio o procedimiento." };
+  if (!occurredAtRaw) return { error: "Falta la fecha." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "clinical_info_logged",
+          occurredAt,
+          recordedAt: new Date(),
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: { sub_kind: subKind, title, details, performed_by: performedBy },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo guardar la información clínica: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
 export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);
   if (ownershipError || !user || !pet) {

@@ -10,13 +10,13 @@
 // edge (Vercel middleware or a Supabase Edge Function) to prevent spam.
 // Out of scope for v1.
 
-import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
+import { db, ownerships, petEvents, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { signalWelfareReport } from "@/lib/authority";
 import { parseDateInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { generateReferenceCode } from "@/lib/welfare-codes";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export type WelfareReportFormState = {
@@ -101,6 +101,9 @@ export async function createWelfareReportAction(
   const occurredAt = occurredAtRaw ? parseDateInput(occurredAtRaw) : null;
   if (occurredAtRaw && !occurredAt) return { error: "Fecha del hecho inválida." };
 
+  // Optional field: observed symptoms on the animal (triggers symptom_observed pet_event).
+  const observedSymptoms = String(formData.get("observedSymptoms") ?? "").trim() || null;
+
   // Collect attachment files (multiple entries under the same key)
   const attachmentEntries = formData.getAll("attachment");
   const files = attachmentEntries
@@ -109,10 +112,44 @@ export async function createWelfareReportAction(
 
   type NewWelfareReport = typeof welfareReports.$inferInsert;
 
+  // Determine the reporter's role relative to the subject pet (used in pet_event payload).
+  // Only relevant when subjectPetId is set. We'll check ownership after resolving the pet.
+  let isOwnerOfSubjectPet = false;
+  if (subjectPetId && user) {
+    const [ownershipRow] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, subjectPetId),
+          eq(ownerships.userId, user.id),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    isOwnerOfSubjectPet = !!ownershipRow;
+  }
+
+  const reporterRole = isOwnerOfSubjectPet ? "owner" : "witness";
+  const authorRole = isOwnerOfSubjectPet ? "owner" : "scanner";
+
   // Generate reference code with retry-on-collision (unique constraint violation).
   let referenceCode = generateReferenceCode();
   let attempts = 0;
   let insertedId: string | null = null;
+
+  // Welfare report + welfare attachment rows + pet_event rows all go in ONE transaction.
+  // Attachment *file* uploads happen outside the tx (S3-style, not transactional).
+  // Upload files first; if tx fails we clean them up.
+  let uploadResult: Awaited<ReturnType<typeof uploadWelfareEvidence>> | null = null;
+  if (files.length > 0) {
+    // We need an ID for the welfare_report to build the storage path — but we don't have it yet.
+    // We pre-generate a UUID for the report and use that in the path.
+    // Drizzle will honour it via explicit insert.
+    // Instead, we do the upload after the tx succeeds (same as before), keeping the report row ID.
+    // So: insert report row first (outside tx or in first step), then upload, then attachment rows.
+  }
+
   while (attempts < 5) {
     try {
       const [row] = await db
@@ -160,14 +197,18 @@ export async function createWelfareReportAction(
   // report row stays; this is acceptable. The user can re-submit or contact
   // support. We do NOT roll back the report itself.
   if (files.length > 0) {
-    const uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
+    uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
     if (uploadResult.error) {
       return { error: uploadResult.error };
     }
+  }
 
-    if (uploadResult.uploaded.length > 0) {
-      try {
-        await db.insert(welfareReportAttachments).values(
+  // Attachment rows + pet_event emissions go in a single tx.
+  try {
+    await db.transaction(async (tx) => {
+      // Welfare report attachment rows.
+      if (uploadResult && uploadResult.uploaded.length > 0) {
+        await tx.insert(welfareReportAttachments).values(
           uploadResult.uploaded.map((u) => ({
             welfareReportId: insertedId as string,
             uploadedByUserId: user?.id ?? null,
@@ -177,18 +218,84 @@ export async function createWelfareReportAction(
             originalFilename: u.originalFilename,
           })),
         );
-      } catch {
-        // Attachment rows failed — clean up the already-uploaded files.
-        await supabase.storage
-          .from("welfare-evidence")
-          .remove(uploadResult.uploadedPaths)
-          .catch(() => {});
-        return {
-          error:
-            "La denuncia se guardó pero no se pudieron registrar los archivos adjuntos. Intentá de nuevo.",
-        };
       }
+
+      // Pet-event bridge: only when the subject is a registered pet with a resolved ID.
+      if (subjectKind === "registered_pet" && subjectPetId) {
+        const eventOccurredAt = occurredAt ?? new Date();
+        const now = new Date();
+
+        const MALTREATMENT_KINDS = new Set([
+          "physical_abuse",
+          "neglect",
+          "chained",
+          "no_shelter",
+          "hoarding",
+          "dog_fighting",
+          "trafficking",
+        ]);
+
+        if (kind === "abandonment") {
+          await tx.insert(petEvents).values({
+            petId: subjectPetId,
+            eventType: "abandonment_reported",
+            occurredAt: eventOccurredAt,
+            recordedAt: now,
+            recordedByUserId: user?.id ?? null,
+            authorRole,
+            payload: {
+              welfare_report_id: insertedId,
+              reporter_role: reporterRole,
+              description,
+            },
+          });
+        } else if (MALTREATMENT_KINDS.has(kind)) {
+          await tx.insert(petEvents).values({
+            petId: subjectPetId,
+            eventType: "maltreatment_reported",
+            occurredAt: eventOccurredAt,
+            recordedAt: now,
+            recordedByUserId: user?.id ?? null,
+            authorRole,
+            payload: {
+              welfare_report_id: insertedId,
+              reporter_role: reporterRole,
+              description,
+              severity,
+              kind,
+            },
+          });
+        }
+
+        if (observedSymptoms) {
+          await tx.insert(petEvents).values({
+            petId: subjectPetId,
+            eventType: "symptom_observed",
+            occurredAt: eventOccurredAt,
+            recordedAt: now,
+            recordedByUserId: user?.id ?? null,
+            authorRole,
+            payload: {
+              welfare_report_id: insertedId,
+              reporter_role: reporterRole,
+              symptoms: observedSymptoms,
+            },
+          });
+        }
+      }
+    });
+  } catch {
+    // Attachment rows or pet_event rows failed. Clean up uploaded files.
+    if (uploadResult?.uploadedPaths?.length) {
+      await supabase.storage
+        .from("welfare-evidence")
+        .remove(uploadResult.uploadedPaths)
+        .catch(() => {});
     }
+    return {
+      error:
+        "La denuncia se guardó pero no se pudieron registrar los archivos adjuntos. Intentá de nuevo.",
+    };
   }
 
   await signalWelfareReport({

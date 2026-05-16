@@ -77,6 +77,12 @@ const EVENT_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
+    slug: "clinico",
+    label: "Información clínica",
+    description: "Análisis, imágenes, cirugías, alergias",
+    enabled: true,
+  },
+  {
     slug: "nota",
     label: "Nota",
     description: "Observación general",

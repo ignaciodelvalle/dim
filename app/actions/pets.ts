@@ -30,6 +30,23 @@ export type NewPetFormState = {
 // Shared form parsing — used by both create and update.
 // ---------------------------------------------------------------------------
 
+type AcquisitionMethod =
+  | "adopted"
+  | "purchased"
+  | "found_stray"
+  | "gift"
+  | "born_in_litter"
+  | "other";
+
+const ACQUISITION_METHODS: readonly AcquisitionMethod[] = [
+  "adopted",
+  "purchased",
+  "found_stray",
+  "gift",
+  "born_in_litter",
+  "other",
+];
+
 type ParsedPet = {
   name: string;
   species: string;
@@ -52,6 +69,7 @@ type ParsedPet = {
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   potentiallyDangerousBreed: boolean;
+  acquisitionMethod: AcquisitionMethod | null;
 };
 
 function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | null } {
@@ -113,6 +131,13 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
     ? (trainingLevelRaw as "none" | "basic" | "intermediate" | "advanced" | "professional")
     : null;
 
+  const acquisitionMethodRaw = String(formData.get("acquisitionMethod") ?? "").trim();
+  const acquisitionMethod = (ACQUISITION_METHODS as readonly string[]).includes(
+    acquisitionMethodRaw,
+  )
+    ? (acquisitionMethodRaw as AcquisitionMethod)
+    : null;
+
   return {
     parsed: {
       name,
@@ -144,6 +169,7 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       jurisdictionProvince: String(formData.get("province") ?? "").trim() || null,
       jurisdictionLocality: String(formData.get("locality") ?? "").trim() || null,
       potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
+      acquisitionMethod,
     },
     error: null,
   };
@@ -200,6 +226,7 @@ export async function createPetAction(
           insurancePolicyNumber: parsed.insurancePolicyNumber,
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
+          acquisitionMethod: parsed.acquisitionMethod,
         })
         .returning();
 
@@ -237,6 +264,7 @@ export async function createPetAction(
             ...parsed,
             has_photo: upload.uploadedPath !== null,
             has_microchip: parsed.microchipId !== null,
+            acquisition_method: parsed.acquisitionMethod,
           },
         })
         .returning();
@@ -374,6 +402,11 @@ function diffPet(
       oldVal: existing.jurisdictionLocality,
       newVal: parsed.jurisdictionLocality,
     },
+    {
+      field: "acquisition_method",
+      oldVal: existing.acquisitionMethod,
+      newVal: parsed.acquisitionMethod,
+    },
   ];
   return fields
     .filter((f) => JSON.stringify(f.oldVal) !== JSON.stringify(f.newVal))
@@ -452,6 +485,7 @@ export async function updatePetAction(
           insurancePolicyNumber: parsed.insurancePolicyNumber,
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
+          acquisitionMethod: parsed.acquisitionMethod,
           updatedAt: now,
         })
         .where(eq(pets.id, existing.pet.id));

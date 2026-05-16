@@ -10,6 +10,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
 
+// NOTE: eventsWithAttachments is still fetched on this page because it is
+// needed by the DeceasedView (which renders the timeline inline) and by
+// MedicationDosesSection (which needs medication_started payloads to group doses).
+// The historial route fetches its own copy independently.
+
 // Returns a human-readable proximity hint for an upcoming medication dose.
 // Examples: "Atrasada por 2h", "En 30 min", "Mañana 08:00", "Hoy 14:30".
 function formatDoseProximity(dueAt: Date | string): string {
@@ -498,12 +503,14 @@ export default async function PetDetailPage({
           sourceEvents={eventsWithAttachments}
         />
 
-        {/* Event timeline */}
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Historial
-          </h2>
-          <EventTimeline events={eventsWithAttachments} />
+        {/* Historial link — full timeline lives at /historial */}
+        <section>
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}/historial`}
+            className="block w-full text-center px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+          >
+            Ver historial completo →
+          </Link>
         </section>
       </div>
     </main>

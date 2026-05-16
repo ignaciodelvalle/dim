@@ -148,6 +148,25 @@ export function PetForm({
           )}
         </div>
 
+        <SelectField
+          id="acquisitionMethod"
+          name="acquisitionMethod"
+          label={
+            isEdit
+              ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
+              : "¿Cómo te encontraste con esta mascota?"
+          }
+          defaultValue={existingPet?.acquisitionMethod ?? ""}
+        >
+          <option value="">No especificar</option>
+          <option value="adopted">Adoptado/a</option>
+          <option value="purchased">Comprado/a</option>
+          <option value="found_stray">Encontrado/a en la calle</option>
+          <option value="gift">Regalado/a</option>
+          <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
+          <option value="other">Otro</option>
+        </SelectField>
+
         <MicrochipBlock existingPet={existingPet} />
       </Section>
 

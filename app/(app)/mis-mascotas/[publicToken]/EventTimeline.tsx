@@ -16,6 +16,10 @@ const FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }> = [
   { type: "medication_stopped", label: "Medicación · fin" },
   { type: "medication_dose_taken", label: "Dosis dadas" },
   { type: "death_recorded", label: "Fallecimiento" },
+  { type: "clinical_info_logged", label: "Información clínica" },
+  { type: "maltreatment_reported", label: "Maltrato" },
+  { type: "abandonment_reported", label: "Abandono" },
+  { type: "symptom_observed", label: "Síntomas" },
 ];
 
 type Event = {
@@ -33,6 +37,7 @@ type Props = {
 
 export function EventTimeline({ events }: Props) {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const [showSelfScans, setShowSelfScans] = useState(false);
 
   function toggleType(type: string) {
     setSelectedTypes((prev) => {
@@ -43,8 +48,19 @@ export function EventTimeline({ events }: Props) {
     });
   }
 
+  // First apply the self-scan filter, then the type chip filter.
+  const visibleEvents = showSelfScans
+    ? events
+    : events.filter((e) => {
+        if (e.eventType !== "credential_scanned") return true;
+        const payload = (e.payload ?? {}) as Record<string, unknown>;
+        return payload.is_self_scan !== true;
+      });
+
   const filteredEvents =
-    selectedTypes.size === 0 ? events : events.filter((e) => selectedTypes.has(e.eventType));
+    selectedTypes.size === 0
+      ? visibleEvents
+      : visibleEvents.filter((e) => selectedTypes.has(e.eventType));
 
   if (events.length === 0) {
     return <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin eventos todavía.</p>;
@@ -72,6 +88,13 @@ export function EventTimeline({ events }: Props) {
           );
         })}
       </div>
+      <button
+        type="button"
+        onClick={() => setShowSelfScans((v) => !v)}
+        className="text-xs text-neutral-500 dark:text-neutral-500 underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+      >
+        {showSelfScans ? "Ocultar mis propios escaneos" : "Mostrar mis propios escaneos"}
+      </button>
       {filteredEvents.length === 0 ? (
         <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin eventos de este tipo.</p>
       ) : (

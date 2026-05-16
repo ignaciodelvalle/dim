@@ -74,6 +74,15 @@ export const reminderTypeEnum = pgEnum("reminder_type", [
 // Welfare report enums — animal-cruelty / welfare denuncia system.
 // Legal frame: Ley Nacional 14.346 (1954).
 
+export const petAcquisitionMethodEnum = pgEnum("pet_acquisition_method", [
+  "adopted",
+  "purchased",
+  "found_stray",
+  "gift",
+  "born_in_litter",
+  "other",
+]);
+
 export const welfareReportSubjectKindEnum = pgEnum("welfare_report_subject_kind", [
   "registered_pet",
   "unowned_animal",
@@ -147,6 +156,8 @@ export const EVENT_TYPES = [
   "symptom_observed",
   "abandonment_reported",
   "maltreatment_reported",
+  // Unified clinical information event (collapses lab/imaging/surgery/allergy for v1 owner flow).
+  "clinical_info_logged",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -236,6 +247,9 @@ export const pets = pgTable(
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // How the owner came to have this pet. Nullable so existing rows survive db:push
+    // without a default. Collected at registration and included in pet_registered payload.
+    acquisitionMethod: petAcquisitionMethodEnum("acquisition_method"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

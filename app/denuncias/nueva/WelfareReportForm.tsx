@@ -290,6 +290,20 @@ export function WelfareReportForm({
         </div>
       )}
 
+      {/* Observed symptoms (optional — triggers symptom_observed pet event when subject is registered) */}
+      <div className={FIELD_CLASS}>
+        <label htmlFor="observedSymptoms" className={LABEL_CLASS}>
+          ¿Notaste síntomas en el animal? (opcional)
+        </label>
+        <textarea
+          id="observedSymptoms"
+          name="observedSymptoms"
+          rows={3}
+          placeholder="Ej: baboso, agresivo, débil, cojeando, con heridas, etc."
+          className={INPUT_CLASS}
+        />
+      </div>
+
       {/* Location */}
       <div className={FIELD_CLASS}>
         <label htmlFor="locationAddress" className={LABEL_CLASS}>
