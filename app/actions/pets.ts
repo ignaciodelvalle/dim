@@ -16,6 +16,7 @@
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
@@ -260,6 +261,36 @@ export async function createPetAction(
         await tx.update(pets).set({ primaryPhotoId: attachment.id }).where(eq(pets.id, newPet.id));
       }
 
+      // Explicit snake_case payload — no `...parsed` spread. Mixing camelCase
+      // and snake_case in the same JSON column made the schema unable to be
+      // strict and let `emergencyInfoVisible` (a UI preference, not
+      // registration metadata) leak into the immutable log historically.
+      const petRegisteredPayload = validateEventPayload("pet_registered", {
+        name: parsed.name,
+        species: parsed.species,
+        sex: parsed.sex,
+        breed: parsed.breed,
+        date_of_birth: parsed.dateOfBirth,
+        birth_date_is_estimated: parsed.birthDateIsEstimated,
+        color: parsed.color,
+        microchip_id: parsed.microchipId,
+        microchip_country_code: parsed.microchipCountryCode,
+        microchip_implanted_at: parsed.microchipImplantedAt,
+        microchip_implanted_by: parsed.microchipImplantedBy,
+        microchip_location: parsed.microchipLocation,
+        estimated_weight_kg: parsed.estimatedWeightKg,
+        favourite_foods: parsed.favouriteFoods,
+        known_allergies: parsed.knownAllergies,
+        training_level: parsed.trainingLevel,
+        insurance_company: parsed.insuranceCompany,
+        insurance_policy_number: parsed.insurancePolicyNumber,
+        jurisdiction_province: parsed.jurisdictionProvince,
+        jurisdiction_locality: parsed.jurisdictionLocality,
+        potentially_dangerous_breed: parsed.potentiallyDangerousBreed,
+        acquisition_method: parsed.acquisitionMethod,
+        has_photo: upload.uploadedPath !== null,
+        has_microchip: parsed.microchipId !== null,
+      });
       const registeredEvent = await tx
         .insert(petEvents)
         .values({
@@ -269,16 +300,18 @@ export async function createPetAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            ...parsed,
-            has_photo: upload.uploadedPath !== null,
-            has_microchip: parsed.microchipId !== null,
-            acquisition_method: parsed.acquisitionMethod,
-          },
+          payload: petRegisteredPayload,
         })
         .returning();
 
       if (parsed.microchipId) {
+        const microchipEventPayload = validateEventPayload("microchip_implanted", {
+          chip_number: parsed.microchipId,
+          country_code: parsed.microchipCountryCode,
+          implanted_by: parsed.microchipImplantedBy,
+          location_on_body: parsed.microchipLocation,
+          implant_date_known: !!parsed.microchipImplantedAt,
+        });
         await tx.insert(petEvents).values({
           petId: newPet.id,
           eventType: "microchip_implanted",
@@ -286,13 +319,7 @@ export async function createPetAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            chip_number: parsed.microchipId,
-            country_code: parsed.microchipCountryCode,
-            implanted_by: parsed.microchipImplantedBy,
-            location_on_body: parsed.microchipLocation,
-            implant_date_known: !!parsed.microchipImplantedAt,
-          },
+          payload: microchipEventPayload,
         });
       }
 
@@ -528,6 +555,10 @@ export async function updatePetAction(
       // above but produces no event — see AGENTS.md → Core principles #2:
       // events are facts about the pet, not UI preferences.
       if (hasContentChanges) {
+        const petProfileUpdatedPayload = validateEventPayload("pet_profile_updated", {
+          changes,
+          photo_replaced: upload.uploadedPath !== null,
+        });
         const updateEvent = await tx
           .insert(petEvents)
           .values({
@@ -537,10 +568,7 @@ export async function updatePetAction(
             recordedAt: now,
             recordedByUserId: user.id,
             authorRole: "owner",
-            payload: {
-              changes,
-              photo_replaced: upload.uploadedPath !== null,
-            },
+            payload: petProfileUpdatedPayload,
           })
           .returning();
 
@@ -561,6 +589,13 @@ export async function updatePetAction(
       }
 
       if (chipNewlyAdded) {
+        const microchipEventPayload = validateEventPayload("microchip_implanted", {
+          chip_number: parsed.microchipId,
+          country_code: parsed.microchipCountryCode,
+          implanted_by: parsed.microchipImplantedBy,
+          location_on_body: parsed.microchipLocation,
+          implant_date_known: !!parsed.microchipImplantedAt,
+        });
         await tx.insert(petEvents).values({
           petId: existing.pet.id,
           eventType: "microchip_implanted",
@@ -568,13 +603,7 @@ export async function updatePetAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            chip_number: parsed.microchipId,
-            country_code: parsed.microchipCountryCode,
-            implanted_by: parsed.microchipImplantedBy,
-            location_on_body: parsed.microchipLocation,
-            implant_date_known: !!parsed.microchipImplantedAt,
-          },
+          payload: microchipEventPayload,
         });
       }
     });

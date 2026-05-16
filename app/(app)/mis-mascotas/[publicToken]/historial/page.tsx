@@ -1,7 +1,8 @@
 import { attachments, db, petEvents } from "@/db";
+import { excludeSelfScansClause } from "@/lib/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { eventAttachmentSignedUrl } from "@/lib/storage";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { EventTimeline } from "../EventTimeline";
 
@@ -16,10 +17,11 @@ export default async function PetHistorialPage({
   const { pet } = session;
 
   // Fetch events newest-first (same order as the detail page used to).
+  // Self-scans are filtered at the DB layer — see lib/events.excludeSelfScansClause.
   const events = await db
     .select()
     .from(petEvents)
-    .where(eq(petEvents.petId, pet.id))
+    .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
     .orderBy(desc(petEvents.occurredAt));
 
   // Per-event attachments with signed URLs.

@@ -13,6 +13,7 @@
 import { db, ownerships, petEvents, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { signalWelfareReport } from "@/lib/authority";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
 import { createClient } from "@/lib/supabase/server";
@@ -250,6 +251,11 @@ export async function createWelfareReportAction(
         ]);
 
         if (kind === "abandonment") {
+          const abandonmentEventPayload = validateEventPayload("abandonment_reported", {
+            welfare_report_id: insertedId,
+            reporter_role: reporterRole,
+            description,
+          });
           await tx.insert(petEvents).values({
             petId: subjectPetId,
             eventType: "abandonment_reported",
@@ -257,13 +263,16 @@ export async function createWelfareReportAction(
             recordedAt: now,
             recordedByUserId: user?.id ?? null,
             authorRole,
-            payload: {
-              welfare_report_id: insertedId,
-              reporter_role: reporterRole,
-              description,
-            },
+            payload: abandonmentEventPayload,
           });
         } else if (MALTREATMENT_KINDS.has(kind)) {
+          const maltreatmentEventPayload = validateEventPayload("maltreatment_reported", {
+            welfare_report_id: insertedId,
+            reporter_role: reporterRole,
+            description,
+            severity,
+            kind,
+          });
           await tx.insert(petEvents).values({
             petId: subjectPetId,
             eventType: "maltreatment_reported",
@@ -271,17 +280,16 @@ export async function createWelfareReportAction(
             recordedAt: now,
             recordedByUserId: user?.id ?? null,
             authorRole,
-            payload: {
-              welfare_report_id: insertedId,
-              reporter_role: reporterRole,
-              description,
-              severity,
-              kind,
-            },
+            payload: maltreatmentEventPayload,
           });
         }
 
         if (observedSymptoms) {
+          const symptomEventPayload = validateEventPayload("symptom_observed", {
+            welfare_report_id: insertedId,
+            reporter_role: reporterRole,
+            symptoms: observedSymptoms,
+          });
           await tx.insert(petEvents).values({
             petId: subjectPetId,
             eventType: "symptom_observed",
@@ -289,11 +297,7 @@ export async function createWelfareReportAction(
             recordedAt: now,
             recordedByUserId: user?.id ?? null,
             authorRole,
-            payload: {
-              welfare_report_id: insertedId,
-              reporter_role: reporterRole,
-              symptoms: observedSymptoms,
-            },
+            payload: symptomEventPayload,
           });
         }
       }
