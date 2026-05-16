@@ -14,11 +14,23 @@
 // trigger is the OTHER source of profiles rows, not the only one.
 
 import { randomUUID } from "node:crypto";
-import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import { db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
+
+// Post-adoption check-in windows (months after adoption_finalized). The
+// adopter receives one reminder per window <= the agreed followup_months
+// captured in the adoption event payload. AGENTS.md → Custody & adoption:
+// "Missed check-ins generate notifications to both adopter and refugio."
+const CHECKIN_WINDOWS_MONTHS = [1, 3, 6, 12] as const;
+
+function addMonths(base: Date, months: number): Date {
+  const result = new Date(base);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
 
 export type FinalizeAdoptionFormState = {
   error: string | null;
@@ -152,17 +164,43 @@ export async function finalizeAdoptionAction(
         post_adoption_followup_months: followupMonths,
         notes,
       });
-      await tx.insert(petEvents).values({
-        petId: pet.id,
-        eventType: "adoption_finalized",
-        occurredAt: now,
-        recordedAt: now,
-        recordedByUserId: user.id,
-        authorRole: "shelter",
-        authorOrganizationId: organization.id,
-        authorVerified,
-        payload,
-      });
+      const [adoptionEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "adoption_finalized",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "shelter",
+          authorOrganizationId: organization.id,
+          authorVerified,
+          payload,
+        })
+        .returning({ id: petEvents.id });
+
+      // Schedule post-adoption check-in reminders for the adopter. Skipped
+      // for stub profiles (no auth.users row to read the reminder) and when
+      // followup_months is 0/null. Each window inserts a reminder that the
+      // cron in app/api/cron/post-adoption-checkin/route.ts scans for both
+      // adopter-side proactive reminders and refugio-side missed-window
+      // fanout notifications.
+      if (!isStubAdopter && followupMonths !== null && followupMonths > 0) {
+        const dueWindows = CHECKIN_WINDOWS_MONTHS.filter((m) => m <= followupMonths);
+        if (dueWindows.length > 0) {
+          await tx.insert(reminders).values(
+            dueWindows.map((m) => ({
+              petId: pet.id,
+              userId: adopterUserId,
+              reminderType: "post_adoption_checkin" as const,
+              dueAt: addMonths(now, m),
+              title: `Seguimiento post-adopción a los ${m} ${m === 1 ? "mes" : "meses"}`,
+              description: `${organization.displayName} pidió un check-in sobre ${pet.name}. Subí fotos y contanos cómo está.`,
+              sourceEventId: adoptionEvent.id,
+            })),
+          );
+        }
+      }
 
       // Notify adopter only if they're a real (non-stub) user — a stub has
       // no auth.users row, so a notification row would be unreachable until

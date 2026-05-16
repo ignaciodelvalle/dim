@@ -30,7 +30,6 @@ const UNIMPLEMENTED: ReadonlyArray<EventType> = [
   "adoption_application_reviewed",
   "adoption_application_approved",
   "adoption_application_rejected",
-  "post_adoption_checkin",
   "adoption_revoked",
   "custody_transferred",
 ];

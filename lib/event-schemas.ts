@@ -435,6 +435,22 @@ const adoptionFinalized = z
   )
   .strict();
 
+// Post-adoption check-in — adopter self-reports during the followup window
+// (1m/3m/6m/12m after adoption_finalized, capped by post_adoption_followup_months).
+// AGENTS.md → Custody & adoption: follow-up is enforced through notifications,
+// not credential shaming; missing check-ins fan out a notification to the
+// refugio side. `related_organization_id` is denormalized from the adoption
+// chain so projections can group check-ins by org without scanning ownerships.
+const postAdoptionCheckin = z
+  .object(
+    withVersion({
+      related_organization_id: z.string().uuid(),
+      photo_attachment_ids: z.array(z.string().uuid()).default([]),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -470,6 +486,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_assigned: fosterAssigned,
   foster_ended: fosterEnded,
   adoption_finalized: adoptionFinalized,
+  post_adoption_checkin: postAdoptionCheckin,
 };
 
 /**
