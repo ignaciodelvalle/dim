@@ -79,21 +79,68 @@ describe("PayloadSchemas — canonical writer payloads", () => {
   // writer in app/actions/* produces. If a writer changes shape, the
   // corresponding case here should fail.
 
-  it("pet_registered accepts the spread + explicit shape", () => {
+  it("pet_registered accepts the full snake_case payload", () => {
     expect(() =>
       validateEventPayload("pet_registered", {
-        // Spread keys (camelCase, intentional debt — passthrough)
         name: "Lila",
         species: "dog",
         sex: "female",
         breed: null,
-        emergencyInfoVisible: false,
-        // Explicit snake_case keys (validated)
-        has_photo: true,
-        has_microchip: true,
+        date_of_birth: "2022-03-14",
+        birth_date_is_estimated: true,
+        color: null,
+        microchip_id: null,
+        microchip_country_code: null,
+        microchip_implanted_at: null,
+        microchip_implanted_by: null,
+        microchip_location: null,
+        estimated_weight_kg: null,
+        favourite_foods: [],
+        known_allergies: [],
+        training_level: null,
+        insurance_company: null,
+        insurance_policy_number: null,
+        jurisdiction_province: null,
+        jurisdiction_locality: null,
+        potentially_dangerous_breed: false,
         acquisition_method: "adopted",
+        has_photo: true,
+        has_microchip: false,
       }),
     ).not.toThrow();
+  });
+
+  it("pet_registered now rejects legacy camelCase keys (no more passthrough)", () => {
+    expect(() =>
+      validateEventPayload("pet_registered", {
+        name: "Lila",
+        species: "dog",
+        sex: "female",
+        breed: null,
+        date_of_birth: null,
+        birth_date_is_estimated: false,
+        color: null,
+        microchip_id: null,
+        microchip_country_code: null,
+        microchip_implanted_at: null,
+        microchip_implanted_by: null,
+        microchip_location: null,
+        estimated_weight_kg: null,
+        favourite_foods: [],
+        known_allergies: [],
+        training_level: null,
+        insurance_company: null,
+        insurance_policy_number: null,
+        jurisdiction_province: null,
+        jurisdiction_locality: null,
+        potentially_dangerous_breed: false,
+        acquisition_method: null,
+        has_photo: false,
+        has_microchip: false,
+        // Drift: a leaked UI preference (the original bug this cleanup closes).
+        emergencyInfoVisible: false,
+      }),
+    ).toThrow(EventPayloadValidationError);
   });
 
   it("pet_profile_updated accepts changes + photo_replaced", () => {
