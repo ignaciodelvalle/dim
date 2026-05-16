@@ -1,5 +1,23 @@
+import { sql } from "drizzle-orm";
+
 import { findDisease } from "@/lib/diseases";
 import { welfareReportKindLabel } from "@/lib/welfare";
+
+/**
+ * Drizzle WHERE clause that excludes the noise floor of "I scanned my own
+ * pet's QR" events. Used by every owner-facing timeline query — owners
+ * shouldn't see their own self-scans by default, since they generate one
+ * per page load and would drown out the real history.
+ *
+ * `payload->>'is_self_scan' = 'true'` checks the JSONB key as text. Events
+ * older than the credential_scanned payload schema (which has always
+ * carried is_self_scan since v1) don't exist, so no back-compat fallback.
+ *
+ * Use as: `where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))`.
+ */
+export function excludeSelfScansClause() {
+  return sql`NOT (event_type = 'credential_scanned' AND payload->>'is_self_scan' = 'true')`;
+}
 
 export type EventPayloadSummary = {
   primary: string | null;

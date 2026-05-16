@@ -2,6 +2,7 @@ import { markMedicationDoseTakenAction, setPetFoundAction } from "@/app/actions/
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
+import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -210,11 +211,13 @@ export default async function PetDetailPage({
   const { pet, photo } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
-  // Event timeline, newest first.
+  // Event timeline, newest first. Self-scans are filtered at the DB level
+  // so the JS-side timeline doesn't have to know about credential_scanned
+  // payload internals.
   const events = await db
     .select()
     .from(petEvents)
-    .where(eq(petEvents.petId, pet.id))
+    .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
     .orderBy(desc(petEvents.occurredAt));
 
   // Per-event attachments (private bucket — signed URLs generated server-side).
