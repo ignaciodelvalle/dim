@@ -7,6 +7,7 @@
 
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
+import { readPoint } from "@/lib/location";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -94,9 +95,10 @@ export default async function PublicCredentialPage({
     // Fallback: precise lat/lng captured on the event row itself. setPetLostAction
     // does not write these today, but the schema supports them — when the
     // marker-pin UI lands they will be populated and surface here automatically.
+    const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
     const geoLocation =
-      !textLocation && latestLostEvent?.locationLat && latestLostEvent?.locationLng
-        ? `${latestLostEvent.locationLat}, ${latestLostEvent.locationLng}`
+      !textLocation && eventPoint
+        ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`
         : null;
 
     // Split display_name on first whitespace to get just the first name. We
