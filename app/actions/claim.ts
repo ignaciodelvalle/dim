@@ -10,10 +10,21 @@
 // row is deleted, and the user's profile takes the DNI. The immutable
 // adoption_finalized payload keeps the stub uuid for historical accuracy.
 
-import { db, notifications, ownerships, profiles } from "@/db";
+import { db, notifications, ownerships, petEvents, profiles, reminders } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
+
+// Mirrors app/actions/adoption.ts → CHECKIN_WINDOWS_MONTHS. Kept inline
+// (rather than extracted) because this is the only second use site; if a
+// third arrives, lift both to lib/post-adoption-checkin.ts.
+const CHECKIN_WINDOWS_MONTHS = [1, 3, 6, 12] as const;
+
+function addMonths(base: Date, months: number): Date {
+  const result = new Date(base);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
 
 export type ClaimFormState = {
   error: string | null;
@@ -101,6 +112,7 @@ export async function claimStubProfileAction(
   // The partial-unique DNI index allows (2) and (3) to happen in the same
   // transaction because by the time (3) commits, the stub no longer exists.
   let ownershipsMoved = 0;
+  let remindersBackfilled = 0;
   try {
     await db.transaction(async (tx) => {
       const moved = await tx
@@ -110,6 +122,59 @@ export async function claimStubProfileAction(
         .returning({ id: ownerships.id });
       ownershipsMoved = moved.length;
 
+      // Backfill post-adoption reminders that adoption.ts skipped at
+      // finalize time because the adopter was a stub (no auth.users row
+      // for reminders.userId to reference). Now that auth.users exists,
+      // any window still in the future is fair game. Past-window
+      // reminders are deliberately NOT created — emitting a cron
+      // notification for a missed window the user couldn't have hit is
+      // worse UX than silently dropping it.
+      const now = new Date();
+      const adoptions = await tx
+        .select({
+          eventId: petEvents.id,
+          petId: petEvents.petId,
+          occurredAt: petEvents.occurredAt,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.eventType, "adoption_finalized"),
+            sql`${petEvents.payload}->>'adopter_user_id' = ${stub.id}`,
+          ),
+        );
+
+      const reminderRows: Array<typeof reminders.$inferInsert> = [];
+      for (const adoption of adoptions) {
+        const payload = adoption.payload as {
+          post_adoption_followup_months?: number | null;
+          previous_owner_organization_id?: string | null;
+        };
+        const followupMonths = payload.post_adoption_followup_months;
+        if (followupMonths === null || followupMonths === undefined || followupMonths <= 0)
+          continue;
+        for (const m of CHECKIN_WINDOWS_MONTHS) {
+          if (m > followupMonths) continue;
+          const dueAt = addMonths(new Date(adoption.occurredAt), m);
+          if (dueAt.getTime() <= now.getTime()) continue;
+          reminderRows.push({
+            petId: adoption.petId,
+            userId: user.id,
+            reminderType: "post_adoption_checkin",
+            dueAt,
+            title: `Seguimiento post-adopción a los ${m} ${m === 1 ? "mes" : "meses"}`,
+            description:
+              "Tu refugio pidió un check-in. Subí fotos y contales cómo está tu mascota.",
+            sourceEventId: adoption.eventId,
+          });
+        }
+      }
+      if (reminderRows.length > 0) {
+        await tx.insert(reminders).values(reminderRows);
+        remindersBackfilled = reminderRows.length;
+      }
+
       await tx.delete(profiles).where(eq(profiles.id, stub.id));
 
       await tx
@@ -117,16 +182,28 @@ export async function claimStubProfileAction(
         .set({ dniNumber: dni, dniVerified: false })
         .where(eq(profiles.id, user.id));
 
+      const bodyParts: string[] = [];
+      if (ownershipsMoved === 0) {
+        bodyParts.push("Vinculamos tu DNI a tu cuenta. No encontramos mascotas pendientes.");
+      } else {
+        bodyParts.push(
+          `Tu perfil quedó vinculado a tu DNI y ${ownershipsMoved} mascota${
+            ownershipsMoved === 1 ? "" : "s"
+          } ahora figura${ownershipsMoved === 1 ? "" : "n"} en tu libreta.`,
+        );
+      }
+      if (remindersBackfilled > 0) {
+        bodyParts.push(
+          `Programamos ${remindersBackfilled} recordatorio${
+            remindersBackfilled === 1 ? "" : "s"
+          } de seguimiento post-adopción.`,
+        );
+      }
       await tx.insert(notifications).values({
         userId: user.id,
         notificationType: "stub_profile_claimed",
         title: "Reclamaste tu perfil de adopción",
-        body:
-          ownershipsMoved === 0
-            ? "Vinculamos tu DNI a tu cuenta. No encontramos mascotas pendientes."
-            : `Tu perfil quedó vinculado a tu DNI y ${ownershipsMoved} mascota${
-                ownershipsMoved === 1 ? "" : "s"
-              } ahora figura${ownershipsMoved === 1 ? "" : "n"} en tu libreta.`,
+        body: bodyParts.join(" "),
         severity: "success",
         ctaLabel: "Ver mis mascotas",
         ctaUrl: "/mis-mascotas",
