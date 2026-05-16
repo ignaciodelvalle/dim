@@ -14,6 +14,18 @@ const inputClass =
 
 const labelClass = "block text-sm font-medium text-neutral-900 dark:text-neutral-50";
 
+const facilityHints: Record<string, { label: string; placeholder: string }> = {
+  cremation_collective: { label: "Crematorio", placeholder: "Nombre del crematorio" },
+  cremation_individual_ashes: { label: "Crematorio", placeholder: "Nombre del crematorio" },
+  authorized_cemetery: {
+    label: "Cementerio",
+    placeholder: "Nombre del cementerio o número de habilitación",
+  },
+  owner_burial: { label: "Ubicación (opcional)", placeholder: "Lugar del entierro" },
+};
+
+const defaultFacilityHint = { label: "Instalación", placeholder: "Veterinaria, crematorio, etc." };
+
 export function DeathRecordForm({
   action,
   species,
@@ -25,10 +37,17 @@ export function DeathRecordForm({
   const today = new Date().toISOString().slice(0, 10);
   const [cause, setCause] = useState("");
   const [selectedDiseaseCode, setSelectedDiseaseCode] = useState("");
+  const [disposition, setDisposition] = useState("");
+  const [deathAtClinic, setDeathAtClinic] = useState(false);
+  const [vetContactedOwner, setVetContactedOwner] = useState("");
 
   const diseaseOptions = diseasesForSpecies(species);
   const selectedDiseaseDef = findDisease(selectedDiseaseCode);
   const isReportableDisease = selectedDiseaseDef?.reportable === true;
+
+  const facilityHint = facilityHints[disposition] ?? defaultFacilityHint;
+  const showOwnerBurialHint = disposition === "owner_burial";
+  const showVetDecidedAlone = deathAtClinic && vetContactedOwner === "no";
 
   return (
     <form action={formAction} className="space-y-5">
@@ -54,6 +73,8 @@ export function DeathRecordForm({
           <option value="disease">Enfermedad</option>
           <option value="accident">Accidente</option>
           <option value="euthanasia">Eutanasia</option>
+          <option value="sudden">Repentina</option>
+          <option value="violent">Violenta</option>
           <option value="other">Otra</option>
         </select>
       </div>
@@ -139,28 +160,152 @@ export function DeathRecordForm({
         />
       </div>
 
+      <fieldset className="space-y-3 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
+        <legend className="px-1 text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          ¿Falleció en una veterinaria?
+        </legend>
+
+        <div className="flex items-center gap-2">
+          <input
+            id="deathAtClinic"
+            name="deathAtClinic"
+            type="checkbox"
+            value="true"
+            checked={deathAtClinic}
+            onChange={(e) => {
+              setDeathAtClinic(e.target.checked);
+              if (!e.target.checked) setVetContactedOwner("");
+            }}
+            className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+          />
+          <label htmlFor="deathAtClinic" className={labelClass}>
+            Falleció durante una estadía en la veterinaria
+          </label>
+        </div>
+
+        {deathAtClinic && (
+          <>
+            <div className="space-y-1.5">
+              <label htmlFor="clinicName" className={labelClass}>
+                Nombre de la clínica
+              </label>
+              <input
+                id="clinicName"
+                name="clinicName"
+                type="text"
+                placeholder="Clínica Veterinaria…"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className={labelClass}>¿El veterinario logró contactarte?</span>
+              <div className="space-y-1.5">
+                {[
+                  { value: "yes", label: "Sí, me contactaron" },
+                  { value: "no", label: "No, no lograron contactarme" },
+                  { value: "not_applicable", label: "No aplica" },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="vetContactedOwner"
+                      value={opt.value}
+                      checked={vetContactedOwner === opt.value}
+                      onChange={(e) => setVetContactedOwner(e.target.value)}
+                      className="h-4 w-4 border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {showVetDecidedAlone && (
+              <div className="flex items-center gap-2">
+                <input
+                  id="vetDecidedAlone"
+                  name="vetDecidedAlone"
+                  type="checkbox"
+                  value="true"
+                  className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+                />
+                <label htmlFor="vetDecidedAlone" className={labelClass}>
+                  El veterinario decidió la disposición sin poder contactarme
+                </label>
+              </div>
+            )}
+          </>
+        )}
+      </fieldset>
+
+      <div className="flex items-center gap-2">
+        <input
+          id="ownerToPrivateCrematorium"
+          name="ownerToPrivateCrematorium"
+          type="checkbox"
+          value="true"
+          className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+        />
+        <label htmlFor="ownerToPrivateCrematorium" className={labelClass}>
+          Llevé el cuerpo a un crematorio privado por mi cuenta
+        </label>
+      </div>
+
       <div className="space-y-1.5">
         <label htmlFor="dispositionMethod" className={labelClass}>
           Método de disposición
         </label>
-        <select id="dispositionMethod" name="dispositionMethod" className={inputClass}>
+        <select
+          id="dispositionMethod"
+          name="dispositionMethod"
+          className={inputClass}
+          value={disposition}
+          onChange={(e) => setDisposition(e.target.value)}
+        >
           <option value="">—</option>
-          <option value="cremation">Cremación</option>
-          <option value="burial">Entierro</option>
-          <option value="rendering">Reciclaje sanitario</option>
-          <option value="unknown">No sé</option>
+          <optgroup label="Recomendadas">
+            <option value="cremation_collective">Cremación colectiva</option>
+            <option value="cremation_individual_ashes">
+              Cremación individual (cenizas al propietario)
+            </option>
+            <option value="authorized_cemetery">Cementerio de animales autorizado</option>
+          </optgroup>
+          <optgroup label="No recomendadas">
+            <option value="owner_burial">Sepultura por el propietario</option>
+            <option value="household_waste">Residuos no especiales (basura)</option>
+          </optgroup>
+          <optgroup label="Otras">
+            <option value="rendering">Reciclaje sanitario</option>
+            <option value="unknown">No sé</option>
+          </optgroup>
         </select>
       </div>
 
+      {showOwnerBurialHint && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-200">
+          <p className="font-medium">Si vas a enterrarlo, te recomendamos:</p>
+          <ul className="mt-2 list-disc list-inside space-y-1">
+            <li>Profundidad suficiente para que ningún carroñero pueda excavar.</li>
+            <li>
+              Asegurate que el animal no tenía enfermedades zoonóticas o contagiosas a otros
+              animales.
+            </li>
+            <li>Que no haya acuíferos cerca que se puedan contaminar.</li>
+            <li>Elegí una zona remota.</li>
+          </ul>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <label htmlFor="facility" className={labelClass}>
-          Instalación
+          {facilityHint.label}
         </label>
         <input
           id="facility"
           name="facility"
           type="text"
-          placeholder="Veterinaria, crematorio, etc."
+          placeholder={facilityHint.placeholder}
           className={inputClass}
         />
       </div>

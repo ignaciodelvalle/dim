@@ -58,3 +58,39 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Enforce append-only on pet_events at the database layer.
+--
+-- db/rls.sql already denies UPDATE/DELETE for `authenticated` and `anon`
+-- via the absence of corresponding policies. But Drizzle uses a direct
+-- Postgres connection that BYPASSES RLS by design (that's how server
+-- actions write owner events at all). This trigger extends the append-only
+-- rule to service_role and direct Drizzle connections — closing the gap
+-- named in AGENTS.md → Event sourcing → Known gaps.
+--
+-- Escape hatch: set the session-local flag `app.allow_event_mutation = 'true'`
+-- in the same transaction as the mutation. Used only by deliberate,
+-- audit-logged corrections (none today). Default is to raise.
+
+create or replace function public.enforce_pet_events_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if current_setting('app.allow_event_mutation', true) = 'true' then
+    return coalesce(new, old);
+  end if;
+  raise exception 'pet_events is append-only (AGENTS.md). % blocked.', tg_op
+    using errcode = 'restrict_violation';
+end;
+$$;
+
+drop trigger if exists pet_events_no_update on public.pet_events;
+create trigger pet_events_no_update
+  before update on public.pet_events
+  for each row execute function public.enforce_pet_events_append_only();
+
+drop trigger if exists pet_events_no_delete on public.pet_events;
+create trigger pet_events_no_delete
+  before delete on public.pet_events
+  for each row execute function public.enforce_pet_events_append_only();

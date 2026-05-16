@@ -86,7 +86,42 @@ DIM recognizes three primary user roles, stored as `profiles.role` (enum `user_r
 
 **Role assignment in v1.** Self-serve signup always produces `role='owner'`. Vet and govt accounts get their role flipped manually (Studio → `profiles` table → edit `role`) until we build admin tools and verified-invite flows. That's a deliberate v1 simplification; vet/govt account onboarding is high-stakes and shouldn't be self-serve.
 
-**Future actor refinement — vet (individual) vs. clinic (organization).** The 2021 CONAIISI paper distinguishes the individual *veterinario* (a licensed person who diagnoses, prescribes, certifies) from the *centro de atención veterinaria* (a clinic, an organization, that owns and publishes vaccination / sterilization campaigns). v1 collapses both into the `vet` role on `profiles`. The proper expansion when we build the vet portal is a separate `clinics` table plus a `clinic_memberships` join table — campaigns and clinic-level config belong to the clinic, while diagnoses and prescriptions belong to the individual vet. Open question listed below; the current schema doesn't fight this future.
+**Organizations are not roles on `profiles`.** Clinics, refugios, rescue networks, and (eventually) sanitary authorities live in a separate `organizations` table peer to `users`. People connect to organizations through `organization_memberships`. This resolves the historical vet-vs-clinic ambiguity in one move (the individual vet keeps `profiles.role='vet'`; the clinic is an `organizations` row of type `clinic`; a membership row links them), and is the same mechanism that makes refugios and Mascotas CABA first-class without growing the `profiles.role` enum. See the **Organizations** section below for the full design.
+
+## Organizations
+
+Organizations (clinics, refugios, rescue networks, sanitary authorities) are first-class actors in DIM, modeled as a peer table to `users`. People and organizations both own pets, author events, and run campaigns. The connecting layer is `organization_memberships`.
+
+| Concept | Lives on |
+|---|---|
+| Who a user is *globally* | `profiles.role` (owner / vet / govt) |
+| Which orgs a user *belongs to* | `organization_memberships` rows |
+| What kind of org something is | `organizations.org_type` (clinic / shelter / rescue_network / sanitary_authority / other) |
+| Capacity in a specific event | `pet_events.author_role` and `pet_events.author_organization_id` |
+| Custody of a specific pet | `Ownership` row, polymorphic between user and org |
+
+**Why peer to users, not a subclass.** Both users and organizations own pets, author events, and run campaigns. Peer modeling lets `Ownership` and `PetEvent` carry both `*_user_id` and `*_organization_id` columns with a CHECK constraint, and dashboards filter by `org_type` cleanly. Subclassing forced fake "is_organization" flags through every read.
+
+**Why this also resolves the vet vs. clinic question.** Individual veterinarians hold `profiles.role='vet'` (matrícula attaches to the person). The clinic is an `organizations` row of type `clinic`. A `vet_individual` membership row links them. The same vet can move between clinics without losing identity; the clinic survives staff turnover; campaigns belong to the clinic, not the vet.
+
+**Verification — same trust ladder as user roles.** Anyone can register an organization. Status is `verified=false` until an admin reviews documents (personería jurídica for refugios, matrícula for clinics, CUIT cross-check). Unverified orgs can use the system but their events write with `author_verified=false`, their branding does not appear on public credentials, and they are excluded from broadcast-target queries.
+
+**Shelter custody is temporary by definition.** Refugios do not become "owners" in the legal sense — they hold custody pending adoption. `Ownership.role='shelter_custody'` is the role for this, and it applies equally to:
+
+- a refugio that rescued an animal (`owner_organization_id` set)
+- a pet owner who picked up a stray on their street and is housing it while searching for the owner or a refugio (`owner_user_id` set, no org link)
+
+The vecino-helps-stray case is explicit and intentional. An existing DIM owner can register a found animal and have it appear in their pet list with a "tránsito" badge, with no requirement to be a member of any organization. The same `shelter_custody` row transfers cleanly to a refugio or to a permanent adopter when the time comes.
+
+**Foster is distinct from shelter_custody.** `Ownership.role='foster'` means a person physically houses an animal under an organization's institutional umbrella — the org's `shelter_custody` row stays active alongside the foster's row. A foster requires an active `organization_membership` linking them to the umbrella org. A vecino without org backing uses `shelter_custody` directly.
+
+**Custody transfers always emit an event.** Refugio-to-refugio handoffs, citizen-to-refugio handoffs, decomiso intakes, adoption finalizations — every atomic transaction that ends prior `Ownership` rows and starts new ones emits a `custody_transferred` or `adoption_finalized` event. The event is source of truth; the `Ownership` table is the projection. The vecino who hands a stray to El Campito does not lose the record — it lives as a `custody_transferred` event with their `user_id` in the `from_user_id` field.
+
+**Coverage zones drive the lost-pet broadcast.** Each organization declares its coverage zones in `organization_coverage` rows (often barrio-level). When a pet's status changes to `lost`, the broadcast query targets verified refugios and rescue networks whose coverage includes the lost-pet location, and through their `organization_memberships`, reaches voluntario networks who actually walk the streets. This is the Argentine-shaped version of the PawBoost broadcast model — a contextual rescue network, not random subscribers.
+
+**Post-adoption follow-up is enforced through notifications, not credential shaming.** Missed check-ins generate notifications to both adopter and refugio. The public credential does not degrade visually. The refugio retains read access during the followup window declared on the `adoption_finalized` event.
+
+**No bulk operations in v1.** Refugios with 200+ animals do exist in CABA (El Campito, Patitas Vagabundas, Proyecto 4 Patas). Bulk intake, bulk vaccination logging, and table-shaped UIs are deferred. The schema supports them without change; the UX work is the missing piece.
 
 ## Legal framework
 
@@ -107,6 +142,37 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `id` (uuid, pk), `email` (unique), `display_name`, `phone?`, `avatar_url?`
 - `dni_number?`, `dni_verified` (bool, default false) — Mi Argentina-ready
 - `created_at`, `updated_at`
+
+### `Organization` — peer to user; clinic / shelter / rescue network / sanitary authority
+- `id` (uuid, pk)
+- `public_token` (unique) — short URL-safe code (e.g. `ORG-XK3P-9D2L`), used in public-profile QR
+- `legal_name` — full legal/registered name
+- `display_name` — short name shown in UI
+- `org_type` (enum: `clinic | shelter | rescue_network | sanitary_authority | other`) — kept open like `event_type`; new types are one-line edits
+- `cuit?` (unique when present) — Argentine tax ID, credibility booster
+- `personeria_juridica_number?` — required for refugio verification; optional for clinics
+- `email`, `phone?`, `website?`, `avatar_url?` (logo)
+- `verified` (bool, default false) — admin-stamped after document review (same trust ladder as user role verification)
+- `verified_at?`, `verified_by_user_id?`
+- `tier_0_show_branding` (bool, default false) — opt-in to appear on public credentials of pets in this org's custody / recent followup window
+- `jurisdiction_country` (default `'AR'`), `jurisdiction_province?`, `jurisdiction_locality?` — HQ location
+- `status` (enum: `active | suspended | dissolved`)
+- `created_at`, `updated_at`, `created_by_user_id`
+
+### `OrganizationCoverage` — where the org operates
+- `id`, `organization_id`
+- `jurisdiction_country` (default `'AR'`), `jurisdiction_province?`, `jurisdiction_locality?` — can be barrio-level for refugios
+- `is_primary` (bool) — flags the org's main zone
+- `created_at`
+- Multiple rows per org allowed. Used to target lost-pet broadcasts to refugios with relevant coverage and to filter adoption listings by region.
+
+### `OrganizationMembership` — people ↔ orgs
+- `id`, `organization_id`, `user_id`
+- `role` (enum: `admin | coordinator | member | volunteer | foster | vet_individual`)
+- `title?` — free text (e.g. `"Coordinadora de tránsito"`, `"Veterinaria de cabecera"`)
+- `can_write_pet_events` (bool, default false) — gates author privileges; transportistas false, coordinators / vets true
+- `joined_at`, `left_at?` (null = current), `invited_by_user_id?`
+- One user can hold memberships across many orgs simultaneously.
 
 ### `Pet` — the credential itself
 - `id` (uuid, pk) — internal key
@@ -136,21 +202,32 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `created_at`, `updated_at`
 - **No precise home coordinates stored on pet.** Location precision lives on events when relevant, not on the pet's home.
 
-### `Ownership` — history of who owns each pet
-- `id`, `pet_id`, `user_id`
-- `role` (owner|co_owner|caretaker) — only `owner` in v1
+### `Ownership` — history of who holds custody of each pet
+- `id`, `pet_id`
+- `owner_user_id?` (fk → users) — set when a person holds the row
+- `owner_organization_id?` (fk → organizations) — set when an org holds the row
+- `role` (enum: `owner | co_owner | shelter_custody | foster | caretaker`)
 - `started_at`, `ended_at?` (null = current)
-- `transferred_from_id?` — chains ownership history
-- **Constraint**: at most one active row per pet (single active owner enforced v1)
+- `transferred_from_id?` — chains custody history across users and orgs
+- `created_at`
+- **Polymorphic holder.** Exactly one of (`owner_user_id`, `owner_organization_id`) is set per row, enforced via CHECK constraint. `Ownership` is the projection; the source of truth for transfers is always a `custody_transferred` or `adoption_finalized` event.
+- **Active-owner constraint.** At most one active row per pet where `role='owner'`. Multiple `shelter_custody`, `foster`, `caretaker`, or `co_owner` rows can coexist with an active `owner`, or with each other when there is no permanent owner yet.
+- **Role semantics:**
+  - `owner` — permanent legal owner. The single accountable party. Person *or* organization.
+  - `shelter_custody` — temporary custody pending permanent placement. Used by refugios *and* by individual citizens who pick up strays. Person *or* organization. Refugios are never `owner` in DIM — they hold `shelter_custody` until adoption finalizes. The vecino-helps-stray case uses the same role with `owner_user_id` set and no org link.
+  - `foster` — temporary physical caregiver under an organization's umbrella. Requires `owner_user_id` plus an active `organization_membership` linking the foster to the org that holds the parallel `shelter_custody` row for the same pet.
+  - `co_owner` — shared permanent ownership. Schema-ready; UI deferred.
+  - `caretaker` — lower-stakes helper (petsitter, daycare). Schema-ready; UI deferred.
 
 ### `PetEvent` — append-only timeline (the spine)
 - `id`, `pet_id`, `event_type`
 - `occurred_at` (real-world time), `recorded_at` (system time)
-- `recorded_by_user_id?` (nullable for anonymous scans)
-- `author_role` (owner|scanner|vet|govt|system)
-- `author_verified` (bool, default false)
+- `recorded_by_user_id?` (nullable for anonymous scans and system events)
+- `author_role` (enum: `owner | scanner | vet | shelter | govt | system`)
+- `author_organization_id?` (fk → organizations) — set when the author acted on behalf of an organization (a clinic vet, a refugio coordinator, a sanitary-authority employee). Lets the audit trail attribute the institutional actor distinct from the individual person.
+- `author_verified` (bool, default false) — true only when both: the relevant org is `verified=true` AND the author has `can_write_pet_events=true` in their membership
 - `payload` (jsonb), `notes?`, `created_at`
-- `location_point?` (PostGIS `geography(Point, 4326)`) — optional precise location when relevant (vet visit, scan GPS, found-pet location). Used for public-health aggregation and welfare hotspot maps.
+- **Location (interim, v1):** `location_lat?`, `location_lng?` — numeric(10,7) lat/lng pair for events that carry precise location (vet visit, scan GPS, found-pet). Migrating to PostGIS `geography(Point, 4326)` as `location_point?` is deferred until we need radius search or polygon-based projections; Drizzle `customType` makes the lift-and-shift straightforward.
 - **Append-only. Never edit, never delete. Correct by adding a new event.**
 
 ### `Reminder`
@@ -245,6 +322,22 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `microchip_implanted`      | v1    | `{ chip_number, country_code?, implanted_by?, location_on_body?, implant_date_known? }` — fired automatically at pet creation if a chip is provided |
 | `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at, attached_documents? }` — owner registers their PPP in the official provincial registry |
 
+**Custody & adoption**
+
+| Type                              | UI    | Payload                                                                                          |
+| --------------------------------- | ----- | ------------------------------------------------------------------------------------------------ |
+| `shelter_intake_recorded`         | later | `{ intake_reason: rescue\|surrender\|seizure\|stray_found\|other, intake_condition?, rescue_jurisdiction? }` — fired when a shelter *or citizen* takes custody of an unowned animal; can roll into `pet_registered.payload` when the registering author is a shelter |
+| `foster_assigned`                 | later | `{ foster_user_id, expected_weeks?, notes? }` — refugio assigns a voluntario to physically care for an animal it holds in custody |
+| `foster_ended`                    | later | `{ foster_user_id, reason: adoption\|returned\|escalated\|other }`                              |
+| `adoption_application_submitted`  | later | `{ applicant_user_id, related_organization_id, housing_type?, other_pets?, daily_routine?, notes? }` |
+| `adoption_application_reviewed`   | later | `{ application_event_id, reviewer_user_id, notes? }`                                             |
+| `adoption_application_approved`   | later | `{ application_event_id, reviewer_user_id, conditions? }`                                        |
+| `adoption_application_rejected`   | later | `{ application_event_id, reviewer_user_id, reason? }`                                            |
+| `adoption_finalized`              | later | `{ previous_owner_organization_id?, foster_user_id?, contract_attachment_id?, post_adoption_followup_months? }` — **composite event.** Source of truth for the transfer: atomically ends prior `shelter_custody` and `foster` rows and inserts a new `owner` row. Read as one event in the timeline. |
+| `post_adoption_checkin`           | later | `{ related_organization_id, photo_attachment_ids?: uuid[], notes? }` — owner self-reports during the followup window; refugio dashboard acknowledges. Missing check-ins generate notifications to both adopter and refugio. No public-credential degradation. |
+| `adoption_revoked`                | later | `{ reason, returned_to_organization_id }` — refugio reclaims animal per contract                |
+| `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason? }` — for handoffs that are not adoption (refugio→refugio, citizen→refugio, capacity transfers, decomiso intake). Always recorded as an event; the `Ownership` table updates as a projection. |
+
 **Free-form**
 
 | Type         | UI | Payload                              |
@@ -287,6 +380,8 @@ Events with a real-world location should populate the `PetEvent.location_point` 
 | 3    | Owner, authenticated in app           | Everything, including scan history with locations. Editable.                                                                          |
 | 4    | (future) Verified vet via portal      | Tier 2 by default + can write events                                                                                                  |
 
+**Organization branding on public credentials.** When a pet's current `Ownership` row is held by a verified organization (or held one recently, within the post-adoption followup window declared on `adoption_finalized`), Tier 0 may display a "Bajo seguimiento de [Org Name] ✓" badge, gated by the org's `tier_0_show_branding` preference. The Tier-0 "Did you find this pet?" form can dual-route to both the legal owner and the originating refugio when the owner opts in — so an animal that escapes its adoptive home reaches the rescuing org alongside the owner. Unverified orgs do not appear on public credentials.
+
 ## Dashboards & projections (the consumers)
 
 Build for **flexibility and big scope** — three audiences are intended consumers, each gets distinct views from the same underlying event log. The architectural rule: **any dashboard view must be expressible as a query/projection over the event log**, optionally with jurisdiction or time filters. If a useful view can't be expressed this way, the event catalog is incomplete and the answer is a new event type, not a new table.
@@ -324,6 +419,7 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - **PII never leaves the database in projections.** Owner names, phone numbers, exact addresses never appear in public or analyst views. `jurisdiction_locality` (barrio) is the smallest unit exposed publicly.
 - **k-anonymity for small cells.** Any aggregate that would expose fewer than `k` pets in a region (default `k=5`) is suppressed or rolled up to the next coarser jurisdiction level. Prevents accidental re-identification in sparse data.
 - **Authorized actors (vet portal, gov portal, when they exist) see PII within their legitimate scope only**, gated by Postgres Row Level Security. The data layer enforces tier visibility, not just the app code.
+- **Owner-facing RLS lives in `db/rls.sql`.** It enables RLS on the seven core tables (`profiles`, `pets`, `ownerships`, `pet_events`, `reminders`, `attachments`, `notifications`) and locks every PostgREST read/write to the authenticated owner. `pet_events` has no UPDATE or DELETE policy — the append-only rule (`AGENTS.md → Core principles #2`) is enforced both by code discipline and by RLS. Apply via Supabase Studio (same pattern as `db/welfare_rls.sql` and `db/organizations_rls.sql`); do not use `pnpm db:push`, which would propose dropping unmodeled policies. Server-side reads via Drizzle bypass RLS by design — the public credential page at `/p/{public_token}` continues to work because its server component goes through Drizzle, not supabase-js. Verify the policies via `pnpm rls:smoke`, which runs two test accounts against PostgREST and asserts isolation end-to-end.
 
 ## v1 screens
 
@@ -343,7 +439,12 @@ Keeping **DIM**. Acronym lands ("Documento de Identificación para Mascotas"), s
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - Vet portal (separate Next.js route group or sibling app, sharing DB)
-- **Clinic entity + clinic_memberships join** — distinguish individual vet (person, diagnoses/prescribes) from veterinary clinic (organization, owns campaigns). Today both collapse into `profiles.role = 'vet'`.
+- **Refugio / `/refugio` portal** — verified-org dashboard for intake, foster assignment, adoption pipeline, post-adoption followup. Single-pet flows first, bulk operations later. Schema is in place.
+- **Adoption-listing public surface (`/adoptar`)** — projection over (`pets` where current `Ownership` is org-held by `org_type` in (`shelter`, `rescue_network`), not death, not paused). Filters, region, species. UX and listing copy open.
+- **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA alignment is the diplomatic open question; we want to feed it, not compete with it.
+- **Decomiso → temporary welfare-authority custody → refugio chain** — Ley Nacional 14.346 seizures should flow through `custody_transferred` events with a municipal welfare authority holding `shelter_custody` briefly before transferring to a refugio. Schema supports this; the authority-side portal and UX are open.
+- **Bulk operations for high-capacity refugios** — El Campito-scale shelters (200+ animals) need table-shaped UIs for bulk intake, vaccination logging, listing edits. Deferred to a later iteration; schema does not change.
+- **Cross-org transfer UX** — refugio-to-refugio handoffs need a sender-confirms / receiver-accepts flow. Event always emitted on completion (`custody_transferred`).
 - Government dashboards: three audiences in scope (sanitary authority, analyst, welfare officer); build order TBD by where adoption lands first
 - **Mascotas CABA program integration** — the GCBA's existing (non-digitalized) free-vet-attention program. DIM is the data layer it lacks; explore as a partnership path.
 - **Dangerous breed registry support** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event + (eventually) export to provincial registry.

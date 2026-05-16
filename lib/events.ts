@@ -64,6 +64,24 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: by,
       };
     }
+    case "dangerous_breed_attested": {
+      const registry = str("registry");
+      const registryId = str("registry_id");
+      const registryLabel =
+        registry === "caba_4078"
+          ? "CABA · Ley 4078"
+          : registry === "prov_14107"
+            ? "Prov. Bs. As. · Ley 14.107"
+            : registry === "other"
+              ? "Otro registro"
+              : null;
+      return {
+        primary: registryLabel
+          ? `Atestación PPP · ${registryLabel}`
+          : "Atestación de raza peligrosa",
+        secondary: registryId ? `Nº ${registryId}` : null,
+      };
+    }
     case "weight_recorded": {
       const kg = str("kg");
       return {
@@ -120,6 +138,9 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       const facility = str("facility");
       const diseaseCode = str("disease_code");
       const isReportablePayload = p.is_reportable === true;
+      const deathAtClinic = p.death_at_clinic === true;
+      const clinicName = str("clinic_name");
+      const vetDecidedAlone = p.vet_decided_alone === true;
 
       const causeLabel: Record<string, string> = {
         known: "Conocida",
@@ -128,13 +149,21 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         disease: "Enfermedad",
         accident: "Accidente",
         euthanasia: "Eutanasia",
+        sudden: "Repentina",
+        violent: "Violenta",
         other: "Otra",
       };
       const dispositionLabel: Record<string, string> = {
-        cremation: "Cremación",
-        burial: "Entierro",
+        cremation_collective: "Cremación colectiva",
+        cremation_individual_ashes: "Cremación individual (cenizas)",
+        authorized_cemetery: "Cementerio autorizado",
+        owner_burial: "Sepultura por el propietario",
+        household_waste: "Residuos no especiales",
         rendering: "Reciclaje sanitario",
         unknown: "No sé",
+        // Legacy values from events recorded before the enum split — keep rendering them.
+        cremation: "Cremación",
+        burial: "Entierro",
       };
 
       // When cause is "disease", use the resolved disease label if available.
@@ -148,9 +177,16 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         primary = showCause ? `Fallecimiento · ${causeLabel[cause]}` : "Fallecimiento";
       }
 
-      const dispositionStr = disposition ? (dispositionLabel[disposition] ?? null) : null;
-      const facilityStr = facility;
-      let secondary = [dispositionStr, facilityStr].filter(Boolean).join(" · ") || causeDetail;
+      const dispositionStr = disposition ? (dispositionLabel[disposition] ?? disposition) : null;
+      const clinicStr = deathAtClinic
+        ? clinicName
+          ? `En clínica: ${clinicName}`
+          : "En clínica"
+        : null;
+      const vetAloneStr = vetDecidedAlone ? "Vet decidió sin contacto con propietario" : null;
+      let secondary =
+        [dispositionStr, facility, clinicStr, vetAloneStr].filter(Boolean).join(" · ") ||
+        causeDetail;
 
       if (isReportablePayload) {
         const badge = "Reportable a autoridad sanitaria";
@@ -212,7 +248,9 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
     }
     case "status_changed": {
       const toStatus = str("to_status");
-      const loc = str("last_known_location");
+      // Prefer the canonical `location_description` key; fall back to the
+      // legacy `last_known_location` for events written before the rename.
+      const loc = str("location_description") ?? str("last_known_location");
       const reason = str("reason");
       let primary: string | null = null;
       if (toStatus === "lost") primary = "Marcada como perdida";

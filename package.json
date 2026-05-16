@@ -17,12 +17,17 @@
     "db:reset": "supabase db reset",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "rls:smoke": "tsx scripts/rls-smoke.ts",
+    "rebuild:projections": "tsx scripts/rebuild-projections.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "drizzle-orm": "^0.36.0",
+    "maplibre-gl": "^5.24.0",
     "next": "^15.1.0",
     "postgres": "^3.4.0",
     "react": "^19.0.0",
@@ -34,12 +39,15 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^16.4.0",
     "drizzle-kit": "^0.28.0",
     "postcss": "^8.5.0",
     "supabase": "^2.0.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "tsx": "^4.22.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.6"
   },
   "engines": {
     "node": ">=22.13.0"

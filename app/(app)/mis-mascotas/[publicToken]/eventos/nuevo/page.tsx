@@ -110,7 +110,7 @@ export default async function PickEventPage({
     .where(
       and(
         eq(pets.publicToken, publicToken),
-        eq(ownerships.userId, user.id),
+        eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
     )

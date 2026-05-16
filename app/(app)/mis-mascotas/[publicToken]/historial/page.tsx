@@ -66,7 +66,7 @@ export default async function PetHistorialPage({
           </p>
         </div>
 
-        <EventTimeline events={eventsWithAttachments} />
+        <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />
       </div>
     </main>
   );

@@ -7,11 +7,12 @@
 // insert into pet_events (and optionally a Reminder) atomically, redirect
 // back to the pet's detail page.
 
-import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
+import { attachments, db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { parseDateInput } from "@/lib/format";
+import { writePoint } from "@/lib/location";
 import {
   FREQUENCY_LABELS,
   generateDoseSchedule,
@@ -41,7 +42,7 @@ async function requireOwnedPet(publicToken: string) {
     .where(
       and(
         eq(pets.publicToken, publicToken),
-        eq(ownerships.userId, user.id),
+        eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
     )
@@ -409,8 +410,23 @@ export async function setPetLostAction(
   if (pet.status === "deceased")
     return { error: "No se puede cambiar el estado de una mascota fallecida." };
 
-  const lastKnownLocation = String(formData.get("lastKnownLocation") ?? "").trim() || null;
+  const locationDescription = String(formData.get("lastKnownLocation") ?? "").trim() || null;
   const reason = String(formData.get("reason") ?? "").trim() || null;
+
+  // Precise coordinates from the LocationFields map picker. Empty string when
+  // the owner didn't drop a pin. writePoint(null) erases both columns.
+  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
+  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
+  let locationPoint: { lat: number; lng: number } | null = null;
+  if (locationLatRaw && locationLngRaw) {
+    const lat = Number.parseFloat(locationLatRaw);
+    const lng = Number.parseFloat(locationLngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { error: "Coordenadas inválidas. Tocá el mapa de nuevo para marcar el punto." };
+    }
+    locationPoint = { lat, lng };
+  }
+  const { locationLat, locationLng } = writePoint(locationPoint);
 
   const now = new Date();
   const fromStatus = pet.status;
@@ -424,10 +440,18 @@ export async function setPetLostAction(
         recordedAt: now,
         recordedByUserId: user.id,
         authorRole: "owner",
+        // Coordinates (when present) live on top-level location_lat / location_lng
+        // columns per AGENTS.md → PetEvent: "Events with a real-world location
+        // should populate the PetEvent.location_point column (top-level), not
+        // duplicate it inside payload." Free-text description stays in payload
+        // under the canonical `location_description` key — payload-side, not
+        // a coordinate, so the rule doesn't apply.
+        locationLat,
+        locationLng,
         payload: {
           from_status: fromStatus,
           to_status: "lost",
-          last_known_location: lastKnownLocation,
+          location_description: locationDescription,
           reason,
         },
       });
@@ -955,7 +979,7 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
     .where(
       and(
         eq(pets.id, reminderRow.petId),
-        eq(ownerships.userId, user.id),
+        eq(ownerships.ownerUserId, user.id),
         isNull(ownerships.endedAt),
       ),
     )
@@ -1003,8 +1027,27 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
 // Death record
 // ---------------------------------------------------------------------------
 
-const DEATH_CAUSES = ["known", "unknown", "natural", "disease", "accident", "euthanasia", "other"];
-const DISPOSITION_METHODS = ["cremation", "burial", "rendering", "unknown"];
+const DEATH_CAUSES = [
+  "known",
+  "unknown",
+  "natural",
+  "disease",
+  "accident",
+  "euthanasia",
+  "sudden",
+  "violent",
+  "other",
+];
+const DISPOSITION_METHODS = [
+  "cremation_collective",
+  "cremation_individual_ashes",
+  "authorized_cemetery",
+  "owner_burial",
+  "household_waste",
+  "rendering",
+  "unknown",
+];
+const VET_CONTACT_VALUES = ["yes", "no", "not_applicable"];
 
 export async function createDeathRecordAction(
   publicToken: string,
@@ -1026,6 +1069,12 @@ export async function createDeathRecordAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
+  const deathAtClinic = formData.get("deathAtClinic") === "true";
+  const clinicName = String(formData.get("clinicName") ?? "").trim() || null;
+  const vetContactedOwnerRaw = String(formData.get("vetContactedOwner") ?? "").trim();
+  const vetDecidedAlone = formData.get("vetDecidedAlone") === "true";
+  const ownerToPrivateCrematorium = formData.get("ownerToPrivateCrematorium") === "true";
+
   if (!DEATH_CAUSES.includes(cause)) return { error: "Causa de fallecimiento inválida." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
 
@@ -1035,6 +1084,26 @@ export async function createDeathRecordAction(
   const dispositionMethod = dispositionMethodRaw === "" ? null : dispositionMethodRaw;
   if (dispositionMethod !== null && !DISPOSITION_METHODS.includes(dispositionMethod)) {
     return { error: "Método de disposición inválido." };
+  }
+
+  const vetContactedOwner = vetContactedOwnerRaw === "" ? null : vetContactedOwnerRaw;
+  if (vetContactedOwner !== null && !VET_CONTACT_VALUES.includes(vetContactedOwner)) {
+    return { error: "Valor de contacto del veterinario inválido." };
+  }
+
+  if (clinicName && !deathAtClinic) {
+    return {
+      error: "Indicaste un nombre de clínica pero no marcaste que falleció en una veterinaria.",
+    };
+  }
+  if (vetContactedOwner && !deathAtClinic) {
+    return { error: "El contacto del veterinario solo aplica si falleció en una veterinaria." };
+  }
+  if (vetDecidedAlone && vetContactedOwner !== "no") {
+    return {
+      error:
+        "Solo se puede marcar 'vet decidió sin contacto' cuando el veterinario no logró contactar al propietario.",
+    };
   }
 
   const diseaseCodeRaw = String(formData.get("diseaseCode") ?? "").trim() || null;
@@ -1072,6 +1141,12 @@ export async function createDeathRecordAction(
             vet_name: vetName,
             disposition_method: dispositionMethod,
             facility,
+            // Vet-mediated branch (owner-as-proxy in v1; promotable to authorRole='vet' when portal lands)
+            death_at_clinic: deathAtClinic || null,
+            clinic_name: clinicName,
+            vet_contacted_owner: vetContactedOwner,
+            vet_decided_alone: vetDecidedAlone || null,
+            owner_to_private_crematorium: ownerToPrivateCrematorium || null,
             // Disease enrichment (only when cause === "disease")
             disease_code: diseaseCode,
             confirmed_by_lab: diseaseCode ? confirmedByLab : null,
@@ -1203,6 +1278,105 @@ export async function createClinicalInfoAction(
 
   redirect(`/mis-mascotas/${publicToken}`);
 }
+
+// ---------------------------------------------------------------------------
+// Dangerous-breed attestation (Ley CABA 4078 / Ley Prov 14.107)
+// ---------------------------------------------------------------------------
+
+const DANGEROUS_BREED_REGISTRIES = ["caba_4078", "prov_14107", "other"] as const;
+
+export async function createDangerousBreedAttestationAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const { supabase, user, pet, error: ownershipError } = await requireOwnedAndAlive(publicToken);
+  if (ownershipError || !user || !pet) return { error: ownershipError ?? "No autorizado." };
+
+  const registry = String(formData.get("registry") ?? "").trim();
+  const registryId = String(formData.get("registryId") ?? "").trim() || null;
+  const attestedAtRaw = String(formData.get("attestedAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!(DANGEROUS_BREED_REGISTRIES as readonly string[]).includes(registry)) {
+    return { error: "Registro inválido. Elegí uno de los disponibles." };
+  }
+  if (!attestedAtRaw) return { error: "Falta la fecha de atestación." };
+  const attestedAt = parseDateInput(attestedAtRaw);
+  if (!attestedAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      // Single insert — payload is final. attached_documents is intentionally
+      // NOT stored in the payload: the attachments table already provides the
+      // join via event_id, matching the pattern used by sterilization /
+      // microchip / vaccination actions, and preserving the append-only
+      // discipline on pet_events (AGENTS.md → Core principles #2).
+      const [event] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "dangerous_breed_attested",
+          occurredAt: attestedAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "owner",
+          payload: {
+            registry,
+            registry_id: registryId,
+            attested_at: attestedAt.toISOString().slice(0, 10),
+          },
+          notes,
+        })
+        .returning();
+
+      if (upload.uploadedPath) {
+        await tx.insert(attachments).values({
+          petId: pet.id,
+          eventId: event.id,
+          uploadedByUserId: user.id,
+          storagePath: upload.uploadedPath,
+          mimeType: upload.mimeType ?? "image/jpeg",
+          fileSize: upload.size ?? 0,
+        });
+      }
+
+      // Mark any unread ppp_registration_reminder for this pet as read — the
+      // owner just acted on it. Mirrors the spec: "the notification (if unread)
+      // is auto-marked-read".
+      await tx
+        .update(notifications)
+        .set({ readAt: now })
+        .where(
+          and(
+            eq(notifications.userId, user.id),
+            eq(notifications.relatedPetId, pet.id),
+            eq(notifications.notificationType, "ppp_registration_reminder"),
+            isNull(notifications.readAt),
+          ),
+        );
+    });
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la atestación: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Status: found
+// ---------------------------------------------------------------------------
 
 export async function setPetFoundAction(publicToken: string): Promise<void> {
   const { user, pet, error: ownershipError } = await requireOwnedPet(publicToken);

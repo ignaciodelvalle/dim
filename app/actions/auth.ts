@@ -9,6 +9,9 @@ import { redirect } from "next/navigation";
 
 export type AuthFormState = {
   error: string | null;
+  // Set by signupAction so the multi-step signup form knows to advance to
+  // the first-pet step. loginAction never sets it.
+  ok?: boolean;
 };
 
 export async function signupAction(
@@ -45,7 +48,10 @@ export async function signupAction(
     return { error: `No se pudo crear la cuenta: ${error.message}` };
   }
 
-  redirect("/mis-mascotas");
+  // Do NOT redirect. The inline signup flow uses this success signal to
+  // transition the same page to the first-pet step (AGENTS.md → v1 screens
+  // §Signup: "*immediately* collects first pet profile in same flow").
+  return { error: null, ok: true };
 }
 
 export async function loginAction(

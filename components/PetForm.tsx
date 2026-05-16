@@ -7,8 +7,9 @@
 
 import type { NewPetFormState } from "@/app/actions/pets";
 import type { Pet } from "@/db";
-import { PROVINCIAS } from "@/lib/ar-provincias";
+import { provinceByName } from "@/lib/ar-provincias";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { LocationFields } from "./LocationFields";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -26,10 +27,27 @@ export function PetForm({
   action,
   existingPet,
   existingPhotoUrl,
+  compact,
+  submitLabel,
+  pendingLabel,
+  hiddenFields,
 }: {
   action: FormAction;
   existingPet?: Pet;
   existingPhotoUrl?: string | null;
+  // `compact` collapses the form to just the "Lo básico" section. Used by
+  // the inline first-pet capture at signup (AGENTS.md → v1 screens §Signup):
+  // ask only for photo + name + species + base info, owner fills the rest
+  // later via /mis-mascotas/{token}/editar.
+  compact?: boolean;
+  // Optional overrides for the submit button copy. Defaults remain
+  // "Crear mascota" / "Guardar cambios" / "Guardando…".
+  submitLabel?: string;
+  pendingLabel?: string;
+  // Optional hidden form fields (e.g. a redirectTo hint for the server
+  // action when the same action is reused across flows). Rendered as
+  // <input type="hidden"> inside the <form>.
+  hiddenFields?: Record<string, string>;
 }) {
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -59,6 +77,10 @@ export function PetForm({
 
   return (
     <form action={formAction} className="space-y-4">
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       {/* SECTION: Lo básico */}
       <Section title="Lo básico" defaultOpen>
         <PhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
@@ -113,190 +135,209 @@ export function PetForm({
         />
       </Section>
 
-      {/* SECTION: Identificación y raza */}
-      <Section title="Identificación y raza" defaultOpen={isEdit && !!existingPet?.breed}>
-        <div className="space-y-1.5">
-          <label
-            htmlFor="breed"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-          >
-            Raza
-          </label>
-          <input
-            id="breed"
-            name="breed"
-            type="text"
-            list="breed-options"
-            value={breed}
-            onChange={(e) => setBreed(e.target.value)}
-            placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
-            disabled={!species}
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent disabled:opacity-50"
-          />
-          <datalist id="breed-options">
-            {breedOptions.map((b) => (
-              <option key={b} value={b} />
-            ))}
-          </datalist>
-          {breedIsDangerous && (
-            <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
-              Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078, Ley
-              Provincial 14.107). Vas a tener que registrarte en el registro provincial
-              correspondiente. DIM marcará tu mascota con la flag oficial y te avisará en
-              notificaciones.
+      {!compact && (
+        <>
+          {/* SECTION: Identificación y raza */}
+          <Section title="Identificación y raza" defaultOpen={isEdit && !!existingPet?.breed}>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="breed"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Raza
+              </label>
+              <input
+                id="breed"
+                name="breed"
+                type="text"
+                list="breed-options"
+                value={breed}
+                onChange={(e) => setBreed(e.target.value)}
+                placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
+                disabled={!species}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent disabled:opacity-50"
+              />
+              <datalist id="breed-options">
+                {breedOptions.map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+              {breedIsDangerous && (
+                <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
+                  Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
+                  Ley Provincial 14.107). Vas a tener que registrarte en el registro provincial
+                  correspondiente. DIM marcará tu mascota con la flag oficial y te avisará en
+                  notificaciones.
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <SelectField
-          id="acquisitionMethod"
-          name="acquisitionMethod"
-          label={
-            isEdit
-              ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
-              : "¿Cómo te encontraste con esta mascota?"
-          }
-          defaultValue={existingPet?.acquisitionMethod ?? ""}
-        >
-          <option value="">No especificar</option>
-          <option value="adopted">Adoptado/a</option>
-          <option value="purchased">Comprado/a</option>
-          <option value="found_stray">Encontrado/a en la calle</option>
-          <option value="gift">Regalado/a</option>
-          <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
-          <option value="other">Otro</option>
-        </SelectField>
+            <SelectField
+              id="acquisitionMethod"
+              name="acquisitionMethod"
+              label={
+                isEdit
+                  ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
+                  : "¿Cómo te encontraste con esta mascota?"
+              }
+              defaultValue={existingPet?.acquisitionMethod ?? ""}
+            >
+              <option value="">No especificar</option>
+              <option value="adopted">Adoptado/a</option>
+              <option value="purchased">Comprado/a</option>
+              <option value="found_stray">Encontrado/a en la calle</option>
+              <option value="gift">Regalado/a</option>
+              <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
+              <option value="other">Otro</option>
+            </SelectField>
 
-        <MicrochipBlock existingPet={existingPet} />
-      </Section>
+            <MicrochipBlock existingPet={existingPet} />
+          </Section>
 
-      {/* SECTION: Salud y vida diaria */}
-      <Section title="Salud y vida diaria">
-        <Field
-          id="estimatedWeightKg"
-          name="estimatedWeightKg"
-          type="number"
-          label="Peso estimado (kg)"
-          step="0.1"
-          min="0"
-          defaultValue={existingPet?.estimatedWeightKg ?? undefined}
-        />
+          {/* SECTION: Salud y vida diaria */}
+          <Section title="Salud y vida diaria">
+            <Field
+              id="estimatedWeightKg"
+              name="estimatedWeightKg"
+              type="number"
+              label="Peso estimado (kg)"
+              step="0.1"
+              min="0"
+              defaultValue={existingPet?.estimatedWeightKg ?? undefined}
+            />
 
-        <CheckboxGroup
-          name="favouriteFoods"
-          label="Comidas favoritas"
-          options={COMMON_FOODS}
-          otherFieldName="favouriteFoodsOther"
-          defaultValues={existingPet?.favouriteFoods ?? []}
-        />
+            <CheckboxGroup
+              name="favouriteFoods"
+              label="Comidas favoritas"
+              options={COMMON_FOODS}
+              otherFieldName="favouriteFoodsOther"
+              defaultValues={existingPet?.favouriteFoods ?? []}
+            />
 
-        <CheckboxGroup
-          name="knownAllergies"
-          label="Alergias conocidas"
-          options={COMMON_ALLERGIES}
-          otherFieldName="knownAllergiesOther"
-          defaultValues={existingPet?.knownAllergies ?? []}
-        />
+            <CheckboxGroup
+              name="knownAllergies"
+              label="Alergias conocidas"
+              options={COMMON_ALLERGIES}
+              otherFieldName="knownAllergiesOther"
+              defaultValues={existingPet?.knownAllergies ?? []}
+            />
 
-        <SelectField
-          id="trainingLevel"
-          name="trainingLevel"
-          label="Nivel de entrenamiento"
-          defaultValue={existingPet?.trainingLevel ?? ""}
-        >
-          <option value="">No especificar</option>
-          {TRAINING_LEVELS.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </SelectField>
-      </Section>
+            <SelectField
+              id="trainingLevel"
+              name="trainingLevel"
+              label="Nivel de entrenamiento"
+              defaultValue={existingPet?.trainingLevel ?? ""}
+            >
+              <option value="">No especificar</option>
+              {TRAINING_LEVELS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </SelectField>
+          </Section>
 
-      {/* SECTION: Seguro */}
-      <Section title="Seguro de mascota">
-        <div className="space-y-1.5">
-          <label
-            htmlFor="insuranceCompany"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+          {/* SECTION: Seguro */}
+          <Section title="Seguro de mascota">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="insuranceCompany"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Compañía
+              </label>
+              <input
+                id="insuranceCompany"
+                name="insuranceCompany"
+                type="text"
+                list="insurance-companies"
+                placeholder="Buscar o tipear…"
+                defaultValue={existingPet?.insuranceCompany ?? undefined}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+              />
+              <datalist id="insurance-companies">
+                {INSURANCE_COMPANIES.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </div>
+            <Field
+              id="insurancePolicyNumber"
+              name="insurancePolicyNumber"
+              type="text"
+              label="Número de póliza"
+              defaultValue={existingPet?.insurancePolicyNumber ?? undefined}
+            />
+          </Section>
+
+          {/* SECTION: Documentos (placeholder) */}
+          <Section title="Documentos y certificaciones">
+            <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center text-sm text-neutral-500 dark:text-neutral-500">
+              Pasaporte de viaje, certificado de perro de servicio, otros.
+              <br />
+              <span className="text-xs">Próximamente</span>
+            </div>
+          </Section>
+
+          {/* SECTION: Smart devices */}
+          <Section title="Dispositivos conectados">
+            <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center space-y-3">
+              <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                Cámaras, comederos automáticos, collares GPS, sensores.
+              </p>
+              <button
+                type="button"
+                disabled
+                className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 disabled:cursor-not-allowed"
+              >
+                Conectar dispositivo (próximamente)
+              </button>
+            </div>
+          </Section>
+
+          {/* SECTION: Ubicación */}
+          <Section
+            title="Ubicación (ayuda a las campañas de salud animal)"
+            defaultOpen={isEdit && !!existingPet?.jurisdictionProvince}
           >
-            Compañía
-          </label>
-          <input
-            id="insuranceCompany"
-            name="insuranceCompany"
-            type="text"
-            list="insurance-companies"
-            placeholder="Buscar o tipear…"
-            defaultValue={existingPet?.insuranceCompany ?? undefined}
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-          />
-          <datalist id="insurance-companies">
-            {INSURANCE_COMPANIES.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-        </div>
-        <Field
-          id="insurancePolicyNumber"
-          name="insurancePolicyNumber"
-          type="text"
-          label="Número de póliza"
-          defaultValue={existingPet?.insurancePolicyNumber ?? undefined}
-        />
-      </Section>
+            <LocationFields
+              mode="jurisdiction"
+              defaultValue={{
+                // Existing rows store the display name in jurisdiction_province;
+                // resolve to the ISO code for the select. Once the canonical-
+                // codes migration lands (deferred until gov dashboards) this
+                // lookup becomes a pass-through.
+                provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
+                localityName: existingPet?.jurisdictionLocality ?? null,
+              }}
+            />
+          </Section>
 
-      {/* SECTION: Documentos (placeholder) */}
-      <Section title="Documentos y certificaciones">
-        <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center text-sm text-neutral-500 dark:text-neutral-500">
-          Pasaporte de viaje, certificado de perro de servicio, otros.
-          <br />
-          <span className="text-xs">Próximamente</span>
-        </div>
-      </Section>
-
-      {/* SECTION: Smart devices */}
-      <Section title="Dispositivos conectados">
-        <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center space-y-3">
-          <p className="text-sm text-neutral-700 dark:text-neutral-300">
-            Cámaras, comederos automáticos, collares GPS, sensores.
-          </p>
-          <button
-            type="button"
-            disabled
-            className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 disabled:cursor-not-allowed"
+          {/* SECTION: Credencial pública */}
+          <Section
+            title="Credencial pública"
+            defaultOpen={isEdit && !!existingPet?.emergencyInfoVisible}
           >
-            Conectar dispositivo (próximamente)
-          </button>
-        </div>
-      </Section>
-
-      {/* SECTION: Ubicación */}
-      <Section
-        title="Ubicación (ayuda a las campañas de salud animal)"
-        defaultOpen={isEdit && !!existingPet?.jurisdictionProvince}
-      >
-        <SelectField
-          id="province"
-          name="province"
-          label="Provincia"
-          defaultValue={existingPet?.jurisdictionProvince ?? ""}
-        >
-          <option value="">No especificar</option>
-          {PROVINCIAS.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </SelectField>
-        <Field
-          id="locality"
-          name="locality"
-          type="text"
-          label="Barrio o localidad"
-          defaultValue={existingPet?.jurisdictionLocality ?? undefined}
-        />
-      </Section>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="emergencyInfoVisible"
+                value="true"
+                defaultChecked={!!existingPet?.emergencyInfoVisible}
+                className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+                  Mostrar aviso de emergencia médica en la credencial pública
+                </span>
+                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+                  Aparece en la página pública sin revelar tu nombre ni datos sensibles.
+                </span>
+              </span>
+            </label>
+          </Section>
+        </>
+      )}
 
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">
@@ -309,7 +350,9 @@ export function PetForm({
         disabled={isPending}
         className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {isPending ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear mascota"}
+        {isPending
+          ? (pendingLabel ?? "Guardando...")
+          : (submitLabel ?? (isEdit ? "Guardar cambios" : "Crear mascota"))}
       </button>
     </form>
   );

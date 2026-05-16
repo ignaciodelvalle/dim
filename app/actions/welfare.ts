@@ -11,8 +11,10 @@
 // Out of scope for v1.
 
 import { db, ownerships, petEvents, pets, welfareReportAttachments, welfareReports } from "@/db";
+import { provinceByCode } from "@/lib/ar-provincias";
 import { signalWelfareReport } from "@/lib/authority";
 import { parseDateInput } from "@/lib/format";
+import { writePoint } from "@/lib/location";
 import { createClient } from "@/lib/supabase/server";
 import { generateReferenceCode } from "@/lib/welfare-codes";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
@@ -54,8 +56,12 @@ export async function createWelfareReportAction(
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
   const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
-  const jurisdictionProvince = String(formData.get("jurisdictionProvince") ?? "").trim() || null;
-  const jurisdictionLocality = String(formData.get("jurisdictionLocality") ?? "").trim() || null;
+  // Shared LocationFields posts ISO codes for the province; resolve to the
+  // display name for storage. localityName is free text (no canonical lookup
+  // until gov dashboards need ar_localities).
+  const jurisdictionProvince =
+    provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null;
+  const jurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -89,14 +95,22 @@ export async function createWelfareReportAction(
     return { error: "Describí brevemente al animal o el lugar denunciado." };
   }
 
-  const locationLat = locationLatRaw ? Number.parseFloat(locationLatRaw) : null;
-  const locationLng = locationLngRaw ? Number.parseFloat(locationLngRaw) : null;
-  if (locationLatRaw && (locationLat === null || !Number.isFinite(locationLat))) {
-    return { error: "Latitud inválida." };
+  let locationPoint: { lat: number; lng: number } | null = null;
+  if (locationLatRaw || locationLngRaw) {
+    // Both lat and lng must be provided together — a half-pair is meaningless
+    // and would otherwise surface as a misleading "Longitud inválida" when the
+    // missing partner field is what's actually wrong.
+    if (!locationLatRaw || !locationLngRaw) {
+      return { error: "Se requieren ambas coordenadas: latitud y longitud." };
+    }
+    const lat = Number.parseFloat(locationLatRaw);
+    const lng = Number.parseFloat(locationLngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { error: "Coordenadas inválidas. Revisá latitud y longitud." };
+    }
+    locationPoint = { lat, lng };
   }
-  if (locationLngRaw && (locationLng === null || !Number.isFinite(locationLng))) {
-    return { error: "Longitud inválida." };
-  }
+  const { locationLat, locationLng } = writePoint(locationPoint);
 
   const occurredAt = occurredAtRaw ? parseDateInput(occurredAtRaw) : null;
   if (occurredAtRaw && !occurredAt) return { error: "Fecha del hecho inválida." };
@@ -122,7 +136,7 @@ export async function createWelfareReportAction(
       .where(
         and(
           eq(ownerships.petId, subjectPetId),
-          eq(ownerships.userId, user.id),
+          eq(ownerships.ownerUserId, user.id),
           isNull(ownerships.endedAt),
         ),
       )

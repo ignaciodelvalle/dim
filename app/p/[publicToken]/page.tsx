@@ -1,5 +1,5 @@
 // Public credential page — Tier 0 view by default. When pet.status === 'lost'
-// the page promotes to Tier 1: owner display name + direct contact + last-known
+// the page promotes to Tier 1: owner first name + direct contact + last-known
 // location, per AGENTS.md → "Privacy tiers".
 //
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
@@ -7,9 +7,11 @@
 
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
+import { readPoint } from "@/lib/location";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 
 export default async function PublicCredentialPage({
@@ -53,60 +55,100 @@ export default async function PublicCredentialPage({
   // Tier 1 reveal: only when the pet is marked lost. Otherwise leave undefined
   // so we don't leak PII on active pets.
   let lostContext: {
-    ownerName: string | null;
+    ownerFirstName: string | null;
     phone: string | null;
-    email: string | null;
-    lastKnownLocation: string | null;
+    locationText: string | null;
   } | null = null;
 
   if (isLost) {
     const [ownerRow] = await db
       .select({ profile: profiles })
       .from(ownerships)
-      .innerJoin(profiles, eq(profiles.id, ownerships.userId))
+      .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
       .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
       .limit(1);
 
-    let email: string | null = null;
-    if (ownerRow && !ownerRow.profile.phone) {
-      // Fallback: pull email from auth.users only if no phone on profile. The
-      // postgres-js connection has access to the auth schema.
-      try {
-        const rows = await db.execute<{ email: string | null }>(
-          sql`select email from auth.users where id = ${ownerRow.profile.id} limit 1`,
-        );
-        const row = (rows as unknown as Array<{ email: string | null }>)[0];
-        email = row?.email ?? null;
-      } catch {
-        email = null;
-      }
-    }
-
     // Last-known location from the most recent status_changed → lost event.
+    // Filtering on payload->>'to_status' = 'lost' so a later "found" event
+    // (to_status='active') does not eclipse the actual lost-event payload.
     const [latestLostEvent] = await db
-      .select({ payload: petEvents.payload })
+      .select({
+        payload: petEvents.payload,
+        locationLat: petEvents.locationLat,
+        locationLng: petEvents.locationLng,
+      })
       .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "status_changed")))
+      .where(
+        and(
+          eq(petEvents.petId, pet.id),
+          eq(petEvents.eventType, "status_changed"),
+          sql`${petEvents.payload}->>'to_status' = 'lost'`,
+        ),
+      )
       .orderBy(desc(petEvents.occurredAt))
       .limit(1);
     const payload = (latestLostEvent?.payload ?? {}) as Record<string, unknown>;
-    const lastKnownLocation =
-      typeof payload.last_known_location === "string" && payload.last_known_location.length > 0
-        ? payload.last_known_location
+    // Prefer the canonical `location_description` key; fall back to the legacy
+    // `last_known_location` for events written before the key rename.
+    const textLocation =
+      typeof payload.location_description === "string" && payload.location_description.length > 0
+        ? payload.location_description
+        : typeof payload.last_known_location === "string" && payload.last_known_location.length > 0
+          ? payload.last_known_location
+          : null;
+    // Fallback: precise lat/lng captured on the event row itself. setPetLostAction
+    // does not write these today, but the schema supports them — when the
+    // marker-pin UI lands they will be populated and surface here automatically.
+    const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
+    const geoLocation =
+      !textLocation && eventPoint
+        ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`
         : null;
 
+    // Split display_name on first whitespace to get just the first name. We
+    // never expose the full legal name on a public credential.
+    const firstName = ownerRow?.profile.displayName
+      ? ownerRow.profile.displayName.trim().split(/\s+/)[0]
+      : null;
+
     lostContext = {
-      ownerName: ownerRow?.profile.displayName ?? null,
+      ownerFirstName: firstName ?? null,
       phone: ownerRow?.profile.phone ?? null,
-      email,
-      lastKnownLocation,
+      locationText: textLocation ?? geoLocation,
     };
   }
 
   return (
     <main className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950">
       <ScanLogger publicToken={publicToken} />
-      <div className="max-w-md mx-auto pt-8 space-y-8">
+      <div className="max-w-md mx-auto pt-8 space-y-6">
+        {/* Calm lost banner — only when pet.status === 'lost'. Sits above the
+            credential card. Intentionally low-saturation; the contact info
+            below carries the urgency. */}
+        {isLost && (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-center">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+              Esta mascota está perdida
+            </p>
+            <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+              Si la encontraste, contactá al dueño cuanto antes.
+            </p>
+          </div>
+        )}
+
+        {/* Tier 0+ emergency-info banner — owner-toggled. No PII beyond the
+            banner text itself. No drug names, no owner name, no contact. */}
+        {pet.emergencyInfoVisible && (
+          <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-center">
+            <p className="text-sm font-medium text-rose-900 dark:text-rose-200">
+              Esta mascota requiere atención médica
+            </p>
+            <p className="mt-0.5 text-xs text-rose-800 dark:text-rose-300">
+              Por favor contactá al dueño escaneando el QR mientras la cuidás.
+            </p>
+          </div>
+        )}
+
         {/* Credential header */}
         <div className="text-center space-y-1">
           <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
@@ -163,64 +205,39 @@ export default async function PublicCredentialPage({
         {/* Found / lost actions */}
         {isLost && lostContext ? (
           <div className="border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-5 space-y-4">
-            <div className="text-center space-y-1">
-              <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                Esta mascota está marcada como perdida.
+            {lostContext.ownerFirstName && (
+              <p className="text-sm text-amber-900 dark:text-amber-200">
+                <span className="font-medium">Dueño:</span> {lostContext.ownerFirstName}
               </p>
+            )}
+            {lostContext.phone ? (
+              <a
+                href={`tel:${lostContext.phone}`}
+                className="block w-full text-center px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+              >
+                📞 Llamar al dueño · {lostContext.phone}
+              </a>
+            ) : (
+              <FoundPetForm publicToken={publicToken} />
+            )}
+            {lostContext.locationText && (
               <p className="text-xs text-amber-800 dark:text-amber-300">
-                Si la encontraste, contactá al dueño cuanto antes.
+                <span className="font-medium">Última ubicación conocida:</span>{" "}
+                {lostContext.locationText}
               </p>
-            </div>
-            <div className="space-y-2">
-              {lostContext.ownerName && (
-                <p className="text-sm text-amber-900 dark:text-amber-200">
-                  <span className="font-medium">Dueño:</span> {lostContext.ownerName}
-                </p>
-              )}
-              {lostContext.phone ? (
-                <a
-                  href={`tel:${lostContext.phone}`}
-                  className="block w-full text-center px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
-                >
-                  📞 Llamar al dueño · {lostContext.phone}
-                </a>
-              ) : lostContext.email ? (
-                <a
-                  href={`mailto:${lostContext.email}?subject=${encodeURIComponent(`Encontré a ${pet.name}`)}`}
-                  className="block w-full text-center px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
-                >
-                  ✉ Escribir al dueño
-                </a>
-              ) : (
-                <p className="text-xs text-amber-800 dark:text-amber-300 text-center">
-                  El dueño no compartió un contacto directo. Si conocés a la mascota, intentá
-                  contactarlo por otros medios.
-                </p>
-              )}
-              {lostContext.lastKnownLocation && (
-                <p className="text-xs text-amber-800 dark:text-amber-300">
-                  <span className="font-medium">Última ubicación conocida:</span>{" "}
-                  {lostContext.lastKnownLocation}
-                </p>
-              )}
-            </div>
+            )}
           </div>
         ) : (
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 text-center space-y-3">
-            <p className="font-medium text-neutral-900 dark:text-neutral-50">
-              ¿Encontraste a esta mascota?
-            </p>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">
-              Avisale al dueño y devolvele su libreta digital.
-            </p>
-            <button
-              type="button"
-              disabled
-              className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Próximamente"
-            >
-              Avisar al dueño (próximamente)
-            </button>
+          <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 space-y-3">
+            <div className="text-center space-y-1">
+              <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                ¿Encontraste a esta mascota?
+              </p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                Avisale al dueño y devolvele su libreta digital.
+              </p>
+            </div>
+            <FoundPetForm publicToken={publicToken} />
           </div>
         )}
 

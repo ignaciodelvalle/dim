@@ -1,5 +1,6 @@
 import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -82,11 +83,12 @@ export default async function WelfareReportByCodePage({
     })),
   );
 
+  const locationPoint = readPoint(report);
   const hasLocation =
     report.locationAddress ||
     report.jurisdictionProvince ||
     report.jurisdictionLocality ||
-    report.locationLat != null;
+    locationPoint !== null;
 
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
@@ -182,10 +184,10 @@ export default async function WelfareReportByCodePage({
                     .join(", ")}
                 </p>
               )}
-              {report.locationLat != null && report.locationLng != null && (
+              {locationPoint && (
                 <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
-                  Coordenadas registradas: {report.locationLat.toFixed(6)},{" "}
-                  {report.locationLng.toFixed(6)}
+                  Coordenadas registradas: {locationPoint.lat.toFixed(6)},{" "}
+                  {locationPoint.lng.toFixed(6)}
                 </p>
               )}
             </div>
