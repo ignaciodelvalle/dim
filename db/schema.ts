@@ -273,6 +273,12 @@ export const profiles = pgTable(
     // Mi Argentina-ready columns. Never required in v1.
     dniNumber: text("dni_number"),
     dniVerified: boolean("dni_verified").notNull().default(false),
+    // Vet professional license. Nullable; submitted via /cuenta/upgrade.
+    // Admin manually flips role='vet' after verification. jurisdiccion is the
+    // province/jurisdiction that issued the matricula — the registry to check.
+    matriculaNumber: text("matricula_number"),
+    matriculaJurisdiccion: text("matricula_jurisdiccion"),
+    matriculaVerified: boolean("matricula_verified").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -280,6 +286,9 @@ export const profiles = pgTable(
     dniUnique: uniqueIndex("profiles_dni_unique_when_present")
       .on(table.dniNumber)
       .where(sql`${table.dniNumber} IS NOT NULL`),
+    matriculaUnique: uniqueIndex("profiles_matricula_unique_when_present")
+      .on(table.matriculaNumber)
+      .where(sql`${table.matriculaNumber} IS NOT NULL`),
   }),
 );
 
