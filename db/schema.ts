@@ -514,3 +514,35 @@ export const welfareReports = pgTable(
 
 export type WelfareReport = typeof welfareReports.$inferSelect;
 export type NewWelfareReport = typeof welfareReports.$inferInsert;
+
+// ============================================================================
+// WelfareReportAttachments — evidence files for welfare denuncia submissions
+// ============================================================================
+// Separate from the generic `attachments` table: different RLS, different
+// bucket (welfare-evidence), and a different lifecycle (anonymous-capable,
+// report-scoped, no delete in v1).
+
+export const welfareReportAttachments = pgTable(
+  "welfare_report_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    welfareReportId: uuid("welfare_report_id")
+      .notNull()
+      .references(() => welfareReports.id, { onDelete: "cascade" }),
+    // Uploaded-by is nullable for anonymous denuncia uploads.
+    uploadedByUserId: uuid("uploaded_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    storagePath: text("storage_path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    fileSize: integer("file_size").notNull(),
+    originalFilename: text("original_filename"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    reportIdx: index("welfare_report_attachments_report_idx").on(table.welfareReportId),
+  }),
+);
+
+export type WelfareReportAttachment = typeof welfareReportAttachments.$inferSelect;
+export type NewWelfareReportAttachment = typeof welfareReportAttachments.$inferInsert;

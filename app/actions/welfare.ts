@@ -10,10 +10,11 @@
 // edge (Vercel middleware or a Supabase Edge Function) to prevent spam.
 // Out of scope for v1.
 
-import { db, pets, welfareReports } from "@/db";
+import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { signalWelfareReport } from "@/lib/authority";
 import { parseDateInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -99,6 +100,12 @@ export async function createWelfareReportAction(
   const occurredAt = occurredAtRaw ? parseDateInput(occurredAtRaw) : null;
   if (occurredAtRaw && !occurredAt) return { error: "Fecha del hecho inválida." };
 
+  // Collect attachment files (multiple entries under the same key)
+  const attachmentEntries = formData.getAll("attachment");
+  const files = attachmentEntries
+    .filter((e): e is File => e instanceof File)
+    .filter((f) => f.size > 0);
+
   type NewWelfareReport = typeof welfareReports.$inferInsert;
 
   let insertedId: string | null = null;
@@ -130,6 +137,41 @@ export async function createWelfareReportAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  // Upload evidence files (if any). On upload error we return early — the
+  // report row stays; this is acceptable. The user can re-submit or contact
+  // support. We do NOT roll back the report itself.
+  if (files.length > 0) {
+    const uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
+    if (uploadResult.error) {
+      return { error: uploadResult.error };
+    }
+
+    if (uploadResult.uploaded.length > 0) {
+      try {
+        await db.insert(welfareReportAttachments).values(
+          uploadResult.uploaded.map((u) => ({
+            welfareReportId: insertedId as string,
+            uploadedByUserId: user?.id ?? null,
+            storagePath: u.storagePath,
+            mimeType: u.mimeType,
+            fileSize: u.fileSize,
+            originalFilename: u.originalFilename,
+          })),
+        );
+      } catch {
+        // Attachment rows failed — clean up the already-uploaded files.
+        await supabase.storage
+          .from("welfare-evidence")
+          .remove(uploadResult.uploadedPaths)
+          .catch(() => {});
+        return {
+          error:
+            "La denuncia se guardó pero no se pudieron registrar los archivos adjuntos. Intentá de nuevo.",
+        };
+      }
+    }
   }
 
   await signalWelfareReport({

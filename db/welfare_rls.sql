@@ -26,3 +26,27 @@ create policy "Reporter can read own welfare reports"
 
 -- No update / delete for now. Future govt portal will handle workflow
 -- transitions via service role with audit logging.
+
+-- welfare_report_attachments — row-level access matches the parent report
+alter table public.welfare_report_attachments enable row level security;
+
+drop policy if exists "Anyone can insert welfare attachments" on public.welfare_report_attachments;
+create policy "Anyone can insert welfare attachments"
+  on public.welfare_report_attachments
+  for insert
+  to anon, authenticated
+  with check (true);
+
+drop policy if exists "Reporter can read own welfare attachments" on public.welfare_report_attachments;
+create policy "Reporter can read own welfare attachments"
+  on public.welfare_report_attachments
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.welfare_reports wr
+      where wr.id = welfare_report_attachments.welfare_report_id
+        and wr.reporter_user_id = auth.uid()
+    )
+  );

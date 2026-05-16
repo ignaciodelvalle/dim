@@ -91,41 +91,46 @@ export default async function MisDenunciasPage() {
         ) : (
           <ul className="space-y-4">
             {reports.map((report) => (
-              <li
-                key={report.id}
-                className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                    {welfareReportKindLabel(report.kind)}
+              <li key={report.id}>
+                <Link
+                  href={`/denuncias/${report.id}`}
+                  className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                      {welfareReportKindLabel(report.kind)}
+                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadgeClass(report.status)}`}
+                      >
+                        {welfareReportStatusLabel(report.status)}
+                      </span>
+                      <span className="text-neutral-400 dark:text-neutral-600 text-sm">›</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    {welfareReportSeverityLabel(report.severity)}
                   </p>
-                  <span
-                    className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${statusBadgeClass(report.status)}`}
-                  >
-                    {welfareReportStatusLabel(report.status)}
-                  </span>
-                </div>
 
-                <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                  {welfareReportSeverityLabel(report.severity)}
-                </p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-300 line-clamp-3">
+                    {report.description.length > 200
+                      ? `${report.description.slice(0, 200)}…`
+                      : report.description}
+                  </p>
 
-                <p className="text-sm text-neutral-700 dark:text-neutral-300 line-clamp-3">
-                  {report.description.length > 200
-                    ? `${report.description.slice(0, 200)}…`
-                    : report.description}
-                </p>
-
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-500">
-                  <span>{formatDateTime(report.createdAt)}</span>
-                  {(report.jurisdictionProvince || report.jurisdictionLocality) && (
-                    <span>
-                      {[report.jurisdictionLocality, report.jurisdictionProvince]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </span>
-                  )}
-                </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-500">
+                    <span>{formatDateTime(report.createdAt)}</span>
+                    {(report.jurisdictionProvince || report.jurisdictionLocality) && (
+                      <span>
+                        {[report.jurisdictionLocality, report.jurisdictionProvince]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    )}
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
