@@ -228,17 +228,30 @@ export default async function PublicCredentialPage({
             )}
           </div>
         ) : (
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 space-y-3">
-            <div className="text-center space-y-1">
-              <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                ¿Encontraste a esta mascota?
-              </p>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                Avisale al dueño y devolvele su libreta digital.
-              </p>
+          // Active pet — the "found" form sits behind a disclosure so a casual
+          // scan doesn't land on an open form. Only on lost pets (above) does
+          // the form render directly, where it is the primary contact channel.
+          <details className="group border border-neutral-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-neutral-950">
+            <summary className="cursor-pointer select-none px-5 py-4 flex items-center justify-between gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-xl transition-colors">
+              <div className="text-left space-y-0.5 min-w-0">
+                <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                  ¿Encontraste a esta mascota?
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  Tocá acá para avisarle al dueño.
+                </p>
+              </div>
+              <span
+                className="text-neutral-400 dark:text-neutral-600 group-open:rotate-90 transition-transform shrink-0"
+                aria-hidden
+              >
+                ›
+              </span>
+            </summary>
+            <div className="px-5 pb-5 pt-1 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+              <FoundPetForm publicToken={publicToken} />
             </div>
-            <FoundPetForm publicToken={publicToken} />
-          </div>
+          </details>
         )}
 
         {/* Footer */}
