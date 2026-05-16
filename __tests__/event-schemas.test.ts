@@ -31,7 +31,6 @@ const UNIMPLEMENTED: ReadonlyArray<EventType> = [
   "adoption_application_approved",
   "adoption_application_rejected",
   "adoption_revoked",
-  "custody_transferred",
 ];
 
 describe("PayloadSchemas — coverage", () => {

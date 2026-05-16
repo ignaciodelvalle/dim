@@ -58,6 +58,7 @@ export default async function RefugioMascotasPage({
     foster?: string;
     fostend?: string;
     adopcion?: string;
+    transferido?: string;
   }>;
 }) {
   const supabase = await createClient();
@@ -75,6 +76,7 @@ export default async function RefugioMascotasPage({
   const canAssignFoster = granted.has("foster.assign");
   const canEndFoster = granted.has("foster.end");
   const canFinalizeAdoption = granted.has("adoption.finalize");
+  const canTransfer = granted.has("custody.transfer");
   const canRead = granted.has("pet.read_held") || active.membership.role === "admin";
 
   if (!canRead) {
@@ -144,6 +146,7 @@ export default async function RefugioMascotasPage({
   const recentlyFostered = params.foster ?? null;
   const recentlyFosterEnded = params.fostend ?? null;
   const recentlyAdopted = params.adopcion ?? null;
+  const recentlyTransferred = params.transferido ?? null;
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
@@ -183,6 +186,12 @@ export default async function RefugioMascotasPage({
         {recentlyFosterEnded && (
           <p className="text-sm rounded border border-neutral-300 bg-neutral-50 px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
             Tránsito cerrado para <code>{recentlyFosterEnded}</code>.
+          </p>
+        )}
+        {recentlyTransferred && (
+          <p className="text-sm rounded border border-neutral-300 bg-neutral-50 px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+            Custodia transferida para <code>{recentlyTransferred}</code>. El animal sale del listado
+            y aparece en el destino.
           </p>
         )}
         {recentlyAdopted && (
@@ -240,36 +249,53 @@ export default async function RefugioMascotasPage({
                 <p className="text-xs text-neutral-500">
                   <code>{pet.publicToken}</code>
                 </p>
-                {(showFosterCta ||
-                  (canEndFoster && hasFoster) ||
-                  (canFinalizeAdoption && ownershipRole === "shelter_custody")) && (
-                  <div className="pt-1 flex flex-wrap gap-2">
-                    {showFosterCta && (
-                      <Link
-                        href={`/refugio/mascotas/${pet.publicToken}/foster`}
-                        className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
-                      >
-                        Asignar tránsito
-                      </Link>
-                    )}
-                    {canEndFoster && hasFoster && (
-                      <Link
-                        href={`/refugio/mascotas/${pet.publicToken}/foster-fin`}
-                        className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
-                      >
-                        Cerrar tránsito
-                      </Link>
-                    )}
-                    {canFinalizeAdoption && ownershipRole === "shelter_custody" && (
-                      <Link
-                        href={`/refugio/mascotas/${pet.publicToken}/adoption`}
-                        className="inline-block text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        Finalizar adopción
-                      </Link>
-                    )}
-                  </div>
-                )}
+                {(() => {
+                  const showTransferCta =
+                    canTransfer &&
+                    (ownershipRole === "shelter_custody" || ownershipRole === "owner");
+                  const anyCta =
+                    showFosterCta ||
+                    (canEndFoster && hasFoster) ||
+                    (canFinalizeAdoption && ownershipRole === "shelter_custody") ||
+                    showTransferCta;
+                  if (!anyCta) return null;
+                  return (
+                    <div className="pt-1 flex flex-wrap gap-2">
+                      {showFosterCta && (
+                        <Link
+                          href={`/refugio/mascotas/${pet.publicToken}/foster`}
+                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                        >
+                          Asignar tránsito
+                        </Link>
+                      )}
+                      {canEndFoster && hasFoster && (
+                        <Link
+                          href={`/refugio/mascotas/${pet.publicToken}/foster-fin`}
+                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                        >
+                          Cerrar tránsito
+                        </Link>
+                      )}
+                      {canFinalizeAdoption && ownershipRole === "shelter_custody" && (
+                        <Link
+                          href={`/refugio/mascotas/${pet.publicToken}/adoption`}
+                          className="inline-block text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          Finalizar adopción
+                        </Link>
+                      )}
+                      {showTransferCta && (
+                        <Link
+                          href={`/refugio/mascotas/${pet.publicToken}/transfer`}
+                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                        >
+                          Transferir
+                        </Link>
+                      )}
+                    </div>
+                  );
+                })()}
               </li>
             );
           })}
