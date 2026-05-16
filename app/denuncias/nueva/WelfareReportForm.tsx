@@ -1,7 +1,7 @@
 "use client";
 
 import type { WelfareReportFormState } from "@/app/actions/welfare";
-import { PROVINCIAS } from "@/lib/ar-provincias";
+import { LocationFields } from "@/components/LocationFields";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -55,12 +55,6 @@ export function WelfareReportForm({
   const [description, setDescription] = useState("");
   const [showContact, setShowContact] = useState(false);
 
-  // Geolocation state
-  const [locationLat, setLocationLat] = useState("");
-  const [locationLng, setLocationLng] = useState("");
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoError, setGeoError] = useState<string | null>(null);
-
   // Evidence files state
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
   const evidenceFilesRef = useRef<EvidenceFile[]>([]);
@@ -86,29 +80,6 @@ export function WelfareReportForm({
   // actionRef) that are always current — so the first-render closure stays valid
   // across the component lifetime even as files are added/removed.
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
-
-  function handleGeoClick() {
-    if (!navigator.geolocation) {
-      setGeoError("Tu navegador no soporta geolocalización. Cargá las coordenadas a mano.");
-      return;
-    }
-    setGeoLoading(true);
-    setGeoError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocationLat(position.coords.latitude.toFixed(6));
-        setLocationLng(position.coords.longitude.toFixed(6));
-        setGeoLoading(false);
-      },
-      () => {
-        setGeoError(
-          "No pudimos obtener tu ubicación. Permitilo en el navegador o cargá las coordenadas a mano.",
-        );
-        setGeoLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }
 
   function handleFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -304,106 +275,10 @@ export function WelfareReportForm({
         />
       </div>
 
-      {/* Location */}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="locationAddress" className={LABEL_CLASS}>
-          Dirección / referencia del lugar
-        </label>
-        <input
-          id="locationAddress"
-          name="locationAddress"
-          type="text"
-          placeholder="Dirección, esquina, barrio, referencia…"
-          className={INPUT_CLASS}
-        />
-      </div>
-
-      {/* Jurisdiction */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className={FIELD_CLASS}>
-          <label htmlFor="jurisdictionProvince" className={LABEL_CLASS}>
-            Provincia
-          </label>
-          <select id="jurisdictionProvince" name="jurisdictionProvince" className={INPUT_CLASS}>
-            <option value="">Seleccioná</option>
-            {PROVINCIAS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={FIELD_CLASS}>
-          <label htmlFor="jurisdictionLocality" className={LABEL_CLASS}>
-            Localidad
-          </label>
-          <input
-            id="jurisdictionLocality"
-            name="jurisdictionLocality"
-            type="text"
-            placeholder="Localidad o barrio"
-            className={INPUT_CLASS}
-          />
-        </div>
-      </div>
-
-      {/* Coordinates + geolocation button */}
-      <div className={FIELD_CLASS}>
-        <span className={LABEL_CLASS}>Coordenadas (opcional)</span>
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={handleGeoClick}
-            disabled={geoLoading}
-            className="self-start px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {geoLoading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
-          </button>
-          {geoError && (
-            <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
-              {geoError}
-            </p>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className={FIELD_CLASS}>
-              <label
-                htmlFor="locationLat"
-                className="text-xs text-neutral-600 dark:text-neutral-400"
-              >
-                Latitud
-              </label>
-              <input
-                id="locationLat"
-                name="locationLat"
-                type="text"
-                inputMode="decimal"
-                placeholder="-34.603722"
-                value={locationLat}
-                onChange={(e) => setLocationLat(e.target.value)}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div className={FIELD_CLASS}>
-              <label
-                htmlFor="locationLng"
-                className="text-xs text-neutral-600 dark:text-neutral-400"
-              >
-                Longitud
-              </label>
-              <input
-                id="locationLng"
-                name="locationLng"
-                type="text"
-                inputMode="decimal"
-                placeholder="-58.381592"
-                value={locationLng}
-                onChange={(e) => setLocationLng(e.target.value)}
-                className={INPUT_CLASS}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Location — address, jurisdiction, map picker — all via the shared
+          LocationFields. Form wire names: locationAddress, provinceCode,
+          localityName, locationLat, locationLng. */}
+      <LocationFields mode="full" />
 
       {/* Occurred at */}
       <div className={FIELD_CLASS}>

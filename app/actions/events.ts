@@ -12,6 +12,7 @@ import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { parseDateInput } from "@/lib/format";
+import { writePoint } from "@/lib/location";
 import {
   FREQUENCY_LABELS,
   generateDoseSchedule,
@@ -412,6 +413,21 @@ export async function setPetLostAction(
   const locationDescription = String(formData.get("lastKnownLocation") ?? "").trim() || null;
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
+  // Precise coordinates from the LocationFields map picker. Empty string when
+  // the owner didn't drop a pin. writePoint(null) erases both columns.
+  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
+  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
+  let locationPoint: { lat: number; lng: number } | null = null;
+  if (locationLatRaw && locationLngRaw) {
+    const lat = Number.parseFloat(locationLatRaw);
+    const lng = Number.parseFloat(locationLngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { error: "Coordenadas inválidas. Tocá el mapa de nuevo para marcar el punto." };
+    }
+    locationPoint = { lat, lng };
+  }
+  const { locationLat, locationLng } = writePoint(locationPoint);
+
   const now = new Date();
   const fromStatus = pet.status;
 
@@ -424,13 +440,14 @@ export async function setPetLostAction(
         recordedAt: now,
         recordedByUserId: user.id,
         authorRole: "owner",
-        // `location_description` is the canonical payload key for free-text
-        // location info across event types. The legacy `last_known_location`
-        // key (status_changed only) is still readable via the fallback in
-        // lib/events.ts and app/p/[publicToken]/page.tsx, so older events
-        // keep rendering. Precise lat/lng (when a map picker lands) go in
-        // pet_events.location_lat / location_lng — never duplicated in
-        // payload, per AGENTS.md → PetEvent.
+        // Coordinates (when present) live on top-level location_lat / location_lng
+        // columns per AGENTS.md → PetEvent: "Events with a real-world location
+        // should populate the PetEvent.location_point column (top-level), not
+        // duplicate it inside payload." Free-text description stays in payload
+        // under the canonical `location_description` key — payload-side, not
+        // a coordinate, so the rule doesn't apply.
+        locationLat,
+        locationLng,
         payload: {
           from_status: fromStatus,
           to_status: "lost",

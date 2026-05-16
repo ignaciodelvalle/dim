@@ -53,16 +53,6 @@ export const PROVINCES = [
 
 export type ProvinceCode = (typeof PROVINCES)[number]["code"];
 
-/**
- * Legacy export: flat list of province names. Preserved for back-compat
- * with PetForm and WelfareReportForm until PR D refactors them through
- * the shared `<LocationFields>` component. New code should import
- * `PROVINCES` instead.
- *
- * @deprecated Use `PROVINCES` with `code`/`name`/`slug` fields.
- */
-export const PROVINCIAS: readonly string[] = PROVINCES.map((p) => p.name);
-
 // Common informal abbreviations and formal phrasings that won't match a
 // province name even after normalization. Hoisted to module scope so the
 // object isn't reconstructed on every provinceByName call.

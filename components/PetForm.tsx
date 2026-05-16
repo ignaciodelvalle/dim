@@ -7,8 +7,9 @@
 
 import type { NewPetFormState } from "@/app/actions/pets";
 import type { Pet } from "@/db";
-import { PROVINCIAS } from "@/lib/ar-provincias";
+import { provinceByName } from "@/lib/ar-provincias";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { LocationFields } from "./LocationFields";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -299,25 +300,16 @@ export function PetForm({
             title="Ubicación (ayuda a las campañas de salud animal)"
             defaultOpen={isEdit && !!existingPet?.jurisdictionProvince}
           >
-            <SelectField
-              id="province"
-              name="province"
-              label="Provincia"
-              defaultValue={existingPet?.jurisdictionProvince ?? ""}
-            >
-              <option value="">No especificar</option>
-              {PROVINCIAS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </SelectField>
-            <Field
-              id="locality"
-              name="locality"
-              type="text"
-              label="Barrio o localidad"
-              defaultValue={existingPet?.jurisdictionLocality ?? undefined}
+            <LocationFields
+              mode="jurisdiction"
+              defaultValue={{
+                // Existing rows store the display name in jurisdiction_province;
+                // resolve to the ISO code for the select. Once the canonical-
+                // codes migration lands (deferred until gov dashboards) this
+                // lookup becomes a pass-through.
+                provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
+                localityName: existingPet?.jurisdictionLocality ?? null,
+              }}
             />
           </Section>
 
