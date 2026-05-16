@@ -16,6 +16,7 @@
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
@@ -260,6 +261,12 @@ export async function createPetAction(
         await tx.update(pets).set({ primaryPhotoId: attachment.id }).where(eq(pets.id, newPet.id));
       }
 
+      const petRegisteredPayload = validateEventPayload("pet_registered", {
+        ...parsed,
+        has_photo: upload.uploadedPath !== null,
+        has_microchip: parsed.microchipId !== null,
+        acquisition_method: parsed.acquisitionMethod,
+      });
       const registeredEvent = await tx
         .insert(petEvents)
         .values({
@@ -269,16 +276,18 @@ export async function createPetAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            ...parsed,
-            has_photo: upload.uploadedPath !== null,
-            has_microchip: parsed.microchipId !== null,
-            acquisition_method: parsed.acquisitionMethod,
-          },
+          payload: petRegisteredPayload,
         })
         .returning();
 
       if (parsed.microchipId) {
+        const microchipEventPayload = validateEventPayload("microchip_implanted", {
+          chip_number: parsed.microchipId,
+          country_code: parsed.microchipCountryCode,
+          implanted_by: parsed.microchipImplantedBy,
+          location_on_body: parsed.microchipLocation,
+          implant_date_known: !!parsed.microchipImplantedAt,
+        });
         await tx.insert(petEvents).values({
           petId: newPet.id,
           eventType: "microchip_implanted",
@@ -286,13 +295,7 @@ export async function createPetAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            chip_number: parsed.microchipId,
-            country_code: parsed.microchipCountryCode,
-            implanted_by: parsed.microchipImplantedBy,
-            location_on_body: parsed.microchipLocation,
-            implant_date_known: !!parsed.microchipImplantedAt,
-          },
+          payload: microchipEventPayload,
         });
       }
 
@@ -528,6 +531,10 @@ export async function updatePetAction(
       // above but produces no event — see AGENTS.md → Core principles #2:
       // events are facts about the pet, not UI preferences.
       if (hasContentChanges) {
+        const petProfileUpdatedPayload = validateEventPayload("pet_profile_updated", {
+          changes,
+          photo_replaced: upload.uploadedPath !== null,
+        });
         const updateEvent = await tx
           .insert(petEvents)
           .values({
@@ -537,10 +544,7 @@ export async function updatePetAction(
             recordedAt: now,
             recordedByUserId: user.id,
             authorRole: "owner",
-            payload: {
-              changes,
-              photo_replaced: upload.uploadedPath !== null,
-            },
+            payload: petProfileUpdatedPayload,
           })
           .returning();
 
@@ -561,6 +565,13 @@ export async function updatePetAction(
       }
 
       if (chipNewlyAdded) {
+        const microchipEventPayload = validateEventPayload("microchip_implanted", {
+          chip_number: parsed.microchipId,
+          country_code: parsed.microchipCountryCode,
+          implanted_by: parsed.microchipImplantedBy,
+          location_on_body: parsed.microchipLocation,
+          implant_date_known: !!parsed.microchipImplantedAt,
+        });
         await tx.insert(petEvents).values({
           petId: existing.pet.id,
           eventType: "microchip_implanted",
@@ -568,13 +579,7 @@ export async function updatePetAction(
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "owner",
-          payload: {
-            chip_number: parsed.microchipId,
-            country_code: parsed.microchipCountryCode,
-            implanted_by: parsed.microchipImplantedBy,
-            location_on_body: parsed.microchipLocation,
-            implant_date_known: !!parsed.microchipImplantedAt,
-          },
+          payload: microchipEventPayload,
         });
       }
     });
