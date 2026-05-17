@@ -111,6 +111,12 @@ export default async function MisMascotasPage({
               Reclamar adopción de refugio
             </Link>
           )}
+          <Link
+            href="/cuenta/upgrade"
+            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+          >
+            Convertirme en profesional / organización →
+          </Link>
         </div>
 
         <form action={logoutAction} className="pt-12">
