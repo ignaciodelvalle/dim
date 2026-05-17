@@ -86,7 +86,7 @@ export default async function AdoptionPage({
           </p>
         </header>
 
-        <FinalizeAdoptionForm publicToken={publicToken} />
+        <FinalizeAdoptionForm orgToken={orgToken} publicToken={publicToken} />
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link

@@ -111,7 +111,7 @@ export default async function AssignFosterPage({
           </p>
         </header>
 
-        <AssignFosterForm publicToken={publicToken} candidates={candidates} />
+        <AssignFosterForm orgToken={orgToken} publicToken={publicToken} candidates={candidates} />
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link

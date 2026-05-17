@@ -375,7 +375,7 @@ function titleForRejection(type: ApprovalRequest["type"]): string {
 }
 
 function ctaForApplicant(request: ApprovalRequest): string {
-  if (request.targetOrganizationId) return "/refugio";
+  if (request.targetOrganizationId) return "/org";
   return "/cuenta/upgrade";
 }
 

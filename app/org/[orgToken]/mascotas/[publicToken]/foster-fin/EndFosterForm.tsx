@@ -12,13 +12,15 @@ const ENDED_BY_OPTIONS = [
 ] as const;
 
 export function EndFosterForm({
+  orgToken,
   publicToken,
   fosterName,
 }: {
+  orgToken: string;
   publicToken: string;
   fosterName: string | null;
 }) {
-  const action = endFosterAction.bind(null, publicToken);
+  const action = endFosterAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (

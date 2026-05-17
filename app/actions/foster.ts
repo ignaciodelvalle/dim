@@ -19,6 +19,7 @@ export type AssignFosterFormState = {
 };
 
 export async function assignFosterAction(
+  orgToken: string,
   publicToken: string,
   _previous: AssignFosterFormState,
   formData: FormData,
@@ -137,7 +138,7 @@ export async function assignFosterAction(
     };
   }
 
-  redirect(`/refugio/mascotas?foster=${publicToken}`);
+  redirect(`/org/${orgToken}/mascotas?foster=${publicToken}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +156,7 @@ type FosterEndedBy = "shelter" | "foster_returned" | "other";
 const FOSTER_ENDED_BY: readonly FosterEndedBy[] = ["shelter", "foster_returned", "other"];
 
 export async function endFosterAction(
+  orgToken: string,
   publicToken: string,
   _previous: EndFosterFormState,
   formData: FormData,
@@ -257,5 +259,5 @@ export async function endFosterAction(
     };
   }
 
-  redirect(`/refugio/mascotas?fostend=${publicToken}`);
+  redirect(`/org/${orgToken}/mascotas?fostend=${publicToken}`);
 }

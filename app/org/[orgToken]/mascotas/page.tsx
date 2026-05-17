@@ -135,12 +135,12 @@ export default async function OrgMascotasPage({
     for (const row of fosterRows) fosteredPetIds.add(row.petId);
   }
 
-  const params = await searchParams;
-  const recentlyCreated = params.nueva ?? null;
-  const recentlyFostered = params.foster ?? null;
-  const recentlyFosterEnded = params.fostend ?? null;
-  const recentlyAdopted = params.adopcion ?? null;
-  const recentlyTransferred = params.transferido ?? null;
+  const sp = await searchParams;
+  const recentlyCreated = sp.nueva ?? null;
+  const recentlyFostered = sp.foster ?? null;
+  const recentlyFosterEnded = sp.fostend ?? null;
+  const recentlyAdopted = sp.adopcion ?? null;
+  const recentlyTransferred = sp.transferido ?? null;
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">

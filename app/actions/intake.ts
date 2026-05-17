@@ -108,6 +108,7 @@ function parseIntakeForm(formData: FormData) {
 }
 
 export async function createIntakeAction(
+  orgToken: string,
   _previous: IntakeFormState,
   formData: FormData,
 ): Promise<IntakeFormState> {
@@ -218,7 +219,7 @@ export async function createIntakeAction(
         body: `${parsed.name} ahora figura en custodia de ${organization.displayName}.`,
         severity: "success",
         ctaLabel: "Ver listado",
-        ctaUrl: "/refugio/mascotas",
+        ctaUrl: `/org/${orgToken}/mascotas`,
         relatedPetId: newPet.id,
       });
     });
@@ -230,5 +231,5 @@ export async function createIntakeAction(
     };
   }
 
-  redirect(`/refugio/mascotas?nueva=${publicToken}`);
+  redirect(`/org/${orgToken}/mascotas?nueva=${publicToken}`);
 }

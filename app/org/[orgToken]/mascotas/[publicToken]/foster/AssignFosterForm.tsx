@@ -21,13 +21,15 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function AssignFosterForm({
+  orgToken,
   publicToken,
   candidates,
 }: {
+  orgToken: string;
   publicToken: string;
   candidates: FosterCandidate[];
 }) {
-  const action = assignFosterAction.bind(null, publicToken);
+  const action = assignFosterAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (

@@ -39,6 +39,7 @@ const TRANSFERABLE_SOURCE_ROLES = ["shelter_custody", "owner"] as const;
 type TransferableRole = (typeof TRANSFERABLE_SOURCE_ROLES)[number];
 
 export async function transferCustodyAction(
+  orgToken: string,
   publicToken: string,
   _previous: TransferCustodyFormState,
   formData: FormData,
@@ -212,7 +213,7 @@ export async function transferCustodyAction(
             }).`,
             severity: "info" as const,
             ctaLabel: "Ver mascota",
-            ctaUrl: "/refugio/mascotas",
+            ctaUrl: `/org/${orgToken}/mascotas`,
             relatedPetId: pet.id,
           })),
         );
@@ -239,5 +240,5 @@ export async function transferCustodyAction(
     };
   }
 
-  redirect(`/refugio/mascotas?transferido=${publicToken}`);
+  redirect(`/org/${orgToken}/mascotas?transferido=${publicToken}`);
 }

@@ -81,7 +81,7 @@ export default async function TransferCustodyPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-8 space-y-8">
         <Link
-          href="/refugio/mascotas"
+          href={`/org/${orgToken}/mascotas`}
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
           ← Volver a mascotas
@@ -106,7 +106,7 @@ export default async function TransferCustodyPage({
             de transferir.
           </p>
         ) : (
-          <TransferCustodyForm publicToken={petRow.pet.publicToken} destinations={destinations} />
+          <TransferCustodyForm orgToken={orgToken} publicToken={petRow.pet.publicToken} destinations={destinations} />
         )}
       </div>
     </main>

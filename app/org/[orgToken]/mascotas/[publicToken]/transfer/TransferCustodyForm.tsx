@@ -11,13 +11,15 @@ type DestinationOption = {
 };
 
 export function TransferCustodyForm({
+  orgToken,
   publicToken,
   destinations,
 }: {
+  orgToken: string;
   publicToken: string;
   destinations: DestinationOption[];
 }) {
-  const action = transferCustodyAction.bind(null, publicToken);
+  const action = transferCustodyAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (

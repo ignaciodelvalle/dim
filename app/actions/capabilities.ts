@@ -125,7 +125,7 @@ export async function requestCapabilityAction(
             body: `${requesterName} solicitó el permiso "${labelFor(capability)}" en ${active.organization.displayName}.`,
             severity: "info" as const,
             ctaLabel: "Revisar",
-            ctaUrl: "/refugio/admin/permisos",
+            ctaUrl: `/org/${active.organization.publicToken}/admin/permisos`,
           })),
         );
       }
@@ -140,8 +140,8 @@ export async function requestCapabilityAction(
     return { error: `No se pudo registrar la solicitud: ${message}` };
   }
 
-  revalidatePath("/refugio");
-  revalidatePath("/refugio/admin/permisos");
+  revalidatePath(`/org/${active.organization.publicToken}`);
+  revalidatePath(`/org/${active.organization.publicToken}/admin/permisos`);
   return { error: null, ok: true };
 }
 
@@ -249,7 +249,7 @@ export async function decideCapabilityAction(
             : `Tu solicitud para "${labelFor(capability)}" en ${active.organization.displayName} fue ${verb}.`,
           severity,
           ctaLabel: "Ver panel",
-          ctaUrl: "/refugio",
+          ctaUrl: `/org/${active.organization.publicToken}`,
         });
       }
     });
@@ -263,7 +263,7 @@ export async function decideCapabilityAction(
     return { error: `No se pudo actualizar la solicitud: ${message}` };
   }
 
-  revalidatePath("/refugio");
-  revalidatePath("/refugio/admin/permisos");
+  revalidatePath(`/org/${active.organization.publicToken}`);
+  revalidatePath(`/org/${active.organization.publicToken}/admin/permisos`);
   return { error: null, ok: true };
 }
