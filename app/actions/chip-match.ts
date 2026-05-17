@@ -31,9 +31,9 @@ import {
   petEvents,
   pets,
 } from "@/db";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
 
 export type ConfirmChipMatchResult = { ok: true; custodyEventId?: string } | { error: string };
@@ -61,22 +61,28 @@ export async function confirmChipMatchAction({
     }
     const auth = await requireCapability("intake.create");
     if (auth.error !== null) return { error: auth.error };
-    return confirmAsRefugio({ auth, orgToken, matchedPetToken, decision, notes });
+    return confirmChipMatchAsRefugioWriter({ auth, orgToken, matchedPetToken, decision, notes });
   }
 
   if (actorMode === "vecino") {
     const session = await requireUserOrRedirect();
-    return confirmAsVecino({ userId: session.user.id, matchedPetToken, decision, notes });
+    return confirmChipMatchAsVecinoWriter({
+      userId: session.user.id,
+      matchedPetToken,
+      decision,
+      notes,
+    });
   }
 
   return { error: "actorMode inválido. Debe ser 'refugio' o 'vecino'." };
 }
 
 // ---------------------------------------------------------------------------
-// Refugio path
+// Refugio path — exported for direct test access (no session required).
+// Mirrors the writer/wrapper pattern from app/actions/upgrade.ts.
 // ---------------------------------------------------------------------------
 
-async function confirmAsRefugio({
+export async function confirmChipMatchAsRefugioWriter({
   auth,
   orgToken,
   matchedPetToken,
@@ -198,10 +204,10 @@ async function confirmAsRefugio({
 }
 
 // ---------------------------------------------------------------------------
-// Vecino path
+// Vecino path — exported for direct test access (no session required).
 // ---------------------------------------------------------------------------
 
-async function confirmAsVecino({
+export async function confirmChipMatchAsVecinoWriter({
   userId,
   matchedPetToken,
   decision,

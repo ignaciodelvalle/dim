@@ -16,11 +16,23 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { confirmChipMatchAction } from "@/app/actions/chip-match";
-import { db, notifications, organizationMemberships, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  confirmChipMatchAction,
+  confirmChipMatchAsRefugioWriter,
+  confirmChipMatchAsVecinoWriter,
+} from "@/app/actions/chip-match";
+import {
+  db,
+  notifications,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+} from "@/db";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { validateEventPayload } from "@/lib/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -209,11 +221,11 @@ describe("lookupByChip", () => {
 
     const result = await lookupByChip(chip);
     expect(result).not.toBeNull();
-    expect(result!.pet.id).toBe(petId);
-    expect(result!.pet.publicToken).toBe(publicToken);
-    expect(result!.pet.status).toBe("active");
-    expect(result!.pet.ownerUserId).toBe(ownerUserId);
-    expect(result!.ownerFirstName).toBeTruthy();
+    expect(result?.pet.id).toBe(petId);
+    expect(result?.pet.publicToken).toBe(publicToken);
+    expect(result?.pet.status).toBe("active");
+    expect(result?.pet.ownerUserId).toBe(ownerUserId);
+    expect(result?.ownerFirstName).toBeTruthy();
   });
 
   it("returns status='lost' when the matched pet is lost", async () => {
@@ -226,7 +238,7 @@ describe("lookupByChip", () => {
     });
 
     const result = await lookupByChip(chip);
-    expect(result!.pet.status).toBe("lost");
+    expect(result?.pet.status).toBe("lost");
   });
 
   it("returns status='deceased' when the matched pet is deceased", async () => {
@@ -239,7 +251,7 @@ describe("lookupByChip", () => {
     });
 
     const result = await lookupByChip(chip);
-    expect(result!.pet.status).toBe("deceased");
+    expect(result?.pet.status).toBe("deceased");
   });
 });
 
@@ -262,7 +274,7 @@ describe("force-token: generateForceToken / validateForceToken", () => {
   it("tampered token fails validation", () => {
     const chip = "CHIP-TAMPER-TEST";
     const token = generateForceToken(chip);
-    const tampered = token.slice(0, -5) + "XXXXX";
+    const tampered = `${token.slice(0, -5)}XXXXX`;
     expect(validateForceToken(chip, tampered)).toBe(false);
   });
 
@@ -290,6 +302,11 @@ describe("force-token: generateForceToken / validateForceToken", () => {
 // 3. confirmChipMatchAction — integration
 // ---------------------------------------------------------------------------
 
+// confirmChipMatchAction tests use the exported writer functions directly
+// (same pattern as requestVetUpgradeForUser / createOrganizationForUser in
+// role-upgrade.test.ts) to bypass the Next.js request context requirement
+// imposed by requireCapability / requireUserOrRedirect.
+
 describe("confirmChipMatchAction", () => {
   it("refugio decision='same': creates shelter_custody + emits event + notifies owner", async () => {
     const chip = `CHIP-CONF-SAME-${Date.now()}`;
@@ -300,10 +317,13 @@ describe("confirmChipMatchAction", () => {
       tokenSuffix: "CSAME",
     });
 
-    const result = await confirmChipMatchAction({
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
       matchedPetToken: matchedToken,
-      actorMode: "refugio",
-      orgToken: orgToken,
       decision: "same",
     });
 
@@ -325,7 +345,7 @@ describe("confirmChipMatchAction", () => {
       );
     expect(custodyRows.length).toBe(1);
 
-    // Verify original owner ownership still active (parallel custody).
+    // Verify original owner ownership still active (parallel custody — D7).
     const ownerRows = await db
       .select()
       .from(ownerships)
@@ -343,9 +363,7 @@ describe("confirmChipMatchAction", () => {
     const intakeEvents = await db
       .select()
       .from(petEvents)
-      .where(
-        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "shelter_intake_recorded")),
-      );
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "shelter_intake_recorded")));
     expect(intakeEvents.length).toBeGreaterThan(0);
 
     // Verify notification was sent to owner.
@@ -372,16 +390,16 @@ describe("confirmChipMatchAction", () => {
       tokenSuffix: "VSAME",
     });
 
-    const result = await confirmChipMatchAction({
+    const result = await confirmChipMatchAsVecinoWriter({
+      userId: vecinoUserId,
       matchedPetToken: matchedToken,
-      actorMode: "vecino",
       decision: "same",
     });
 
     expect("ok" in result).toBe(true);
     if (!("ok" in result)) throw new Error("Expected ok");
 
-    // Verify shelter_custody ownership for vecino user.
+    // Verify shelter_custody ownership was created for the vecino.
     const custodyRows = await db
       .select()
       .from(ownerships)
@@ -393,13 +411,20 @@ describe("confirmChipMatchAction", () => {
           isNull(ownerships.endedAt),
         ),
       );
-    // Note: confirmAsVecino uses the session user, but in tests we call the
-    // inner function directly without a session. The vecino path uses
-    // requireUserOrRedirect which cannot be called in tests. Instead we test
-    // the action via the public API and verify the side effects where possible.
-    // The ownership may not appear for the test user since we bypass the session;
-    // we focus on no-error and the event emission.
-    expect(result.ok).toBe(true);
+    expect(custodyRows.length).toBe(1);
+
+    // Verify notification sent to owner.
+    const ownerNotifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, ownerUserId),
+          eq(notifications.notificationType, "chip_match_notification_owner"),
+          eq(notifications.relatedPetId, petId),
+        ),
+      );
+    expect(ownerNotifs.length).toBeGreaterThan(0);
   });
 
   it("refugio decision='not_same': emits note_added, no ownership created", async () => {
@@ -411,25 +436,22 @@ describe("confirmChipMatchAction", () => {
       tokenSuffix: "NOTSAME",
     });
 
-    const ownershipsBefore = await db
-      .select()
-      .from(ownerships)
-      .where(eq(ownerships.petId, petId));
+    const ownershipsBefore = await db.select().from(ownerships).where(eq(ownerships.petId, petId));
 
-    const result = await confirmChipMatchAction({
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
       matchedPetToken: matchedToken,
-      actorMode: "refugio",
-      orgToken: orgToken,
       decision: "not_same",
     });
 
     expect("ok" in result).toBe(true);
 
     // No new ownership rows.
-    const ownershipsAfter = await db
-      .select()
-      .from(ownerships)
-      .where(eq(ownerships.petId, petId));
+    const ownershipsAfter = await db.select().from(ownerships).where(eq(ownerships.petId, petId));
     expect(ownershipsAfter.length).toBe(ownershipsBefore.length);
 
     // note_added event emitted.
@@ -449,10 +471,13 @@ describe("confirmChipMatchAction", () => {
       tokenSuffix: "ACTMATCH",
     });
 
-    const result = await confirmChipMatchAction({
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
       matchedPetToken: matchedToken,
-      actorMode: "refugio",
-      orgToken: orgToken,
       decision: "same",
     });
 
@@ -462,6 +487,7 @@ describe("confirmChipMatchAction", () => {
   });
 
   it("invalid actorMode returns error", async () => {
+    // Test the public action boundary: invalid actorMode short-circuits before auth.
     const result = await confirmChipMatchAction({
       matchedPetToken: "any-token",
       // biome-ignore lint/suspicious/noExplicitAny: intentional bad input test
@@ -474,6 +500,7 @@ describe("confirmChipMatchAction", () => {
   });
 
   it("refugio mode without orgToken returns error", async () => {
+    // Test the public action boundary: missing orgToken short-circuits before auth.
     const result = await confirmChipMatchAction({
       matchedPetToken: "any-token",
       actorMode: "refugio",
@@ -486,10 +513,13 @@ describe("confirmChipMatchAction", () => {
   });
 
   it("non-existent matchedPetToken returns error", async () => {
-    const result = await confirmChipMatchAction({
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
       matchedPetToken: "DIM-DOES-NOT-EXIST",
-      actorMode: "refugio",
-      orgToken: orgToken,
       decision: "not_same",
     });
     expect("error" in result).toBe(true);
@@ -524,7 +554,7 @@ describe("cross-check logic — intake scenarios", () => {
     });
     const result = await lookupByChip(chip);
     expect(result).not.toBeNull();
-    expect(result!.pet.status).toBe("lost");
+    expect(result?.pet.status).toBe("lost");
     // Caller: redirect to match confirmation page.
   });
 
@@ -538,7 +568,7 @@ describe("cross-check logic — intake scenarios", () => {
     });
     const result = await lookupByChip(chip);
     expect(result).not.toBeNull();
-    expect(result!.pet.status).toBe("active");
+    expect(result?.pet.status).toBe("active");
     // Caller: check forceToken; if absent → return warning.
     const hasForce = false;
     expect(hasForce).toBe(false); // no token → should warn
@@ -567,7 +597,7 @@ describe("cross-check logic — intake scenarios", () => {
     });
     const result = await lookupByChip(chip);
     expect(result).not.toBeNull();
-    expect(result!.pet.status).toBe("deceased");
+    expect(result?.pet.status).toBe("deceased");
     // Caller: always return error regardless of forceToken.
   });
 });
