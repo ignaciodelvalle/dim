@@ -251,6 +251,9 @@ export const EVENT_TYPES = [
   "post_adoption_checkin",
   "adoption_revoked",
   "custody_transferred",
+  // Lost & Found — two-phase return-to-owner handshake (Fase 5).
+  // Proposed by the actor holding shelter_custody; accepted by the owner.
+  "custody_transfer_proposed",
   // Libreta Tier-2 share telemetry — system event, not a medical entry.
   "libreta_shared_viewed",
 ] as const;
@@ -374,6 +377,21 @@ export const pets = pgTable(
     // this flag does NOT emit a pet_profile_updated event. Tier 0+ per
     // AGENTS.md → Privacy tiers; the banner reveals no PII beyond itself.
     emergencyInfoVisible: boolean("emergency_info_visible").notNull().default(false),
+    // Lost & Found — per-field disclosure preferences (Fase 1).
+    // Owner controls what contact info is visible on the public credential when
+    // the pet is lost. Defaults mirror the previous hardcoded Tier 1 reveal
+    // (first name + phone + last location + finder form = true; email = false).
+    // These are UI preferences — changes do NOT emit pet_profile_updated events,
+    // analogous to emergencyInfoVisible above. Source of truth for the
+    // credential render; the status_changed event optionally carries a
+    // disclosure_prefs_snapshot for historical audit.
+    discloseFirstNameWhenLost: boolean("disclose_first_name_when_lost").notNull().default(true),
+    disclosePhoneWhenLost: boolean("disclose_phone_when_lost").notNull().default(true),
+    discloseEmailWhenLost: boolean("disclose_email_when_lost").notNull().default(false),
+    discloseLastLocationWhenLost: boolean("disclose_last_location_when_lost")
+      .notNull()
+      .default(true),
+    allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -478,6 +496,12 @@ export const organizationMemberships = pgTable(
     invitedByUserId: uuid("invited_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
+    // Lost & Found — broadcast opt-in (Fase 6).
+    // When a pet is marked lost, broadcastLostPet fans out a notification to
+    // members of organizations whose coverage matches the pet's jurisdiction.
+    // Members with receivesBroadcasts=false are silently excluded from the fanout.
+    // Default true: opt-in by default; members can individually opt out.
+    receivesBroadcasts: boolean("receives_broadcasts").notNull().default(true),
   },
   (table) => ({
     orgIdx: index("organization_memberships_org_id_idx").on(table.organizationId),

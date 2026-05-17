@@ -15,6 +15,13 @@
 // Why one big record: validateEventPayload is called from every insert site,
 // so a single import + a single switch on eventType is simpler than 20
 // individual imports.
+//
+// Lost & Found notification_type values (TEXT column — no migration required):
+//   "lost_pet_broadcast"                  — sent to org member when a pet is lost in their coverage area
+//   "chip_match_notification_owner"       — sent to owner when a chip match is detected at intake
+//   "custody_transfer_proposal_owner"     — sent to owner when actor proposes return-to-owner
+//   "custody_transfer_accepted_owner_side"— sent to actor when owner accepts the return proposal
+//   "custody_transfer_auto_cancelled"     — sent to actor when a stale proposal is auto-cancelled
 
 import { z } from "zod";
 
@@ -112,6 +119,33 @@ const statusChanged = z
       // writers validate against the same schema.
       location_description: z.string().nullable().optional(),
       reason: z.string().nullable().optional(),
+      // Lost & Found Fase 1 — optional fields added when marking a pet lost.
+      //
+      // Snapshot of the owner's disclosure preferences at the moment of marking
+      // lost. Stored in the event for historical audit ("what was exposed when
+      // this pet was marked lost"). The live source of truth for the credential
+      // render lives in the pets table (disclose_*_when_lost columns).
+      disclosure_prefs_snapshot: z
+        .object({
+          first_name: z.boolean(),
+          phone: z.boolean(),
+          email: z.boolean(),
+          last_location: z.boolean(),
+          finder_form: z.boolean(),
+        })
+        .optional(),
+      // Enriched description captured at lost-time for unchipped pets (Fase 4).
+      // Snapshot fields only (incident-specific context). Fields that update the
+      // pet row permanently (color, distinguishing features, photo) are NOT
+      // included here — they live on the pets row directly.
+      lost_description: z
+        .object({
+          accessories_when_lost: z.string().nullable(),
+          behavior_notes: z.string().nullable(),
+          last_seen_context: z.string().nullable(),
+        })
+        .nullable()
+        .optional(),
     }),
   )
   .strict();
@@ -435,24 +469,114 @@ const adoptionFinalized = z
   )
   .strict();
 
-// Custody transferred — org-to-org handoff. The source org's active
-// ownership row is closed; the destination org gets a fresh ownership
-// row with the chosen role. If a foster was active on the source side,
-// that row is auto-closed and a sibling foster_ended event is emitted in
-// the same tx; its id is captured here so the timeline reads as one
-// coherent transfer rather than two unrelated events.
+// Shared reason enum for custody transfer events (proposed + transferred).
+// Introduced in Lost & Found Fase 1 to support the return-to-owner two-phase
+// handshake and citizen-to-org handoff. "org_to_org_handoff" covers the
+// existing org-to-org transfer flow.
+const custodyTransferReason = z.enum([
+  "org_to_org_handoff",
+  "return_to_original_owner",
+  "citizen_to_org_handoff",
+  "other",
+]);
+
+// Custody transferred — polymorphic handoff (org-to-org, org-to-user, user-to-org).
+// Exactly one of (from_user_id, from_organization_id) must be set (XOR),
+// and exactly one of (to_user_id, to_organization_id) must be set (XOR).
+// The existing org-to-org shape is backwards-compatible: from_organization_id
+// and to_organization_id remain present; from_user_id/to_user_id default null.
+// `reason` is optional for backwards-compat with pre-Fase-1 rows.
+// If a foster was active on the source side, that row is auto-closed and a
+// sibling foster_ended event is emitted in the same tx; its id is captured
+// here so the timeline reads as one coherent transfer.
 const custodyTransferred = z
   .object(
     withVersion({
-      from_organization_id: z.string().uuid(),
-      to_organization_id: z.string().uuid(),
+      // Polymorphic "from" actor — exactly one must be non-null.
+      from_user_id: z.string().uuid().nullable().optional(),
+      from_organization_id: z.string().uuid().nullable().optional(),
+      // Polymorphic "to" actor — exactly one must be non-null.
+      to_user_id: z.string().uuid().nullable().optional(),
+      to_organization_id: z.string().uuid().nullable().optional(),
       from_role: z.enum(["shelter_custody", "owner"]),
       to_role: z.enum(["shelter_custody", "owner"]),
+      reason: custodyTransferReason.optional(),
+      // Links to the matched pet that triggered a cross-check match flow.
+      matched_against_pet_id: z.string().uuid().nullable().optional(),
       foster_ended_event_id: z.string().uuid().nullable(),
       notes: z.string().nullable(),
     }),
   )
-  .strict();
+  .strict()
+  .refine(
+    (p) => {
+      const fromSet = [p.from_user_id, p.from_organization_id].filter(
+        (v) => v != null && v !== undefined,
+      ).length;
+      // Allow legacy shape where neither from_user_id is provided (only from_organization_id).
+      // At least one from actor must be set.
+      return fromSet >= 1;
+    },
+    { message: "at least one of from_user_id / from_organization_id must be set" },
+  )
+  .refine(
+    (p) => {
+      const toSet = [p.to_user_id, p.to_organization_id].filter(
+        (v) => v != null && v !== undefined,
+      ).length;
+      return toSet >= 1;
+    },
+    { message: "at least one of to_user_id / to_organization_id must be set" },
+  )
+  .refine(
+    (p) => {
+      const fromCount = [p.from_user_id, p.from_organization_id].filter(
+        (v) => v != null && v !== undefined,
+      ).length;
+      return fromCount <= 1;
+    },
+    { message: "at most one of from_user_id / from_organization_id may be set" },
+  )
+  .refine(
+    (p) => {
+      const toCount = [p.to_user_id, p.to_organization_id].filter(
+        (v) => v != null && v !== undefined,
+      ).length;
+      return toCount <= 1;
+    },
+    { message: "at most one of to_user_id / to_organization_id may be set" },
+  );
+
+// Custody transfer proposed — Phase 1 of the return-to-owner two-phase
+// handshake (Lost & Found Fase 5). An actor holding shelter_custody proposes
+// returning the pet to the original owner (or to another org). The owner
+// accepts via ownerAcceptReturnAction, which emits custody_transferred.
+// Exactly one of (from_user_id, from_organization_id) must be non-null (XOR),
+// and exactly one of (to_user_id, to_organization_id) must be non-null (XOR).
+const custodyTransferProposed = z
+  .object(
+    withVersion({
+      // Polymorphic "from" actor — exactly one must be non-null.
+      from_user_id: z.string().uuid().nullable(),
+      from_organization_id: z.string().uuid().nullable(),
+      // Polymorphic "to" actor — exactly one must be non-null.
+      to_user_id: z.string().uuid().nullable(),
+      to_organization_id: z.string().uuid().nullable(),
+      reason: custodyTransferReason,
+      // Links the proposal to a chip-match flow when applicable.
+      matched_against_pet_id: z.string().uuid().nullable().optional(),
+      // ISO-8601 datetime when the proposal was created (server-generated).
+      proposed_at: z.string().datetime(),
+      notes: z.string().nullable().optional(),
+    }),
+  )
+  .strict()
+  .refine((p) => [p.from_user_id, p.from_organization_id].filter((v) => v !== null).length === 1, {
+    message: "exactly one of from_user_id / from_organization_id must be set",
+  })
+  .refine((p) => [p.to_user_id, p.to_organization_id].filter((v) => v !== null).length === 1, {
+    message: "exactly one of to_user_id / to_organization_id must be set",
+  });
 
 // Post-adoption check-in — adopter self-reports during the followup window
 // (1m/3m/6m/12m after adoption_finalized, capped by post_adoption_followup_months).
@@ -519,6 +643,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_finalized: adoptionFinalized,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
+  custody_transfer_proposed: custodyTransferProposed,
   libreta_shared_viewed: libretaSharedViewed,
 };
 
