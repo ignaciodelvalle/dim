@@ -5,6 +5,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { searchOrganizations } from "@/lib/admin-search";
 
 import { ProposeOrgActions } from "./ProposeOrgActions";
+import { RevokeOrgActions } from "./RevokeOrgActions";
 
 const ORG_TYPE_LABELS: Record<string, string> = {
   clinic: "Clínica",
@@ -100,6 +101,14 @@ export default async function OrganizacionesPage({
               </div>
 
               <ProposeOrgActions org={o} />
+              {o.verified && (
+                <RevokeOrgActions
+                  org={o}
+                  actorUserId={user.id}
+                  actorRole={profile.role}
+                  jurisdictions={jurisdictions}
+                />
+              )}
             </li>
           ))}
         </ul>
