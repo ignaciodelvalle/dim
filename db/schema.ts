@@ -1068,6 +1068,15 @@ export const AUDIT_LOG_ACTIONS = [
   "profile_avatar_upload_failed",
   // Slice 3b: applicant self-service withdrawal
   "approval_request_withdrawn_by_applicant",
+  // Slice 3d: user self-service role transitions
+  // self_resignation_vet — vet demotes themselves to owner (§7.8).
+  //   Notification type: self_resignation_confirmed (to vet after resignation)
+  "self_resignation_vet",
+  // govt_self_deactivated — govt deactivates their own institutional account (§7.5).
+  //   Notification types:
+  //     govt_self_deactivated_admin_notice — to every active admin
+  //     govt_self_deactivated_cascade_notice — to other govts who now sole-cover affected localities
+  "govt_self_deactivated",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
