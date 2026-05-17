@@ -1066,6 +1066,8 @@ export const AUDIT_LOG_ACTIONS = [
   "profile_self_updated",
   "profile_avatar_updated",
   "profile_avatar_upload_failed",
+  // Slice 3b: applicant self-service withdrawal
+  "approval_request_withdrawn_by_applicant",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
