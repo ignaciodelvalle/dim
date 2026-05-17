@@ -5,6 +5,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { searchUsers } from "@/lib/admin-search";
 
 import { ProposeUserActions } from "./ProposeUserActions";
+import { RevokeUserActions } from "./RevokeUserActions";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Dueño/a",
@@ -27,7 +28,7 @@ export default async function UsuariosPage({
 }) {
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
-  const { user, profile } = await requireAdminOrGovtOrRedirect();
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const results = await searchUsers(query);
 
   // Fire-and-forget pii_queried entry. Logging only happens when the user
@@ -99,6 +100,19 @@ export default async function UsuariosPage({
                 target={{ id: u.id, displayName: u.displayName, role: u.role }}
                 actorRole={profile.role}
               />
+              {u.role === "vet" && (
+                <RevokeUserActions
+                  target={{
+                    id: u.id,
+                    displayName: u.displayName,
+                    matriculaJurisdiccion: u.matriculaJurisdiccion,
+                    role: u.role,
+                  }}
+                  actorUserId={user.id}
+                  actorRole={profile.role}
+                  jurisdictions={jurisdictions}
+                />
+              )}
             </li>
           ))}
         </ul>
