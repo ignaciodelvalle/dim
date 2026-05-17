@@ -107,7 +107,11 @@ export default async function EndFosterPage({
           <h1 className="text-3xl font-semibold">Cerrar tránsito: {pet.name}</h1>
         </header>
 
-        <EndFosterForm orgToken={orgToken} publicToken={publicToken} fosterName={fosterRow.fosterDisplayName} />
+        <EndFosterForm
+          orgToken={orgToken}
+          publicToken={publicToken}
+          fosterName={fosterRow.fosterDisplayName}
+        />
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link

@@ -97,9 +97,7 @@ export default async function OrgMascotasPage({
     .select({ pet: pets, ownershipRole: ownerships.role, startedAt: ownerships.startedAt })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(eq(ownerships.ownerOrganizationId, organization.id), isNull(ownerships.endedAt)),
-    );
+    .where(and(eq(ownerships.ownerOrganizationId, organization.id), isNull(ownerships.endedAt)));
 
   // Collapse multi-custody rows: keep the highest-priority role per pet.
   const byPetId = new Map<string, (typeof orgRows)[number]>();

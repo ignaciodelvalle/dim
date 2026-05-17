@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 
 import {
   proposeAdminUpgradeAction,
@@ -22,9 +22,9 @@ export function ProposeUserActions({
   const [mode, setMode] = useState<Mode>("idle");
 
   const canProposeVet = target.role === "owner";
-  const canProposeGovt = actorRole === "admin" && (target.role === "owner" || target.role === "vet");
-  const canProposeAdmin =
-    actorRole === "admin" && target.role !== "admin"; // anti-pets re-checked server-side
+  const canProposeGovt =
+    actorRole === "admin" && (target.role === "owner" || target.role === "vet");
+  const canProposeAdmin = actorRole === "admin" && target.role !== "admin"; // anti-pets re-checked server-side
 
   if (mode === "vet") {
     return <VetProposeForm target={target} onDone={() => setMode("idle")} />;
@@ -46,12 +46,8 @@ export function ProposeUserActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {canProposeVet && (
-        <ActionButton onClick={() => setMode("vet")}>Proponer vet</ActionButton>
-      )}
-      {canProposeGovt && (
-        <ActionButton onClick={() => setMode("govt")}>Proponer govt</ActionButton>
-      )}
+      {canProposeVet && <ActionButton onClick={() => setMode("vet")}>Proponer vet</ActionButton>}
+      {canProposeGovt && <ActionButton onClick={() => setMode("govt")}>Proponer govt</ActionButton>}
       {canProposeAdmin && (
         <ActionButton onClick={() => setMode("admin")} tone="danger">
           Proponer admin
@@ -70,7 +66,8 @@ function ActionButton({
   onClick: () => void;
   tone?: "default" | "danger";
 }) {
-  const base = "text-xs px-3 py-1.5 rounded-md transition-opacity hover:opacity-90 disabled:opacity-50";
+  const base =
+    "text-xs px-3 py-1.5 rounded-md transition-opacity hover:opacity-90 disabled:opacity-50";
   const variant =
     tone === "danger"
       ? "border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-300"
@@ -126,12 +123,37 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
         Proponer rol vet para {target.displayName}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <Field label="Matrícula" value={form.matriculaNumber} onChange={(v) => setForm({ ...form, matriculaNumber: v })} />
-        <Field label="Jurisdicción matrícula" value={form.matriculaJurisdiccion} onChange={(v) => setForm({ ...form, matriculaJurisdiccion: v })} />
-        <Field label="Provincia donde ejerce" value={form.operationalProvince} onChange={(v) => setForm({ ...form, operationalProvince: v })} />
-        <Field label="Localidad" value={form.operationalLocality} onChange={(v) => setForm({ ...form, operationalLocality: v })} />
-        <Field label="Especialidad (opcional)" value={form.especialidad} onChange={(v) => setForm({ ...form, especialidad: v })} />
-        <Field label="Años de exp. (opcional)" value={form.anosExperiencia} onChange={(v) => setForm({ ...form, anosExperiencia: v })} inputMode="numeric" />
+        <Field
+          label="Matrícula"
+          value={form.matriculaNumber}
+          onChange={(v) => setForm({ ...form, matriculaNumber: v })}
+        />
+        <Field
+          label="Jurisdicción matrícula"
+          value={form.matriculaJurisdiccion}
+          onChange={(v) => setForm({ ...form, matriculaJurisdiccion: v })}
+        />
+        <Field
+          label="Provincia donde ejerce"
+          value={form.operationalProvince}
+          onChange={(v) => setForm({ ...form, operationalProvince: v })}
+        />
+        <Field
+          label="Localidad"
+          value={form.operationalLocality}
+          onChange={(v) => setForm({ ...form, operationalLocality: v })}
+        />
+        <Field
+          label="Especialidad (opcional)"
+          value={form.especialidad}
+          onChange={(v) => setForm({ ...form, especialidad: v })}
+        />
+        <Field
+          label="Años de exp. (opcional)"
+          value={form.anosExperiencia}
+          onChange={(v) => setForm({ ...form, anosExperiencia: v })}
+          inputMode="numeric"
+        />
       </div>
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center gap-2">
@@ -162,9 +184,9 @@ function GovtProposeForm({ target, onDone }: { target: Target; onDone: () => voi
   const [organismo, setOrganismo] = useState("");
   const [cargo, setCargo] = useState("");
   const [motivo, setMotivo] = useState("");
-  const [localities, setLocalities] = useState<{ province: string; locality: string }[]>([
-    { province: "", locality: "" },
-  ]);
+  const [localities, setLocalities] = useState<
+    { id: string; province: string; locality: string }[]
+  >([{ id: crypto.randomUUID(), province: "", locality: "" }]);
 
   if (submitted) {
     return (
@@ -208,31 +230,36 @@ function GovtProposeForm({ target, onDone }: { target: Target; onDone: () => voi
         <Field label="Organismo" value={organismo} onChange={setOrganismo} />
         <Field label="Cargo" value={cargo} onChange={setCargo} />
       </div>
-      <Textarea
-        label="Motivo (mínimo 10 chars)"
-        value={motivo}
-        onChange={setMotivo}
-        rows={2}
-      />
+      <Textarea label="Motivo (mínimo 10 chars)" value={motivo} onChange={setMotivo} rows={2} />
       <div className="space-y-2">
         <p className="text-xs text-neutral-500 dark:text-neutral-500">Localidades solicitadas</p>
         {localities.map((loc, idx) => (
-          <div key={idx} className="grid grid-cols-2 gap-2">
-            <Field label="Provincia" value={loc.province} onChange={(v) => {
-              const next = [...localities];
-              next[idx] = { ...loc, province: v };
-              setLocalities(next);
-            }} />
-            <Field label="Localidad" value={loc.locality} onChange={(v) => {
-              const next = [...localities];
-              next[idx] = { ...loc, locality: v };
-              setLocalities(next);
-            }} />
+          <div key={loc.id} className="grid grid-cols-2 gap-2">
+            <Field
+              label="Provincia"
+              value={loc.province}
+              onChange={(v) => {
+                const next = [...localities];
+                next[idx] = { ...loc, province: v };
+                setLocalities(next);
+              }}
+            />
+            <Field
+              label="Localidad"
+              value={loc.locality}
+              onChange={(v) => {
+                const next = [...localities];
+                next[idx] = { ...loc, locality: v };
+                setLocalities(next);
+              }}
+            />
           </div>
         ))}
         <button
           type="button"
-          onClick={() => setLocalities([...localities, { province: "", locality: "" }])}
+          onClick={() =>
+            setLocalities([...localities, { id: crypto.randomUUID(), province: "", locality: "" }])
+          }
           className="text-xs text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
         >
           + Agregar localidad
@@ -295,15 +322,10 @@ function AdminProposeForm({ target, onDone }: { target: Target; onDone: () => vo
         Proponer rol admin para {target.displayName}
       </p>
       <p className="text-[10px] text-amber-800 dark:text-amber-400">
-        Importante: el rol admin no puede tener mascotas registradas. Si {target.displayName}{" "}
-        tiene mascotas activas, la aprobación va a fallar.
+        Importante: el rol admin no puede tener mascotas registradas. Si {target.displayName} tiene
+        mascotas activas, la aprobación va a fallar.
       </p>
-      <Textarea
-        label="Motivo (mínimo 20 chars)"
-        value={motivo}
-        onChange={setMotivo}
-        rows={3}
-      />
+      <Textarea label="Motivo (mínimo 20 chars)" value={motivo} onChange={setMotivo} rows={3} />
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} />
         <span className="text-xs text-amber-900 dark:text-amber-300">
@@ -343,12 +365,17 @@ function Field({
   onChange: (v: string) => void;
   inputMode?: "text" | "numeric";
 }) {
+  const id = useId();
   return (
     <div className="space-y-1">
-      <label className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+      <label
+        htmlFor={id}
+        className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+      >
         {label}
       </label>
       <input
+        id={id}
         type="text"
         inputMode={inputMode}
         value={value}
@@ -370,12 +397,17 @@ function Textarea({
   onChange: (v: string) => void;
   rows: number;
 }) {
+  const id = useId();
   return (
     <div className="space-y-1">
-      <label className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+      <label
+        htmlFor={id}
+        className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+      >
         {label}
       </label>
       <textarea
+        id={id}
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}

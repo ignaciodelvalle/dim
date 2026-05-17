@@ -82,7 +82,10 @@ function validateVetInput(input: VetUpgradeInput): string | null {
   if (!MATRICULA_RE.test(matricula)) {
     return "La matrícula debe tener entre 3 y 30 caracteres alfanuméricos o guiones.";
   }
-  const jurError = validateLocationField(input.matriculaJurisdiccion, "La jurisdicción de la matrícula");
+  const jurError = validateLocationField(
+    input.matriculaJurisdiccion,
+    "La jurisdicción de la matrícula",
+  );
   if (jurError) return jurError;
   const provError = validateLocationField(input.operationalProvince, "La provincia donde ejercés");
   if (provError) return provError;
@@ -424,8 +427,7 @@ export async function createOrganizationAction(
     phone: String(formData.get("phone") ?? "").trim() || null,
     jurisdictionProvince: String(formData.get("jurisdictionProvince") ?? "").trim(),
     jurisdictionLocality: String(formData.get("jurisdictionLocality") ?? "").trim(),
-    personeriaJuridicaNumber:
-      String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
+    personeriaJuridicaNumber: String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
   };
 
   const result = await createOrganizationForUser(user.id, input);

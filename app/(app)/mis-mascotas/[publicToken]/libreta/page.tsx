@@ -55,9 +55,7 @@ export default async function LibretaPage({
   const activeShares = await db
     .select()
     .from(libretaShareTokens)
-    .where(
-      and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt)),
-    );
+    .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt)));
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 print:p-0 print:bg-white">

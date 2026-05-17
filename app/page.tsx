@@ -19,9 +19,7 @@ export default async function Home() {
         <h1 className="text-6xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
           MiMAR
         </h1>
-        <p className="text-xl text-neutral-600 dark:text-neutral-400">
-          Mi Mascota Argentina
-        </p>
+        <p className="text-xl text-neutral-600 dark:text-neutral-400">Mi Mascota Argentina</p>
         <p className="text-base text-neutral-500 dark:text-neutral-500 max-w-md mx-auto leading-relaxed">
           La credencial digital de salud para tu mascota. Para encontrarse, para cuidarse, para
           ayudarnos a cuidar a todas.

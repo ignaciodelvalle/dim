@@ -71,14 +71,12 @@ const roleUpgradeAdmin = z
 const organizationVerification = z
   .object(
     withVersion({
-      org_type: z.enum([
-        "clinic",
-        "shelter",
-        "rescue_network",
-        "sanitary_authority",
-        "other",
-      ]),
-      cuit: z.string().regex(/^\d{11}$/).nullable().default(null),
+      org_type: z.enum(["clinic", "shelter", "rescue_network", "sanitary_authority", "other"]),
+      cuit: z
+        .string()
+        .regex(/^\d{11}$/)
+        .nullable()
+        .default(null),
       personeria_juridica_number: z.string().max(60).nullable().default(null),
       additional_documents_summary: z.string().max(1000).nullable().default(null),
     }),

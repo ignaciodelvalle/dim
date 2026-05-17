@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { searchOrganizations } from "@/lib/admin-search";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 import { ProposeOrgActions } from "./ProposeOrgActions";
 import { RevokeOrgActions } from "./RevokeOrgActions";

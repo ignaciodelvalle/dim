@@ -14,13 +14,13 @@
 // Client-side canRevoke hides the button when the actor clearly has no scope
 // (defense-in-depth; server is authoritative).
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 
-import { createClient } from "@/lib/supabase/client";
-import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { revokeVetRoleAction } from "@/app/actions/admin-revocations";
+import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { canRevoke } from "@/lib/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
+import { createClient } from "@/lib/supabase/client";
 
 const MOTIVO_MIN = 30;
 
@@ -200,11 +200,15 @@ function RevokeVetForm({
       <MotivoField value={motivo} onChange={setMotivo} />
 
       <div className="space-y-1">
-        <label className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+        <label
+          htmlFor="revoke-user-evidence-files"
+          className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+        >
           Evidencia (al menos 1 archivo)
         </label>
         <input
           ref={fileInputRef}
+          id="revoke-user-evidence-files"
           type="file"
           accept="image/*,application/pdf"
           multiple
@@ -218,7 +222,10 @@ function RevokeVetForm({
         {uploadedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {uploadedFiles.map((f) => (
-              <li key={f.attachmentId} className="flex items-center gap-2 text-[10px] text-neutral-600 dark:text-neutral-400">
+              <li
+                key={f.attachmentId}
+                className="flex items-center gap-2 text-[10px] text-neutral-600 dark:text-neutral-400"
+              >
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
                   type="button"
@@ -241,8 +248,8 @@ function RevokeVetForm({
           className="mt-0.5 shrink-0"
         />
         <span className="text-xs text-red-900 dark:text-red-300">
-          Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta accion
-          genera un registro permanente en el audit log.
+          Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta accion genera
+          un registro permanente en el audit log.
         </span>
       </label>
 
@@ -275,12 +282,16 @@ function RevokeVetForm({
 // ---------------------------------------------------------------------------
 
 function MotivoField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const id = useId();
   const len = value.trim().length;
   const tooShort = len < MOTIVO_MIN;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+        <label
+          htmlFor={id}
+          className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+        >
           Motivo (minimo {MOTIVO_MIN} caracteres)
         </label>
         <span
@@ -290,6 +301,7 @@ function MotivoField({ value, onChange }: { value: string; onChange: (v: string)
         </span>
       </div>
       <textarea
+        id={id}
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}

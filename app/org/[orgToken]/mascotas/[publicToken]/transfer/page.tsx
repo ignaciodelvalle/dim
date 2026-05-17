@@ -106,7 +106,11 @@ export default async function TransferCustodyPage({
             de transferir.
           </p>
         ) : (
-          <TransferCustodyForm orgToken={orgToken} publicToken={petRow.pet.publicToken} destinations={destinations} />
+          <TransferCustodyForm
+            orgToken={orgToken}
+            publicToken={petRow.pet.publicToken}
+            destinations={destinations}
+          />
         )}
       </div>
     </main>
