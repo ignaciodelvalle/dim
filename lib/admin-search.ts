@@ -15,6 +15,10 @@ export type UserSearchResult = {
   id: string;
   displayName: string;
   role: "owner" | "vet" | "govt" | "admin";
+  // Jurisdiction that issued the vet's professional license. Used by
+  // RevokeUserActions (Fase 4+) for client-side canRevoke scope check.
+  // Null for non-vet users.
+  matriculaJurisdiccion: string | null;
 };
 
 export type OrgSearchResult = {
@@ -36,14 +40,24 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) {
     const rows = await db
-      .select({ id: profiles.id, displayName: profiles.displayName, role: profiles.role })
+      .select({
+        id: profiles.id,
+        displayName: profiles.displayName,
+        role: profiles.role,
+        matriculaJurisdiccion: profiles.matriculaJurisdiccion,
+      })
       .from(profiles)
       .limit(SEARCH_LIMIT);
     return rows;
   }
   const pattern = `%${trimmed}%`;
   const rows = await db
-    .select({ id: profiles.id, displayName: profiles.displayName, role: profiles.role })
+    .select({
+      id: profiles.id,
+      displayName: profiles.displayName,
+      role: profiles.role,
+      matriculaJurisdiccion: profiles.matriculaJurisdiccion,
+    })
     .from(profiles)
     .where(or(ilike(profiles.displayName, pattern), ilike(profiles.dniNumber, pattern)))
     .limit(SEARCH_LIMIT);
