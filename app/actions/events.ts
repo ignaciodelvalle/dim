@@ -19,6 +19,7 @@ import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
 import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
+import { validateMicrochipId } from "@/lib/microchip-validation";
 import {
   FREQUENCY_LABELS,
   generateDoseSchedule,
@@ -520,6 +521,18 @@ export async function setPetLostWriter(params: {
       }
     : null;
 
+  // Lost & Found Fase 7 — validate retroactive chip format OUTSIDE the
+  // transaction so we can return an error before any DB writes.
+  const rawRetroChipId = enrichedDescription?.microchipId?.trim() || null;
+  let validatedRetroChipId: string | null = null;
+  if (rawRetroChipId) {
+    const chipValidation = validateMicrochipId(rawRetroChipId);
+    if (!chipValidation.ok) {
+      return { error: "INVALID_MICROCHIP_FORMAT" };
+    }
+    validatedRetroChipId = chipValidation.normalized;
+  }
+
   try {
     await db.transaction(async (tx) => {
       const eventPayload = validateEventPayload("status_changed", {
@@ -570,10 +583,11 @@ export async function setPetLostWriter(params: {
         .where(eq(pets.id, petId));
 
       // Retroactive microchip capture — only when:
-      //   a. The owner provided a chip number in the enriched section.
+      //   a. The owner provided a chip number in the enriched section (already
+      //      validated and normalized above via validatedRetroChipId).
       //   b. The pet had no chip before (petMicrochipId is null).
-      const newChipId = enrichedDescription?.microchipId?.trim() || null;
-      if (newChipId && !petMicrochipId) {
+      if (validatedRetroChipId && !petMicrochipId) {
+        const newChipId = validatedRetroChipId;
         const microchipPayload = validateEventPayload("microchip_implanted", {
           chip_number: newChipId,
           country_code: null,
