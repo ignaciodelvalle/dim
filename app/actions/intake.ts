@@ -12,6 +12,9 @@
 //   - lost    → redirect to match confirmation page (BLOCK)
 //   - active  → return warning with forceToken; if forceToken is valid, proceed
 //   - deceased → return error (BLOCK, admin review required)
+//
+// Lost & Found Fase 7: microchipId is validated against ISO 11784/11785 (15
+// digits) before the cross-check so malformed chip strings never reach the DB.
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
@@ -21,6 +24,7 @@ import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
+import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
 import { redirect } from "next/navigation";
 
@@ -132,6 +136,17 @@ export async function createIntakeAction(
 
   const { parsed, error: parseError } = parseIntakeForm(formData);
   if (parseError || !parsed) return { error: parseError ?? "Datos inválidos." };
+
+  // Lost & Found Fase 7 — validate chip format (ISO 11784/11785, 15 digits)
+  // before the cross-check so malformed values never reach the DB.
+  if (parsed.microchipId) {
+    const chipValidation = validateMicrochipId(parsed.microchipId);
+    if (!chipValidation.ok) {
+      return { error: "INVALID_MICROCHIP_FORMAT" };
+    }
+    // Overwrite with the normalized (separators stripped) form.
+    parsed.microchipId = chipValidation.normalized;
+  }
 
   // Lost & Found Fase 2 — microchip cross-check before inserting.
   if (parsed.microchipId) {

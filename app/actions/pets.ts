@@ -17,6 +17,9 @@
 // when acquisitionMethod='found_stray' AND microchipId is set. Same three-status
 // branching as createIntakeAction. Match confirmation goes to
 // /mis-mascotas/nueva/match/{matchedPetToken}.
+//
+// Lost & Found Fase 7: microchipId is validated against ISO 11784/11785 (15
+// digits) before the cross-check and before any insert.
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
@@ -25,6 +28,7 @@ import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
+import { validateMicrochipId } from "@/lib/microchip-validation";
 import { requirePetAccess } from "@/lib/pet-access";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
@@ -225,6 +229,17 @@ export async function createPetAction(
 
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
+
+  // Lost & Found Fase 7 — validate chip format (ISO 11784/11785, 15 digits).
+  // Applied whenever a chip number is provided, regardless of acquisition method,
+  // so malformed values never reach the DB.
+  if (parsed.microchipId) {
+    const chipValidation = validateMicrochipId(parsed.microchipId);
+    if (!chipValidation.ok) {
+      return { error: "INVALID_MICROCHIP_FORMAT" };
+    }
+    parsed.microchipId = chipValidation.normalized;
+  }
 
   // Lost & Found Fase 2 — microchip cross-check for found_stray intake.
   // Only triggered when the user is registering a stray they found AND provided

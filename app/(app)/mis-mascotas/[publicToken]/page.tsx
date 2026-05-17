@@ -1,4 +1,4 @@
-import { markMedicationDoseTakenAction, setPetFoundAction } from "@/app/actions/events";
+import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
@@ -11,6 +11,7 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
+import { MarkFoundButton } from "./MarkFoundButton";
 
 // NOTE: eventsWithAttachments is still fetched on this page because it is
 // needed by the DeceasedView (which renders the timeline inline) and by
@@ -451,14 +452,7 @@ export default async function PetDetailPage({
             Ver credencial pública ↗
           </Link>
           {pet.status === "lost" ? (
-            <form action={setPetFoundAction.bind(null, pet.publicToken)}>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-lg bg-green-700 dark:bg-green-600 text-white text-sm font-medium hover:bg-green-800 dark:hover:bg-green-700 transition-colors"
-              >
-                ✓ Marcar como encontrada
-              </button>
-            </form>
+            <MarkFoundButton publicToken={pet.publicToken} />
           ) : (
             pet.status === "active" && (
               <Link
