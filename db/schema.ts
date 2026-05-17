@@ -1062,6 +1062,10 @@ export const AUDIT_LOG_ACTIONS = [
   "operator_credentials_reset",
   "govt_locality_assigned",
   "institutional_create_orphan_auth_user", // compensating-delete failure leak log
+  // Slice 3a: user self-service profile edits
+  "profile_self_updated",
+  "profile_avatar_updated",
+  "profile_avatar_upload_failed",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
