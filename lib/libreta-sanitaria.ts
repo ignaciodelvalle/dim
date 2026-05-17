@@ -62,6 +62,8 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "note_added",
   // Tier-2 share telemetry — system event, not a medical entry.
   "libreta_shared_viewed",
+  // Lost & Found — custody proposal event (Fase 5). Not a medical entry.
+  "custody_transfer_proposed",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);
