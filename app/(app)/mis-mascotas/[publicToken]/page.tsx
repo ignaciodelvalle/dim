@@ -285,7 +285,7 @@ export default async function PetDetailPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         <Link
-          href={accessPath === "org" ? "/refugio/mascotas" : "/mis-mascotas"}
+          href={accessPath === "org" && organization ? `/org/${organization.publicToken}/mascotas` : "/mis-mascotas"}
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
           ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}

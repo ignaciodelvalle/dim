@@ -315,7 +315,7 @@ export async function revokeOrgVerificationForAuthority(
           body: input.motivo.trim(),
           severity: "warning",
           ctaLabel: "Ir al panel",
-          ctaUrl: "/refugio",
+          ctaUrl: "/org",
         });
       }
     });

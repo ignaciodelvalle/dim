@@ -3,7 +3,7 @@
 // action does the same validation defensively.
 
 import { db, ownerships, pets, profiles } from "@/db";
-import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -12,12 +12,12 @@ import { EndFosterForm } from "./EndFosterForm";
 export default async function EndFosterPage({
   params,
 }: {
-  params: Promise<{ publicToken: string }>;
+  params: Promise<{ orgToken: string; publicToken: string }>;
 }) {
-  const { publicToken } = await params;
+  const { orgToken, publicToken } = await params;
 
-  const { active } = await requireActiveOrgOrRedirect();
-  const granted = await getGrantedCapabilities(active.membership);
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const granted = await getGrantedCapabilities(membership);
   if (!granted.has("foster.end")) {
     return (
       <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
@@ -27,7 +27,7 @@ export default async function EndFosterPage({
             Para cerrar tránsitos necesitás el permiso <code className="text-xs">foster.end</code>.
           </p>
           <Link
-            href="/refugio/mascotas"
+            href={`/org/${orgToken}/mascotas`}
             className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
           >
             Volver al listado
@@ -44,7 +44,7 @@ export default async function EndFosterPage({
     .where(
       and(
         eq(pets.publicToken, publicToken),
-        eq(ownerships.ownerOrganizationId, active.organization.id),
+        eq(ownerships.ownerOrganizationId, organization.id),
         isNull(ownerships.endedAt),
       ),
     )
@@ -55,10 +55,10 @@ export default async function EndFosterPage({
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Animal no disponible</h1>
           <p className="text-neutral-700 dark:text-neutral-300">
-            Este animal no figura bajo custodia activa de {active.organization.displayName}.
+            Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
-            href="/refugio/mascotas"
+            href={`/org/${orgToken}/mascotas`}
             className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
           >
             Volver al listado
@@ -87,7 +87,7 @@ export default async function EndFosterPage({
             {pet.name} no tiene un tránsito activo para cerrar.
           </p>
           <Link
-            href="/refugio/mascotas"
+            href={`/org/${orgToken}/mascotas`}
             className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
           >
             Volver al listado
@@ -102,16 +102,16 @@ export default async function EndFosterPage({
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
-            {active.organization.displayName}
+            {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Cerrar tránsito: {pet.name}</h1>
         </header>
 
-        <EndFosterForm publicToken={publicToken} fosterName={fosterRow.fosterDisplayName} />
+        <EndFosterForm orgToken={orgToken} publicToken={publicToken} fosterName={fosterRow.fosterDisplayName} />
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link
-            href="/refugio/mascotas"
+            href={`/org/${orgToken}/mascotas`}
             className="text-sm text-neutral-600 underline dark:text-neutral-400"
           >
             ← Volver al listado

@@ -1,9 +1,10 @@
-// Custody transfer page (refugio → refugio handoff). Gates on
+// Custody transfer page (org → org handoff). Gates on
 // custody.transfer + verifies the pet is currently held by the active org
 // under a transferable role (shelter_custody or owner). The form posts to
 // transferCustodyAction.
 
 import { db, organizations, ownerships, pets } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
@@ -15,17 +16,18 @@ const TRANSFERABLE_ROLES = ["shelter_custody", "owner"] as const;
 export default async function TransferCustodyPage({
   params,
 }: {
-  params: Promise<{ publicToken: string }>;
+  params: Promise<{ orgToken: string; publicToken: string }>;
 }) {
-  const { publicToken } = await params;
-  const auth = await requireCapability("custody.transfer");
+  const { orgToken, publicToken } = await params;
+  const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
+  const auth = await requireCapability("custody.transfer", orgFromToken.id);
   if (auth.error !== null) {
     return (
       <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
           <h1 className="text-2xl font-semibold">Sin acceso</h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{auth.error}</p>
-          <Link href="/refugio/mascotas" className="text-sm text-neutral-600 underline">
+          <Link href={`/org/${orgToken}/mascotas`} className="text-sm text-neutral-600 underline">
             ← Volver a mascotas
           </Link>
         </div>
@@ -59,7 +61,7 @@ export default async function TransferCustodyPage({
             {petRow.pet.name} no está en un rol transferible (custodia o dueño). Solo se pueden
             transferir esos dos roles.
           </p>
-          <Link href="/refugio/mascotas" className="text-sm text-neutral-600 underline">
+          <Link href={`/org/${orgToken}/mascotas`} className="text-sm text-neutral-600 underline">
             ← Volver a mascotas
           </Link>
         </div>
@@ -79,7 +81,7 @@ export default async function TransferCustodyPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-8 space-y-8">
         <Link
-          href="/refugio/mascotas"
+          href={`/org/${orgToken}/mascotas`}
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
           ← Volver a mascotas
@@ -104,7 +106,7 @@ export default async function TransferCustodyPage({
             de transferir.
           </p>
         ) : (
-          <TransferCustodyForm publicToken={petRow.pet.publicToken} destinations={destinations} />
+          <TransferCustodyForm orgToken={orgToken} publicToken={petRow.pet.publicToken} destinations={destinations} />
         )}
       </div>
     </main>

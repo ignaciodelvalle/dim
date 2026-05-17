@@ -112,7 +112,7 @@ export default async function UpgradePage() {
 
           {adminMembership ? (
             <Link
-              href="/refugio"
+              href={`/org/${adminMembership.organization.publicToken}`}
               className="flex items-center justify-between rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
             >
               <div>

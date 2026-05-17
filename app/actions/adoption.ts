@@ -56,6 +56,7 @@ function isValidDni(value: string): boolean {
 }
 
 export async function finalizeAdoptionAction(
+  orgToken: string,
   publicToken: string,
   _previous: FinalizeAdoptionFormState,
   formData: FormData,
@@ -289,5 +290,5 @@ export async function finalizeAdoptionAction(
     };
   }
 
-  redirect(`/refugio/mascotas?adopcion=${publicToken}`);
+  redirect(`/org/${orgToken}/mascotas?adopcion=${publicToken}`);
 }

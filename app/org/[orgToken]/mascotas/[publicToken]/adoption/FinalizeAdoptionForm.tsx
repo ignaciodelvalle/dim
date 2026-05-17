@@ -5,8 +5,14 @@ import { useActionState } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
 
-export function FinalizeAdoptionForm({ publicToken }: { publicToken: string }) {
-  const action = finalizeAdoptionAction.bind(null, publicToken);
+export function FinalizeAdoptionForm({
+  orgToken,
+  publicToken,
+}: {
+  orgToken: string;
+  publicToken: string;
+}) {
+  const action = finalizeAdoptionAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (

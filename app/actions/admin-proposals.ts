@@ -395,7 +395,7 @@ export async function proposeOrgVerificationForOrg(
         body: "Una autoridad inició una solicitud de verificación para tu organización.",
         severity: "info",
         ctaLabel: "Ver panel",
-        ctaUrl: "/refugio",
+        ctaUrl: "/org",
       });
     }
   });

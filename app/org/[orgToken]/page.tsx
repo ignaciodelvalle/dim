@@ -1,9 +1,9 @@
-// Refugio portal landing — shows the active organization, the employee's role,
+// Org portal landing — shows the active organization, the employee's role,
 // and the set of capabilities they currently hold. Non-admins can request any
 // non-granted capability inline; admins see a link to the approval queue.
 
 import { type OrganizationCapability, db, organizationCapabilityGrants } from "@/db";
-import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { CAPABILITY_CATALOG, getGrantedCapabilities } from "@/lib/capabilities";
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
@@ -64,10 +64,13 @@ const STATE_DOT: Record<CapabilityState["kind"], string> = {
   none: "bg-neutral-300 dark:bg-neutral-700",
 };
 
-export default async function RefugioPage() {
-  // v1: most-recently-joined active membership wins. v2: org-picker UI.
-  const { memberships, active } = await requireActiveOrgOrRedirect();
-  const { membership, organization } = active;
+export default async function OrgDashboardPage({
+  params,
+}: {
+  params: Promise<{ orgToken: string }>;
+}) {
+  const { orgToken } = await params;
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
 
   const granted = await getGrantedCapabilities(membership);
   const isAdmin = membership.role === "admin";
@@ -129,19 +132,13 @@ export default async function RefugioPage() {
               verificados hasta que la documentación sea aprobada.
             </p>
           )}
-          {memberships.length > 1 && (
-            <p className="text-xs text-neutral-500">
-              Pertenecés a {memberships.length} organizaciones. El selector llega en la próxima
-              entrega.
-            </p>
-          )}
         </header>
 
         {(canReadHeld || canIntake || canReviewAdoptions) && (
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {canReadHeld && (
               <Link
-                href="/refugio/mascotas"
+                href={`/org/${orgToken}/mascotas`}
                 className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
               >
                 <p className="text-sm font-semibold">Animales en custodia</p>
@@ -152,7 +149,7 @@ export default async function RefugioPage() {
             )}
             {canIntake && (
               <Link
-                href="/refugio/intake"
+                href={`/org/${orgToken}/intake`}
                 className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
               >
                 <p className="text-sm font-semibold">Registrar ingreso</p>
@@ -163,7 +160,7 @@ export default async function RefugioPage() {
             )}
             {canReviewAdoptions && (
               <Link
-                href="/refugio/checkins"
+                href={`/org/${orgToken}/checkins`}
                 className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
               >
                 <p className="text-sm font-semibold">Check-ins post-adopción</p>
@@ -186,7 +183,7 @@ export default async function RefugioPage() {
               )}
               {canDecideRequests && (
                 <Link
-                  href="/refugio/admin/permisos"
+                  href={`/org/${orgToken}/admin/permisos`}
                   className="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                 >
                   Revisar solicitudes

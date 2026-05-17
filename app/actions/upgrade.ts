@@ -346,7 +346,7 @@ export async function createOrganizationForUser(
         body: "Tu organización fue creada. Mientras se verifica, los eventos que registres aparecen como no verificados.",
         severity: "info",
         ctaLabel: "Ir al panel",
-        ctaUrl: "/refugio",
+        ctaUrl: "/org",
       });
 
       if (authorityIds.length > 0) {
@@ -432,5 +432,5 @@ export async function createOrganizationAction(
   if (result.error) return result;
 
   revalidatePath("/cuenta/upgrade");
-  redirect("/refugio");
+  redirect("/org");
 }
