@@ -9,6 +9,7 @@
 // Known prefixes:
 //   DIM  — pet credential public token (pets.public_token)
 //   LBR  — libreta share token (libreta_share_tokens.share_token)
+//   APR  — approval request public token (approval_requests.public_token)
 
 import { randomBytes } from "node:crypto";
 
@@ -39,4 +40,9 @@ export function generatePublicToken(): string {
 /** Generates a LBR-XXXX-XXXX libreta share token. */
 export function generateLibretaShareToken(): string {
   return generatePrefixedToken("LBR");
+}
+
+/** Generates an APR-XXXX-XXXX approval request public token. */
+export function generateApprovalRequestToken(): string {
+  return generatePrefixedToken("APR");
 }

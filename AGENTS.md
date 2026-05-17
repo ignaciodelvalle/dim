@@ -70,21 +70,81 @@ DIM is rooted in concrete data about the city it was designed for. Figures below
 - **Audience**: Pet owners only. Vet and government interfaces deferred.
 - **Auth**: email/password. "Connect with Mi Argentina" placeholder button shown but non-functional.
 
-## User roles
+## User roles & account types
 
-DIM recognizes three primary user roles, stored as `profiles.role` (enum `user_role`). One user = one primary role.
+DIM has **two account types** — `personal` and `institutional` — stored as `profiles.account_type`. Each account type allows a specific set of `profiles.role` (enum `user_role`) values. One user = one account type and one role.
 
-| Role    | Who                                                                         | Self-serve signup? | Primary portal       | Notes                                                                                                       |
-| ------- | --------------------------------------------------------------------------- | ------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `owner` | Pet owner. Default for any self-serve signup.                                | Yes                | `/mis-mascotas`      | Every authenticated user can own pets regardless of role.                                                    |
-| `vet`   | Veterinarian or other animal-health professional in the loop.                | No — admin-assigned (or verified-invite). Future flow may use RENAPER + matrícula validation. | `/profesional` (future) | Can also be a pet owner of their own pets; that's a separate `Ownership` row, not a role change.            |
-| `govt`  | Government / public-health / animal-welfare authority. High access ceiling. | No — admin-assigned.  | `/gestion` (future)  | Dashboards default to aggregated, anonymous views. PII reads are possible for legitimate case work but are audit-logged. |
+| Account type      | Roles allowed     | Mi Argentina / DNI | Matrícula        | Pets                | Created via                              |
+| ----------------- | ----------------- | ------------------ | ---------------- | ------------------- | ---------------------------------------- |
+| `personal`        | `owner`, `vet`    | Yes                | Yes (vet only)   | Yes (any count)     | Self-serve signup                        |
+| `institutional`   | `govt`, `admin`   | No (NULL)          | No (NULL)        | **No (DB-enforced)**| Direct admin action only — no self-serve |
 
-**Role vs. event authorship.** The `profiles.role` answers *"who is this user globally?"* The `pet_events.author_role` answers *"in what capacity did this user act when writing this specific event?"* They usually align (vet logs a vaccination → both are `vet`) but not always (vet logs their own dog's weight while acting as owner → `profiles.role='vet'` but the event's `author_role='owner'`). Keeping these separate is what lets audit trails be honest.
+**Why two account types.** Personal and institutional accounts serve fundamentally different purposes. A *personal* account is a human with pets and (eventually) Mi Argentina identity — owns animals, gets a libreta sanitaria, may upgrade to vet to write authoritative health events. An *institutional* account is a service-account for governance work: approving requests, verifying organizations, managing scope assignments. No mascotas, no DNI, no matrícula — none of those concepts apply to an authority entity. Modeling them as one type-of-user (e.g., promoting an owner to admin) would force every `Ownership` query, every signup screen, every Mi Argentina integration to special-case institutional users. Separating them keeps each path narrow and the constraints honest. Operationally: institutional accounts are managed from a desktop browser at `/admin`; the mobile PWA workflows are for personal users only.
 
-**Role does not restrict owning pets.** Anyone can have an `Ownership` row tying them to a pet. Role gates *portal access*, not personhood.
+### The four roles
 
-**Role assignment in v1.** Self-serve signup always produces `role='owner'`. Vet and govt accounts get their role flipped manually (Studio → `profiles` table → edit `role`) until we build admin tools and verified-invite flows. That's a deliberate v1 simplification; vet/govt account onboarding is high-stakes and shouldn't be self-serve.
+| Role    | Account type    | Who                                                                                                                              | Primary portal           | Notes                                                                                                                                |
+| ------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `owner` | personal        | Pet owner. Default for any self-serve signup.                                                                                    | `/mis-mascotas`          | Can have unlimited pets. May apply to upgrade to `vet`.                                                                              |
+| `vet`   | personal        | Veterinarian or animal-health professional. Has personal matrícula.                                                              | `/profesional` (future)  | May still own pets like any owner. Upgrade via `/cuenta/upgrade`, approved by the `govt` of the declared locality (fallback: admin). |
+| `govt`  | institutional   | Government / public-health / animal-welfare authority. Approves orgs, vet upgrades, and scheduling within **assigned localities**. | `/admin`                 | Multi-locality via `govt_assignments`. Created by an existing admin. Service-account model — see "Single operator" below.            |
+| `admin` | institutional   | Technical-administrative user. Universal scope. Creates other institutional accounts. Approves anything outside any govt's scope. | `/admin`                 | Bootstrap admin seeded manually once via Studio; subsequent admins created by an existing admin. Cannot be self-deactivated.         |
+
+### Lifecycle and downgrade paths
+
+**Personal accounts** are created via self-serve signup as `role='owner'`. Vet upgrades go through the admin-page approval flow:
+
+- *owner → vet*: applicant submits matrícula + evidence via `/cuenta/upgrade`. Creates `approval_request` of `type='role_upgrade_vet'`. Approved by the `govt` of the declared locality (fallback: admin if no govt covers that locality). On approval: `role='vet'`, `matriculaVerified=true`.
+- *vet → owner via self-resignation*: vet uses `/cuenta/renunciar`, confirms consequences. `role='owner'`, `matriculaVerified=false`. The `matriculaNumber` itself stays as historical data. Logged in `audit_log`.
+- *vet → owner via revocation*: the govt of the relevant locality, or admin, executes the revocation flow with mandatory reason + evidence. Same end state. Logged.
+- *delete account*: standard account deletion path (no admin-specific flow).
+
+**Institutional accounts** are created exclusively by an existing admin via the admin page. The admin provides email + display name + role (govt or admin) + (for govt) the initial set of localities. System provisions an `auth.users` entry with a temporary credential (magic link or temp password). No `approval_request` involved — direct admin action, logged. **There is no path from `personal` to `institutional`.** If a person needs both an owner identity (for their pets) and an admin or govt identity (for their work), they hold two separate accounts with two separate emails.
+
+- *govt locality adjustment*: admin assigns or revokes localities directly via the admin page. Each change is one direct action.
+- *govt deactivation*: the operator may self-deactivate the account, but ONLY if every locality assigned to this govt is also covered by at least one other active govt. If any locality would be left uncovered, the action is blocked with a clear error naming the uncovered localities. On successful deactivation, pending `approval_requests` for those localities automatically fall to the admin queue (the scope-matching `NOT EXISTS` clause handles this — no manual migration). An admin can also deactivate a govt directly via the revocation flow.
+- *admin deactivation*: the operator may **NEVER** self-deactivate. An admin is deactivated only by ANOTHER admin, with mandatory reason + evidence, AND never when only one active admin remains. The system always retains at least one active admin.
+- *operator handoff*: when the human behind an institutional account changes (one employee leaves, another takes over), an admin resets the credentials. The account itself, its localities, its audit history persist. The operator rotates; the institutional identity does not.
+
+### Hard constraints (enforced at the database)
+
+These are the invariants the schema and triggers enforce. The application layer assumes them and will not double-check:
+
+1. **Account type ↔ role match.** `profiles.account_type='personal'` ⟹ `role ∈ {owner, vet}`. `profiles.account_type='institutional'` ⟹ `role ∈ {govt, admin}`. CHECK constraint on `profiles`.
+2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_number IS NULL`, `dni_verified=false`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL`, `matricula_verified=false`. CHECK constraint.
+3. **Institutional accounts cannot own pets.** A trigger on `ownerships` rejects any INSERT or UPDATE that would tie an institutional account to a pet via `owner_user_id`. The trigger uses `errcode='restrict_violation'` and a clear Spanish message.
+4. **Last admin cannot be deactivated.** Server-action precondition counts `account_type='institutional' AND role='admin' AND deactivated_at IS NULL` and refuses if the deactivation would leave fewer than one.
+5. **Govt cannot self-deactivate if any locality is uncovered.** Server-action precondition checks coverage for every `govt_assignment` of the deactivating user.
+
+### Single-operator model (v1)
+
+Each institutional account has one set of credentials — one human operator at a time. The audit log shows the institutional account as the `actor_user_id`, not the person behind it. A future extension may add membership-style multi-operator access (mapping personal users to institutional account memberships, similar to `organization_memberships`), at which point audit entries will capture both the institutional account and the personal user. Until then: one operator, one credential, the institutional account is the accountable identity. Operator handoffs go through admin-issued credential resets.
+
+### Role vs. event authorship
+
+The `profiles.role` answers *"who is this user globally?"* The `pet_events.author_role` answers *"in what capacity did this user act when writing this specific event?"* They usually align (vet logs a vaccination → both `vet`) but not always (vet logs their own dog's weight while acting as owner → `profiles.role='vet'` but the event's `author_role='owner'`). Keeping these separate is what lets audit trails be honest.
+
+Institutional accounts do not author `pet_events` in normal operation — they manage system state, not pet history. The `author_role='govt'` value is reserved for future workflows where a sanitary authority records an event during an inspection or campaign (likely via a personal vet acting under govt auspices, recorded with the institutional `author_organization_id`).
+
+### Bootstrap
+
+The first `admin` account is seeded once per environment via Supabase Studio:
+
+```sql
+-- 1. Create the auth user via Studio → Authentication → Add user (email + temporary password).
+-- 2. Insert the profile row:
+insert into public.profiles (id, account_type, role, display_name)
+values ('<seeded_auth_user_id>', 'institutional', 'admin', 'DIM Admin');
+-- 3. Log the seed:
+insert into public.audit_log (actor_user_id, action, target_user_id, payload)
+values ('<seeded_auth_user_id>', 'admin_seeded', '<seeded_auth_user_id>', '{"source":"studio"}');
+```
+
+From there, every institutional account is created via the admin page. Every personal account is created via self-serve signup. Both flows go through `auth.users` like any other Supabase auth path.
+
+### Implementation reference
+
+See [`docs/superpowers/specs/2026-05-17-admin-page-design.md`](docs/superpowers/specs/2026-05-17-admin-page-design.md) for the full spec — schema migrations, server actions, RLS policies, UI surfaces, capability matrix, and the approval / revocation / self-resignation flows in detail. The phased implementation plan lives there too.
 
 **Organizations are not roles on `profiles`.** Clinics, refugios, rescue networks, and (eventually) sanitary authorities live in a separate `organizations` table peer to `users`. People connect to organizations through `organization_memberships`. This resolves the historical vet-vs-clinic ambiguity in one move (the individual vet keeps `profiles.role='vet'`; the clinic is an `organizations` row of type `clinic`; a membership row links them), and is the same mechanism that makes refugios and Mascotas CABA first-class without growing the `profiles.role` enum. See the **Organizations** section below for the full design.
 
