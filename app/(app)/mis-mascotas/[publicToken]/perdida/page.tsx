@@ -22,6 +22,17 @@ export default async function MarkPetLostPage({
 
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
 
+  // Pre-fill disclosure preference toggles from the pet's current values.
+  // New pets start at schema defaults (first_name=true, phone=true,
+  // email=false, last_location=true, finder_form=true).
+  const disclosureDefaults = {
+    discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+    disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+    discloseEmailWhenLost: pet.discloseEmailWhenLost,
+    discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+    allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+  };
+
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-md mx-auto pt-8 space-y-8">
@@ -36,12 +47,12 @@ export default async function MarkPetLostPage({
             Marcar como perdida
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Al marcar a {pet.name} como perdida, su credencial pública mostrará tu nombre y un
-            contacto directo para que quien la encuentre pueda avisarte. Podés revertirlo cuando
+            Al marcar a {pet.name} como perdida, su credencial pública mostrará la información que
+            elijas a continuación. Podés cambiarla en cualquier momento o revertir el estado cuando
             aparezca.
           </p>
         </div>
-        <MarkLostForm action={boundAction} />
+        <MarkLostForm action={boundAction} disclosureDefaults={disclosureDefaults} />
       </div>
     </main>
   );
