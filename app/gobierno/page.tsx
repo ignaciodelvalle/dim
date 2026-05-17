@@ -2,8 +2,8 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { approvalRequests, auditLog, db } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 const ACTION_LABELS: Record<string, string> = {
   request_viewed: "Vio una solicitud",
@@ -127,9 +127,7 @@ function Card({
         {label}
       </p>
       <p className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">{value}</p>
-      {sublabel && (
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">{sublabel}</p>
-      )}
+      {sublabel && <p className="text-xs text-neutral-500 dark:text-neutral-500">{sublabel}</p>}
       {cta && (
         <Link
           href={cta.href}

@@ -14,8 +14,8 @@ import {
   ownerships,
   profiles,
 } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { canDecideRequest } from "@/lib/approval-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 export type DecisionResult = { error: string } | { ok: true };
 
@@ -162,7 +162,11 @@ export async function logRequestViewedForAuthority(
   publicToken: string,
 ): Promise<void> {
   const [request] = await db
-    .select({ id: approvalRequests.id, targetUserId: approvalRequests.targetUserId, targetOrganizationId: approvalRequests.targetOrganizationId })
+    .select({
+      id: approvalRequests.id,
+      targetUserId: approvalRequests.targetUserId,
+      targetOrganizationId: approvalRequests.targetOrganizationId,
+    })
     .from(approvalRequests)
     .where(eq(approvalRequests.publicToken, publicToken))
     .limit(1);
@@ -286,9 +290,7 @@ async function applyApprovalMutation(
       const owned = await tx
         .select({ id: ownerships.id })
         .from(ownerships)
-        .where(
-          and(eq(ownerships.ownerUserId, request.targetUserId), isNull(ownerships.endedAt)),
-        );
+        .where(and(eq(ownerships.ownerUserId, request.targetUserId), isNull(ownerships.endedAt)));
       if (owned.length > 0) {
         throw new Error(
           `El usuario destino tiene ${owned.length} mascota(s) registrada(s). El rol admin no puede tener mascotas — transferí o dale de baja antes de aprobar.`,

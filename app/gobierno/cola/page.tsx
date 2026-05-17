@@ -2,8 +2,8 @@ import { inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { db, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 const TYPE_LABELS: Record<string, string> = {
   role_upgrade_vet: "Matrícula veterinaria",
@@ -64,14 +64,17 @@ export default async function ColaPage() {
                       {TYPE_LABELS[req.type] ?? req.type}
                     </p>
                     <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                      {namesById.get(req.applicantUserId) ?? "Usuario"} · {req.jurisdictionLocality},{" "}
-                      {req.jurisdictionProvince}
+                      {namesById.get(req.applicantUserId) ?? "Usuario"} · {req.jurisdictionLocality}
+                      , {req.jurisdictionProvince}
                     </p>
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
                       {req.publicToken} · {new Date(req.createdAt).toLocaleDateString("es-AR")}
                     </p>
                   </div>
-                  <span className="text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-300" aria-hidden>
+                  <span
+                    className="text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-300"
+                    aria-hidden
+                  >
                     ›
                   </span>
                 </Link>

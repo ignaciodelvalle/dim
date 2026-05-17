@@ -44,8 +44,7 @@ export function canDecideRequest(
   if (ADMIN_ONLY_TYPES.includes(request.type)) return false;
   return jurisdictions.some(
     (j) =>
-      j.province === request.jurisdictionProvince &&
-      j.locality === request.jurisdictionLocality,
+      j.province === request.jurisdictionProvince && j.locality === request.jurisdictionLocality,
   );
 }
 
@@ -103,7 +102,9 @@ export async function fetchVisiblePendingRequests(
   return db
     .select()
     .from(approvalRequests)
-    .where(and(eq(approvalRequests.status, "pending"), visibleRequestsClause(profile, jurisdictions)))
+    .where(
+      and(eq(approvalRequests.status, "pending"), visibleRequestsClause(profile, jurisdictions)),
+    )
     .orderBy(desc(approvalRequests.createdAt));
 }
 

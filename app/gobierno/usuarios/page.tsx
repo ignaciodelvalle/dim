@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { searchUsers } from "@/lib/admin-search";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 import { ProposeUserActions } from "./ProposeUserActions";
 import { RevokeUserActions } from "./RevokeUserActions";
@@ -45,8 +45,8 @@ export default async function UsuariosPage({
             Usuarios
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Buscá por nombre o DNI y proponé cambios de rol. Las búsquedas quedan registradas
-            en el audit log.
+            Buscá por nombre o DNI y proponé cambios de rol. Las búsquedas quedan registradas en el
+            audit log.
           </p>
         </header>
 

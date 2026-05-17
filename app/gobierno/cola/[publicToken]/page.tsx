@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 
 import { logRequestViewedForAuthority } from "@/app/actions/admin-decisions";
 import { approvalRequests, db, organizations, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { canDecideRequest } from "@/lib/approval-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 import { ReviewActions } from "./ReviewActions";
 
@@ -104,7 +104,9 @@ export default async function ReviewRequestPage({
           <p className="text-sm text-neutral-900 dark:text-neutral-50">
             {applicant?.displayName ?? "Usuario"}
           </p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">Rol actual: {applicant?.role ?? "owner"}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            Rol actual: {applicant?.role ?? "owner"}
+          </p>
         </Section>
 
         {targetOrg && (

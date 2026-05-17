@@ -48,7 +48,9 @@ type ActorAuthority = {
   jurisdictions: { province: string; locality: string }[];
 };
 
-async function loadActorAuthority(actorUserId: string): Promise<ActorAuthority | { error: string }> {
+async function loadActorAuthority(
+  actorUserId: string,
+): Promise<ActorAuthority | { error: string }> {
   const [profile] = await db
     .select({ id: profiles.id, role: profiles.role })
     .from(profiles)
