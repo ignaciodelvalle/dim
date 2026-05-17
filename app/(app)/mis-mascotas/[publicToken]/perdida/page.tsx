@@ -52,7 +52,13 @@ export default async function MarkPetLostPage({
             aparezca.
           </p>
         </div>
-        <MarkLostForm action={boundAction} disclosureDefaults={disclosureDefaults} />
+        <MarkLostForm
+          action={boundAction}
+          disclosureDefaults={disclosureDefaults}
+          petHasMicrochip={!!pet.microchipId}
+          petColor={pet.color ?? null}
+          petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
+        />
       </div>
     </main>
   );

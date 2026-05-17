@@ -57,11 +57,19 @@ export default async function PublicCredentialPage({
   // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
   // the owner's disclosure preference (disclose_*_when_lost columns on pets).
   // Active pets expose NO owner PII — leave lostContext null.
+  //
+  // lost_description is always visible if present — these are animal details,
+  // not owner contact info, so no disclosure pref gates them (spec §8.4 / §10).
   let lostContext: {
     ownerFirstName: string | null;
     phone: string | null;
     email: string | null;
     locationText: string | null;
+    lostDescription: {
+      accessoriesWhenLost: string | null;
+      behaviorNotes: string | null;
+      lastSeenContext: string | null;
+    } | null;
   } | null = null;
 
   if (isLost) {
@@ -129,11 +137,34 @@ export default async function PublicCredentialPage({
       }
     }
 
+    // Extract lost_description from the event payload (spec §8.4).
+    // These are animal-identity details — always shown if present, no
+    // disclosure pref gates them.
+    const lostDesc = payload.lost_description as
+      | {
+          accessories_when_lost?: string | null;
+          behavior_notes?: string | null;
+          last_seen_context?: string | null;
+        }
+      | null
+      | undefined;
+
+    const lostDescription =
+      lostDesc &&
+      (lostDesc.accessories_when_lost || lostDesc.behavior_notes || lostDesc.last_seen_context)
+        ? {
+            accessoriesWhenLost: lostDesc.accessories_when_lost ?? null,
+            behaviorNotes: lostDesc.behavior_notes ?? null,
+            lastSeenContext: lostDesc.last_seen_context ?? null,
+          }
+        : null;
+
     lostContext = {
       ownerFirstName: firstName ?? null,
       phone: ownerRow?.profile.phone ?? null,
       email: ownerEmail,
       locationText: textLocation ?? geoLocation,
+      lostDescription,
     };
   }
 
@@ -251,6 +282,36 @@ export default async function PublicCredentialPage({
                 {lostContext.locationText}
               </p>
             )}
+
+            {/* Detalles para identificar — always visible when present.
+                These describe the animal, not the owner, so no disclosure
+                pref gates them (spec §8.4 / §10). */}
+            {lostContext.lostDescription && (
+              <div className="border-t border-amber-200 dark:border-amber-800 pt-3 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-400">
+                  Detalles para identificar
+                </p>
+                {lostContext.lostDescription.accessoriesWhenLost && (
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    <span className="font-medium">Cuando se perdio, llevaba:</span>{" "}
+                    {lostContext.lostDescription.accessoriesWhenLost}
+                  </p>
+                )}
+                {lostContext.lostDescription.behaviorNotes && (
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    <span className="font-medium">Como es:</span>{" "}
+                    {lostContext.lostDescription.behaviorNotes}
+                  </p>
+                )}
+                {lostContext.lostDescription.lastSeenContext && (
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    <span className="font-medium">Ultima vez vista:</span>{" "}
+                    {lostContext.lostDescription.lastSeenContext}
+                  </p>
+                )}
+              </div>
+            )}
+
             {pet.allowFinderFormWhenLost && <FoundPetForm publicToken={publicToken} />}
           </div>
         ) : (
