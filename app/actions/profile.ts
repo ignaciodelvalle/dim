@@ -36,7 +36,8 @@ export type UploadAvatarResult = { error: string } | { ok: true; avatarUrl: stri
 // Argentine phone — accepts common formats:
 //   +54 9 11 1234-5678 | +5491112345678 | 011 15-1234-5678 | 11 1234-5678
 // We allow empty string (caller sets phone to null when empty).
-const AR_PHONE_RE = /^(\+?54\s?9?\s?\d{2,4}[\s-]?\d{4}[\s-]?\d{4}|0\d{2,4}\s?(?:15[\s-]?)?\d{4}[\s-]?\d{4}|\d{2,4}[\s-]?\d{4}[\s-]?\d{4})$/;
+const AR_PHONE_RE =
+  /^(\+?54\s?9?\s?\d{2,4}[\s-]?\d{4}[\s-]?\d{4}|0\d{2,4}\s?(?:15[\s-]?)?\d{4}[\s-]?\d{4}|\d{2,4}[\s-]?\d{4}[\s-]?\d{4})$/;
 
 const updateProfileSchema = z.object({
   displayName: z
@@ -51,10 +52,9 @@ const updateProfileSchema = z.object({
   phone: z
     .string()
     .optional()
-    .refine(
-      (v) => v === undefined || v === "" || AR_PHONE_RE.test(v.replace(/\s/g, " ").trim()),
-      { message: "El teléfono no tiene un formato argentino válido" },
-    ),
+    .refine((v) => v === undefined || v === "" || AR_PHONE_RE.test(v.replace(/\s/g, " ").trim()), {
+      message: "El teléfono no tiene un formato argentino válido",
+    }),
 });
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -64,9 +64,7 @@ const uploadAvatarSchema = z.object({
   mimeType: z.enum(ALLOWED_MIME_TYPES, {
     error: "Solo se aceptan imágenes JPEG, PNG o WebP",
   }),
-  fileSize: z
-    .number()
-    .max(MAX_FILE_SIZE_BYTES, "La imagen no puede superar 2 MB"),
+  fileSize: z.number().max(MAX_FILE_SIZE_BYTES, "La imagen no puede superar 2 MB"),
   fileName: z.string().min(1),
 });
 
@@ -98,12 +96,10 @@ async function defaultStorageUpload({
   const storagePath = `${userId}/${Date.now()}.${ext}`;
 
   const arrayBuffer = await fileBlob.arrayBuffer();
-  const { error } = await supabase.storage
-    .from("avatars")
-    .upload(storagePath, arrayBuffer, {
-      contentType: mimeType,
-      upsert: true,
-    });
+  const { error } = await supabase.storage.from("avatars").upload(storagePath, arrayBuffer, {
+    contentType: mimeType,
+    upsert: true,
+  });
 
   if (error) throw new Error(error.message);
 
