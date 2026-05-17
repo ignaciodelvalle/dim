@@ -1101,10 +1101,7 @@ describe("assignGovtLocalityForAuthority — happy path: new locality assigned",
       .select()
       .from(auditLog)
       .where(
-        and(
-          eq(auditLog.targetUserId, assignGovtId),
-          eq(auditLog.action, "govt_locality_assigned"),
-        ),
+        and(eq(auditLog.targetUserId, assignGovtId), eq(auditLog.action, "govt_locality_assigned")),
       )
       .orderBy(desc(auditLog.performedAt))
       .limit(1);
