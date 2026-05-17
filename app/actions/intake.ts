@@ -6,18 +6,32 @@
 //
 // Capability-gated on `intake.create`. The capability is enforced by
 // requireCapability, which mirrors requireOwnedPet from events.ts.
+//
+// Lost & Found Fase 2: if microchipId is provided, a cross-check is performed
+// BEFORE inserting the new pet. Depending on the matched pet's status:
+//   - lost    → redirect to match confirmation page (BLOCK)
+//   - active  → return warning with forceToken; if forceToken is valid, proceed
+//   - deceased → return error (BLOCK, admin review required)
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
 import { requireCapability } from "@/lib/capabilities";
+import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { generatePublicToken } from "@/lib/publicToken";
 import { redirect } from "next/navigation";
 
 export type IntakeFormState = {
   error: string | null;
+  // Present when a chip cross-check found an active match (WARN state).
+  // The UI should show the conflict details and offer a "continue anyway" path
+  // backed by the forceToken.
+  warning?: "CHIP_MATCH_ACTIVE";
+  matchedPetToken?: string;
+  forceToken?: string;
 };
 
 type IntakeReason = "rescue" | "surrender" | "seizure" | "stray_found" | "other";
@@ -118,6 +132,44 @@ export async function createIntakeAction(
 
   const { parsed, error: parseError } = parseIntakeForm(formData);
   if (parseError || !parsed) return { error: parseError ?? "Datos inválidos." };
+
+  // Lost & Found Fase 2 — microchip cross-check before inserting.
+  if (parsed.microchipId) {
+    const match = await lookupByChip(parsed.microchipId);
+    if (match) {
+      if (match.pet.status === "lost") {
+        // BLOCK: redirect to match-confirmation page so the org can confirm.
+        redirect(`/org/${orgToken}/intake/match/${match.pet.publicToken}`);
+      }
+
+      if (match.pet.status === "active") {
+        // WARN: chip is registered to a live active pet.
+        // Check if the caller is presenting a valid force-create token.
+        const forceToken = String(formData.get("forceToken") ?? "").trim();
+        const forceValid = forceToken ? validateForceToken(parsed.microchipId, forceToken) : false;
+
+        if (!forceValid) {
+          // Block and return a warning with a fresh forceToken for the UI
+          // to present the "continue anyway" confirmation.
+          return {
+            error: null,
+            warning: "CHIP_MATCH_ACTIVE",
+            matchedPetToken: match.pet.publicToken,
+            forceToken: generateForceToken(parsed.microchipId),
+          };
+        }
+        // Force token valid — fall through to normal intake flow.
+      }
+
+      if (match.pet.status === "deceased") {
+        // BLOCK unconditionally — admin review required.
+        return {
+          error:
+            "Este chip está asociado a una mascota registrada como fallecida en DIM. Pedile a un admin que revise el caso antes de continuar.",
+        };
+      }
+    }
+  }
 
   const publicToken = generatePublicToken();
   const now = new Date();
