@@ -79,7 +79,7 @@ export default async function LibretaPage({
         <SharesManager petPublicToken={pet.publicToken} shares={activeShares} />
 
         <footer className="hidden print:block text-xs text-neutral-500 pt-8">
-          Generada por DIM · {new Date().toLocaleString("es-AR")}
+          Generada por MiMAR · {new Date().toLocaleString("es-AR")}
         </footer>
       </div>
     </main>

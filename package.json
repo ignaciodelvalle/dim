@@ -1,7 +1,7 @@
 {
   "name": "dim",
   "version": "0.1.0",
-  "description": "DIM — Documento de Identificación para Mascotas. Argentina's digital pet credential.",
+  "description": "MiMAR — Mi Mascota Argentina. Argentina's digital pet credential (internal codename: DIM).",
   "private": true,
   "type": "module",
   "scripts": {

@@ -12,7 +12,7 @@ export function VetUpgradeForm() {
   if (state.ok) {
     return (
       <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-        Solicitud enviada — pendiente de revisión por el equipo de DIM.
+        Solicitud enviada — pendiente de revisión por el equipo de MiMAR.
       </p>
     );
   }

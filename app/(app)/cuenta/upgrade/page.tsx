@@ -41,7 +41,7 @@ export default async function UpgradePage() {
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Tu rol en DIM
+            Tu rol en MiMAR
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Ampliá tus permisos registrando tu matrícula profesional o creando una organización.
@@ -55,7 +55,7 @@ export default async function UpgradePage() {
               Profesional veterinario
             </h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Ya sos veterinario verificado en DIM.
+              Ya sos veterinario verificado en MiMAR.
             </p>
           </section>
         ) : (
@@ -106,7 +106,7 @@ export default async function UpgradePage() {
               Crear Organización
             </h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Refugios, clínicas y redes de rescate pueden crear su panel organizacional en DIM.
+              Refugios, clínicas y redes de rescate pueden crear su panel organizacional en MiMAR.
             </p>
           </div>
 

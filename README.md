@@ -1,6 +1,8 @@
-# DIM
+# MiMAR — Mi Mascota Argentina
 
-**Documento de Identificación para Mascotas** — Argentina's digital pet credential.
+**MiMAR** is Argentina's digital pet credential and health record system.
+
+> **Note:** DIM is the internal codename used in schema, tokens (`DIM-XXXX-XXXX`), code identifiers, and audit logs. MiMAR is the user-facing brand.
 
 [![CI](https://github.com/ignaciodelvalle/dim/actions/workflows/ci.yml/badge.svg)](https://github.com/ignaciodelvalle/dim/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -11,9 +13,32 @@ A reborn 2021 university project (UTN), reimagined for 2026 as a modern PWA with
 
 Every pet gets a verifiable digital identity — a credential with a QR code that can be scanned to confirm the pet is registered, contact its owner if lost, and (with owner consent) share its vaccination and medical history. The same event log that powers each pet's record feeds high-level dashboards for sanitary authorities, public-health analysts, and animal-welfare officers.
 
-The project's North Star is **animal health and welfare at population scale**: vaccinations reach pets who need them, treatments reach pets who need them, lost pets find their owners, and welfare problems become legible to authorities and NGOs who can act on them.
+The project's North Star is **animal health and welfare at population scale** and, ultimately, **integration with Mi Argentina** — the platform that would make this credential official at national scale.
 
 The full design — principles, data model, event catalog, privacy tiers, dashboard targets, legal framework — lives in [`AGENTS.md`](./AGENTS.md). That's the source of truth for *what we're building and why*. Any AI agent or human picking up this repo should start there.
+
+## Portal surfaces
+
+| Surface | Route | Who | Status |
+| ------- | ----- | --- | ------ |
+| Owner portal | `/mis-mascotas` | Pet owners (personal accounts) | Live |
+| Public credential | `/p/[publicToken]` | Anyone (no auth) | Live |
+| Org portal | `/org/[orgToken]` | Org members (shelter, clinic, rescue network) | Live at `/refugio/` — rename pending |
+| Independent vet portal | `/profesional` | Vets with `professional.provider` capability | Planned |
+| Govt portal | `/gobierno` | Govt institutional accounts (locality-scoped) | Planned |
+| Meta-admin portal | `/admin` | Admin institutional accounts (universal scope) | Live (partial) |
+| Tier-2 shared libreta | `/libreta/compartir/[shareToken]` | Anyone with a valid share link | Planned |
+
+## Four-role authority model
+
+| Role | Account type | Portal | Notes |
+| ---- | ------------ | ------ | ----- |
+| `owner` | personal | `/mis-mascotas` | Default for self-serve signup. May upgrade to `vet`. |
+| `vet` | personal | `/profesional` or `/org/[orgToken]` | Independent vets use `/profesional` after `professional.provider` approval; clinic-affiliated vets use the clinic's `/org/[orgToken]`. |
+| `govt` | institutional | `/gobierno` | Locality-scoped approvals and regional dashboards. Multi-locality via `govt_assignments`. |
+| `admin` | institutional | `/admin` | Universal scope. Creates institutional accounts, global audit, universal business rules. |
+
+Account type is DB-enforced via CHECK constraint on `profiles.account_type`. Personal accounts (`owner`, `vet`) can own pets and have Mi Argentina identity. Institutional accounts (`govt`, `admin`) have neither — they are service accounts for governance work.
 
 ## Stack
 
@@ -41,8 +66,9 @@ Owner-facing data-collection layer is complete:
 - Pet list with avatars, pet detail with event timeline
 - Public credential page at `/p/{token}` with Tier-0 view + scan-event logging
 - Per-user notifications (welcome on signup, PPP reminder on dangerous breeds), with mark-read / archive
+- Org portal (shelter, clinic, rescue network) — intake, foster, transfer, adoption flows
 
-Vet portal, government dashboards, owner-facing forms for the rest of the event catalog (vaccination, vet visit, weight, etc.) are next on the roadmap.
+Vet portal (`/profesional`), government portal (`/gobierno`), owner-facing forms for the rest of the event catalog (vaccination, vet visit, weight, etc.), and the scheduling system are next on the roadmap.
 
 ## Local development
 
@@ -67,6 +93,9 @@ app/
   (app)/                    authenticated pages (route group, gated by layout)
     mis-mascotas/           pet list, new pet, [token] detail + editar, eventos/
     notificaciones/         notifications inbox
+    cuenta/                 upgrade (vet / org creation)
+  refugio/                  org portal — pending rename to org/[orgToken]/
+  admin/                    admin + govt shared portal — pending /gobierno split
   p/[publicToken]/          public credential page (no auth required)
   auth/callback/            Supabase OAuth/email-link return URL
   actions/                  server actions (auth, pets, scans, notifications)
@@ -80,18 +109,20 @@ lib/
   breeds.ts                 breed lookups + dangerous-breed detection
   lookups.ts                food / allergy / microchip / training options
   format.ts                 i18n date and label helpers
-  publicToken.ts            DIM-XXXX-XXXX token generator
+  publicToken.ts            DIM-XXXX-XXXX token generator (DIM is the codename, stays)
   storage.ts                public photo URL helper
   supabase/                 server, browser, and middleware Supabase clients
 middleware.ts               Next.js middleware (refreshes auth cookies on every request)
 docs/
+  superpowers/              specs and plans for upcoming features
   archive/                  2021 carpeta, CONAIISI paper, BMC (provenance, not spec)
+mimar-go-to-market.md       GTM strategy: Mi Argentina integration path and decision-makers
 ```
 
 ## Documentation
 
-- [`AGENTS.md`](./AGENTS.md) — full design doc: principles, data model, event catalog, privacy tiers, dashboards, legal framework, open questions. **Read first.**
-- [`docs/README.md`](./docs/README.md) — what's in `docs/` and what isn't current spec
+- [`AGENTS.md`](./AGENTS.md) — full design doc: principles, data model, event catalog, privacy tiers, dashboards, legal framework, portal surfaces, role model. **Read first.**
+- [`docs/superpowers/README.md`](./docs/superpowers/README.md) — index of specs and implementation plans, priority order, cross-cutting dependencies
 - Inline code comments — every non-obvious file has a header explaining its job
 
 ## License
