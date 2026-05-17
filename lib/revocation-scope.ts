@@ -66,8 +66,7 @@ export function canRevoke(
         // Province-only match on matricula_jurisdiccion
         j.province === target.matriculaJurisdiccion ||
         // Exact (province, locality) match on operational address
-        (target.operationalProvince === j.province &&
-          target.operationalLocality === j.locality),
+        (target.operationalProvince === j.province && target.operationalLocality === j.locality),
     );
   }
 
