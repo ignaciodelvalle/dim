@@ -50,7 +50,7 @@ export default async function UsuariosPage({
           </p>
         </header>
 
-        <form action="/admin/usuarios" method="get" className="flex items-center gap-2">
+        <form action="/gobierno/usuarios" method="get" className="flex items-center gap-2">
           <input
             type="text"
             name="q"
@@ -119,7 +119,7 @@ export default async function UsuariosPage({
 
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           <Link
-            href="/admin"
+            href="/gobierno"
             className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
           >
             ← Volver al dashboard
