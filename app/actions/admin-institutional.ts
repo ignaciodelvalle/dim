@@ -18,10 +18,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 
-import {
-  claimAttachmentsForAudit,
-  validateMotivoAndAttachments,
-} from "@/app/actions/admin-revocations";
+import { claimAttachmentsForAudit } from "@/app/actions/admin-revocations";
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
@@ -31,6 +28,7 @@ import {
   canResetCredentials,
 } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
+import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // ---------------------------------------------------------------------------

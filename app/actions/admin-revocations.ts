@@ -37,19 +37,13 @@ import {
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { canRevoke } from "@/lib/revocation-scope";
 import type { RevocationTarget } from "@/lib/revocation-scope";
+import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
 
 // ---------------------------------------------------------------------------
 // Exported types
 // ---------------------------------------------------------------------------
 
 export type RevocationResult = { error: string } | { ok: true; noOp?: boolean };
-
-// ---------------------------------------------------------------------------
-// Validation constants
-// ---------------------------------------------------------------------------
-
-const MOTIVO_MIN = 30;
-const MOTIVO_MAX = 2000;
 
 // ---------------------------------------------------------------------------
 // Private helpers
@@ -115,18 +109,6 @@ export async function claimAttachmentsForAudit(
       `ATTACHMENT_CLAIM_FAILED: expected ${attachmentIds.length} rows updated, got ${updatedRows.length}. Attachment IDs may not belong to actor or are already claimed.`,
     );
   }
-}
-
-// Exported for reuse in admin-institutional.ts (Fase 5). ADR-5.
-export function validateMotivoAndAttachments(
-  motivo: string,
-  attachmentIds: string[],
-): { error: string } | null {
-  const trimmed = motivo.trim();
-  if (trimmed.length < MOTIVO_MIN) return { error: "REASON_TOO_SHORT" };
-  if (trimmed.length > MOTIVO_MAX) return { error: "REASON_TOO_LONG" };
-  if (attachmentIds.length === 0) return { error: "EVIDENCE_REQUIRED" };
-  return null;
 }
 
 // ---------------------------------------------------------------------------
