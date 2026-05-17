@@ -4,17 +4,13 @@
 // user's /mis-mascotas listing.
 
 import { db, profiles } from "@/db";
-import { createClient } from "@/lib/supabase/server";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { ClaimForm } from "./ClaimForm";
 
 export default async function ClaimPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { user } = await requireUserOrRedirect();
 
   const [profile] = await db
     .select({ dniNumber: profiles.dniNumber })

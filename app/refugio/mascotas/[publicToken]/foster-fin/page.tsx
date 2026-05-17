@@ -3,8 +3,8 @@
 // action does the same validation defensively.
 
 import { db, ownerships, pets, profiles } from "@/db";
-import { getActiveMemberships, getGrantedCapabilities } from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { EndFosterForm } from "./EndFosterForm";
@@ -16,16 +16,7 @@ export default async function EndFosterPage({
 }) {
   const { publicToken } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return null;
-
+  const { active } = await requireActiveOrgOrRedirect();
   const granted = await getGrantedCapabilities(active.membership);
   if (!granted.has("foster.end")) {
     return (

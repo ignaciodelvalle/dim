@@ -7,6 +7,7 @@ import { db, organizations, ownerships, pets } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { TransferCustodyForm } from "./TransferCustodyForm";
 
 const TRANSFERABLE_ROLES = ["shelter_custody", "owner"] as const;
@@ -48,7 +49,7 @@ export default async function TransferCustodyPage({
       ),
     )
     .limit(1);
-  if (!petRow) return null;
+  if (!petRow) notFound();
   if (!(TRANSFERABLE_ROLES as readonly string[]).includes(petRow.role as string)) {
     return (
       <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">

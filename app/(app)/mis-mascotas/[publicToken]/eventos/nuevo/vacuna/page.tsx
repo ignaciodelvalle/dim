@@ -15,7 +15,6 @@ export default async function NewVaccinationPage({
   const { publicToken } = await params;
   const { reminderId } = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   // If routed from a pending reminder, pre-fill the vaccine name.

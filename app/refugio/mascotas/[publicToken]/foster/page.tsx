@@ -3,8 +3,8 @@
 // of the org as the foster.
 
 import { db, organizationMemberships, ownerships, pets, profiles } from "@/db";
-import { getActiveMemberships, getGrantedCapabilities } from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 import { AssignFosterForm, type FosterCandidate } from "./AssignFosterForm";
@@ -16,16 +16,7 @@ export default async function AssignFosterPage({
 }) {
   const { publicToken } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return null;
-
+  const { user, active } = await requireActiveOrgOrRedirect();
   const granted = await getGrantedCapabilities(active.membership);
   if (!granted.has("foster.assign")) {
     return (

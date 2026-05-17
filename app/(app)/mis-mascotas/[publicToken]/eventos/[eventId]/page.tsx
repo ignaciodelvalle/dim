@@ -39,11 +39,6 @@ export default async function EventDetailPage({
   const { publicToken, eventId } = await params;
   const session = await requireOwnedPetByToken(publicToken);
   // The (app) layout already redirects unauthenticated users to /login.
-  // requireOwnedPetByToken returns null only when there's no auth user; if
-  // the user is signed in but doesn't own the pet, it throws notFound().
-  // This early return is defense-in-depth for any future path that bypasses
-  // the layout guard.
-  if (!session) return null;
   const { pet } = session;
 
   const [event] = await db
