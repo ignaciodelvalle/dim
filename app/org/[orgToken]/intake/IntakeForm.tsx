@@ -13,8 +13,9 @@ const INTAKE_REASONS = [
   { value: "other", label: "Otro" },
 ] as const;
 
-export function IntakeForm() {
-  const [state, formAction, isPending] = useActionState(createIntakeAction, initialState);
+export function IntakeForm({ orgToken }: { orgToken: string }) {
+  const action = createIntakeAction.bind(null, orgToken);
+  const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
 
   return (

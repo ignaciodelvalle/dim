@@ -4,7 +4,7 @@
 // — the highest-stakes role wins for the badge.
 
 import { db, ownerships, pets } from "@/db";
-import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -50,9 +50,11 @@ function speciesLabel(species: string): string {
   return SPECIES_LABELS[species] ?? species;
 }
 
-export default async function RefugioMascotasPage({
+export default async function OrgMascotasPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ orgToken: string }>;
   searchParams: Promise<{
     nueva?: string;
     foster?: string;
@@ -61,14 +63,15 @@ export default async function RefugioMascotasPage({
     transferido?: string;
   }>;
 }) {
-  const { active } = await requireActiveOrgOrRedirect();
-  const granted = await getGrantedCapabilities(active.membership);
+  const { orgToken } = await params;
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const granted = await getGrantedCapabilities(membership);
   const canIntake = granted.has("intake.create");
   const canAssignFoster = granted.has("foster.assign");
   const canEndFoster = granted.has("foster.end");
   const canFinalizeAdoption = granted.has("adoption.finalize");
   const canTransfer = granted.has("custody.transfer");
-  const canRead = granted.has("pet.read_held") || active.membership.role === "admin";
+  const canRead = granted.has("pet.read_held") || membership.role === "admin";
 
   if (!canRead) {
     return (
@@ -80,7 +83,7 @@ export default async function RefugioMascotasPage({
             <code className="text-xs">pet.read_held</code>.
           </p>
           <Link
-            href="/refugio"
+            href={`/org/${orgToken}`}
             className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
           >
             Volver al panel
@@ -95,7 +98,7 @@ export default async function RefugioMascotasPage({
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .where(
-      and(eq(ownerships.ownerOrganizationId, active.organization.id), isNull(ownerships.endedAt)),
+      and(eq(ownerships.ownerOrganizationId, organization.id), isNull(ownerships.endedAt)),
     );
 
   // Collapse multi-custody rows: keep the highest-priority role per pet.
@@ -145,7 +148,7 @@ export default async function RefugioMascotasPage({
         <header className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-wider text-neutral-500">
-              {active.organization.displayName}
+              {organization.displayName}
             </p>
             <h1 className="text-3xl font-semibold">Animales en custodia</h1>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
@@ -156,7 +159,7 @@ export default async function RefugioMascotasPage({
           </div>
           {canIntake && (
             <Link
-              href="/refugio/intake"
+              href={`/org/${orgToken}/intake`}
               className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm"
             >
               Registrar ingreso
@@ -254,7 +257,7 @@ export default async function RefugioMascotasPage({
                     <div className="pt-1 flex flex-wrap gap-2">
                       {showFosterCta && (
                         <Link
-                          href={`/refugio/mascotas/${pet.publicToken}/foster`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/foster`}
                           className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                         >
                           Asignar tránsito
@@ -262,7 +265,7 @@ export default async function RefugioMascotasPage({
                       )}
                       {canEndFoster && hasFoster && (
                         <Link
-                          href={`/refugio/mascotas/${pet.publicToken}/foster-fin`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/foster-fin`}
                           className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                         >
                           Cerrar tránsito
@@ -270,7 +273,7 @@ export default async function RefugioMascotasPage({
                       )}
                       {canFinalizeAdoption && ownershipRole === "shelter_custody" && (
                         <Link
-                          href={`/refugio/mascotas/${pet.publicToken}/adoption`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
                           className="inline-block text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
                         >
                           Finalizar adopción
@@ -278,7 +281,7 @@ export default async function RefugioMascotasPage({
                       )}
                       {showTransferCta && (
                         <Link
-                          href={`/refugio/mascotas/${pet.publicToken}/transfer`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/transfer`}
                           className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                         >
                           Transferir
@@ -294,7 +297,7 @@ export default async function RefugioMascotasPage({
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link
-            href="/refugio"
+            href={`/org/${orgToken}`}
             className="text-sm text-neutral-600 underline dark:text-neutral-400"
           >
             ← Volver al panel

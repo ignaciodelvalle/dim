@@ -1,4 +1,4 @@
-// Post-adoption check-in dashboard for the refugio side. Lists check-ins
+// Post-adoption check-in dashboard for the org side. Lists check-ins
 // recorded by adopters AND open reminders for pets that were adopted via
 // the active organization. Gated on adoption.review capability (placeholder
 // in the catalog since slice 1 — this page gives it its first job).
@@ -7,6 +7,7 @@
 // the owner-side form at /mis-mascotas/[token]/eventos/nuevo/checkin.
 
 import { db, petEvents, pets, profiles, reminders } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
@@ -21,15 +22,23 @@ function daysFromNow(dueAt: Date | string, now: Date): number {
   return Math.round((due.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-export default async function CheckinsPage() {
-  const auth = await requireCapability("adoption.review");
+export default async function CheckinsPage({
+  params,
+}: {
+  params: Promise<{ orgToken: string }>;
+}) {
+  const { orgToken } = await params;
+  // Pre-validate membership. requireCapability below also checks, but we need
+  // the organization.id to scope requireCapability to the right org.
+  const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
+  const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
       <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
           <h1 className="text-2xl font-semibold">Sin acceso</h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{auth.error}</p>
-          <Link href="/refugio" className="text-sm text-neutral-600 underline">
+          <Link href={`/org/${orgToken}`} className="text-sm text-neutral-600 underline">
             ← Volver al panel
           </Link>
         </div>
@@ -66,7 +75,7 @@ export default async function CheckinsPage() {
             Todavía no hay adopciones registradas por esta organización. Cuando finalices una, los
             check-ins post-adopción del adoptante aparecerán acá.
           </p>
-          <BackLink />
+          <BackLink orgToken={orgToken} />
         </div>
       </main>
     );
@@ -238,7 +247,7 @@ export default async function CheckinsPage() {
           )}
         </section>
 
-        <BackLink />
+        <BackLink orgToken={orgToken} />
       </div>
     </main>
   );
@@ -257,10 +266,13 @@ function PageHeader({ orgName }: { orgName: string }) {
   );
 }
 
-function BackLink() {
+function BackLink({ orgToken }: { orgToken: string }) {
   return (
     <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-      <Link href="/refugio" className="text-sm text-neutral-600 underline dark:text-neutral-400">
+      <Link
+        href={`/org/${orgToken}`}
+        className="text-sm text-neutral-600 underline dark:text-neutral-400"
+      >
         ← Volver al panel
       </Link>
     </footer>

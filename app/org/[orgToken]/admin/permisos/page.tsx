@@ -3,7 +3,7 @@
 // through the audit trail). Layout gates on capability.grant.
 
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
-import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { CAPABILITY_CATALOG } from "@/lib/capabilities";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
@@ -34,8 +34,13 @@ function formatDate(d: Date | string): string {
   return date.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
 }
 
-export default async function PermisosPage() {
-  const { active } = await requireActiveOrgOrRedirect();
+export default async function PermisosPage({
+  params,
+}: {
+  params: Promise<{ orgToken: string }>;
+}) {
+  const { orgToken } = await params;
+  const { organization } = await requireOrgAccessByToken(orgToken);
 
   // Pending requests come first, then the most-recent 20 decisions for context.
   const rows = await db
@@ -59,7 +64,7 @@ export default async function PermisosPage() {
     .innerJoin(profiles, eq(profiles.id, organizationMemberships.userId))
     .where(
       and(
-        eq(organizationCapabilityGrants.organizationId, active.organization.id),
+        eq(organizationCapabilityGrants.organizationId, organization.id),
         inArray(organizationCapabilityGrants.status, ["pending", "approved"]),
       ),
     )
@@ -73,7 +78,7 @@ export default async function PermisosPage() {
       <div className="max-w-3xl mx-auto space-y-8">
         <header className="space-y-2">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
-            Administración · {active.organization.displayName}
+            Administración · {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Solicitudes de permisos</h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
@@ -154,7 +159,7 @@ export default async function PermisosPage() {
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link
-            href="/refugio"
+            href={`/org/${orgToken}`}
             className="text-sm text-neutral-600 underline dark:text-neutral-400"
           >
             ← Volver al panel
