@@ -77,7 +77,7 @@ export default async function PublicLibretaPage({
         />
 
         <footer className="text-xs text-neutral-500 pt-8 border-t border-neutral-200">
-          <p>Generada por DIM · {new Date().toLocaleString("es-AR")}</p>
+          <p>Generada por MiMAR · {new Date().toLocaleString("es-AR")}</p>
           {share.expiresAt && <p>El enlace vence el {share.expiresAt.toLocaleString("es-AR")}.</p>}
           <p className="font-mono text-[10px] mt-1">Token: {shareToken}</p>
         </footer>

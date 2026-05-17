@@ -63,7 +63,7 @@ export async function claimStubProfileAction(
     .limit(1);
   if (!currentProfile) {
     return {
-      error: "No encontramos tu perfil DIM. Volvé a iniciar sesión.",
+      error: "No encontramos tu perfil MiMAR. Volvé a iniciar sesión.",
     };
   }
   if (currentProfile.dniNumber && currentProfile.dniNumber !== dni) {

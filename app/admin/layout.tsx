@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <p className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
-              DIM Admin
+              MiMAR Admin
             </p>
             <span className="text-xs text-neutral-400 dark:text-neutral-600">·</span>
             <p className="text-xs text-neutral-600 dark:text-neutral-400">

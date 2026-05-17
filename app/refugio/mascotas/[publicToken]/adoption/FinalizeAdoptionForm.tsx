@@ -25,7 +25,7 @@ export function FinalizeAdoptionForm({ publicToken }: { publicToken: string }) {
             className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
           />
           <span className="block text-xs text-neutral-500">
-            Si la persona ya tiene cuenta DIM con ese DNI, la usamos. Si no, creamos un perfil
+            Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil
             preliminar que podrá reclamar más adelante.
           </span>
         </label>

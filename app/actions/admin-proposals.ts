@@ -301,7 +301,7 @@ export async function proposeAdminUpgradeForUser(
       userId: input.targetUserId,
       notificationType: "approval_request_proposed_authority",
       title: "Te propusieron el rol admin",
-      body: "Un admin propuso asignarte el rol admin de DIM. Recordá: el rol admin no puede tener mascotas.",
+      body: "Un admin propuso asignarte el rol admin de MiMAR. Recordá: el rol admin no puede tener mascotas.",
       severity: "warning",
       ctaLabel: "Ver detalle",
       ctaUrl: "/cuenta/upgrade",

@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DIM — Documento de Identificación para Mascotas",
+  title: "MiMAR — Mi Mascota Argentina",
   description:
-    "La credencial digital de salud para tu mascota. Para encontrarse, para cuidarse, para ayudarnos a cuidar a todas.",
-  applicationName: "DIM",
+    "La libreta sanitaria digital de tu mascota. Para encontrarse, para cuidarse, para ayudarnos a cuidar a todas.",
+  applicationName: "MiMAR",
 };
 
 export const viewport: Viewport = {

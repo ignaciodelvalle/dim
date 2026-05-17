@@ -347,11 +347,11 @@ function bodyForApproval(type: ApprovalRequest["type"], notes: string | null): s
   const trail = notes ? ` Notas: ${notes}` : "";
   switch (type) {
     case "role_upgrade_vet":
-      return `Verificamos tu matrícula. Ya figurás como veterinario/a en DIM.${trail}`;
+      return `Verificamos tu matrícula. Ya figurás como veterinario/a en MiMAR.${trail}`;
     case "role_upgrade_govt":
       return `Te asignamos el rol govt con tus localidades solicitadas.${trail}`;
     case "role_upgrade_admin":
-      return `Te aprobamos como admin de DIM.${trail}`;
+      return `Te aprobamos como admin de MiMAR.${trail}`;
     case "organization_verification":
       return `Tu organización ahora figura como verificada. Los eventos que registres aparecen con el sello de verificación.${trail}`;
     case "govt_assignment_grant":
