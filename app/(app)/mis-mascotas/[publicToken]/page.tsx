@@ -1,6 +1,5 @@
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
-import { MarkFoundButton } from "./MarkFoundButton";
 import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
@@ -12,6 +11,7 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
+import { MarkFoundButton } from "./MarkFoundButton";
 
 // NOTE: eventsWithAttachments is still fetched on this page because it is
 // needed by the DeceasedView (which renders the timeline inline) and by

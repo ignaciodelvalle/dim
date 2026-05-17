@@ -19,13 +19,13 @@ import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
 import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
-import { validateMicrochipId } from "@/lib/microchip-validation";
 import {
   FREQUENCY_LABELS,
   generateDoseSchedule,
   intervalHoursForFrequency,
   parseFrequencyFields,
 } from "@/lib/medication-schedule";
+import { validateMicrochipId } from "@/lib/microchip-validation";
 import {
   type SupabaseServerClient,
   requireAlivePetAccess,

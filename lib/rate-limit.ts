@@ -12,9 +12,7 @@
 //   const result = limiter.check(`${ip}:${publicToken}`);
 //   if (!result.allowed) return { error: "RATE_LIMITED" };
 
-export type RateLimitResult =
-  | { allowed: true }
-  | { allowed: false; retryAfterMs: number };
+export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterMs: number };
 
 export interface MemoryRateLimiter {
   /**

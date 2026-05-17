@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { makeMemoryRateLimiter } from "@/lib/rate-limit";
+import { describe, expect, it } from "vitest";
 
 const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 

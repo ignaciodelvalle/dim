@@ -32,7 +32,8 @@ export function validateMicrochipId(raw: string): MicrochipValidationResult {
   if (!/^\d+$/.test(stripped)) {
     return {
       ok: false,
-      error: "El microchip solo puede contener dígitos (y separadores opcionales como espacios o guiones).",
+      error:
+        "El microchip solo puede contener dígitos (y separadores opcionales como espacios o guiones).",
     };
   }
 
