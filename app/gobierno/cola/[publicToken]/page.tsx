@@ -76,7 +76,7 @@ export default async function ReviewRequestPage({
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <Link
-            href="/admin/cola"
+            href="/gobierno/cola"
             className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
           >
             ← Volver a la cola

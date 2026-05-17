@@ -467,7 +467,7 @@ export async function revokeVetRoleAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await revokeVetRoleForAuthority(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/admin/usuarios");
+    revalidatePath("/gobierno/usuarios");
     revalidatePath("/admin");
   }
   return result;
@@ -481,7 +481,7 @@ export async function revokeOrgVerificationAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await revokeOrgVerificationForAuthority(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/admin/organizaciones");
+    revalidatePath("/gobierno/organizaciones");
     revalidatePath("/admin");
   }
   return result;
@@ -496,10 +496,9 @@ export async function revokeGovtLocalityAction(input: {
   const result = await revokeGovtLocalityForAuthority(user.id, input);
   if ("ok" in result) {
     revalidatePath("/admin");
-    // Revalidate the user's admin page if it exists — Next.js silently ignores
-    // paths for non-existent pages, so this is safe even before Fase 5 lands.
-    // We need the target user's id from the assignment — load it if needed.
-    revalidatePath("/admin/usuarios");
+    // Revalidate the gobierno/usuarios page — Next.js silently ignores
+    // paths for non-existent pages, so this is safe.
+    revalidatePath("/gobierno/usuarios");
   }
   return result;
 }

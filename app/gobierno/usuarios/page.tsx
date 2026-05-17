@@ -2,20 +2,26 @@ import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { searchOrganizations } from "@/lib/admin-search";
+import { searchUsers } from "@/lib/admin-search";
 
-import { ProposeOrgActions } from "./ProposeOrgActions";
-import { RevokeOrgActions } from "./RevokeOrgActions";
+import { ProposeUserActions } from "./ProposeUserActions";
+import { RevokeUserActions } from "./RevokeUserActions";
 
-const ORG_TYPE_LABELS: Record<string, string> = {
-  clinic: "Clínica",
-  shelter: "Refugio",
-  rescue_network: "Red de rescate",
-  sanitary_authority: "Autoridad sanitaria",
-  other: "Otro",
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Dueño/a",
+  vet: "Veterinario/a",
+  govt: "Govt",
+  admin: "Admin",
 };
 
-export default async function OrganizacionesPage({
+const ROLE_TONES: Record<string, string> = {
+  owner: "bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300",
+  vet: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+  govt: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
+  admin: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+};
+
+export default async function UsuariosPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
@@ -23,10 +29,12 @@ export default async function OrganizacionesPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const results = await searchOrganizations(query, { role: profile.role, jurisdictions });
+  const results = await searchUsers(query);
 
+  // Fire-and-forget pii_queried entry. Logging only happens when the user
+  // typed a query — empty-query landings are not a PII read.
   if (query) {
-    void logPiiQueryForAuthority(user.id, query, results.length, "organizations");
+    void logPiiQueryForAuthority(user.id, query, results.length, "users");
   }
 
   return (
@@ -34,21 +42,20 @@ export default async function OrganizacionesPage({
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Organizaciones
+            Usuarios
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            {profile.role === "admin"
-              ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
-              : `Buscá entre las orgs en tus ${jurisdictions.length} localidad${jurisdictions.length === 1 ? "" : "es"}.`}
+            Buscá por nombre o DNI y proponé cambios de rol. Las búsquedas quedan registradas
+            en el audit log.
           </p>
         </header>
 
-        <form action="/admin/organizaciones" method="get" className="flex items-center gap-2">
+        <form action="/gobierno/usuarios" method="get" className="flex items-center gap-2">
           <input
             type="text"
             name="q"
             defaultValue={query}
-            placeholder="Buscar por nombre, razón social o CUIT"
+            placeholder="Buscar por nombre o DNI"
             className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
           />
           <button
@@ -63,47 +70,44 @@ export default async function OrganizacionesPage({
           {results.length === 0
             ? query
               ? "Sin resultados."
-              : "Ingresá una consulta para buscar organizaciones."
+              : "Ingresá una consulta para buscar usuarios."
             : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
         </p>
 
         <ul className="space-y-2">
-          {results.map((o) => (
+          {results.map((u) => (
             <li
-              key={o.id}
+              key={u.id}
               className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 space-y-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-0.5">
                   <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                    {o.displayName}
+                    {u.displayName}
                   </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                    {o.legalName} · {ORG_TYPE_LABELS[o.orgType] ?? o.orgType}
-                    {o.cuit && ` · CUIT ${o.cuit}`}
-                  </p>
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-600">
-                    {o.jurisdictionLocality ?? "—"}, {o.jurisdictionProvince ?? "—"}
+                  <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
+                    {u.id}
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  {o.verified && (
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      Verificada
-                    </span>
-                  )}
-                  {!o.verified && (
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                      Pendiente
-                    </span>
-                  )}
-                </div>
+                <span
+                  className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${ROLE_TONES[u.role] ?? ""}`}
+                >
+                  {ROLE_LABELS[u.role] ?? u.role}
+                </span>
               </div>
 
-              <ProposeOrgActions org={o} />
-              {o.verified && (
-                <RevokeOrgActions
-                  org={o}
+              <ProposeUserActions
+                target={{ id: u.id, displayName: u.displayName, role: u.role }}
+                actorRole={profile.role}
+              />
+              {u.role === "vet" && (
+                <RevokeUserActions
+                  target={{
+                    id: u.id,
+                    displayName: u.displayName,
+                    matriculaJurisdiccion: u.matriculaJurisdiccion,
+                    role: u.role,
+                  }}
                   actorUserId={user.id}
                   actorRole={profile.role}
                   jurisdictions={jurisdictions}
@@ -115,7 +119,7 @@ export default async function OrganizacionesPage({
 
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           <Link
-            href="/admin"
+            href="/gobierno"
             className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
           >
             ← Volver al dashboard
