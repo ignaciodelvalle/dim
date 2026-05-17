@@ -9,18 +9,22 @@
 //     requireAdminOrRedirect and call revalidatePath.
 //
 // PR-A scope: createInstitutionalAccountForAuthority + wrapper.
-// PR-B scope will add deactivateAdminForAuthority + deactivateGovtForAuthority.
+// PR-B scope: deactivateAdminForAuthority + deactivateGovtForAuthority + wrappers.
 // PR-C scope will add resetInstitutionalCredentialsForAuthority + assignGovtLocalityForAuthority.
 
 import crypto from "node:crypto";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 
+import {
+  claimAttachmentsForAudit,
+  validateMotivoAndAttachments,
+} from "@/app/actions/admin-revocations";
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { canCreateInstitutional } from "@/lib/institutional-scope";
+import { canCreateInstitutional, canDeactivateGovt } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -31,6 +35,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type CreateInstitutionalResult =
   | { error: string }
   | { ok: true; profileId: string; magicLink: string };
+
+export type DeactivateResult = { error: string } | { ok: true; noOp?: boolean };
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -270,6 +276,280 @@ export async function createInstitutionalAccountAction(input: {
   if ("ok" in result) {
     revalidatePath("/admin/govts");
     revalidatePath("/admin/admins");
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Inner writer: deactivateAdminForAuthority (PR-B)
+//
+// Deactivates an admin account with:
+//   1. Validation (motivo ≥30 chars, attachmentIds ≥1)
+//   2. Self-deactivation check
+//   3. Capability check (actor must be active admin)
+//   4. DB transaction with SELECT FOR UPDATE on active admin set (last-admin guard)
+//   5. SET deactivated_at, audit_log, claim attachments, notification
+// ---------------------------------------------------------------------------
+
+export async function deactivateAdminForAuthority(
+  actorUserId: string,
+  input: {
+    targetAdminUserId: string;
+    motivo: string;
+    attachmentIds: string[];
+  },
+): Promise<DeactivateResult> {
+  // 1. Validate motivo + attachments
+  const validationError = validateMotivoAndAttachments(input.motivo, input.attachmentIds);
+  if (validationError) return validationError;
+
+  // 2. Self-deactivation check (before any DB read)
+  if (actorUserId === input.targetAdminUserId) {
+    return { error: "SELF_DENIED" };
+  }
+
+  // 3. Load actor profile + capability check
+  const actorProfile = await loadActorProfile(actorUserId);
+  if (!actorProfile) return { error: "CAPABILITY_DENIED" };
+  if (!canCreateInstitutional(actorProfile)) return { error: "CAPABILITY_DENIED" };
+
+  // 4. Transaction with SELECT FOR UPDATE on active admin set (last-admin guard + deactivation)
+  try {
+    await db.transaction(async (tx) => {
+      // SELECT FOR UPDATE — locks ALL active admin rows to prevent concurrent last-admin races.
+      // The lock is row-level; only competing writers to these rows will wait.
+      // We use raw SQL here because drizzle ORM doesn't expose FOR UPDATE in SELECT directly.
+      // With drizzle-orm/postgres-js, tx.execute returns the raw postgres-js result which
+      // behaves as an array-like iterable of row objects.
+      const lockResult = await tx.execute(
+        sql`SELECT id FROM profiles WHERE account_type = 'institutional' AND role = 'admin' AND deactivated_at IS NULL FOR UPDATE`,
+      );
+      // postgres-js with drizzle returns the SQL result directly as an iterable array.
+      // Cast to unknown first, then spread into a regular array for safe iteration.
+      const adminRows: Array<{ id: string }> = [
+        ...(lockResult as unknown as Iterable<{ id: string }>),
+      ];
+      const adminCount = adminRows.length;
+
+      // Idempotency: if target is NOT in the active set, it's already deactivated
+      const targetIsActive = adminRows.some((r) => r.id === input.targetAdminUserId);
+      if (!targetIsActive) {
+        throw new Error("NO_OP");
+      }
+
+      // Last-admin guard: count - 1 must be ≥ 1
+      if (adminCount - 1 < 1) {
+        throw new Error("LAST_ADMIN");
+      }
+
+      // a. SET deactivated_at with anti-race WHERE
+      const updatedRows = await tx
+        .update(profiles)
+        .set({ deactivatedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(profiles.id, input.targetAdminUserId), isNull(profiles.deactivatedAt)))
+        .returning({ id: profiles.id });
+
+      if (updatedRows.length < 1) {
+        throw new Error("RACE_CONDITION");
+      }
+
+      // b. INSERT audit_log RETURNING id
+      const [logRow] = await tx
+        .insert(auditLog)
+        .values({
+          actorUserId,
+          action: "admin_deactivated_by_admin",
+          targetUserId: input.targetAdminUserId,
+          payload: {
+            reason: input.motivo.trim(),
+            evidence_attachment_ids: input.attachmentIds,
+            remaining_admins_count: adminCount - 1,
+          },
+        })
+        .returning({ id: auditLog.id });
+
+      // c. Claim attachments
+      await claimAttachmentsForAudit(tx, logRow.id, input.attachmentIds, actorUserId);
+
+      // d. Notification to deactivated admin
+      await tx.insert(notifications).values({
+        userId: input.targetAdminUserId,
+        notificationType: "admin_deactivated",
+        title: "Tu cuenta de administrador fue desactivada",
+        body: input.motivo.trim(),
+        severity: "warning",
+        ctaLabel: "Ver notificaciones",
+        ctaUrl: "/cuenta",
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.message === "NO_OP") return { ok: true, noOp: true };
+      if (err.message === "LAST_ADMIN") {
+        return { error: "LAST_ADMIN: No podés desactivar al último admin del sistema." };
+      }
+      if (err.message === "RACE_CONDITION") return { ok: true, noOp: true };
+    }
+    return {
+      error: err instanceof Error ? err.message : "Error desconocido al desactivar admin.",
+    };
+  }
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Inner writer: deactivateGovtForAuthority (PR-B)
+//
+// Deactivates a govt account:
+//   1. Validation
+//   2. Capability check (admin only)
+//   3. Verify target is active institutional govt
+//   4. DB transaction: revoke localities, deactivate, audit_log, claim attachments, notification
+// ---------------------------------------------------------------------------
+
+export async function deactivateGovtForAuthority(
+  actorUserId: string,
+  input: {
+    targetGovtUserId: string;
+    motivo: string;
+    attachmentIds: string[];
+  },
+): Promise<DeactivateResult> {
+  // 1. Validate motivo + attachments
+  const validationError = validateMotivoAndAttachments(input.motivo, input.attachmentIds);
+  if (validationError) return validationError;
+
+  // 2. Load actor profile + capability check
+  const actorProfile = await loadActorProfile(actorUserId);
+  if (!actorProfile) return { error: "CAPABILITY_DENIED" };
+  if (!canDeactivateGovt(actorProfile)) return { error: "CAPABILITY_DENIED" };
+
+  // 3. Verify target is an active institutional govt
+  const [targetProfile] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, input.targetGovtUserId))
+    .limit(1);
+
+  if (!targetProfile) return { error: "NOT_INSTITUTIONAL_GOVT" };
+  if (targetProfile.role !== "govt" || targetProfile.accountType !== "institutional") {
+    return { error: "NOT_INSTITUTIONAL_GOVT" };
+  }
+  if (targetProfile.deactivatedAt !== null) {
+    return { error: "TARGET_ALREADY_DEACTIVATED" };
+  }
+
+  // 4. Transaction: revoke localities, deactivate, audit, notify
+  try {
+    await db.transaction(async (tx) => {
+      // a. Revoke all active govt_assignments for target
+      const revokedAssignments = await tx
+        .update(govtAssignments)
+        .set({
+          revokedAt: new Date(),
+          revokedByUserId: actorUserId,
+          revocationReason: input.motivo.trim(),
+        })
+        .where(
+          and(
+            eq(govtAssignments.userId, input.targetGovtUserId),
+            isNull(govtAssignments.revokedAt),
+          ),
+        )
+        .returning({ id: govtAssignments.id });
+
+      const revokedCount = revokedAssignments.length;
+
+      // b. SET deactivated_at with anti-race WHERE
+      const updatedRows = await tx
+        .update(profiles)
+        .set({ deactivatedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(profiles.id, input.targetGovtUserId), isNull(profiles.deactivatedAt)))
+        .returning({ id: profiles.id });
+
+      if (updatedRows.length < 1) {
+        throw new Error("RACE_CONDITION");
+      }
+
+      // c. INSERT audit_log RETURNING id
+      const [logRow] = await tx
+        .insert(auditLog)
+        .values({
+          actorUserId,
+          action: "govt_deactivated_by_admin",
+          targetUserId: input.targetGovtUserId,
+          payload: {
+            reason: input.motivo.trim(),
+            evidence_attachment_ids: input.attachmentIds,
+            revoked_assignments_count: revokedCount,
+          },
+        })
+        .returning({ id: auditLog.id });
+
+      // d. Claim attachments
+      await claimAttachmentsForAudit(tx, logRow.id, input.attachmentIds, actorUserId);
+
+      // e. Notification to deactivated govt operator
+      await tx.insert(notifications).values({
+        userId: input.targetGovtUserId,
+        notificationType: "govt_deactivated",
+        title: "Tu cuenta de operador fue desactivada",
+        body: input.motivo.trim(),
+        severity: "warning",
+        ctaLabel: "Ver notificaciones",
+        ctaUrl: "/cuenta",
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "RACE_CONDITION") {
+      return { ok: true, noOp: true };
+    }
+    return {
+      error: err instanceof Error ? err.message : "Error desconocido al desactivar govt.",
+    };
+  }
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Public wrapper: deactivateAdminAction
+// ---------------------------------------------------------------------------
+
+export async function deactivateAdminAction(input: {
+  targetAdminUserId: string;
+  motivo: string;
+  attachmentIds: string[];
+}): Promise<DeactivateResult> {
+  const { user } = await requireAdminOrRedirect();
+  const result = await deactivateAdminForAuthority(user.id, input);
+  if ("ok" in result && !result.noOp) {
+    revalidatePath("/admin/admins");
+    revalidatePath(`/admin/admins/${input.targetAdminUserId}`);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Public wrapper: deactivateGovtAction
+// ---------------------------------------------------------------------------
+
+export async function deactivateGovtAction(input: {
+  targetGovtUserId: string;
+  motivo: string;
+  attachmentIds: string[];
+}): Promise<DeactivateResult> {
+  const { user } = await requireAdminOrRedirect();
+  const result = await deactivateGovtForAuthority(user.id, input);
+  if ("ok" in result && !result.noOp) {
+    revalidatePath("/admin/govts");
+    revalidatePath(`/admin/govts/${input.targetGovtUserId}`);
   }
   return result;
 }
