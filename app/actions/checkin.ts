@@ -16,6 +16,7 @@ import {
   db,
   notifications,
   organizationMemberships,
+  organizations,
   petEvents,
   reminders,
 } from "@/db";
@@ -144,6 +145,12 @@ export async function recordPostAdoptionCheckinAction(
       // Fan out to refugio admins. Matches the capability_request precedent
       // (admins only, not coordinators) — extend the role list here if the
       // refugio team wants broader visibility later.
+      const [orgRow] = await tx
+        .select({ publicToken: organizations.publicToken })
+        .from(organizations)
+        .where(eq(organizations.id, orgId))
+        .limit(1);
+
       const admins = await tx
         .select({ userId: organizationMemberships.userId })
         .from(organizationMemberships)
@@ -164,7 +171,7 @@ export async function recordPostAdoptionCheckinAction(
             body: `El adoptante de ${pet.name} registró un seguimiento post-adopción.`,
             severity: "info" as const,
             ctaLabel: "Ver mascota",
-            ctaUrl: "/refugio/mascotas",
+            ctaUrl: orgRow ? `/org/${orgRow.publicToken}/mascotas` : "/org",
             relatedPetId: pet.id,
             relatedEventId: event.id,
           })),

@@ -4,6 +4,7 @@ import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
+import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
 import { requirePetAccess } from "@/lib/pet-access";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -162,12 +163,18 @@ function DeceasedView({
           </p>
         </section>
 
-        {/* Event timeline */}
+        {/* Libreta sanitaria — filtered subset of pet_events. The full
+            event log (including identity / system entries) lives at
+            /historial. */}
         <section className="space-y-3">
           <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Historial
+            Libreta sanitaria
           </h2>
-          <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />
+          <EventTimeline
+            events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
+            publicToken={pet.publicToken}
+            chips={LIBRETA_FILTER_CHIPS}
+          />
         </section>
       </div>
     </main>
@@ -278,7 +285,11 @@ export default async function PetDetailPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         <Link
-          href={accessPath === "org" ? "/refugio/mascotas" : "/mis-mascotas"}
+          href={
+            accessPath === "org" && organization
+              ? `/org/${organization.publicToken}/mascotas`
+              : "/mis-mascotas"
+          }
           className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
           ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
@@ -554,13 +565,12 @@ export default async function PetDetailPage({
           sourceEvents={eventsWithAttachments}
         />
 
-        {/* Historial link — full timeline lives at /historial */}
         <section>
           <Link
-            href={`/mis-mascotas/${pet.publicToken}/historial`}
+            href={`/mis-mascotas/${pet.publicToken}/libreta`}
             className="block w-full text-center px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
           >
-            Ver historial completo →
+            Ver libreta completa →
           </Link>
         </section>
       </div>

@@ -9,6 +9,7 @@ import {
   db as defaultDb,
   notifications,
   organizationMemberships,
+  organizations,
   petEvents,
   pets,
   reminders,
@@ -292,6 +293,12 @@ export async function runPostAdoptionCheckinScan(
       );
     if (admins.length === 0) continue;
 
+    const [orgRow] = await dbInstance
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+
     const inserted = await dbInstance
       .insert(notifications)
       .values(
@@ -304,7 +311,7 @@ export async function runPostAdoptionCheckinScan(
           relatedPetId: row.petId,
           relatedReminderId: row.reminderId,
           ctaLabel: "Ver mascota",
-          ctaUrl: "/refugio/mascotas",
+          ctaUrl: orgRow ? `/org/${orgRow.publicToken}/mascotas` : "/org",
         })),
       )
       .returning({ id: notifications.id });

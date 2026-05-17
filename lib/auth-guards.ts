@@ -1,0 +1,160 @@
+// Server-component auth guards that fail by redirecting, never by rendering
+// a blank page. Replaces the `if (!user) return null` defensive pattern that
+// produced silent blank screens when a session expired between layout and
+// page render — see audit reported 2026-05-17.
+//
+// Use these helpers in any server component / page / layout that needs an
+// authenticated user. The return type is non-nullable: if you got here, the
+// guard passed.
+
+import { and, eq, isNull } from "drizzle-orm";
+import { notFound, redirect } from "next/navigation";
+
+import { db, govtAssignments, organizationMemberships, organizations, profiles } from "@/db";
+import type { Organization, OrganizationMembership } from "@/db";
+import type { ActorProfile } from "@/lib/institutional-scope";
+import { createClient } from "@/lib/supabase/server";
+
+export type AuthenticatedSession = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  user: { id: string };
+};
+
+// Require an authenticated session. Redirects to /login if absent.
+export async function requireUserOrRedirect(): Promise<AuthenticatedSession> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  return { supabase, user };
+}
+
+export type OrgAccessSession = AuthenticatedSession & {
+  organization: Organization;
+  membership: OrganizationMembership;
+};
+
+// Require a logged-in user with an active membership in the org identified by
+// `orgToken` (organizations.publicToken). Returns notFound() — not a redirect —
+// if the org does not exist or the user has no active membership, so callers
+// can't distinguish "org exists but you're not a member" from "no such org"
+// (no information leakage per decision D4).
+//
+// Replaces the old requireActiveOrgOrRedirect() which inferred the "active org"
+// from session state. The explicit orgToken in the URL segment is now the only
+// source of truth.
+export async function requireOrgAccessByToken(orgToken: string): Promise<OrgAccessSession> {
+  const { supabase, user } = await requireUserOrRedirect();
+
+  const [row] = await db
+    .select({ organization: organizations, membership: organizationMemberships })
+    .from(organizationMemberships)
+    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
+    .where(
+      and(
+        eq(organizationMemberships.userId, user.id),
+        eq(organizations.publicToken, orgToken),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  if (!row) notFound();
+
+  return { supabase, user, organization: row.organization, membership: row.membership };
+}
+
+export type AdminOrGovtJurisdiction = {
+  province: string;
+  locality: string;
+};
+
+export type AdminOrGovtSession = AuthenticatedSession & {
+  profile: { id: string; role: "admin" | "govt" };
+  // Empty for admin (universal scope). Populated for govt with every
+  // active (non-revoked) govt_assignments tuple.
+  jurisdictions: AdminOrGovtJurisdiction[];
+};
+
+// Gate the /admin/* segment. Redirects unauthenticated to /login and
+// authenticated non-authorities to /mis-mascotas (no point sending them
+// somewhere they can't act). The returned `jurisdictions` is the govt's
+// active scope — empty for admin, who has universal scope.
+export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
+  const session = await requireUserOrRedirect();
+  const [profile] = await db
+    .select({ id: profiles.id, role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, session.user.id))
+    .limit(1);
+  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
+    redirect("/mis-mascotas");
+  }
+
+  let jurisdictions: AdminOrGovtJurisdiction[] = [];
+  if (profile.role === "govt") {
+    const rows = await db
+      .select({
+        province: govtAssignments.jurisdictionProvince,
+        locality: govtAssignments.jurisdictionLocality,
+      })
+      .from(govtAssignments)
+      .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)));
+    jurisdictions = rows;
+  }
+
+  return {
+    ...session,
+    profile: { id: profile.id, role: profile.role },
+    jurisdictions,
+  };
+}
+
+// ============================================================================
+// Fase 5: Admin-only guard (institutional accounts)
+// ============================================================================
+//
+// Stricter than requireAdminOrGovtOrRedirect — only active institutional admins
+// pass. Rejects:
+//   - unauthenticated users (→ /login via requireUserOrRedirect)
+//   - personal accounts (owner / vet)
+//   - govt role
+//   - deactivated admins (deactivated_at IS NOT NULL)
+//
+// Used by every Fase 5 page and action that is admin-only.
+// Redirect target: /  (govts navigating to /admin/govts etc. land on root)
+
+export type AdminSession = AuthenticatedSession & {
+  profile: ActorProfile;
+};
+
+export async function requireAdminOrRedirect(): Promise<AdminSession> {
+  const session = await requireUserOrRedirect();
+
+  const [profile] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, session.user.id))
+    .limit(1);
+
+  if (!profile) redirect("/");
+  if (profile.role !== "admin") redirect("/");
+  if (profile.accountType !== "institutional") redirect("/");
+  if (profile.deactivatedAt !== null) redirect("/");
+
+  return {
+    ...session,
+    profile: {
+      id: profile.id,
+      role: profile.role as ActorProfile["role"],
+      accountType: profile.accountType as ActorProfile["accountType"],
+      deactivatedAt: profile.deactivatedAt,
+    },
+  };
+}

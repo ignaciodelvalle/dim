@@ -31,8 +31,10 @@ import {
 
 // User's primary role at the application level. See AGENTS.md → "User roles".
 // `owner` is the default for self-serve signup. `vet` and `govt` are
-// admin-assigned (no public signup path in v1).
-export const userRoleEnum = pgEnum("user_role", ["owner", "vet", "govt"]);
+// granted via the admin-page approval flow (Fase 0 spec). `admin` is the
+// universal-scope DIM staff role; bootstrap is a manual SQL seed of the
+// founder, subsequent admins are approved by another admin.
+export const userRoleEnum = pgEnum("user_role", ["owner", "vet", "govt", "admin"]);
 
 export const petSexEnum = pgEnum("pet_sex", ["male", "female", "unknown"]);
 
@@ -249,6 +251,8 @@ export const EVENT_TYPES = [
   "post_adoption_checkin",
   "adoption_revoked",
   "custody_transferred",
+  // Libreta Tier-2 share telemetry — system event, not a medical entry.
+  "libreta_shared_viewed",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -273,6 +277,22 @@ export const profiles = pgTable(
     // Mi Argentina-ready columns. Never required in v1.
     dniNumber: text("dni_number"),
     dniVerified: boolean("dni_verified").notNull().default(false),
+    // Vet professional license. Nullable; submitted via /cuenta/upgrade.
+    // Admin manually flips role='vet' after verification. jurisdiccion is the
+    // province/jurisdiction that issued the matricula — the registry to check.
+    matriculaNumber: text("matricula_number"),
+    matriculaJurisdiccion: text("matricula_jurisdiccion"),
+    matriculaVerified: boolean("matricula_verified").notNull().default(false),
+    // Distinguishes self-serve (owner/vet) accounts from institutional (admin/govt)
+    // accounts. Stored as text+CHECK to avoid enum migration cost when adding
+    // new values in future Fases (e.g. 'service_provider' in Fase 8).
+    accountType: text("account_type")
+      .notNull()
+      .default("personal")
+      .$type<"personal" | "institutional">(),
+    // Irreversible soft-deactivation timestamp. NULL = active. Set by
+    // deactivateAdminAction / deactivateGovtAction in Fase 5.
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -280,6 +300,14 @@ export const profiles = pgTable(
     dniUnique: uniqueIndex("profiles_dni_unique_when_present")
       .on(table.dniNumber)
       .where(sql`${table.dniNumber} IS NOT NULL`),
+    matriculaUnique: uniqueIndex("profiles_matricula_unique_when_present")
+      .on(table.matriculaNumber)
+      .where(sql`${table.matriculaNumber} IS NOT NULL`),
+    // Partial index for active institutional operators — used by admin list pages
+    // and capability checks in Fase 5. Added by migration 0011.
+    institutionalActiveIdx: index("profiles_institutional_active_idx")
+      .on(table.role)
+      .where(sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`),
   }),
 );
 
@@ -631,6 +659,16 @@ export const attachments = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     petId: uuid("pet_id").references(() => pets.id, { onDelete: "cascade" }),
     eventId: uuid("event_id").references(() => petEvents.id, { onDelete: "cascade" }),
+    // Approval-flow attachments: one or the other (or neither, for pet/event
+    // attachments). approval_evidence files hang off the approval_request;
+    // revocation_evidence files hang off the audit_log entry that recorded
+    // the revocation. See admin-page-design spec §4.6.
+    approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id, {
+      onDelete: "cascade",
+    }),
+    auditLogId: uuid("audit_log_id").references(() => auditLog.id, {
+      onDelete: "cascade",
+    }),
     uploadedByUserId: uuid("uploaded_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
@@ -843,3 +881,216 @@ export const welfareReportAttachments = pgTable(
 
 export type WelfareReportAttachment = typeof welfareReportAttachments.$inferSelect;
 export type NewWelfareReportAttachment = typeof welfareReportAttachments.$inferInsert;
+
+// ============================================================================
+// LibretaShareTokens — Tier-2 owner-issued share links for the libreta
+// ============================================================================
+// Each row is one shareable surface created by an owner. Revocation is a flag
+// flip (revoked_at), not a delete. Views are tracked via pet_events of type
+// libreta_shared_viewed; view_count_cached and last_viewed_at_cached are
+// denormalized counters updated on each view for fast display without scanning
+// the events log.
+//
+// D7 from the plan: server-side reads via Drizzle bypass RLS. RLS policies in
+// db/rls.sql govern PostgREST only (defense-in-depth for owner self-service).
+
+export const libretaShareTokens = pgTable(
+  "libreta_share_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shareToken: text("share_token").notNull().unique(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    label: text("label"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    viewCountCached: integer("view_count_cached").notNull().default(0),
+    lastViewedAtCached: timestamp("last_viewed_at_cached", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    petActiveIdx: index("libreta_share_tokens_pet_idx")
+      .on(table.petId)
+      .where(sql`${table.revokedAt} IS NULL`),
+    tokenIdx: index("libreta_share_tokens_token_idx").on(table.shareToken),
+  }),
+);
+
+export type LibretaShareToken = typeof libretaShareTokens.$inferSelect;
+export type NewLibretaShareToken = typeof libretaShareTokens.$inferInsert;
+
+// ============================================================================
+// Admin governance — govt_assignments, approval_requests, audit_log
+// ============================================================================
+// Implements the four-role authority model from docs/superpowers/specs/
+// 2026-05-17-admin-page-design.md. Govt is scope-limited by (province,
+// locality) via govt_assignments; admin is universal. approval_requests is
+// the canonical contract for every state mutation that needs authority;
+// audit_log records every authority action append-only (enforced by a
+// Postgres trigger — bypass via app.allow_audit_mutation GUC for tests).
+//
+// service_provider_scheduling and target_service_provider_id are DEFERRED
+// to Fase 8 (service_providers table does not exist yet).
+
+export const govtAssignments = pgTable(
+  "govt_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province").notNull(),
+    jurisdictionLocality: text("jurisdiction_locality").notNull(),
+    grantedByUserId: uuid("granted_by_user_id").references(() => profiles.id),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id),
+    revocationReason: text("revocation_reason"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    activeUnique: uniqueIndex("govt_assignments_active_unique")
+      .on(table.userId, table.jurisdictionProvince, table.jurisdictionLocality)
+      .where(sql`${table.revokedAt} IS NULL`),
+    userActiveIdx: index("govt_assignments_user_active_idx")
+      .on(table.userId)
+      .where(sql`${table.revokedAt} IS NULL`),
+    localityIdx: index("govt_assignments_locality_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality)
+      .where(sql`${table.revokedAt} IS NULL`),
+  }),
+);
+
+export type GovtAssignment = typeof govtAssignments.$inferSelect;
+export type NewGovtAssignment = typeof govtAssignments.$inferInsert;
+
+// Approval request types — kept as TEXT (with a DB CHECK) so adding a new
+// type is one migration of the CHECK constraint, not an enum migration.
+// Validation happens in lib/approval-payloads.ts.
+export const APPROVAL_REQUEST_TYPES = [
+  "role_upgrade_vet",
+  "role_upgrade_govt",
+  "role_upgrade_admin",
+  "organization_verification",
+  "govt_assignment_grant",
+  // "service_provider_scheduling" deferred to Fase 8.
+] as const;
+export type ApprovalRequestType = (typeof APPROVAL_REQUEST_TYPES)[number];
+
+export const APPROVAL_REQUEST_STATUSES = ["pending", "approved", "rejected", "withdrawn"] as const;
+export type ApprovalRequestStatus = (typeof APPROVAL_REQUEST_STATUSES)[number];
+
+export const approvalRequests = pgTable(
+  "approval_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicToken: text("public_token").notNull().unique(),
+    type: text("type").notNull().$type<ApprovalRequestType>(),
+    status: text("status").notNull().default("pending").$type<ApprovalRequestStatus>(),
+    applicantUserId: uuid("applicant_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    initiatedBy: text("initiated_by").notNull().default("self").$type<"self" | "authority">(),
+    initiatedByUserId: uuid("initiated_by_user_id").references(() => profiles.id),
+    // Polymorphic target — exactly one set per type (enforced by DB CHECK).
+    targetUserId: uuid("target_user_id").references(() => profiles.id, { onDelete: "cascade" }),
+    targetOrganizationId: uuid("target_organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    // Drives admin/govt scope matching. Always required.
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province").notNull(),
+    jurisdictionLocality: text("jurisdiction_locality").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedByUserId: uuid("decided_by_user_id").references(() => profiles.id),
+    decisionNotes: text("decision_notes"),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    statusIdx: index("approval_requests_status_idx")
+      .on(table.status, table.createdAt)
+      .where(sql`${table.status} = 'pending'`),
+    applicantIdx: index("approval_requests_applicant_idx").on(
+      table.applicantUserId,
+      table.createdAt,
+    ),
+    jurisIdx: index("approval_requests_juris_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality)
+      .where(sql`${table.status} = 'pending'`),
+    typeIdx: index("approval_requests_type_idx").on(table.type, table.status),
+  }),
+);
+
+export type ApprovalRequest = typeof approvalRequests.$inferSelect;
+export type NewApprovalRequest = typeof approvalRequests.$inferInsert;
+
+// audit_log action catalog. TEXT (no enum) per spec §4.5 — escalable. Listed
+// here for IDE autocomplete + reference; the DB does NOT constrain.
+export const AUDIT_LOG_ACTIONS = [
+  "request_viewed",
+  "evidence_viewed",
+  "request_approved",
+  "request_rejected",
+  "revocation_org_verified",
+  "revocation_vet_role",
+  "revocation_govt_assignment",
+  "revocation_govt_role",
+  "revocation_admin_role",
+  "revocation_scheduling",
+  "self_resignation_vet",
+  "self_resignation_govt",
+  "self_resignation_admin",
+  "pii_queried",
+  "admin_seeded",
+  // Fase 5: institutional account lifecycle actions
+  "institutional_govt_created",
+  "institutional_admin_created",
+  "admin_deactivated_by_admin",
+  "govt_deactivated_by_admin",
+  "operator_credentials_reset",
+  "govt_locality_assigned",
+  "institutional_create_orphan_auth_user", // compensating-delete failure leak log
+  // Slice 3a: user self-service profile edits
+  "profile_self_updated",
+  "profile_avatar_updated",
+  "profile_avatar_upload_failed",
+] as const;
+export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
+
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    action: text("action").notNull().$type<AuditLogAction>(),
+    approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id),
+    targetUserId: uuid("target_user_id").references(() => profiles.id),
+    targetOrganizationId: uuid("target_organization_id").references(() => organizations.id),
+    targetGovtAssignmentId: uuid("target_govt_assignment_id").references(() => govtAssignments.id),
+    payload: jsonb("payload").notNull().default({}),
+    performedAt: timestamp("performed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    actorIdx: index("audit_log_actor_idx").on(table.actorUserId, table.performedAt),
+    requestIdx: index("audit_log_request_idx").on(table.approvalRequestId),
+    targetUserIdx: index("audit_log_target_user_idx").on(table.targetUserId),
+    actionIdx: index("audit_log_action_idx").on(table.action, table.performedAt),
+  }),
+);
+
+export type AuditLogRow = typeof auditLog.$inferSelect;
+export type NewAuditLogRow = typeof auditLog.$inferInsert;

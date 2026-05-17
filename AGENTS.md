@@ -7,7 +7,9 @@
 
 **DIM — Documento de Identificación para Mascotas.** Argentina's digital pet credential system. A reborn 2021 university project (UTN), reimagined for 2026.
 
-At its core: every pet has a verifiable digital identity — a credential that can be scanned via QR, displayed on a phone, printed on a tag. Owners use a PWA to maintain their pets' records (vaccinations, medications, vet visits, microchips, weight, status). The data model is designed from day one to support future expansion to veterinary professionals and government health authorities, including eventual integration with **Mi Argentina**.
+At its core: every pet has a verifiable digital identity — a credential that can be scanned via QR, displayed on a phone, printed on a tag. Owners use a PWA to maintain their pets' records (vaccinations, medications, vet visits, microchips, weight, status). The data model is designed from day one to support expansion to veterinary professionals and government health authorities, and ultimately **integration with Mi Argentina** — which is the core premise of the project, not a nice-to-have.
+
+The user-facing brand is **MiMAR (Mi Mascota Argentina)**. The internal codename is **DIM** — it stays in code, schema, token formats, and audit logs. See the **Naming** section below for the full rationale.
 
 The owner of the project is **Ignacio Del Valle** (ignaciodelvalle2014@gmail.com), part of the original 2021 team. Ignacio is **non-technical** — Claude writes the code, Ignacio drives product decisions and runs commands locally on Windows.
 
@@ -18,6 +20,8 @@ The ultimate purpose of DIM is **animal health and welfare at population scale**
 The pet owner PWA is the **data-collection layer** — it is and must be valuable on its own to drive adoption (no one will install a "feed the government data" app, but they will install a real digital libreta sanitaria). The architectural payoff sits at the population level: **high-level dashboards for sanitary authorities, public-health analysts, and animal-welfare officers**, derived from the same event log that powers individual pet records.
 
 This North Star reframes some design choices and locks in others. Every event a pet owner records is potentially a public-health signal. Every screen — owner timeline, public credential, government dashboard, vet record — is a projection over the same source-of-truth event log.
+
+The ultimate trajectory is **integration with Mi Argentina**. This is not a nice-to-have — it is the premise. A standalone pet-credential PWA has limited reach; a federated layer that Mi Argentina can issue and verify is what changes the system at population scale. Every architectural decision in this codebase is filtered through whether it preserves or harms that path. See **Naming** below for more on the brand rationale.
 
 ## Project context (why CABA, why now)
 
@@ -70,21 +74,114 @@ DIM is rooted in concrete data about the city it was designed for. Figures below
 - **Audience**: Pet owners only. Vet and government interfaces deferred.
 - **Auth**: email/password. "Connect with Mi Argentina" placeholder button shown but non-functional.
 
-## User roles
+## User roles & account types
 
-DIM recognizes three primary user roles, stored as `profiles.role` (enum `user_role`). One user = one primary role.
+DIM has **two account types** — `personal` and `institutional` — stored as `profiles.account_type`. Each account type allows a specific set of `profiles.role` (enum `user_role`) values. One user = one account type and one role.
 
-| Role    | Who                                                                         | Self-serve signup? | Primary portal       | Notes                                                                                                       |
-| ------- | --------------------------------------------------------------------------- | ------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `owner` | Pet owner. Default for any self-serve signup.                                | Yes                | `/mis-mascotas`      | Every authenticated user can own pets regardless of role.                                                    |
-| `vet`   | Veterinarian or other animal-health professional in the loop.                | No — admin-assigned (or verified-invite). Future flow may use RENAPER + matrícula validation. | `/profesional` (future) | Can also be a pet owner of their own pets; that's a separate `Ownership` row, not a role change.            |
-| `govt`  | Government / public-health / animal-welfare authority. High access ceiling. | No — admin-assigned.  | `/gestion` (future)  | Dashboards default to aggregated, anonymous views. PII reads are possible for legitimate case work but are audit-logged. |
+| Account type      | Roles allowed     | Mi Argentina / DNI | Matrícula        | Pets                | Created via                              |
+| ----------------- | ----------------- | ------------------ | ---------------- | ------------------- | ---------------------------------------- |
+| `personal`        | `owner`, `vet`    | Yes                | Yes (vet only)   | Yes (any count)     | Self-serve signup                        |
+| `institutional`   | `govt`, `admin`   | No (NULL)          | No (NULL)        | **No (DB-enforced)**| Direct admin action only — no self-serve |
 
-**Role vs. event authorship.** The `profiles.role` answers *"who is this user globally?"* The `pet_events.author_role` answers *"in what capacity did this user act when writing this specific event?"* They usually align (vet logs a vaccination → both are `vet`) but not always (vet logs their own dog's weight while acting as owner → `profiles.role='vet'` but the event's `author_role='owner'`). Keeping these separate is what lets audit trails be honest.
+**Why two account types.** Personal and institutional accounts serve fundamentally different purposes. A *personal* account is a human with pets and (eventually) Mi Argentina identity — owns animals, gets a libreta sanitaria, may upgrade to vet to write authoritative health events. An *institutional* account is a service-account for governance work: approving requests, verifying organizations, managing scope assignments. No mascotas, no DNI, no matrícula — none of those concepts apply to an authority entity. Modeling them as one type-of-user (e.g., promoting an owner to admin) would force every `Ownership` query, every signup screen, every Mi Argentina integration to special-case institutional users. Separating them keeps each path narrow and the constraints honest. Operationally: institutional accounts are managed from a desktop browser at `/admin`; the mobile PWA workflows are for personal users only.
 
-**Role does not restrict owning pets.** Anyone can have an `Ownership` row tying them to a pet. Role gates *portal access*, not personhood.
+### The four roles
 
-**Role assignment in v1.** Self-serve signup always produces `role='owner'`. Vet and govt accounts get their role flipped manually (Studio → `profiles` table → edit `role`) until we build admin tools and verified-invite flows. That's a deliberate v1 simplification; vet/govt account onboarding is high-stakes and shouldn't be self-serve.
+| Role    | Account type    | Who                                                                                                                              | Primary portal           | Notes                                                                                                                                |
+| ------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `owner` | personal        | Pet owner. Default for any self-serve signup.                                                                                    | `/mis-mascotas`          | Can have unlimited pets. May apply to upgrade to `vet`.                                                                              |
+| `vet`   | personal        | Veterinarian or animal-health professional. Has personal matrícula.                                                              | `/profesional` (when approved as service provider) **OR** via `/org/[orgToken]` membership | May still own pets like any owner. Upgrade via `/cuenta/upgrade`, approved by the `govt` of the declared locality (fallback: admin). New: independent vets get `/profesional` after admin/govt approval of `professional.provider` capability; clinic-affiliated vets work via the clinic's `/org/[orgToken]`. |
+| `govt`  | institutional   | Government / public-health / animal-welfare authority. Approves orgs, vet upgrades, and scheduling within **assigned localities**. | `/gobierno`              | Multi-locality via `govt_assignments`. Created by an existing admin. Service-account model — see "Single operator" below.            |
+| `admin` | institutional   | Technical-administrative user. Universal scope. Creates other institutional accounts. Approves anything outside any govt's scope. | `/admin`                 | Bootstrap admin seeded manually once via Studio; subsequent admins created by an existing admin. Cannot be self-deactivated.         |
+
+### Lifecycle and downgrade paths
+
+**Personal accounts** are created via self-serve signup as `role='owner'`. Vet upgrades go through the admin-page approval flow:
+
+- *owner → vet*: applicant submits matrícula + evidence via `/cuenta/upgrade`. Creates `approval_request` of `type='role_upgrade_vet'`. Approved by the `govt` of the declared locality (fallback: admin if no govt covers that locality). On approval: `role='vet'`, `matriculaVerified=true`.
+- *vet → owner via self-resignation*: vet uses `/cuenta/renunciar`, confirms consequences. `role='owner'`, `matriculaVerified=false`. The `matriculaNumber` itself stays as historical data. Logged in `audit_log`.
+- *vet → owner via revocation*: the govt of the relevant locality, or admin, executes the revocation flow with mandatory reason + evidence. Same end state. Logged.
+- *delete account*: standard account deletion path (no admin-specific flow).
+
+**Institutional accounts** are created exclusively by an existing admin via the admin page. The admin provides email + display name + role (govt or admin) + (for govt) the initial set of localities. System provisions an `auth.users` entry with a temporary credential (magic link or temp password). No `approval_request` involved — direct admin action, logged. **There is no path from `personal` to `institutional`.** If a person needs both an owner identity (for their pets) and an admin or govt identity (for their work), they hold two separate accounts with two separate emails.
+
+- *govt locality adjustment*: admin assigns or revokes localities directly via the admin page. Each change is one direct action.
+- *govt deactivation*: the operator may self-deactivate the account, but ONLY if every locality assigned to this govt is also covered by at least one other active govt. If any locality would be left uncovered, the action is blocked with a clear error naming the uncovered localities. On successful deactivation, pending `approval_requests` for those localities automatically fall to the admin queue (the scope-matching `NOT EXISTS` clause handles this — no manual migration). An admin can also deactivate a govt directly via the revocation flow.
+- *admin deactivation*: the operator may **NEVER** self-deactivate. An admin is deactivated only by ANOTHER admin, with mandatory reason + evidence, AND never when only one active admin remains. The system always retains at least one active admin.
+- *operator handoff*: when the human behind an institutional account changes (one employee leaves, another takes over), an admin resets the credentials. The account itself, its localities, its audit history persist. The operator rotates; the institutional identity does not.
+
+### Portal access: capability-driven
+
+A user's access to a portal is determined by whether they have at least one capability that's exercised in that portal:
+
+- **`/mis-mascotas`** — every authenticated personal account (owner or vet). No additional capability needed; the portal lists the user's own pets.
+- **`/profesional`** — vets with the `professional.provider` capability (granted by admin or govt approval of a `role_upgrade_vet_provider` request). A vet without this capability can still be a vet (their matrícula is verified, they can author events) but cannot offer services in DIM until approved as a service provider.
+- **`/org/[orgToken]`** — users with an active `organization_memberships` row for that specific org and at least one org-level capability (e.g., `intake.create`, `appointment.manage`, `service_offering.create`).
+- **`/gobierno`** — `role='govt'` users with at least one active `govt_assignments` row.
+- **`/admin`** — `role='admin'` users with `account_type='institutional'` and `deactivated_at IS NULL`.
+
+Capabilities are layered: org-level (per-membership), professional-level (per-vet, e.g., `professional.provider`), and role-level (per-role, e.g., govt's `approve.org_verification`, admin's `account.create_institutional`). The portal layout asserts the right layer for entry; specific actions inside the portal assert finer-grained capabilities.
+
+### Functional difference between `/profesional` and `/org/[orgToken]`
+
+Both surfaces support **service offerings + scheduling**: define services, set recurring availability, accept bookings, mark attendance, emit pet_events.
+
+`/profesional` provides **only that**. The independent vet operates as a service provider; no intake of strays, no foster pipeline, no adoption workflow, no member management, no coverage zones, no cross-org transfers. Authorship attribution: `pet_events` emitted from `/profesional` set `recorded_by_user_id=vet`, `author_role='vet'`, `author_organization_id=null`.
+
+`/org/[orgToken]` provides scheduling **plus** the full org capabilities matching the `org_type`: shelter/rescue_network gets intake + foster + adoption pipelines; clinic gets primarily scheduling; sanitary_authority gets official campaigns + jurisdictional dashboards. Authorship attribution: `author_organization_id` is set to the org.
+
+A vet with **both** an independent practice AND a clinic affiliation has both portals available and chooses contextually which identity to act under. The data model captures this naturally — the offering, the appointment, and the emitted event all carry the right `author_*` fields per case.
+
+### Business rules ownership (future)
+
+When the system grows to support configurable business rules (minimum age to register a pet, mandatory vaccinations by jurisdiction, eligibility criteria for service offerings, etc.), the configuration follows a layered ownership:
+
+- **Govt** configures rules within their assigned jurisdictions. A govt of CABA can set rules that apply in CABA. A govt of Mendoza Capital can set rules for Mendoza Capital.
+- **Admin** configures rules universally (Argentina-wide defaults) or in any specific jurisdiction (override). Admin acts as both the universal-scope setter and the escalation path for jurisdictional rules when no govt is in scope.
+
+When multiple rules conflict, **more specific wins**: locality > province > country > hardcoded default. A Belgrano rule overrides a CABA rule overrides an Argentina rule overrides the code default.
+
+Schema for `business_rules` is deferred until the feature lands. The concept is locked here so future designs respect the hierarchy.
+
+### Hard constraints (enforced at the database)
+
+These are the invariants the schema and triggers enforce. The application layer assumes them and will not double-check:
+
+1. **Account type ↔ role match.** `profiles.account_type='personal'` ⟹ `role ∈ {owner, vet}`. `profiles.account_type='institutional'` ⟹ `role ∈ {govt, admin}`. CHECK constraint on `profiles`.
+2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_number IS NULL`, `dni_verified=false`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL`, `matricula_verified=false`. CHECK constraint.
+3. **Institutional accounts cannot own pets.** A trigger on `ownerships` rejects any INSERT or UPDATE that would tie an institutional account to a pet via `owner_user_id`. The trigger uses `errcode='restrict_violation'` and a clear Spanish message.
+4. **Last admin cannot be deactivated.** Server-action precondition counts `account_type='institutional' AND role='admin' AND deactivated_at IS NULL` and refuses if the deactivation would leave fewer than one.
+5. **Govt cannot self-deactivate if any locality is uncovered.** Server-action precondition checks coverage for every `govt_assignment` of the deactivating user.
+
+### Single-operator model (v1)
+
+Each institutional account has one set of credentials — one human operator at a time. The audit log shows the institutional account as the `actor_user_id`, not the person behind it. A future extension may add membership-style multi-operator access (mapping personal users to institutional account memberships, similar to `organization_memberships`), at which point audit entries will capture both the institutional account and the personal user. Until then: one operator, one credential, the institutional account is the accountable identity. Operator handoffs go through admin-issued credential resets.
+
+### Role vs. event authorship
+
+The `profiles.role` answers *"who is this user globally?"* The `pet_events.author_role` answers *"in what capacity did this user act when writing this specific event?"* They usually align (vet logs a vaccination → both `vet`) but not always (vet logs their own dog's weight while acting as owner → `profiles.role='vet'` but the event's `author_role='owner'`). Keeping these separate is what lets audit trails be honest.
+
+Institutional accounts do not author `pet_events` in normal operation — they manage system state, not pet history. The `author_role='govt'` value is reserved for future workflows where a sanitary authority records an event during an inspection or campaign (likely via a personal vet acting under govt auspices, recorded with the institutional `author_organization_id`).
+
+### Bootstrap
+
+The first `admin` account is seeded once per environment via Supabase Studio:
+
+```sql
+-- 1. Create the auth user via Studio → Authentication → Add user (email + temporary password).
+-- 2. Insert the profile row:
+insert into public.profiles (id, account_type, role, display_name)
+values ('<seeded_auth_user_id>', 'institutional', 'admin', 'DIM Admin');
+-- 3. Log the seed:
+insert into public.audit_log (actor_user_id, action, target_user_id, payload)
+values ('<seeded_auth_user_id>', 'admin_seeded', '<seeded_auth_user_id>', '{"source":"studio"}');
+```
+
+From there, every institutional account is created via the admin page. Every personal account is created via self-serve signup. Both flows go through `auth.users` like any other Supabase auth path.
+
+### Implementation reference
+
+See [`docs/superpowers/specs/2026-05-17-admin-page-design.md`](docs/superpowers/specs/2026-05-17-admin-page-design.md) for the full spec — schema migrations, server actions, RLS policies, UI surfaces, capability matrix, and the approval / revocation / self-resignation flows in detail. The phased implementation plan lives there too.
 
 **Organizations are not roles on `profiles`.** Clinics, refugios, rescue networks, and (eventually) sanitary authorities live in a separate `organizations` table peer to `users`. People connect to organizations through `organization_memberships`. This resolves the historical vet-vs-clinic ambiguity in one move (the individual vet keeps `profiles.role='vet'`; the clinic is an `organizations` row of type `clinic`; a membership row links them), and is the same mechanism that makes refugios and Mascotas CABA first-class without growing the `profiles.role` enum. See the **Organizations** section below for the full design.
 
@@ -283,7 +380,7 @@ DIM has three user-facing concepts, each backed by the same underlying data:
 
 | Concept | What it is | Backing |
 |---|---|---|
-| **Credencial DIM** | The pet's digital identity — name, photo, public token, QR. The animal's *documento* | `pets` row + Tier-0 public page at `/p/{publicToken}` |
+| **Credencial MiMAR** | The pet's digital identity — name, photo, public token, QR. The animal's *documento* | `pets` row + Tier-0 public page at `/p/{publicToken}` |
 | **Libreta sanitaria** | The pet's medical history — vacunas, vet visits, peso, medicación. What the vet writes | Projection over `pet_events` filtered to `LIBRETA_SANITARIA_EVENT_TYPES` |
 | **Eventos** | The append-only event log itself, including non-medical entries (registrations, scans, custody transfers, welfare reports). Internal/admin concept | `pet_events` table |
 
@@ -333,7 +430,7 @@ Three surfaces over the same projection:
 
 1. **Section on the pet profile** at `/mis-mascotas/{publicToken}`. The card formerly titled *"Eventos"* renders as **"Libreta sanitaria"** and shows the latest N medical events with a *"Ver libreta completa →"* link.
 2. **Dedicated owner route** at `/mis-mascotas/{publicToken}/libreta`. The full Libreta for the authenticated owner, grouped by clinical purpose (Vacunas, Antiparasitarios, Esterilización, Visitas, Medicación, Cirugías, Estudios, Peso, Alergias y condiciones) with an optional chronological toggle. Print-friendly stylesheet. Header carries pet identity (name, photo, species, sex, microchip if any, dueño first name) **as context** — identity is not part of the Libreta as a concept, but the rendered surface needs the same cover-page context the paper libreta has, otherwise the medical entries float without anchor.
-3. **Public shareable Tier-2 route** at `/libreta/compartir/{shareToken}`. The owner-issued share link of the Privacy-tiers table, materialized. Same Libreta, accessible via a **share token distinct from `pets.publicToken`**, expiring (default 30 days, configurable per share), revocable by the owner at any moment. Footers with `Generada por DIM · {timestamp} · vence {expiry}` for vet-presentability. This is the surface a dueño hands to a vet who doesn't know DIM yet.
+3. **Public shareable Tier-2 route** at `/libreta/compartir/{shareToken}`. The owner-issued share link of the Privacy-tiers table, materialized. Same Libreta, accessible via a **share token distinct from `pets.publicToken`**, expiring (default 30 days, configurable per share), revocable by the owner at any moment. Footers with `Generada por MiMAR · {timestamp} · vence {expiry}` for vet-presentability. This is the surface a dueño hands to a vet who doesn't know MiMAR yet.
 
 ### Tokens
 
@@ -518,14 +615,30 @@ Build for **flexibility and big scope** — three audiences are intended consume
 
 ## Naming
 
-Keeping **DIM**. Acronym lands ("Documento de Identificación para Mascotas"), short, memorable. Revisit only if a clearly better name emerges.
+DIM has a dual identity by design.
+
+**User-facing brand: MiMAR (Mi Mascota Argentina).** This is what appears in app metadata, signup/login copy, the public credential header, notification titles, future marketing, and the domain (when assigned). The "Mi-" prefix is a deliberate alignment with the Argentine government services pattern (Mi Argentina, Mi AFIP, Mi ANSES) — communicating "your personal portal." The Spanish word "mascota" is what every Argentine pet owner uses; "Mi Mascota Argentina" is warm, familiar, and emotionally legible.
+
+**Code identifier: DIM.** The original backronym ("Documento de Identificación para Mascotas") remains in code, schema, server actions, audit logs, internal docs, and the `public_token` format (`DIM-XXXX-XXXX`). DIM is a stable identifier we never rename — every issued token, every audit entry, every database row references it. The institutional descriptor "Documento de Identificación para Mascotas" also appears in the footer of the public credential page when an animal-health professional or government clerk views the document — it reinforces legitimacy in those contexts without changing the user-facing brand for everyday owners.
+
+**Why the duality.** "DIM" alone sounds institutional/legal — good for credibility with vets and govt, cold for an owner adding their dog's first photo. "MiMAR" alone loses the document-credential framing that makes the credencial pública meaningful as official identification. Both names serve different audiences and contexts; keeping both serves the product.
+
+**Mi Argentina alignment is the core premise, not a nice-to-have.** This project's reason to exist is to be the missing data layer that government animal-health programs (Mascotas CABA, SENASA zoonosis surveillance, eventually Mi Argentina itself) lack today. The product makes no sense as a standalone PWA forever — its trajectory points at official adoption. Every design decision is filtered through this premise:
+- The credential is real enough that Mi Argentina could eventually issue it
+- The data model is privacy-preserving enough that govt actors can use it under existing legal frameworks
+- The brand alignment signals the direction
+- The architecture supports federation when the integration becomes feasible
+
+If you find yourself making a decision that breaks Mi Argentina alignment for short-term convenience, reconsider.
 
 ## Open questions / future work
 
-- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption
+- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `mimar-go-to-market.md` for the GTM analysis)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
-- Vet portal (separate Next.js route group or sibling app, sharing DB)
-- **Refugio / `/refugio` portal** — verified-org dashboard for intake, foster assignment, adoption pipeline, post-adoption followup. Single-pet flows first, bulk operations later. Schema is in place.
+- **`/profesional` portal** — independent vet portal for service offerings + scheduling. Schema-ready (polymorphic `service_offerings`). Route implementation is the next step after code rename.
+- **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md`.
+- **`/gobierno` portal** — govt scope-bound portal for locality approvals + regional dashboards. Designed in admin page spec v2.2; implementation follows admin page Fase 0.
+- **`/admin` portal** — already partially implemented; needs refinement to split govt-shared surfaces into `/gobierno`.
 - **Adoption-listing public surface (`/adoptar`)** — projection over (`pets` where current `Ownership` is org-held by `org_type` in (`shelter`, `rescue_network`), not death, not paused). Filters, region, species. UX and listing copy open.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA alignment is the diplomatic open question; we want to feed it, not compete with it.
 - **Decomiso → temporary welfare-authority custody → refugio chain** — Ley Nacional 14.346 seizures should flow through `custody_transferred` events with a municipal welfare authority holding `shelter_custody` briefly before transferring to a refugio. Schema supports this; the authority-side portal and UX are open.

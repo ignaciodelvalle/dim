@@ -152,7 +152,7 @@ export default async function PublicCredentialPage({
         {/* Credential header */}
         <div className="text-center space-y-1">
           <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
-            DIM · Credencial digital
+            MiMAR · Credencial digital
           </p>
           <p className="text-xs font-mono text-neutral-400 dark:text-neutral-600">
             {pet.publicToken}

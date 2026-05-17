@@ -18,7 +18,7 @@ export default async function LoginPage() {
             Iniciar sesión
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Bienvenido de vuelta a DIM
+            Bienvenido de vuelta a MiMAR
           </p>
         </div>
         <LoginForm />

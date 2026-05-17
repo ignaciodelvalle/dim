@@ -222,7 +222,7 @@ export function WelfareReportForm({
       {subjectKind === "registered_pet" && (
         <div className={FIELD_CLASS}>
           <label htmlFor="subjectPetToken" className={LABEL_CLASS}>
-            Código DIM de la mascota
+            Código MiMAR de la mascota
           </label>
           <input
             id="subjectPetToken"

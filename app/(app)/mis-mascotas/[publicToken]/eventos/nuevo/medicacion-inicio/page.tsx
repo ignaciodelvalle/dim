@@ -10,7 +10,6 @@ export default async function NewMedicationStartPage({
 }) {
   const { publicToken } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   const boundAction = createMedicationStartAction.bind(null, pet.publicToken);

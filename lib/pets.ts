@@ -3,17 +3,18 @@
 // direct-owner path and the org-mediated path; the return shape stays compact
 // for back-compat with existing page-side callers.
 
-import { requirePetAccess } from "@/lib/pet-access";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
+import { requirePetAccess } from "@/lib/pet-access";
+
+// Returns the access record on success. On session expiry, redirects to
+// /login; on missing-pet / out-of-scope-pet, calls notFound(). Both throw
+// `never`, so the return type is non-nullable and callers do not need a
+// follow-up null check.
 export async function requireOwnedPetByToken(publicToken: string) {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) {
-    // The route group's authenticated layout already redirects unauth'd users;
-    // by the time we get here, the session is valid. A missing-pet or
-    // out-of-scope-pet result becomes a 404 — the user IS logged in but
-    // doesn't have any active access path to this pet.
-    if (access.error === "Sesión expirada.") return null;
+    if (access.error === "Sesión expirada.") redirect("/login");
     notFound();
   }
   return {

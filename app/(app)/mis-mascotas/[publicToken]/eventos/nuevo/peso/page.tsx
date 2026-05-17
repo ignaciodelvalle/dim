@@ -10,7 +10,6 @@ export default async function NewWeightPage({
 }) {
   const { publicToken } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   const boundAction = createWeightAction.bind(null, pet.publicToken);

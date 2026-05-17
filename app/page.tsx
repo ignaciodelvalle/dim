@@ -17,11 +17,9 @@ export default async function Home() {
     <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl text-center space-y-6">
         <h1 className="text-6xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-          DIM
+          MiMAR
         </h1>
-        <p className="text-xl text-neutral-600 dark:text-neutral-400">
-          Documento de Identificación para Mascotas
-        </p>
+        <p className="text-xl text-neutral-600 dark:text-neutral-400">Mi Mascota Argentina</p>
         <p className="text-base text-neutral-500 dark:text-neutral-500 max-w-md mx-auto leading-relaxed">
           La credencial digital de salud para tu mascota. Para encontrarse, para cuidarse, para
           ayudarnos a cuidar a todas.

@@ -11,6 +11,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": new URL("./", import.meta.url).pathname,
+      // server-only throws at import time in non-Next.js environments.
+      // In Vitest (Node.js) we stub it as a no-op so server-only modules
+      // can be imported and tested without the Next.js runtime.
+      "server-only": new URL("./__tests__/__mocks__/server-only.ts", import.meta.url).pathname,
     },
   },
 });

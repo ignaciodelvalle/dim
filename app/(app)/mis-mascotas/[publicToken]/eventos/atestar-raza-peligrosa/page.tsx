@@ -11,7 +11,6 @@ export default async function NewDangerousBreedAttestationPage({
 }) {
   const { publicToken } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   // Only relevant for pets flagged as potentially dangerous breed. Anyone else
