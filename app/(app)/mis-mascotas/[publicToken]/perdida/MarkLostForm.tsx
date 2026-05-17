@@ -48,12 +48,25 @@ const DISCLOSURE_TOGGLES: Array<{
   },
 ];
 
+// Shared input class for the enriched section fields.
+const INPUT_CLASS =
+  "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent";
+
 export function MarkLostForm({
   action,
   disclosureDefaults,
+  petHasMicrochip,
+  petColor,
+  petDistinguishingFeatures,
 }: {
   action: FormAction;
   disclosureDefaults: DisclosurePrefsInput;
+  /** When true, the enriched-description section is hidden (chip = already identifiable). */
+  petHasMicrochip: boolean;
+  /** Pre-fill value for the color field. */
+  petColor: string | null;
+  /** Pre-fill value for the distinguishing features field. */
+  petDistinguishingFeatures: string | null;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -71,7 +84,7 @@ export function MarkLostForm({
           name="lastKnownLocation"
           type="text"
           placeholder="Ej: Plaza Italia, esquina Cerviño"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={INPUT_CLASS}
         />
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           Opcional. Aparece en la credencial pública para ayudar a quien la encuentre.
@@ -95,12 +108,160 @@ export function MarkLostForm({
           name="reason"
           rows={3}
           placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={INPUT_CLASS}
         />
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           Opcional. Guardado en el historial para tu referencia.
         </p>
       </div>
+
+      {/* Enriched description section — only shown when pet has no microchip.
+          Three sub-groups: identity fields (update pets row), incident snapshot
+          (event payload), and optional retroactive chip capture. */}
+      {!petHasMicrochip && (
+        <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 p-4 space-y-5">
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+              Informacion adicional para ayudar a identificar a tu mascota
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              Sin microchip, estos detalles son clave para que alguien pueda reconocerla. Completá
+              todo lo que puedas.
+            </p>
+          </div>
+
+          {/* Group A: Identity fields (update pets row) */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+              Identidad
+            </p>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="enriched_color"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Color y pelaje
+              </label>
+              <input
+                id="enriched_color"
+                name="enriched_color"
+                type="text"
+                defaultValue={petColor ?? ""}
+                placeholder="Ej: marrón con manchas blancas en el pecho"
+                className={INPUT_CLASS}
+              />
+              <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                Actualiza el color guardado en su perfil.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="enriched_distinguishing_features"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Marcas o características distintivas
+              </label>
+              <textarea
+                id="enriched_distinguishing_features"
+                name="enriched_distinguishing_features"
+                rows={2}
+                defaultValue={petDistinguishingFeatures ?? ""}
+                placeholder="Ej: mancha negra en la oreja derecha, cola corta, cicatriz en el lomo"
+                className={INPUT_CLASS}
+              />
+              <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                Se guarda en su perfil permanentemente.
+              </p>
+            </div>
+          </div>
+
+          {/* Group B: Incident snapshot fields (event payload) */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+              Al momento de perderse
+            </p>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="enriched_accessories_when_lost"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Accesorios que llevaba
+              </label>
+              <input
+                id="enriched_accessories_when_lost"
+                name="enriched_accessories_when_lost"
+                type="text"
+                placeholder="Ej: collar rojo con placa, campera azul"
+                className={INPUT_CLASS}
+              />
+              <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                Aparece en la credencial pública como ayuda para identificarla.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="enriched_behavior_notes"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Comportamiento y temperamento
+              </label>
+              <textarea
+                id="enriched_behavior_notes"
+                name="enriched_behavior_notes"
+                rows={2}
+                placeholder="Ej: se asusta de los autos, es cariñosa, responde a su nombre"
+                className={INPUT_CLASS}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="enriched_last_seen_context"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Contexto del último avistaje
+              </label>
+              <textarea
+                id="enriched_last_seen_context"
+                name="enriched_last_seen_context"
+                rows={2}
+                placeholder="Ej: salió por la puerta cuando abrimos el portón, se asustó con los fuegos artificiales"
+                className={INPUT_CLASS}
+              />
+            </div>
+          </div>
+
+          {/* Group C: Optional retroactive microchip capture */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+              Microchip (opcional)
+            </p>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="enriched_microchip_id"
+                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              >
+                Numero de microchip
+              </label>
+              <input
+                id="enriched_microchip_id"
+                name="enriched_microchip_id"
+                type="text"
+                placeholder="Ej: 982000411234567"
+                className={INPUT_CLASS}
+              />
+              <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                Si te acordás que tiene chip pero nunca lo cargaste, ingresalo acá. Si alguien la
+                lleva a un refugio con ese chip, te vamos a contactar.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Disclosure preference section — governs what appears on the public
           credential while the pet is lost. The section uses a visually
