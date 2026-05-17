@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 
 import { and, desc, eq, isNull, not } from "drizzle-orm";
 
+import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
+import { AssignLocalityForm } from "@/app/admin/govts/_components/AssignLocalityForm";
 import { DeactivateGovtActions } from "@/app/admin/govts/_components/DeactivateGovtForm";
 import { RevokeLocalityRowActions } from "@/app/admin/govts/_components/RevokeLocalityRowActions";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
@@ -156,10 +158,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
             </ul>
           )}
 
-          {/* Assign locality — disabled in PR-B (coming PR-C) */}
-          <p className="text-[10px] text-neutral-400 dark:text-neutral-600 italic">
-            Asignar nueva localidad disponible en la proxima version.
-          </p>
+          {/* Assign locality — PR-C */}
+          {isActive && (
+            <div className="mt-2">
+              <AssignLocalityForm targetUserId={userId} />
+            </div>
+          )}
         </section>
 
         {/* Revoked localities (collapsible) */}
@@ -198,15 +202,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                 }}
                 actorUserId={actorUser.id}
               />
-              {/* Reset credentials — disabled in PR-B (coming PR-C) */}
-              <button
-                type="button"
-                disabled
-                className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
-                title="Disponible en la proxima version"
-              >
-                Resetear credentials
-              </button>
+              <ResetCredentialsButton
+                targetUserId={govt.id}
+                displayName={govt.displayName}
+                email={email}
+                detailPath={`/admin/govts/${govt.id}`}
+              />
             </div>
           </section>
         )}

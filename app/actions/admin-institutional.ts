@@ -10,7 +10,7 @@
 //
 // PR-A scope: createInstitutionalAccountForAuthority + wrapper.
 // PR-B scope: deactivateAdminForAuthority + deactivateGovtForAuthority + wrappers.
-// PR-C scope will add resetInstitutionalCredentialsForAuthority + assignGovtLocalityForAuthority.
+// PR-C scope: resetInstitutionalCredentialsForAuthority + assignGovtLocalityForAuthority + wrappers.
 
 import crypto from "node:crypto";
 
@@ -24,7 +24,12 @@ import {
 } from "@/app/actions/admin-revocations";
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { canCreateInstitutional, canDeactivateGovt } from "@/lib/institutional-scope";
+import {
+  canAssignGovtLocality,
+  canCreateInstitutional,
+  canDeactivateGovt,
+  canResetCredentials,
+} from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -37,6 +42,12 @@ export type CreateInstitutionalResult =
   | { ok: true; profileId: string; magicLink: string };
 
 export type DeactivateResult = { error: string } | { ok: true; noOp?: boolean };
+
+export type ResetCredentialsResult = { error: string } | { ok: true; magicLink: string };
+
+export type AssignGovtLocalityResult =
+  | { error: string }
+  | { ok: true; assignmentId: string; noOp?: boolean };
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -550,6 +561,226 @@ export async function deactivateGovtAction(input: {
   if ("ok" in result && !result.noOp) {
     revalidatePath("/admin/govts");
     revalidatePath(`/admin/govts/${input.targetGovtUserId}`);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Inner writer: resetInstitutionalCredentialsForAuthority (PR-C)
+//
+// Generates a magic link for an active institutional account:
+//   1. Capability check (admin only)
+//   2. Load + validate target (institutional, not deactivated)
+//   3. Fetch target email from auth.users via admin SDK
+//   4. auth.admin.generateLink (type: magiclink)
+//   5. INSERT audit_log action='operator_credentials_reset'
+//   6. INSERT notification to target
+// ---------------------------------------------------------------------------
+
+export async function resetInstitutionalCredentialsForAuthority(
+  actorUserId: string,
+  input: { targetUserId: string },
+): Promise<ResetCredentialsResult> {
+  // 1. Load actor + capability check
+  const actorProfile = await loadActorProfile(actorUserId);
+  if (!actorProfile) return { error: "CAPABILITY_DENIED" };
+  if (!canResetCredentials(actorProfile)) return { error: "CAPABILITY_DENIED" };
+
+  // 2. Load + validate target
+  const [targetProfile] = await db
+    .select({
+      id: profiles.id,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, input.targetUserId))
+    .limit(1);
+
+  if (!targetProfile) return { error: "NOT_FOUND" };
+  if (targetProfile.accountType !== "institutional") return { error: "NOT_INSTITUTIONAL" };
+  if (targetProfile.deactivatedAt !== null) return { error: "TARGET_DEACTIVATED" };
+
+  const supabase = createAdminClient();
+
+  // 3. Fetch target email from auth.users via admin SDK
+  const { data: authUserData, error: userErr } = await supabase.auth.admin.getUserById(
+    input.targetUserId,
+  );
+  if (userErr || !authUserData?.user?.email) {
+    return { error: `AUTH_USER_NOT_FOUND: ${userErr?.message ?? "no email"}` };
+  }
+  const targetEmail = authUserData.user.email;
+
+  // 4. Generate magic link
+  const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+    type: "magiclink",
+    email: targetEmail,
+  });
+
+  if (linkErr || !linkData?.properties?.action_link) {
+    return { error: `LINK_GENERATION_FAILED: ${linkErr?.message ?? "no action_link"}` };
+  }
+
+  const magicLink = linkData.properties.action_link;
+
+  // 5. INSERT audit_log (single insert — no transaction needed)
+  await db.insert(auditLog).values({
+    actorUserId,
+    action: "operator_credentials_reset",
+    targetUserId: input.targetUserId,
+    payload: {
+      method: "magic_link",
+      magic_link: magicLink,
+    },
+  });
+
+  // 6. INSERT notification to target
+  await db.insert(notifications).values({
+    userId: input.targetUserId,
+    notificationType: "operator_credentials_reset",
+    title: "Tu link de acceso fue renovado",
+    body: "Un administrador generó un nuevo link de acceso para tu cuenta. Usalo para ingresar.",
+    severity: "info",
+    ctaLabel: "Acceder",
+    ctaUrl: "/login",
+  });
+
+  return { ok: true, magicLink };
+}
+
+// ---------------------------------------------------------------------------
+// Public wrapper: resetInstitutionalCredentialsAction
+// ---------------------------------------------------------------------------
+
+export async function resetInstitutionalCredentialsAction(input: {
+  targetUserId: string;
+}): Promise<ResetCredentialsResult> {
+  const { user } = await requireAdminOrRedirect();
+  return resetInstitutionalCredentialsForAuthority(user.id, input);
+}
+
+// ---------------------------------------------------------------------------
+// Inner writer: assignGovtLocalityForAuthority (PR-C)
+//
+// Assigns a new locality to an active govt:
+//   1. Capability check (admin only)
+//   2. Validate target is active institutional govt
+//   3. Check for duplicate active assignment (noOp if exists)
+//   4. INSERT govt_assignments row
+//   5. INSERT audit_log action='govt_locality_assigned'
+//   6. INSERT notification to target
+// ---------------------------------------------------------------------------
+
+const assignLocalitySchema = z.object({
+  targetUserId: z.string().min(1, "targetUserId is required"),
+  province: z.string().min(1, "Province is required"),
+  locality: z.string().min(1, "Locality is required"),
+});
+
+export async function assignGovtLocalityForAuthority(
+  actorUserId: string,
+  input: { targetUserId: string; province: string; locality: string },
+): Promise<AssignGovtLocalityResult> {
+  // 1. Validate input
+  const parsed = assignLocalitySchema.safeParse(input);
+  if (!parsed.success) {
+    const firstError = parsed.error.issues[0];
+    return { error: `VALIDATION_ERROR: ${firstError.message}` };
+  }
+  const { targetUserId, province, locality } = parsed.data;
+
+  // 2. Load actor + capability check
+  const actorProfile = await loadActorProfile(actorUserId);
+  if (!actorProfile) return { error: "CAPABILITY_DENIED" };
+  if (!canAssignGovtLocality(actorProfile)) return { error: "CAPABILITY_DENIED" };
+
+  // 3. Validate target is active institutional govt
+  const [targetProfile] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, targetUserId))
+    .limit(1);
+
+  if (!targetProfile) return { error: "NOT_FOUND" };
+  if (targetProfile.role !== "govt" || targetProfile.accountType !== "institutional") {
+    return { error: "NOT_INSTITUTIONAL_GOVT" };
+  }
+  if (targetProfile.deactivatedAt !== null) return { error: "TARGET_DEACTIVATED" };
+
+  // 4. Check for duplicate active assignment (UNIQUE: user_id + province + locality WHERE revoked_at IS NULL)
+  const [existing] = await db
+    .select({ id: govtAssignments.id })
+    .from(govtAssignments)
+    .where(
+      and(
+        eq(govtAssignments.userId, targetUserId),
+        eq(govtAssignments.jurisdictionProvince, province),
+        eq(govtAssignments.jurisdictionLocality, locality),
+        isNull(govtAssignments.revokedAt),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    return { ok: true, assignmentId: existing.id, noOp: true };
+  }
+
+  // 5. INSERT govt_assignments
+  const [newAssignment] = await db
+    .insert(govtAssignments)
+    .values({
+      userId: targetUserId,
+      jurisdictionProvince: province,
+      jurisdictionLocality: locality,
+      grantedByUserId: actorUserId,
+    })
+    .returning({ id: govtAssignments.id });
+
+  // 6. INSERT audit_log
+  await db.insert(auditLog).values({
+    actorUserId,
+    action: "govt_locality_assigned",
+    targetUserId,
+    payload: {
+      province,
+      locality,
+      govt_assignment_id: newAssignment.id,
+    },
+  });
+
+  // 7. INSERT notification to target govt
+  await db.insert(notifications).values({
+    userId: targetUserId,
+    notificationType: "govt_locality_assigned",
+    title: "Nueva localidad asignada a tu cuenta",
+    body: `Un administrador asignó la localidad ${locality}, ${province} a tu jurisdicción.`,
+    severity: "info",
+    ctaLabel: "Ver mis localidades",
+    ctaUrl: "/admin",
+  });
+
+  return { ok: true, assignmentId: newAssignment.id };
+}
+
+// ---------------------------------------------------------------------------
+// Public wrapper: assignGovtLocalityAction
+// ---------------------------------------------------------------------------
+
+export async function assignGovtLocalityAction(input: {
+  targetUserId: string;
+  province: string;
+  locality: string;
+}): Promise<AssignGovtLocalityResult> {
+  const { user } = await requireAdminOrRedirect();
+  const result = await assignGovtLocalityForAuthority(user.id, input);
+  if ("ok" in result && !result.noOp) {
+    revalidatePath(`/admin/govts/${input.targetUserId}`);
   }
   return result;
 }
