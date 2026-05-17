@@ -380,6 +380,161 @@ export async function createVetVisitAction(
 // Status changes (lost / found)
 // ---------------------------------------------------------------------------
 
+// Disclosure preference fields parsed from MarkLostForm. All five booleans
+// are submitted as "on" / absent (checkbox pattern). The writer also accepts
+// a pre-parsed object for tests that bypass FormData.
+export type DisclosurePrefsInput = {
+  discloseFirstNameWhenLost: boolean;
+  disclosePhoneWhenLost: boolean;
+  discloseEmailWhenLost: boolean;
+  discloseLastLocationWhenLost: boolean;
+  allowFinderFormWhenLost: boolean;
+};
+
+// Inner writer — testable without Next.js runtime or FormData.
+//
+// Responsibilities:
+//   1. Guard status (lost / deceased short-circuits).
+//   2. Update the 5 disclosure pref columns on pets (source of truth for
+//      the live credential render).
+//   3. Insert a status_changed event with disclosure_prefs_snapshot for
+//      historical audit.
+//
+// Does NOT redirect — callers decide navigation.
+export async function setPetLostWriter(params: {
+  petId: string;
+  petStatus: string;
+  fromStatus: string;
+  recordedByUserId: string;
+  eventAuthorship: Record<string, unknown>;
+  locationDescription: string | null;
+  locationLat: string | null;
+  locationLng: string | null;
+  reason: string | null;
+  disclosurePrefs: DisclosurePrefsInput;
+  now?: Date;
+}): Promise<EventFormState> {
+  const {
+    petId,
+    petStatus,
+    fromStatus,
+    recordedByUserId,
+    eventAuthorship,
+    locationDescription,
+    locationLat,
+    locationLng,
+    reason,
+    disclosurePrefs,
+    now = new Date(),
+  } = params;
+
+  if (petStatus === "lost") return { error: "Esta mascota ya está marcada como perdida." };
+  if (petStatus === "deceased")
+    return { error: "No se puede cambiar el estado de una mascota fallecida." };
+
+  const {
+    discloseFirstNameWhenLost,
+    disclosePhoneWhenLost,
+    discloseEmailWhenLost,
+    discloseLastLocationWhenLost,
+    allowFinderFormWhenLost,
+  } = disclosurePrefs;
+
+  const disclosurePrefsSnapshot = {
+    first_name: discloseFirstNameWhenLost,
+    phone: disclosePhoneWhenLost,
+    email: discloseEmailWhenLost,
+    last_location: discloseLastLocationWhenLost,
+    finder_form: allowFinderFormWhenLost,
+  };
+
+  const { locationLat: latVal, locationLng: lngVal } = writePoint(
+    locationLat && locationLng
+      ? { lat: Number.parseFloat(locationLat), lng: Number.parseFloat(locationLng) }
+      : null,
+  );
+
+  try {
+    await db.transaction(async (tx) => {
+      const eventPayload = validateEventPayload("status_changed", {
+        from_status: fromStatus as "active" | "lost" | "deceased",
+        to_status: "lost",
+        location_description: locationDescription,
+        reason,
+        disclosure_prefs_snapshot: disclosurePrefsSnapshot,
+      });
+
+      await tx.insert(petEvents).values({
+        petId,
+        eventType: "status_changed",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId,
+        ...(eventAuthorship as object),
+        locationLat: latVal,
+        locationLng: lngVal,
+        payload: eventPayload,
+      });
+
+      // Update both the status and all 5 disclosure preference columns.
+      // The prefs columns are the live source of truth for the public
+      // credential render — the snapshot above is for audit only.
+      await tx
+        .update(pets)
+        .set({
+          status: "lost",
+          discloseFirstNameWhenLost,
+          disclosePhoneWhenLost,
+          discloseEmailWhenLost,
+          discloseLastLocationWhenLost,
+          allowFinderFormWhenLost,
+          updatedAt: now,
+        })
+        .where(eq(pets.id, petId));
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo marcar como perdida: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  return { error: null };
+}
+
+// Parses disclosure prefs from FormData (checkbox pattern: "on" = true, absent
+// = false). Pre-fills from current pet values so that unchecked boxes correctly
+// persist false rather than defaulting to true.
+function parseDisclosurePrefsFromForm(
+  formData: FormData,
+  petDefaults: DisclosurePrefsInput,
+): DisclosurePrefsInput {
+  // Checkboxes only submit when checked. Absent means false.
+  const checked = (name: string) => formData.get(name) === "on";
+
+  // If the form section was submitted (any of the 5 keys present), use form
+  // values. If none present (old form submission without the section),
+  // preserve the pet's current values so we don't accidentally reset them.
+  const hasSection = [
+    "disclose_first_name_when_lost",
+    "disclose_phone_when_lost",
+    "disclose_email_when_lost",
+    "disclose_last_location_when_lost",
+    "allow_finder_form_when_lost",
+  ].some((key) => formData.has(key));
+
+  if (!hasSection) return petDefaults;
+
+  return {
+    discloseFirstNameWhenLost: checked("disclose_first_name_when_lost"),
+    disclosePhoneWhenLost: checked("disclose_phone_when_lost"),
+    discloseEmailWhenLost: checked("disclose_email_when_lost"),
+    discloseLastLocationWhenLost: checked("disclose_last_location_when_lost"),
+    allowFinderFormWhenLost: checked("allow_finder_form_when_lost"),
+  };
+}
+
 export async function setPetLostAction(
   publicToken: string,
   _previous: EventFormState,
@@ -389,65 +544,46 @@ export async function setPetLostAction(
   if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 
-  if (pet.status === "lost") return { error: "Esta mascota ya está marcada como perdida." };
-  if (pet.status === "deceased")
-    return { error: "No se puede cambiar el estado de una mascota fallecida." };
-
   const locationDescription = String(formData.get("lastKnownLocation") ?? "").trim() || null;
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
   // Precise coordinates from the LocationFields map picker. Empty string when
   // the owner didn't drop a pin. writePoint(null) erases both columns.
-  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
-  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
-  let locationPoint: { lat: number; lng: number } | null = null;
+  const locationLatRaw = String(formData.get("locationLat") ?? "").trim() || null;
+  const locationLngRaw = String(formData.get("locationLng") ?? "").trim() || null;
+
   if (locationLatRaw && locationLngRaw) {
     const lat = Number.parseFloat(locationLatRaw);
     const lng = Number.parseFloat(locationLngRaw);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return { error: "Coordenadas inválidas. Tocá el mapa de nuevo para marcar el punto." };
     }
-    locationPoint = { lat, lng };
   }
-  const { locationLat, locationLng } = writePoint(locationPoint);
 
-  const now = new Date();
-  const fromStatus = pet.status;
+  const petDefaults: DisclosurePrefsInput = {
+    discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+    disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+    discloseEmailWhenLost: pet.discloseEmailWhenLost,
+    discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+    allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+  };
 
-  try {
-    await db.transaction(async (tx) => {
-      const eventPayload = validateEventPayload("status_changed", {
-        from_status: fromStatus,
-        to_status: "lost",
-        location_description: locationDescription,
-        reason,
-      });
-      await tx.insert(petEvents).values({
-        petId: pet.id,
-        eventType: "status_changed",
-        occurredAt: now,
-        recordedAt: now,
-        recordedByUserId: user.id,
-        ...eventAuthorship,
-        // Coordinates (when present) live on top-level location_lat / location_lng
-        // columns per AGENTS.md → PetEvent: "Events with a real-world location
-        // should populate the PetEvent.location_point column (top-level), not
-        // duplicate it inside payload." Free-text description stays in payload
-        // under the canonical `location_description` key — payload-side, not
-        // a coordinate, so the rule doesn't apply.
-        locationLat,
-        locationLng,
-        payload: eventPayload,
-      });
-      await tx.update(pets).set({ status: "lost", updatedAt: now }).where(eq(pets.id, pet.id));
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo marcar como perdida: ${
-        err instanceof Error ? err.message : "error desconocido"
-      }`,
-    };
-  }
+  const disclosurePrefs = parseDisclosurePrefsFromForm(formData, petDefaults);
+
+  const result = await setPetLostWriter({
+    petId: pet.id,
+    petStatus: pet.status,
+    fromStatus: pet.status,
+    recordedByUserId: user.id,
+    eventAuthorship: eventAuthorship as Record<string, unknown>,
+    locationDescription,
+    locationLat: locationLatRaw,
+    locationLng: locationLngRaw,
+    reason,
+    disclosurePrefs,
+  });
+
+  if (result.error) return result;
 
   redirect(`/mis-mascotas/${publicToken}`);
 }

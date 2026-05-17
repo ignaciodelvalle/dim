@@ -1,6 +1,6 @@
 "use client";
 
-import type { EventFormState } from "@/app/actions/events";
+import type { DisclosurePrefsInput, EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
 import { useActionState } from "react";
 
@@ -8,7 +8,53 @@ const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
-export function MarkLostForm({ action }: { action: FormAction }) {
+// Toggle descriptor — one entry per disclosure preference field.
+const DISCLOSURE_TOGGLES: Array<{
+  name: keyof DisclosurePrefsInput;
+  formName: string;
+  label: string;
+  description: string;
+}> = [
+  {
+    name: "discloseFirstNameWhenLost",
+    formName: "disclose_first_name_when_lost",
+    label: "Tu nombre",
+    description: "Quienes encuentren a tu mascota verán tu nombre de pila.",
+  },
+  {
+    name: "disclosePhoneWhenLost",
+    formName: "disclose_phone_when_lost",
+    label: "Tu teléfono",
+    description: "La credencial pública mostrará un botón directo para llamarte.",
+  },
+  {
+    name: "discloseEmailWhenLost",
+    formName: "disclose_email_when_lost",
+    label: "Tu email",
+    description: "Se mostrará un enlace de contacto por correo electrónico.",
+  },
+  {
+    name: "discloseLastLocationWhenLost",
+    formName: "disclose_last_location_when_lost",
+    label: "Última ubicación conocida",
+    description: "Ayuda a orientar la búsqueda en el barrio correcto.",
+  },
+  {
+    name: "allowFinderFormWhenLost",
+    formName: "allow_finder_form_when_lost",
+    label: "Formulario de quien la encontró",
+    description:
+      "Permite que alguien te avise a través de la credencial sin necesitar tu contacto.",
+  },
+];
+
+export function MarkLostForm({
+  action,
+  disclosureDefaults,
+}: {
+  action: FormAction;
+  disclosureDefaults: DisclosurePrefsInput;
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (
@@ -54,6 +100,41 @@ export function MarkLostForm({ action }: { action: FormAction }) {
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           Opcional. Guardado en el historial para tu referencia.
         </p>
+      </div>
+
+      {/* Disclosure preference section — governs what appears on the public
+          credential while the pet is lost. The section uses a visually
+          distinct card to separate concern from the location/reason fields. */}
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 p-4 space-y-4">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            ¿Qué información mostramos en tu credencial pública mientras esté perdida?
+          </p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            Podés cambiar esto en cualquier momento mientras la mascota esté perdida.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {DISCLOSURE_TOGGLES.map((toggle) => (
+            <label key={toggle.formName} className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                name={toggle.formName}
+                defaultChecked={disclosureDefaults[toggle.name]}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 text-amber-600 focus:ring-amber-600 focus:ring-offset-0"
+              />
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50 group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+                  {toggle.label}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                  {toggle.description}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
       </div>
 
       {state.error && (

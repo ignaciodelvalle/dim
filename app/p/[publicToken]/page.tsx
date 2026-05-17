@@ -1,6 +1,7 @@
 // Public credential page — Tier 0 view by default. When pet.status === 'lost'
-// the page promotes to Tier 1: owner first name + direct contact + last-known
-// location, per AGENTS.md → "Privacy tiers".
+// the page promotes to Tier 1: owner contact info governed by the five
+// disclose_*_when_lost preference columns on the pets row, per spec §7 and
+// AGENTS.md → "Privacy tiers".
 //
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
@@ -9,6 +10,7 @@ import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { petPhotoUrl } from "@/lib/storage";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { FoundPetForm } from "./FoundPetForm";
@@ -52,17 +54,19 @@ export default async function PublicCredentialPage({
 
   const isLost = pet.status === "lost";
 
-  // Tier 1 reveal: only when the pet is marked lost. Otherwise leave undefined
-  // so we don't leak PII on active pets.
+  // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
+  // the owner's disclosure preference (disclose_*_when_lost columns on pets).
+  // Active pets expose NO owner PII — leave lostContext null.
   let lostContext: {
     ownerFirstName: string | null;
     phone: string | null;
+    email: string | null;
     locationText: string | null;
   } | null = null;
 
   if (isLost) {
     const [ownerRow] = await db
-      .select({ profile: profiles })
+      .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
       .from(ownerships)
       .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
       .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
@@ -96,9 +100,7 @@ export default async function PublicCredentialPage({
         : typeof payload.last_known_location === "string" && payload.last_known_location.length > 0
           ? payload.last_known_location
           : null;
-    // Fallback: precise lat/lng captured on the event row itself. setPetLostAction
-    // does not write these today, but the schema supports them — when the
-    // marker-pin UI lands they will be populated and surface here automatically.
+    // Fallback: precise lat/lng captured on the event row itself.
     const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
     const geoLocation =
       !textLocation && eventPoint
@@ -111,9 +113,26 @@ export default async function PublicCredentialPage({
       ? ownerRow.profile.displayName.trim().split(/\s+/)[0]
       : null;
 
+    // Email is stored in auth.users (not profiles). Only fetch it when the
+    // owner has opted in — avoids an unnecessary admin API call on every
+    // credential page load.
+    let ownerEmail: string | null = null;
+    if (pet.discloseEmailWhenLost && ownerRow?.ownerUserId) {
+      try {
+        const adminClient = createAdminClient();
+        const { data } = await adminClient.auth.admin.getUserById(ownerRow.ownerUserId);
+        ownerEmail = data?.user?.email ?? null;
+      } catch {
+        // Non-fatal: if email fetch fails, fall through to null (same as
+        // if the pref were false). The credential renders without email.
+        ownerEmail = null;
+      }
+    }
+
     lostContext = {
       ownerFirstName: firstName ?? null,
       phone: ownerRow?.profile.phone ?? null,
+      email: ownerEmail,
       locationText: textLocation ?? geoLocation,
     };
   }
@@ -202,30 +221,37 @@ export default async function PublicCredentialPage({
           <Badge label="Estado" value={statusLabel(pet.status)} />
         </div>
 
-        {/* Found / lost actions */}
+        {/* Found / lost actions — each section gated by owner disclosure prefs */}
         {isLost && lostContext ? (
           <div className="border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-5 space-y-4">
-            {lostContext.ownerFirstName && (
+            {pet.discloseFirstNameWhenLost && lostContext.ownerFirstName && (
               <p className="text-sm text-amber-900 dark:text-amber-200">
                 <span className="font-medium">Dueño:</span> {lostContext.ownerFirstName}
               </p>
             )}
-            {lostContext.phone ? (
+            {pet.disclosePhoneWhenLost && lostContext.phone && (
               <a
                 href={`tel:${lostContext.phone}`}
                 className="block w-full text-center px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
               >
-                📞 Llamar al dueño · {lostContext.phone}
+                Llamar al dueño · {lostContext.phone}
               </a>
-            ) : (
-              <FoundPetForm publicToken={publicToken} />
             )}
-            {lostContext.locationText && (
+            {pet.discloseEmailWhenLost && lostContext.email && (
+              <a
+                href={`mailto:${lostContext.email}`}
+                className="block w-full text-center px-4 py-2 rounded-lg border border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+              >
+                Escribir por email · {lostContext.email}
+              </a>
+            )}
+            {pet.discloseLastLocationWhenLost && lostContext.locationText && (
               <p className="text-xs text-amber-800 dark:text-amber-300">
                 <span className="font-medium">Última ubicación conocida:</span>{" "}
                 {lostContext.locationText}
               </p>
             )}
+            {pet.allowFinderFormWhenLost && <FoundPetForm publicToken={publicToken} />}
           </div>
         ) : (
           // Active pet — the "found" form sits behind a disclosure so a casual
