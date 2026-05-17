@@ -10,13 +10,15 @@
 //   - Each test calls the inner *ForAuthority writer directly (no Next.js runtime)
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  assignGovtLocalityForAuthority,
   createInstitutionalAccountForAuthority,
   deactivateAdminForAuthority,
   deactivateGovtForAuthority,
+  resetInstitutionalCredentialsForAuthority,
 } from "@/app/actions/admin-institutional";
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 
@@ -927,5 +929,259 @@ describe("deactivateGovtForAuthority — validation: target is not a govt", () =
     expect((result as { error: string }).error).toMatch(/NOT_INSTITUTIONAL_GOVT|INVALID_TARGET/);
 
     await db.delete(attachments).where(eq(attachments.id, att.id));
+  });
+});
+
+// ============================================================================
+// resetInstitutionalCredentialsForAuthority — PR-C tests
+// ============================================================================
+
+const RESET_GOVT_EMAIL = "fase5-reset-govt-target@dim-test.local";
+const RESET_ADMIN_EMAIL = "fase5-reset-admin-target@dim-test.local";
+const RESET_PERSONAL_EMAIL = "fase5-reset-personal-target@dim-test.local";
+
+let resetGovtId: string;
+let resetAdminId: string;
+let resetPersonalId: string;
+
+beforeAll(async () => {
+  // Seed targets for reset credential tests
+  resetGovtId = await seedGovtUser(RESET_GOVT_EMAIL);
+  resetAdminId = await seedAdminUser(RESET_ADMIN_EMAIL);
+
+  await deleteTestUser(RESET_PERSONAL_EMAIL);
+  resetPersonalId = await createUserOrThrow(RESET_PERSONAL_EMAIL);
+  // Leave as personal/owner (trigger default)
+
+  createdNewUserEmails.push(RESET_GOVT_EMAIL, RESET_ADMIN_EMAIL, RESET_PERSONAL_EMAIL);
+}, 30_000);
+
+describe("resetInstitutionalCredentialsForAuthority — happy path: active govt", () => {
+  it("generates magic link, inserts audit_log and notification, returns magicLink", async () => {
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: resetGovtId,
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+
+    expect(result.ok).toBe(true);
+    expect(result.magicLink).toBeTypeOf("string");
+    expect(result.magicLink.length).toBeGreaterThan(0);
+
+    // Verify audit_log row
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetUserId, resetGovtId),
+          eq(auditLog.action, "operator_credentials_reset"),
+        ),
+      )
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+
+    expect(logRow).toBeDefined();
+    const payload = logRow.payload as Record<string, unknown>;
+    expect(payload.method).toBe("magic_link");
+    expect(typeof payload.magic_link).toBe("string");
+    expect((payload.magic_link as string).length).toBeGreaterThan(0);
+
+    // Verify notification
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, resetGovtId),
+          eq(notifications.notificationType, "operator_credentials_reset"),
+        ),
+      )
+      .orderBy(desc(notifications.createdAt))
+      .limit(1);
+    expect(notif).toBeDefined();
+  });
+});
+
+describe("resetInstitutionalCredentialsForAuthority — happy path: active admin target", () => {
+  it("returns magicLink for an active admin target", async () => {
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: resetAdminId,
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+    expect(result.ok).toBe(true);
+    expect(result.magicLink).toBeTypeOf("string");
+    expect(result.magicLink.length).toBeGreaterThan(0);
+  });
+});
+
+describe("resetInstitutionalCredentialsForAuthority — capability: non-admin caller rejected", () => {
+  it("returns CAPABILITY_DENIED when actor is a govt user", async () => {
+    const result = await resetInstitutionalCredentialsForAuthority(govtActorUserId, {
+      targetUserId: resetGovtId,
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("CAPABILITY_DENIED");
+  });
+});
+
+describe("resetInstitutionalCredentialsForAuthority — validation: deactivated target rejected", () => {
+  it("returns TARGET_DEACTIVATED when target is deactivated", async () => {
+    // deactivateGovtTargetId was deactivated in PR-B tests above
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: deactivateGovtTargetId,
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("TARGET_DEACTIVATED");
+  });
+});
+
+describe("resetInstitutionalCredentialsForAuthority — validation: personal account rejected", () => {
+  it("returns NOT_INSTITUTIONAL when target is a personal (non-institutional) account", async () => {
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: resetPersonalId,
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("NOT_INSTITUTIONAL");
+  });
+});
+
+// ============================================================================
+// assignGovtLocalityForAuthority — PR-C tests
+// ============================================================================
+
+const ASSIGN_GOVT_EMAIL = "fase5-assign-govt-target@dim-test.local";
+let assignGovtId: string;
+
+beforeAll(async () => {
+  assignGovtId = await seedGovtUser(ASSIGN_GOVT_EMAIL, [
+    { province: "Santa Fe", locality: "Rosario" },
+  ]);
+  createdNewUserEmails.push(ASSIGN_GOVT_EMAIL);
+}, 30_000);
+
+describe("assignGovtLocalityForAuthority — happy path: new locality assigned", () => {
+  it("inserts govt_assignment, audit_log, notification and returns ok", async () => {
+    const result = await assignGovtLocalityForAuthority(deactivateActorId, {
+      targetUserId: assignGovtId,
+      province: "Cordoba",
+      locality: "Villa Carlos Paz",
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+    expect(result.ok).toBe(true);
+    expect(result.assignmentId).toBeTypeOf("string");
+
+    // Verify govt_assignment row
+    const [assignment] = await db
+      .select()
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.userId, assignGovtId),
+          eq(govtAssignments.jurisdictionProvince, "Cordoba"),
+          eq(govtAssignments.jurisdictionLocality, "Villa Carlos Paz"),
+          isNull(govtAssignments.revokedAt),
+        ),
+      )
+      .limit(1);
+
+    expect(assignment).toBeDefined();
+    expect(assignment.grantedByUserId).toBe(deactivateActorId);
+
+    // Verify audit_log
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetUserId, assignGovtId),
+          eq(auditLog.action, "govt_locality_assigned"),
+        ),
+      )
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+
+    expect(logRow).toBeDefined();
+    const payload = logRow.payload as Record<string, unknown>;
+    expect(payload.province).toBe("Cordoba");
+    expect(payload.locality).toBe("Villa Carlos Paz");
+
+    // Verify notification
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, assignGovtId),
+          eq(notifications.notificationType, "govt_locality_assigned"),
+        ),
+      )
+      .orderBy(desc(notifications.createdAt))
+      .limit(1);
+    expect(notif).toBeDefined();
+  });
+});
+
+describe("assignGovtLocalityForAuthority — capability: non-admin caller rejected", () => {
+  it("returns CAPABILITY_DENIED when actor is a govt user", async () => {
+    const result = await assignGovtLocalityForAuthority(govtActorUserId, {
+      targetUserId: assignGovtId,
+      province: "Buenos Aires",
+      locality: "Lujan",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("CAPABILITY_DENIED");
+  });
+});
+
+describe("assignGovtLocalityForAuthority — validation: target not a govt", () => {
+  it("returns error when target is an admin (not a govt)", async () => {
+    const result = await assignGovtLocalityForAuthority(deactivateActorId, {
+      targetUserId: actorUserId,
+      province: "Buenos Aires",
+      locality: "Lujan",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toMatch(/NOT_INSTITUTIONAL_GOVT|INVALID_TARGET/);
+  });
+});
+
+describe("assignGovtLocalityForAuthority — validation: deactivated target rejected", () => {
+  it("returns TARGET_DEACTIVATED when target govt is deactivated", async () => {
+    // deactivateGovtTargetId was deactivated in the PR-B tests
+    const result = await assignGovtLocalityForAuthority(deactivateActorId, {
+      targetUserId: deactivateGovtTargetId,
+      province: "Buenos Aires",
+      locality: "Tigre",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("TARGET_DEACTIVATED");
+  });
+});
+
+describe("assignGovtLocalityForAuthority — duplicate assignment returns noOp", () => {
+  it("returns { ok: true, noOp: true } when the same (province, locality) is already active", async () => {
+    // Rosario was seeded in beforeAll above for assignGovtId
+    const result = await assignGovtLocalityForAuthority(deactivateActorId, {
+      targetUserId: assignGovtId,
+      province: "Santa Fe",
+      locality: "Rosario",
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+    expect(result.ok).toBe(true);
+    expect(result.noOp).toBe(true);
   });
 });
