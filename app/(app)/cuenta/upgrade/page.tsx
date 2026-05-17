@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { db, profiles } from "@/db";
+import { approvalRequests, db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getActiveMemberships } from "@/lib/capabilities";
+
 import { OrgCreateForm } from "./OrgCreateForm";
 import { VetUpgradeForm } from "./VetUpgradeForm";
 
@@ -13,6 +14,27 @@ export default async function UpgradePage() {
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   const memberships = await getActiveMemberships(user.id);
   const adminMembership = memberships.find((m) => m.membership.role === "admin");
+
+  // Latest vet-upgrade request to drive the card state. Pending → show
+  // "enviada"; rejected → surface the decision_notes and let the user
+  // re-submit; otherwise show the form (no request yet).
+  const [latestVetRequest] = await db
+    .select({
+      status: approvalRequests.status,
+      decisionNotes: approvalRequests.decisionNotes,
+      decidedAt: approvalRequests.decidedAt,
+      jurisdictionProvince: approvalRequests.jurisdictionProvince,
+      jurisdictionLocality: approvalRequests.jurisdictionLocality,
+    })
+    .from(approvalRequests)
+    .where(
+      and(
+        eq(approvalRequests.applicantUserId, user.id),
+        eq(approvalRequests.type, "role_upgrade_vet"),
+      ),
+    )
+    .orderBy(desc(approvalRequests.createdAt))
+    .limit(1);
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
@@ -27,30 +49,7 @@ export default async function UpgradePage() {
         </header>
 
         {/* Card A — Profesional veterinario */}
-        {profile?.role !== "vet" && (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-                Profesional veterinario
-              </h2>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                Registrá tu matrícula para que el equipo de DIM la verifique. Una vez aprobada, tu
-                rol será actualizado a veterinario.
-              </p>
-            </div>
-
-            {profile?.matriculaNumber ? (
-              <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-                Solicitud enviada — pendiente de revisión. Tu matrícula:{" "}
-                <strong>{profile.matriculaNumber}</strong>
-              </p>
-            ) : (
-              <VetUpgradeForm />
-            )}
-          </section>
-        )}
-
-        {profile?.role === "vet" && (
+        {profile?.role === "vet" ? (
           <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
             <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
               Profesional veterinario
@@ -58,6 +57,45 @@ export default async function UpgradePage() {
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
               Ya sos veterinario verificado en DIM.
             </p>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+                Profesional veterinario
+              </h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                Registrá tu matrícula para que la autoridad de tu localidad la verifique. Una vez
+                aprobada, tu rol pasa a veterinario.
+              </p>
+            </div>
+
+            {latestVetRequest?.status === "pending" ? (
+              <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                Solicitud enviada — pendiente de revisión.
+                {profile?.matriculaNumber && (
+                  <>
+                    {" "}
+                    Tu matrícula: <strong>{profile.matriculaNumber}</strong>
+                  </>
+                )}
+              </p>
+            ) : latestVetRequest?.status === "rejected" ? (
+              <>
+                <div className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 space-y-1">
+                  <p>
+                    <strong>Tu última solicitud fue rechazada.</strong>
+                  </p>
+                  {latestVetRequest.decisionNotes && (
+                    <p className="text-xs">Motivo: {latestVetRequest.decisionNotes}</p>
+                  )}
+                  <p className="text-xs">Corregí los datos y volvé a enviar.</p>
+                </div>
+                <VetUpgradeForm />
+              </>
+            ) : (
+              <VetUpgradeForm />
+            )}
           </section>
         )}
 

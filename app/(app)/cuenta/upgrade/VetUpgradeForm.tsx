@@ -1,7 +1,8 @@
 "use client";
 
-import { type UpgradeFormState, requestVetUpgradeAction } from "@/app/actions/upgrade";
 import { useActionState } from "react";
+
+import { type UpgradeFormState, requestVetUpgradeAction } from "@/app/actions/upgrade";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -27,12 +28,44 @@ export function VetUpgradeForm() {
         required
       />
       <Field
-        id="jurisdiccion"
-        name="jurisdiccion"
+        id="matriculaJurisdiccion"
+        name="matriculaJurisdiccion"
         type="text"
         label="Provincia de la matrícula"
-        hint="Ej: CABA, Buenos Aires, Córdoba"
+        hint="Dónde fue emitida tu matrícula. Ej: CABA, Buenos Aires, Córdoba"
         required
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field
+          id="operationalProvince"
+          name="operationalProvince"
+          type="text"
+          label="Provincia donde ejercés"
+          hint="Si es la misma que la matrícula, repetila."
+          required
+        />
+        <Field
+          id="operationalLocality"
+          name="operationalLocality"
+          type="text"
+          label="Localidad"
+          hint="Ej: Palermo, San Isidro, Pilar."
+          required
+        />
+      </div>
+      <Field
+        id="especialidad"
+        name="especialidad"
+        type="text"
+        label="Especialidad (opcional)"
+        hint="Ej: Clínica, cirugía, exóticos."
+      />
+      <Field
+        id="anosExperiencia"
+        name="anosExperiencia"
+        type="number"
+        label="Años de experiencia (opcional)"
+        inputMode="numeric"
       />
 
       {state.error && (
@@ -59,6 +92,7 @@ function Field({
   label,
   required,
   hint,
+  inputMode,
 }: {
   id: string;
   name: string;
@@ -66,6 +100,7 @@ function Field({
   label: string;
   required?: boolean;
   hint?: string;
+  inputMode?: "numeric" | "text";
 }) {
   return (
     <div className="space-y-1.5">
@@ -80,6 +115,7 @@ function Field({
         name={name}
         type={type}
         required={required}
+        inputMode={inputMode}
         className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
       />
       {hint && <p className="text-xs text-neutral-500 dark:text-neutral-500">{hint}</p>}

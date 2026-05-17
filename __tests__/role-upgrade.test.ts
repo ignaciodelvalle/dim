@@ -1,14 +1,27 @@
-// Integration tests for the role-upgrade surface (/cuenta/upgrade).
+// Integration tests for the role-upgrade flows after Fase 1 refactor.
 //
-// Tests the pure inner writer functions directly, bypassing FormData and the
-// Supabase server client — same pattern as create-pet-custody.test.ts.
+// requestVetUpgradeForUser and createOrganizationForUser now write an
+// approval_request row as the canonical contract and fan out notifications
+// to scope-matching authorities. The applicant-side data mutations (profile
+// matricula fields, organization row, membership) still happen in the same
+// transaction so the UX is unchanged.
+//
+// Tests call the pure inner writer functions directly.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createOrganizationForUser, requestVetUpgradeForUser } from "@/app/actions/upgrade";
-import { db, notifications, organizationMemberships, organizations, profiles } from "@/db";
+import {
+  approvalRequests,
+  db,
+  govtAssignments,
+  notifications,
+  organizationMemberships,
+  organizations,
+  profiles,
+} from "@/db";
 import { getActiveMemberships } from "@/lib/capabilities";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -19,18 +32,18 @@ const admin = createClient(SUPABASE_URL, SECRET, {
 
 const EMAIL = "role-upgrade-test@dim-test.local";
 const EMAIL2 = "role-upgrade-test2@dim-test.local";
+const ADMIN_EMAIL = "role-upgrade-admin@dim-test.local";
 const PASS = "RoleUpgrade_2026!";
 
 let userId: string;
 let userId2: string;
+let adminUserId: string;
 let orgId: string;
 
 async function deleteTestUser(email: string) {
   const { data: list } = await admin.auth.admin.listUsers();
   const found = list?.users.find((u) => u.email === email);
 
-  // Also find orphaned profile rows (no FK to auth.users, so they may survive
-  // previous afterAll runs). Look up by display_name derived from email prefix.
   const displayName = email.split("@")[0];
   const orphanedProfiles = await db
     .select({ id: profiles.id })
@@ -43,11 +56,11 @@ async function deleteTestUser(email: string) {
   ];
 
   for (const uid of idsToClean) {
-    // Notifications cascade from profiles on delete, but we do it explicitly
-    // to be safe with the partial cascade path.
+    // approval_requests + govt_assignments + notifications all cascade from
+    // profile delete, but we delete notifications + assignments explicitly
+    // to be defensive against partial-cascade configurations.
+    await db.delete(govtAssignments).where(eq(govtAssignments.userId, uid));
     await db.delete(notifications).where(eq(notifications.userId, uid));
-    // Delete orgs where this user is admin (membership cascade will fire after,
-    // but we need the org gone before the membership FK resolves).
     const adminRows = await db
       .select({ orgId: organizationMemberships.organizationId })
       .from(organizationMemberships)
@@ -58,92 +71,251 @@ async function deleteTestUser(email: string) {
       await db.delete(organizations).where(eq(organizations.id, oid));
     }
     await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
-    // Profiles have no FK to auth.users — must be deleted explicitly.
     await db.delete(profiles).where(eq(profiles.id, uid));
   }
 
-  if (found) {
-    await admin.auth.admin.deleteUser(found.id);
-  }
+  if (found) await admin.auth.admin.deleteUser(found.id);
 }
 
 beforeAll(async () => {
   await deleteTestUser(EMAIL);
   await deleteTestUser(EMAIL2);
+  await deleteTestUser(ADMIN_EMAIL);
 
-  const { data, error } = await admin.auth.admin.createUser({
+  const r1 = await admin.auth.admin.createUser({
     email: EMAIL,
     password: PASS,
     email_confirm: true,
   });
-  if (error || !data.user) throw new Error(`createUser: ${error?.message}`);
-  userId = data.user.id;
+  if (r1.error || !r1.data.user) throw new Error(`createUser1: ${r1.error?.message}`);
+  userId = r1.data.user.id;
 
-  const { data: data2, error: error2 } = await admin.auth.admin.createUser({
+  const r2 = await admin.auth.admin.createUser({
     email: EMAIL2,
     password: PASS,
     email_confirm: true,
   });
-  if (error2 || !data2.user) throw new Error(`createUser2: ${error2?.message}`);
-  userId2 = data2.user.id;
+  if (r2.error || !r2.data.user) throw new Error(`createUser2: ${r2.error?.message}`);
+  userId2 = r2.data.user.id;
+
+  // Seed a platform admin so the no-govt-fallback path has someone to notify.
+  // Without this, the fan-out in unscoped tests would silently no-op.
+  const r3 = await admin.auth.admin.createUser({
+    email: ADMIN_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (r3.error || !r3.data.user) throw new Error(`createUser admin: ${r3.error?.message}`);
+  adminUserId = r3.data.user.id;
+  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
 });
 
 afterAll(async () => {
   await deleteTestUser(EMAIL);
   await deleteTestUser(EMAIL2);
+  await deleteTestUser(ADMIN_EMAIL);
 });
 
-describe("requestVetUpgradeForUser", () => {
-  it("happy path: stores matricula_number, leaves role=owner, emits notification", async () => {
+describe("requestVetUpgradeForUser (Fase 1)", () => {
+  it("happy path: creates approval_request + updates profile + notifies applicant and admin", async () => {
     const result = await requestVetUpgradeForUser(userId, {
       matriculaNumber: "MN-12345",
-      jurisdiccion: "CABA",
+      matriculaJurisdiccion: "CABA",
+      operationalProvince: "CABA",
+      operationalLocality: "Palermo-NoGovt",
+      especialidad: "Clínica",
+      anosExperiencia: 5,
     });
     expect(result.error).toBeNull();
     expect(result.ok).toBe(true);
 
+    // Profile carries the submitted matricula (state submitted but unverified).
     const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
     expect(profile.matriculaNumber).toBe("MN-12345");
     expect(profile.matriculaJurisdiccion).toBe("CABA");
     expect(profile.matriculaVerified).toBe(false);
-    // Role must NOT be changed — admin flips this after verification
     expect(profile.role).toBe("owner");
 
-    const [notif] = await db
+    // Approval request is the canonical contract.
+    const [req] = await db
+      .select()
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, userId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+        ),
+      )
+      .orderBy(desc(approvalRequests.createdAt))
+      .limit(1);
+    expect(req).toBeDefined();
+    expect(req.status).toBe("pending");
+    expect(req.targetUserId).toBe(userId);
+    expect(req.jurisdictionProvince).toBe("CABA");
+    expect(req.jurisdictionLocality).toBe("Palermo-NoGovt");
+    expect(req.publicToken).toMatch(/^APR-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    const payload = req.payload as { matricula_number: string; payload_version: number };
+    expect(payload.matricula_number).toBe("MN-12345");
+    expect(payload.payload_version).toBe(1);
+
+    const applicantNotifs = await db
       .select()
       .from(notifications)
       .where(
         and(
           eq(notifications.userId, userId),
-          eq(notifications.notificationType, "vet_upgrade_requested"),
+          eq(notifications.notificationType, "approval_request_submitted_self"),
         ),
-      )
-      .limit(1);
-    expect(notif).toBeDefined();
-    expect(notif.notificationType).toBe("vet_upgrade_requested");
+      );
+    expect(applicantNotifs.length).toBeGreaterThan(0);
+
+    // No govt covers Palermo-NoGovt → admin gets the authority notification.
+    const adminNotifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, adminUserId),
+          eq(notifications.notificationType, "approval_request_pending_authority"),
+        ),
+      );
+    expect(adminNotifs.length).toBeGreaterThan(0);
   });
 
-  it("idempotency: second call returns error, no second profile update", async () => {
+  it("idempotency: a second submission with a pending request is rejected", async () => {
     const result = await requestVetUpgradeForUser(userId, {
       matriculaNumber: "MN-99999",
-      jurisdiccion: "CABA",
+      matriculaJurisdiccion: "CABA",
+      operationalProvince: "CABA",
+      operationalLocality: "Palermo-NoGovt",
     });
-    expect(result.error).toMatch(/Ya tenés una matrícula registrada/);
+    expect(result.error).toMatch(/solicitud pendiente/i);
 
-    // Profile still has the original matricula from the happy-path test
+    // The original pending request stays untouched.
     const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
     expect(profile.matriculaNumber).toBe("MN-12345");
   });
+
+  it("re-submit after rejection creates a new approval_request row", async () => {
+    // Mark the existing request as rejected (simulating Fase 2 admin action).
+    await db
+      .update(approvalRequests)
+      .set({
+        status: "rejected",
+        decidedAt: new Date(),
+        decidedByUserId: adminUserId,
+        decisionNotes: "Matrícula vencida — adjuntá certificado vigente.",
+      })
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, userId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+          eq(approvalRequests.status, "pending"),
+        ),
+      );
+
+    const beforeCount = await db
+      .select({ id: approvalRequests.id })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, userId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+        ),
+      );
+
+    const result = await requestVetUpgradeForUser(userId, {
+      matriculaNumber: "MN-77777",
+      matriculaJurisdiccion: "CABA",
+      operationalProvince: "CABA",
+      operationalLocality: "Palermo-NoGovt",
+    });
+    expect(result.ok).toBe(true);
+
+    const afterCount = await db
+      .select({ id: approvalRequests.id })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, userId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+        ),
+      );
+    expect(afterCount.length).toBe(beforeCount.length + 1);
+
+    // Profile picks up the new matricula.
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
+    expect(profile.matriculaNumber).toBe("MN-77777");
+  });
+
+  it("routes to scope-matching govt when one covers the locality", async () => {
+    // Promote userId2 to govt and assign them to a specific locality.
+    await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, userId2));
+    await db.insert(govtAssignments).values({
+      userId: userId2,
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "Tigre",
+      grantedByUserId: adminUserId,
+    });
+
+    // Use a third user that hasn't submitted yet — re-use ADMIN_EMAIL would
+    // collide with role='admin'. Spin a clean throwaway by deleting userId's
+    // pending state first and submitting from userId, just for routing assert.
+    // Simplest: mark the latest pending request as rejected first so the
+    // applicant can re-submit (this test is independent of payload state).
+    await db
+      .update(approvalRequests)
+      .set({
+        status: "rejected",
+        decidedAt: new Date(),
+        decidedByUserId: adminUserId,
+        decisionNotes: "(test routing cleanup)",
+      })
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, userId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+          eq(approvalRequests.status, "pending"),
+        ),
+      );
+
+    const result = await requestVetUpgradeForUser(userId, {
+      matriculaNumber: "MN-TIGRE",
+      matriculaJurisdiccion: "Buenos Aires",
+      operationalProvince: "Buenos Aires",
+      operationalLocality: "Tigre",
+    });
+    expect(result.ok).toBe(true);
+
+    // userId2 (the govt assigned to Tigre) gets a notification.
+    const govtNotifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId2),
+          eq(notifications.notificationType, "approval_request_pending_authority"),
+        ),
+      );
+    expect(govtNotifs.length).toBeGreaterThan(0);
+
+    // Cleanup: revoke userId2's govt role + assignment so the cuit-collision
+    // test below treats userId2 as a plain owner again.
+    await db.delete(govtAssignments).where(eq(govtAssignments.userId, userId2));
+    await db.update(profiles).set({ role: "owner" }).where(eq(profiles.id, userId2));
+  });
 });
 
-describe("createOrganizationForUser", () => {
-  it("happy path: creates org (verified=false, status=active), membership (admin, canWritePetEvents=true), notification", async () => {
+describe("createOrganizationForUser (Fase 1)", () => {
+  it("happy path: creates org + membership + approval_request + notifications", async () => {
     const result = await createOrganizationForUser(userId, {
       name: "Refugio Test",
       legalName: "Asoc. Civil Test",
       orgType: "shelter",
       cuit: "30712345678",
       email: "test@refugio.test",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo-NoGovt",
     });
     expect(result.error).toBeNull();
     expect(result.ok).toBe(true);
@@ -154,6 +326,8 @@ describe("createOrganizationForUser", () => {
     const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
     expect(org.verified).toBe(false);
     expect(org.status).toBe("active");
+    expect(org.jurisdictionProvince).toBe("CABA");
+    expect(org.jurisdictionLocality).toBe("Palermo-NoGovt");
 
     const [membership] = await db
       .select()
@@ -166,21 +340,36 @@ describe("createOrganizationForUser", () => {
         ),
       )
       .limit(1);
-    expect(membership).toBeDefined();
     expect(membership.role).toBe("admin");
     expect(membership.canWritePetEvents).toBe(true);
 
-    const [notif] = await db
+    const [req] = await db
+      .select()
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, userId),
+          eq(approvalRequests.type, "organization_verification"),
+          eq(approvalRequests.targetOrganizationId, orgId),
+        ),
+      )
+      .limit(1);
+    expect(req).toBeDefined();
+    expect(req.status).toBe("pending");
+    expect(req.jurisdictionLocality).toBe("Palermo-NoGovt");
+
+    const adminNotifs = await db
       .select()
       .from(notifications)
       .where(
         and(
-          eq(notifications.userId, userId),
-          eq(notifications.notificationType, "org_creation_requested"),
+          eq(notifications.userId, adminUserId),
+          eq(notifications.notificationType, "approval_request_pending_authority"),
         ),
-      )
-      .limit(1);
-    expect(notif).toBeDefined();
+      );
+    // The admin has received notifications for both the vet flow above and
+    // this org flow, so the count is >0.
+    expect(adminNotifs.length).toBeGreaterThan(0);
   });
 
   it("idempotency: second call by same user returns error, only one org exists", async () => {
@@ -189,10 +378,11 @@ describe("createOrganizationForUser", () => {
       legalName: "Duplicado SA",
       orgType: "clinic",
       email: "dup@refugio.test",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo-NoGovt",
     });
     expect(result.error).toMatch(/Ya administrás una organización/);
 
-    // Confirm only one org exists for this user
     const memberships = await db
       .select()
       .from(organizationMemberships)
@@ -210,6 +400,8 @@ describe("createOrganizationForUser", () => {
       orgType: "rescue_network",
       cuit: "30712345678", // same as userId's org
       email: "otro@refugio.test",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo-NoGovt",
     });
     expect(result.error).toMatch(/Ya existe una organización con ese CUIT/);
   });
@@ -218,7 +410,6 @@ describe("createOrganizationForUser", () => {
     const memberships = await getActiveMemberships(userId);
     const adminMembership = memberships.find((m) => m.membership.role === "admin");
     expect(adminMembership).toBeDefined();
-    // The org is unverified — the gate checks membership, not verification
     expect(adminMembership?.organization.verified).toBe(false);
   });
 });

@@ -66,17 +66,28 @@ export function OrgCreateForm() {
         hint="11 dígitos sin guiones. Ej: 30712345678"
       />
       <Field id="phone" name="phone" type="tel" label="Teléfono (opcional)" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field
+          id="jurisdictionProvince"
+          name="jurisdictionProvince"
+          type="text"
+          label="Provincia"
+          hint="Para enrutar la verificación al govt correspondiente."
+          required
+        />
+        <Field
+          id="jurisdictionLocality"
+          name="jurisdictionLocality"
+          type="text"
+          label="Localidad"
+          required
+        />
+      </div>
       <Field
-        id="jurisdictionProvince"
-        name="jurisdictionProvince"
+        id="personeriaJuridicaNumber"
+        name="personeriaJuridicaNumber"
         type="text"
-        label="Provincia (opcional)"
-      />
-      <Field
-        id="jurisdictionLocality"
-        name="jurisdictionLocality"
-        type="text"
-        label="Localidad (opcional)"
+        label="Número de personería jurídica (opcional)"
       />
 
       {state.error && (
