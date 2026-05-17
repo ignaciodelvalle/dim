@@ -391,6 +391,24 @@ export type DisclosurePrefsInput = {
   allowFinderFormWhenLost: boolean;
 };
 
+// Enriched description fields captured at lost-time for unchipped pets.
+// These split into two buckets:
+//   - Identity fields (color, distinguishingFeatures) → update pets row
+//   - Incident snapshot fields (accessories, behavior, last-seen context) →
+//     embedded in the status_changed event payload as lost_description
+export type EnrichedLostDescriptionInput = {
+  // Persistent identity — update pets row
+  color: string | null;
+  distinguishingFeatures: string | null;
+  // Incident snapshot — event payload only
+  accessoriesWhenLost: string | null;
+  behaviorNotes: string | null;
+  lastSeenContext: string | null;
+  // Retroactive microchip capture (optional — writes microchip_implanted event
+  // + updates pets.microchipId if the pet had no chip before)
+  microchipId: string | null;
+};
+
 // Inner writer — testable without Next.js runtime or FormData.
 //
 // Responsibilities:
@@ -399,11 +417,18 @@ export type DisclosurePrefsInput = {
 //      the live credential render).
 //   3. Insert a status_changed event with disclosure_prefs_snapshot for
 //      historical audit.
+//   4. (Fase 4) If enriched description provided:
+//      a. Persist identity fields (color, distinguishingFeatures) to pets row.
+//      b. Embed incident snapshot in the status_changed event payload as
+//         lost_description.
+//      c. If retroactive microchipId provided and pet had no chip: insert
+//         microchip_implanted event + update pets.microchipId.
 //
 // Does NOT redirect — callers decide navigation.
 export async function setPetLostWriter(params: {
   petId: string;
   petStatus: string;
+  petMicrochipId?: string | null;
   fromStatus: string;
   recordedByUserId: string;
   eventAuthorship: Record<string, unknown>;
@@ -412,11 +437,13 @@ export async function setPetLostWriter(params: {
   locationLng: string | null;
   reason: string | null;
   disclosurePrefs: DisclosurePrefsInput;
+  enrichedDescription?: EnrichedLostDescriptionInput | null;
   now?: Date;
 }): Promise<EventFormState> {
   const {
     petId,
     petStatus,
+    petMicrochipId = null,
     fromStatus,
     recordedByUserId,
     eventAuthorship,
@@ -425,6 +452,7 @@ export async function setPetLostWriter(params: {
     locationLng,
     reason,
     disclosurePrefs,
+    enrichedDescription = null,
     now = new Date(),
   } = params;
 
@@ -454,6 +482,20 @@ export async function setPetLostWriter(params: {
       : null,
   );
 
+  // Build lost_description if at least one incident snapshot field is provided.
+  const hasIncidentSnapshot =
+    enrichedDescription?.accessoriesWhenLost ||
+    enrichedDescription?.behaviorNotes ||
+    enrichedDescription?.lastSeenContext;
+
+  const lostDescription = hasIncidentSnapshot
+    ? {
+        accessories_when_lost: enrichedDescription?.accessoriesWhenLost ?? null,
+        behavior_notes: enrichedDescription?.behaviorNotes ?? null,
+        last_seen_context: enrichedDescription?.lastSeenContext ?? null,
+      }
+    : null;
+
   try {
     await db.transaction(async (tx) => {
       const eventPayload = validateEventPayload("status_changed", {
@@ -462,6 +504,7 @@ export async function setPetLostWriter(params: {
         location_description: locationDescription,
         reason,
         disclosure_prefs_snapshot: disclosurePrefsSnapshot,
+        ...(lostDescription !== null ? { lost_description: lostDescription } : {}),
       });
 
       await tx.insert(petEvents).values({
@@ -476,7 +519,8 @@ export async function setPetLostWriter(params: {
         payload: eventPayload,
       });
 
-      // Update both the status and all 5 disclosure preference columns.
+      // Update status, all 5 disclosure preference columns, and (optionally)
+      // identity fields from the enriched section.
       // The prefs columns are the live source of truth for the public
       // credential render — the snapshot above is for audit only.
       await tx
@@ -488,9 +532,46 @@ export async function setPetLostWriter(params: {
           discloseEmailWhenLost,
           discloseLastLocationWhenLost,
           allowFinderFormWhenLost,
+          // Persist refined identity fields when provided (unchipped flow, §8.2a).
+          // A chipped pet that somehow submits these fields also persists them —
+          // the UI hides the section but the server is intentionally lenient.
+          ...(enrichedDescription?.color != null
+            ? { color: enrichedDescription.color || null }
+            : {}),
+          ...(enrichedDescription?.distinguishingFeatures != null
+            ? { distinguishingFeatures: enrichedDescription.distinguishingFeatures || null }
+            : {}),
           updatedAt: now,
         })
         .where(eq(pets.id, petId));
+
+      // Retroactive microchip capture — only when:
+      //   a. The owner provided a chip number in the enriched section.
+      //   b. The pet had no chip before (petMicrochipId is null).
+      const newChipId = enrichedDescription?.microchipId?.trim() || null;
+      if (newChipId && !petMicrochipId) {
+        const microchipPayload = validateEventPayload("microchip_implanted", {
+          chip_number: newChipId,
+          country_code: null,
+          implanted_by: null,
+          location_on_body: null,
+        });
+
+        await tx.insert(petEvents).values({
+          petId,
+          eventType: "microchip_implanted",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId,
+          ...(eventAuthorship as object),
+          payload: microchipPayload,
+        });
+
+        await tx
+          .update(pets)
+          .set({ microchipId: newChipId, updatedAt: now })
+          .where(eq(pets.id, petId));
+      }
     });
   } catch (err) {
     return {
@@ -535,6 +616,35 @@ function parseDisclosurePrefsFromForm(
   };
 }
 
+// Parses enriched description fields from FormData (unchipped pet section).
+// Returns null if none of the enriched fields are present in the form — this
+// allows form submissions that don't include the section (chipped pets, old
+// form versions) to pass through without any enrichment.
+function parseEnrichedDescriptionFromForm(formData: FormData): EnrichedLostDescriptionInput | null {
+  const enrichedKeys = [
+    "enriched_color",
+    "enriched_distinguishing_features",
+    "enriched_accessories_when_lost",
+    "enriched_behavior_notes",
+    "enriched_last_seen_context",
+    "enriched_microchip_id",
+  ];
+
+  const hasSection = enrichedKeys.some((k) => formData.has(k));
+  if (!hasSection) return null;
+
+  const str = (key: string) => String(formData.get(key) ?? "").trim() || null;
+
+  return {
+    color: str("enriched_color"),
+    distinguishingFeatures: str("enriched_distinguishing_features"),
+    accessoriesWhenLost: str("enriched_accessories_when_lost"),
+    behaviorNotes: str("enriched_behavior_notes"),
+    lastSeenContext: str("enriched_last_seen_context"),
+    microchipId: str("enriched_microchip_id"),
+  };
+}
+
 export async function setPetLostAction(
   publicToken: string,
   _previous: EventFormState,
@@ -569,10 +679,12 @@ export async function setPetLostAction(
   };
 
   const disclosurePrefs = parseDisclosurePrefsFromForm(formData, petDefaults);
+  const enrichedDescription = parseEnrichedDescriptionFromForm(formData);
 
   const result = await setPetLostWriter({
     petId: pet.id,
     petStatus: pet.status,
+    petMicrochipId: pet.microchipId,
     fromStatus: pet.status,
     recordedByUserId: user.id,
     eventAuthorship: eventAuthorship as Record<string, unknown>,
@@ -581,6 +693,7 @@ export async function setPetLostAction(
     locationLng: locationLngRaw,
     reason,
     disclosurePrefs,
+    enrichedDescription,
   });
 
   if (result.error) return result;
