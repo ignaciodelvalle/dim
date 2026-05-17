@@ -6,11 +6,22 @@
 // Each action verifies its input by public_token + status. No PII is returned
 // to the caller; the notification path uses Drizzle (bypasses RLS) to write
 // a notification row scoped to the pet's current owner.
+//
+// Lost & Found Fase 7: notifyOwnerOfFoundPetAction is rate-limited to one
+// submission per (IP, publicToken) pair within a 5-minute window to prevent
+// notification spam. The limiter is in-memory and per-worker; a shared store
+// (Redis / Upstash) is the recommended upgrade for multi-worker deployments.
 
 import { db, notifications, ownerships, pets } from "@/db";
+import { makeMemoryRateLimiter } from "@/lib/rate-limit";
 import { and, eq, isNull } from "drizzle-orm";
+import { headers } from "next/headers";
 
 export type PublicActionState = { ok: boolean; error: string | null };
+
+// Module-level singleton — survives across requests within the same worker
+// process. The 5-minute window matches the spec (§7.5).
+const foundPetNotifyLimiter = makeMemoryRateLimiter(5 * 60 * 1000);
 
 export async function notifyOwnerOfFoundPetAction(
   publicToken: string,
@@ -18,6 +29,21 @@ export async function notifyOwnerOfFoundPetAction(
   formData: FormData,
 ): Promise<PublicActionState> {
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
+
+  // Lost & Found Fase 7 — rate limit: one submission per (IP + token) per 5min.
+  // Read the caller's IP from x-forwarded-for (set by Vercel / reverse proxy).
+  // Fall back to "unknown" if the header is absent (local dev, direct invocation).
+  const reqHeaders = await headers();
+  const forwardedFor = reqHeaders.get("x-forwarded-for");
+  const callerIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "unknown";
+  const rateLimitKey = `found-notify:${callerIp}:${publicToken}`;
+  const rateResult = foundPetNotifyLimiter.check(rateLimitKey);
+  if (!rateResult.allowed) {
+    return {
+      ok: false,
+      error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+    };
+  }
 
   const finderName = String(formData.get("finderName") ?? "").trim();
   const finderContact = String(formData.get("finderContact") ?? "").trim();
