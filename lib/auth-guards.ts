@@ -11,6 +11,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db, govtAssignments, profiles } from "@/db";
+import type { ActorProfile } from "@/lib/institutional-scope";
 import { type ActiveMembership, getActiveMemberships } from "@/lib/capabilities";
 import { createClient } from "@/lib/supabase/server";
 
@@ -93,5 +94,53 @@ export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession
     ...session,
     profile: { id: profile.id, role: profile.role },
     jurisdictions,
+  };
+}
+
+// ============================================================================
+// Fase 5: Admin-only guard (institutional accounts)
+// ============================================================================
+//
+// Stricter than requireAdminOrGovtOrRedirect — only active institutional admins
+// pass. Rejects:
+//   - unauthenticated users (→ /login via requireUserOrRedirect)
+//   - personal accounts (owner / vet)
+//   - govt role
+//   - deactivated admins (deactivated_at IS NOT NULL)
+//
+// Used by every Fase 5 page and action that is admin-only.
+// Redirect target: /  (govts navigating to /admin/govts etc. land on root)
+
+export type AdminSession = AuthenticatedSession & {
+  profile: ActorProfile;
+};
+
+export async function requireAdminOrRedirect(): Promise<AdminSession> {
+  const session = await requireUserOrRedirect();
+
+  const [profile] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, session.user.id))
+    .limit(1);
+
+  if (!profile) redirect("/");
+  if (profile.role !== "admin") redirect("/");
+  if (profile.accountType !== "institutional") redirect("/");
+  if (profile.deactivatedAt !== null) redirect("/");
+
+  return {
+    ...session,
+    profile: {
+      id: profile.id,
+      role: profile.role as ActorProfile["role"],
+      accountType: profile.accountType as ActorProfile["accountType"],
+      deactivatedAt: profile.deactivatedAt,
+    },
   };
 }
