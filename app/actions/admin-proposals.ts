@@ -450,7 +450,7 @@ export async function proposeOrgVerificationAction(
   const result = await proposeOrgVerificationForOrg(user.id, input);
   if ("ok" in result) {
     revalidatePath("/gobierno/cola");
-    revalidatePath("/admin/organizaciones");
+    revalidatePath("/gobierno/organizaciones");
   }
   return result;
 }
