@@ -100,3 +100,118 @@ export const LIBRETA_FILTER_CHIPS: ReadonlyArray<{ type: EventType; label: strin
   { type: "incident_reported", label: "Incidentes" },
   { type: "death_recorded", label: "Fallecimiento" },
 ];
+
+// Logical groups that the libreta is presented as in the /libreta view. The
+// order here is the display order.
+export const LIBRETA_GROUPS = [
+  "vacunas",
+  "antiparasitarios",
+  "esterilizacion",
+  "visitas",
+  "medicacion",
+  "cirugias",
+  "estudios",
+  "peso",
+  "alergias",
+  "microchip",
+  "sintomas",
+  "incidentes",
+  "fallecimiento",
+] as const;
+
+export type LibretaGroupKey = (typeof LIBRETA_GROUPS)[number];
+
+export const LIBRETA_GROUP_LABELS: Record<LibretaGroupKey, string> = {
+  vacunas: "Vacunas",
+  antiparasitarios: "Antiparasitarios",
+  esterilizacion: "Esterilización",
+  visitas: "Visitas al veterinario",
+  medicacion: "Medicación",
+  cirugias: "Cirugías",
+  estudios: "Estudios (laboratorio e imágenes)",
+  peso: "Peso",
+  alergias: "Alergias y condiciones",
+  microchip: "Microchip",
+  sintomas: "Síntomas",
+  incidentes: "Incidentes",
+  fallecimiento: "Fallecimiento",
+};
+
+// Map an event row to its libreta group, or null if it doesn't belong.
+// clinical_info_logged subdivides via payload.sub_kind so the unified event
+// surfaces in the right conceptual group.
+export function libretaGroupForEvent(event: {
+  eventType: string;
+  payload: unknown;
+}): LibretaGroupKey | null {
+  switch (event.eventType) {
+    case "vaccination_administered":
+      return "vacunas";
+    case "deworming_administered":
+      return "antiparasitarios";
+    case "sterilization_performed":
+      return "esterilizacion";
+    case "vet_visit_logged":
+      return "visitas";
+    case "medication_started":
+    case "medication_stopped":
+    case "medication_dose_taken":
+      return "medicacion";
+    case "weight_recorded":
+      return "peso";
+    case "microchip_implanted":
+      return "microchip";
+    case "symptom_observed":
+      return "sintomas";
+    case "incident_reported":
+      return "incidentes";
+    case "death_recorded":
+      return "fallecimiento";
+    case "surgery_performed":
+      return "cirugias";
+    case "lab_work_performed":
+    case "imaging_performed":
+      return "estudios";
+    case "allergy_detected":
+      return "alergias";
+  }
+
+  if (event.eventType === "clinical_info_logged") {
+    const p = (event.payload ?? {}) as Record<string, unknown>;
+    const sub = typeof p.sub_kind === "string" ? p.sub_kind : null;
+    switch (sub) {
+      case "surgery":
+        return "cirugias";
+      case "allergy_detection":
+        return "alergias";
+      case "lab_work":
+      case "imaging":
+      case "other":
+        return "estudios";
+      // Safe default — keeps a future sub_kind visible until classified.
+      default:
+        return "estudios";
+    }
+  }
+
+  return null;
+}
+
+// Group an array of pet events by libreta group, preserving insertion order
+// within each group (caller is expected to pass events already sorted by
+// occurredAt desc). Events without a group are silently dropped — the caller
+// should already have filtered to libreta types, but defense in depth is
+// cheap.
+export function groupLibretaEvents<E extends { eventType: string; payload: unknown }>(
+  events: readonly E[],
+): Record<LibretaGroupKey, E[]> {
+  const groups = Object.fromEntries(LIBRETA_GROUPS.map((g) => [g, [] as E[]])) as Record<
+    LibretaGroupKey,
+    E[]
+  >;
+  for (const event of events) {
+    const g = libretaGroupForEvent(event);
+    if (g !== null) groups[g].push(event);
+  }
+  return groups;
+}

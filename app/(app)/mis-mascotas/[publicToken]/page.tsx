@@ -561,12 +561,9 @@ export default async function PetDetailPage({
           sourceEvents={eventsWithAttachments}
         />
 
-        {/* Libreta completa — Parte B will land /libreta as the dedicated
-            route; for now the link still points to /historial, which is the
-            full event log (includes non-libreta entries like pet_registered). */}
         <section>
           <Link
-            href={`/mis-mascotas/${pet.publicToken}/historial`}
+            href={`/mis-mascotas/${pet.publicToken}/libreta`}
             className="block w-full text-center px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
           >
             Ver libreta completa →
