@@ -3,10 +3,10 @@
 // rows on the same pet (e.g. shelter_custody + foster) collapse to one card
 // — the highest-stakes role wins for the badge.
 
-import { db, ownerships, pets } from "@/db";
+import { db, ownerships, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 const ROLE_PRIORITY: Record<string, number> = {
@@ -71,6 +71,7 @@ export default async function OrgMascotasPage({
   const canEndFoster = granted.has("foster.end");
   const canFinalizeAdoption = granted.has("adoption.finalize");
   const canTransfer = granted.has("custody.transfer");
+  const canReturnToOwner = granted.has("custody.transfer");
   const canRead = granted.has("pet.read_held") || membership.role === "admin";
 
   if (!canRead) {
@@ -131,6 +132,43 @@ export default async function OrgMascotasPage({
         ),
       );
     for (const row of fosterRows) fosteredPetIds.add(row.petId);
+  }
+
+  // Which lost pets with shelter_custody already have a pending return proposal?
+  // A proposal is pending if there is no subsequent custody_transferred event.
+  const pendingProposalPetIds = new Set<string>();
+  if (petIds.length > 0) {
+    const lostPetIds = cards
+      .filter((c) => c.pet.status === "lost" && c.ownershipRole === "shelter_custody")
+      .map((c) => c.pet.id);
+
+    if (lostPetIds.length > 0) {
+      for (const petId of lostPetIds) {
+        const [latestProposal] = await db
+          .select({ id: petEvents.id, occurredAt: petEvents.occurredAt })
+          .from(petEvents)
+          .where(
+            and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")),
+          )
+          .orderBy(desc(petEvents.occurredAt))
+          .limit(1);
+
+        if (latestProposal) {
+          const [subsequentTransfer] = await db
+            .select({ id: petEvents.id })
+            .from(petEvents)
+            .where(
+              and(
+                eq(petEvents.petId, petId),
+                eq(petEvents.eventType, "custody_transferred"),
+                gt(petEvents.occurredAt, latestProposal.occurredAt),
+              ),
+            )
+            .limit(1);
+          if (!subsequentTransfer) pendingProposalPetIds.add(petId);
+        }
+      }
+    }
   }
 
   const sp = await searchParams;
@@ -245,11 +283,18 @@ export default async function OrgMascotasPage({
                   const showTransferCta =
                     canTransfer &&
                     (ownershipRole === "shelter_custody" || ownershipRole === "owner");
+                  const hasPendingProposal = pendingProposalPetIds.has(pet.id);
+                  const showReturnToOwnerCta =
+                    canReturnToOwner &&
+                    ownershipRole === "shelter_custody" &&
+                    pet.status === "lost" &&
+                    !hasPendingProposal;
                   const anyCta =
                     showFosterCta ||
                     (canEndFoster && hasFoster) ||
                     (canFinalizeAdoption && ownershipRole === "shelter_custody") ||
-                    showTransferCta;
+                    showTransferCta ||
+                    showReturnToOwnerCta;
                   if (!anyCta) return null;
                   return (
                     <div className="pt-1 flex flex-wrap gap-2">
@@ -275,6 +320,14 @@ export default async function OrgMascotasPage({
                           className="inline-block text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
                         >
                           Finalizar adopción
+                        </Link>
+                      )}
+                      {showReturnToOwnerCta && (
+                        <Link
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/devolver-al-dueno`}
+                          className="inline-block text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          Devolver al dueno
                         </Link>
                       )}
                       {showTransferCta && (
