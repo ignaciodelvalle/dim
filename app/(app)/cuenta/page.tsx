@@ -156,13 +156,11 @@ export default async function CuentaPage() {
               href="/cuenta/memberships"
               label="Mis organizaciones"
               description="Refugios, clínicas y redes en las que participás"
-              placeholder
             />
             <ActionCard
               href="/cuenta/solicitudes"
               label="Mis solicitudes"
               description="Estado de tus solicitudes de rol"
-              placeholder
             />
             {profile.role === "owner" && (
               <ActionCard
