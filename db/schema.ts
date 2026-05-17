@@ -249,6 +249,8 @@ export const EVENT_TYPES = [
   "post_adoption_checkin",
   "adoption_revoked",
   "custody_transferred",
+  // Libreta Tier-2 share telemetry — system event, not a medical entry.
+  "libreta_shared_viewed",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -852,3 +854,47 @@ export const welfareReportAttachments = pgTable(
 
 export type WelfareReportAttachment = typeof welfareReportAttachments.$inferSelect;
 export type NewWelfareReportAttachment = typeof welfareReportAttachments.$inferInsert;
+
+// ============================================================================
+// LibretaShareTokens — Tier-2 owner-issued share links for the libreta
+// ============================================================================
+// Each row is one shareable surface created by an owner. Revocation is a flag
+// flip (revoked_at), not a delete. Views are tracked via pet_events of type
+// libreta_shared_viewed; view_count_cached and last_viewed_at_cached are
+// denormalized counters updated on each view for fast display without scanning
+// the events log.
+//
+// D7 from the plan: server-side reads via Drizzle bypass RLS. RLS policies in
+// db/rls.sql govern PostgREST only (defense-in-depth for owner self-service).
+
+export const libretaShareTokens = pgTable(
+  "libreta_share_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shareToken: text("share_token").notNull().unique(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    label: text("label"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    viewCountCached: integer("view_count_cached").notNull().default(0),
+    lastViewedAtCached: timestamp("last_viewed_at_cached", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    petActiveIdx: index("libreta_share_tokens_pet_idx")
+      .on(table.petId)
+      .where(sql`${table.revokedAt} IS NULL`),
+    tokenIdx: index("libreta_share_tokens_token_idx").on(table.shareToken),
+  }),
+);
+
+export type LibretaShareToken = typeof libretaShareTokens.$inferSelect;
+export type NewLibretaShareToken = typeof libretaShareTokens.$inferInsert;
