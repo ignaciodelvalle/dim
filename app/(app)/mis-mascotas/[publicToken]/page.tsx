@@ -4,6 +4,7 @@ import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
+import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
 import { requirePetAccess } from "@/lib/pet-access";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -162,12 +163,18 @@ function DeceasedView({
           </p>
         </section>
 
-        {/* Event timeline */}
+        {/* Libreta sanitaria — filtered subset of pet_events. The full
+            event log (including identity / system entries) lives at
+            /historial. */}
         <section className="space-y-3">
           <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Historial
+            Libreta sanitaria
           </h2>
-          <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />
+          <EventTimeline
+            events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
+            publicToken={pet.publicToken}
+            chips={LIBRETA_FILTER_CHIPS}
+          />
         </section>
       </div>
     </main>
@@ -554,13 +561,15 @@ export default async function PetDetailPage({
           sourceEvents={eventsWithAttachments}
         />
 
-        {/* Historial link — full timeline lives at /historial */}
+        {/* Libreta completa — Parte B will land /libreta as the dedicated
+            route; for now the link still points to /historial, which is the
+            full event log (includes non-libreta entries like pet_registered). */}
         <section>
           <Link
             href={`/mis-mascotas/${pet.publicToken}/historial`}
             className="block w-full text-center px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
           >
-            Ver historial completo →
+            Ver libreta completa →
           </Link>
         </section>
       </div>

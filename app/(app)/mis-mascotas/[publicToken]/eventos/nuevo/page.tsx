@@ -13,23 +13,14 @@ type EventOption = {
   href?: string;
 };
 
-const EVENT_OPTIONS: EventOption[] = [
+// Libreta sanitaria entries — preventive medicine, clinical encounters,
+// metrics, identification, end-of-life. Surfaced as the primary grouping in
+// the selector and used as the canonical medical record per AGENTS.md.
+const LIBRETA_OPTIONS: EventOption[] = [
   {
     slug: "vacuna",
     label: "Vacuna",
     description: "Antirrábica, séxtuple, leucemia, etc.",
-    enabled: true,
-  },
-  {
-    slug: "peso",
-    label: "Peso",
-    description: "Control de peso",
-    enabled: true,
-  },
-  {
-    slug: "vet",
-    label: "Visita al veterinario",
-    description: "Consulta general, diagnóstico",
     enabled: true,
   },
   {
@@ -45,6 +36,30 @@ const EVENT_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
+    slug: "peso",
+    label: "Peso",
+    description: "Control de peso",
+    enabled: true,
+  },
+  {
+    slug: "vet",
+    label: "Visita al veterinario",
+    description: "Consulta general, diagnóstico",
+    enabled: true,
+  },
+  {
+    slug: "microchip",
+    label: "Microchip implantado",
+    description: "Registro tardío de chip",
+    enabled: true,
+  },
+  {
+    slug: "clinico",
+    label: "Información clínica",
+    description: "Análisis, imágenes, cirugías, alergias",
+    enabled: true,
+  },
+  {
     slug: "medicacion-inicio",
     label: "Inicio de medicación",
     description: "Comienzo de tratamiento",
@@ -57,27 +72,20 @@ const EVENT_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
-    slug: "microchip",
-    label: "Microchip implantado",
-    description: "Registro tardío de chip",
-    enabled: true,
-  },
-  {
-    slug: "estado",
-    label: "Cambio de estado",
-    description: "Perdida / encontrada",
-    enabled: true,
-  },
-  {
     slug: "fallecimiento",
     label: "Fallecimiento",
     description: "Registro y método de disposición",
     enabled: true,
   },
+];
+
+// Non-libreta entries — owner annotations, identity / status changes. Live
+// in /historial alongside the libreta but rendered as a secondary group here.
+const OTHER_OPTIONS: EventOption[] = [
   {
-    slug: "clinico",
-    label: "Información clínica",
-    description: "Análisis, imágenes, cirugías, alergias",
+    slug: "estado",
+    label: "Cambio de estado",
+    description: "Perdida / encontrada",
     enabled: true,
   },
   {
@@ -137,65 +145,84 @@ export default async function PickEventPage({
 
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Nuevo evento
+            Registrar
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             ¿Qué pasó con {pet.name}?
           </p>
         </div>
 
-        <ul className="grid grid-cols-1 gap-2">
-          {EVENT_OPTIONS.map((option) => {
-            const href =
-              option.slug === "estado"
-                ? `/mis-mascotas/${pet.publicToken}/perdida`
-                : (option.href ?? `/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`);
-            return (
-              <li key={option.slug}>
-                {option.enabled ? (
-                  <Link
-                    href={href}
-                    className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                          {option.label}
-                        </p>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-500">
-                          {option.description}
-                        </p>
-                      </div>
-                      <span className="text-neutral-400 dark:text-neutral-600" aria-hidden>
-                        ›
-                      </span>
-                    </div>
-                  </Link>
-                ) : (
-                  <div
-                    aria-disabled
-                    className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 opacity-50 cursor-not-allowed"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                          {option.label}
-                        </p>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-500">
-                          {option.description}
-                        </p>
-                      </div>
-                      <span className="text-xs text-neutral-500 dark:text-neutral-500">
-                        próximamente
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <section className="space-y-3">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+            Registrar en la libreta sanitaria
+          </h2>
+          <ul className="grid grid-cols-1 gap-2">
+            {LIBRETA_OPTIONS.map((option) => (
+              <EventOptionRow key={option.slug} option={option} pet={pet} />
+            ))}
+          </ul>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+            Otros registros
+          </h2>
+          <ul className="grid grid-cols-1 gap-2">
+            {OTHER_OPTIONS.map((option) => (
+              <EventOptionRow key={option.slug} option={option} pet={pet} />
+            ))}
+          </ul>
+        </section>
       </div>
     </main>
+  );
+}
+
+function EventOptionRow({
+  option,
+  pet,
+}: {
+  option: EventOption;
+  pet: { publicToken: string };
+}) {
+  const href =
+    option.slug === "estado"
+      ? `/mis-mascotas/${pet.publicToken}/perdida`
+      : (option.href ?? `/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`);
+  if (!option.enabled) {
+    return (
+      <li>
+        <div
+          aria-disabled
+          className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 opacity-50 cursor-not-allowed"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-medium text-neutral-900 dark:text-neutral-50">{option.label}</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-500">{option.description}</p>
+            </div>
+            <span className="text-xs text-neutral-500 dark:text-neutral-500">próximamente</span>
+          </div>
+        </div>
+      </li>
+    );
+  }
+  return (
+    <li>
+      <Link
+        href={href}
+        className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-medium text-neutral-900 dark:text-neutral-50">{option.label}</p>
+            <p className="text-sm text-neutral-500 dark:text-neutral-500">{option.description}</p>
+          </div>
+          <span className="text-neutral-400 dark:text-neutral-600" aria-hidden>
+            ›
+          </span>
+        </div>
+      </Link>
+    </li>
   );
 }
