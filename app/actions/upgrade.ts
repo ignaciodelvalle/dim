@@ -1,21 +1,44 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db, notifications, organizationMemberships, organizations, profiles } from "@/db";
+import {
+  approvalRequests,
+  db,
+  notifications,
+  organizationMemberships,
+  organizations,
+  profiles,
+} from "@/db";
+import { validateApprovalPayload } from "@/lib/approval-payloads";
+import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { getActiveMemberships } from "@/lib/capabilities";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 
 // ============================================================================
 // Types
 // ============================================================================
 
+// Vet upgrade input. Two location concepts kept separate per the spec:
+//
+// - matriculaJurisdiccion: where the matricula was issued (the registry to
+//   check). Lives in the payload.
+// - operationalProvince / operationalLocality: where the vet operates,
+//   which routes the approval request to the right govt (or admin as
+//   fallback). Lives on approval_requests.jurisdiction_*.
+//
+// They are often the same value but not always — a vet licensed in CABA
+// may operate primarily in Pilar (Buenos Aires province).
 export type VetUpgradeInput = {
   matriculaNumber: string;
-  jurisdiccion: string;
+  matriculaJurisdiccion: string;
+  operationalProvince: string;
+  operationalLocality: string;
+  especialidad?: string | null;
+  anosExperiencia?: number | null;
 };
 
 export type CreateOrganizationInput = {
@@ -25,8 +48,9 @@ export type CreateOrganizationInput = {
   cuit?: string | null;
   email: string;
   phone?: string | null;
-  jurisdictionProvince?: string | null;
-  jurisdictionLocality?: string | null;
+  jurisdictionProvince: string;
+  jurisdictionLocality: string;
+  personeriaJuridicaNumber?: string | null;
 };
 
 export type UpgradeFormState = {
@@ -44,11 +68,26 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CUIT_RE = /^\d{11}$/;
 const ORG_TYPES = ["clinic", "shelter", "rescue_network", "sanitary_authority", "other"] as const;
 
-function validateMatricula(value: string): string | null {
-  if (!value) return "La matrícula es requerida.";
-  if (!MATRICULA_RE.test(value)) {
+function validateLocationField(value: string, label: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length < 2 || trimmed.length > 60) {
+    return `${label} debe tener entre 2 y 60 caracteres.`;
+  }
+  return null;
+}
+
+function validateVetInput(input: VetUpgradeInput): string | null {
+  const matricula = input.matriculaNumber.trim();
+  if (!matricula) return "La matrícula es requerida.";
+  if (!MATRICULA_RE.test(matricula)) {
     return "La matrícula debe tener entre 3 y 30 caracteres alfanuméricos o guiones.";
   }
+  const jurError = validateLocationField(input.matriculaJurisdiccion, "La jurisdicción de la matrícula");
+  if (jurError) return jurError;
+  const provError = validateLocationField(input.operationalProvince, "La provincia donde ejercés");
+  if (provError) return provError;
+  const locError = validateLocationField(input.operationalLocality, "La localidad donde ejercés");
+  if (locError) return locError;
   return null;
 }
 
@@ -73,12 +112,16 @@ function validateOrgInput(input: CreateOrganizationInput): string | null {
       return "El CUIT debe tener 11 dígitos.";
     }
   }
+  const provError = validateLocationField(input.jurisdictionProvince, "La provincia");
+  if (provError) return provError;
+  const locError = validateLocationField(input.jurisdictionLocality, "La localidad");
+  if (locError) return locError;
   return null;
 }
 
-// Narrow the Postgres unique_violation (code 23505) for a specific column.
-// postgres-js attaches `code`, `constraint_name`, `column_name`, and `detail`
-// to its error objects.
+// Postgres 23505 = unique_violation. Match by constraint metadata, not the
+// error-message string, so renamed constraints or driver-level message
+// changes don't silently miscategorize the error.
 function isUniqueViolationOn(err: unknown, column: string): boolean {
   if (!err || typeof err !== "object") return false;
   const record = err as Record<string, unknown>;
@@ -97,43 +140,119 @@ export async function requestVetUpgradeForUser(
   userId: string,
   input: VetUpgradeInput,
 ): Promise<UpgradeFormState> {
-  const matricula = input.matriculaNumber.trim();
-  const jurisdiccion = input.jurisdiccion.trim();
-  const validationError = validateMatricula(matricula);
+  const validationError = validateVetInput(input);
   if (validationError) return { error: validationError };
-  if (!jurisdiccion || jurisdiccion.length < 2 || jurisdiccion.length > 60) {
-    return { error: "La jurisdicción debe tener entre 2 y 60 caracteres." };
-  }
 
-  // Idempotency: reject if profile already has a matricula set.
+  const matricula = input.matriculaNumber.trim();
+  const matriculaJur = input.matriculaJurisdiccion.trim();
+  const opProvince = input.operationalProvince.trim();
+  const opLocality = input.operationalLocality.trim();
+  const especialidad = input.especialidad?.trim() || null;
+  const anosExperiencia =
+    typeof input.anosExperiencia === "number" && Number.isFinite(input.anosExperiencia)
+      ? input.anosExperiencia
+      : null;
+
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   if (!profile) return { error: "Perfil no encontrado." };
-  if (profile.matriculaNumber) {
+  if (profile.role === "vet") {
+    return { error: "Ya sos veterinario/a en DIM." };
+  }
+
+  // Idempotency: one pending vet-upgrade request per applicant. A previously
+  // rejected/withdrawn request does NOT block a re-submission (the new row
+  // lives alongside the old one — full history in /cuenta/solicitudes).
+  const [pending] = await db
+    .select({ id: approvalRequests.id })
+    .from(approvalRequests)
+    .where(
+      and(
+        eq(approvalRequests.applicantUserId, userId),
+        eq(approvalRequests.type, "role_upgrade_vet"),
+        eq(approvalRequests.status, "pending"),
+      ),
+    )
+    .limit(1);
+  if (pending) {
+    return { error: "Ya tenés una solicitud pendiente de revisión." };
+  }
+
+  let payload: unknown;
+  try {
+    payload = validateApprovalPayload("role_upgrade_vet", {
+      matricula_number: matricula,
+      matricula_jurisdiccion: matriculaJur,
+      especialidad,
+      anos_experiencia: anosExperiencia,
+    });
+  } catch (err) {
     return {
-      error: "Ya tenés una matrícula registrada — pedí cambio a un admin.",
+      error: err instanceof Error ? err.message : "Payload inválido.",
     };
   }
 
+  const authorityIds = await findAuthoritiesForJurisdiction({
+    province: opProvince,
+    locality: opLocality,
+  });
+  const publicToken = generateApprovalRequestToken();
+
   try {
     await db.transaction(async (tx) => {
+      // Step 1: insert the approval_request — the canonical contract.
+      await tx.insert(approvalRequests).values({
+        publicToken,
+        type: "role_upgrade_vet",
+        status: "pending",
+        applicantUserId: userId,
+        initiatedBy: "self",
+        targetUserId: userId,
+        jurisdictionProvince: opProvince,
+        jurisdictionLocality: opLocality,
+        payload,
+      });
+
+      // Step 2 (deferred): attachments with purpose='approval_evidence' —
+      // wired in when the form has an upload field. The data model already
+      // supports it via attachments.approval_request_id.
+
+      // Step 3: update profiles so the user sees their submitted data
+      // reflected in /cuenta/upgrade. role stays as-is until approval.
       await tx
         .update(profiles)
         .set({
           matriculaNumber: matricula,
-          matriculaJurisdiccion: jurisdiccion,
+          matriculaJurisdiccion: matriculaJur,
           updatedAt: new Date(),
         })
         .where(eq(profiles.id, userId));
 
+      // Step 4a: notify the applicant.
       await tx.insert(notifications).values({
         userId,
-        notificationType: "vet_upgrade_requested",
+        notificationType: "approval_request_submitted_self",
         title: "Solicitud de verificación profesional enviada",
         body: "Vamos a verificar tu matrícula y te avisamos. Mientras tanto podés seguir usando DIM como dueño.",
         severity: "info",
         ctaLabel: "Ver estado",
         ctaUrl: "/cuenta/upgrade",
       });
+
+      // Step 4b: notify every authority that should review this. Empty when
+      // no admin is seeded — that's a configuration issue, not a fatal one.
+      if (authorityIds.length > 0) {
+        await tx.insert(notifications).values(
+          authorityIds.map((authorityId) => ({
+            userId: authorityId,
+            notificationType: "approval_request_pending_authority",
+            title: `Nueva solicitud: matrícula veterinaria en ${opLocality}`,
+            body: `Un usuario solicitó verificación profesional. Matrícula ${matricula} (${matriculaJur}).`,
+            severity: "info" as const,
+            ctaLabel: "Revisar",
+            ctaUrl: `/admin/cola/${publicToken}`,
+          })),
+        );
+      }
     });
   } catch (err) {
     return {
@@ -151,7 +270,7 @@ export async function createOrganizationForUser(
   const validationError = validateOrgInput(input);
   if (validationError) return { error: validationError };
 
-  // Idempotency: reject if user already admins an org.
+  // Idempotency: one org per user (the existing membership-based guard).
   const memberships = await getActiveMemberships(userId);
   const alreadyAdmin = memberships.some((m) => m.membership.role === "admin");
   if (alreadyAdmin) {
@@ -159,8 +278,27 @@ export async function createOrganizationForUser(
   }
 
   const publicToken = generatePublicToken();
+  const approvalPublicToken = generateApprovalRequestToken();
   const cuit = input.cuit ? input.cuit.replace(/-/g, "") : null;
+  const province = input.jurisdictionProvince.trim();
+  const locality = input.jurisdictionLocality.trim();
   let organizationId: string;
+
+  let payload: unknown;
+  try {
+    payload = validateApprovalPayload("organization_verification", {
+      org_type: input.orgType,
+      cuit,
+      personeria_juridica_number: input.personeriaJuridicaNumber?.trim() || null,
+      additional_documents_summary: null,
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Payload inválido.",
+    };
+  }
+
+  const authorityIds = await findAuthoritiesForJurisdiction({ province, locality });
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -174,8 +312,8 @@ export async function createOrganizationForUser(
           cuit: cuit || null,
           email: input.email.trim(),
           phone: input.phone?.trim() || null,
-          jurisdictionProvince: input.jurisdictionProvince?.trim() || null,
-          jurisdictionLocality: input.jurisdictionLocality?.trim() || null,
+          jurisdictionProvince: province,
+          jurisdictionLocality: locality,
           verified: false,
           createdByUserId: userId,
         })
@@ -188,9 +326,22 @@ export async function createOrganizationForUser(
         canWritePetEvents: true,
       });
 
+      // Canonical contract: the approval request is what authorities act on.
+      await tx.insert(approvalRequests).values({
+        publicToken: approvalPublicToken,
+        type: "organization_verification",
+        status: "pending",
+        applicantUserId: userId,
+        initiatedBy: "self",
+        targetOrganizationId: newOrg.id,
+        jurisdictionProvince: province,
+        jurisdictionLocality: locality,
+        payload,
+      });
+
       await tx.insert(notifications).values({
         userId,
-        notificationType: "org_creation_requested",
+        notificationType: "approval_request_submitted_self",
         title: "Organización creada — pendiente de verificación",
         body: "Tu organización fue creada. Mientras se verifica, los eventos que registres aparecen como no verificados.",
         severity: "info",
@@ -198,13 +349,24 @@ export async function createOrganizationForUser(
         ctaUrl: "/refugio",
       });
 
+      if (authorityIds.length > 0) {
+        await tx.insert(notifications).values(
+          authorityIds.map((authorityId) => ({
+            userId: authorityId,
+            notificationType: "approval_request_pending_authority",
+            title: `Nueva organización a verificar en ${locality}`,
+            body: `${newOrg.displayName} (${input.orgType}) solicitó verificación.`,
+            severity: "info" as const,
+            ctaLabel: "Revisar",
+            ctaUrl: `/admin/cola/${approvalPublicToken}`,
+          })),
+        );
+      }
+
       return { organizationId: newOrg.id };
     });
     organizationId = result.organizationId;
   } catch (err) {
-    // Postgres 23505 = unique_violation. Match by constraint metadata, not
-    // error-message substring, so renamed constraints or driver-level message
-    // changes don't silently miscategorize the error.
     if (isUniqueViolationOn(err, "cuit")) {
       return { error: "Ya existe una organización con ese CUIT." };
     }
@@ -229,10 +391,17 @@ export async function requestVetUpgradeAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesión expirada." };
 
-  const matriculaNumber = String(formData.get("matriculaNumber") ?? "").trim();
-  const jurisdiccion = String(formData.get("jurisdiccion") ?? "").trim();
+  const anosRaw = String(formData.get("anosExperiencia") ?? "").trim();
+  const anos = anosRaw ? Number.parseInt(anosRaw, 10) : null;
 
-  return requestVetUpgradeForUser(user.id, { matriculaNumber, jurisdiccion });
+  return requestVetUpgradeForUser(user.id, {
+    matriculaNumber: String(formData.get("matriculaNumber") ?? "").trim(),
+    matriculaJurisdiccion: String(formData.get("matriculaJurisdiccion") ?? "").trim(),
+    operationalProvince: String(formData.get("operationalProvince") ?? "").trim(),
+    operationalLocality: String(formData.get("operationalLocality") ?? "").trim(),
+    especialidad: String(formData.get("especialidad") ?? "").trim() || null,
+    anosExperiencia: anos && Number.isFinite(anos) ? anos : null,
+  });
 }
 
 export async function createOrganizationAction(
@@ -253,8 +422,10 @@ export async function createOrganizationAction(
     cuit: String(formData.get("cuit") ?? "").trim() || null,
     email: String(formData.get("email") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim() || null,
-    jurisdictionProvince: String(formData.get("jurisdictionProvince") ?? "").trim() || null,
-    jurisdictionLocality: String(formData.get("jurisdictionLocality") ?? "").trim() || null,
+    jurisdictionProvince: String(formData.get("jurisdictionProvince") ?? "").trim(),
+    jurisdictionLocality: String(formData.get("jurisdictionLocality") ?? "").trim(),
+    personeriaJuridicaNumber:
+      String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
   };
 
   const result = await createOrganizationForUser(user.id, input);
