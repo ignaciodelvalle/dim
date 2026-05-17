@@ -56,7 +56,7 @@ export default async function ColaPage() {
                 className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3"
               >
                 <Link
-                  href={`/admin/cola/${req.publicToken}`}
+                  href={`/gobierno/cola/${req.publicToken}`}
                   className="flex items-start justify-between gap-3 group"
                 >
                   <div className="min-w-0 space-y-0.5">
