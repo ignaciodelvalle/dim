@@ -13,10 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  updateProfileForUser,
-  uploadAvatarForUser,
-} from "@/app/actions/profile";
+import { updateProfileForUser, uploadAvatarForUser } from "@/app/actions/profile";
 import { auditLog, db, notifications, profiles } from "@/db";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -119,9 +116,7 @@ describe("updateProfileForUser — happy path", () => {
     expect(logRow.action).toBe("profile_self_updated");
     const payload = logRow.payload as Record<string, unknown>;
     expect(payload.changed_fields).toContain("displayName");
-    expect((payload.before_values as Record<string, unknown>).displayName).toBe(
-      before.displayName,
-    );
+    expect((payload.before_values as Record<string, unknown>).displayName).toBe(before.displayName);
   });
 
   it("updates displayName only (no phone provided), phone preserved", async () => {
@@ -273,10 +268,7 @@ describe("uploadAvatarForUser — validation: wrong mime type", () => {
 describe("uploadAvatarForUser — happy path (stub storage)", () => {
   it("updates avatarUrl and writes audit_log when storage succeeds", async () => {
     // Reset profile
-    await db
-      .update(profiles)
-      .set({ avatarUrl: null })
-      .where(eq(profiles.id, actorUserId));
+    await db.update(profiles).set({ avatarUrl: null }).where(eq(profiles.id, actorUserId));
 
     // Provide a valid small JPEG blob (minimal valid JPEG header bytes)
     const minimalJpeg = new Uint8Array([
