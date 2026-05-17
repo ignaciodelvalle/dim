@@ -55,6 +55,24 @@ export default async function MisMascotasPage({
           <div className="flex items-center gap-2 shrink-0">
             <NotificationBell unreadCount={unreadCount} />
             <Link
+              href="/cuenta"
+              aria-label="Mi cuenta"
+              className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors overflow-hidden"
+              title="Mi cuenta"
+            >
+              {profile?.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={profile.displayName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-sm font-semibold">
+                  {(profile?.displayName ?? "?")[0]?.toUpperCase()}
+                </span>
+              )}
+            </Link>
+            <Link
               href="/mis-mascotas/nueva"
               className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
             >
