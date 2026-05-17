@@ -12,7 +12,6 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, govtAssignments, notifications, profiles } from "@/db";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   canAssignGovtLocality,
   canCreateInstitutional,
@@ -21,6 +20,7 @@ import {
   canResetCredentials,
 } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ============================================================================
 // createAdminClient tests (A-2.1 / A-2.2)
@@ -87,10 +87,7 @@ async function deleteGuardTestUser(email: string) {
     ? await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.id, found.id))
     : [];
 
-  const allIds = new Set([
-    ...orphansByName.map((p) => p.id),
-    ...orphansByAuthId.map((p) => p.id),
-  ]);
+  const allIds = new Set([...orphansByName.map((p) => p.id), ...orphansByAuthId.map((p) => p.id)]);
 
   for (const uid of allIds) {
     await db.transaction(async (tx) => {
@@ -191,10 +188,7 @@ describe("requireAdminOrRedirect — underlying DB conditions", () => {
     // requireAdminOrRedirect: deactivatedAt !== null → redirect
 
     // Restore for other tests
-    await db
-      .update(profiles)
-      .set({ deactivatedAt: null })
-      .where(eq(profiles.id, guardAdminUserId));
+    await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, guardAdminUserId));
   });
 
   it("restored admin has deactivatedAt=null after restoration", async () => {

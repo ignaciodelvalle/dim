@@ -3,12 +3,12 @@
 // Client component for the create-govt form.
 // On success, renders MagicLinkResultPanel instead of redirecting.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 
-type LocalityEntry = { province: string; locality: string };
+type LocalityEntry = { id: number; province: string; locality: string };
 
 type SuccessState = {
   profileId: string;
@@ -20,21 +20,26 @@ type SuccessState = {
 export function CreateGovtForm() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [localities, setLocalities] = useState<LocalityEntry[]>([{ province: "", locality: "" }]);
+  const [localities, setLocalities] = useState<LocalityEntry[]>([
+    { id: 0, province: "", locality: "" },
+  ]);
+  const nextId = useRef(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<SuccessState | null>(null);
 
   function addLocality() {
-    setLocalities((prev) => [...prev, { province: "", locality: "" }]);
+    const id = nextId.current;
+    nextId.current += 1;
+    setLocalities((prev) => [...prev, { id, province: "", locality: "" }]);
   }
 
-  function removeLocality(index: number) {
-    setLocalities((prev) => prev.filter((_, i) => i !== index));
+  function removeLocality(id: number) {
+    setLocalities((prev) => prev.filter((l) => l.id !== id));
   }
 
-  function updateLocality(index: number, field: "province" | "locality", value: string) {
-    setLocalities((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
+  function updateLocality(id: number, field: "province" | "locality", value: string) {
+    setLocalities((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,7 +47,9 @@ export function CreateGovtForm() {
     setError(null);
     setLoading(true);
 
-    const validLocalities = localities.filter((l) => l.province.trim() && l.locality.trim());
+    const validLocalities = localities
+      .filter((l) => l.province.trim() && l.locality.trim())
+      .map(({ province, locality }) => ({ province, locality }));
 
     try {
       const result = await createInstitutionalAccountAction({
@@ -73,7 +80,8 @@ export function CreateGovtForm() {
     setSuccess(null);
     setEmail("");
     setDisplayName("");
-    setLocalities([{ province: "", locality: "" }]);
+    setLocalities([{ id: 0, province: "", locality: "" }]);
+    nextId.current = 1;
     setError(null);
   }
 
@@ -132,9 +140,9 @@ export function CreateGovtForm() {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <p className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Localidades iniciales
-            </label>
+            </p>
             <button
               type="button"
               onClick={addLocality}
@@ -147,26 +155,26 @@ export function CreateGovtForm() {
             Opcional. Se pueden asignar mas localidades luego desde la pagina del operador.
           </p>
           <div className="space-y-2">
-            {localities.map((l, i) => (
-              <div key={i} className="flex gap-2 items-start">
+            {localities.map((l) => (
+              <div key={l.id} className="flex gap-2 items-start">
                 <input
                   type="text"
                   value={l.province}
-                  onChange={(e) => updateLocality(i, "province", e.target.value)}
+                  onChange={(e) => updateLocality(l.id, "province", e.target.value)}
                   placeholder="Provincia"
                   className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
                 />
                 <input
                   type="text"
                   value={l.locality}
-                  onChange={(e) => updateLocality(i, "locality", e.target.value)}
+                  onChange={(e) => updateLocality(l.id, "locality", e.target.value)}
                   placeholder="Localidad"
                   className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
                 />
                 {localities.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => removeLocality(i)}
+                    onClick={() => removeLocality(l.id)}
                     className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 text-sm px-2 py-2"
                     aria-label="Quitar localidad"
                   >

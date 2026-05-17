@@ -145,7 +145,9 @@ function GovtRow({ govt }: GovtRowProps) {
       </div>
 
       <div className="flex items-center gap-3 shrink-0 text-xs text-neutral-500 dark:text-neutral-500">
-        <span>{govt.activeLocalityCount} localidad{govt.activeLocalityCount !== 1 ? "es" : ""}</span>
+        <span>
+          {govt.activeLocalityCount} localidad{govt.activeLocalityCount !== 1 ? "es" : ""}
+        </span>
         <span
           className={`px-2 py-0.5 rounded uppercase tracking-wider text-[10px] ${
             isActive

@@ -21,9 +21,7 @@ export type ActorProfile = {
 // An active institutional admin is required for every Fase 5 privileged action.
 function isActiveAdmin(actor: ActorProfile): boolean {
   return (
-    actor.accountType === "institutional" &&
-    actor.role === "admin" &&
-    actor.deactivatedAt === null
+    actor.accountType === "institutional" && actor.role === "admin" && actor.deactivatedAt === null
   );
 }
 

@@ -14,14 +14,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createInstitutionalAccountForAuthority } from "@/app/actions/admin-institutional";
-import {
-  attachments,
-  auditLog,
-  db,
-  govtAssignments,
-  notifications,
-  profiles,
-} from "@/db";
+import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -53,10 +46,7 @@ async function deleteTestUser(email: string) {
     ? await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.id, found.id))
     : [];
 
-  const allIds = new Set([
-    ...orphansByName.map((p) => p.id),
-    ...orphansByAuthId.map((p) => p.id),
-  ]);
+  const allIds = new Set([...orphansByName.map((p) => p.id), ...orphansByAuthId.map((p) => p.id)]);
 
   for (const uid of allIds) {
     await db.transaction(async (tx) => {

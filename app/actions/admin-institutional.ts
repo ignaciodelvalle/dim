@@ -18,13 +18,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 
-import {
-  auditLog,
-  db,
-  govtAssignments,
-  notifications,
-  profiles,
-} from "@/db";
+import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { canCreateInstitutional } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
@@ -50,7 +44,11 @@ const localitySchema = z.object({
 const createInstitutionalSchema = z.object({
   role: z.enum(["govt", "admin"]),
   email: z.email("Invalid email address"),
-  displayName: z.string().min(2, "Display name must be at least 2 characters").max(100, "Display name must be at most 100 characters").trim(),
+  displayName: z
+    .string()
+    .min(2, "Display name must be at least 2 characters")
+    .max(100, "Display name must be at most 100 characters")
+    .trim(),
   initialLocalities: z.array(localitySchema),
 });
 

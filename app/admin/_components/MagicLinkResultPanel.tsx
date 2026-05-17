@@ -47,11 +47,14 @@ export function MagicLinkResultPanel({
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
           Link de acceso (magic link)
-        </label>
+        </p>
         <div className="flex gap-2">
-          <code className="flex-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-2 overflow-hidden text-ellipsis whitespace-nowrap block">
+          <code
+            id="magic-link-display"
+            className="flex-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-2 overflow-hidden text-ellipsis whitespace-nowrap block"
+          >
             {magicLink || "(link no disponible — usá Resetear credentials)"}
           </code>
           {magicLink && (

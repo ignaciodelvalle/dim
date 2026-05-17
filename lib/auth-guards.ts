@@ -11,8 +11,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db, govtAssignments, profiles } from "@/db";
-import type { ActorProfile } from "@/lib/institutional-scope";
 import { type ActiveMembership, getActiveMemberships } from "@/lib/capabilities";
+import type { ActorProfile } from "@/lib/institutional-scope";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthenticatedSession = {

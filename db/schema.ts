@@ -307,9 +307,7 @@ export const profiles = pgTable(
     // and capability checks in Fase 5. Added by migration 0011.
     institutionalActiveIdx: index("profiles_institutional_active_idx")
       .on(table.role)
-      .where(
-        sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`,
-      ),
+      .where(sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`),
   }),
 );
 
@@ -988,12 +986,7 @@ export const APPROVAL_REQUEST_TYPES = [
 ] as const;
 export type ApprovalRequestType = (typeof APPROVAL_REQUEST_TYPES)[number];
 
-export const APPROVAL_REQUEST_STATUSES = [
-  "pending",
-  "approved",
-  "rejected",
-  "withdrawn",
-] as const;
+export const APPROVAL_REQUEST_STATUSES = ["pending", "approved", "rejected", "withdrawn"] as const;
 export type ApprovalRequestStatus = (typeof APPROVAL_REQUEST_STATUSES)[number];
 
 export const approvalRequests = pgTable(
