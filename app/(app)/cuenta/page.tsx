@@ -174,15 +174,13 @@ export default async function CuentaPage() {
                 href="/cuenta/renunciar"
                 label="Renunciar a rol veterinario"
                 description="Volvés a rol dueño/a"
-                placeholder
               />
             )}
             {profile.role === "govt" && profile.accountType === "institutional" && (
               <ActionCard
                 href="/cuenta/desactivar"
                 label="Desactivar mi cuenta"
-                description="Acción irreversible — contactá a tu administrador"
-                placeholder
+                description="Desactiva tu cuenta de operador govt"
               />
             )}
           </div>
