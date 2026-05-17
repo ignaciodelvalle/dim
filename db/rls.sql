@@ -384,3 +384,83 @@ create policy "owner can update (revoke) own libreta shares"
   to authenticated
   using (created_by_user_id = auth.uid())
   with check (created_by_user_id = auth.uid());
+
+-- ============================================================================
+-- govt_assignments — owner reads own assignments + admins read all
+-- ============================================================================
+-- Admin governance — Fase 0. See docs/superpowers/specs/2026-05-17-admin-page-design.md §9.
+-- Server actions via Drizzle bypass RLS for the actual mutations
+-- (granting, revoking). These policies are defense-in-depth for PostgREST.
+alter table public.govt_assignments enable row level security;
+
+drop policy if exists "govt sees own assignments" on public.govt_assignments;
+create policy "govt sees own assignments"
+  on public.govt_assignments
+  for select
+  to authenticated
+  using (
+    user_id = auth.uid()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
+
+-- No INSERT / UPDATE / DELETE policies via PostgREST. All grants and
+-- revocations flow through server actions (Drizzle bypass). Revocation is
+-- soft (revoked_at), never hard delete.
+
+-- ============================================================================
+-- approval_requests — applicant + scope-matching govt + admin
+-- ============================================================================
+alter table public.approval_requests enable row level security;
+
+-- SELECT: applicant sees their own; a govt sees pending requests in any
+-- locality where they have an active govt_assignment matching the request
+-- jurisdiction; admin sees everything.
+drop policy if exists "approval requests visible to applicant or authority" on public.approval_requests;
+create policy "approval requests visible to applicant or authority"
+  on public.approval_requests
+  for select
+  to authenticated
+  using (
+    applicant_user_id = auth.uid()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+    or exists (
+      select 1 from public.govt_assignments g
+      where g.user_id = auth.uid()
+        and g.revoked_at is null
+        and g.jurisdiction_province = approval_requests.jurisdiction_province
+        and g.jurisdiction_locality = approval_requests.jurisdiction_locality
+    )
+  );
+
+-- INSERT only via server actions. No PostgREST insert policy.
+-- UPDATE only via server actions (decision flips). No PostgREST update policy.
+
+-- ============================================================================
+-- audit_log — actor sees own entries + admin sees all
+-- ============================================================================
+alter table public.audit_log enable row level security;
+
+drop policy if exists "audit log visible to actor or admin" on public.audit_log;
+create policy "audit log visible to actor or admin"
+  on public.audit_log
+  for select
+  to authenticated
+  using (
+    actor_user_id = auth.uid()
+    or exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
+
+-- No INSERT policy: every audit entry is written by a server action as a
+-- side-effect of an authority decision. UPDATE and DELETE are blocked by
+-- the append-only trigger (with app.allow_audit_mutation GUC bypass for
+-- test cleanup) — no RLS rule needed.
+
