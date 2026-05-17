@@ -65,7 +65,10 @@ export function VetSelfResignForm() {
             "Tus mascotas propias siguen siendo tuyas.",
             "Para volver a tener el rol vet, vas a tener que solicitarlo de cero y ser aprobado/a nuevamente.",
           ].map((item) => (
-            <li key={item} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
+            <li
+              key={item}
+              className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400"
+            >
               <span aria-hidden className="mt-0.5 shrink-0 text-amber-500">
                 •
               </span>

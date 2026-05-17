@@ -89,7 +89,12 @@ beforeAll(async () => {
   // Elevate roles as needed (handle_new_user trigger creates role='owner')
   await db
     .update(profiles)
-    .set({ role: "vet", matriculaNumber: "MN-12345", matriculaJurisdiccion: "CABA", matriculaVerified: true })
+    .set({
+      role: "vet",
+      matriculaNumber: "MN-12345",
+      matriculaJurisdiccion: "CABA",
+      matriculaVerified: true,
+    })
     .where(eq(profiles.id, vetUserId));
 
   // ownerUserId stays as role='owner'
@@ -222,9 +227,7 @@ describe("vetSelfResignForUser — happy path", () => {
     const [logRow] = await db
       .select()
       .from(auditLog)
-      .where(
-        and(eq(auditLog.actorUserId, vetUserId), eq(auditLog.action, "self_resignation_vet")),
-      )
+      .where(and(eq(auditLog.actorUserId, vetUserId), eq(auditLog.action, "self_resignation_vet")))
       .orderBy(desc(auditLog.performedAt))
       .limit(1);
 
@@ -342,10 +345,7 @@ describe("govtSelfDeactivateForUser — happy path", () => {
       .select()
       .from(auditLog)
       .where(
-        and(
-          eq(auditLog.actorUserId, govtUserId),
-          eq(auditLog.action, "govt_self_deactivated"),
-        ),
+        and(eq(auditLog.actorUserId, govtUserId), eq(auditLog.action, "govt_self_deactivated")),
       )
       .orderBy(desc(auditLog.performedAt))
       .limit(1);

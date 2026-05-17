@@ -167,7 +167,9 @@ export async function govtSelfDeactivateForUser(
 
   // 3. Capability check
   if (profile.role !== "govt" || profile.accountType !== "institutional") {
-    return { error: "ROLE_MISMATCH: only an active institutional govt account can self-deactivate" };
+    return {
+      error: "ROLE_MISMATCH: only an active institutional govt account can self-deactivate",
+    };
   }
 
   // 4+5. Coverage check + deactivation inside a single transaction.
@@ -176,9 +178,7 @@ export async function govtSelfDeactivateForUser(
   try {
     await db.transaction(async (tx) => {
       // Lock caller's profile row to serialise concurrent self-deactivation attempts.
-      await tx.execute(
-        sql`SELECT id FROM profiles WHERE id = ${userId} FOR UPDATE`,
-      );
+      await tx.execute(sql`SELECT id FROM profiles WHERE id = ${userId} FOR UPDATE`);
 
       // Load caller's active assignments
       const myAssignments = await tx
@@ -335,8 +335,8 @@ export async function govtSelfDeactivateForUser(
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "LOCALITY_WOULD_BE_UNCOVERED") {
-        const uncovered = (err as Error & { uncovered?: { province: string; locality: string }[] })
-          .uncovered ?? [];
+        const uncovered =
+          (err as Error & { uncovered?: { province: string; locality: string }[] }).uncovered ?? [];
         return { error: "LOCALITY_WOULD_BE_UNCOVERED", uncoveredLocalities: uncovered };
       }
       if (err.message === "RACE_CONDITION") {

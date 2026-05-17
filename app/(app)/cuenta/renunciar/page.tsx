@@ -13,7 +13,11 @@ export default async function RenunciarPage() {
   const { user } = await requireUserOrRedirect();
 
   const [profile] = await db
-    .select({ role: profiles.role, accountType: profiles.accountType, displayName: profiles.displayName })
+    .select({
+      role: profiles.role,
+      accountType: profiles.accountType,
+      displayName: profiles.displayName,
+    })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);

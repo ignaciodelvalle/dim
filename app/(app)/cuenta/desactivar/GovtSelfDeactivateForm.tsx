@@ -136,7 +136,10 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
                 "Los pedidos pendientes en tus localidades van a la cola de los otros govts o, como fallback, a la del admin.",
                 "Tu usuario en el sistema se conserva (no se borra) pero no vas a poder acceder a esta sección.",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
+                <li
+                  key={item}
+                  className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400"
+                >
                   <span aria-hidden className="mt-0.5 shrink-0 text-amber-500">
                     •
                   </span>
