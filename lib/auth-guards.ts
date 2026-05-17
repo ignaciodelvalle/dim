@@ -8,10 +8,10 @@
 // guard passed.
 
 import { and, eq, isNull } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
-import { db, govtAssignments, profiles } from "@/db";
-import { type ActiveMembership, getActiveMemberships } from "@/lib/capabilities";
+import { db, govtAssignments, organizationMemberships, organizations, profiles } from "@/db";
+import type { Organization, OrganizationMembership } from "@/db";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import { createClient } from "@/lib/supabase/server";
 
@@ -30,25 +30,39 @@ export async function requireUserOrRedirect(): Promise<AuthenticatedSession> {
   return { supabase, user };
 }
 
-export type ActiveOrgSession = AuthenticatedSession & {
-  memberships: ActiveMembership[];
-  // Most recently joined active membership. Matches the "first membership
-  // wins" v1 UI default — the org-picker UI is deferred.
-  active: ActiveMembership;
+export type OrgAccessSession = AuthenticatedSession & {
+  organization: Organization;
+  membership: OrganizationMembership;
 };
 
-// Require a logged-in user with at least one active org membership.
+// Require a logged-in user with an active membership in the org identified by
+// `orgToken` (organizations.publicToken). Returns notFound() — not a redirect —
+// if the org does not exist or the user has no active membership, so callers
+// can't distinguish "org exists but you're not a member" from "no such org"
+// (no information leakage per decision D4).
 //
-// Redirects to /login if no user. Redirects to /refugio if the user is
-// logged in but has no active memberships — the /refugio layout renders
-// the "Acceso restringido" page in that case, so this funnels every
-// unauthorized refugio-portal entry through that single error surface.
-export async function requireActiveOrgOrRedirect(): Promise<ActiveOrgSession> {
+// Replaces the old requireActiveOrgOrRedirect() which inferred the "active org"
+// from session state. The explicit orgToken in the URL segment is now the only
+// source of truth.
+export async function requireOrgAccessByToken(orgToken: string): Promise<OrgAccessSession> {
   const { supabase, user } = await requireUserOrRedirect();
-  const memberships = await getActiveMemberships(user.id);
-  if (memberships.length === 0) redirect("/refugio");
-  const active = memberships[memberships.length - 1];
-  return { supabase, user, memberships, active };
+
+  const [row] = await db
+    .select({ organization: organizations, membership: organizationMemberships })
+    .from(organizationMemberships)
+    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
+    .where(
+      and(
+        eq(organizationMemberships.userId, user.id),
+        eq(organizations.publicToken, orgToken),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  if (!row) notFound();
+
+  return { supabase, user, organization: row.organization, membership: row.membership };
 }
 
 export type AdminOrGovtJurisdiction = {
