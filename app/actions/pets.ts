@@ -12,12 +12,19 @@
 // pet and the submitted values, updates the row, and emits a single
 // pet_profile_updated event with the bundled diff. Adding a chip that wasn't
 // there also emits a microchip_implanted event.
+//
+// Lost & Found Fase 2: createPetAction also performs a microchip cross-check
+// when acquisitionMethod='found_stray' AND microchipId is set. Same three-status
+// branching as createIntakeAction. Match confirmation goes to
+// /mis-mascotas/nueva/match/{matchedPetToken}.
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { requirePetAccess } from "@/lib/pet-access";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +34,12 @@ import { redirect } from "next/navigation";
 
 export type NewPetFormState = {
   error: string | null;
+  // Present when a chip cross-check found an active match (WARN state).
+  // Only relevant for acquisitionMethod='found_stray'. The UI should show the
+  // conflict and offer "continue anyway" backed by forceToken.
+  warning?: "CHIP_MATCH_ACTIVE";
+  matchedPetToken?: string;
+  forceToken?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -212,6 +225,43 @@ export async function createPetAction(
 
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
+
+  // Lost & Found Fase 2 — microchip cross-check for found_stray intake.
+  // Only triggered when the user is registering a stray they found AND provided
+  // a chip number. Normal pet registrations (adopted, purchased, etc.) skip this.
+  if (parsed.acquisitionMethod === "found_stray" && parsed.microchipId) {
+    const match = await lookupByChip(parsed.microchipId);
+    if (match) {
+      if (match.pet.status === "lost") {
+        // BLOCK: redirect to vecino match-confirmation page.
+        redirect(`/mis-mascotas/nueva/match/${match.pet.publicToken}`);
+      }
+
+      if (match.pet.status === "active") {
+        const forceToken = String(formData.get("forceToken") ?? "").trim();
+        const forceValid = forceToken
+          ? validateForceToken(parsed.microchipId, forceToken)
+          : false;
+
+        if (!forceValid) {
+          return {
+            error: null,
+            warning: "CHIP_MATCH_ACTIVE",
+            matchedPetToken: match.pet.publicToken,
+            forceToken: generateForceToken(parsed.microchipId),
+          };
+        }
+        // Force token valid — fall through.
+      }
+
+      if (match.pet.status === "deceased") {
+        return {
+          error:
+            "Este chip está asociado a una mascota registrada como fallecida en DIM. Pedile a un admin que revise el caso antes de continuar.",
+        };
+      }
+    }
+  }
 
   const photoFile = formData.get("photo") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
