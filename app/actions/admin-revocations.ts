@@ -90,7 +90,10 @@ async function loadActorAuthority(actorUserId: string): Promise<AuthorityLoad> {
 //   - audit_log_id is still NULL (not yet claimed by another revocation)
 //   - uploaded_by_user_id === actor (defense against passing foreign attachment IDs)
 // Throws if the number of rows updated != attachmentIds.length — triggers tx rollback.
-async function claimAttachmentsForAudit(
+//
+// Exported for reuse in admin-institutional.ts (Fase 5). ADR-5: export rather
+// than duplicate — identical contract, identical error semantics.
+export async function claimAttachmentsForAudit(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   auditLogId: string,
   attachmentIds: string[],
@@ -114,7 +117,8 @@ async function claimAttachmentsForAudit(
   }
 }
 
-function validateMotivoAndAttachments(
+// Exported for reuse in admin-institutional.ts (Fase 5). ADR-5.
+export function validateMotivoAndAttachments(
   motivo: string,
   attachmentIds: string[],
 ): { error: string } | null {
