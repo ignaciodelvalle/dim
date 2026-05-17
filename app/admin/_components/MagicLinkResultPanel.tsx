@@ -12,7 +12,11 @@ type Props = {
   email: string;
   profileId: string;
   detailPath: string; // e.g. /admin/govts/[userId]
+  // Used in "create" context: show a "Crear otra" button that resets the create form.
   onCreateAnother?: () => void;
+  // Used in "reset credentials" context: show a dismiss/close button.
+  onReset?: () => void;
+  resetLabel?: string;
 };
 
 export function MagicLinkResultPanel({
@@ -22,6 +26,8 @@ export function MagicLinkResultPanel({
   profileId: _profileId,
   detailPath,
   onCreateAnother,
+  onReset,
+  resetLabel = "Cerrar",
 }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -87,6 +93,15 @@ export function MagicLinkResultPanel({
             className="px-4 py-2 text-sm border border-neutral-300 dark:border-neutral-700 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
           >
             Crear otra
+          </button>
+        )}
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="px-4 py-2 text-sm border border-neutral-300 dark:border-neutral-700 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+          >
+            {resetLabel}
           </button>
         )}
       </div>

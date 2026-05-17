@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 
+import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
@@ -158,15 +159,14 @@ export default async function AdminDetailPage({
                 }}
                 activeAdminCount={Number(activeCount)}
               />
-              {/* Reset credentials — disabled in PR-B (coming PR-C) */}
-              <button
-                type="button"
-                disabled
-                className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
-                title="Disponible en la proxima version"
-              >
-                Resetear credentials
-              </button>
+              {!isSelf && (
+                <ResetCredentialsButton
+                  targetUserId={target.id}
+                  displayName={target.displayName}
+                  email={email}
+                  detailPath={`/admin/admins/${target.id}`}
+                />
+              )}
             </div>
           </section>
         )}
