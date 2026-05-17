@@ -283,6 +283,16 @@ export const profiles = pgTable(
     matriculaNumber: text("matricula_number"),
     matriculaJurisdiccion: text("matricula_jurisdiccion"),
     matriculaVerified: boolean("matricula_verified").notNull().default(false),
+    // Distinguishes self-serve (owner/vet) accounts from institutional (admin/govt)
+    // accounts. Stored as text+CHECK to avoid enum migration cost when adding
+    // new values in future Fases (e.g. 'service_provider' in Fase 8).
+    accountType: text("account_type")
+      .notNull()
+      .default("personal")
+      .$type<"personal" | "institutional">(),
+    // Irreversible soft-deactivation timestamp. NULL = active. Set by
+    // deactivateAdminAction / deactivateGovtAction in Fase 5.
+    deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -293,6 +303,13 @@ export const profiles = pgTable(
     matriculaUnique: uniqueIndex("profiles_matricula_unique_when_present")
       .on(table.matriculaNumber)
       .where(sql`${table.matriculaNumber} IS NOT NULL`),
+    // Partial index for active institutional operators — used by admin list pages
+    // and capability checks in Fase 5. Added by migration 0011.
+    institutionalActiveIdx: index("profiles_institutional_active_idx")
+      .on(table.role)
+      .where(
+        sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`,
+      ),
   }),
 );
 
@@ -1044,6 +1061,14 @@ export const AUDIT_LOG_ACTIONS = [
   "self_resignation_admin",
   "pii_queried",
   "admin_seeded",
+  // Fase 5: institutional account lifecycle actions
+  "institutional_govt_created",
+  "institutional_admin_created",
+  "admin_deactivated_by_admin",
+  "govt_deactivated_by_admin",
+  "operator_credentials_reset",
+  "govt_locality_assigned",
+  "institutional_create_orphan_auth_user", // compensating-delete failure leak log
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
