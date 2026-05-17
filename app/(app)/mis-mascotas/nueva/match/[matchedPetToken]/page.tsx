@@ -41,8 +41,7 @@ export default async function VecinoMatchPage({
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Mascota ya no esta perdida</h1>
           <p className="text-neutral-700 dark:text-neutral-300">
-            {pet.name} ya fue encontrada o su estado cambio. Podes continuar registrando la
-            mascota.
+            {pet.name} ya fue encontrada o su estado cambio. Podes continuar registrando la mascota.
           </p>
           <Link
             href="/mis-mascotas/nueva"

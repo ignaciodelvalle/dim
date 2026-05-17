@@ -22,7 +22,7 @@
 //     who generates one proceeds immediately). Replay within the 15-min window
 //     is acceptable: the action already checked the live DB state.
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -55,9 +55,7 @@ export function validateForceToken(microchipId: string, token: string): boolean 
     if (Date.now() - ts > TOKEN_TTL_MS) return false;
 
     const key = getSigningKey();
-    const expectedMac = createHmac("sha256", key)
-      .update(`${microchipId}:${tsPart}`)
-      .digest("hex");
+    const expectedMac = createHmac("sha256", key).update(`${microchipId}:${tsPart}`).digest("hex");
     const expectedBuf = Buffer.from(expectedMac, "hex");
     const actualBuf = Buffer.from(macPart, "base64url");
     if (expectedBuf.length !== actualBuf.length) return false;

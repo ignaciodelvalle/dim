@@ -8,8 +8,8 @@
 //   "No es la misma"     → confirmChipMatchAction(decision='not_same')
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
-import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { useState } from "react";
 
 type Props = {
@@ -85,11 +85,7 @@ export function MatchConfirmationCard({
       <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
         {petPhotoUrl && (
           <div className="aspect-video overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-            <img
-              src={petPhotoUrl}
-              alt={petName}
-              className="w-full h-full object-cover"
-            />
+            <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
           </div>
         )}
 
@@ -99,9 +95,7 @@ export function MatchConfirmationCard({
             {speciesLine && (
               <p className="text-sm text-neutral-600 dark:text-neutral-400">{speciesLine}</p>
             )}
-            {details && (
-              <p className="text-sm text-neutral-500 dark:text-neutral-500">{details}</p>
-            )}
+            {details && <p className="text-sm text-neutral-500 dark:text-neutral-500">{details}</p>}
           </div>
 
           <div className="flex items-center gap-2">

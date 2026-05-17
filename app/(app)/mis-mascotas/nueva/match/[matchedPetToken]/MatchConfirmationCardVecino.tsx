@@ -4,8 +4,8 @@
 // Extracted as a thin wrapper so the vecino page can stay a pure server component.
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
-import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
 type Props = {
   matchedPetToken: string;
@@ -84,9 +84,7 @@ export function MatchConfirmationCardVecino({
             {speciesLine && (
               <p className="text-sm text-neutral-600 dark:text-neutral-400">{speciesLine}</p>
             )}
-            {details && (
-              <p className="text-sm text-neutral-500 dark:text-neutral-500">{details}</p>
-            )}
+            {details && <p className="text-sm text-neutral-500 dark:text-neutral-500">{details}</p>}
           </div>
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">
             Perdida

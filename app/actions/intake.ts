@@ -146,9 +146,7 @@ export async function createIntakeAction(
         // WARN: chip is registered to a live active pet.
         // Check if the caller is presenting a valid force-create token.
         const forceToken = String(formData.get("forceToken") ?? "").trim();
-        const forceValid = forceToken
-          ? validateForceToken(parsed.microchipId, forceToken)
-          : false;
+        const forceValid = forceToken ? validateForceToken(parsed.microchipId, forceToken) : false;
 
         if (!forceValid) {
           // Block and return a warning with a fresh forceToken for the UI

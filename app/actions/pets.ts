@@ -239,9 +239,7 @@ export async function createPetAction(
 
       if (match.pet.status === "active") {
         const forceToken = String(formData.get("forceToken") ?? "").trim();
-        const forceValid = forceToken
-          ? validateForceToken(parsed.microchipId, forceToken)
-          : false;
+        const forceValid = forceToken ? validateForceToken(parsed.microchipId, forceToken) : false;
 
         if (!forceValid) {
           return {
