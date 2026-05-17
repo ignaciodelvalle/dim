@@ -1,20 +1,12 @@
 import Link from "next/link";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
-// Gate the /admin/* segment. Govt and admin only — anyone else gets sent
-// to /mis-mascotas. The layout also exposes a small top nav with the
-// queue link + a way out.
+// Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
+// to / (root). Uses the strict requireAdminOrRedirect guard which also rejects
+// deactivated admins (Fase 5 invariant).
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const scopeLabel =
-    profile.role === "admin"
-      ? "Universal"
-      : jurisdictions.length === 0
-        ? "Sin localidades asignadas"
-        : jurisdictions.length === 1
-          ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
-          : `${jurisdictions.length} localidades`;
+  const { profile } = await requireAdminOrRedirect();
 
   return (
     <div className="min-h-screen bg-white dark:bg-neutral-950">
@@ -28,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <p className="text-xs text-neutral-600 dark:text-neutral-400">
               <span className="font-medium">{profile.role}</span>
               <span className="text-neutral-400 dark:text-neutral-600"> · </span>
-              {scopeLabel}
+              Universal
             </p>
           </div>
           <div className="flex items-center gap-4 text-sm">
@@ -39,39 +31,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Dashboard
             </Link>
             <Link
-              href="/admin/cola"
+              href="/admin/govts"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
-              Cola
+              Govts
             </Link>
             <Link
-              href="/admin/usuarios"
+              href="/admin/admins"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
-              Usuarios
+              Admins
             </Link>
             <Link
-              href="/admin/organizaciones"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+              href="/gobierno"
+              className="text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
             >
-              Organizaciones
+              Ir a Gobierno →
             </Link>
-            {profile.role === "admin" && (
-              <>
-                <Link
-                  href="/admin/govts"
-                  className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-                >
-                  Govts
-                </Link>
-                <Link
-                  href="/admin/admins"
-                  className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-                >
-                  Admins
-                </Link>
-              </>
-            )}
             <Link
               href="/mis-mascotas"
               className="text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
