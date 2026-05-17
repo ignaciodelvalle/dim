@@ -18,6 +18,7 @@ import { findDrugByLabel } from "@/lib/drugs";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
+import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
 import {
   FREQUENCY_LABELS,
   generateDoseSchedule,
@@ -423,12 +424,26 @@ export type EnrichedLostDescriptionInput = {
 //         lost_description.
 //      c. If retroactive microchipId provided and pet had no chip: insert
 //         microchip_implanted event + update pets.microchipId.
+//   5. (Fase 6) After the transaction commits, fire broadcastLostPet (defensive —
+//      failure does NOT block the lost-flip per D8).
 //
 // Does NOT redirect — callers decide navigation.
 export async function setPetLostWriter(params: {
   petId: string;
+  // Broadcast fields (Fase 6) — optional so existing callers (tests from
+  // earlier fases) don't need updating. When omitted, the broadcast is
+  // silently skipped (province/locality will be null).
+  petPublicToken?: string;
+  petName?: string;
   petStatus: string;
   petMicrochipId?: string | null;
+  petSpecies?: string | null;
+  petBreed?: string | null;
+  petColor?: string | null;
+  petJurisdictionProvince?: string | null;
+  petJurisdictionLocality?: string | null;
+  ownerUserId?: string;
+  ownerDisplayName?: string;
   fromStatus: string;
   recordedByUserId: string;
   eventAuthorship: Record<string, unknown>;
@@ -442,8 +457,17 @@ export async function setPetLostWriter(params: {
 }): Promise<EventFormState> {
   const {
     petId,
+    petPublicToken = "",
+    petName = "",
     petStatus,
     petMicrochipId = null,
+    petSpecies = null,
+    petBreed = null,
+    petColor = null,
+    petJurisdictionProvince = null,
+    petJurisdictionLocality = null,
+    ownerUserId = "",
+    ownerDisplayName = "",
     fromStatus,
     recordedByUserId,
     eventAuthorship,
@@ -581,6 +605,35 @@ export async function setPetLostWriter(params: {
     };
   }
 
+  // Fase 6 — broadcast OUTSIDE the transaction so a failure never rolls back
+  // the committed lost-flip (D8). The broadcast is best-effort.
+  // Only runs when petPublicToken was provided (full caller context available).
+  if (petPublicToken) {
+    // Resolve the color to use: enriched description may have refined it.
+    const broadcastColor =
+      enrichedDescription?.color != null ? enrichedDescription.color || null : petColor;
+
+    try {
+      await broadcastLostPet(
+        db,
+        {
+          id: petId,
+          publicToken: petPublicToken,
+          name: petName,
+          species: petSpecies,
+          breed: petBreed,
+          color: broadcastColor,
+          jurisdictionProvince: petJurisdictionProvince,
+          jurisdictionLocality: petJurisdictionLocality,
+        },
+        { id: ownerUserId, displayName: ownerDisplayName },
+        null, // lastLocation — province/locality is taken from pet's jurisdiction columns
+      );
+    } catch (err) {
+      console.error("[setPetLost] broadcast failed (non-fatal):", err);
+    }
+  }
+
   return { error: null };
 }
 
@@ -683,8 +736,17 @@ export async function setPetLostAction(
 
   const result = await setPetLostWriter({
     petId: pet.id,
+    petPublicToken: pet.publicToken,
+    petName: pet.name,
     petStatus: pet.status,
     petMicrochipId: pet.microchipId,
+    petSpecies: pet.species,
+    petBreed: pet.breed,
+    petColor: pet.color,
+    petJurisdictionProvince: pet.jurisdictionProvince,
+    petJurisdictionLocality: pet.jurisdictionLocality,
+    ownerUserId: user.id,
+    ownerDisplayName: "",
     fromStatus: pet.status,
     recordedByUserId: user.id,
     eventAuthorship: eventAuthorship as Record<string, unknown>,
