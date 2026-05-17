@@ -470,6 +470,18 @@ const postAdoptionCheckin = z
   )
   .strict();
 
+// Libreta Tier-2 share view — system telemetry emitted on each public view of
+// a share link. Not a medical event; classified in NON_LIBRETA_EVENT_TYPES.
+const libretaSharedViewed = z
+  .object(
+    withVersion({
+      share_token_id: z.string().uuid(),
+      viewer_ip_hash: z.string().nullable(),
+      user_agent: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -507,6 +519,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_finalized: adoptionFinalized,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
+  libreta_shared_viewed: libretaSharedViewed,
 };
 
 /**

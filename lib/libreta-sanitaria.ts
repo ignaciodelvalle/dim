@@ -60,6 +60,8 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "abandonment_reported",
   "maltreatment_reported",
   "note_added",
+  // Tier-2 share telemetry — system event, not a medical entry.
+  "libreta_shared_viewed",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

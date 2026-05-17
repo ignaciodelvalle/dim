@@ -1,7 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { attachments, db, petEvents, profiles } from "@/db";
+import { attachments, db, libretaShareTokens, petEvents, profiles } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
 import { requireOwnedPetByToken } from "@/lib/pets";
@@ -9,6 +9,7 @@ import { petPhotoUrl } from "@/lib/storage";
 
 import { LibretaIdentityHeader } from "./LibretaIdentityHeader";
 import { LibretaSanitariaView } from "./LibretaSanitariaView";
+import { SharesManager } from "./SharesManager";
 import "./libreta-print.css";
 
 export default async function LibretaPage({
@@ -50,6 +51,15 @@ export default async function LibretaPage({
   const grouped = groupLibretaEvents(events);
   const vista = sp.vista === "cronologica" ? "cronologica" : "agrupada";
 
+  // Fetch active shares for this pet so SharesManager can render without a
+  // client-side fetch. Filter: revoked_at IS NULL only.
+  const activeShares = await db
+    .select()
+    .from(libretaShareTokens)
+    .where(
+      and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt)),
+    );
+
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 print:p-0 print:bg-white">
       <div className="max-w-2xl mx-auto pt-6 pb-20 space-y-6 print:max-w-none print:pt-0">
@@ -66,6 +76,8 @@ export default async function LibretaPage({
         <LibretaIdentityHeader pet={pet} photoUrl={photoUrl} ownerFirstName={ownerFirstName} />
 
         <LibretaSanitariaView groupedEvents={grouped} publicToken={pet.publicToken} vista={vista} />
+
+        <SharesManager petPublicToken={pet.publicToken} shares={activeShares} />
 
         <footer className="hidden print:block text-xs text-neutral-500 pt-8">
           Generada por DIM · {new Date().toLocaleString("es-AR")}

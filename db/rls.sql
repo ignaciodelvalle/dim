@@ -341,3 +341,46 @@ create policy "Notifications updatable by self"
 -- No INSERT policy. Sources are: handle_new_user trigger (security definer),
 -- server actions via Drizzle, future cron jobs via service_role.
 -- No DELETE policy. Notifications are archived (archived_at set), never deleted.
+
+-- ============================================================================
+-- libreta_share_tokens — owner reads and writes their own shares
+-- ============================================================================
+-- D7 from the plan: the public Tier-2 route resolves share tokens via Drizzle
+-- (bypasses RLS by design). These policies govern PostgREST access only
+-- (defense-in-depth for owner self-service via supabase-js).
+-- No DELETE policy: revocation is soft (revoked_at flag), never hard delete.
+alter table public.libreta_share_tokens enable row level security;
+
+drop policy if exists "owner can read own libreta shares" on public.libreta_share_tokens;
+create policy "owner can read own libreta shares"
+  on public.libreta_share_tokens
+  for select
+  to authenticated
+  using (
+    created_by_user_id = auth.uid()
+    or pet_id in (
+      select pet_id from public.ownerships
+      where owner_user_id = auth.uid() and ended_at is null
+    )
+  );
+
+drop policy if exists "owner can insert libreta shares for their pets" on public.libreta_share_tokens;
+create policy "owner can insert libreta shares for their pets"
+  on public.libreta_share_tokens
+  for insert
+  to authenticated
+  with check (
+    created_by_user_id = auth.uid()
+    and pet_id in (
+      select pet_id from public.ownerships
+      where owner_user_id = auth.uid() and ended_at is null
+    )
+  );
+
+drop policy if exists "owner can update (revoke) own libreta shares" on public.libreta_share_tokens;
+create policy "owner can update (revoke) own libreta shares"
+  on public.libreta_share_tokens
+  for update
+  to authenticated
+  using (created_by_user_id = auth.uid())
+  with check (created_by_user_id = auth.uid());

@@ -1,0 +1,398 @@
+// Integration tests for Libreta Sanitaria — Parte C (Tier-2 share tokens).
+//
+// Tests call pure inner writer functions directly, bypassing FormData and the
+// Supabase server client — same pattern as create-pet-custody.test.ts and
+// role-upgrade.test.ts.
+
+import { createClient } from "@supabase/supabase-js";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import {
+  createLibretaShareForUser,
+  logLibretaShareViewForToken,
+  revokeLibretaShareForUser,
+} from "@/app/actions/libreta-share";
+import { db, libretaShareTokens, ownerships, petEvents, pets } from "@/db";
+import { generateLibretaShareToken } from "@/lib/publicToken";
+
+const SUPABASE_URL = "http://127.0.0.1:54321";
+const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const admin = createClient(SUPABASE_URL, SECRET, {
+  auth: { persistSession: false },
+});
+
+const EMAIL = "libreta-share-test@dim-test.local";
+const EMAIL2 = "libreta-share-test2@dim-test.local";
+const PASS = "LibretaShare_2026!";
+
+let userId: string;
+let userId2: string;
+let petId: string;
+const PET_TOKEN = "LBR-TEST-PET1";
+
+async function cleanupUser(email: string) {
+  const { data: list } = await admin.auth.admin.listUsers();
+  const found = list?.users.find((u) => u.email === email);
+  if (!found) return;
+  // Clean up ownerships + pets for this user.
+  const owned = await db
+    .select({ petId: ownerships.petId })
+    .from(ownerships)
+    .where(eq(ownerships.ownerUserId, found.id));
+  if (owned.length > 0) {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
+    });
+  }
+  await admin.auth.admin.deleteUser(found.id);
+}
+
+beforeAll(async () => {
+  await cleanupUser(EMAIL);
+  await cleanupUser(EMAIL2);
+
+  // Also clean up the shared pet token in case a previous run left it.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await tx.delete(pets).where(eq(pets.publicToken, PET_TOKEN));
+  });
+
+  const { data: d1, error: e1 } = await admin.auth.admin.createUser({
+    email: EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (e1 || !d1.user) throw new Error(`createUser1: ${e1?.message}`);
+  userId = d1.user.id;
+
+  const { data: d2, error: e2 } = await admin.auth.admin.createUser({
+    email: EMAIL2,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (e2 || !d2.user) throw new Error(`createUser2: ${e2?.message}`);
+  userId2 = d2.user.id;
+
+  // Create a pet owned by userId.
+  const [newPet] = await db
+    .insert(pets)
+    .values({
+      publicToken: PET_TOKEN,
+      name: "TestShare",
+      species: "dog",
+      sex: "unknown",
+      status: "active",
+      potentiallyDangerousBreed: false,
+    })
+    .returning();
+  petId = newPet.id;
+
+  await db.insert(ownerships).values({
+    petId,
+    ownerUserId: userId,
+    role: "owner",
+    startedAt: new Date(),
+  });
+});
+
+afterAll(async () => {
+  // Delete the test pet (cascades ownerships, libreta_share_tokens).
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await tx.delete(pets).where(eq(pets.publicToken, PET_TOKEN));
+  });
+  await admin.auth.admin.deleteUser(userId).catch(() => {});
+  await admin.auth.admin.deleteUser(userId2).catch(() => {});
+});
+
+// Helper: revoke all active shares for the test pet.
+async function revokeAllShares() {
+  await db
+    .update(libretaShareTokens)
+    .set({ revokedAt: new Date(), revokedByUserId: userId })
+    .where(and(eq(libretaShareTokens.petId, petId), isNull(libretaShareTokens.revokedAt)));
+}
+
+describe("generateLibretaShareToken", () => {
+  it("returns LBR-XXXX-XXXX matching the expected format", () => {
+    const token = generateLibretaShareToken();
+    expect(token).toMatch(/^LBR-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    // Verify excluded chars: 0, 1, I, O, L are not in the alphabet.
+    const body = token.replace(/^LBR-/, "").replace("-", "");
+    expect(body).not.toMatch(/[01IOL]/);
+  });
+});
+
+describe("createLibretaShareForUser", () => {
+  it("happy path: returns shareToken and row exists with correct fields", async () => {
+    await revokeAllShares();
+    const result = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Para prueba",
+    });
+    expect(result).toHaveProperty("shareToken");
+    if (!("shareToken" in result)) return;
+
+    const [row] = await db
+      .select()
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, result.shareToken))
+      .limit(1);
+    expect(row).toBeDefined();
+    expect(row.petId).toBe(petId);
+    expect(row.createdByUserId).toBe(userId);
+    expect(row.viewCountCached).toBe(0);
+    expect(row.revokedAt).toBeNull();
+    expect(row.expiresAt).toBeDefined();
+  });
+
+  it("ownership guard: user without active ownership gets error", async () => {
+    const result = await createLibretaShareForUser(userId2, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 7,
+      label: null,
+    });
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/no encontrada|sin permisos/i);
+  });
+
+  it("cap=5: 6th active share returns friendly error", async () => {
+    await revokeAllShares();
+
+    // Insert 5 active shares.
+    for (let i = 0; i < 5; i++) {
+      const r = await createLibretaShareForUser(userId, {
+        petPublicToken: PET_TOKEN,
+        expiresInDays: 30,
+        label: `Share ${i + 1}`,
+      });
+      expect(r).toHaveProperty("shareToken");
+    }
+
+    // 6th should fail.
+    const sixth = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Sixth",
+    });
+    expect(sixth).toHaveProperty("error");
+    if (!("error" in sixth)) return;
+    expect(sixth.error).toMatch(/5/); // mentions the cap number
+  });
+
+  it("revoke + new = succeeds (revoked ones don't count toward cap)", async () => {
+    await revokeAllShares();
+    // Create 5 again.
+    for (let i = 0; i < 5; i++) {
+      await createLibretaShareForUser(userId, {
+        petPublicToken: PET_TOKEN,
+        expiresInDays: 30,
+        label: `Cap-test ${i + 1}`,
+      });
+    }
+    // Revoke all.
+    await revokeAllShares();
+    // Now a new one should succeed.
+    const fresh = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 7,
+      label: "After revoke",
+    });
+    expect(fresh).toHaveProperty("shareToken");
+  });
+});
+
+describe("revokeLibretaShareForUser", () => {
+  it("happy path: sets revoked_at and revoked_by_user_id", async () => {
+    await revokeAllShares();
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Revoke test",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+
+    const [row] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, created.shareToken))
+      .limit(1);
+
+    const result = await revokeLibretaShareForUser(userId, row.id);
+    expect(result).toEqual({ ok: true });
+
+    const [updated] = await db
+      .select()
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.id, row.id))
+      .limit(1);
+    expect(updated.revokedAt).not.toBeNull();
+    expect(updated.revokedByUserId).toBe(userId);
+  });
+
+  it("D6 fallback: current owner of the pet can revoke a share they didn't create", async () => {
+    await revokeAllShares();
+
+    // Temporarily give userId2 an ownership so it counts as current owner.
+    const [tempOwnership] = await db
+      .insert(ownerships)
+      .values({
+        petId,
+        ownerUserId: userId2,
+        role: "caretaker",
+        startedAt: new Date(),
+      })
+      .returning();
+
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Fallback test",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+
+    const [row] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, created.shareToken))
+      .limit(1);
+
+    // userId2 is NOT the creator but IS a current owner-role user.
+    const result = await revokeLibretaShareForUser(userId2, row.id);
+    expect(result).toEqual({ ok: true });
+
+    // Cleanup the temp ownership.
+    await db.delete(ownerships).where(eq(ownerships.id, tempOwnership.id));
+  });
+});
+
+describe("logLibretaShareViewForToken", () => {
+  it("happy path: inserts pet_event, increments view_count_cached, sets last_viewed_at_cached", async () => {
+    await revokeAllShares();
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "View test",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+    const { shareToken } = created;
+
+    await logLibretaShareViewForToken({ shareToken, userAgent: "TestAgent/1.0" });
+
+    const [row] = await db
+      .select()
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, shareToken))
+      .limit(1);
+    expect(row.viewCountCached).toBe(1);
+    expect(row.lastViewedAtCached).not.toBeNull();
+
+    // Verify the pet_event was inserted.
+    const events = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    const latest = events[events.length - 1];
+    expect(latest.authorRole).toBe("system");
+    expect(latest.recordedByUserId).toBeNull();
+
+    // Cleanup the event (append-only guard requires GUC).
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      await tx
+        .delete(petEvents)
+        .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+    });
+  });
+
+  it("revoked share: no event inserted, no counter increment", async () => {
+    await revokeAllShares();
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Revoked view test",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+    const { shareToken } = created;
+
+    // Revoke the share first.
+    const [row] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, shareToken))
+      .limit(1);
+    await revokeLibretaShareForUser(userId, row.id);
+
+    const countBefore = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+
+    await logLibretaShareViewForToken({ shareToken, userAgent: null });
+
+    const countAfter = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+    expect(countAfter.length).toBe(countBefore.length);
+
+    const [updated] = await db
+      .select()
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.id, row.id))
+      .limit(1);
+    expect(updated.viewCountCached).toBe(0);
+  });
+
+  it("expired share: no event inserted, no counter increment", async () => {
+    await revokeAllShares();
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Expired view test",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+    const { shareToken } = created;
+
+    // Force expiry to the past.
+    const [row] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, shareToken))
+      .limit(1);
+    await db
+      .update(libretaShareTokens)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(libretaShareTokens.id, row.id));
+
+    const countBefore = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+
+    await logLibretaShareViewForToken({ shareToken, userAgent: null });
+
+    const countAfter = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+    expect(countAfter.length).toBe(countBefore.length);
+
+    const [updated] = await db
+      .select()
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.id, row.id))
+      .limit(1);
+    expect(updated.viewCountCached).toBe(0);
+  });
+});
