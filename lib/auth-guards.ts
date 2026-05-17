@@ -7,8 +7,10 @@
 // authenticated user. The return type is non-nullable: if you got here, the
 // guard passed.
 
+import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
+import { db, govtAssignments, profiles } from "@/db";
 import { type ActiveMembership, getActiveMemberships } from "@/lib/capabilities";
 import { createClient } from "@/lib/supabase/server";
 
@@ -46,4 +48,50 @@ export async function requireActiveOrgOrRedirect(): Promise<ActiveOrgSession> {
   if (memberships.length === 0) redirect("/refugio");
   const active = memberships[memberships.length - 1];
   return { supabase, user, memberships, active };
+}
+
+export type AdminOrGovtJurisdiction = {
+  province: string;
+  locality: string;
+};
+
+export type AdminOrGovtSession = AuthenticatedSession & {
+  profile: { id: string; role: "admin" | "govt" };
+  // Empty for admin (universal scope). Populated for govt with every
+  // active (non-revoked) govt_assignments tuple.
+  jurisdictions: AdminOrGovtJurisdiction[];
+};
+
+// Gate the /admin/* segment. Redirects unauthenticated to /login and
+// authenticated non-authorities to /mis-mascotas (no point sending them
+// somewhere they can't act). The returned `jurisdictions` is the govt's
+// active scope — empty for admin, who has universal scope.
+export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
+  const session = await requireUserOrRedirect();
+  const [profile] = await db
+    .select({ id: profiles.id, role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, session.user.id))
+    .limit(1);
+  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
+    redirect("/mis-mascotas");
+  }
+
+  let jurisdictions: AdminOrGovtJurisdiction[] = [];
+  if (profile.role === "govt") {
+    const rows = await db
+      .select({
+        province: govtAssignments.jurisdictionProvince,
+        locality: govtAssignments.jurisdictionLocality,
+      })
+      .from(govtAssignments)
+      .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)));
+    jurisdictions = rows;
+  }
+
+  return {
+    ...session,
+    profile: { id: profile.id, role: profile.role },
+    jurisdictions,
+  };
 }
