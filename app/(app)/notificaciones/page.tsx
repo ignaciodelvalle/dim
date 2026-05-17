@@ -4,17 +4,13 @@ import {
   markNotificationReadAction,
 } from "@/app/actions/notifications";
 import { type Notification, type Pet, db, notifications, pets } from "@/db";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { notificationSeverityLabel, relativeTime } from "@/lib/format";
-import { createClient } from "@/lib/supabase/server";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 export default async function NotificacionesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null; // (app) layout guards this
+  const { user } = await requireUserOrRedirect();
 
   // All non-archived notifications, newest first, joined with their related
   // pet (if any) so we can render a "Ver mascota" link without an N+1.

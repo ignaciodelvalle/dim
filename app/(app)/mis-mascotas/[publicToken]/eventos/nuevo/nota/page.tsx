@@ -10,7 +10,6 @@ export default async function NewNotePage({
 }) {
   const { publicToken } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   const boundAction = createNoteAction.bind(null, pet.publicToken);

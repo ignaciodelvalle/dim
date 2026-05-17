@@ -3,22 +3,13 @@
 // re-checks `intake.create` defensively so this page is best-effort UX, not
 // the security boundary.
 
-import { getActiveMemberships, getGrantedCapabilities } from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/lib/capabilities";
 import Link from "next/link";
 import { IntakeForm } from "./IntakeForm";
 
 export default async function IntakePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return null;
-
+  const { active } = await requireActiveOrgOrRedirect();
   const granted = await getGrantedCapabilities(active.membership);
   if (!granted.has("intake.create")) {
     return (

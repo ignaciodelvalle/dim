@@ -2,17 +2,13 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { db, profiles } from "@/db";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getActiveMemberships } from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
 import { OrgCreateForm } from "./OrgCreateForm";
 import { VetUpgradeForm } from "./VetUpgradeForm";
 
 export default async function UpgradePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null; // layout guards this
+  const { user } = await requireUserOrRedirect();
 
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   const memberships = await getActiveMemberships(user.id);

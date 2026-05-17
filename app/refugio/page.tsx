@@ -3,12 +3,8 @@
 // non-granted capability inline; admins see a link to the approval queue.
 
 import { type OrganizationCapability, db, organizationCapabilityGrants } from "@/db";
-import {
-  CAPABILITY_CATALOG,
-  getActiveMemberships,
-  getGrantedCapabilities,
-} from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { CAPABILITY_CATALOG, getGrantedCapabilities } from "@/lib/capabilities";
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
@@ -69,17 +65,8 @@ const STATE_DOT: Record<CapabilityState["kind"], string> = {
 };
 
 export default async function RefugioPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const memberships = await getActiveMemberships(user.id);
-  if (memberships.length === 0) return null;
-
   // v1: most-recently-joined active membership wins. v2: org-picker UI.
-  const active = memberships[memberships.length - 1];
+  const { memberships, active } = await requireActiveOrgOrRedirect();
   const { membership, organization } = active;
 
   const granted = await getGrantedCapabilities(membership);

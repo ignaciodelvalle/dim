@@ -4,8 +4,8 @@
 // — the highest-stakes role wins for the badge.
 
 import { db, ownerships, pets } from "@/db";
-import { getActiveMemberships, getGrantedCapabilities } from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
@@ -61,16 +61,7 @@ export default async function RefugioMascotasPage({
     transferido?: string;
   }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return null;
-
+  const { active } = await requireActiveOrgOrRedirect();
   const granted = await getGrantedCapabilities(active.membership);
   const canIntake = granted.has("intake.create");
   const canAssignFoster = granted.has("foster.assign");

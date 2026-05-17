@@ -13,7 +13,6 @@ export default async function NewMedicationEndPage({
 }) {
   const { publicToken } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   // Fetch all medication events for this pet in one query, then compute open

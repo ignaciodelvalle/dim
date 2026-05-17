@@ -1,8 +1,8 @@
 import { logoutAction } from "@/app/actions/auth";
 import { type Pet, attachments, db, notifications, ownerships, pets, profiles } from "@/db";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { speciesLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
@@ -11,11 +11,7 @@ export default async function MisMascotasPage({
 }: {
   searchParams: Promise<{ reclamado?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null; // layout guards this
+  const { user } = await requireUserOrRedirect();
 
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   const params = await searchParams;

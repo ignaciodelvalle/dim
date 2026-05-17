@@ -22,7 +22,6 @@ export default async function LibretaPage({
   const { publicToken } = await params;
   const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet, user } = session;
 
   const [profile] = await db

@@ -3,6 +3,7 @@ import { db, petEvents, reminders } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { CheckinForm } from "./CheckinForm";
 
 // Post-adoption check-in is the OWNER's self-report surface. Gated to:
@@ -21,8 +22,13 @@ export default async function PostAdoptionCheckinPage({
 }) {
   const { publicToken } = await params;
   const access = await requirePetAccess(publicToken);
-  if (!access.ok) return null;
-  if (access.accessPath !== "owner") return null;
+  if (!access.ok) {
+    if (access.error === "Sesión expirada.") redirect("/login");
+    notFound();
+  }
+  // Check-in is owner-self only. Org-mediated access (refugios cohabiting
+  // post-adoption) can READ the resulting event but not WRITE it.
+  if (access.accessPath !== "owner") notFound();
   const { user, pet } = access;
 
   const [adoption] = await db
@@ -34,7 +40,7 @@ export default async function PostAdoptionCheckinPage({
 
   const adopterId = (adoption?.payload as { adopter_user_id?: string } | undefined)
     ?.adopter_user_id;
-  if (!adoption || adopterId !== user.id) return null;
+  if (!adoption || adopterId !== user.id) notFound();
 
   const [openReminder] = await db
     .select({ id: reminders.id, dueAt: reminders.dueAt })
@@ -50,7 +56,29 @@ export default async function PostAdoptionCheckinPage({
     .orderBy(reminders.dueAt)
     .limit(1);
 
-  if (!openReminder) return null;
+  if (!openReminder) {
+    return (
+      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+        <div className="max-w-md mx-auto pt-8 space-y-6">
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}`}
+            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          >
+            ← Volver al perfil
+          </Link>
+          <div className="space-y-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+              Sin check-ins pendientes
+            </h1>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              {pet.name} no tiene un check-in post-adopción pendiente en este momento. Si el refugio
+              te pide otro seguimiento más adelante, te vamos a avisar.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const boundAction = recordPostAdoptionCheckinAction.bind(null, pet.publicToken);
 

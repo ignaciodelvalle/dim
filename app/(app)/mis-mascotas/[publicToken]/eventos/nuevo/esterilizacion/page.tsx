@@ -10,7 +10,6 @@ export default async function NewSterilizationPage({
 }) {
   const { publicToken } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return null;
   const { pet } = session;
 
   const boundAction = createSterilizationAction.bind(null, pet.publicToken);

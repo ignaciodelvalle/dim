@@ -3,8 +3,8 @@
 // through the audit trail). Layout gates on capability.grant.
 
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
-import { CAPABILITY_CATALOG, getActiveMemberships } from "@/lib/capabilities";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveOrgOrRedirect } from "@/lib/auth-guards";
+import { CAPABILITY_CATALOG } from "@/lib/capabilities";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { DecideForm } from "./DecideForm";
@@ -35,15 +35,7 @@ function formatDate(d: Date | string): string {
 }
 
 export default async function PermisosPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return null;
+  const { active } = await requireActiveOrgOrRedirect();
 
   // Pending requests come first, then the most-recent 20 decisions for context.
   const rows = await db
