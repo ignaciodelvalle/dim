@@ -289,6 +289,8 @@ export const EVENT_TYPES = [
   "foster_proposal_cancelled",
   "foster_proposal_expired",
   "foster_co_foster_allowed",
+  // Adoption eligibility flag set/changed — see spec foster-volunteers-pool §17.
+  "adoption_eligibility_set",
   // Libreta Tier-2 share telemetry — system event, not a medical entry.
   "libreta_shared_viewed",
   // Surveillance — emitted when symptom_observed triggers a reportable disease match.
@@ -440,6 +442,17 @@ export const pets = pgTable(
     // / completed_lost_to_followup). null when no active observation.
     // See lib/rabies-observation.ts → RabiesObservationStatus.
     rabiesObservationStatus: text("rabies_observation_status"),
+    // Adoption eligibility — spec foster-volunteers-pool v1.4 §17. NULL = not
+    // determined yet; the surface "/adoptar" (future) lists only TRUE; the
+    // org "no aptas" surface lists FALSE with the structured reason.
+    adoptionEligible: boolean("adoption_eligible"),
+    adoptionIneligibleReason: text("adoption_ineligible_reason"),
+    adoptionIneligibleReasonNotes: text("adoption_ineligible_reason_notes"),
+    adoptionIneligibleUntil: timestamp("adoption_ineligible_until", { withTimezone: true }),
+    adoptionEligibilitySetAt: timestamp("adoption_eligibility_set_at", { withTimezone: true }),
+    adoptionEligibilitySetByUserId: uuid("adoption_eligibility_set_by_user_id").references(
+      () => profiles.id,
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

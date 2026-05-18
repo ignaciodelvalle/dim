@@ -100,6 +100,23 @@ export async function finalizeAdoptionAction(
   const pet = petRow.pet;
   const custodyOwnershipId = petRow.custodyOwnershipId;
 
+  // Adoption eligibility gate (spec foster-volunteers-pool v1.4 §17.8).
+  // The flag defaults to NULL (no determinado todavía); finalize is only
+  // allowed when explicitly marked TRUE. FALSE blocks with the structured
+  // reason so the org knows what to resolve first.
+  if (pet.adoptionEligible !== true) {
+    if (pet.adoptionEligible === false) {
+      const reasonLabel = pet.adoptionIneligibleReason ?? "sin motivo registrado";
+      return {
+        error: `Esta mascota está marcada como no apta para adopción (motivo: ${reasonLabel}). Resolvé el motivo desde el perfil del pet antes de finalizar.`,
+      };
+    }
+    return {
+      error:
+        "Esta mascota no fue evaluada para adopción todavía. Marcala como apta desde su perfil antes de finalizar.",
+    };
+  }
+
   // Active foster row (optional — many adoptions skip the foster phase).
   const [fosterRow] = await db
     .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })

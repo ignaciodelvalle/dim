@@ -80,6 +80,8 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "foster_proposal_cancelled",
   "foster_proposal_expired",
   "foster_co_foster_allowed",
+  // Adoption eligibility flag — operational state of the pet, not clinical.
+  "adoption_eligibility_set",
   // Surveillance — system signal, not pet medical history. Owner must not see this
   // in their libreta (per spec D1: owner sees no disease names).
   "outbreak_signal",

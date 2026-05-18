@@ -837,6 +837,50 @@ const fosterCoFosterAllowed = z
   )
   .strict();
 
+// Adoption eligibility — emitted whenever pets.adoption_eligible* columns
+// change (intake initial eval, later re-classification, set to null reset).
+// The previous_state snapshot is the (eligible, reason) pair right before
+// this change, so the timeline reconstructs without a separate journal.
+const adoptionEligibilitySet = z
+  .object(
+    withVersion({
+      eligible: z.boolean(),
+      ineligible_reason: z
+        .enum([
+          "medical_treatment",
+          "behavioral_evaluation",
+          "recovery",
+          "quarantine",
+          "legal_hold",
+          "age",
+          "pending_intake_eval",
+          "other",
+        ])
+        .nullable()
+        .optional(),
+      ineligible_reason_notes: z.string().nullable().optional(),
+      ineligible_until: z.string().datetime().nullable().optional(),
+      previous_state: z
+        .object({
+          eligible: z.boolean().nullable(),
+          reason: z.string().nullable(),
+        })
+        .nullable()
+        .optional(),
+    }),
+  )
+  .strict()
+  .refine(
+    (data) => data.eligible === true || data.ineligible_reason != null,
+    "ineligible_reason required when eligible=false",
+  )
+  .refine(
+    (data) =>
+      data.ineligible_reason !== "other" ||
+      (data.ineligible_reason_notes != null && data.ineligible_reason_notes.trim().length > 0),
+    "ineligible_reason_notes required when reason='other'",
+  );
+
 // Custody transfer proposed — Phase 1 of the return-to-owner two-phase
 // handshake (Lost & Found Fase 5). An actor holding shelter_custody proposes
 // returning the pet to the original owner (or to another org). The owner
@@ -949,6 +993,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_proposal_cancelled: fosterProposalCancelled,
   foster_proposal_expired: fosterProposalExpired,
   foster_co_foster_allowed: fosterCoFosterAllowed,
+  adoption_eligibility_set: adoptionEligibilitySet,
   libreta_shared_viewed: libretaSharedViewed,
 };
 
