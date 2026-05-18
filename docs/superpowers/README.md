@@ -15,8 +15,7 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 
 | Priority | Feature | Plan file | Why now |
 |----------|---------|-----------|---------|
-| 1 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. ~2 semanas. |
-| 2 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance (incluyendo el TODO inline de `outbreak_signal`), separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
+| 1 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance (incluyendo el TODO inline de `outbreak_signal`), separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
 
 **Bloqueadas por specs sin plan todavía:**
 
@@ -33,7 +32,7 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 | Spec | Status | Plan | Notas |
 |------|--------|------|-------|
 | `2026-05-15-timeline-type-filter-design.md` | ✅ Implementado | `plans/2026-05-15-timeline-type-filter.md` | `EventTimeline` tiene prop `chips` + `DEFAULT_FILTER_CHIPS` export |
-| `2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 🟢 Ready for CC | `plans/2026-05-16-health-campaigns-and-scheduling.md` | Provider polymorphic (org o vet independiente via sub-rutas `/pro/servicios`). Approval routing a govt scope-matching + admin fallback. Paths `/org/[orgToken]`, `/pro`, `/gob`, `/admin`. 10 fases. |
+| `2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | ✅ Implementado | `plans/2026-05-16-health-campaigns-and-scheduling.md` | Provider polymorphic (org o vet independiente via sub-rutas `/pro/servicios`). Approval routing a govt scope-matching + admin fallback. Paths `/org/[orgToken]`, `/pro`, `/gob`, `/admin`. 10 fases. |
 | `2026-05-17-admin-page-design.md` (v2.2) | 🟡 Spec only — needs plan | — | Cuatro roles (`owner`, `vet`, `govt`, `admin`), dos `account_type`s (personal / institutional). Split de surfaces: `/gob` (govt scope-limitado por localidad) y `/admin` (meta-admin universal). Phasing en 9 fases. |
 | `2026-05-17-symptom-disease-surveillance-design.md` | ✅ Implementado | `plans/2026-05-17-symptom-disease-surveillance.md` | Match fuzzy texto libre → enfermedades reportables → signal silencioso a autoridad. Owner no ve diagnósticos. |
 | `2026-05-17-lost-and-found-complete-design.md` (v1.1) | 🟢 Ready for CC | `plans/2026-05-17-lost-and-found-complete.md` | Microchip cross-check + return-to-owner + broadcast + disclosure prefs owner-controlled + enriched flow para pets sin chip. 7 fases. Paths via `/org/[orgToken]/mascotas/{petToken}`. |
@@ -52,7 +51,7 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 | `2026-05-17-code-rename-refugio-to-org.md` | ✅ Implementado | — | `app/refugio/` ya no existe; código vive en `app/org/[orgToken]/`. |
 | `2026-05-17-symptom-disease-surveillance.md` | ✅ Implementado | `specs/2026-05-17-symptom-disease-surveillance-design.md` | 5 fases shipped (Fases 3+4 combinadas en un solo commit por estar acopladas). Catálogo de 23 síntomas, matcher fuzzy, `outbreak_signal` event type, server action + form, integration tests. TODO inline en `routeOutbreakSignalNotification` para swap a govt-scope routing cuando lande admin page Fase 0. |
 | `2026-05-17-lost-and-found-complete.md` | ✅ Implementado | `specs/2026-05-17-lost-and-found-complete-design.md` | 7 fases shipped en PRs #49–#55. Cross-check + match flow + disclosure prefs + enriched + return-to-owner + broadcast + polish. |
-| `2026-05-16-health-campaigns-and-scheduling.md` | 🟢 Ready for CC | `specs/2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 10 fases. Empezar por Fase 0 (schema: 4 tablas + polymorphic provider columns). Las sub-rutas finales viven en `/pro/servicios` + `/pro/agenda`. |
+| `2026-05-16-health-campaigns-and-scheduling.md` | ✅ Implementado | `specs/2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 10 fases shipped en 7 commits (`f0430f3`..`8ed5a9a`). Schema (4 tablas polymorphic + reminders FK), aprobación org/vet via `findAuthoritiesForJurisdiction`, schedule rules, materialización cron + script + botón, owner search + book (advisory lock + DB constraint para races), attendance + cancelaciones, integración con flujo existente, review UI en `/gob/servicios` + `/admin/servicios`, polish. 24h reminder cron documentado como TODO en `plans/2026-05-18-scheduling-24h-reminder-cron-todo.md`. |
 
 **Leyenda:**
 
