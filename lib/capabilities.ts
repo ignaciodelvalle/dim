@@ -93,6 +93,20 @@ export const CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
     description:
       "Decidir sobre las solicitudes de capacidades del resto del equipo (lo que los admins hacen).",
   },
+  // Scheduling system (Fase 0). Not in VET_INDIVIDUAL_IMPLICIT_CAPS: service
+  // providers earn these via the approval flow (intentional per spec D8).
+  {
+    capability: "service_offering.create",
+    label: "Publicar servicios",
+    description:
+      "Crear solicitudes de servicios (vacunaciones, castraciones, etc.) para que la autoridad las apruebe.",
+  },
+  {
+    capability: "appointment.manage",
+    label: "Gestionar turnos",
+    description:
+      "Ver las reservas del día, registrar asistencia, marcar ausencias y cancelar turnos desde el portal.",
+  },
 ] as const;
 
 const CAPABILITY_SET = new Set<string>(ORGANIZATION_CAPABILITIES);

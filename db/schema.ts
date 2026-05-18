@@ -19,7 +19,9 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  smallint,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -161,6 +163,10 @@ export const ORGANIZATION_CAPABILITIES = [
   "event.write",
   "member.invite",
   "capability.grant",
+  // Scheduling system (Fase 0). Service providers earn these via the approval
+  // flow; NOT included in VET_INDIVIDUAL_IMPLICIT_CAPS (intentional per spec).
+  "service_offering.create",
+  "appointment.manage",
 ] as const;
 export type OrganizationCapability = (typeof ORGANIZATION_CAPABILITIES)[number];
 
@@ -667,11 +673,21 @@ export const reminders = pgTable(
       onDelete: "set null",
     }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    // Scheduling system (Fase 0): link to a real appointment when backed by a
+    // booking. Null = personal reminder only (existing flow unchanged, D7).
+    // Intentionally NOT using .references() here — the FK to appointments is
+    // enforced at the DB level (see migration 0013). Drizzle cannot express
+    // circular FKs (reminders → appointments → reminders) via references() without
+    // an implicit-any error; the plain uuid column is the standard workaround.
+    appointmentId: uuid("appointment_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     userDueIdx: index("reminders_user_due_at_idx").on(table.userId, table.dueAt),
     petDueIdx: index("reminders_pet_due_at_idx").on(table.petId, table.dueAt),
+    appointmentIdx: index("reminders_appointment_idx")
+      .on(table.appointmentId)
+      .where(sql`${table.appointmentId} IS NOT NULL`),
   }),
 );
 
@@ -1135,3 +1151,227 @@ export const auditLog = pgTable(
 
 export type AuditLogRow = typeof auditLog.$inferSelect;
 export type NewAuditLogRow = typeof auditLog.$inferInsert;
+
+// ============================================================================
+// Scheduling system — Fase 0
+// ============================================================================
+// service_offerings → service_schedule_rules → time_slots ← appointments
+//
+// Provider is polymorphic: exactly one of (organization_id, provider_user_id)
+// is set per service_offerings row, mirroring the Ownership pattern.
+// Enforcement: DB CHECK constraint + Drizzle-level XOR (one nullable, one nullable).
+
+// ============================================================================
+// ServiceOfferings
+// ============================================================================
+
+export const serviceOfferings = pgTable(
+  "service_offerings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Short URL-safe token. Format: SVO-XXXX-XXXX. Generated in application code.
+    publicToken: text("public_token").notNull().unique(),
+
+    // Polymorphic provider: exactly one of these two must be set (XOR enforced
+    // by DB CHECK constraint `provider_xor`).
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    providerUserId: uuid("provider_user_id").references(() => profiles.id, {
+      onDelete: "cascade",
+    }),
+
+    // Jurisdiction for approval routing — denormalized from provider.
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+
+    serviceKind: text("service_kind").notNull(),
+    displayName: text("display_name").notNull(),
+    description: text("description"),
+    durationMinutes: integer("duration_minutes").notNull().default(15),
+    slotCapacity: integer("slot_capacity").notNull().default(1),
+    priceArs: numeric("price_ars", { precision: 10, scale: 2 }),
+    eligibilitySpecies: text("eligibility_species").array(),
+    eligibilityAgeMinMonths: integer("eligibility_age_min_months"),
+    eligibilityAgeMaxMonths: integer("eligibility_age_max_months"),
+
+    // Approval workflow (D8: own status column, not approval_requests table).
+    status: text("status").notNull().default("pending_approval"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    rejectionReason: text("rejection_reason"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    orgIdx: index("service_offerings_org_idx")
+      .on(table.organizationId)
+      .where(sql`${table.organizationId} IS NOT NULL`),
+    providerIdx: index("service_offerings_provider_idx")
+      .on(table.providerUserId)
+      .where(sql`${table.providerUserId} IS NOT NULL`),
+    pendingIdx: index("service_offerings_pending_idx")
+      .on(table.status, table.submittedAt)
+      .where(sql`${table.status} = 'pending_approval'`),
+    activeSearchIdx: index("service_offerings_active_search_idx")
+      .on(table.serviceKind, table.status)
+      .where(sql`${table.status} = 'approved'`),
+    jurisdictionIdx: index("service_offerings_jurisdiction_idx").on(
+      table.jurisdictionCountry,
+      table.jurisdictionProvince,
+      table.jurisdictionLocality,
+    ),
+  }),
+);
+
+export type ServiceOffering = typeof serviceOfferings.$inferSelect;
+export type NewServiceOffering = typeof serviceOfferings.$inferInsert;
+
+// ============================================================================
+// ServiceScheduleRules
+// ============================================================================
+// Weekly recurring availability for a service offering. Discrete fields (days +
+// time window + effective date range) — no RRULE (D4).
+
+export const serviceScheduleRules = pgTable(
+  "service_schedule_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceOfferingId: uuid("service_offering_id")
+      .notNull()
+      .references(() => serviceOfferings.id, { onDelete: "cascade" }),
+    daysOfWeek: smallint("days_of_week").array().notNull(), // ISO 8601: 1=Mon..7=Sun
+    startTimeLocal: time("start_time_local").notNull(),
+    endTimeLocal: time("end_time_local").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),              // null = open-ended
+    timezone: text("timezone").notNull().default("America/Argentina/Buenos_Aires"),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    offeringActiveIdx: index("schedule_rules_offering_active_idx")
+      .on(table.serviceOfferingId)
+      .where(sql`${table.status} = 'active'`),
+  }),
+);
+
+export type ServiceScheduleRule = typeof serviceScheduleRules.$inferSelect;
+export type NewServiceScheduleRule = typeof serviceScheduleRules.$inferInsert;
+
+// ============================================================================
+// TimeSlots
+// ============================================================================
+// Discrete bookable slots materialized from schedule rules (D5: cron-based,
+// 60-day rolling window). The bookings_count <= capacity DB CHECK is the final
+// guardrail against race conditions; the advisory lock is the primary mitigation.
+
+export const timeSlots = pgTable(
+  "time_slots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceOfferingId: uuid("service_offering_id")
+      .notNull()
+      .references(() => serviceOfferings.id, { onDelete: "cascade" }),
+    ruleId: uuid("rule_id").references(() => serviceScheduleRules.id, {
+      onDelete: "set null",
+    }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    // Capacity is a snapshot from service_offerings.slot_capacity at materialization.
+    capacity: integer("capacity").notNull(),
+    bookingsCount: integer("bookings_count").notNull().default(0),
+    status: text("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueStarts: uniqueIndex("time_slots_unique_starts").on(
+      table.serviceOfferingId,
+      table.startsAt,
+    ),
+    offeringWindowIdx: index("time_slots_offering_window_idx")
+      .on(table.serviceOfferingId, table.startsAt)
+      .where(sql`${table.status} = 'open'`),
+    searchIdx: index("time_slots_search_idx")
+      .on(table.serviceOfferingId, table.startsAt)
+      .where(sql`${table.status} IN ('open', 'full')`),
+  }),
+);
+
+export type TimeSlot = typeof timeSlots.$inferSelect;
+export type NewTimeSlot = typeof timeSlots.$inferInsert;
+
+// ============================================================================
+// Appointments
+// ============================================================================
+// Owner bookings against time slots. Mutable planning artifact (D6): can be
+// cancelled; the outcome pet_event is the immutable medical record (linked via
+// outcome_event_id when status = 'attended').
+
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Short URL-safe token. Format: APT-XXXX-XXXX. Generated in application code.
+    publicToken: text("public_token").notNull().unique(),
+    slotId: uuid("slot_id")
+      .notNull()
+      .references(() => timeSlots.id, { onDelete: "restrict" }),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    serviceOfferingId: uuid("service_offering_id")
+      .notNull()
+      .references(() => serviceOfferings.id),
+    // Denormalized from offering. Null for independent-vet offerings.
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    status: text("status").notNull().default("confirmed"),
+
+    attendedAt: timestamp("attended_at", { withTimezone: true }),
+    attendedByUserId: uuid("attended_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledByUserId: uuid("cancelled_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    cancellationReason: text("cancellation_reason"),
+    noShowMarkedAt: timestamp("no_show_marked_at", { withTimezone: true }),
+    outcomeEventId: uuid("outcome_event_id").references(() => petEvents.id, {
+      onDelete: "set null",
+    }),
+    // The parallel private reminder (D7). Set when a reminder is auto-created
+    // alongside the booking; owner's reminder view shows both coexisting.
+    reminderId: uuid("reminder_id").references(() => reminders.id, {
+      onDelete: "set null",
+    }),
+    notesFromOwner: text("notes_from_owner"),
+    notesFromOrg: text("notes_from_org"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    petIdx: index("appointments_pet_idx").on(table.petId, table.createdAt),
+    ownerIdx: index("appointments_owner_idx").on(table.ownerUserId, table.status),
+    orgIdx: index("appointments_org_idx")
+      .on(table.organizationId, table.status)
+      .where(sql`${table.organizationId} IS NOT NULL`),
+    slotIdx: index("appointments_slot_idx")
+      .on(table.slotId)
+      .where(sql`${table.status} = 'confirmed'`),
+  }),
+);
+
+export type Appointment = typeof appointments.$inferSelect;
+export type NewAppointment = typeof appointments.$inferInsert;
