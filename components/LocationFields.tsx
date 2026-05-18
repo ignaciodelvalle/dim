@@ -41,6 +41,7 @@ import {
   geocodeAddressAction,
   reverseGeocodeAction,
 } from "@/app/actions/geocoding";
+import { LocalityCombobox } from "@/components/LocalityCombobox";
 import { PROVINCES } from "@/lib/ar-provincias";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
@@ -103,6 +104,11 @@ export function LocationFields({
   );
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  // Province state lifted from the uncontrolled <select> so LocalityCombobox
+  // (which scopes its search to a province) can react to province changes.
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState<string>(
+    defaultValue?.provinceCode ?? "",
+  );
 
   // Description text + sync state. Only meaningful when integratedDescription
   // is true; cheap to keep declared unconditionally so hook order stays stable.
@@ -246,7 +252,8 @@ export function LocationFields({
             <select
               id="provinceCode"
               name="provinceCode"
-              defaultValue={defaultValue?.provinceCode ?? ""}
+              value={selectedProvinceCode}
+              onChange={(e) => setSelectedProvinceCode(e.target.value)}
               className={inputClass}
             >
               <option value="">No especificar</option>
@@ -261,13 +268,10 @@ export function LocationFields({
             <label htmlFor="localityName" className={labelClass}>
               Barrio o localidad
             </label>
-            <input
-              id="localityName"
+            <LocalityCombobox
+              provinceCode={selectedProvinceCode || null}
+              defaultValue={{ localityName: defaultValue?.localityName ?? null }}
               name="localityName"
-              type="text"
-              placeholder="Palermo, Tigre, …"
-              defaultValue={defaultValue?.localityName ?? ""}
-              className={inputClass}
             />
           </div>
         </div>

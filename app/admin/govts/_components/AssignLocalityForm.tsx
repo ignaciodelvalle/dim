@@ -9,6 +9,8 @@
 import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
+import { LocalityCombobox } from "@/components/LocalityCombobox";
+import { PROVINCES } from "@/lib/ar-provincias";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -22,15 +24,17 @@ export function AssignLocalityForm({
   onAssigned?: (locality: AssignedLocality) => void;
 }) {
   const [mode, setMode] = useState<Mode>("idle");
-  const [province, setProvince] = useState("");
+  // provinceCode is the ISO 3166-2:AR code (e.g. "AR-C"). It feeds the
+  // combobox's scope and is mapped to the display name at submit time.
+  const [provinceCode, setProvinceCode] = useState("");
   const [locality, setLocality] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastAssigned, setLastAssigned] = useState<AssignedLocality | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const provinceTrimmed = province.trim();
+  const provinceName = PROVINCES.find((p) => p.code === provinceCode)?.name ?? "";
   const localityTrimmed = locality.trim();
-  const canSubmit = provinceTrimmed.length > 0 && localityTrimmed.length > 0 && !pending;
+  const canSubmit = provinceName.length > 0 && localityTrimmed.length > 0 && !pending;
 
   if (mode === "done" && lastAssigned) {
     return (
@@ -42,7 +46,7 @@ export function AssignLocalityForm({
           type="button"
           onClick={() => {
             setMode("idle");
-            setProvince("");
+            setProvinceCode("");
             setLocality("");
             setLastAssigned(null);
           }}
@@ -69,15 +73,23 @@ export function AssignLocalityForm({
             >
               Provincia
             </label>
-            <input
+            <select
               id="assign-locality-province"
-              type="text"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
-              placeholder="Ej: Buenos Aires"
+              value={provinceCode}
+              onChange={(e) => {
+                setProvinceCode(e.target.value);
+                setLocality("");
+              }}
               disabled={pending}
               className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-50"
-            />
+            >
+              <option value="">Elegí una provincia</option>
+              {PROVINCES.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -87,14 +99,11 @@ export function AssignLocalityForm({
             >
               Localidad
             </label>
-            <input
-              id="assign-locality-locality"
-              type="text"
-              value={locality}
-              onChange={(e) => setLocality(e.target.value)}
-              placeholder="Ej: La Plata"
-              disabled={pending}
-              className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            <LocalityCombobox
+              provinceCode={provinceCode || null}
+              defaultValue={{ localityName: locality }}
+              name="assignLocalityName"
+              onSelect={(r) => setLocality(r?.localityName ?? "")}
             />
           </div>
         </div>
@@ -141,7 +150,7 @@ export function AssignLocalityForm({
     startTransition(async () => {
       const result = await assignGovtLocalityAction({
         targetUserId,
-        province: provinceTrimmed,
+        province: provinceName,
         locality: localityTrimmed,
       });
 
@@ -150,7 +159,7 @@ export function AssignLocalityForm({
         return;
       }
 
-      const assigned = { province: provinceTrimmed, locality: localityTrimmed };
+      const assigned = { province: provinceName, locality: localityTrimmed };
       setLastAssigned(assigned);
       setMode("done");
       onAssigned?.(assigned);

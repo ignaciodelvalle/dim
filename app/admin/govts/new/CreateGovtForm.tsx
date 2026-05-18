@@ -7,8 +7,13 @@ import { useRef, useState } from "react";
 
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
+import { LocalityCombobox } from "@/components/LocalityCombobox";
+import { PROVINCES } from "@/lib/ar-provincias";
 
-type LocalityEntry = { id: number; province: string; locality: string };
+// `provinceCode` is the ISO 3166-2:AR code (e.g. "AR-C"). The display name
+// is computed via PROVINCES at submit time; the combobox reads provinceCode
+// to scope its search.
+type LocalityEntry = { id: number; provinceCode: string; locality: string };
 
 type SuccessState = {
   profileId: string;
@@ -21,7 +26,7 @@ export function CreateGovtForm() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [localities, setLocalities] = useState<LocalityEntry[]>([
-    { id: 0, province: "", locality: "" },
+    { id: 0, provinceCode: "", locality: "" },
   ]);
   const nextId = useRef(1);
   const [error, setError] = useState<string | null>(null);
@@ -31,15 +36,23 @@ export function CreateGovtForm() {
   function addLocality() {
     const id = nextId.current;
     nextId.current += 1;
-    setLocalities((prev) => [...prev, { id, province: "", locality: "" }]);
+    setLocalities((prev) => [...prev, { id, provinceCode: "", locality: "" }]);
   }
 
   function removeLocality(id: number) {
     setLocalities((prev) => prev.filter((l) => l.id !== id));
   }
 
-  function updateLocality(id: number, field: "province" | "locality", value: string) {
-    setLocalities((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
+  function updateLocality(id: number, field: "provinceCode" | "locality", value: string) {
+    setLocalities((prev) =>
+      prev.map((l) => {
+        if (l.id !== id) return l;
+        // When the province changes, drop the locally-staged locality so the
+        // combobox starts clean under the new scope.
+        if (field === "provinceCode") return { ...l, provinceCode: value, locality: "" };
+        return { ...l, [field]: value };
+      }),
+    );
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -48,8 +61,11 @@ export function CreateGovtForm() {
     setLoading(true);
 
     const validLocalities = localities
-      .filter((l) => l.province.trim() && l.locality.trim())
-      .map(({ province, locality }) => ({ province, locality }));
+      .filter((l) => l.provinceCode && l.locality.trim())
+      .map(({ provinceCode, locality }) => ({
+        province: PROVINCES.find((p) => p.code === provinceCode)?.name ?? provinceCode,
+        locality,
+      }));
 
     try {
       const result = await createInstitutionalAccountAction({
@@ -80,7 +96,7 @@ export function CreateGovtForm() {
     setSuccess(null);
     setEmail("");
     setDisplayName("");
-    setLocalities([{ id: 0, province: "", locality: "" }]);
+    setLocalities([{ id: 0, provinceCode: "", locality: "" }]);
     nextId.current = 1;
     setError(null);
   }
@@ -157,20 +173,27 @@ export function CreateGovtForm() {
           <div className="space-y-2">
             {localities.map((l) => (
               <div key={l.id} className="flex gap-2 items-start">
-                <input
-                  type="text"
-                  value={l.province}
-                  onChange={(e) => updateLocality(l.id, "province", e.target.value)}
-                  placeholder="Provincia"
+                <select
+                  value={l.provinceCode}
+                  onChange={(e) => updateLocality(l.id, "provinceCode", e.target.value)}
                   className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
-                />
-                <input
-                  type="text"
-                  value={l.locality}
-                  onChange={(e) => updateLocality(l.id, "locality", e.target.value)}
-                  placeholder="Localidad"
-                  className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
-                />
+                  aria-label="Provincia"
+                >
+                  <option value="">Elegí provincia</option>
+                  {PROVINCES.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex-1">
+                  <LocalityCombobox
+                    provinceCode={l.provinceCode || null}
+                    defaultValue={{ localityName: l.locality }}
+                    name={`createGovtLocality-${l.id}`}
+                    onSelect={(r) => updateLocality(l.id, "locality", r?.localityName ?? "")}
+                  />
+                </div>
                 {localities.length > 1 && (
                   <button
                     type="button"
