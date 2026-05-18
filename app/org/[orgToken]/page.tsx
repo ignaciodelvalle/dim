@@ -88,6 +88,7 @@ export default async function OrgDashboardPage({
   const canReadHeld = granted.has("pet.read_held");
   const canIntake = granted.has("intake.create");
   const canReviewAdoptions = granted.has("adoption.review");
+  const canAssignFoster = granted.has("foster.assign");
 
   // Load the most recent grant per capability for this membership so the row
   // shows the current state (pending / denied / revoked) when there's no
@@ -205,7 +206,7 @@ export default async function OrgDashboardPage({
             )}
           </header>
 
-          {(canReadHeld || canIntake || canReviewAdoptions) && (
+          {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (
             <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {canReadHeld && (
                 <Link
@@ -239,6 +240,28 @@ export default async function OrgDashboardPage({
                     Seguimiento de los adoptantes en las ventanas pactadas.
                   </p>
                 </Link>
+              )}
+              {canAssignFoster && (
+                <>
+                  <Link
+                    href={`/org/${orgToken}/voluntarios`}
+                    className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  >
+                    <p className="text-sm font-semibold">Pool de voluntarios</p>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                      Buscar voluntarios y proponer tránsitos.
+                    </p>
+                  </Link>
+                  <Link
+                    href={`/org/${orgToken}/voluntarios/propuestas`}
+                    className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  >
+                    <p className="text-sm font-semibold">Propuestas emitidas</p>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                      Estado de las propuestas de tránsito que enviaste.
+                    </p>
+                  </Link>
+                </>
               )}
             </section>
           )}

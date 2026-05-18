@@ -175,6 +175,20 @@ export default async function CuentaPage() {
                 description="Registrá tu matrícula profesional"
               />
             )}
+            {profile.role === "owner" && profile.accountType === "personal" && (
+              <>
+                <ActionCard
+                  href="/cuenta/ofrecerme-como-transito"
+                  label="Ofrecerme como hogar de tránsito"
+                  description="Inscribite en el pool de voluntarios para cuidar mascotas en custodia"
+                />
+                <ActionCard
+                  href="/cuenta/transitos/propuestas"
+                  label="Propuestas de tránsito"
+                  description="Refugios proponiéndote cuidar mascotas"
+                />
+              </>
+            )}
             {profile.role === "vet" && (
               <ActionCard
                 href="/cuenta/renunciar"
