@@ -2,11 +2,13 @@
 // and the set of capabilities they currently hold. Non-admins can request any
 // non-granted capability inline; admins see a link to the approval queue.
 
-import { type OrganizationCapability, db, organizationCapabilityGrants } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { CAPABILITY_CATALOG, getGrantedCapabilities } from "@/lib/capabilities";
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
+
+import { type OrganizationCapability, db, organizationCapabilityGrants, profiles } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { CAPABILITY_CATALOG, getGrantedCapabilities } from "@/lib/capabilities";
+
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -70,7 +72,15 @@ export default async function OrgDashboardPage({
   params: Promise<{ orgToken: string }>;
 }) {
   const { orgToken } = await params;
-  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
+
+  // Fetch profile role for the cross-portal nav rail.
+  const [profile] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  const userRole = profile?.role ?? "owner";
 
   const granted = await getGrantedCapabilities(membership);
   const isAdmin = membership.role === "admin";
@@ -115,7 +125,68 @@ export default async function OrgDashboardPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen bg-white dark:bg-neutral-950">
+      {/* Cross-portal nav rail */}
+      <nav className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-2">
+        <div className="max-w-3xl mx-auto flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
+          <Link
+            href="/mis-mascotas"
+            className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+          >
+            Mis mascotas
+          </Link>
+          <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+            ·
+          </span>
+          <Link
+            href="/cuenta"
+            className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+          >
+            Mi cuenta
+          </Link>
+          {userRole === "vet" && (
+            <>
+              <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+                ·
+              </span>
+              <Link
+                href="/pro"
+                className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+              >
+                Portal pro
+              </Link>
+            </>
+          )}
+          {userRole === "admin" && (
+            <>
+              <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+                ·
+              </span>
+              <Link
+                href="/admin"
+                className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+              >
+                Admin
+              </Link>
+            </>
+          )}
+          {(userRole === "govt" || userRole === "admin") && (
+            <>
+              <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+                ·
+              </span>
+              <Link
+                href="/gob"
+                className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+              >
+                Gobierno
+              </Link>
+            </>
+          )}
+        </div>
+      </nav>
+
+      <div className="p-6">
       <div className="max-w-3xl mx-auto space-y-8">
         <header className="space-y-2">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
@@ -228,14 +299,7 @@ export default async function OrgDashboardPage({
           </ul>
         </section>
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href="/mis-mascotas"
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
-            ← Volver a mis mascotas
-          </Link>
-        </footer>
+      </div>
       </div>
     </main>
   );
