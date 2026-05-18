@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { eq, like, or } from "drizzle-orm";
+import { eq, like, or, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
@@ -46,8 +46,18 @@ async function cleanupFixtureRows() {
   for (const id of FIXTURE_INDEC_IDS) {
     await db.delete(arLocalities).where(eq(arLocalities.indecId, id));
   }
-  // Also remove any test-only import runs (the ones we created point at the
-  // fixture URL, not the real datos.gob.ar URL).
+  // Un-soft-delete real catalog rows the soft-delete subtest may have stamped.
+  // The script's soft-delete pass marks any indec_cppdyl row that isn't in the
+  // current CSV as removed; running with a fixture CSV obliterates the live
+  // catalog unless we restore it here.
+  await db
+    .update(arLocalities)
+    .set({ removedAt: null })
+    .where(
+      sql`${arLocalities.source} = 'indec_cppdyl' AND ${arLocalities.removedAt} IS NOT NULL AND ${arLocalities.indecId} IS NOT NULL`,
+    );
+  // Remove the test-only import runs (those point at the fixture URL, not the
+  // real datos.gob.ar URL).
   await db
     .delete(arLocalitiesImportRuns)
     .where(
@@ -61,7 +71,10 @@ async function cleanupFixtureRows() {
 beforeEach(cleanupFixtureRows);
 afterAll(cleanupFixtureRows);
 
-describe("import-indec-localities", () => {
+// 30s timeout: the script does N+M synchronous queries (N for upsert checks,
+// M for the soft-delete scan over all indec_cppdyl rows). With ~4000 real
+// catalog rows present, that's notably slower than against an empty catalog.
+describe("import-indec-localities", { timeout: 30_000 }, () => {
   it("imports the fixture CSV: 5 valid rows, 1 skipped (paraje), 2 errored", async () => {
     global.fetch = vi.fn(async () => buildResponse());
     const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });

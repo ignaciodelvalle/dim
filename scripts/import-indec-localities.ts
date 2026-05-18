@@ -32,7 +32,13 @@
 import { parse } from "csv-parse/sync";
 import { eq } from "drizzle-orm";
 
-import { type ArgentineLocalityCategory, arLocalities, arLocalitiesImportRuns, db } from "@/db";
+import {
+  type ArgentineLocalityCategory,
+  type ArgentineLocalitySource,
+  arLocalities,
+  arLocalitiesImportRuns,
+  db,
+} from "@/db";
 import type { ProvinceCode } from "@/lib/ar-provincias";
 
 const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censales.csv";
@@ -116,11 +122,12 @@ export async function runImport(options?: {
 }): Promise<ImportStats> {
   const dryRun = options?.dryRun ?? false;
   const sourceUrl = options?.sourceUrl ?? DEFAULT_SOURCE_URL;
+  const source: ArgentineLocalitySource = "indec_cppdyl";
 
   // 1. Open the import run row first so partial / failed runs are still traced.
   const [run] = await db
     .insert(arLocalitiesImportRuns)
-    .values({ source: "indec_cppdyl", sourceUrl, status: "running" })
+    .values({ source, sourceUrl, status: "running" })
     .returning();
 
   console.log(`Started import run ${run.id} (dryRun=${dryRun})`);
@@ -237,7 +244,7 @@ export async function runImport(options?: {
             category,
             latitude,
             longitude,
-            source: "indec_cppdyl",
+            source,
             sourceVersion,
           });
         }
@@ -245,8 +252,10 @@ export async function runImport(options?: {
       }
     }
 
-    // 5. Soft-delete INDEC rows that no longer appear in the CSV. Only touch
-    // rows whose `source='indec_cppdyl'` so manually-curated rows are spared.
+    // 5. Soft-delete rows tagged with THIS run's source that no longer appear
+    // in the CSV. Scoping by source keeps tests with a custom source from
+    // mutating the live indec_cppdyl catalog, and manually-curated rows
+    // (source='manual') are never touched.
     const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
     const fromIndec = await db
       .select({
@@ -255,7 +264,7 @@ export async function runImport(options?: {
         removedAt: arLocalities.removedAt,
       })
       .from(arLocalities)
-      .where(eq(arLocalities.source, "indec_cppdyl"));
+      .where(eq(arLocalities.source, source));
     for (const e of fromIndec) {
       if (e.indecId && !importedIndecIds.has(e.indecId) && e.removedAt === null) {
         if (!dryRun) {
