@@ -26,11 +26,11 @@ export const LIBRETA_SANITARIA_EVENT_TYPES = [
   "vet_visit_logged",
   "weight_recorded",
   "clinical_info_logged",
-  "lab_work_performed",
-  "imaging_performed",
-  "surgery_performed",
-  "allergy_detected",
   "microchip_implanted",
+  // Microchip lifecycle beyond the initial implant — replacements and
+  // revocations are identificatoria info the vet/owner care about.
+  "microchip_replaced",
+  "microchip_revoked",
   "incident_reported",
   "symptom_observed",
   "death_recorded",
@@ -51,12 +51,12 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "foster_assigned",
   "foster_ended",
   "adoption_application_submitted",
-  "adoption_application_reviewed",
   "adoption_application_approved",
   "adoption_application_rejected",
   "adoption_finalized",
   "post_adoption_checkin",
   "adoption_revoked",
+  "adoption_withdrawn",
   "abandonment_reported",
   "maltreatment_reported",
   "note_added",
@@ -64,6 +64,10 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "libreta_shared_viewed",
   // Lost & Found — custody proposal event (Fase 5). Not a medical entry.
   "custody_transfer_proposed",
+  // Custody disputes — external legal proceedings flagged by admin/govt.
+  // Not pet medical history.
+  "custody_dispute_raised",
+  "custody_dispute_resolved",
   // Surveillance — system signal, not pet medical history. Owner must not see this
   // in their libreta (per spec D1: owner sees no disease names).
   "outbreak_signal",
@@ -167,6 +171,8 @@ export function libretaGroupForEvent(event: {
     case "weight_recorded":
       return "peso";
     case "microchip_implanted":
+    case "microchip_replaced":
+    case "microchip_revoked":
       return "microchip";
     case "symptom_observed":
       return "sintomas";
@@ -174,13 +180,6 @@ export function libretaGroupForEvent(event: {
       return "incidentes";
     case "death_recorded":
       return "fallecimiento";
-    case "surgery_performed":
-      return "cirugias";
-    case "lab_work_performed":
-    case "imaging_performed":
-      return "estudios";
-    case "allergy_detected":
-      return "alergias";
   }
 
   if (event.eventType === "clinical_info_logged") {

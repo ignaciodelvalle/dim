@@ -221,16 +221,19 @@ export const EVENT_TYPES = [
   // Medication
   "medication_started",
   "medication_stopped",
-  // Clinical encounters and findings
+  // Clinical encounters and findings.
+  // Lab work, imaging, surgery, and allergy detection live inside
+  // `clinical_info_logged` with a `sub_kind` discriminator (lab_work | imaging
+  // | surgery | allergy_detection | other). Their former dedicated event_types
+  // were removed 2026-05-18 as part of the event-catalog-cleanup. Historical
+  // rows with those types remain in pet_events (events are immutable).
   "vet_visit_logged",
-  "lab_work_performed",
-  "imaging_performed",
-  "surgery_performed",
-  "allergy_detected",
   // Body metrics
   "weight_recorded",
   // Identification & legal
   "microchip_implanted",
+  "microchip_replaced",
+  "microchip_revoked",
   "dangerous_breed_attested",
   // Free-form
   "note_added",
@@ -246,20 +249,27 @@ export const EVENT_TYPES = [
   // Unified clinical information event (collapses lab/imaging/surgery/allergy for v1 owner flow).
   "clinical_info_logged",
   // Custody & adoption — schema-ready, UI deferred. See AGENTS.md → Custody & adoption.
+  // Note: `adoption_application_reviewed` was removed 2026-05-18; the
+  // application table's status field covers the "in review" stage without
+  // needing an explicit event.
   "shelter_intake_recorded",
   "foster_assigned",
   "foster_ended",
   "adoption_application_submitted",
-  "adoption_application_reviewed",
   "adoption_application_approved",
   "adoption_application_rejected",
   "adoption_finalized",
   "post_adoption_checkin",
   "adoption_revoked",
+  "adoption_withdrawn",
   "custody_transferred",
   // Lost & Found — two-phase return-to-owner handshake (Fase 5).
   // Proposed by the actor holding shelter_custody; accepted by the owner.
   "custody_transfer_proposed",
+  // Custody disputes — admin/govt flag the pet for external legal proceedings.
+  // Set `pets.in_custody_dispute=true` on raised, false on resolved.
+  "custody_dispute_raised",
+  "custody_dispute_resolved",
   // Libreta Tier-2 share telemetry — system event, not a medical entry.
   "libreta_shared_viewed",
   // Surveillance — emitted when symptom_observed triggers a reportable disease match.

@@ -335,6 +335,40 @@ const dangerousBreedAttested = z
   .strict();
 
 // ---------------------------------------------------------------------------
+// Microchip lifecycle (beyond the initial implant)
+// ---------------------------------------------------------------------------
+
+// Replacement chip — old chip removed/disabled, new one implanted. Owner or
+// vet flow. Libreta-sanitaria entry (identificatoria).
+const microchipReplaced = z
+  .object(
+    withVersion({
+      previous_chip_number: z.string(),
+      new_chip_number: z.string(),
+      reason: z.enum(["damaged", "unreadable", "duplicate_detected", "other"]),
+      replaced_by: z.string().nullable(),
+      // ISO date when the replacement was performed.
+      replaced_at: z.string(),
+    }),
+  )
+  .strict();
+
+// Revocation — chip is invalidated (fraud detected, owner request, device
+// failure). The chip number is logically retired; downstream credential
+// validation should treat it as non-authoritative. Libreta-sanitaria entry.
+const microchipRevoked = z
+  .object(
+    withVersion({
+      chip_number: z.string(),
+      reason: z.enum(["fraud_detected", "owner_request", "device_failure", "other"]),
+      revoked_by_role: z.enum(["admin", "govt", "vet"]),
+      revoked_by_user_id: z.string().uuid(),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// ---------------------------------------------------------------------------
 // Free-form & system
 // ---------------------------------------------------------------------------
 
@@ -354,6 +388,45 @@ const credentialScanned = z
     withVersion({
       is_self_scan: z.boolean(),
       viewer_authenticated: z.boolean(),
+    }),
+  )
+  .strict();
+
+// Umbrella event for non-human-cruelty incidents. The `incident_type`
+// discriminator narrows the variant; bite_inflicted and bite_suffered live
+// here (no separate event_type) so the bite-rabies-observation flow reads
+// them via `payload->>'incident_type'`. The `dog_attack` value is deprecated
+// (kept for back-compat with historical rows); new writers should use
+// `bite_suffered` for the unambiguous semantics.
+const incidentReported = z
+  .object(
+    withVersion({
+      incident_type: z.enum([
+        "bite_inflicted",
+        "bite_suffered",
+        "dog_attack",
+        "fight",
+        "traffic_accident",
+        "fall",
+        "poisoning",
+        "escape",
+        "other",
+      ]),
+      severity: z.enum(["minor", "moderate", "severe"]).nullable(),
+      injuries_summary: z.string().nullable(),
+      vet_involved: z.boolean().nullable(),
+      location_description: z.string().nullable().optional(),
+      // Bite-specific fields. Present (or expected) only when incident_type is
+      // bite_inflicted or bite_suffered. Validated as optional at the schema
+      // level; the form layer is responsible for requiring them on bite flows.
+      victim_kind: z.enum(["human", "animal", "unknown"]).nullable().optional(),
+      victim_contact_name: z.string().nullable().optional(),
+      victim_contact_phone: z.string().nullable().optional(),
+      victim_pet_id: z.string().uuid().nullable().optional(),
+      victim_age_estimate: z.string().nullable().optional(),
+      context: z.string().nullable().optional(),
+      rabies_vaccine_valid_at_incident: z.boolean().nullable().optional(),
+      reporter_role: z.enum(["owner", "vet", "shelter", "govt", "witness"]).nullable().optional(),
     }),
   )
   .strict();
@@ -592,6 +665,50 @@ const custodyTransferred = z
     { message: "at most one of to_user_id / to_organization_id may be set" },
   );
 
+// Adoption withdrawn — the applicant retires their pending application.
+// Reduces noise vs. emitting a generic `note_added`. Status field on the
+// application stays the source of truth; this event is the audit trail.
+const adoptionWithdrawn = z
+  .object(
+    withVersion({
+      application_event_id: z.string().uuid(),
+      withdrawn_by_user_id: z.string().uuid(),
+      reason: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// Custody dispute raised — admin or govt flags the pet as subject to external
+// legal proceedings (parental divorce, succession, criminal seizure pending
+// return). Sets `pets.in_custody_dispute = true` via dual-write from the
+// future server action. Downstream features (transfers, finalize, scheduling)
+// will optionally honor the flag when their flows are designed.
+const custodyDisputeRaised = z
+  .object(
+    withVersion({
+      raised_by_role: z.enum(["admin", "govt"]),
+      raised_by_user_id: z.string().uuid(),
+      external_proceeding_reference: z.string().nullable(),
+      reason: z.string(),
+    }),
+  )
+  .strict();
+
+// Custody dispute resolved — closes a prior `custody_dispute_raised`. Sets
+// `pets.in_custody_dispute = false`. The outcome enum captures the legal
+// result without prescribing post-resolution actions (those are per-feature).
+const custodyDisputeResolved = z
+  .object(
+    withVersion({
+      raised_event_id: z.string().uuid(),
+      resolved_by_role: z.enum(["admin", "govt"]),
+      resolved_by_user_id: z.string().uuid(),
+      outcome: z.enum(["ownership_confirmed", "ownership_transferred", "case_dismissed", "other"]),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // Custody transfer proposed — Phase 1 of the return-to-owner two-phase
 // handshake (Lost & Found Fase 5). An actor holding shelter_custody proposes
 // returning the pet to the original owner (or to another org). The owner
@@ -654,12 +771,12 @@ const libretaSharedViewed = z
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
-// Partial<Record<EventType, ...>> because some EVENT_TYPES entries are
-// schema-defined but have NO writer today (custody/adoption family, plus
-// `lab_work_performed`/`imaging_performed`/`surgery_performed`/`allergy_detected`
-// which are subsumed by `clinical_info_logged`). When such a type gains a
-// writer, its schema lands in the same PR and validateEventPayload will
-// throw on insert until the schema is registered.
+// `Partial<Record<EventType, ...>>` is intentional: a small allowlist of
+// `EVENT_TYPES` entries exists in the const ahead of their schema landing
+// (currently the adoption-pipeline family except `adoption_finalized` and
+// `post_adoption_checkin` — see `__tests__/event-schemas.test.ts` →
+// `UNIMPLEMENTED`). When a type gains a real writer, its schema MUST land in
+// the same PR; validateEventPayload throws on insert until that happens.
 
 export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   pet_registered: petRegistered,
@@ -676,9 +793,12 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   weight_recorded: weightRecorded,
   clinical_info_logged: clinicalInfoLogged,
   microchip_implanted: microchipImplanted,
+  microchip_replaced: microchipReplaced,
+  microchip_revoked: microchipRevoked,
   dangerous_breed_attested: dangerousBreedAttested,
   note_added: noteAdded,
   credential_scanned: credentialScanned,
+  incident_reported: incidentReported,
   abandonment_reported: abandonmentReported,
   maltreatment_reported: maltreatmentReported,
   symptom_observed: symptomObserved,
@@ -687,9 +807,12 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_assigned: fosterAssigned,
   foster_ended: fosterEnded,
   adoption_finalized: adoptionFinalized,
+  adoption_withdrawn: adoptionWithdrawn,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
   custody_transfer_proposed: custodyTransferProposed,
+  custody_dispute_raised: custodyDisputeRaised,
+  custody_dispute_resolved: custodyDisputeResolved,
   libreta_shared_viewed: libretaSharedViewed,
 };
 

@@ -16,18 +16,13 @@ import {
   validateEventPayload,
 } from "@/lib/event-schemas";
 
-// Event types from EVENT_TYPES that have NO writer today. Keeping this list
-// explicit (rather than computing it) means a new writer added without a
-// schema will fail the coverage test — which is exactly the regression
-// guard we want.
+// Event types from EVENT_TYPES that have NO writer today but ALSO no schema —
+// they sit in the const ahead of their flow being designed. Every other
+// EVENT_TYPES entry must have a registered PayloadSchema. As the adoption
+// pipeline server actions land, their entries leave this list and an
+// accompanying schema lands in lib/event-schemas.ts in the same PR.
 const UNIMPLEMENTED: ReadonlyArray<EventType> = [
-  "lab_work_performed",
-  "imaging_performed",
-  "surgery_performed",
-  "allergy_detected",
-  "incident_reported",
   "adoption_application_submitted",
-  "adoption_application_reviewed",
   "adoption_application_approved",
   "adoption_application_rejected",
   "adoption_revoked",
@@ -37,6 +32,15 @@ describe("PayloadSchemas — coverage", () => {
   it("every event type with a real writer has a registered schema", () => {
     const expected = EVENT_TYPES.filter((t) => !UNIMPLEMENTED.includes(t));
     expect(IMPLEMENTED_EVENT_TYPES.slice().sort()).toEqual(expected.slice().sort());
+  });
+
+  it("PayloadSchemas has no orphan keys (every registered schema maps to an EVENT_TYPES value)", () => {
+    const eventTypesSet = new Set<string>(EVENT_TYPES);
+    const orphans = Object.keys(PayloadSchemas).filter((k) => !eventTypesSet.has(k));
+    expect(
+      orphans,
+      `PayloadSchemas has keys not in EVENT_TYPES — either delete the schema or add the event type:\n${orphans.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("validateEventPayload throws for an event type with no schema", () => {
