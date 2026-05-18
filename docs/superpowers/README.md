@@ -15,9 +15,8 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 
 | Priority | Feature | Plan file | Why now |
 |----------|---------|-----------|---------|
-| 1 | **Symptom → disease surveillance** | `plans/2026-05-17-symptom-disease-surveillance.md` | 5 fases: catálogo de síntomas + matcher + outbreak_signal event + notification. Activación del dashboard zoonosis. Dependencia parcial con admin page Fase 0 (para routing a govts en lugar de solo admin fallback). ~2-3 días. |
-| 2 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. ~2 semanas. |
-| 3 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance, separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
+| 1 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. ~2 semanas. |
+| 2 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance (incluyendo el TODO inline de `outbreak_signal`), separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
 
 **Bloqueadas por specs sin plan todavía:**
 
@@ -36,7 +35,7 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 | `2026-05-15-timeline-type-filter-design.md` | ✅ Implementado | `plans/2026-05-15-timeline-type-filter.md` | `EventTimeline` tiene prop `chips` + `DEFAULT_FILTER_CHIPS` export |
 | `2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 🟢 Ready for CC | `plans/2026-05-16-health-campaigns-and-scheduling.md` | Provider polymorphic (org o vet independiente via sub-rutas `/pro/servicios`). Approval routing a govt scope-matching + admin fallback. Paths `/org/[orgToken]`, `/pro`, `/gob`, `/admin`. 10 fases. |
 | `2026-05-17-admin-page-design.md` (v2.2) | 🟡 Spec only — needs plan | — | Cuatro roles (`owner`, `vet`, `govt`, `admin`), dos `account_type`s (personal / institutional). Split de surfaces: `/gob` (govt scope-limitado por localidad) y `/admin` (meta-admin universal). Phasing en 9 fases. |
-| `2026-05-17-symptom-disease-surveillance-design.md` | 🟢 Ready for CC | `plans/2026-05-17-symptom-disease-surveillance.md` | Match fuzzy texto libre → enfermedades reportables → signal silencioso a autoridad. Owner no ve diagnósticos. |
+| `2026-05-17-symptom-disease-surveillance-design.md` | ✅ Implementado | `plans/2026-05-17-symptom-disease-surveillance.md` | Match fuzzy texto libre → enfermedades reportables → signal silencioso a autoridad. Owner no ve diagnósticos. |
 | `2026-05-17-lost-and-found-complete-design.md` (v1.1) | 🟢 Ready for CC | `plans/2026-05-17-lost-and-found-complete.md` | Microchip cross-check + return-to-owner + broadcast + disclosure prefs owner-controlled + enriched flow para pets sin chip. 7 fases. Paths via `/org/[orgToken]/mascotas/{petToken}`. |
 
 ### Plans (implementation, listos para Claude Code)
@@ -51,7 +50,7 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 | `2026-05-16-libreta-sanitaria-parte-c.md` | ✅ Implementado | — | Tabla `libreta_share_tokens`, ruta pública `/libreta/compartir/[shareToken]`, server actions `createLibretaShareAction`/`revokeLibretaShareAction`, `SharesManager` owner UI, view-tracking via `pet_events` type `libreta_shared_viewed`. |
 | `2026-05-17-mimar-rebrand-and-portal-restructure.md` | 🟡 Doc-first done; brand copy pending | — | Paths alineados (`/pro`, `/gob`); falta pasada de copy user-facing (DIM → MiMAR en surfaces) si todavía queda alguno. |
 | `2026-05-17-code-rename-refugio-to-org.md` | ✅ Implementado | — | `app/refugio/` ya no existe; código vive en `app/org/[orgToken]/`. |
-| `2026-05-17-symptom-disease-surveillance.md` | 🟢 Ready for CC | `specs/2026-05-17-symptom-disease-surveillance-design.md` | 5 fases. Hoy routea solo a admins; cuando admin page Fase 0 mergee, una pasada chica extiende a govts en scope vía `/gob`. |
+| `2026-05-17-symptom-disease-surveillance.md` | ✅ Implementado | `specs/2026-05-17-symptom-disease-surveillance-design.md` | 5 fases shipped (Fases 3+4 combinadas en un solo commit por estar acopladas). Catálogo de 23 síntomas, matcher fuzzy, `outbreak_signal` event type, server action + form, integration tests. TODO inline en `routeOutbreakSignalNotification` para swap a govt-scope routing cuando lande admin page Fase 0. |
 | `2026-05-17-lost-and-found-complete.md` | ✅ Implementado | `specs/2026-05-17-lost-and-found-complete-design.md` | 7 fases shipped en PRs #49–#55. Cross-check + match flow + disclosure prefs + enriched + return-to-owner + broadcast + polish. |
 | `2026-05-16-health-campaigns-and-scheduling.md` | 🟢 Ready for CC | `specs/2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 10 fases. Empezar por Fase 0 (schema: 4 tablas + polymorphic provider columns). Las sub-rutas finales viven en `/pro/servicios` + `/pro/agenda`. |
 
