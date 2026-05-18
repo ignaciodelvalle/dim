@@ -4,6 +4,10 @@
 // `useActionState` hook (React 19 / Next 15). Each action either redirects
 // on success or returns an error state so the form can re-render with it.
 
+import { and, eq, isNull } from "drizzle-orm";
+
+import { db, organizationMemberships, profiles } from "@/db";
+import { pathForRole } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -66,13 +70,42 @@ export async function loginAction(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     return { error: "Correo o contraseña incorrectos." };
   }
 
-  redirect("/mis-mascotas");
+  const userId = signInData.user.id;
+
+  // Fetch role for landing-page resolution.
+  const [profile] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  const role = profile?.role ?? "owner";
+
+  // For owners: check whether they hold an active admin membership in any org
+  // so we can drop them directly into the org portal.
+  let hasOrgAdminMembership = false;
+  if (role === "owner") {
+    const [membership] = await db
+      .select({ id: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.userId, userId),
+          eq(organizationMemberships.role, "admin"),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    hasOrgAdminMembership = !!membership;
+  }
+
+  redirect(pathForRole(role, hasOrgAdminMembership));
 }
 
 export async function logoutAction() {

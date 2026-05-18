@@ -1,6 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+
+import { db, organizationMemberships, profiles } from "@/db";
+import { pathForRole } from "@/lib/role-landing";
+import { createClient } from "@/lib/supabase/server";
+
 import { LoginForm } from "./LoginForm";
 
 export default async function LoginPage() {
@@ -8,7 +13,32 @@ export default async function LoginPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/mis-mascotas");
+
+  if (user) {
+    const [profile] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    const role = profile?.role ?? "owner";
+    let hasOrgAdminMembership = false;
+    if (role === "owner") {
+      const [membership] = await db
+        .select({ id: organizationMemberships.id })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.userId, user.id),
+            eq(organizationMemberships.role, "admin"),
+            isNull(organizationMemberships.leftAt),
+          ),
+        )
+        .limit(1);
+      hasOrgAdminMembership = !!membership;
+    }
+    redirect(pathForRole(role, hasOrgAdminMembership));
+  }
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-950">

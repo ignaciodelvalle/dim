@@ -1,6 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+
+import { db, organizationMemberships, profiles } from "@/db";
+import { pathForRole } from "@/lib/role-landing";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -8,9 +12,31 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Logged-in users skip the landing and go straight to their pet list.
+  // Logged-in users skip the landing and go straight to their portal.
   if (user) {
-    redirect("/mis-mascotas");
+    const [profile] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    const role = profile?.role ?? "owner";
+    let hasOrgAdminMembership = false;
+    if (role === "owner") {
+      const [membership] = await db
+        .select({ id: organizationMemberships.id })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.userId, user.id),
+            eq(organizationMemberships.role, "admin"),
+            isNull(organizationMemberships.leftAt),
+          ),
+        )
+        .limit(1);
+      hasOrgAdminMembership = !!membership;
+    }
+    redirect(pathForRole(role, hasOrgAdminMembership));
   }
 
   return (

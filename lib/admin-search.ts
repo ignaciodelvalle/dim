@@ -6,7 +6,7 @@
 // govt sees the same user-search result set as admin; the action-buttons
 // per row are what enforce who-can-propose-what.
 
-import { and, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 
 import { db, organizations, profiles } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
@@ -33,12 +33,24 @@ export type OrgSearchResult = {
 };
 
 const SEARCH_LIMIT = 25;
+// Larger limit for the default (no-query) paginated listing.
+const DEFAULT_LIST_LIMIT = 50;
 
-// Look up users by display_name OR dni_number prefix. Empty query returns
-// a small recent list so the page renders something useful on landing.
+// Look up users by display_name OR dni_number prefix.
+// Empty query returns a default list ordered by role priority then display
+// name, limited to DEFAULT_LIST_LIMIT rows so the page is always useful on
+// landing without PII search intent.
 export async function searchUsers(query: string): Promise<UserSearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) {
+    // Role sort priority: admin → govt → vet → owner (others sort last).
+    const rolePriority = sql`CASE ${profiles.role}
+      WHEN 'admin' THEN 1
+      WHEN 'govt'  THEN 2
+      WHEN 'vet'   THEN 3
+      WHEN 'owner' THEN 4
+      ELSE 5
+    END`;
     const rows = await db
       .select({
         id: profiles.id,
@@ -47,7 +59,8 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
       })
       .from(profiles)
-      .limit(SEARCH_LIMIT);
+      .orderBy(rolePriority, profiles.displayName)
+      .limit(DEFAULT_LIST_LIMIT);
     return rows;
   }
   const pattern = `%${trimmed}%`;
