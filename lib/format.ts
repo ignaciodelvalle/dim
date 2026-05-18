@@ -47,6 +47,12 @@ export function speciesLabel(species: string): string {
       return "Perro";
     case "cat":
       return "Gato";
+    case "rabbit":
+      return "Conejo";
+    case "guinea_pig":
+      return "Cobayo";
+    case "ferret":
+      return "Hurón";
     case "other":
       return "Otra";
     default:

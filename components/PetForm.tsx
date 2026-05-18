@@ -52,8 +52,27 @@ export function PetForm({
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [photoPreview, setPhotoPreview] = useState<string | null>(existingPhotoUrl ?? null);
+  // `species` is always the persisted (resolved) value: dog | cat | rabbit |
+  // guinea_pig | ferret | other. The top select reflects the *group* (dog,
+  // cat, or "other") and a sub-select appears under "other" with the
+  // companion-animal options. Storing the resolved value keeps every
+  // species-aware helper (breedsForSpecies, isPotentiallyDangerousBreed)
+  // working without a separate translation layer.
   const [species, setSpecies] = useState<string>(existingPet?.species ?? "");
   const [breed, setBreed] = useState<string>(existingPet?.breed ?? "");
+
+  const OTHER_SPECIES_VALUES = ["rabbit", "guinea_pig", "ferret"] as const;
+  type OtherSpeciesValue = (typeof OTHER_SPECIES_VALUES)[number];
+  function isCompanionOther(value: string): value is OtherSpeciesValue {
+    return (OTHER_SPECIES_VALUES as readonly string[]).includes(value);
+  }
+  const speciesGroup: "" | "dog" | "cat" | "other" =
+    species === "dog" || species === "cat" ? species : species === "" ? "" : "other";
+  const subSpecies: OtherSpeciesValue | "other_unlisted" | "" = isCompanionOther(species)
+    ? species
+    : species === "other"
+      ? "other_unlisted"
+      : "";
   const [custodyKind, setCustodyKind] = useState<"owner" | "foster_in_transit">("owner");
 
   const breedOptions = useMemo(() => breedsForSpecies(species), [species]);
@@ -100,14 +119,28 @@ export function PetForm({
           defaultValue={existingPet?.name}
         />
 
+        {/* The persisted species value travels as a hidden input. The visible
+            top select drives the speciesGroup state; if the group is "other",
+            a sub-select picks the concrete companion species. */}
+        <input type="hidden" name="species" value={species} />
         <SelectField
-          id="species"
-          name="species"
+          id="species-group"
+          name="speciesGroup"
           label="Especie"
           required
-          value={species}
+          value={speciesGroup}
           onChange={(e) => {
-            setSpecies(e.target.value);
+            const next = e.target.value;
+            if (next === "dog" || next === "cat") {
+              setSpecies(next);
+            } else if (next === "other") {
+              // Default the sub-select to a sensible empty so the form
+              // can't submit a half-state; the required attribute on the
+              // sub-select catches it before formAction runs.
+              setSpecies("");
+            } else {
+              setSpecies("");
+            }
             setBreed("");
           }}
         >
@@ -116,6 +149,26 @@ export function PetForm({
           <option value="cat">Gato</option>
           <option value="other">Otra</option>
         </SelectField>
+        {speciesGroup === "other" && (
+          <SelectField
+            id="species-subgroup"
+            name="speciesSubgroup"
+            label='Tipo de "Otra"'
+            required
+            value={subSpecies}
+            onChange={(e) => {
+              const next = e.target.value;
+              setSpecies(next === "other_unlisted" ? "other" : next);
+              setBreed("");
+            }}
+          >
+            <option value="">Elegí una</option>
+            <option value="rabbit">Conejo</option>
+            <option value="guinea_pig">Cobayo</option>
+            <option value="ferret">Hurón</option>
+            <option value="other_unlisted">Otro / no listado</option>
+          </SelectField>
+        )}
 
         <SelectField
           id="sex"
