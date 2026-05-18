@@ -58,6 +58,8 @@ export default async function MarkPetLostPage({
           petHasMicrochip={!!pet.microchipId}
           petColor={pet.color ?? null}
           petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
+          petJurisdictionProvince={pet.jurisdictionProvince ?? null}
+          petJurisdictionLocality={pet.jurisdictionLocality ?? null}
         />
       </div>
     </main>

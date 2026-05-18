@@ -74,18 +74,27 @@ export default function LocationPicker({ value, onChange }: Props) {
       });
       mapRef.current = mapInstance;
 
+      function attachDragListener(marker: MapLibreMarker) {
+        marker.on("dragend", () => {
+          const { lng, lat } = marker.getLngLat();
+          onChangeRef.current({ lat, lng });
+        });
+      }
+
       if (initial) {
-        markerRef.current = new maplibregl.Marker({ color: "#dc2626" })
+        markerRef.current = new maplibregl.Marker({ color: "#dc2626", draggable: true })
           .setLngLat([initial.lng, initial.lat])
           .addTo(mapInstance);
+        attachDragListener(markerRef.current);
       }
 
       mapInstance.on("click", (e) => {
         const { lng, lat } = e.lngLat;
         if (!markerRef.current) {
-          markerRef.current = new maplibregl.Marker({ color: "#dc2626" })
+          markerRef.current = new maplibregl.Marker({ color: "#dc2626", draggable: true })
             .setLngLat([lng, lat])
             .addTo(mapInstance as MapLibreMap);
+          attachDragListener(markerRef.current);
         } else {
           markerRef.current.setLngLat([lng, lat]);
         }
@@ -113,9 +122,14 @@ export default function LocationPicker({ value, onChange }: Props) {
     (async () => {
       const maplibregl = (await import("maplibre-gl")).default;
       if (!markerRef.current) {
-        markerRef.current = new maplibregl.Marker({ color: "#dc2626" })
+        const marker = new maplibregl.Marker({ color: "#dc2626", draggable: true })
           .setLngLat([value.lng, value.lat])
           .addTo(map);
+        marker.on("dragend", () => {
+          const { lng, lat } = marker.getLngLat();
+          onChangeRef.current({ lat, lng });
+        });
+        markerRef.current = marker;
       } else {
         markerRef.current.setLngLat([value.lng, value.lat]);
       }

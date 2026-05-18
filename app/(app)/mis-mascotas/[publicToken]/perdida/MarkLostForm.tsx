@@ -58,6 +58,8 @@ export function MarkLostForm({
   petHasMicrochip,
   petColor,
   petDistinguishingFeatures,
+  petJurisdictionProvince,
+  petJurisdictionLocality,
 }: {
   action: FormAction;
   disclosureDefaults: DisclosurePrefsInput;
@@ -67,34 +69,24 @@ export function MarkLostForm({
   petColor: string | null;
   /** Pre-fill value for the distinguishing features field. */
   petDistinguishingFeatures: string | null;
+  /** Bias hints for the geocoder so "Plaza Italia" maps to the pet's city. */
+  petJurisdictionProvince: string | null;
+  petJurisdictionLocality: string | null;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="space-y-1.5">
-        <label
-          htmlFor="lastKnownLocation"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
-          Última ubicación conocida
-        </label>
-        <input
-          id="lastKnownLocation"
-          name="lastKnownLocation"
-          type="text"
-          placeholder="Ej: Plaza Italia, esquina Cerviño"
-          className={INPUT_CLASS}
-        />
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
-          Opcional. Aparece en la credencial pública para ayudar a quien la encuentre.
-        </p>
-      </div>
-
-      {/* Map picker — drops a marker on the actual spot. Coordinates flow
-          through pet_events.location_lat / location_lng so the credential
-          page and future broadcast/hotspot maps can use them. */}
-      <LocationFields mode="point" />
+      {/* LocationFields mode="point" integrates the address text with the map
+          pin: typing geocodes forward, dragging the pin reverse-geocodes. The
+          input name is mapped to lastKnownLocation so setPetLostAction reads
+          the same FormData key it has always read. */}
+      <LocationFields
+        mode="point"
+        biasProvince={petJurisdictionProvince}
+        biasLocality={petJurisdictionLocality}
+        inputNames={{ description: "lastKnownLocation" }}
+      />
 
       <div className="space-y-1.5">
         <label
