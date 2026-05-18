@@ -64,6 +64,9 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "libreta_shared_viewed",
   // Lost & Found — custody proposal event (Fase 5). Not a medical entry.
   "custody_transfer_proposed",
+  // Surveillance — system signal, not pet medical history. Owner must not see this
+  // in their libreta (per spec D1: owner sees no disease names).
+  "outbreak_signal",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

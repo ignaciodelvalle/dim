@@ -256,6 +256,8 @@ export const EVENT_TYPES = [
   "custody_transfer_proposed",
   // Libreta Tier-2 share telemetry — system event, not a medical entry.
   "libreta_shared_viewed",
+  // Surveillance — emitted when symptom_observed triggers a reportable disease match.
+  "outbreak_signal",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

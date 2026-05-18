@@ -285,10 +285,18 @@ export async function createWelfareReportAction(
         }
 
         if (observedSymptoms) {
+          // Updated in surveillance Fase 2: new shape with source discriminator.
+          // Welfare-report symptoms deliberately do NOT run the matcher (different
+          // reporting context — see plan Paso 2.5 and spec §5).
           const symptomEventPayload = validateEventPayload("symptom_observed", {
+            source: "welfare_report",
             welfare_report_id: insertedId,
             reporter_role: reporterRole,
-            symptoms: observedSymptoms,
+            free_text: observedSymptoms,
+            matched_symptom_codes: [],
+            alerted_disease_codes: [],
+            severity_self_assessed: null,
+            onset_at: null,
           });
           await tx.insert(petEvents).values({
             petId: subjectPetId,

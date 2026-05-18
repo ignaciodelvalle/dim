@@ -388,12 +388,59 @@ const maltreatmentReported = z
   )
   .strict();
 
+// Refactored in surveillance Fase 2 to decouple from welfare_report.
+// Adds source discriminator, free_text, matched_symptom_codes, alerted_disease_codes.
+// Old rows (shape: { welfare_report_id, reporter_role, symptoms }) remain readable
+// because validation only runs at insert time — existing welfare-report events
+// written before this PR are not re-validated.
 const symptomObserved = z
   .object(
     withVersion({
-      welfare_report_id: z.string().uuid(),
-      reporter_role: z.enum(["owner", "witness"]),
-      symptoms: z.string(),
+      source: z.enum(["libreta", "welfare_report"]),
+      // Required when source='welfare_report', null when source='libreta'.
+      welfare_report_id: z.string().uuid().nullable(),
+      reporter_role: z.enum(["owner", "witness", "vet"]),
+      // Free text input by the owner (or vet/witness). The matcher reads this.
+      free_text: z.string().min(1),
+      // Populated by the server action via lib/symptom-matcher. Empty when no matches.
+      matched_symptom_codes: z.array(z.string()).default([]),
+      // Subset of matched diseases that crossed the alert threshold AND are reportable.
+      // Used downstream by the outbreak_signal emission. May be empty even if symptoms matched.
+      alerted_disease_codes: z.array(z.string()).default([]),
+      severity_self_assessed: z.enum(["mild", "moderate", "severe"]).nullable(),
+      onset_at: z.string().nullable(),
+    }),
+  )
+  .strict()
+  .refine(
+    (p) =>
+      p.source === "welfare_report"
+        ? p.welfare_report_id !== null
+        : p.welfare_report_id === null,
+    { message: "welfare_report_id must be set iff source='welfare_report'" },
+  );
+
+// Surveillance signal emitted by the system when symptom_observed triggers
+// a reportable disease match. NON-libreta (owner never sees this).
+// See docs/superpowers/specs/2026-05-17-symptom-disease-surveillance-design.md §4.4.
+const outbreakSignal = z
+  .object(
+    withVersion({
+      source_symptom_event_id: z.string().uuid(),
+      disease_code: z.string(),
+      disease_label: z.string(),
+      match_strength: z.object({
+        high_count: z.number().int().nonnegative(),
+        medium_count: z.number().int().nonnegative(),
+        low_count: z.number().int().nonnegative(),
+        matched_symptom_codes: z.array(z.string()),
+      }),
+      // Snapshot of pet's jurisdiction at signal time — for surveillance aggregation
+      // even if the pet moves later.
+      pet_jurisdiction_country: z.string(),
+      pet_jurisdiction_province: z.string().nullable(),
+      pet_jurisdiction_locality: z.string().nullable(),
+      pet_species: z.string(),
     }),
   )
   .strict();
@@ -637,6 +684,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   abandonment_reported: abandonmentReported,
   maltreatment_reported: maltreatmentReported,
   symptom_observed: symptomObserved,
+  outbreak_signal: outbreakSignal,
   shelter_intake_recorded: shelterIntakeRecorded,
   foster_assigned: fosterAssigned,
   foster_ended: fosterEnded,
