@@ -77,6 +77,12 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
               Pérdidas
             </Link>
             <Link
+              href="/gob/disputas"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Disputas
+            </Link>
+            <Link
               href="/gob/historial"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >

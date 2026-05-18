@@ -121,6 +121,7 @@ export async function revokeVetRoleForAuthority(
     targetUserId: string;
     motivo: string;
     attachmentIds: string[];
+    bulkActionId?: string | null;
   },
 ): Promise<RevocationResult> {
   // Pre-flight validation
@@ -181,6 +182,7 @@ export async function revokeVetRoleForAuthority(
           payload: {
             reason: input.motivo.trim(),
             evidence_attachment_ids: input.attachmentIds,
+            ...(input.bulkActionId ? { bulk_action_id: input.bulkActionId } : {}),
           },
         })
         .returning({ id: auditLog.id });
@@ -221,6 +223,7 @@ export async function revokeOrgVerificationForAuthority(
     organizationId: string;
     motivo: string;
     attachmentIds: string[];
+    bulkActionId?: string | null;
   },
 ): Promise<RevocationResult> {
   const validationError = validateMotivoAndAttachments(input.motivo, input.attachmentIds);
@@ -281,6 +284,7 @@ export async function revokeOrgVerificationForAuthority(
           payload: {
             reason: input.motivo.trim(),
             evidence_attachment_ids: input.attachmentIds,
+            ...(input.bulkActionId ? { bulk_action_id: input.bulkActionId } : {}),
           },
         })
         .returning({ id: auditLog.id });
@@ -323,6 +327,7 @@ export async function revokeGovtLocalityForAuthority(
     govtAssignmentId: string;
     motivo: string;
     attachmentIds: string[];
+    bulkActionId?: string | null;
   },
 ): Promise<RevocationResult> {
   const validationError = validateMotivoAndAttachments(input.motivo, input.attachmentIds);
@@ -404,6 +409,7 @@ export async function revokeGovtLocalityForAuthority(
             evidence_attachment_ids: input.attachmentIds,
             province: assignment.jurisdictionProvince,
             locality: assignment.jurisdictionLocality,
+            ...(input.bulkActionId ? { bulk_action_id: input.bulkActionId } : {}),
           },
         })
         .returning({ id: auditLog.id });

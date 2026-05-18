@@ -1178,6 +1178,17 @@ export const AUDIT_LOG_ACTIONS = [
   // DNI number; the bit is set server-side. TODO(mi-argentina): replace with
   // real OAuth callback action when the Mi Argentina integration lands.
   "dni_verified_self",
+  // Fase 14: auto-expiry cron writes one of these per request swept (status
+  // pending older than 60 days → withdrawn). The `system_actor` for these
+  // rows is the oldest active admin (first row in profiles WHERE
+  // role='admin' AND account_type='institutional').
+  "approval_request_withdrawn_by_system",
+  // Fase 10: custody dispute lifecycle. Raised, party added, resolved (with
+  // resolution outcome in payload), and withdrawn (admin or raiser).
+  "dispute_raised",
+  "dispute_party_added",
+  "dispute_resolved",
+  "dispute_withdrawn",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -1643,3 +1654,96 @@ export const fosterProposals = pgTable(
 
 export type FosterProposal = typeof fosterProposals.$inferSelect;
 export type NewFosterProposal = typeof fosterProposals.$inferInsert;
+
+// ============================================================================
+// Cron telemetry — Admin Fase 14
+// ============================================================================
+// One row per cron invocation. The route handler inserts with status='running'
+// and updates to 'ok' or 'failed' on completion. Surfaces in /admin/sistema.
+
+export const cronRuns = pgTable(
+  "cron_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cronName: text("cron_name").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    status: text("status").notNull().default("running").$type<"running" | "ok" | "failed">(),
+    itemsProcessed: integer("items_processed").notNull().default(0),
+    details: jsonb("details").notNull().default({}),
+  },
+  (table) => ({
+    nameStartedIdx: index("cron_runs_name_started_idx").on(table.cronName, table.startedAt),
+  }),
+);
+
+export type CronRun = typeof cronRuns.$inferSelect;
+export type NewCronRun = typeof cronRuns.$inferInsert;
+
+// ============================================================================
+// Custody disputes — Admin Fase 10
+// ============================================================================
+// Created in lockstep with a `custody_dispute_raised` pet_event; resolved via
+// `custody_dispute_resolved`. The unique partial index ensures at most one
+// open dispute per pet. Parties row records every involved actor.
+
+export const DISPUTE_STATUSES = ["open", "resolved", "withdrawn"] as const;
+export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
+
+export const DISPUTE_RESOLUTIONS = [
+  "ownership_confirmed",
+  "ownership_transferred",
+  "case_dismissed",
+  "other",
+] as const;
+export type DisputeResolution = (typeof DISPUTE_RESOLUTIONS)[number];
+
+export const DISPUTE_PARTY_ROLES = [
+  "current_owner",
+  "claimant_owner",
+  "current_org_custody",
+  "claimant_org",
+  "witness",
+] as const;
+export type DisputePartyRole = (typeof DISPUTE_PARTY_ROLES)[number];
+
+export const custodyDisputes = pgTable("custody_disputes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  publicToken: text("public_token").notNull().unique(),
+  petId: uuid("pet_id")
+    .notNull()
+    .references(() => pets.id, { onDelete: "cascade" }),
+  raisedByUserId: uuid("raised_by_user_id").references(() => profiles.id),
+  raisedByOrgId: uuid("raised_by_org_id").references(() => organizations.id),
+  raisedByRole: text("raised_by_role").notNull().$type<"owner" | "org" | "govt" | "admin">(),
+  raisingEventId: uuid("raising_event_id")
+    .notNull()
+    .references(() => petEvents.id),
+  jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+  jurisdictionProvince: text("jurisdiction_province").notNull(),
+  jurisdictionLocality: text("jurisdiction_locality").notNull(),
+  status: text("status").notNull().default("open").$type<DisputeStatus>(),
+  resolution: text("resolution").$type<DisputeResolution | null>(),
+  resolutionSummary: text("resolution_summary"),
+  resolutionEventId: uuid("resolution_event_id").references(() => petEvents.id),
+  resolvedByUserId: uuid("resolved_by_user_id").references(() => profiles.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const custodyDisputeParties = pgTable("custody_dispute_parties", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  disputeId: uuid("dispute_id")
+    .notNull()
+    .references(() => custodyDisputes.id, { onDelete: "cascade" }),
+  partyUserId: uuid("party_user_id").references(() => profiles.id),
+  partyOrganizationId: uuid("party_organization_id").references(() => organizations.id),
+  partyRole: text("party_role").notNull().$type<DisputePartyRole>(),
+  partyPositionSummary: text("party_position_summary"),
+  addedByUserId: uuid("added_by_user_id").references(() => profiles.id),
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CustodyDispute = typeof custodyDisputes.$inferSelect;
+export type CustodyDisputeParty = typeof custodyDisputeParties.$inferSelect;

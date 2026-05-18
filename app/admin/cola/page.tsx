@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
+import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
 import {
   APPROVAL_REQUEST_TYPES,
   type ApprovalRequestType,
@@ -78,44 +79,16 @@ export default async function AdminColaPage({
           </p>
         </header>
 
-        {pending.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
-            Cuando lleguen nuevas solicitudes vas a verlas acá.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {pending.map((req) => (
-              <li
-                key={req.id}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3"
-              >
-                <Link
-                  href={`/admin/cola/${req.publicToken}`}
-                  className="flex items-start justify-between gap-3 group"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                      {TYPE_LABELS[req.type] ?? req.type}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                      {namesById.get(req.applicantUserId) ?? "Usuario"} · {req.jurisdictionLocality}
-                      , {req.jurisdictionProvince}
-                    </p>
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
-                      {req.publicToken} · {new Date(req.createdAt).toLocaleDateString("es-AR")}
-                    </p>
-                  </div>
-                  <span
-                    className="text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-300"
-                    aria-hidden
-                  >
-                    ›
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <BulkApprovalQueueList
+          detailUrlPrefix="/admin/cola"
+          items={pending.map((req) => ({
+            publicToken: req.publicToken,
+            typeLabel: TYPE_LABELS[req.type] ?? req.type,
+            applicantName: namesById.get(req.applicantUserId) ?? "Usuario",
+            jurisdiction: `${req.jurisdictionLocality}, ${req.jurisdictionProvince}`,
+            createdAt: new Date(req.createdAt).toLocaleDateString("es-AR"),
+          }))}
+        />
       </div>
     </main>
   );

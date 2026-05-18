@@ -61,6 +61,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Auditoría
             </Link>
             <Link
+              href="/admin/sistema"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Sistema
+            </Link>
+            <Link
               href="/admin/govts"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >

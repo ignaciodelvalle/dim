@@ -26,6 +26,7 @@ export async function approveRequestForAuthority(
   actorUserId: string,
   publicToken: string,
   notes: string | null,
+  bulkActionId: string | null = null,
 ): Promise<DecisionResult> {
   const [request] = await db
     .select()
@@ -64,7 +65,11 @@ export async function approveRequestForAuthority(
         approvalRequestId: request.id,
         targetUserId: request.targetUserId,
         targetOrganizationId: request.targetOrganizationId,
-        payload: { mutations_applied: mutationSummary, notes: notes ?? null },
+        payload: {
+          mutations_applied: mutationSummary,
+          notes: notes ?? null,
+          ...(bulkActionId ? { bulk_action_id: bulkActionId } : {}),
+        },
       });
 
       await tx.insert(notifications).values({
@@ -90,6 +95,7 @@ export async function rejectRequestForAuthority(
   actorUserId: string,
   publicToken: string,
   reason: string,
+  bulkActionId: string | null = null,
 ): Promise<DecisionResult> {
   const trimmedReason = reason.trim();
   if (!trimmedReason || trimmedReason.length < 5 || trimmedReason.length > 1000) {
@@ -131,7 +137,10 @@ export async function rejectRequestForAuthority(
         approvalRequestId: request.id,
         targetUserId: request.targetUserId,
         targetOrganizationId: request.targetOrganizationId,
-        payload: { reason: trimmedReason },
+        payload: {
+          reason: trimmedReason,
+          ...(bulkActionId ? { bulk_action_id: bulkActionId } : {}),
+        },
       });
 
       await tx.insert(notifications).values({

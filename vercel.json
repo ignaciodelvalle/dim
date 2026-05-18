@@ -12,6 +12,14 @@
     {
       "path": "/api/cron/expire-foster-proposals",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/auto-expire-approvals",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/close-rabies-observations",
+      "schedule": "0 5 * * *"
     }
   ]
 }
