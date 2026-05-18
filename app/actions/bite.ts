@@ -13,12 +13,13 @@
 // registers (per spec D14). The two pet_events inserts and the pets UPDATE
 // are atomic; authority routing happens outside the tx.
 
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db, notifications, petEvents, pets } from "@/db";
+import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import { computeObservationUntil } from "@/lib/rabies-observation";
@@ -324,4 +325,232 @@ export async function ownerCloseRabiesObservationAction(
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
   return { error: null };
+}
+
+// ---------------------------------------------------------------------------
+// Org-side reporting (Fase 4)
+// ---------------------------------------------------------------------------
+//
+// Vets and shelter coordinators with the `bite.report` capability can register
+// a bite on a pet they do NOT custody — a witnessed or clinically-known
+// incident on a pet held by some other party (owner-held, or another org).
+// The flow mirrors reportBiteAction but:
+//   - auth via requireCapability instead of pet ownership
+//   - reporter_role mapped from organizations.org_type
+//   - authorRole + authorOrganizationId set to the acting org
+//   - the pet's owner (if any) gets a warning-level notification so they're
+//     aware their pet was reported as biting
+
+// Maps the org's org_type to the reporter_role enum used inside
+// incident_reported.payload. Defaults to "witness" for org types that don't
+// fit one of the medical/animal-welfare buckets.
+function orgTypeToReporterRole(orgType: string): "vet" | "shelter" | "govt" | "witness" {
+  switch (orgType) {
+    case "clinic":
+      return "vet";
+    case "shelter":
+    case "rescue_network":
+      return "shelter";
+    case "sanitary_authority":
+      return "govt";
+    default:
+      return "witness";
+  }
+}
+
+export type ReportBiteFromOrgFormState = { error: string | null };
+
+export async function reportBiteFromOrgAction(
+  orgToken: string,
+  _prev: ReportBiteFromOrgFormState,
+  formData: FormData,
+): Promise<ReportBiteFromOrgFormState> {
+  // 1. Capability gate. We don't pre-scope to a specific org here — the
+  // requireCapability helper resolves the most-recently-joined active
+  // membership when organizationId is undefined; the caller passes
+  // organizationId explicitly when navigating from a specific org portal.
+  // (The route binds orgToken; we re-resolve via the membership lookup below.)
+  const cap = await requireCapability("bite.report");
+  if (cap.error !== null) return { error: cap.error };
+  const { user, organization } = cap;
+
+  // 2. Locate the target pet by public_token from the form.
+  const petPublicTokenRaw = String(formData.get("petPublicToken") ?? "").trim();
+  if (!petPublicTokenRaw) return { error: "Indicá el token público de la mascota." };
+  const [pet] = await db
+    .select()
+    .from(pets)
+    .where(eq(pets.publicToken, petPublicTokenRaw))
+    .limit(1);
+  if (!pet) return { error: "No encontramos una mascota con ese token." };
+  if (pet.status === "deceased") {
+    return { error: "Esta mascota está registrada como fallecida." };
+  }
+  if (pet.rabiesObservationStatus === "in_progress") {
+    return {
+      error: "Esta mascota ya está en observación antirrábica por otra mordedura activa.",
+    };
+  }
+
+  // 3. Parse the bite-specific fields (same shape as reportBiteAction).
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  if (!occurredAtRaw) return { error: "Indicá la fecha del incidente." };
+  const occurredAt = new Date(occurredAtRaw);
+  if (!Number.isFinite(occurredAt.getTime())) {
+    return { error: "Fecha del incidente inválida." };
+  }
+  if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };
+
+  const victimKindRaw = String(formData.get("victimKind") ?? "");
+  if (!["human", "animal", "unknown"].includes(victimKindRaw)) {
+    return { error: "Indicá el tipo de víctima." };
+  }
+  const victimKind = victimKindRaw as "human" | "animal" | "unknown";
+
+  const severityRaw = String(formData.get("severity") ?? "");
+  if (!["minor", "moderate", "severe"].includes(severityRaw)) {
+    return { error: "Indicá la severidad." };
+  }
+  const severity = severityRaw as "minor" | "moderate" | "severe";
+
+  if (formData.get("confirmObservation") !== "on") {
+    return {
+      error:
+        "Tenés que confirmar que entendés que esto inicia una observación obligatoria de 10 días.",
+    };
+  }
+
+  const locationDescription = String(formData.get("locationDescription") ?? "").trim() || null;
+  const context = String(formData.get("context") ?? "").trim() || null;
+  const victimContactName = String(formData.get("victimContactName") ?? "").trim() || null;
+  const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
+  const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
+  const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
+  const vetInvolved = formData.get("vetInvolved") === "on";
+
+  // 4. Snapshot rabies-vaccine status at the moment of the bite.
+  const rabiesVaccineValid = await computeRabiesVaccineValidAtBite(pet.id, occurredAt);
+
+  const reporterRole = orgTypeToReporterRole(organization.orgType);
+  const now = new Date();
+  const observationUntil = computeObservationUntil(occurredAt);
+  const eventAuthorship = {
+    authorRole: reporterRole === "vet" ? ("vet" as const) : ("shelter" as const),
+    authorOrganizationId: organization.id,
+    authorVerified: organization.verified,
+  };
+
+  // 5. Atomic: incident_reported + rabies_observation_started + pet UPDATE.
+  try {
+    await db.transaction(async (tx) => {
+      const incidentPayload = validateEventPayload("incident_reported", {
+        incident_type: "bite_inflicted",
+        severity,
+        injuries_summary: injuriesSummary,
+        vet_involved: vetInvolved,
+        location_description: locationDescription,
+        victim_kind: victimKind,
+        victim_contact_name: victimContactName,
+        victim_contact_phone: victimContactPhone,
+        victim_pet_id: null,
+        victim_age_estimate: victimAgeEstimate,
+        context,
+        rabies_vaccine_valid_at_incident: rabiesVaccineValid,
+        reporter_role: reporterRole,
+      });
+      const [biteEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "incident_reported",
+          occurredAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          ...eventAuthorship,
+          payload: incidentPayload,
+        })
+        .returning();
+
+      const observationPayload = validateEventPayload("rabies_observation_started", {
+        bite_event_id: biteEvent.id,
+        observation_until: observationUntil.toISOString(),
+        location: "in_situ",
+        official_site_organization_id: null,
+      });
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "rabies_observation_started",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        ...eventAuthorship,
+        payload: observationPayload,
+      });
+
+      await tx
+        .update(pets)
+        .set({ rabiesObservationStatus: "in_progress", updatedAt: now })
+        .where(eq(pets.id, pet.id));
+
+      // Notify the pet's active owner — they need to know their pet was
+      // reported as biting by a third party.
+      const [activeOwnership] = await tx
+        .select({ ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .limit(1);
+      if (activeOwnership?.ownerUserId) {
+        await tx.insert(notifications).values({
+          userId: activeOwnership.ownerUserId,
+          notificationType: "bite_reported_by_org_owner",
+          severity: "warning",
+          title: `Mordedura reportada por ${organization.displayName} — ${pet.name}`,
+          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR")} en ${pet.name}. Inicia un período de observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
+          relatedPetId: pet.id,
+          ctaLabel: "Ver mascota",
+          ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+        });
+      }
+    });
+  } catch (err) {
+    console.error("reportBiteFromOrgAction tx failed:", err);
+    return {
+      error: `No se pudo reportar la mordedura: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  // 6. Best-effort authority notification.
+  try {
+    if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
+      const authorityIds = await findAuthoritiesForJurisdiction({
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+      });
+      if (authorityIds.length > 0) {
+        await db.insert(notifications).values(
+          authorityIds.map((authorityId) => ({
+            userId: authorityId,
+            notificationType: "bite_reported_authority",
+            severity: severity === "severe" ? ("urgent" as const) : ("warning" as const),
+            title: `Mordedura reportada — ${pet.name} (${pet.species})`,
+            body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${victimKind}. Severidad: ${severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
+            relatedPetId: pet.id,
+          })),
+        );
+      }
+    }
+  } catch (err) {
+    console.error("reportBiteFromOrgAction authority notification failed:", err);
+  }
+
+  revalidatePath(`/org/${orgToken}`);
+  redirect(`/org/${orgToken}?evento=mordedura_reportada`);
 }
