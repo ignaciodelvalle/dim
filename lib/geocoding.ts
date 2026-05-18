@@ -6,6 +6,16 @@
 //
 // CRITICAL (spec D10): never log user-supplied query strings. Log only error
 // type and rate-limit hits.
+//
+// Bias strategy: we DO NOT append the pet's jurisdiction to the q= string.
+// That was the v1 approach and it actively broke common queries —
+// "Florida y Lavalle, CABA, Ciudad Autónoma de Buenos Aires" is parsed by
+// Nominatim as a strict address chain and returns zero results. Instead we
+// pass viewbox+bounded=0 when the pet's province has a known bbox (see
+// lib/ar-viewboxes.ts). bounded=0 is a soft priority, not a hard filter, so
+// addresses outside the box (cross-jurisdiction incidents) still resolve.
+
+import { provinceViewbox } from "@/lib/ar-viewboxes";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 const USER_AGENT = "DIM/1.0 (https://dim.ar; contact: ignaciodelvalle2014@gmail.com)";
@@ -85,18 +95,21 @@ export async function geocodeAddress(query: string, bias?: GeocodeBias): Promise
     throw new Error("rate_limited");
   }
 
-  const biasParts: string[] = [];
-  if (bias?.locality) biasParts.push(bias.locality);
-  if (bias?.province) biasParts.push(bias.province);
-  const effectiveQuery = [trimmed, ...biasParts].join(", ");
-
   const url = new URL(`${NOMINATIM_BASE}/search`);
-  url.searchParams.set("q", effectiveQuery);
+  url.searchParams.set("q", trimmed);
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("limit", "5");
   url.searchParams.set("countrycodes", "ar");
   url.searchParams.set("accept-language", "es");
+
+  // Soft priority bias by province bbox when known. bounded=0 means the box
+  // is a hint — Nominatim still returns results outside it (lower-ranked).
+  const viewbox = provinceViewbox(bias?.province ?? null);
+  if (viewbox) {
+    url.searchParams.set("viewbox", viewbox.join(","));
+    url.searchParams.set("bounded", "0");
+  }
 
   let response: Response;
   try {

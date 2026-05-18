@@ -95,14 +95,33 @@ describe("geocodeAddress — forward", () => {
     await expect(geocodeAddress("test")).rejects.toThrow("fetch_failed");
   });
 
-  it("appends bias locality and province to the query string", async () => {
+  it("sends the raw user query without appending bias (avoids Nominatim mis-parse)", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [] });
     await geocodeAddress("Plaza", { locality: "Belgrano", province: "Buenos Aires" });
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     const url = new URL(calledUrl);
-    expect(url.searchParams.get("q")).toBe("Plaza, Belgrano, Buenos Aires");
+    expect(url.searchParams.get("q")).toBe("Plaza");
     expect(url.searchParams.get("countrycodes")).toBe("ar");
     expect(url.searchParams.get("accept-language")).toBe("es");
+  });
+
+  it("sends viewbox+bounded=0 when bias.province has a known bounding box", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [] });
+    await geocodeAddress("Plaza Italia", {
+      province: "Ciudad Autónoma de Buenos Aires",
+      locality: "CABA",
+    });
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.get("viewbox")).toMatch(/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/);
+    expect(url.searchParams.get("bounded")).toBe("0");
+  });
+
+  it("omits viewbox when bias.province is unknown or missing", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [] });
+    await geocodeAddress("Plaza Italia", { province: "Tierra del Fuego (no bbox yet)" });
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.has("viewbox")).toBe(false);
+    expect(url.searchParams.has("bounded")).toBe(false);
   });
 
   it("sends User-Agent header per Nominatim policy", async () => {
