@@ -24,6 +24,12 @@ const LIBRETA_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
+    slug: "sintoma",
+    label: "Síntoma observado",
+    description: "Algo raro que estás viendo y querés registrar.",
+    enabled: true,
+  },
+  {
     slug: "antiparasitario",
     label: "Antiparasitario",
     description: "Interno o externo, próxima dosis",

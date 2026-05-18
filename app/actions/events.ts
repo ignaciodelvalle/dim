@@ -11,7 +11,7 @@
 // Shared pattern: resolve access → validate form → insert event (+ optional
 // attachment / reminder) atomically → redirect back to the pet's detail page.
 
-import { attachments, db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
+import { attachments, db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
@@ -35,6 +35,7 @@ import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 export type EventFormState = {
   error: string | null;
@@ -1748,4 +1749,206 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
   });
 
   redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Symptom observation — surveillance pipeline (Fase 3-4)
+// ---------------------------------------------------------------------------
+
+export type SymptomFormState = {
+  error: string | null;
+  ok?: boolean;
+};
+
+/**
+ * Register a symptom observed by the owner. Runs the fuzzy matcher in-transaction;
+ * emits outbreak_signal events and authority notifications for each alertable
+ * reportable disease detected.
+ *
+ * The matcher is wrapped in try/catch — a matcher failure does NOT block the
+ * symptom_observed insert. The owner's data is always preserved (spec D7).
+ */
+export async function createSymptomObservedAction(
+  publicToken: string,
+  _previous: SymptomFormState,
+  formData: FormData,
+): Promise<SymptomFormState> {
+  // 1. Auth + pet ownership (alive pets only).
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { pet, user, eventAuthorship } = access;
+
+  // 2. Parse form.
+  const freeText = String(formData.get("freeText") ?? "").trim();
+  if (!freeText) return { error: "Tenés que describir los síntomas." };
+
+  const severityRaw = String(formData.get("severity") ?? "").trim();
+  const severity: "mild" | "moderate" | "severe" | null =
+    severityRaw === "mild" || severityRaw === "moderate" || severityRaw === "severe"
+      ? severityRaw
+      : null;
+
+  const onsetRaw = String(formData.get("onsetAt") ?? "").trim();
+  const onsetAt = onsetRaw.length > 0 ? onsetRaw : null;
+
+  // 3. Run matcher (defensive — matcher failure must never block the insert).
+  let alertableDiseases: import("@/lib/symptom-matcher").DiseaseMatch[] = [];
+  let matchedSymptomCodes: string[] = [];
+  try {
+    const { matchSymptoms, aggregateDiseaseMatches } = await import("@/lib/symptom-matcher");
+    const matched = matchSymptoms(freeText, pet.species);
+    matchedSymptomCodes = matched.map((m) => m.symptom_code);
+    const aggregated = aggregateDiseaseMatches(matched);
+    alertableDiseases = aggregated.filter((d) => d.triggers_alert && d.is_reportable);
+  } catch (err) {
+    console.error("Symptom matcher failed:", err);
+    alertableDiseases = [];
+    matchedSymptomCodes = [];
+  }
+
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      // 4. Insert symptom_observed event.
+      const symptomPayload = validateEventPayload("symptom_observed", {
+        source: "libreta" as const,
+        welfare_report_id: null,
+        reporter_role: "owner" as const,
+        free_text: freeText,
+        matched_symptom_codes: matchedSymptomCodes,
+        alerted_disease_codes: alertableDiseases.map((d) => d.disease_code),
+        severity_self_assessed: severity,
+        onset_at: onsetAt,
+      });
+
+      const [symptomEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "symptom_observed",
+          occurredAt: onsetAt ? new Date(onsetAt) : now,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          ...eventAuthorship,
+          payload: symptomPayload,
+        })
+        .returning();
+
+      // 5. For each alertable reportable disease: emit outbreak_signal + Notification.
+      for (const d of alertableDiseases) {
+        const signalPayload = validateEventPayload("outbreak_signal", {
+          source_symptom_event_id: symptomEvent.id,
+          disease_code: d.disease_code,
+          disease_label: d.disease_label,
+          match_strength: {
+            high_count: d.high_count,
+            medium_count: d.medium_count,
+            low_count: d.low_count,
+            matched_symptom_codes: d.matched_symptoms,
+          },
+          pet_jurisdiction_country: pet.jurisdictionCountry,
+          pet_jurisdiction_province: pet.jurisdictionProvince ?? null,
+          pet_jurisdiction_locality: pet.jurisdictionLocality ?? null,
+          pet_species: pet.species,
+        });
+
+        const [signalEvent] = await tx
+          .insert(petEvents)
+          .values({
+            petId: pet.id,
+            eventType: "outbreak_signal",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: null,
+            authorRole: "system",
+            authorOrganizationId: null,
+            authorVerified: false,
+            payload: signalPayload,
+          })
+          .returning();
+
+        // 6. Route notification to authority targets.
+        await routeOutbreakSignalNotification(tx, { signalEvent, pet, disease: d });
+      }
+    });
+  } catch (err) {
+    console.error("createSymptomObservedAction failed:", err);
+    return {
+      error: `No se pudo registrar el síntoma: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  revalidatePath(`/mis-mascotas/${publicToken}`);
+  redirect(`/mis-mascotas/${publicToken}?evento=sintoma_registrado`);
+}
+
+// ---------------------------------------------------------------------------
+// Outbreak-signal notification routing (Fase 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Route a notification for each outbreak_signal event to authority targets.
+ *
+ * v1: Routes only to active admins.
+ *
+ * TODO: once admin_page Fase 0 lands and govt_assignments + profiles.account_type
+ * exist, route to govts whose jurisdiction matches pet.jurisdictionProvince +
+ * pet.jurisdictionLocality first, then fallback to admins.
+ * See docs/superpowers/specs/2026-05-17-admin-page-design.md.
+ * CTA for govt portal will point to /gob/cola; admin portal to /admin/cola.
+ */
+async function routeOutbreakSignalNotification(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  args: {
+    signalEvent: typeof petEvents.$inferSelect;
+    pet: typeof pets.$inferSelect;
+    disease: {
+      disease_code: string;
+      disease_label: string;
+      high_count: number;
+      medium_count: number;
+    };
+  },
+): Promise<void> {
+  const { signalEvent, pet, disease } = args;
+
+  // TODO: once admin_page Fase 0 lands, add:
+  //   eq(profiles.accountType, "institutional"), isNull(profiles.deactivatedAt)
+  // to scope to institutional govts in jurisdiction.
+  const adminUserIds = await tx
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.role, "admin"));
+
+  if (adminUserIds.length === 0) {
+    console.warn(
+      `No active admins to route outbreak_signal ${signalEvent.id} (disease=${disease.disease_code}). Signal recorded but no notification sent.`,
+    );
+    return;
+  }
+
+  const localityPart = pet.jurisdictionLocality ? ` en ${pet.jurisdictionLocality}` : "";
+  const title = `Signal: posible ${disease.disease_label}${localityPart}`;
+  const body = [
+    `**Signal automático.** Síntomas auto-reportados por dueño matchearon con la enfermedad reportable **${disease.disease_label}**.`,
+    "",
+    `- Especie: ${pet.species}`,
+    `- Jurisdicción: ${[pet.jurisdictionLocality, pet.jurisdictionProvince].filter(Boolean).join(", ") || "no especificada"}`,
+    `- Match strength: ${disease.high_count} high · ${disease.medium_count} medium`,
+    "",
+    "_No es diagnóstico. Considerá el contexto: cuántos signals similares en la jurisdicción / período._",
+  ].join("\n");
+
+  for (const admin of adminUserIds) {
+    await tx.insert(notifications).values({
+      userId: admin.id,
+      notificationType: "outbreak_signal_detected",
+      title,
+      body,
+      severity: "warning",
+      relatedPetId: pet.id,
+      relatedEventId: signalEvent.id,
+    });
+  }
 }
