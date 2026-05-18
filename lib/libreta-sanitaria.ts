@@ -73,6 +73,13 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // Not pet medical history.
   "custody_dispute_raised",
   "custody_dispute_resolved",
+  // Foster volunteers pool — proposal lifecycle telemetry, NOT clinical.
+  "foster_proposed",
+  "foster_proposal_accepted",
+  "foster_proposal_rejected",
+  "foster_proposal_cancelled",
+  "foster_proposal_expired",
+  "foster_co_foster_allowed",
   // Surveillance — system signal, not pet medical history. Owner must not see this
   // in their libreta (per spec D1: owner sees no disease names).
   "outbreak_signal",

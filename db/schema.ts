@@ -280,6 +280,15 @@ export const EVENT_TYPES = [
   // Set `pets.in_custody_dispute=true` on raised, false on resolved.
   "custody_dispute_raised",
   "custody_dispute_resolved",
+  // Foster volunteers pool — two-phase proposal lifecycle (org→volunteer),
+  // plus the co-foster opt-in flag (D17). See
+  // docs/superpowers/specs/2026-05-18-foster-volunteers-pool-design.md v1.4.
+  "foster_proposed",
+  "foster_proposal_accepted",
+  "foster_proposal_rejected",
+  "foster_proposal_cancelled",
+  "foster_proposal_expired",
+  "foster_co_foster_allowed",
   // Libreta Tier-2 share telemetry — system event, not a medical entry.
   "libreta_shared_viewed",
   // Surveillance — emitted when symptom_observed triggers a reportable disease match.
@@ -620,6 +629,10 @@ export const ownerships = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true }),
     // Self-reference; not a hard FK to avoid migration ordering issues.
     transferredFromId: uuid("transferred_from_id"),
+    // D17 (foster volunteers pool): only meaningful when role='foster'. When
+    // true, the org may assign additional co-fosters to the same pet. The
+    // first foster sets this at acceptance time; can be toggled later.
+    allowCoFoster: boolean("allow_co_foster").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -1489,3 +1502,131 @@ export const arLocalitiesImportRuns = pgTable(
 
 export type ArLocalitiesImportRun = typeof arLocalitiesImportRuns.$inferSelect;
 export type NewArLocalitiesImportRun = typeof arLocalitiesImportRuns.$inferInsert;
+
+// ============================================================================
+// Foster volunteers pool — see specs/2026-05-18-foster-volunteers-pool-design.md
+// ============================================================================
+//
+// foster_volunteers: pool single-row-per-user. D16 slots model — each
+// enrollment +1, each accepted proposal -1; only rows with
+// status='active' AND available_slots > 0 surface in org searches.
+//
+// foster_proposals: concrete org→volunteer proposals for a specific pet.
+// Two-phase lifecycle (pending → accepted/rejected/cancelled/expired).
+// Cancellation can be initiated by the org (cancelled_by_user_id), by the
+// D18 cascade auto-cancel when a volunteer's last slot is consumed, or by
+// the daily expirer cron at 7 days past proposed_at.
+
+export const fosterVolunteers = pgTable(
+  "foster_volunteers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .unique()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+
+    status: text("status").notNull().default("active"),
+    availableSlots: integer("available_slots").notNull().default(0),
+
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+
+    acceptsDogs: boolean("accepts_dogs").notNull().default(false),
+    acceptsCats: boolean("accepts_cats").notNull().default(false),
+    acceptsOtherSpecies: boolean("accepts_other_species").notNull().default(false),
+
+    acceptsSizeSmall: boolean("accepts_size_small").notNull().default(true),
+    acceptsSizeMedium: boolean("accepts_size_medium").notNull().default(true),
+    acceptsSizeLarge: boolean("accepts_size_large").notNull().default(false),
+
+    acceptsPuppies: boolean("accepts_puppies").notNull().default(false),
+    acceptsSeniors: boolean("accepts_seniors").notNull().default(true),
+
+    acceptsChronicConditions: boolean("accepts_chronic_conditions").notNull().default(false),
+    acceptsDangerousBreeds: boolean("accepts_dangerous_breeds").notNull().default(false),
+
+    maxDurationWeeks: integer("max_duration_weeks"),
+    householdOtherPets: boolean("household_other_pets"),
+    householdKids: boolean("household_kids"),
+
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // Partial indexes match the migration: searchable pool + locality
+    // narrowing only consider active rows with slots > 0.
+    poolIdx: index("foster_volunteers_pool_idx")
+      .on(table.status)
+      .where(sql`${table.status} = 'active' AND ${table.availableSlots} > 0`),
+    localityIdx: index("foster_volunteers_locality_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality)
+      .where(sql`${table.status} = 'active' AND ${table.availableSlots} > 0`),
+  }),
+);
+
+export type FosterVolunteer = typeof fosterVolunteers.$inferSelect;
+export type NewFosterVolunteer = typeof fosterVolunteers.$inferInsert;
+
+export const fosterProposals = pgTable(
+  "foster_proposals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicToken: text("public_token").notNull().unique(),
+
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    volunteerUserId: uuid("volunteer_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    proposedByUserId: uuid("proposed_by_user_id")
+      .notNull()
+      .references(() => profiles.id),
+
+    proposedAt: timestamp("proposed_at", { withTimezone: true }).notNull().defaultNow(),
+    proposedDurationWeeks: integer("proposed_duration_weeks"),
+    proposedNotes: text("proposed_notes"),
+    matchWarnings: jsonb("match_warnings").notNull().default([]),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+    status: text("status").notNull().default("pending"),
+
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    responseNotes: text("response_notes"),
+    rejectionReason: text("rejection_reason"),
+
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledByUserId: uuid("cancelled_by_user_id").references(() => profiles.id),
+    cancellationReason: text("cancellation_reason"),
+
+    resolvedOwnershipId: uuid("resolved_ownership_id").references(() => ownerships.id),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    volunteerIdx: index("foster_proposals_volunteer_idx").on(
+      table.volunteerUserId,
+      table.status,
+      table.proposedAt,
+    ),
+    orgIdx: index("foster_proposals_org_idx").on(
+      table.organizationId,
+      table.status,
+      table.proposedAt,
+    ),
+    petIdx: index("foster_proposals_pet_idx")
+      .on(table.petId)
+      .where(sql`${table.status} IN ('pending','accepted')`),
+    statusIdx: index("foster_proposals_status_idx").on(table.status, table.expiresAt),
+  }),
+);
+
+export type FosterProposal = typeof fosterProposals.$inferSelect;
+export type NewFosterProposal = typeof fosterProposals.$inferInsert;

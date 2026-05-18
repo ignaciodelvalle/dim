@@ -1,6 +1,6 @@
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { professionalCloseRabiesObservationAction } from "@/app/actions/bite";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";

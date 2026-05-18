@@ -758,6 +758,85 @@ const custodyDisputeResolved = z
   )
   .strict();
 
+// ---------------------------------------------------------------------------
+// Foster volunteers pool — proposal lifecycle (spec v1.4 §4.5)
+// ---------------------------------------------------------------------------
+//
+// All 6 events follow the `*_proposed` / `*_executed` cross-cutting pattern:
+// the org proposes a foster, the volunteer accepts/rejects, the cron expires
+// stale pending rows. Co-foster opt-in is a peer event on the foster
+// ownership row created at acceptance. Classified NON-libreta (system flow
+// telemetry, not pet medical history).
+
+const fosterProposed = z
+  .object(
+    withVersion({
+      proposal_public_token: z.string(),
+      volunteer_user_id: z.string().uuid(),
+      proposed_duration_weeks: z.number().int().positive().nullable().optional(),
+      match_warnings: z.array(z.string()).default([]),
+    }),
+  )
+  .strict();
+
+const fosterProposalAccepted = z
+  .object(
+    withVersion({
+      proposal_public_token: z.string(),
+      response_notes: z.string().nullable().optional(),
+    }),
+  )
+  .strict();
+
+const fosterProposalRejected = z
+  .object(
+    withVersion({
+      proposal_public_token: z.string(),
+      rejection_reason: z.enum([
+        "capacity",
+        "health_mismatch",
+        "timing",
+        "distance",
+        "household",
+        "other",
+      ]),
+      response_notes: z.string().nullable().optional(),
+    }),
+  )
+  .strict();
+
+// `auto_cancelled` is true when this row was cancelled by the D18 cascade
+// (volunteer's last slot consumed by accepting another proposal). Org-initiated
+// cancellations leave it false.
+const fosterProposalCancelled = z
+  .object(
+    withVersion({
+      proposal_public_token: z.string(),
+      cancellation_reason: z.string().nullable().optional(),
+      auto_cancelled: z.boolean().default(false),
+    }),
+  )
+  .strict();
+
+const fosterProposalExpired = z
+  .object(
+    withVersion({
+      proposal_public_token: z.string(),
+    }),
+  )
+  .strict();
+
+// Peer event on the foster ownership row recording the D17 co-foster
+// opt-in flag set (or later toggled) by the first foster.
+const fosterCoFosterAllowed = z
+  .object(
+    withVersion({
+      allow_co_foster: z.boolean(),
+      foster_ownership_id: z.string().uuid(),
+    }),
+  )
+  .strict();
+
 // Custody transfer proposed — Phase 1 of the return-to-owner two-phase
 // handshake (Lost & Found Fase 5). An actor holding shelter_custody proposes
 // returning the pet to the original owner (or to another org). The owner
@@ -864,6 +943,12 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   custody_transfer_proposed: custodyTransferProposed,
   custody_dispute_raised: custodyDisputeRaised,
   custody_dispute_resolved: custodyDisputeResolved,
+  foster_proposed: fosterProposed,
+  foster_proposal_accepted: fosterProposalAccepted,
+  foster_proposal_rejected: fosterProposalRejected,
+  foster_proposal_cancelled: fosterProposalCancelled,
+  foster_proposal_expired: fosterProposalExpired,
+  foster_co_foster_allowed: fosterCoFosterAllowed,
   libreta_shared_viewed: libretaSharedViewed,
 };
 
