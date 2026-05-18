@@ -19,10 +19,15 @@ import { redirect } from "next/navigation";
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { requireAlivePetAccess } from "@/lib/pet-access";
-import { computeObservationUntil } from "@/lib/rabies-observation";
+import {
+  type RabiesObservationOutcome,
+  computeObservationUntil,
+  outcomeToStatus,
+} from "@/lib/rabies-observation";
 
 export type BiteFormState = { error: string | null };
 
@@ -553,4 +558,129 @@ export async function reportBiteFromOrgAction(
 
   revalidatePath(`/org/${orgToken}`);
   redirect(`/org/${orgToken}?evento=mordedura_reportada`);
+}
+
+// ---------------------------------------------------------------------------
+// Professional closure (Fase 6) — admin/govt
+// ---------------------------------------------------------------------------
+//
+// Unlike ownerCloseRabiesObservationAction (which restricts to outcome
+// 'negative' after 10 days with no escalations), professionals can close
+// with any outcome at any time during the period — they have clinical /
+// authority standing to declare the result. Govt actors are scoped by
+// their assigned localities.
+
+const PROFESSIONAL_OUTCOMES: RabiesObservationOutcome[] = [
+  "negative",
+  "positive_rabies",
+  "dead",
+  "lost_to_followup",
+];
+
+export type ProfessionalCloseResult = { error: string | null };
+
+export async function professionalCloseRabiesObservationAction(
+  petPublicToken: string,
+  formData: FormData,
+): Promise<ProfessionalCloseResult> {
+  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+
+  const outcomeRaw = String(formData.get("outcome") ?? "").trim();
+  if (!PROFESSIONAL_OUTCOMES.includes(outcomeRaw as RabiesObservationOutcome)) {
+    return { error: "Outcome inválido." };
+  }
+  const outcome = outcomeRaw as RabiesObservationOutcome;
+  const closureNotes = String(formData.get("closureNotes") ?? "").trim() || null;
+
+  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, petPublicToken)).limit(1);
+  if (!pet) return { error: "Mascota no encontrada." };
+  if (pet.rabiesObservationStatus !== "in_progress") {
+    return { error: "Esta mascota no tiene una observación activa." };
+  }
+
+  // Govt scope check — admin sees universally.
+  if (profile.role === "govt") {
+    const inScope = jurisdictions.some(
+      (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+    );
+    if (!inScope) {
+      return {
+        error: "Esta mascota no está dentro de tu cobertura asignada.",
+      };
+    }
+  }
+
+  const [startedEvent] = await db
+    .select()
+    .from(petEvents)
+    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "rabies_observation_started")))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+  if (!startedEvent) return { error: "Inconsistencia: status in_progress sin evento started." };
+
+  const startedPayload = startedEvent.payload as Record<string, unknown>;
+  const biteEventId = startedPayload.bite_event_id as string;
+  const now = new Date();
+
+  try {
+    await db.transaction(async (tx) => {
+      const endedPayload = validateEventPayload("rabies_observation_ended", {
+        bite_event_id: biteEventId,
+        observation_started_event_id: startedEvent.id,
+        outcome,
+        closed_by_role: profile.role,
+        closure_notes: closureNotes,
+        death_event_id: null,
+      });
+      // petEvents.authorRole enum doesn't include 'admin' — both admin and
+      // govt log as 'govt' for column-level authorship. The Zod payload's
+      // closed_by_role keeps the precise distinction (admin | govt).
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "rabies_observation_ended",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: profile.id,
+        authorRole: "govt",
+        authorOrganizationId: null,
+        authorVerified: false,
+        payload: endedPayload,
+      });
+      await tx
+        .update(pets)
+        .set({ rabiesObservationStatus: outcomeToStatus(outcome), updatedAt: now })
+        .where(eq(pets.id, pet.id));
+
+      // Notify the active owner of the professional closure.
+      const [activeOwnership] = await tx
+        .select({ ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .limit(1);
+      if (activeOwnership?.ownerUserId) {
+        const severity = outcome === "positive_rabies" ? ("urgent" as const) : ("info" as const);
+        await tx.insert(notifications).values({
+          userId: activeOwnership.ownerUserId,
+          notificationType: "rabies_observation_completed_professional_owner",
+          severity,
+          title: `Observación cerrada profesionalmente — ${pet.name}`,
+          body: `La observación antirrábica de ${pet.name} fue cerrada por ${profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con outcome: ${outcome}.${closureNotes ? ` Notas: ${closureNotes}` : ""}`,
+          relatedPetId: pet.id,
+        });
+      }
+    });
+  } catch (err) {
+    console.error("professionalCloseRabiesObservationAction tx failed:", err);
+    return {
+      error: `No se pudo cerrar: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  redirect("/admin/observaciones");
 }
