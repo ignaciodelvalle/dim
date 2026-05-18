@@ -1068,6 +1068,8 @@ beforeAll(async () => {
 
 describe("assignGovtLocalityForAuthority — happy path: new locality assigned", () => {
   it("inserts govt_assignment, audit_log, notification and returns ok", async () => {
+    // Input uses unaccented "Cordoba"; the canonical-validation pass
+    // resolves it to "Córdoba" before insert.
     const result = await assignGovtLocalityForAuthority(deactivateActorId, {
       targetUserId: assignGovtId,
       province: "Cordoba",
@@ -1079,14 +1081,15 @@ describe("assignGovtLocalityForAuthority — happy path: new locality assigned",
     expect(result.ok).toBe(true);
     expect(result.assignmentId).toBeTypeOf("string");
 
-    // Verify govt_assignment row
+    // Verify govt_assignment row was persisted with the CANONICAL province
+    // name from ar_provincias / ar_localities, not the raw input.
     const [assignment] = await db
       .select()
       .from(govtAssignments)
       .where(
         and(
           eq(govtAssignments.userId, assignGovtId),
-          eq(govtAssignments.jurisdictionProvince, "Cordoba"),
+          eq(govtAssignments.jurisdictionProvince, "Córdoba"),
           eq(govtAssignments.jurisdictionLocality, "Villa Carlos Paz"),
           isNull(govtAssignments.revokedAt),
         ),
@@ -1108,7 +1111,8 @@ describe("assignGovtLocalityForAuthority — happy path: new locality assigned",
 
     expect(logRow).toBeDefined();
     const payload = logRow.payload as Record<string, unknown>;
-    expect(payload.province).toBe("Cordoba");
+    // Audit log records the canonical names that were persisted, not the raw input.
+    expect(payload.province).toBe("Córdoba");
     expect(payload.locality).toBe("Villa Carlos Paz");
 
     // Verify notification

@@ -28,6 +28,10 @@ import {
   canResetCredentials,
 } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
+import {
+  JurisdictionValidationError,
+  resolveCanonicalJurisdiction,
+} from "@/lib/jurisdiction-validation";
 import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -123,6 +127,26 @@ export async function createInstitutionalAccountForAuthority(
   }
   const { role, email, displayName, initialLocalities } = parsed.data;
 
+  // 1.5 Resolve each initial locality through the canonical catalog before
+  // touching auth or the DB. Bad data fails fast with a clear message — no
+  // orphan auth users to compensate for. The catalog returns the canonical
+  // (Province name, Locality name) pair, which is what we persist.
+  const canonicalLocalities: { province: string; locality: string }[] = [];
+  for (const l of initialLocalities) {
+    try {
+      const { province, locality } = await resolveCanonicalJurisdiction({
+        rawProvince: l.province,
+        rawLocality: l.locality,
+      });
+      canonicalLocalities.push({ province: province.name, locality: locality.localityName });
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      throw err;
+    }
+  }
+
   // 2. Load actor + capability check
   const actorProfile = await loadActorProfile(actorUserId);
   if (!actorProfile) return { error: "CAPABILITY_DENIED" };
@@ -181,10 +205,10 @@ export async function createInstitutionalAccountForAuthority(
         throw new Error("PROFILE_UPDATE_FAILED: profile row not found after auth.admin.createUser");
       }
 
-      // b. If role='govt': insert govt_assignments for each initialLocality
-      if (role === "govt" && initialLocalities.length > 0) {
+      // b. If role='govt': insert govt_assignments for each canonical locality
+      if (role === "govt" && canonicalLocalities.length > 0) {
         await tx.insert(govtAssignments).values(
-          initialLocalities.map((l) => ({
+          canonicalLocalities.map((l) => ({
             userId: authUserId,
             jurisdictionProvince: l.province,
             jurisdictionLocality: l.locality,
@@ -202,7 +226,7 @@ export async function createInstitutionalAccountForAuthority(
           role,
           display_name: displayName,
           email,
-          initial_localities: initialLocalities,
+          initial_localities: canonicalLocalities,
           method: "auth_admin_sdk",
         },
       });
@@ -686,7 +710,22 @@ export async function assignGovtLocalityForAuthority(
     const firstError = parsed.error.issues[0];
     return { error: `VALIDATION_ERROR: ${firstError.message}` };
   }
-  const { targetUserId, province, locality } = parsed.data;
+  const { targetUserId, province: rawProvince, locality: rawLocality } = parsed.data;
+
+  // 1.5 Resolve through the canonical catalog. We only persist canonical names.
+  let canonicalProvince: string;
+  let canonicalLocality: string;
+  try {
+    const resolved = await resolveCanonicalJurisdiction({
+      rawProvince,
+      rawLocality,
+    });
+    canonicalProvince = resolved.province.name;
+    canonicalLocality = resolved.locality.localityName;
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) return { error: err.message };
+    throw err;
+  }
 
   // 2. Load actor + capability check
   const actorProfile = await loadActorProfile(actorUserId);
@@ -718,8 +757,8 @@ export async function assignGovtLocalityForAuthority(
     .where(
       and(
         eq(govtAssignments.userId, targetUserId),
-        eq(govtAssignments.jurisdictionProvince, province),
-        eq(govtAssignments.jurisdictionLocality, locality),
+        eq(govtAssignments.jurisdictionProvince, canonicalProvince),
+        eq(govtAssignments.jurisdictionLocality, canonicalLocality),
         isNull(govtAssignments.revokedAt),
       ),
     )
@@ -734,8 +773,8 @@ export async function assignGovtLocalityForAuthority(
     .insert(govtAssignments)
     .values({
       userId: targetUserId,
-      jurisdictionProvince: province,
-      jurisdictionLocality: locality,
+      jurisdictionProvince: canonicalProvince,
+      jurisdictionLocality: canonicalLocality,
       grantedByUserId: actorUserId,
     })
     .returning({ id: govtAssignments.id });
@@ -746,8 +785,8 @@ export async function assignGovtLocalityForAuthority(
     action: "govt_locality_assigned",
     targetUserId,
     payload: {
-      province,
-      locality,
+      province: canonicalProvince,
+      locality: canonicalLocality,
       govt_assignment_id: newAssignment.id,
     },
   });
@@ -757,7 +796,7 @@ export async function assignGovtLocalityForAuthority(
     userId: targetUserId,
     notificationType: "govt_locality_assigned",
     title: "Nueva localidad asignada a tu cuenta",
-    body: `Un administrador asignó la localidad ${locality}, ${province} a tu jurisdicción.`,
+    body: `Un administrador asignó la localidad ${canonicalLocality}, ${canonicalProvince} a tu jurisdicción.`,
     severity: "info",
     ctaLabel: "Ver mis localidades",
     ctaUrl: "/admin",
