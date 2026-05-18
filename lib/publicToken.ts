@@ -10,6 +10,7 @@
 //   DIM  — pet credential public token (pets.public_token)
 //   LBR  — libreta share token (libreta_share_tokens.share_token)
 //   APR  — approval request public token (approval_requests.public_token)
+//   OFR  — service offering public token (service_offerings.public_token)
 
 import { randomBytes } from "node:crypto";
 
@@ -45,4 +46,9 @@ export function generateLibretaShareToken(): string {
 /** Generates an APR-XXXX-XXXX approval request public token. */
 export function generateApprovalRequestToken(): string {
   return generatePrefixedToken("APR");
+}
+
+/** Generates an OFR-XXXX-XXXX service offering public token. */
+export function generateOfferingToken(): string {
+  return generatePrefixedToken("OFR");
 }
