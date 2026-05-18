@@ -22,6 +22,7 @@ import {
   profiles,
 } from "@/db";
 import {
+  VET_INDIVIDUAL_IMPLICIT_CAPS,
   getActiveMemberships,
   getGrantedCapabilities,
   isValidCapability,
@@ -84,6 +85,15 @@ export async function requestCapabilityAction(
   // Admins implicitly hold every capability — they don't need to request.
   if (active.membership.role === "admin") {
     return { error: "Como administrador ya tenés todos los permisos." };
+  }
+
+  // vet_individual implicitly holds a baseline set — don't accept duplicate
+  // requests for capabilities they already hold by virtue of their role.
+  if (
+    active.membership.role === "vet_individual" &&
+    (VET_INDIVIDUAL_IMPLICIT_CAPS as readonly string[]).includes(capability)
+  ) {
+    return { error: "Como veterinario/a ya tenés este permiso por defecto." };
   }
 
   try {

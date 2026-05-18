@@ -2,8 +2,13 @@
 //
 // Model: a user holds a membership in an organization (role + audit columns).
 // Roles label who an employee is (admin, coordinator, foster, ...); capabilities
-// (audit-tracked, admin-approved grants) gate what they can DO. Role=admin
-// implicitly holds every capability — admins do not need explicit grants.
+// (audit-tracked, admin-approved grants) gate what they can DO.
+//
+// Implicit baselines by role:
+//   - `admin`          → all capabilities (universal grant)
+//   - `vet_individual` → VET_INDIVIDUAL_IMPLICIT_CAPS (see below)
+//   - others           → no implicit grant; capabilities must be explicitly
+//                        approved via organization_capability_grants
 //
 // Use `requireCapability` in server actions the same way `requireOwnedPet` is
 // used in app/actions/events.ts.
@@ -96,6 +101,18 @@ export function isValidCapability(value: string): value is OrganizationCapabilit
   return CAPABILITY_SET.has(value);
 }
 
+// Baseline capabilities held implicitly by every active `vet_individual`
+// membership. Derived from docs/org-portal-permissions.md: vet_individual has
+// the write permissions of `member` plus clinical event authorship — that
+// translates to event.write + pet.read_held + intake.create. Held without an
+// explicit organization_capability_grants row; org admins may still grant
+// additional capabilities (e.g. foster.assign) via the normal approval flow.
+export const VET_INDIVIDUAL_IMPLICIT_CAPS: readonly OrganizationCapability[] = [
+  "pet.read_held",
+  "event.write",
+  "intake.create",
+] as const;
+
 export type ActiveMembership = {
   membership: OrganizationMembership;
   organization: Organization;
@@ -113,9 +130,11 @@ export async function getActiveMemberships(userId: string): Promise<ActiveMember
   return rows;
 }
 
-// Capabilities currently granted on a membership. Admins implicitly hold all
-// capabilities — they are NOT required to be granted explicitly. For all other
-// roles, only `status='approved'` grants count.
+// Capabilities currently granted on a membership.
+//   - role=admin: implicit grant of ALL capabilities (universal).
+//   - role=vet_individual: implicit grant of VET_INDIVIDUAL_IMPLICIT_CAPS,
+//     plus any explicit additional grants on top.
+//   - other roles: only `status='approved'` grants count.
 export async function getGrantedCapabilities(
   membership: Pick<OrganizationMembership, "id" | "role">,
 ): Promise<Set<OrganizationCapability>> {
@@ -134,6 +153,9 @@ export async function getGrantedCapabilities(
   const set = new Set<OrganizationCapability>();
   for (const row of rows) {
     if (isValidCapability(row.capability)) set.add(row.capability);
+  }
+  if (membership.role === "vet_individual") {
+    for (const cap of VET_INDIVIDUAL_IMPLICIT_CAPS) set.add(cap);
   }
   return set;
 }
