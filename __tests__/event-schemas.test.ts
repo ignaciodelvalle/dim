@@ -443,12 +443,17 @@ describe("PayloadSchemas — canonical writer payloads", () => {
     ).not.toThrow();
   });
 
-  it("symptom_observed", () => {
+  it("symptom_observed (libreta source — updated shape from surveillance Fase 2)", () => {
     expect(() =>
       validateEventPayload("symptom_observed", {
-        welfare_report_id: "00000000-0000-4000-8000-000000000005",
+        source: "libreta",
+        welfare_report_id: null,
         reporter_role: "owner",
-        symptoms: "Tos seca persistente.",
+        free_text: "Tos seca persistente.",
+        matched_symptom_codes: [],
+        alerted_disease_codes: [],
+        severity_self_assessed: null,
+        onset_at: null,
       }),
     ).not.toThrow();
   });

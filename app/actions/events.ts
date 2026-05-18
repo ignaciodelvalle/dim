@@ -1952,3 +1952,144 @@ async function routeOutbreakSignalNotification(
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// createSymptomObservedWriter — exported for integration tests
+// ---------------------------------------------------------------------------
+
+export type SymptomObservedWriterParams = {
+  petId: string;
+  petPublicToken: string;
+  petSpecies: string;
+  petJurisdictionCountry: string;
+  petJurisdictionProvince: string | null;
+  petJurisdictionLocality: string | null;
+  recordedByUserId: string;
+  eventAuthorship: import("@/lib/pet-access").PetEventAuthorship;
+  freeText: string;
+  severity: "mild" | "moderate" | "severe" | null;
+  onsetAt: string | null;
+  now?: Date;
+};
+
+/**
+ * The core write path for symptom observation, exported so integration tests
+ * can call it without the Next.js request context imposed by
+ * requireAlivePetAccess / createClient. Same logic as createSymptomObservedAction
+ * minus the auth layer.
+ */
+export async function createSymptomObservedWriter(
+  params: SymptomObservedWriterParams,
+): Promise<{ ok: true; symptomEventId: string; signalEventIds: string[] } | { ok: false; error: string }> {
+  const {
+    petId,
+    petSpecies,
+    petJurisdictionCountry,
+    petJurisdictionProvince,
+    petJurisdictionLocality,
+    recordedByUserId,
+    eventAuthorship,
+    freeText,
+    severity,
+    onsetAt,
+    now = new Date(),
+  } = params;
+
+  // Run matcher (defensive — failure must never block the insert).
+  let alertableDiseases: import("@/lib/symptom-matcher").DiseaseMatch[] = [];
+  let matchedSymptomCodes: string[] = [];
+  try {
+    const { matchSymptoms, aggregateDiseaseMatches } = await import("@/lib/symptom-matcher");
+    const matched = matchSymptoms(freeText, petSpecies);
+    matchedSymptomCodes = matched.map((m) => m.symptom_code);
+    const aggregated = aggregateDiseaseMatches(matched);
+    alertableDiseases = aggregated.filter((d) => d.triggers_alert && d.is_reportable);
+  } catch (err) {
+    console.error("Symptom matcher failed in writer:", err);
+    alertableDiseases = [];
+    matchedSymptomCodes = [];
+  }
+
+  let symptomEventId = "";
+  const signalEventIds: string[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      const symptomPayload = validateEventPayload("symptom_observed", {
+        source: "libreta" as const,
+        welfare_report_id: null,
+        reporter_role: "owner" as const,
+        free_text: freeText,
+        matched_symptom_codes: matchedSymptomCodes,
+        alerted_disease_codes: alertableDiseases.map((d) => d.disease_code),
+        severity_self_assessed: severity,
+        onset_at: onsetAt,
+      });
+
+      const [symptomEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId,
+          eventType: "symptom_observed",
+          occurredAt: onsetAt ? new Date(onsetAt) : now,
+          recordedAt: now,
+          recordedByUserId,
+          ...eventAuthorship,
+          payload: symptomPayload,
+        })
+        .returning();
+
+      symptomEventId = symptomEvent.id;
+
+      for (const d of alertableDiseases) {
+        const signalPayload = validateEventPayload("outbreak_signal", {
+          source_symptom_event_id: symptomEvent.id,
+          disease_code: d.disease_code,
+          disease_label: d.disease_label,
+          match_strength: {
+            high_count: d.high_count,
+            medium_count: d.medium_count,
+            low_count: d.low_count,
+            matched_symptom_codes: d.matched_symptoms,
+          },
+          pet_jurisdiction_country: petJurisdictionCountry,
+          pet_jurisdiction_province: petJurisdictionProvince,
+          pet_jurisdiction_locality: petJurisdictionLocality,
+          pet_species: petSpecies,
+        });
+
+        const [signalEvent] = await tx
+          .insert(petEvents)
+          .values({
+            petId,
+            eventType: "outbreak_signal",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: null,
+            authorRole: "system",
+            authorOrganizationId: null,
+            authorVerified: false,
+            payload: signalPayload,
+          })
+          .returning();
+
+        signalEventIds.push(signalEvent.id);
+
+        // Route notifications (same logic as the server action).
+        const pet = {
+          id: petId,
+          jurisdictionCountry: petJurisdictionCountry,
+          jurisdictionProvince: petJurisdictionProvince,
+          jurisdictionLocality: petJurisdictionLocality,
+          species: petSpecies,
+        } as typeof petEvents.$inferSelect & typeof pets.$inferSelect;
+
+        await routeOutbreakSignalNotification(tx, { signalEvent, pet: pet as any, disease: d });
+      }
+    });
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "unknown error" };
+  }
+
+  return { ok: true, symptomEventId, signalEventIds };
+}
