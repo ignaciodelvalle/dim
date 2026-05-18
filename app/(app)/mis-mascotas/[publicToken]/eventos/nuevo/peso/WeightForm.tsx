@@ -1,5 +1,24 @@
 "use client";
 
+/**
+ * Weight-recording form — REFERENCE IMPLEMENTATION for URL-prefill.
+ *
+ * Future event-creation forms should copy this pattern:
+ *
+ *  1. Accept an optional `defaults` prop that mirrors the form fields.
+ *  2. Use `defaultValue={defaults?.fieldName ?? ...}` on every input.
+ *  3. The page's server component reads `searchParams`, builds the
+ *     `defaults` object, and passes it down.
+ *  4. The form name="..." attributes MUST match the keys in
+ *     `lib/event-agent-registry.ts → EVENT_AGENT_REGISTRY[event_type].prefillSlots`
+ *     — that registry is the contract the future conversational agent
+ *     will deeplink against.
+ *
+ * Why prop and not useSearchParams: server components own search-param
+ * reading. The form is client-side; keeping it stateless re: URLs means
+ * exactly one place owns "where do defaults come from" (the page).
+ */
+
 import type { EventFormState } from "@/app/actions/events";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -8,7 +27,19 @@ const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
-export function WeightForm({ action }: { action: FormAction }) {
+export type WeightFormDefaults = {
+  kg: string | null;
+  occurredAt: string | null;
+  notes: string | null;
+};
+
+export function WeightForm({
+  action,
+  defaults,
+}: {
+  action: FormAction;
+  defaults?: WeightFormDefaults;
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -28,6 +59,7 @@ export function WeightForm({ action }: { action: FormAction }) {
           step="0.1"
           min="0"
           required
+          defaultValue={defaults?.kg ?? undefined}
           placeholder="Ej: 12.5"
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
@@ -45,7 +77,7 @@ export function WeightForm({ action }: { action: FormAction }) {
           name="occurredAt"
           type="date"
           required
-          defaultValue={today}
+          defaultValue={defaults?.occurredAt ?? today}
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
       </div>
@@ -61,6 +93,7 @@ export function WeightForm({ action }: { action: FormAction }) {
           id="notes"
           name="notes"
           rows={3}
+          defaultValue={defaults?.notes ?? undefined}
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
       </div>
