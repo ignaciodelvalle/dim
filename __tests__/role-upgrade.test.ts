@@ -22,6 +22,7 @@ import {
   organizations,
   profiles,
 } from "@/db";
+import { verifyDniForUser } from "@/app/actions/dni-verification";
 import { getActiveMemberships } from "@/lib/capabilities";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -39,6 +40,12 @@ let userId: string;
 let userId2: string;
 let adminUserId: string;
 let orgId: string;
+
+// Direct DB shortcut — bypasses the placeholder form. Tests should call this
+// rather than verifyDniForUser so they don't depend on the DNI format rules.
+async function markDniVerified(uid: string): Promise<void> {
+  await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, uid));
+}
 
 async function deleteTestUser(email: string) {
   const { data: list } = await admin.auth.admin.listUsers();
@@ -89,6 +96,8 @@ beforeAll(async () => {
   });
   if (r1.error || !r1.data.user) throw new Error(`createUser1: ${r1.error?.message}`);
   userId = r1.data.user.id;
+  // DNI prereq: mark both test users verified so happy-path tests pass.
+  await markDniVerified(userId);
 
   const r2 = await admin.auth.admin.createUser({
     email: EMAIL2,
@@ -97,6 +106,7 @@ beforeAll(async () => {
   });
   if (r2.error || !r2.data.user) throw new Error(`createUser2: ${r2.error?.message}`);
   userId2 = r2.data.user.id;
+  await markDniVerified(userId2);
 
   // Seed a platform admin so the no-govt-fallback path has someone to notify.
   // Without this, the fan-out in unscoped tests would silently no-op.
@@ -411,5 +421,54 @@ describe("createOrganizationForUser (Fase 1)", () => {
     const adminMembership = memberships.find((m) => m.membership.role === "admin");
     expect(adminMembership).toBeDefined();
     expect(adminMembership?.organization.verified).toBe(false);
+  });
+});
+
+describe("DNI prerequisite enforcement", () => {
+  const EMAIL_UNVERIFIED = "dni-prereq-test@dim-test.local";
+  let unverifiedUserId: string;
+
+  beforeAll(async () => {
+    await deleteTestUser(EMAIL_UNVERIFIED);
+    const r = await admin.auth.admin.createUser({
+      email: EMAIL_UNVERIFIED,
+      password: PASS,
+      email_confirm: true,
+    });
+    if (r.error || !r.data.user) throw new Error(`createUser unverified: ${r.error?.message}`);
+    unverifiedUserId = r.data.user.id;
+    // NOTE: intentionally NOT calling markDniVerified — user starts with dni_verified=false.
+  });
+
+  afterAll(async () => {
+    await deleteTestUser(EMAIL_UNVERIFIED);
+  });
+
+  it("requestVetUpgradeForUser returns missingPrereq=dni when dni_verified=false", async () => {
+    const result = await requestVetUpgradeForUser(unverifiedUserId, {
+      matriculaNumber: "MN-PREREQ",
+      matriculaJurisdiccion: "CABA",
+      operationalProvince: "CABA",
+      operationalLocality: "Palermo-NoGovt",
+    });
+    expect(result.error).not.toBeNull();
+    expect(result.missingPrereq).toBe("dni");
+    expect(result.prereqUrl).toMatch(/\/cuenta\/verificar-dni/);
+    expect(result.ok).toBeUndefined();
+  });
+
+  it("createOrganizationForUser returns missingPrereq=dni when dni_verified=false", async () => {
+    const result = await createOrganizationForUser(unverifiedUserId, {
+      name: "Prereq Test Org",
+      legalName: "Prereq SA",
+      orgType: "shelter",
+      email: "prereq@test.test",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo-NoGovt",
+    });
+    expect(result.error).not.toBeNull();
+    expect(result.missingPrereq).toBe("dni");
+    expect(result.prereqUrl).toMatch(/\/cuenta\/verificar-dni/);
+    expect(result.ok).toBeUndefined();
   });
 });

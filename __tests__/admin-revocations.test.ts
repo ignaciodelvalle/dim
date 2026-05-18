@@ -169,6 +169,9 @@ beforeAll(async () => {
 
   // Assign roles
   await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
+
+  // DNI prereq: ownerUserId calls createOrganizationForUser in seedVerifiedOrg.
+  await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, ownerUserId));
   await db
     .update(profiles)
     .set({ role: "govt" })
@@ -238,6 +241,9 @@ async function resetVetProfile() {
 
 // Helper: create and return an org with `verified=true` for org revocation tests
 async function seedVerifiedOrg(creatorUserId: string): Promise<string> {
+  // DNI prereq: each test creates a new user, we must mark verified before
+  // calling createOrganizationForUser.
+  await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, creatorUserId));
   const result = await createOrganizationForUser(creatorUserId, {
     name: "Test Org Fase4",
     legalName: "Test Legal Fase4",
@@ -617,6 +623,9 @@ describe("revokeOrgVerificationForAuthority", () => {
     await deleteTestUser(s4OwnerEmail);
     const s4OwnerId = await createUserOrThrow(s4OwnerEmail);
 
+    // DNI prereq for this per-test user
+    await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, s4OwnerId));
+
     // Create a Rosario org (outside govt2's Buenos Aires / La Plata scope)
     const result2 = await createOrganizationForUser(s4OwnerId, {
       name: "Org Rosario Fase4",
@@ -679,6 +688,8 @@ describe("revokeOrgVerificationForAuthority", () => {
     const noVerifyOwnerEmail = "fase4-orgowner-nv@dim-test.local";
     await deleteTestUser(noVerifyOwnerEmail);
     const noVerifyOwnerId = await createUserOrThrow(noVerifyOwnerEmail);
+    // DNI prereq for this per-test user
+    await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, noVerifyOwnerId));
     const result2 = await createOrganizationForUser(noVerifyOwnerId, {
       name: "Org No Verified Fase4",
       legalName: "Org NV Legal",

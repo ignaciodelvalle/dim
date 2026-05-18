@@ -57,6 +57,10 @@ export type UpgradeFormState = {
   error: string | null;
   ok?: boolean;
   organizationId?: string;
+  // When a prerequisite is missing, the UI renders a CTA instead of the
+  // generic error paragraph. See docs/patterns/petition-prerequisites.md.
+  missingPrereq?: "dni";
+  prereqUrl?: string;
 };
 
 // ============================================================================
@@ -160,6 +164,19 @@ export async function requestVetUpgradeForUser(
   if (!profile) return { error: "Perfil no encontrado." };
   if (profile.role === "vet") {
     return { error: "Ya sos veterinario/a en MiMAR." };
+  }
+
+  // Prerequisite: DNI must be verified before submitting a vet upgrade.
+  // prereqUrl uses the canonical ?next= pattern so the user lands back here
+  // after completing verification. TODO(mi-argentina): when the real OAuth
+  // flow lands, this prereq is satisfied by the Mi Argentina callback, not the
+  // placeholder form. The contract (dniVerified=true before petition) stays.
+  if (!profile.dniVerified) {
+    return {
+      error: "Necesitás verificar tu DNI antes de enviar una solicitud de veterinario.",
+      missingPrereq: "dni",
+      prereqUrl: "/cuenta/verificar-dni?next=/cuenta/upgrade",
+    };
   }
 
   // Idempotency: one pending vet-upgrade request per applicant. A previously
@@ -272,6 +289,21 @@ export async function createOrganizationForUser(
 ): Promise<UpgradeFormState> {
   const validationError = validateOrgInput(input);
   if (validationError) return { error: validationError };
+
+  // Prerequisite: DNI must be verified before creating an organization.
+  const [profile] = await db
+    .select({ dniVerified: profiles.dniVerified })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+  if (!profile) return { error: "Perfil no encontrado." };
+  if (!profile.dniVerified) {
+    return {
+      error: "Necesitás verificar tu DNI antes de crear una organización.",
+      missingPrereq: "dni",
+      prereqUrl: "/cuenta/verificar-dni?next=/cuenta/upgrade",
+    };
+  }
 
   // Idempotency: one org per user (the existing membership-based guard).
   const memberships = await getActiveMemberships(userId);

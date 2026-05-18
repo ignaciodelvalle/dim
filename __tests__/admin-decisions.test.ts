@@ -111,6 +111,12 @@ beforeAll(async () => {
   adminUserId = await createTestUser(ADMIN_EMAIL);
 
   await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
+
+  // DNI prereq: mark applicants verified so they can submit petitions.
+  await db
+    .update(profiles)
+    .set({ dniVerified: true })
+    .where(or(eq(profiles.id, vetApplicantId), eq(profiles.id, orgApplicantId)));
 });
 
 async function createTestUser(email: string): Promise<string> {

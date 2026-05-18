@@ -1101,6 +1101,10 @@ export const AUDIT_LOG_ACTIONS = [
   //     govt_self_deactivated_admin_notice — to every active admin
   //     govt_self_deactivated_cascade_notice — to other govts who now sole-cover affected localities
   "govt_self_deactivated",
+  // Placeholder DNI verification (pre Mi Argentina OAuth). User confirms their
+  // DNI number; the bit is set server-side. TODO(mi-argentina): replace with
+  // real OAuth callback action when the Mi Argentina integration lands.
+  "dni_verified_self",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

@@ -48,6 +48,29 @@ export default async function UpgradePage() {
           </p>
         </header>
 
+        {/* Soft prereq banner: shown when DNI is not yet verified */}
+        {!profile?.dniVerified && (
+          <div className="rounded-lg border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/20 px-4 py-3 flex items-start gap-3">
+            <span className="text-yellow-600 dark:text-yellow-400 text-sm mt-0.5" aria-hidden>
+              ⚠
+            </span>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+                Te falta verificar tu DNI
+              </p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                Necesitás verificar tu identidad antes de enviar cualquier solicitud de rol.{" "}
+                <a
+                  href="/cuenta/verificar-dni?next=/cuenta/upgrade"
+                  className="underline underline-offset-2 hover:text-yellow-900 dark:hover:text-yellow-200"
+                >
+                  Verificar ahora →
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Card A — Profesional veterinario */}
         {profile?.role === "vet" ? (
           <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
