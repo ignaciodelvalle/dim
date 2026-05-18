@@ -1390,3 +1390,83 @@ export const appointments = pgTable(
 
 export type Appointment = typeof appointments.$inferSelect;
 export type NewAppointment = typeof appointments.$inferInsert;
+
+// ============================================================================
+// AR Localities — canonical INDEC catalog
+// ============================================================================
+// Reference data populated by scripts/import-indec-localities.ts from the
+// INDEC CPPDyL dataset. Lives off of `pet_events` and the owner-data tables —
+// it is shared catalog data, not user data. RLS allows SELECT for any
+// authenticated user; writes only via the service role (the import script).
+
+export const ARGENTINE_LOCALITY_CATEGORIES = [
+  "localidad",
+  "ciudad",
+  "pueblo",
+  "comuna",
+  "barrio",
+  "componente",
+] as const;
+export type ArgentineLocalityCategory = (typeof ARGENTINE_LOCALITY_CATEGORIES)[number];
+
+export const ARGENTINE_LOCALITY_SOURCES = ["indec_cppdyl", "bahra", "manual"] as const;
+export type ArgentineLocalitySource = (typeof ARGENTINE_LOCALITY_SOURCES)[number];
+
+export const arLocalities = pgTable(
+  "ar_localities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    provinceCode: text("province_code").notNull(),
+    departmentName: text("department_name"),
+    departmentCode: text("department_code"),
+    localityName: text("locality_name").notNull(),
+    localitySlug: text("locality_slug").notNull(),
+    indecId: text("indec_id").unique(),
+    category: text("category").notNull().$type<ArgentineLocalityCategory>(),
+    latitude: numeric("latitude", { precision: 10, scale: 7 }),
+    longitude: numeric("longitude", { precision: 10, scale: 7 }),
+    source: text("source").notNull().$type<ArgentineLocalitySource>(),
+    sourceVersion: text("source_version"),
+    lastImportedAt: timestamp("last_imported_at", { withTimezone: true }).notNull().defaultNow(),
+    // Soft-delete marker. The import script sets this when a previously-imported
+    // INDEC row no longer appears in the dataset. UI filters out non-null rows.
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+  },
+  (table) => ({
+    provinceSlugUniq: uniqueIndex("ar_localities_province_slug_uniq")
+      .on(table.provinceCode, table.localitySlug)
+      .where(sql`${table.removedAt} IS NULL`),
+    provinceIdx: index("ar_localities_province_idx")
+      .on(table.provinceCode)
+      .where(sql`${table.removedAt} IS NULL`),
+  }),
+);
+
+export type ArgentineLocality = typeof arLocalities.$inferSelect;
+export type NewArgentineLocality = typeof arLocalities.$inferInsert;
+
+// Traceability of every import script execution. Used to debug imports and to
+// surface "last successful sync" on a future admin dashboard.
+export const arLocalitiesImportRuns = pgTable(
+  "ar_localities_import_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    source: text("source").notNull(),
+    sourceUrl: text("source_url").notNull(),
+    sourceVersion: text("source_version"),
+    status: text("status").notNull().default("running"),
+    insertedCount: integer("inserted_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    noopCount: integer("noop_count").notNull().default(0),
+    removedCount: integer("removed_count").notNull().default(0),
+    details: jsonb("details").notNull().default({}),
+  },
+  (table) => ({
+    startedAtIdx: index("ar_localities_import_runs_idx").on(table.startedAt),
+  }),
+);
+
+export type ArLocalitiesImportRun = typeof arLocalitiesImportRuns.$inferSelect;
+export type NewArLocalitiesImportRun = typeof arLocalitiesImportRuns.$inferInsert;
