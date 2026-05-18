@@ -449,7 +449,7 @@ export async function revokeVetRoleAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await revokeVetRoleForAuthority(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/gobierno/usuarios");
+    revalidatePath("/gob/usuarios");
     revalidatePath("/admin");
   }
   return result;
@@ -463,7 +463,7 @@ export async function revokeOrgVerificationAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await revokeOrgVerificationForAuthority(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/gobierno/organizaciones");
+    revalidatePath("/gob/organizaciones");
     revalidatePath("/admin");
   }
   return result;
@@ -478,9 +478,9 @@ export async function revokeGovtLocalityAction(input: {
   const result = await revokeGovtLocalityForAuthority(user.id, input);
   if ("ok" in result) {
     revalidatePath("/admin");
-    // Revalidate the gobierno/usuarios page — Next.js silently ignores
+    // Revalidate the gob/usuarios page — Next.js silently ignores
     // paths for non-existent pages, so this is safe.
-    revalidatePath("/gobierno/usuarios");
+    revalidatePath("/gob/usuarios");
   }
   return result;
 }

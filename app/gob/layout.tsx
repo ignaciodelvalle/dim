@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
-// Gate the /gobierno/* segment. Both admin and govt can access this surface.
+// Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.
 // Strictly requires non-deactivated institutional accounts — handled inside
 // requireAdminOrGovtOrRedirect which already gates on deactivated_at for
@@ -35,25 +35,25 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           </div>
           <div className="flex items-center gap-4 text-sm">
             <Link
-              href="/gobierno"
+              href="/gob"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
               Dashboard
             </Link>
             <Link
-              href="/gobierno/cola"
+              href="/gob/cola"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
               Cola
             </Link>
             <Link
-              href="/gobierno/usuarios"
+              href="/gob/usuarios"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
               Usuarios
             </Link>
             <Link
-              href="/gobierno/organizaciones"
+              href="/gob/organizaciones"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
               Organizaciones

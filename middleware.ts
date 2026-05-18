@@ -18,24 +18,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, { status: 308 });
   }
 
-  // Permanent redirects: legacy /admin work-surface paths → /gobierno.
+  // Permanent redirects: legacy /admin work-surface paths → /gob.
   // These paths moved in Slice 4 of the rebrand epic. Preserves query strings
   // (e.g. ?q= on search pages) and path suffixes (e.g. /[publicToken] on cola).
   if (pathname === "/admin/cola" || pathname.startsWith("/admin/cola/")) {
     const url = request.nextUrl.clone();
-    url.pathname = pathname.replace(/^\/admin\/cola/, "/gobierno/cola");
+    url.pathname = pathname.replace(/^\/admin\/cola/, "/gob/cola");
     return NextResponse.redirect(url, { status: 308 });
   }
 
   if (pathname === "/admin/usuarios" || pathname.startsWith("/admin/usuarios/")) {
     const url = request.nextUrl.clone();
-    url.pathname = pathname.replace(/^\/admin\/usuarios/, "/gobierno/usuarios");
+    url.pathname = pathname.replace(/^\/admin\/usuarios/, "/gob/usuarios");
     return NextResponse.redirect(url, { status: 308 });
   }
 
   if (pathname === "/admin/organizaciones" || pathname.startsWith("/admin/organizaciones/")) {
     const url = request.nextUrl.clone();
-    url.pathname = pathname.replace(/^\/admin\/organizaciones/, "/gobierno/organizaciones");
+    url.pathname = pathname.replace(/^\/admin\/organizaciones/, "/gob/organizaciones");
     return NextResponse.redirect(url, { status: 308 });
   }
 

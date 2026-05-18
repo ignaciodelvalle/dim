@@ -326,7 +326,7 @@ export async function govtSelfDeactivateForUser(
             title: "Cambio en tus localidades asignadas",
             body: "Un operador govt de tu área desactivó su cuenta. Tus asignaciones de localidad siguen activas y pueden tener mayor alcance.",
             severity: "info" as const,
-            ctaUrl: "/gobierno",
+            ctaUrl: "/gob",
             ctaLabel: "Ver mi panel",
           })),
         );

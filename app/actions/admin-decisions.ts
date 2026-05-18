@@ -392,8 +392,8 @@ export async function approveRequestAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await approveRequestForAuthority(user.id, publicToken, notes);
   if ("ok" in result) {
-    revalidatePath("/gobierno/cola");
-    revalidatePath(`/gobierno/cola/${publicToken}`);
+    revalidatePath("/gob/cola");
+    revalidatePath(`/gob/cola/${publicToken}`);
   }
   return result;
 }
@@ -405,8 +405,8 @@ export async function rejectRequestAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await rejectRequestForAuthority(user.id, publicToken, reason);
   if ("ok" in result) {
-    revalidatePath("/gobierno/cola");
-    revalidatePath(`/gobierno/cola/${publicToken}`);
+    revalidatePath("/gob/cola");
+    revalidatePath(`/gob/cola/${publicToken}`);
   }
   return result;
 }

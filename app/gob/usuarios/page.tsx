@@ -50,7 +50,7 @@ export default async function UsuariosPage({
           </p>
         </header>
 
-        <form action="/gobierno/usuarios" method="get" className="flex items-center gap-2">
+        <form action="/gob/usuarios" method="get" className="flex items-center gap-2">
           <input
             type="text"
             name="q"
@@ -70,8 +70,10 @@ export default async function UsuariosPage({
           {results.length === 0
             ? query
               ? "Sin resultados."
-              : "Ingresá una consulta para buscar usuarios."
-            : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
+              : "No hay usuarios registrados."
+            : query
+              ? `${results.length} resultado${results.length === 1 ? "" : "s"}`
+              : `Mostrando los primeros ${results.length} usuarios ordenados por rol y nombre.`}
         </p>
 
         <ul className="space-y-2">
@@ -119,7 +121,7 @@ export default async function UsuariosPage({
 
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           <Link
-            href="/gobierno"
+            href="/gob"
             className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
           >
             ← Volver al dashboard

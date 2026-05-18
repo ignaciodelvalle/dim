@@ -43,7 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Admins
             </Link>
             <Link
-              href="/gobierno"
+              href="/gob"
               className="text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
             >
               Ir a Gobierno →

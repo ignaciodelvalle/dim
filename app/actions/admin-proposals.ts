@@ -415,8 +415,8 @@ export async function proposeVetUpgradeAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await proposeVetUpgradeForUser(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/gobierno/cola");
-    revalidatePath("/gobierno/usuarios");
+    revalidatePath("/gob/cola");
+    revalidatePath("/gob/usuarios");
   }
   return result;
 }
@@ -427,8 +427,8 @@ export async function proposeGovtUpgradeAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await proposeGovtUpgradeForUser(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/gobierno/cola");
-    revalidatePath("/gobierno/usuarios");
+    revalidatePath("/gob/cola");
+    revalidatePath("/gob/usuarios");
   }
   return result;
 }
@@ -439,8 +439,8 @@ export async function proposeAdminUpgradeAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await proposeAdminUpgradeForUser(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/gobierno/cola");
-    revalidatePath("/gobierno/usuarios");
+    revalidatePath("/gob/cola");
+    revalidatePath("/gob/usuarios");
   }
   return result;
 }
@@ -451,8 +451,8 @@ export async function proposeOrgVerificationAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await proposeOrgVerificationForOrg(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/gobierno/cola");
-    revalidatePath("/gobierno/organizaciones");
+    revalidatePath("/gob/cola");
+    revalidatePath("/gob/organizaciones");
   }
   return result;
 }

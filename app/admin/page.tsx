@@ -39,7 +39,7 @@ export default async function AdminDashboardPage() {
             panel de gobierno.
           </p>
           <Link
-            href="/gobierno"
+            href="/gob"
             className="inline-block text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
           >
             Ir a Gobierno (cola, usuarios, organizaciones) →
