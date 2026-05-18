@@ -114,32 +114,34 @@ beforeAll(async () => {
     .set({ role: "admin", accountType: "institutional" })
     .where(eq(profiles.id, adminUserId));
 
-  // Assign localities for govtUserId:
-  //   - Buenos Aires / CABA — also covered by govt2UserId (coverage check should PASS)
-  //   - Buenos Aires / La Plata — only covered by govtUserId (coverage check should BLOCK)
+  // Assign localities for govtUserId — use test-scoped locality names that
+  // cannot collide with seed data (scripts/seed-test-users.ts assigns the
+  // shared `govt-local@dim.test` user to real localities like "La Plata").
+  //   - TEST-SS-Shared   — also covered by govt2UserId (coverage check should PASS)
+  //   - TEST-SS-SoleCov  — only covered by govtUserId (coverage check should BLOCK)
   await db.insert(govtAssignments).values([
     {
       userId: govtUserId,
       jurisdictionCountry: "AR",
       jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "CABA",
+      jurisdictionLocality: "TEST-SS-Shared",
       grantedByUserId: adminUserId,
     },
     {
       userId: govtUserId,
       jurisdictionCountry: "AR",
       jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "La Plata",
+      jurisdictionLocality: "TEST-SS-SoleCov",
       grantedByUserId: adminUserId,
     },
   ]);
 
-  // govt2UserId covers Buenos Aires / CABA — so govtUserId leaving CABA is safe
+  // govt2UserId covers TEST-SS-Shared — so govtUserId leaving it is safe
   await db.insert(govtAssignments).values({
     userId: govt2UserId,
     jurisdictionCountry: "AR",
     jurisdictionProvince: "Buenos Aires",
-    jurisdictionLocality: "CABA",
+    jurisdictionLocality: "TEST-SS-Shared",
     grantedByUserId: adminUserId,
   });
 });
@@ -284,7 +286,7 @@ describe("govtSelfDeactivateForUser — capability rejection: wrong role", () =>
 
 describe("govtSelfDeactivateForUser — coverage block", () => {
   it("blocks deactivation when a locality would be left uncovered", async () => {
-    // govtUserId covers La Plata alone — deactivation should be blocked
+    // govtUserId covers TEST-SS-SoleCov alone — deactivation should be blocked
     const result = await govtSelfDeactivateForUser(govtUserId);
     expect(result).toHaveProperty("error");
     if (!("error" in result)) return;
@@ -309,12 +311,12 @@ describe("govtSelfDeactivateForUser — coverage block", () => {
 
 describe("govtSelfDeactivateForUser — happy path", () => {
   it("deactivates govt when all localities have coverage, revokes assignments, emits audit + notifications", async () => {
-    // Add coverage for La Plata by govt2UserId so govtUserId can now safely deactivate
+    // Add coverage for TEST-SS-SoleCov by govt2UserId so govtUserId can now safely deactivate
     await db.insert(govtAssignments).values({
       userId: govt2UserId,
       jurisdictionCountry: "AR",
       jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "La Plata",
+      jurisdictionLocality: "TEST-SS-SoleCov",
       grantedByUserId: adminUserId,
     });
 
