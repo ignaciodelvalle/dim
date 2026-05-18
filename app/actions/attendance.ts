@@ -30,8 +30,8 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import { requireCapability, type RequireCapabilitySuccess } from "@/lib/capabilities";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
+import { type RequireCapabilitySuccess, requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
 
@@ -205,11 +205,7 @@ export async function markAppointmentAttendedWriter(
         .where(eq(appointments.id, appointmentId));
 
       // 4. If vaccination with next_due_at, insert a reminder for the owner.
-      if (
-        payload.kind === "vaccination" &&
-        payload.next_due_at &&
-        appointment.ownerUserId
-      ) {
+      if (payload.kind === "vaccination" && payload.next_due_at && appointment.ownerUserId) {
         await tx.insert(reminders).values({
           petId: pet.id,
           userId: appointment.ownerUserId,
@@ -273,7 +269,7 @@ export async function markAppointmentAttendedAction(
     const result = await markAppointmentAttendedWriter(appt.id, payload, author);
     if ("ok" in result) {
       revalidatePath(`/org/${cap.organization.publicToken}/agenda`);
-      revalidatePath(`/mis-mascotas`);
+      revalidatePath("/mis-mascotas");
     }
     return result;
   }

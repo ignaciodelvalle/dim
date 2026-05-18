@@ -47,9 +47,7 @@ export function MaterializeNowButton({ offeringToken, materializeAction }: Props
       {message && (
         <p
           className={`text-xs ${
-            message.ok
-              ? "text-green-700 dark:text-green-400"
-              : "text-red-700 dark:text-red-400"
+            message.ok ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"
           }`}
         >
           {message.text}

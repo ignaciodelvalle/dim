@@ -11,7 +11,16 @@
 // Shared pattern: resolve access → validate form → insert event (+ optional
 // attachment / reminder) atomically → redirect back to the pet's detail page.
 
-import { attachments, db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
+import {
+  attachments,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  reminders,
+} from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
@@ -35,8 +44,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq, gt, inArray, isNull } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 export type EventFormState = {
   error: string | null;
@@ -1985,7 +1994,9 @@ export type SymptomObservedWriterParams = {
  */
 export async function createSymptomObservedWriter(
   params: SymptomObservedWriterParams,
-): Promise<{ ok: true; symptomEventId: string; signalEventIds: string[] } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; symptomEventId: string; signalEventIds: string[] } | { ok: false; error: string }
+> {
   const {
     petId,
     petSpecies,
@@ -2089,6 +2100,7 @@ export async function createSymptomObservedWriter(
           species: petSpecies,
         } as typeof petEvents.$inferSelect & typeof pets.$inferSelect;
 
+        // biome-ignore lint/suspicious/noExplicitAny: composite row shape from manual select narrows below routeOutbreakSignalNotification expectations.
         await routeOutbreakSignalNotification(tx, { signalEvent, pet: pet as any, disease: d });
       }
     });

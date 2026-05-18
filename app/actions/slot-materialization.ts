@@ -15,15 +15,10 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import {
-  db,
-  serviceOfferings,
-  serviceScheduleRules,
-  timeSlots,
-} from "@/db";
+import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
+import { requireUserOrRedirect, requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { materializeSlotsForRule } from "@/lib/slot-materialization";
-import { requireVetProviderOrRedirect, requireUserOrRedirect } from "@/lib/auth-guards";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -62,12 +57,7 @@ export async function materializeAllActiveSlots(): Promise<{
     })
     .from(serviceScheduleRules)
     .innerJoin(serviceOfferings, eq(serviceScheduleRules.serviceOfferingId, serviceOfferings.id))
-    .where(
-      and(
-        eq(serviceScheduleRules.status, "active"),
-        eq(serviceOfferings.status, "approved"),
-      ),
-    );
+    .where(and(eq(serviceScheduleRules.status, "active"), eq(serviceOfferings.status, "approved")));
 
   let slotsInserted = 0;
 

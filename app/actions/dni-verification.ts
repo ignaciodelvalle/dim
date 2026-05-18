@@ -10,9 +10,7 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 // Types
 // ============================================================================
 
-export type DniVerifyResult =
-  | { ok: true }
-  | { ok: false; error: string };
+export type DniVerifyResult = { ok: true } | { ok: false; error: string };
 
 // ============================================================================
 // Validation helpers
@@ -39,9 +37,7 @@ function isDniUniqueViolation(err: unknown): boolean {
   const detail = typeof record.detail === "string" ? record.detail : "";
   // The partial unique index is named profiles_dni_unique_when_present (schema.ts:303-305)
   return (
-    constraint.includes("dni") ||
-    columnName === "dni_number" ||
-    detail.includes("(dni_number)")
+    constraint.includes("dni") || columnName === "dni_number" || detail.includes("(dni_number)")
   );
 }
 
@@ -61,10 +57,7 @@ function isDniUniqueViolation(err: unknown): boolean {
  * from the Mi Argentina OAuth callback. The outer shape (userId in, result out)
  * stays the same; only the trust source changes.
  */
-export async function verifyDniForUser(
-  userId: string,
-  rawDni: string,
-): Promise<DniVerifyResult> {
+export async function verifyDniForUser(userId: string, rawDni: string): Promise<DniVerifyResult> {
   const { trimmed, error: formatError } = validateDni(rawDni);
   if (formatError) return { ok: false, error: formatError };
 

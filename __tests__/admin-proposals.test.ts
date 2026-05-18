@@ -119,8 +119,14 @@ beforeAll(async () => {
   govtUserId = await createUserOrThrow(GOVT_EMAIL);
 
   // migration 0015 requires account_type='institutional' for govt/admin roles.
-  await db.update(profiles).set({ role: "admin", accountType: "institutional" }).where(eq(profiles.id, adminUserId));
-  await db.update(profiles).set({ role: "govt", accountType: "institutional" }).where(eq(profiles.id, govtUserId));
+  await db
+    .update(profiles)
+    .set({ role: "admin", accountType: "institutional" })
+    .where(eq(profiles.id, adminUserId));
+  await db
+    .update(profiles)
+    .set({ role: "govt", accountType: "institutional" })
+    .where(eq(profiles.id, govtUserId));
 });
 
 afterAll(async () => {

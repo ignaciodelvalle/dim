@@ -46,7 +46,7 @@ function localToUtc(dateStr: string, timeStr: string, timezone: string): Date {
   // tz and subtract the diff.
   const candidateIso = `${dateStr}T${timeStr}:00`;
   // Parse as if it were UTC.
-  const naiveUtcMs = Date.parse(candidateIso + "Z");
+  const naiveUtcMs = Date.parse(`${candidateIso}Z`);
 
   // Ask Intl what date/time the target tz shows for that naive UTC moment.
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -59,9 +59,11 @@ function localToUtc(dateStr: string, timeStr: string, timezone: string): Date {
     second: "2-digit",
     hour12: false,
   });
-  const parts = Object.fromEntries(fmt.formatToParts(new Date(naiveUtcMs)).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(
+    fmt.formatToParts(new Date(naiveUtcMs)).map((p) => [p.type, p.value]),
+  );
   const tzLocalIso = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
-  const tzLocalMs = Date.parse(tzLocalIso + "Z");
+  const tzLocalMs = Date.parse(`${tzLocalIso}Z`);
 
   // Offset: how much the timezone is ahead of UTC at that moment.
   const offsetMs = tzLocalMs - naiveUtcMs;
@@ -84,8 +86,8 @@ function matchingDates(
   const days: string[] = [];
 
   // Clamp window to the rule's effective date range.
-  const eff = new Date(effectiveFrom + "T00:00:00Z");
-  const effUntil = effectiveUntil ? new Date(effectiveUntil + "T23:59:59Z") : null;
+  const eff = new Date(`${effectiveFrom}T00:00:00Z`);
+  const effUntil = effectiveUntil ? new Date(`${effectiveUntil}T23:59:59Z`) : null;
 
   const start = windowStart < eff ? eff : windowStart;
   const end = effUntil && windowEnd > effUntil ? effUntil : windowEnd;

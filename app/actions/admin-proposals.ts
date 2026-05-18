@@ -3,14 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import {
-  approvalRequests,
-  auditLog,
-  db,
-  notifications,
-  organizations,
-  profiles,
-} from "@/db";
+import { approvalRequests, auditLog, db, notifications, organizations, profiles } from "@/db";
 import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { generateApprovalRequestToken } from "@/lib/publicToken";

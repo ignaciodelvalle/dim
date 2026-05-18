@@ -14,7 +14,12 @@ type Props = {
   submitLabel?: string;
 };
 
-export function DewormingAttendanceForm({ appointmentToken, onSubmit, onSuccess, submitLabel = "Marcar asistencia" }: Props) {
+export function DewormingAttendanceForm({
+  appointmentToken,
+  onSubmit,
+  onSuccess,
+  submitLabel = "Marcar asistencia",
+}: Props) {
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

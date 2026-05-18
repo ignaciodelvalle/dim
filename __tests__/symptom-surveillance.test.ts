@@ -15,14 +15,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createSymptomObservedWriter } from "@/app/actions/events";
-import {
-  db,
-  notifications,
-  ownerships,
-  petEvents,
-  pets,
-  profiles,
-} from "@/db";
+import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

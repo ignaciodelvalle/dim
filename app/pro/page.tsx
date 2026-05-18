@@ -45,11 +45,7 @@ const ORG_MEMBERSHIP_ROLE_LABELS: Record<string, string> = {
 export default async function ProPortalPage() {
   const { user } = await requireUserOrRedirect();
 
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
 
   if (!profile || profile.role !== "vet") {
     // Redirect to the correct landing for their actual role.
@@ -112,10 +108,7 @@ export default async function ProPortalPage() {
   const recentPetIds = recentTreatments.map((r) => r.petId);
   const recentPetsMap = new Map<string, typeof pets.$inferSelect>();
   if (recentPetIds.length > 0) {
-    const rows = await db
-      .select()
-      .from(pets)
-      .where(inArray(pets.id, recentPetIds));
+    const rows = await db.select().from(pets).where(inArray(pets.id, recentPetIds));
     for (const p of rows) {
       recentPetsMap.set(p.id, p);
     }
@@ -186,12 +179,7 @@ export default async function ProPortalPage() {
     })
     .from(organizationMemberships)
     .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
-    .where(
-      and(
-        eq(organizationMemberships.userId, vetId),
-        isNull(organizationMemberships.leftAt),
-      ),
-    );
+    .where(and(eq(organizationMemberships.userId, vetId), isNull(organizationMemberships.leftAt)));
 
   return (
     <main className="min-h-screen bg-white dark:bg-neutral-950">
@@ -322,7 +310,6 @@ export default async function ProPortalPage() {
             ) : (
               <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {upcomingReminders.map((r, idx) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: stable order from DB
                   <li key={`${r.petId}-${r.dueAt.toISOString()}-${idx}`}>
                     <div className="flex items-center justify-between py-3 gap-4">
                       <div className="min-w-0">

@@ -56,7 +56,16 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     label: "Letargo / decaimiento",
     category: "general",
     species: ["dog", "cat"],
-    synonyms: ["decaído", "decaida", "decaimiento", "sin energía", "apagado", "apagada", "triste", "letargo"],
+    synonyms: [
+      "decaído",
+      "decaida",
+      "decaimiento",
+      "sin energía",
+      "apagado",
+      "apagada",
+      "triste",
+      "letargo",
+    ],
     related_diseases: [
       { disease_code: "leptospirosis", specificity: "low" },
       { disease_code: "distemper", specificity: "low" },
@@ -107,7 +116,12 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     label: "Diarrea con sangre",
     category: "gastrointestinal",
     species: ["dog", "cat"],
-    synonyms: ["diarrea con sangre", "caca con sangre", "diarrea hemorrágica", "deposiciones con sangre"],
+    synonyms: [
+      "diarrea con sangre",
+      "caca con sangre",
+      "diarrea hemorrágica",
+      "deposiciones con sangre",
+    ],
     related_diseases: [
       { disease_code: "parvovirus", specificity: "high" },
       { disease_code: "feline_panleukopenia", specificity: "high" },
@@ -155,9 +169,7 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     category: "respiratory",
     species: ["dog", "cat"],
     synonyms: ["moco", "mocos", "secreción nasal", "le sale moco", "le moquea la nariz"],
-    related_diseases: [
-      { disease_code: "distemper", specificity: "high" },
-    ],
+    related_diseases: [{ disease_code: "distemper", specificity: "high" }],
   },
   {
     code: "difficulty_breathing",
@@ -165,9 +177,7 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     category: "respiratory",
     species: ["dog", "cat"],
     synonyms: ["respira mal", "le cuesta respirar", "agitada", "agitado", "disnea"],
-    related_diseases: [
-      { disease_code: "tuberculosis", specificity: "medium" },
-    ],
+    related_diseases: [{ disease_code: "tuberculosis", specificity: "medium" }],
   },
 
   // ─── Neurological ───────────────────────────────────────────────────────
@@ -198,27 +208,46 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     label: "Salivación excesiva",
     category: "neurological",
     species: ["dog", "cat"],
-    synonyms: ["babea", "baba", "babea mucho", "salivación", "hipersalivación", "saliva mucho", "le cae baba"],
-    related_diseases: [
-      { disease_code: "rabies_suspected", specificity: "high" },
+    synonyms: [
+      "babea",
+      "baba",
+      "babea mucho",
+      "salivación",
+      "hipersalivación",
+      "saliva mucho",
+      "le cae baba",
     ],
+    related_diseases: [{ disease_code: "rabies_suspected", specificity: "high" }],
   },
   {
     code: "aggression_unusual",
     label: "Agresividad inusual",
     category: "behavioral",
     species: ["dog", "cat"],
-    synonyms: ["agresivo", "agresiva", "muy agresivo", "agresividad", "muerde sin razón", "ataca sin razón"],
-    related_diseases: [
-      { disease_code: "rabies_suspected", specificity: "high" },
+    synonyms: [
+      "agresivo",
+      "agresiva",
+      "muy agresivo",
+      "agresividad",
+      "muerde sin razón",
+      "ataca sin razón",
     ],
+    related_diseases: [{ disease_code: "rabies_suspected", specificity: "high" }],
   },
   {
     code: "behavioral_changes",
     label: "Cambios de comportamiento",
     category: "behavioral",
     species: ["dog", "cat"],
-    synonyms: ["raro", "rara", "está raro", "está rara", "actúa raro", "comportamiento diferente", "cambios"],
+    synonyms: [
+      "raro",
+      "rara",
+      "está raro",
+      "está rara",
+      "actúa raro",
+      "comportamiento diferente",
+      "cambios",
+    ],
     related_diseases: [
       { disease_code: "rabies_suspected", specificity: "high" },
       { disease_code: "distemper", specificity: "low" },
@@ -230,9 +259,7 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     category: "behavioral",
     species: ["dog", "cat"],
     synonyms: ["miedo al agua", "rechaza el agua", "no toma agua", "hidrofobia", "le teme al agua"],
-    related_diseases: [
-      { disease_code: "rabies_suspected", specificity: "high" },
-    ],
+    related_diseases: [{ disease_code: "rabies_suspected", specificity: "high" }],
   },
   {
     code: "disorientation",
@@ -253,9 +280,7 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     category: "dermatological",
     species: ["dog", "cat"],
     synonyms: ["lesiones", "heridas", "llagas", "úlceras", "costras"],
-    related_diseases: [
-      { disease_code: "visceral_leishmaniasis", specificity: "high" },
-    ],
+    related_diseases: [{ disease_code: "visceral_leishmaniasis", specificity: "high" }],
   },
   {
     code: "hair_loss",
@@ -263,9 +288,7 @@ export const SYMPTOMS: readonly SymptomDef[] = [
     category: "dermatological",
     species: ["dog", "cat"],
     synonyms: ["pierde pelo", "se le cae el pelo", "alopecia", "pelado", "calvicie"],
-    related_diseases: [
-      { disease_code: "visceral_leishmaniasis", specificity: "medium" },
-    ],
+    related_diseases: [{ disease_code: "visceral_leishmaniasis", specificity: "medium" }],
   },
   {
     code: "bleeding",
@@ -298,6 +321,7 @@ export function findSymptom(code: string): SymptomDef | null {
 export function symptomsForSpecies(species: string | null): readonly SymptomDef[] {
   if (!species || species === "other") return SYMPTOMS;
   return SYMPTOMS.filter(
-    (s) => s.species.includes("any" as DiseaseSpecies) || s.species.includes(species as DiseaseSpecies),
+    (s) =>
+      s.species.includes("any" as DiseaseSpecies) || s.species.includes(species as DiseaseSpecies),
   );
 }

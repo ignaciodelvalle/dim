@@ -264,7 +264,7 @@ async function bootstrapAdmin(): Promise<string> {
       updatedAt: new Date(),
     })
     .where(eq(profiles.id, id));
-  log("OK", `profile role=admin accountType=institutional`);
+  log("OK", "profile role=admin accountType=institutional");
   return id;
 }
 
@@ -570,10 +570,7 @@ async function seedOrgCoverage(orgId: string): Promise<void> {
       jurisdictionLocality: zone.locality,
       isPrimary: zone.isPrimary,
     });
-    log(
-      "OK",
-      `coverage ${zone.province} / ${zone.locality}${zone.isPrimary ? " (primary)" : ""}`,
-    );
+    log("OK", `coverage ${zone.province} / ${zone.locality}${zone.isPrimary ? " (primary)" : ""}`);
   }
 }
 

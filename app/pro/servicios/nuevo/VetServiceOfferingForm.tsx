@@ -4,9 +4,9 @@
 // Mirrors app/org/[orgToken]/servicios/nuevo/ServiceOfferingForm.tsx but
 // includes province/locality fields so the vet can declare their jurisdiction.
 
-import { useActionState } from "react";
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
 import type { ServiceKindDef } from "@/lib/service-kinds";
+import { useActionState } from "react";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 
@@ -70,8 +70,7 @@ export function VetServiceOfferingForm({
       {/* Description */}
       <div className="space-y-1">
         <label htmlFor="description" className="block text-sm font-medium">
-          Descripción{" "}
-          <span className="text-neutral-400 font-normal">(opcional)</span>
+          Descripción <span className="text-neutral-400 font-normal">(opcional)</span>
         </label>
         <textarea
           id="description"
@@ -183,8 +182,7 @@ export function VetServiceOfferingForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <label htmlFor="eligibilityAgeMinMonths" className="block text-sm font-medium">
-            Edad mínima (meses){" "}
-            <span className="text-neutral-400 font-normal">(opcional)</span>
+            Edad mínima (meses) <span className="text-neutral-400 font-normal">(opcional)</span>
           </label>
           <input
             id="eligibilityAgeMinMonths"
@@ -198,8 +196,7 @@ export function VetServiceOfferingForm({
         </div>
         <div className="space-y-1">
           <label htmlFor="eligibilityAgeMaxMonths" className="block text-sm font-medium">
-            Edad máxima (meses){" "}
-            <span className="text-neutral-400 font-normal">(opcional)</span>
+            Edad máxima (meses) <span className="text-neutral-400 font-normal">(opcional)</span>
           </label>
           <input
             id="eligibilityAgeMaxMonths"

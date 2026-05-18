@@ -62,7 +62,11 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
           </button>
           <button
             type="button"
-            onClick={() => { setMode("idle"); setNotes(""); setError(null); }}
+            onClick={() => {
+              setMode("idle");
+              setNotes("");
+              setError(null);
+            }}
             className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             Cancelar
@@ -95,7 +99,11 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
           </button>
           <button
             type="button"
-            onClick={() => { setMode("idle"); setReason(""); setError(null); }}
+            onClick={() => {
+              setMode("idle");
+              setReason("");
+              setError(null);
+            }}
             className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             Cancelar

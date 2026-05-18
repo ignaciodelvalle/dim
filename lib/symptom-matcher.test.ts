@@ -67,15 +67,13 @@ describe("aggregateDiseaseMatches", () => {
     ]);
     const parvo = r.find((d) => d.disease_code === "parvovirus");
     expect(parvo).toBeDefined();
-    expect(parvo!.high_count).toBeGreaterThanOrEqual(2);
-    expect(parvo!.triggers_alert).toBe(true);
+    expect(parvo?.high_count).toBeGreaterThanOrEqual(2);
+    expect(parvo?.triggers_alert).toBe(true);
   });
 
   it("does NOT trigger alert for only-low matches", () => {
     // 'anorexia' is low for all related diseases per catalog
-    const r = aggregateDiseaseMatches([
-      { symptom_code: "anorexia", matched_synonym: "no come" },
-    ]);
+    const r = aggregateDiseaseMatches([{ symptom_code: "anorexia", matched_synonym: "no come" }]);
     r.forEach((d) => expect(d.triggers_alert).toBe(false));
   });
 
@@ -103,9 +101,7 @@ describe("aggregateDiseaseMatches", () => {
     // lethargy is low specificity for all related diseases — no alert should fire.
     // Note: high_fever is NOT suitable here because it maps to babesiosis as "high"
     // specificity, so a single high_fever match WOULD trigger a babesiosis alert.
-    const r = aggregateDiseaseMatches([
-      { symptom_code: "lethargy", matched_synonym: "decaído" },
-    ]);
+    const r = aggregateDiseaseMatches([{ symptom_code: "lethargy", matched_synonym: "decaído" }]);
     // Lethargy alone (all low) should not trigger any alert.
     r.forEach((d) => expect(d.triggers_alert).toBe(false));
   });

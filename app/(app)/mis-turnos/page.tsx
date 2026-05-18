@@ -198,9 +198,7 @@ function AppointmentCard({ row }: { row: AppointmentRow }) {
               <p className="text-xs text-neutral-400 dark:text-neutral-500">{kindDef.label}</p>
             )}
           </div>
-          <span
-            className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}
-          >
+          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}>
             {statusBadge.label}
           </span>
         </div>

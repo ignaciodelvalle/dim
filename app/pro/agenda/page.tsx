@@ -6,14 +6,7 @@
 import { and, eq, gte, lt } from "drizzle-orm";
 import Link from "next/link";
 
-import {
-  appointments,
-  db,
-  pets,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
+import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 

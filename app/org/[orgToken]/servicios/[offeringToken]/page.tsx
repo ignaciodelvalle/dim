@@ -55,6 +55,7 @@ export default async function OfferingDetailPage({
   const [row] = await db
     .select({ offering: serviceOfferings, org: organizations })
     .from(serviceOfferings)
+    // biome-ignore lint/style/noNonNullAssertion: org-scoped offerings always have organizationId.
     .innerJoin(organizations, eq(organizations.id, serviceOfferings.organizationId!))
     .where(
       and(
@@ -123,7 +124,10 @@ export default async function OfferingDetailPage({
             }
           />
           <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
-          <Row label="Capacidad por turno" value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`} />
+          <Row
+            label="Capacidad por turno"
+            value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
+          />
           {offering.description && <Row label="Descripción" value={offering.description} />}
           {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
             <Row
@@ -150,10 +154,7 @@ export default async function OfferingDetailPage({
             />
           )}
           {offering.reviewedAt && (
-            <Row
-              label="Revisado el"
-              value={formatDate(offering.reviewedAt)}
-            />
+            <Row label="Revisado el" value={formatDate(offering.reviewedAt)} />
           )}
         </section>
 

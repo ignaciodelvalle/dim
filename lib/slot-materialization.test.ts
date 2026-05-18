@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { materializeSlotsForRule, type RuleWithOffering } from "@/lib/slot-materialization";
 import type { ServiceOffering, ServiceScheduleRule } from "@/db/schema";
+import { type RuleWithOffering, materializeSlotsForRule } from "@/lib/slot-materialization";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -41,7 +41,8 @@ function makeRule(
     daysOfWeek: overrides.daysOfWeek as unknown as ServiceScheduleRule["daysOfWeek"],
     startTimeLocal: overrides.startTimeLocal as unknown as ServiceScheduleRule["startTimeLocal"],
     endTimeLocal: overrides.endTimeLocal as unknown as ServiceScheduleRule["endTimeLocal"],
-    effectiveFrom: (overrides.effectiveFrom ?? base.effectiveFrom) as unknown as ServiceScheduleRule["effectiveFrom"],
+    effectiveFrom: (overrides.effectiveFrom ??
+      base.effectiveFrom) as unknown as ServiceScheduleRule["effectiveFrom"],
   } as ServiceScheduleRule;
 }
 

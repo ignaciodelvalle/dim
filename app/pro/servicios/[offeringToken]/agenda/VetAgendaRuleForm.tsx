@@ -2,8 +2,8 @@
 
 // Client component: add a schedule rule for a vet-owned offering (Fase 2.5).
 
-import { useActionState } from "react";
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
+import { useActionState } from "react";
 
 const WEEKDAYS = [
   { value: 1, label: "Lun" },
@@ -24,10 +24,7 @@ export function VetAgendaRuleForm({
 }: {
   serviceOfferingId: string;
   offeringPublicToken: string;
-  createAction: (
-    prev: ScheduleRuleFormState,
-    formData: FormData,
-  ) => Promise<ScheduleRuleFormState>;
+  createAction: (prev: ScheduleRuleFormState, formData: FormData) => Promise<ScheduleRuleFormState>;
 }) {
   const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
 
@@ -111,8 +108,7 @@ export function VetAgendaRuleForm({
         </div>
         <div className="space-y-1">
           <label htmlFor="effectiveUntilVet" className="block text-sm font-medium">
-            Válido hasta{" "}
-            <span className="text-neutral-400 font-normal">(opcional)</span>
+            Válido hasta <span className="text-neutral-400 font-normal">(opcional)</span>
           </label>
           <input
             id="effectiveUntilVet"

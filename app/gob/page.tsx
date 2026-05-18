@@ -179,32 +179,29 @@ function TypeCard({
 
   return (
     <div
-      className={
-        "rounded-lg border p-4 space-y-3 flex flex-col " +
-        (isEmpty
+      className={`rounded-lg border p-4 space-y-3 flex flex-col ${
+        isEmpty
           ? "border-neutral-100 dark:border-neutral-800/50 bg-neutral-50 dark:bg-neutral-900/30"
-          : "border-neutral-200 dark:border-neutral-800")
-      }
+          : "border-neutral-200 dark:border-neutral-800"
+      }`}
     >
       {/* Header */}
       <div className="space-y-1">
         <p
-          className={
-            "text-xs uppercase tracking-wider " +
-            (isEmpty
+          className={`text-xs uppercase tracking-wider ${
+            isEmpty
               ? "text-neutral-400 dark:text-neutral-600"
-              : "text-neutral-500 dark:text-neutral-500")
-          }
+              : "text-neutral-500 dark:text-neutral-500"
+          }`}
         >
           {label}
         </p>
         <p
-          className={
-            "text-2xl font-semibold " +
-            (isEmpty
+          className={`text-2xl font-semibold ${
+            isEmpty
               ? "text-neutral-300 dark:text-neutral-700"
-              : "text-neutral-900 dark:text-neutral-50")
-          }
+              : "text-neutral-900 dark:text-neutral-50"
+          }`}
         >
           {items.length}
         </p>

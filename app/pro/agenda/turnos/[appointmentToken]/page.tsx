@@ -7,19 +7,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
-  appointments,
-  db,
-  pets,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
-import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
-import {
   cancelAppointmentByOrgAction,
   markAppointmentAttendedAction,
   markAppointmentNoShowAction,
 } from "@/app/actions/attendance";
+import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
+import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 import { AttendanceFormDispatcher } from "./AttendanceFormDispatcher";
 
@@ -121,8 +114,7 @@ export default async function ProAppointmentDetailPage({
             </p>
             {appointment.attendedAt && (
               <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
-                Asistencia registrada el{" "}
-                {appointment.attendedAt.toLocaleDateString("es-AR")}.
+                Asistencia registrada el {appointment.attendedAt.toLocaleDateString("es-AR")}.
               </p>
             )}
           </div>

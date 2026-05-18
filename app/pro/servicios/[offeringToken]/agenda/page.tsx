@@ -14,8 +14,8 @@ import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 
-import { VetAgendaRuleForm } from "./VetAgendaRuleForm";
 import { MaterializeNowButton } from "./MaterializeNowButton";
+import { VetAgendaRuleForm } from "./VetAgendaRuleForm";
 
 const WEEKDAY_LABELS: Record<number, string> = {
   1: "Lun",
@@ -87,8 +87,7 @@ export default async function VetAgendaPage({
           </p>
           <h1 className="text-3xl font-semibold">Agenda</h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Reglas de disponibilidad recurrente para{" "}
-            <strong>{offering.displayName}</strong>.
+            Reglas de disponibilidad recurrente para <strong>{offering.displayName}</strong>.
           </p>
         </header>
 
@@ -114,9 +113,7 @@ export default async function VetAgendaPage({
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                   {rules.map((rule) => (
                     <tr key={rule.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <td className="px-4 py-3">
-                        {formatDays(rule.daysOfWeek as number[])}
-                      </td>
+                      <td className="px-4 py-3">{formatDays(rule.daysOfWeek as number[])}</td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {rule.startTimeLocal} – {rule.endTimeLocal}
                       </td>
@@ -166,8 +163,8 @@ export default async function VetAgendaPage({
           <section className="space-y-2">
             <h2 className="text-base font-semibold">Materializar turnos</h2>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Genera los turnos de los próximos 60 días a partir de las reglas activas.
-              El cron lo hace automáticamente; este botón es para preview inmediato.
+              Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
+              hace automáticamente; este botón es para preview inmediato.
             </p>
             <MaterializeNowButton
               offeringToken={offeringToken}

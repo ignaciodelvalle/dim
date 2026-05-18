@@ -20,16 +20,10 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import {
-  db,
-  notifications,
-  organizationMemberships,
-  profiles,
-  serviceOfferings,
-} from "@/db";
+import { db, notifications, organizationMemberships, profiles, serviceOfferings } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { requireCapability } from "@/lib/capabilities";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
+import { requireCapability } from "@/lib/capabilities";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -120,7 +114,7 @@ async function createServiceOfferingWriter(
 ): Promise<ServiceOfferingResult> {
   const parsed = CreateServiceOfferingInput.safeParse(input);
   if (!parsed.success) {
-    return { error: "Datos inválidos: " + (parsed.error.issues[0]?.message ?? "error") };
+    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
   }
 
   const kindDef = findServiceKind(parsed.data.serviceKind);
@@ -274,6 +268,7 @@ export async function approveServiceOfferingForAuthority(
         .from(organizationMemberships)
         .where(
           and(
+            // biome-ignore lint/style/noNonNullAssertion: org-scoped offering rows always have organizationId.
             eq(organizationMemberships.organizationId, offering.organizationId!),
             isNull(organizationMemberships.leftAt),
           ),
@@ -345,6 +340,7 @@ export async function rejectServiceOfferingForAuthority(
         .from(organizationMemberships)
         .where(
           and(
+            // biome-ignore lint/style/noNonNullAssertion: org-scoped offering rows always have organizationId.
             eq(organizationMemberships.organizationId, offering.organizationId!),
             isNull(organizationMemberships.leftAt),
           ),
@@ -386,16 +382,16 @@ export async function createServiceOfferingAction(
   const auth = await requireCapability("service_offering.create");
   if (auth.error !== null) return { error: auth.error };
   // auth.error === null narrows to RequireCapabilitySuccess; all fields non-null.
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const organization = auth.organization!;
 
   const orgToken = organization.publicToken;
 
   const priceRaw = formData.get("priceArs");
   const priceArs =
-    priceRaw !== null && priceRaw !== ""
-      ? Number.parseFloat(String(priceRaw))
-      : null;
+    priceRaw !== null && priceRaw !== "" ? Number.parseFloat(String(priceRaw)) : null;
 
   const durationRaw = formData.get("durationMinutes");
   const durationMinutes = durationRaw !== null ? Number.parseInt(String(durationRaw), 10) : 15;
@@ -421,13 +417,9 @@ export async function createServiceOfferingAction(
     priceArs: priceArs !== null && Number.isFinite(priceArs) ? priceArs : null,
     eligibilitySpecies,
     eligibilityAgeMinMonths:
-      ageMinRaw !== null && ageMinRaw !== ""
-        ? Number.parseInt(String(ageMinRaw), 10)
-        : null,
+      ageMinRaw !== null && ageMinRaw !== "" ? Number.parseInt(String(ageMinRaw), 10) : null,
     eligibilityAgeMaxMonths:
-      ageMaxRaw !== null && ageMaxRaw !== ""
-        ? Number.parseInt(String(ageMaxRaw), 10)
-        : null,
+      ageMaxRaw !== null && ageMaxRaw !== "" ? Number.parseInt(String(ageMaxRaw), 10) : null,
   };
 
   const result = await createServiceOfferingForOrg(

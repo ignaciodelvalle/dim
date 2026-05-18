@@ -1023,10 +1023,7 @@ export type NewGovtAssignment = typeof govtAssignments.$inferInsert;
 // "user requests to become govt/admin" flow. Removed in migration 0015:
 //   role_upgrade_govt, role_upgrade_admin, govt_assignment_grant.
 // "service_provider_scheduling" is deferred to Fase 8.
-export const APPROVAL_REQUEST_TYPES = [
-  "role_upgrade_vet",
-  "organization_verification",
-] as const;
+export const APPROVAL_REQUEST_TYPES = ["role_upgrade_vet", "organization_verification"] as const;
 export type ApprovalRequestType = (typeof APPROVAL_REQUEST_TYPES)[number];
 
 export const APPROVAL_REQUEST_STATUSES = ["pending", "approved", "rejected", "withdrawn"] as const;
@@ -1250,7 +1247,7 @@ export const serviceScheduleRules = pgTable(
     startTimeLocal: time("start_time_local").notNull(),
     endTimeLocal: time("end_time_local").notNull(),
     effectiveFrom: date("effective_from").notNull(),
-    effectiveUntil: date("effective_until"),              // null = open-ended
+    effectiveUntil: date("effective_until"), // null = open-ended
     timezone: text("timezone").notNull().default("America/Argentina/Buenos_Aires"),
     status: text("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

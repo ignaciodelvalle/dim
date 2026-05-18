@@ -6,11 +6,11 @@
 
 import { useRouter } from "next/navigation";
 
-import type { AttendancePayload, AttendanceResult } from "@/app/actions/attendance";
 import { DewormingAttendanceForm } from "@/app/_components/attendance-forms/DewormingAttendanceForm";
 import { GenericAttendanceForm } from "@/app/_components/attendance-forms/GenericAttendanceForm";
 import { SterilizationAttendanceForm } from "@/app/_components/attendance-forms/SterilizationAttendanceForm";
 import { VaccinationAttendanceForm } from "@/app/_components/attendance-forms/VaccinationAttendanceForm";
+import type { AttendancePayload, AttendanceResult } from "@/app/actions/attendance";
 
 type Props = {
   appointmentToken: string;

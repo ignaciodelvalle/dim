@@ -74,7 +74,10 @@ beforeAll(async () => {
   });
   if (a.error || !a.data.user) throw new Error(`createUser admin: ${a.error?.message}`);
   adminUserId = a.data.user.id;
-  await db.update(profiles).set({ role: "admin", accountType: "institutional" }).where(eq(profiles.id, adminUserId));
+  await db
+    .update(profiles)
+    .set({ role: "admin", accountType: "institutional" })
+    .where(eq(profiles.id, adminUserId));
 
   const o = await admin.auth.admin.createUser({
     email: OWNER_EMAIL,

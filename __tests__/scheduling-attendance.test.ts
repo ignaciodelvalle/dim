@@ -18,16 +18,16 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  markAppointmentAttendedWriter,
   type AttendancePayload,
   type AuthorDescriptor,
+  markAppointmentAttendedWriter,
 } from "@/app/actions/attendance";
 import {
   appointments,
   db,
   notifications,
-  organizations,
   organizationMemberships,
+  organizations,
   ownerships,
   petEvents,
   pets,
@@ -147,10 +147,7 @@ async function createAppointment(
   return { id: row.id, token };
 }
 
-async function createSlot(
-  serviceOfferingIdArg: string,
-  offsetDays = 2,
-): Promise<string> {
+async function createSlot(serviceOfferingIdArg: string, offsetDays = 2): Promise<string> {
   const [row] = await db
     .insert(timeSlots)
     .values({
@@ -180,7 +177,8 @@ beforeAll(async () => {
     password: PASS,
     email_confirm: true,
   });
-  if (orgMember.error || !orgMember.data.user) throw new Error(`createUser orgMember: ${orgMember.error?.message}`);
+  if (orgMember.error || !orgMember.data.user)
+    throw new Error(`createUser orgMember: ${orgMember.error?.message}`);
   orgMemberUserId = orgMember.data.user.id;
 
   const vetProvider = await supabase.auth.admin.createUser({
@@ -188,7 +186,8 @@ beforeAll(async () => {
     password: PASS,
     email_confirm: true,
   });
-  if (vetProvider.error || !vetProvider.data.user) throw new Error(`createUser vet: ${vetProvider.error?.message}`);
+  if (vetProvider.error || !vetProvider.data.user)
+    throw new Error(`createUser vet: ${vetProvider.error?.message}`);
   vetProviderUserId = vetProvider.data.user.id;
 
   const owner = await supabase.auth.admin.createUser({
@@ -291,7 +290,13 @@ beforeAll(async () => {
   vaccinationApptToken = vacc.token;
 
   invalidPayloadSlotId = await createSlot(offeringOrgId, 3);
-  const inv = await createAppointment(invalidPayloadSlotId, petId, ownerUserId, orgId, offeringOrgId);
+  const inv = await createAppointment(
+    invalidPayloadSlotId,
+    petId,
+    ownerUserId,
+    orgId,
+    offeringOrgId,
+  );
   invalidPayloadApptId = inv.id;
   invalidPayloadApptToken = inv.token;
 
@@ -344,9 +349,7 @@ afterAll(async () => {
       );
       await tx.delete(ownerships).where(eq(ownerships.petId, petId));
       await tx.execute(sql`DELETE FROM pets WHERE id = ${petId}`);
-      await tx.execute(
-        sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`,
-      );
+      await tx.execute(sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`);
       await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
     });
   }
@@ -657,12 +660,7 @@ describe("markAppointmentAttendedWriter (vet provider path)", () => {
     const events = await db
       .select()
       .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.petId, petId),
-          eq(petEvents.recordedByUserId, vetProviderUserId),
-        ),
-      )
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.recordedByUserId, vetProviderUserId)))
       .orderBy(petEvents.recordedAt)
       .limit(1);
 

@@ -8,21 +8,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
-  appointments,
-  db,
-  organizations,
-  pets,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
-import {
   cancelAppointmentByOrgAction,
   markAppointmentAttendedAction,
   markAppointmentNoShowAction,
 } from "@/app/actions/attendance";
+import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/lib/capabilities";
 import { findServiceKind } from "@/lib/service-kinds";
 import { AttendanceFormDispatcher } from "./AttendanceFormDispatcher";
 
@@ -107,7 +99,9 @@ export default async function OrgAppointmentDetailPage({
           </Row>
           <Row label="Propietario">
             {ownerProfile?.displayName?.split(" ")[0] ?? "—"}
-            {ownerProfile?.phone && <span className="ml-2 text-neutral-500">{ownerProfile.phone}</span>}
+            {ownerProfile?.phone && (
+              <span className="ml-2 text-neutral-500">{ownerProfile.phone}</span>
+            )}
           </Row>
           <Row label="Estado">{appointment.status}</Row>
         </dl>
@@ -128,8 +122,7 @@ export default async function OrgAppointmentDetailPage({
             </p>
             {appointment.attendedAt && (
               <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
-                Asistencia registrada el{" "}
-                {appointment.attendedAt.toLocaleDateString("es-AR")}.
+                Asistencia registrada el {appointment.attendedAt.toLocaleDateString("es-AR")}.
               </p>
             )}
           </div>

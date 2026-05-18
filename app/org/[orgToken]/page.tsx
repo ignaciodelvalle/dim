@@ -187,119 +187,121 @@ export default async function OrgDashboardPage({
       </nav>
 
       <div className="p-6">
-      <div className="max-w-3xl mx-auto space-y-8">
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
-            Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
-          </p>
-          <h1 className="text-3xl font-semibold">{organization.displayName}</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Estás actuando como <strong>{ROLE_LABELS[membership.role] ?? membership.role}</strong>
-            {membership.title ? ` — ${membership.title}` : ""}.
-          </p>
-          {!organization.verified && (
-            <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-              Organización pendiente de verificación. Los eventos que registres se marcarán como no
-              verificados hasta que la documentación sea aprobada.
+        <div className="max-w-3xl mx-auto space-y-8">
+          <header className="space-y-2">
+            <p className="text-xs uppercase tracking-wider text-neutral-500">
+              Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
             </p>
-          )}
-        </header>
+            <h1 className="text-3xl font-semibold">{organization.displayName}</h1>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Estás actuando como <strong>{ROLE_LABELS[membership.role] ?? membership.role}</strong>
+              {membership.title ? ` — ${membership.title}` : ""}.
+            </p>
+            {!organization.verified && (
+              <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                Organización pendiente de verificación. Los eventos que registres se marcarán como
+                no verificados hasta que la documentación sea aprobada.
+              </p>
+            )}
+          </header>
 
-        {(canReadHeld || canIntake || canReviewAdoptions) && (
-          <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {canReadHeld && (
-              <Link
-                href={`/org/${orgToken}/mascotas`}
-                className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
-              >
-                <p className="text-sm font-semibold">Animales en custodia</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                  Listado de animales bajo custodia activa de la organización.
-                </p>
-              </Link>
-            )}
-            {canIntake && (
-              <Link
-                href={`/org/${orgToken}/intake`}
-                className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
-              >
-                <p className="text-sm font-semibold">Registrar ingreso</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                  Dar de alta un animal que entra a custodia del refugio.
-                </p>
-              </Link>
-            )}
-            {canReviewAdoptions && (
-              <Link
-                href={`/org/${orgToken}/checkins`}
-                className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
-              >
-                <p className="text-sm font-semibold">Check-ins post-adopción</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                  Seguimiento de los adoptantes en las ventanas pactadas.
-                </p>
-              </Link>
-            )}
-          </section>
-        )}
-
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between gap-3 flex-wrap">
-            <h2 className="text-lg font-semibold">Tus permisos</h2>
-            <div className="flex items-center gap-2">
-              {isAdmin && (
-                <span className="text-xs rounded-full bg-neutral-900 px-2 py-0.5 text-white dark:bg-white dark:text-neutral-900">
-                  Admin · todos los permisos
-                </span>
-              )}
-              {canDecideRequests && (
+          {(canReadHeld || canIntake || canReviewAdoptions) && (
+            <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {canReadHeld && (
                 <Link
-                  href={`/org/${orgToken}/admin/permisos`}
-                  className="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                  href={`/org/${orgToken}/mascotas`}
+                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
                 >
-                  Revisar solicitudes
+                  <p className="text-sm font-semibold">Animales en custodia</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    Listado de animales bajo custodia activa de la organización.
+                  </p>
                 </Link>
               )}
-            </div>
-          </div>
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
-            {CAPABILITY_CATALOG.map((entry) => {
-              const state = stateFor(entry.capability);
-              const badge = STATE_BADGE[state.kind];
-              const showRequestForm =
-                !isAdmin &&
-                (state.kind === "none" || state.kind === "denied" || state.kind === "revoked");
-              return (
-                <li key={entry.capability} className="flex items-start gap-3 px-3 py-3">
-                  <span
-                    aria-hidden
-                    className={`mt-1 inline-block h-2 w-2 rounded-full ${STATE_DOT[state.kind]}`}
-                  />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-sm font-medium">
-                      {entry.label}
-                      <span className="ml-2 text-xs text-neutral-500">{entry.capability}</span>
-                    </p>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                      {entry.description}
-                    </p>
-                    {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
-                      <p className="text-xs italic text-neutral-500">Motivo: {state.reason}</p>
-                    )}
-                    {showRequestForm && (
-                      <div className="pt-1">
-                        <RequestCapabilityForm capability={entry.capability} label={entry.label} />
-                      </div>
-                    )}
-                  </div>
-                  <span className={`text-xs shrink-0 ${badge.className}`}>{badge.label}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+              {canIntake && (
+                <Link
+                  href={`/org/${orgToken}/intake`}
+                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                >
+                  <p className="text-sm font-semibold">Registrar ingreso</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    Dar de alta un animal que entra a custodia del refugio.
+                  </p>
+                </Link>
+              )}
+              {canReviewAdoptions && (
+                <Link
+                  href={`/org/${orgToken}/checkins`}
+                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                >
+                  <p className="text-sm font-semibold">Check-ins post-adopción</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    Seguimiento de los adoptantes en las ventanas pactadas.
+                  </p>
+                </Link>
+              )}
+            </section>
+          )}
 
-      </div>
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <h2 className="text-lg font-semibold">Tus permisos</h2>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <span className="text-xs rounded-full bg-neutral-900 px-2 py-0.5 text-white dark:bg-white dark:text-neutral-900">
+                    Admin · todos los permisos
+                  </span>
+                )}
+                {canDecideRequests && (
+                  <Link
+                    href={`/org/${orgToken}/admin/permisos`}
+                    className="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                  >
+                    Revisar solicitudes
+                  </Link>
+                )}
+              </div>
+            </div>
+            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+              {CAPABILITY_CATALOG.map((entry) => {
+                const state = stateFor(entry.capability);
+                const badge = STATE_BADGE[state.kind];
+                const showRequestForm =
+                  !isAdmin &&
+                  (state.kind === "none" || state.kind === "denied" || state.kind === "revoked");
+                return (
+                  <li key={entry.capability} className="flex items-start gap-3 px-3 py-3">
+                    <span
+                      aria-hidden
+                      className={`mt-1 inline-block h-2 w-2 rounded-full ${STATE_DOT[state.kind]}`}
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-sm font-medium">
+                        {entry.label}
+                        <span className="ml-2 text-xs text-neutral-500">{entry.capability}</span>
+                      </p>
+                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                        {entry.description}
+                      </p>
+                      {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
+                        <p className="text-xs italic text-neutral-500">Motivo: {state.reason}</p>
+                      )}
+                      {showRequestForm && (
+                        <div className="pt-1">
+                          <RequestCapabilityForm
+                            capability={entry.capability}
+                            label={entry.label}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-xs shrink-0 ${badge.className}`}>{badge.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </div>
       </div>
     </main>
   );

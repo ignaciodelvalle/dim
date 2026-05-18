@@ -8,14 +8,7 @@
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import {
-  appointments,
-  db,
-  pets,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
+import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -107,12 +100,8 @@ export default async function OrgAgendaPage({
 
   // Prev/next date navigation.
   const current = new Date(`${targetDateStr}T00:00:00`);
-  const prevDate = new Date(current.getTime() - 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-  const nextDate = new Date(current.getTime() + 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const prevDate = new Date(current.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const nextDate = new Date(current.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   return (
     <main className="min-h-screen bg-white dark:bg-neutral-950 p-6">
@@ -186,18 +175,13 @@ export default async function OrgAgendaPage({
                       <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
                         {pet.name}
                       </p>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}
-                      >
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}>
                         {badge.label}
                       </span>
                     </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {kindDef?.label ?? offering.serviceKind} ·{" "}
-                      <span>{ownerLabel}</span>
-                      {ownerProfile?.phone && (
-                        <> · {ownerProfile.phone}</>
-                      )}
+                      {kindDef?.label ?? offering.serviceKind} · <span>{ownerLabel}</span>
+                      {ownerProfile?.phone && <> · {ownerProfile.phone}</>}
                     </p>
                   </div>
                   {canAct && (

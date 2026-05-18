@@ -77,8 +77,7 @@ export default async function AppointmentDetailPage({
   });
 
   const statusBadge = STATUS_BADGE[appointment.status] ?? STATUS_BADGE.confirmed;
-  const canCancel =
-    appointment.status === "confirmed" && slot.startsAt > new Date();
+  const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
@@ -110,21 +109,15 @@ export default async function AppointmentDetailPage({
             </Link>
           </DetailRow>
 
-          <DetailRow label="Tipo de servicio">
-            {kindDef?.label ?? offering.serviceKind}
-          </DetailRow>
+          <DetailRow label="Tipo de servicio">{kindDef?.label ?? offering.serviceKind}</DetailRow>
 
-          <DetailRow label="Prestador">
-            {providerLabel}
-          </DetailRow>
+          <DetailRow label="Prestador">{providerLabel}</DetailRow>
 
           <DetailRow label="Fecha y hora">
             <span className="capitalize">{slotDate}</span> a las {slotTime}
           </DetailRow>
 
-          <DetailRow label="Duración">
-            {offering.durationMinutes} minutos
-          </DetailRow>
+          <DetailRow label="Duración">{offering.durationMinutes} minutos</DetailRow>
 
           {offering.priceArs !== null ? (
             <DetailRow label="Precio">
@@ -138,9 +131,7 @@ export default async function AppointmentDetailPage({
             <DetailRow label="Localidad">{org.jurisdictionLocality}</DetailRow>
           )}
 
-          {org?.phone && (
-            <DetailRow label="Teléfono contacto">{org.phone}</DetailRow>
-          )}
+          {org?.phone && <DetailRow label="Teléfono contacto">{org.phone}</DetailRow>}
           {!org && provider?.phone && (
             <DetailRow label="Teléfono contacto">{provider.phone}</DetailRow>
           )}
@@ -156,8 +147,7 @@ export default async function AppointmentDetailPage({
         {appointment.status === "attended" && (
           <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 p-4">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              Asististe a este turno. El registro médico quedó guardado en la libreta de{" "}
-              {pet.name}.
+              Asististe a este turno. El registro médico quedó guardado en la libreta de {pet.name}.
             </p>
           </div>
         )}

@@ -6,10 +6,7 @@ import { and, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import {
-  createScheduleRuleAction,
-  deleteScheduleRuleAction,
-} from "@/app/actions/schedule-rules";
+import { createScheduleRuleAction, deleteScheduleRuleAction } from "@/app/actions/schedule-rules";
 import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -97,8 +94,7 @@ export default async function AgendaPage({
           </p>
           <h1 className="text-3xl font-semibold">Agenda</h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Reglas de disponibilidad recurrente para{" "}
-            <strong>{offering.displayName}</strong>.
+            Reglas de disponibilidad recurrente para <strong>{offering.displayName}</strong>.
           </p>
         </header>
 
@@ -118,17 +114,13 @@ export default async function AgendaPage({
                     <th className="px-4 py-2 text-left font-medium">Horario</th>
                     <th className="px-4 py-2 text-left font-medium">Desde</th>
                     <th className="px-4 py-2 text-left font-medium">Hasta</th>
-                    {canManage && (
-                      <th className="px-4 py-2 text-right font-medium">Acción</th>
-                    )}
+                    {canManage && <th className="px-4 py-2 text-right font-medium">Acción</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                   {rules.map((rule) => (
                     <tr key={rule.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <td className="px-4 py-3">
-                        {formatDays(rule.daysOfWeek as number[])}
-                      </td>
+                      <td className="px-4 py-3">{formatDays(rule.daysOfWeek as number[])}</td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {rule.startTimeLocal} – {rule.endTimeLocal}
                       </td>
@@ -183,8 +175,8 @@ export default async function AgendaPage({
           <section className="space-y-2">
             <h2 className="text-base font-semibold">Materializar turnos</h2>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Genera los turnos de los próximos 60 días a partir de las reglas activas.
-              El cron lo hace automáticamente; este botón es para preview inmediato.
+              Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
+              hace automáticamente; este botón es para preview inmediato.
             </p>
             <MaterializeNowButton
               offeringToken={offeringToken}

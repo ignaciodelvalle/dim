@@ -30,9 +30,7 @@ import { generateAppointmentToken } from "@/lib/publicToken";
 // Types
 // ============================================================================
 
-export type BookSlotResult =
-  | { ok: true; appointmentToken: string }
-  | { error: string };
+export type BookSlotResult = { ok: true; appointmentToken: string } | { error: string };
 
 // ============================================================================
 // Internal sentinel error (stays within this module)
@@ -144,10 +142,7 @@ export async function bookSlotWriter(
 // Form-shaped wrapper — gates auth + pet ownership
 // ============================================================================
 
-export async function bookSlotAction(
-  slotId: string,
-  petId: string,
-): Promise<BookSlotResult> {
+export async function bookSlotAction(slotId: string, petId: string): Promise<BookSlotResult> {
   const { user } = await requireUserOrRedirect();
 
   // Verify the pet belongs to this user via an active ownership row.

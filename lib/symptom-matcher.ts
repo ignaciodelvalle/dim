@@ -33,12 +33,15 @@ export type DiseaseMatch = {
  * collapse whitespace. Conservative — no stemming (Spanish stemming is non-trivial).
  */
 export function normalize(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip combining diacritic marks
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    input
+      .toLowerCase()
+      .normalize("NFD")
+      // biome-ignore lint/suspicious/noMisleadingCharacterClass: combining diacritic marks (U+0300–U+036F).
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 /**
@@ -52,10 +55,7 @@ export function normalize(input: string): string {
  *
  * Returns an empty array if no matches.
  */
-export function matchSymptoms(
-  freeText: string,
-  species: string | null,
-): MatchedSymptom[] {
+export function matchSymptoms(freeText: string, species: string | null): MatchedSymptom[] {
   const normalizedInput = normalize(freeText);
   if (normalizedInput.length === 0) return [];
 
@@ -98,15 +98,16 @@ export function matchSymptoms(
  *
  * Results are sorted: alerts first, then by total specificity weight desc.
  */
-export function aggregateDiseaseMatches(
-  matchedSymptoms: MatchedSymptom[],
-): DiseaseMatch[] {
-  const perDisease = new Map<string, {
-    high: number;
-    medium: number;
-    low: number;
-    symptoms: Set<string>;
-  }>();
+export function aggregateDiseaseMatches(matchedSymptoms: MatchedSymptom[]): DiseaseMatch[] {
+  const perDisease = new Map<
+    string,
+    {
+      high: number;
+      medium: number;
+      low: number;
+      symptoms: Set<string>;
+    }
+  >();
 
   for (const m of matchedSymptoms) {
     const symptom = SYMPTOMS.find((s) => s.code === m.symptom_code);
@@ -161,10 +162,7 @@ export function aggregateDiseaseMatches(
  * itself is deterministic and does not throw, but defense in depth lives at
  * the call site.
  */
-export function detectAlertableDiseases(
-  freeText: string,
-  species: string | null,
-): DiseaseMatch[] {
+export function detectAlertableDiseases(freeText: string, species: string | null): DiseaseMatch[] {
   const matched = matchSymptoms(freeText, species);
   const aggregated = aggregateDiseaseMatches(matched);
   return aggregated.filter((d) => d.triggers_alert && d.is_reportable);

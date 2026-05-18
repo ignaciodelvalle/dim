@@ -24,7 +24,11 @@ import {
   serviceScheduleRules,
   timeSlots,
 } from "@/db";
-import { generateAppointmentToken, generateOfferingToken, generatePublicToken } from "@/lib/publicToken";
+import {
+  generateAppointmentToken,
+  generateOfferingToken,
+  generatePublicToken,
+} from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

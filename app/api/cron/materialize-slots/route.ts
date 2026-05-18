@@ -35,10 +35,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       console.error(
         "[cron/materialize-slots] CRON_SECRET is not set in production. Rejecting request.",
       );
-      return NextResponse.json(
-        { ok: false, error: "CRON_SECRET not configured" },
-        { status: 401 },
-      );
+      return NextResponse.json({ ok: false, error: "CRON_SECRET not configured" }, { status: 401 });
     }
     // In dev/test, warn and proceed.
     console.warn(

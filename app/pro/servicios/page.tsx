@@ -98,10 +98,7 @@ export default async function ProServiciosPage() {
         )}
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href="/pro"
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+          <Link href="/pro" className="text-sm text-neutral-600 underline dark:text-neutral-400">
             ← Volver al portal profesional
           </Link>
         </footer>

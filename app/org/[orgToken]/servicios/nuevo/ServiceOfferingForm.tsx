@@ -4,9 +4,9 @@
 // Selecting a service_kind auto-fills duration and species defaults from
 // the SERVICE_KINDS catalog passed down from the server component.
 
-import { useActionState } from "react";
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
 import type { ServiceKindDef } from "@/lib/service-kinds";
+import { useActionState } from "react";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 
@@ -154,8 +154,7 @@ export function ServiceOfferingForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <label htmlFor="eligibilityAgeMinMonths" className="block text-sm font-medium">
-            Edad mínima (meses){" "}
-            <span className="text-neutral-400 font-normal">(opcional)</span>
+            Edad mínima (meses) <span className="text-neutral-400 font-normal">(opcional)</span>
           </label>
           <input
             id="eligibilityAgeMinMonths"
@@ -169,8 +168,7 @@ export function ServiceOfferingForm({
         </div>
         <div className="space-y-1">
           <label htmlFor="eligibilityAgeMaxMonths" className="block text-sm font-medium">
-            Edad máxima (meses){" "}
-            <span className="text-neutral-400 font-normal">(opcional)</span>
+            Edad máxima (meses) <span className="text-neutral-400 font-normal">(opcional)</span>
           </label>
           <input
             id="eligibilityAgeMaxMonths"

@@ -30,7 +30,10 @@ export const CreateScheduleRuleInput = z
     startTimeLocal: z.string().regex(/^\d{2}:\d{2}$/),
     endTimeLocal: z.string().regex(/^\d{2}:\d{2}$/),
     effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    effectiveUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+    effectiveUntil: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable(),
   })
   .refine((d) => d.endTimeLocal > d.startTimeLocal, {
     message: "endTimeLocal must be after startTimeLocal",
@@ -43,10 +46,23 @@ export type CreateScheduleRuleInputType = z.infer<typeof CreateScheduleRuleInput
 export const UpdateScheduleRuleInput = z
   .object({
     daysOfWeek: z.array(z.number().int().min(1).max(7)).min(1).optional(),
-    startTimeLocal: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-    endTimeLocal: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-    effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    effectiveUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    startTimeLocal: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
+    endTimeLocal: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
+    effectiveFrom: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    effectiveUntil: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
   })
   .refine(
     (d) => {

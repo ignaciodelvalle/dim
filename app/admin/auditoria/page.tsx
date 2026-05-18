@@ -118,7 +118,11 @@ export default async function AdminAuditoriaPage({
                   <p className="text-xs text-neutral-500 dark:text-neutral-500">
                     {namesById.get(entry.actorUserId) ?? "Desconocido"}
                     {entry.approvalRequestId && (
-                      <> · req: <span className="font-mono">{entry.approvalRequestId.slice(0, 8)}…</span></>
+                      <>
+                        {" "}
+                        · req:{" "}
+                        <span className="font-mono">{entry.approvalRequestId.slice(0, 8)}…</span>
+                      </>
                     )}
                   </p>
                 </div>

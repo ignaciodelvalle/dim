@@ -1,6 +1,16 @@
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
-import { appointments, attachments, db, ownerships, petEvents, pets, reminders, serviceOfferings, timeSlots } from "@/db";
+import {
+  appointments,
+  attachments,
+  db,
+  ownerships,
+  petEvents,
+  pets,
+  reminders,
+  serviceOfferings,
+  timeSlots,
+} from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";

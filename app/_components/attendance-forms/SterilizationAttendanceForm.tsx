@@ -9,12 +9,19 @@ import type { AttendanceResult, SterilizationPayload } from "@/app/actions/atten
 
 type Props = {
   appointmentToken: string;
-  onSubmit: (payload: { kind: "sterilization" } & SterilizationPayload) => Promise<AttendanceResult>;
+  onSubmit: (
+    payload: { kind: "sterilization" } & SterilizationPayload,
+  ) => Promise<AttendanceResult>;
   onSuccess?: () => void;
   submitLabel?: string;
 };
 
-export function SterilizationAttendanceForm({ appointmentToken, onSubmit, onSuccess, submitLabel = "Marcar asistencia" }: Props) {
+export function SterilizationAttendanceForm({
+  appointmentToken,
+  onSubmit,
+  onSuccess,
+  submitLabel = "Marcar asistencia",
+}: Props) {
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

@@ -414,9 +414,7 @@ const symptomObserved = z
   .strict()
   .refine(
     (p) =>
-      p.source === "welfare_report"
-        ? p.welfare_report_id !== null
-        : p.welfare_report_id === null,
+      p.source === "welfare_report" ? p.welfare_report_id !== null : p.welfare_report_id === null,
     { message: "welfare_report_id must be set iff source='welfare_report'" },
   );
 

@@ -67,13 +67,12 @@ export default async function OfferingDetailPage({
   // Group slots by day (YYYY-MM-DD in Buenos Aires time).
   const groupedByDay = new Map<string, typeof availableSlots>();
   for (const slot of availableSlots) {
-    const dayKey = slot.startsAt
-      .toLocaleDateString("es-AR", {
-        timeZone: "America/Argentina/Buenos_Aires",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
+    const dayKey = slot.startsAt.toLocaleDateString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
     const list = groupedByDay.get(dayKey) ?? [];
     list.push(slot);
     groupedByDay.set(dayKey, list);
@@ -143,6 +142,7 @@ export default async function OfferingDetailPage({
             <div className="space-y-6">
               {Array.from(groupedByDay.entries()).map(([dayLabel, slots]) => {
                 // Parse a proper date label using the first slot's date.
+                // biome-ignore lint/style/noNonNullAssertion: groupedByDay only contains non-empty slot arrays.
                 const firstSlot = slots[0]!;
                 const dayHeading = firstSlot.startsAt.toLocaleDateString("es-AR", {
                   timeZone: "America/Argentina/Buenos_Aires",

@@ -19,8 +19,7 @@ loadEnv({ path: ".env" });
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
 
-const isLocalUrl = (u: string) =>
-  u.includes("127.0.0.1") || u.includes("localhost");
+const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
 
 if (!DATABASE_URL) {
   console.error("Missing DATABASE_URL in .env.local — aborting.");
@@ -29,8 +28,7 @@ if (!DATABASE_URL) {
 
 if (!isLocalUrl(DATABASE_URL)) {
   console.error(
-    `Refusing to run: DATABASE_URL (${DATABASE_URL}) is not localhost.\n` +
-      "To run against a remote DB use the cron route instead.",
+    `Refusing to run: DATABASE_URL (${DATABASE_URL}) is not localhost.\nTo run against a remote DB use the cron route instead.`,
   );
   process.exit(2);
 }
@@ -39,9 +37,7 @@ if (!isLocalUrl(DATABASE_URL)) {
 // Deferred imports (after env load)
 // ---------------------------------------------------------------------------
 
-const { materializeAllActiveSlots } = await import(
-  "../app/actions/slot-materialization"
-);
+const { materializeAllActiveSlots } = await import("../app/actions/slot-materialization");
 
 // ---------------------------------------------------------------------------
 // Main

@@ -18,8 +18,7 @@ export default async function NewWeightPage({
   // in Next.js 15. For URL-prefill we only care about the simple single-value
   // case; repeated keys are ignored.
   const sp = await searchParams;
-  const pick = (k: string): string | null =>
-    typeof sp[k] === "string" ? (sp[k] as string) : null;
+  const pick = (k: string): string | null => (typeof sp[k] === "string" ? (sp[k] as string) : null);
 
   const defaults = {
     kg: pick("kg"),

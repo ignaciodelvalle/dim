@@ -17,6 +17,7 @@ export default async function GobServiciosPage() {
   // Build the filter: govt sees only their localities; admin sees all pending.
   const baseCondition = eq(serviceOfferings.status, "pending_approval");
 
+  // biome-ignore lint/suspicious/noImplicitAnyLet: both branches assign the same drizzle query result shape.
   let pendingOfferings;
 
   if (profile.role === "admin") {
@@ -107,7 +108,8 @@ export default async function GobServiciosPage() {
                     ? `Dr/a. ${provider.displayName}${provider.matriculaNumber ? ` · Mat. ${provider.matriculaNumber}` : ""}`
                     : "Profesional independiente";
 
-              const kindLabel = findServiceKind(offering.serviceKind)?.label ?? offering.serviceKind;
+              const kindLabel =
+                findServiceKind(offering.serviceKind)?.label ?? offering.serviceKind;
               const location = [offering.jurisdictionLocality, offering.jurisdictionProvince]
                 .filter(Boolean)
                 .join(", ");

@@ -17,17 +17,9 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import {
-  db,
-  organizations,
-  ownerships,
-  pets,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
+import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind, SERVICE_KINDS } from "@/lib/service-kinds";
+import { SERVICE_KINDS, findServiceKind } from "@/lib/service-kinds";
 
 export default async function BuscarTurnosPage({
   searchParams,
@@ -60,9 +52,7 @@ export default async function BuscarTurnosPage({
       })
       .from(pets)
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-      .where(
-        sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`,
-      )
+      .where(sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`)
       .orderBy(pets.createdAt)
       .limit(1);
 
@@ -110,14 +100,10 @@ export default async function BuscarTurnosPage({
   ] as ReturnType<typeof eq>[];
 
   if (province) {
-    offeringConditions.push(
-      eq(serviceOfferings.jurisdictionProvince, province),
-    );
+    offeringConditions.push(eq(serviceOfferings.jurisdictionProvince, province));
   }
   if (locality) {
-    offeringConditions.push(
-      eq(serviceOfferings.jurisdictionLocality, locality),
-    );
+    offeringConditions.push(eq(serviceOfferings.jurisdictionLocality, locality));
   }
 
   // Fase 10: solo_gratis filter — only free (campaign) offerings.
@@ -177,11 +163,7 @@ export default async function BuscarTurnosPage({
   );
 
   const kindDef = findServiceKind(serviceKind);
-  const locationLabel = locality
-    ? locality
-    : province
-      ? province
-      : null;
+  const locationLabel = locality ? locality : province ? province : null;
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">

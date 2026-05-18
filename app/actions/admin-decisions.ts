@@ -253,7 +253,6 @@ async function applyApprovalMutation(
         target_organization_id: request.targetOrganizationId,
       };
     }
-
   }
 }
 

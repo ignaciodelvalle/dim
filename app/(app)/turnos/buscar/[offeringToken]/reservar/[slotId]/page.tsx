@@ -42,11 +42,7 @@ export default async function ReservarTurnoPage({
   if (!offeringRow || offeringRow.offering.status !== "approved") notFound();
 
   // Fetch slot.
-  const [slot] = await db
-    .select()
-    .from(timeSlots)
-    .where(eq(timeSlots.id, slotId))
-    .limit(1);
+  const [slot] = await db.select().from(timeSlots).where(eq(timeSlots.id, slotId)).limit(1);
 
   if (
     !slot ||
@@ -63,9 +59,7 @@ export default async function ReservarTurnoPage({
     .select({ pet: pets })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`,
-    )
+    .where(sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`)
     .orderBy(pets.name);
 
   const { offering, org, provider } = offeringRow;

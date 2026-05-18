@@ -13,18 +13,11 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import {
-  db,
-  serviceOfferings,
-  serviceScheduleRules,
-} from "@/db";
-import { requireCapability } from "@/lib/capabilities";
-import {
-  CreateScheduleRuleInput,
-  UpdateScheduleRuleInput,
-} from "@/lib/scheduling-schemas";
+import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireCapability } from "@/lib/capabilities";
+import { CreateScheduleRuleInput, UpdateScheduleRuleInput } from "@/lib/scheduling-schemas";
 
 // ============================================================================
 // Types
@@ -51,18 +44,23 @@ export async function createScheduleRuleForOrg(
 ): Promise<ScheduleRuleResult> {
   const parsed = CreateScheduleRuleInput.safeParse(input);
   if (!parsed.success) {
-    return { error: "Datos inválidos: " + (parsed.error.issues[0]?.message ?? "error") };
+    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
   }
 
   // Verify offering belongs to org and is approved.
   const [offering] = await db
-    .select({ id: serviceOfferings.id, status: serviceOfferings.status, organizationId: serviceOfferings.organizationId })
+    .select({
+      id: serviceOfferings.id,
+      status: serviceOfferings.status,
+      organizationId: serviceOfferings.organizationId,
+    })
     .from(serviceOfferings)
     .where(eq(serviceOfferings.id, parsed.data.serviceOfferingId))
     .limit(1);
 
   if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.organizationId !== orgId) return { error: "El servicio no pertenece a tu organización." };
+  if (offering.organizationId !== orgId)
+    return { error: "El servicio no pertenece a tu organización." };
   if (offering.status !== "approved") {
     return { error: "Solo se pueden crear reglas de agenda para servicios aprobados." };
   }
@@ -100,12 +98,15 @@ export async function updateScheduleRuleForOrg(
 ): Promise<ScheduleRuleResult> {
   const parsed = UpdateScheduleRuleInput.safeParse(input);
   if (!parsed.success) {
-    return { error: "Datos inválidos: " + (parsed.error.issues[0]?.message ?? "error") };
+    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
   }
 
   // Verify ownership via offering.
   const [rule] = await db
-    .select({ id: serviceScheduleRules.id, serviceOfferingId: serviceScheduleRules.serviceOfferingId })
+    .select({
+      id: serviceScheduleRules.id,
+      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
+    })
     .from(serviceScheduleRules)
     .where(eq(serviceScheduleRules.id, ruleId))
     .limit(1);
@@ -133,10 +134,7 @@ export async function updateScheduleRuleForOrg(
   updates.updatedAt = new Date();
 
   try {
-    await db
-      .update(serviceScheduleRules)
-      .set(updates)
-      .where(eq(serviceScheduleRules.id, ruleId));
+    await db.update(serviceScheduleRules).set(updates).where(eq(serviceScheduleRules.id, ruleId));
   } catch (err) {
     return {
       error: `No se pudo actualizar la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
@@ -154,7 +152,10 @@ export async function deleteScheduleRuleForOrg(
   orgId: string,
 ): Promise<ScheduleRuleResult> {
   const [rule] = await db
-    .select({ id: serviceScheduleRules.id, serviceOfferingId: serviceScheduleRules.serviceOfferingId })
+    .select({
+      id: serviceScheduleRules.id,
+      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
+    })
     .from(serviceScheduleRules)
     .where(eq(serviceScheduleRules.id, ruleId))
     .limit(1);
@@ -200,12 +201,16 @@ export async function createScheduleRuleForVetProvider(
 ): Promise<ScheduleRuleResult> {
   const parsed = CreateScheduleRuleInput.safeParse(input);
   if (!parsed.success) {
-    return { error: "Datos inválidos: " + (parsed.error.issues[0]?.message ?? "error") };
+    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
   }
 
   // Verify offering belongs to this vet and is approved.
   const [offering] = await db
-    .select({ id: serviceOfferings.id, status: serviceOfferings.status, providerUserId: serviceOfferings.providerUserId })
+    .select({
+      id: serviceOfferings.id,
+      status: serviceOfferings.status,
+      providerUserId: serviceOfferings.providerUserId,
+    })
     .from(serviceOfferings)
     .where(eq(serviceOfferings.id, parsed.data.serviceOfferingId))
     .limit(1);
@@ -248,11 +253,14 @@ export async function updateScheduleRuleForVetProvider(
 ): Promise<ScheduleRuleResult> {
   const parsed = UpdateScheduleRuleInput.safeParse(input);
   if (!parsed.success) {
-    return { error: "Datos inválidos: " + (parsed.error.issues[0]?.message ?? "error") };
+    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
   }
 
   const [rule] = await db
-    .select({ id: serviceScheduleRules.id, serviceOfferingId: serviceScheduleRules.serviceOfferingId })
+    .select({
+      id: serviceScheduleRules.id,
+      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
+    })
     .from(serviceScheduleRules)
     .where(eq(serviceScheduleRules.id, ruleId))
     .limit(1);
@@ -280,10 +288,7 @@ export async function updateScheduleRuleForVetProvider(
   updates.updatedAt = new Date();
 
   try {
-    await db
-      .update(serviceScheduleRules)
-      .set(updates)
-      .where(eq(serviceScheduleRules.id, ruleId));
+    await db.update(serviceScheduleRules).set(updates).where(eq(serviceScheduleRules.id, ruleId));
   } catch (err) {
     return {
       error: `No se pudo actualizar la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
@@ -298,7 +303,10 @@ export async function deleteScheduleRuleForVetProvider(
   ruleId: string,
 ): Promise<ScheduleRuleResult> {
   const [rule] = await db
-    .select({ id: serviceScheduleRules.id, serviceOfferingId: serviceScheduleRules.serviceOfferingId })
+    .select({
+      id: serviceScheduleRules.id,
+      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
+    })
     .from(serviceScheduleRules)
     .where(eq(serviceScheduleRules.id, ruleId))
     .limit(1);
@@ -341,7 +349,9 @@ export async function createScheduleRuleAction(
 ): Promise<ScheduleRuleFormState> {
   const auth = await requireCapability("service_offering.create");
   if (auth.error !== null) return { error: auth.error };
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const organization = auth.organization!;
 
   const serviceOfferingId = String(formData.get("serviceOfferingId") ?? "").trim();
@@ -379,7 +389,9 @@ export async function updateScheduleRuleAction(
 ): Promise<ScheduleRuleFormState> {
   const auth = await requireCapability("service_offering.create");
   if (auth.error !== null) return { error: auth.error };
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const organization = auth.organization!;
 
   const ruleId = String(formData.get("ruleId") ?? "").trim();
@@ -389,7 +401,7 @@ export async function updateScheduleRuleAction(
   const effectiveFrom = String(formData.get("effectiveFrom") ?? "").trim() || undefined;
   const effectiveUntilRaw = formData.get("effectiveUntil");
   const effectiveUntil =
-    effectiveUntilRaw !== null ? (String(effectiveUntilRaw).trim() || null) : undefined;
+    effectiveUntilRaw !== null ? String(effectiveUntilRaw).trim() || null : undefined;
 
   const result = await updateScheduleRuleForOrg(user.id, ruleId, organization.id, {
     daysOfWeek: daysRaw.length > 0 ? daysRaw.filter((d) => !Number.isNaN(d)) : undefined,
@@ -417,7 +429,9 @@ export async function deleteScheduleRuleAction(
 ): Promise<{ error: string | null }> {
   const auth = await requireCapability("service_offering.create");
   if (auth.error !== null) return { error: auth.error };
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const organization = auth.organization!;
 
   const result = await deleteScheduleRuleForOrg(user.id, ruleId, organization.id);
@@ -475,7 +489,7 @@ export async function updateScheduleRuleForVetAction(
   const effectiveFrom = String(formData.get("effectiveFrom") ?? "").trim() || undefined;
   const effectiveUntilRaw = formData.get("effectiveUntil");
   const effectiveUntil =
-    effectiveUntilRaw !== null ? (String(effectiveUntilRaw).trim() || null) : undefined;
+    effectiveUntilRaw !== null ? String(effectiveUntilRaw).trim() || null : undefined;
 
   const result = await updateScheduleRuleForVetProvider(user.id, ruleId, {
     daysOfWeek: daysRaw.length > 0 ? daysRaw.filter((d) => !Number.isNaN(d)) : undefined,

@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 
 import { type DniVerifyFormState, verifyDniAction } from "@/app/actions/dni-verification";
 

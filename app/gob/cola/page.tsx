@@ -1,12 +1,7 @@
 import { inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import {
-  APPROVAL_REQUEST_TYPES,
-  type ApprovalRequestType,
-  db,
-  profiles,
-} from "@/db";
+import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
@@ -50,13 +45,12 @@ export default async function ColaPage({
     for (const r of rows) namesById.set(r.id, r.displayName);
   }
 
-  const pageTitle = activeType
-    ? `Cola — ${TYPE_LABELS[activeType]}`
-    : "Cola de solicitudes";
+  const pageTitle = activeType ? `Cola — ${TYPE_LABELS[activeType]}` : "Cola de solicitudes";
 
-  const subtitle = pending.length === 0
-    ? "No hay solicitudes pendientes en tu scope."
-    : `${pending.length} solicitud${pending.length === 1 ? "" : "es"} pendiente${pending.length === 1 ? "" : "s"}.`;
+  const subtitle =
+    pending.length === 0
+      ? "No hay solicitudes pendientes en tu scope."
+      : `${pending.length} solicitud${pending.length === 1 ? "" : "es"} pendiente${pending.length === 1 ? "" : "s"}.`;
 
   return (
     <main className="px-6 py-8">
