@@ -32,6 +32,11 @@ export const LIBRETA_SANITARIA_EVENT_TYPES = [
   "microchip_replaced",
   "microchip_revoked",
   "incident_reported",
+  // Rabies observation lifecycle — clinical record (the vet of the future
+  // wants to see "this dog bit someone in 2026 and completed observation
+  // negative"). Both events emit atomically with their incident_reported.
+  "rabies_observation_started",
+  "rabies_observation_ended",
   "symptom_observed",
   "death_recorded",
 ] as const satisfies readonly EventType[];
@@ -177,6 +182,11 @@ export function libretaGroupForEvent(event: {
     case "symptom_observed":
       return "sintomas";
     case "incident_reported":
+    case "rabies_observation_started":
+    case "rabies_observation_ended":
+      // The 10-day rabies observation is conceptually a follow-up to an
+      // incident_reported (bite). Group together so the vet's libreta view
+      // shows the bite + observation lifecycle as one block.
       return "incidentes";
     case "death_recorded":
       return "fallecimiento";

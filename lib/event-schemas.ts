@@ -392,6 +392,44 @@ const credentialScanned = z
   )
   .strict();
 
+// Rabies observation lifecycle — emitted atomically with the originating
+// incident_reported (bite_inflicted) event and closed either by the daily
+// cron (negative happy path), by the owner manually after 10 days, by a vet
+// or govt professionally with a specific outcome, or auto-closed when a
+// death_recorded event fires during the period.
+//
+// The bite_event_id references a `pet_events.id` row whose `event_type` is
+// `incident_reported` and whose `payload.incident_type` is `'bite_inflicted'`.
+const rabiesObservationStarted = z
+  .object(
+    withVersion({
+      bite_event_id: z.string().uuid(),
+      // ISO date — bite occurred_at + 10 calendar days.
+      observation_until: z.string(),
+      // in_situ (domicilio del dueño) vs official_site (Instituto Pasteur,
+      // dispensario antirrábico). v1 defaults to in_situ; a professional flow
+      // can promote to official_site when implemented.
+      location: z.enum(["in_situ", "official_site"]),
+      official_site_organization_id: z.string().uuid().nullable(),
+    }),
+  )
+  .strict();
+
+const rabiesObservationEnded = z
+  .object(
+    withVersion({
+      bite_event_id: z.string().uuid(),
+      observation_started_event_id: z.string().uuid(),
+      outcome: z.enum(["negative", "positive_rabies", "dead", "lost_to_followup"]),
+      closed_by_role: z.enum(["owner", "vet", "govt", "admin", "system"]),
+      closure_notes: z.string().nullable(),
+      // Set when outcome='dead' — the death_recorded event id that triggered
+      // the close. null for all other outcomes.
+      death_event_id: z.string().uuid().nullable(),
+    }),
+  )
+  .strict();
+
 // Umbrella event for non-human-cruelty incidents. The `incident_type`
 // discriminator narrows the variant; bite_inflicted and bite_suffered live
 // here (no separate event_type) so the bite-rabies-observation flow reads
@@ -799,6 +837,8 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   note_added: noteAdded,
   credential_scanned: credentialScanned,
   incident_reported: incidentReported,
+  rabies_observation_started: rabiesObservationStarted,
+  rabies_observation_ended: rabiesObservationEnded,
   abandonment_reported: abandonmentReported,
   maltreatment_reported: maltreatmentReported,
   symptom_observed: symptomObserved,

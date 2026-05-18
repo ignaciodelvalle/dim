@@ -167,6 +167,11 @@ export const ORGANIZATION_CAPABILITIES = [
   // flow; NOT included in VET_INDIVIDUAL_IMPLICIT_CAPS (intentional per spec).
   "service_offering.create",
   "appointment.manage",
+  // Bite reporting (org-side). Vets and shelter coordinators with this
+  // capability can register a bite they witnessed or learned of clinically
+  // on a pet that is NOT in their custody (owner-held). The bite atomically
+  // starts the 10-day rabies observation per Decreto 4669/1973 (PBA).
+  "bite.report",
 ] as const;
 export type OrganizationCapability = (typeof ORGANIZATION_CAPABILITIES)[number];
 
@@ -240,6 +245,11 @@ export const EVENT_TYPES = [
   // System / observed
   "credential_scanned",
   "incident_reported",
+  // Rabies observation — 10-day lifecycle around an `incident_reported` row
+  // with `payload.incident_type='bite_inflicted'`. See
+  // docs/superpowers/specs/2026-05-18-bite-rabies-observation-design.md (v1.1).
+  "rabies_observation_started",
+  "rabies_observation_ended",
   // Medication adherence — dual-write with reminder.completedAt.
   "medication_dose_taken",
   // Schema-ready, UI deferred — these require a non-owner reporting flow:
@@ -415,6 +425,12 @@ export const pets = pgTable(
     // custody_dispute_resolved. Features that should respect the flag
     // (transfers, adoption finalize, scheduling) opt in per-feature.
     inCustodyDispute: boolean("in_custody_dispute").notNull().default(false),
+    // 10-day rabies observation lifecycle. Set by reportBiteAction (in_progress),
+    // by the daily cron (completed_negative on happy path), by death_recorded
+    // hook (completed_dead), or by professional close (completed_positive_rabies
+    // / completed_lost_to_followup). null when no active observation.
+    // See lib/rabies-observation.ts → RabiesObservationStatus.
+    rabiesObservationStatus: text("rabies_observation_status"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

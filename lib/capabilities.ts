@@ -107,6 +107,12 @@ export const CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
     description:
       "Ver las reservas del día, registrar asistencia, marcar ausencias y cancelar turnos desde el portal.",
   },
+  {
+    capability: "bite.report",
+    label: "Reportar mordeduras",
+    description:
+      "Registrar mordeduras presenciadas o conocidas clínicamente. Inicia automáticamente la observación antirrábica de 10 días (Decreto 4669/1973 PBA).",
+  },
 ] as const;
 
 const CAPABILITY_SET = new Set<string>(ORGANIZATION_CAPABILITIES);
