@@ -1,13 +1,12 @@
-// Org portal — service offering detail. Shows status, submitted data, rejection
-// reason when rejected, and a link to the schedule rules page when approved.
-// Schedule rules CRUD (Fase 2) will live at ./agenda — linked here but not yet built.
+// /pro/servicios/[offeringToken] — detail view for a vet-owned offering (Fase 2.5).
+// Gated by requireVetProviderOrRedirect. Shows status, data, and agenda link when approved.
 
 import { and, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { db, organizations, serviceOfferings } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { db, serviceOfferings } from "@/db";
+import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -43,30 +42,27 @@ function formatDate(d: Date | string | null): string {
   return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium" });
 }
 
-export default async function OfferingDetailPage({
+export default async function ProOfferingDetailPage({
   params,
 }: {
-  params: Promise<{ orgToken: string; offeringToken: string }>;
+  params: Promise<{ offeringToken: string }>;
 }) {
-  const { orgToken, offeringToken } = await params;
-  const { organization } = await requireOrgAccessByToken(orgToken);
+  const { offeringToken } = await params;
+  const { user } = await requireVetProviderOrRedirect();
 
-  // Verify the offering belongs to this org.
-  const [row] = await db
-    .select({ offering: serviceOfferings, org: organizations })
+  const [offering] = await db
+    .select()
     .from(serviceOfferings)
-    .innerJoin(organizations, eq(organizations.id, serviceOfferings.organizationId!))
     .where(
       and(
         eq(serviceOfferings.publicToken, offeringToken),
-        eq(serviceOfferings.organizationId, organization.id),
+        eq(serviceOfferings.providerUserId, user.id),
       ),
     )
     .limit(1);
 
-  if (!row) notFound();
+  if (!offering) notFound();
 
-  const { offering } = row;
   const kind = findServiceKind(offering.serviceKind);
   const statusConfig = STATUS_LABELS[offering.status] ?? STATUS_LABELS.pending_approval;
 
@@ -75,7 +71,7 @@ export default async function OfferingDetailPage({
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
-            {organization.displayName} · Servicios
+            Portal profesional · Servicios
           </p>
           <h1 className="text-3xl font-semibold">{offering.displayName}</h1>
           <p className="text-sm text-neutral-500">
@@ -89,7 +85,7 @@ export default async function OfferingDetailPage({
           {offering.status === "pending_approval" && (
             <span>
               {" "}
-              — La autoridad revisará tu solicitud y te notificaremos por email y en el panel.
+              — La autoridad revisará tu solicitud y te notificaremos cuando sea aprobado.
             </span>
           )}
           {offering.status === "approved" && (
@@ -97,7 +93,7 @@ export default async function OfferingDetailPage({
               {" "}
               — Ya podés{" "}
               <Link
-                href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
+                href={`/pro/servicios/${offeringToken}/agenda`}
                 className="underline font-medium"
               >
                 configurar la agenda
@@ -110,7 +106,7 @@ export default async function OfferingDetailPage({
           )}
         </div>
 
-        {/* Details grid */}
+        {/* Details */}
         <section className="rounded border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
           <Row label="Token público" value={offering.publicToken} mono />
           <Row label="Tipo de servicio" value={kind?.label ?? offering.serviceKind} />
@@ -123,45 +119,29 @@ export default async function OfferingDetailPage({
             }
           />
           <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
-          <Row label="Capacidad por turno" value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`} />
+          <Row
+            label="Capacidad por turno"
+            value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
+          />
           {offering.description && <Row label="Descripción" value={offering.description} />}
-          {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
+          {offering.jurisdictionLocality && (
             <Row
-              label="Especies"
-              value={offering.eligibilitySpecies
-                .map((s) => (s === "dog" ? "Perros" : "Gatos"))
+              label="Localidad"
+              value={[offering.jurisdictionProvince, offering.jurisdictionLocality]
+                .filter(Boolean)
                 .join(", ")}
             />
           )}
-          {(offering.eligibilityAgeMinMonths !== null ||
-            offering.eligibilityAgeMaxMonths !== null) && (
-            <Row
-              label="Rango de edad"
-              value={[
-                offering.eligibilityAgeMinMonths !== null
-                  ? `desde ${offering.eligibilityAgeMinMonths} meses`
-                  : null,
-                offering.eligibilityAgeMaxMonths !== null
-                  ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            />
-          )}
           {offering.reviewedAt && (
-            <Row
-              label="Revisado el"
-              value={formatDate(offering.reviewedAt)}
-            />
+            <Row label="Revisado el" value={formatDate(offering.reviewedAt)} />
           )}
         </section>
 
-        {/* CTA for approved offerings */}
+        {/* Agenda CTA */}
         {offering.status === "approved" && (
           <div>
             <Link
-              href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
+              href={`/pro/servicios/${offeringToken}/agenda`}
               className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm"
             >
               Configurar agenda →
@@ -171,7 +151,7 @@ export default async function OfferingDetailPage({
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link
-            href={`/org/${orgToken}/servicios`}
+            href="/pro/servicios"
             className="text-sm text-neutral-600 underline dark:text-neutral-400"
           >
             ← Volver a mis servicios

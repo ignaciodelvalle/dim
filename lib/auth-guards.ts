@@ -11,7 +11,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 
 import { db, govtAssignments, organizationMemberships, organizations, profiles } from "@/db";
-import type { Organization, OrganizationMembership } from "@/db";
+import type { Organization, OrganizationMembership, Profile } from "@/db";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import { createClient } from "@/lib/supabase/server";
 
@@ -128,6 +128,43 @@ export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession
 export type AdminSession = AuthenticatedSession & {
   profile: ActorProfile;
 };
+
+// ============================================================================
+// Fase 2.5: Vet provider guard — independent service providers
+// ============================================================================
+//
+// Interim gate: profile.role === 'vet' && profile.matriculaVerified === true.
+//
+// SWAP POINT: When `professional.provider` lands as an approval-gated
+// profile-level capability (per AGENTS.md — not yet in ORGANIZATION_CAPABILITIES),
+// replace the matriculaVerified check here with a real capability lookup.
+// This is the SINGLE place that needs to change; all /pro/servicios* routes
+// and vet schedule-rule actions delegate here.
+
+export type VetProviderSession = AuthenticatedSession & {
+  profile: Pick<Profile, "id" | "role" | "matriculaVerified" | "matriculaNumber" | "displayName">;
+};
+
+export async function requireVetProviderOrRedirect(): Promise<VetProviderSession> {
+  const session = await requireUserOrRedirect();
+
+  const [profile] = await db
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      matriculaVerified: profiles.matriculaVerified,
+      matriculaNumber: profiles.matriculaNumber,
+      displayName: profiles.displayName,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, session.user.id))
+    .limit(1);
+
+  if (!profile || profile.role !== "vet") redirect("/pro");
+  if (!profile.matriculaVerified) redirect("/pro");
+
+  return { ...session, profile };
+}
 
 export async function requireAdminOrRedirect(): Promise<AdminSession> {
   const session = await requireUserOrRedirect();

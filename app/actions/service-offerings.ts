@@ -1,16 +1,20 @@
 "use server";
 
-// Server actions for the service offering approval workflow (Fase 1 + 1.5).
+// Server actions for the service offering approval workflow (Fase 1 + 1.5 + 2.5).
 //
 // Writer/wrapper split:
-//   - Inner writers (createServiceOfferingForOrg, approve*, reject*) are pure
-//     DB functions: testable without FormData or Supabase session context.
-//   - Wrappers (createServiceOfferingAction, approve*Action, reject*Action) gate
-//     auth + capability, then delegate to the inner writer.
+//   - Inner writers (createServiceOfferingForOrg, createServiceOfferingForVetProvider,
+//     approve*, reject*) are pure DB functions: testable without FormData or
+//     Supabase session context.
+//   - Wrappers gate auth + capability, then delegate to the inner writer.
 //
 // Fase 1.5 — approval routing: createServiceOfferingForOrg uses
 // findAuthoritiesForJurisdiction to notify the governing govt(s) first,
 // falling back to all admins when no govt covers the locality.
+//
+// Fase 2.5 — shared writer: createServiceOfferingWriter accepts EITHER an
+// organizationId OR a providerUserId (discriminated union, matching the DB
+// CHECK constraint provider_xor). Both org and vet outer wrappers call it.
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -25,6 +29,7 @@ import {
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireCapability } from "@/lib/capabilities";
+import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -36,10 +41,28 @@ import { createClient } from "@/lib/supabase/server";
 
 export type ServiceOfferingResult = { error: string } | { ok: true };
 
+// Discriminated union for the shared offering writer.
+// XOR: exactly one of organizationId or providerUserId must be set,
+// mirroring the DB CHECK constraint `provider_xor`.
+type OrgProvider = {
+  organizationId: string;
+  organizationPublicToken: string;
+  organizationDisplayName: string;
+  providerUserId?: never;
+};
+type VetProvider = {
+  providerUserId: string;
+  organizationId?: never;
+  organizationPublicToken?: never;
+  organizationDisplayName?: never;
+};
+type ProviderContext = OrgProvider | VetProvider;
+
 // ============================================================================
 // Inner writers — testable without auth context
 // ============================================================================
 
+// Org-side inner writer. Delegates to the shared writer below.
 export async function createServiceOfferingForOrg(
   actorUserId: string,
   orgId: string,
@@ -47,6 +70,42 @@ export async function createServiceOfferingForOrg(
   orgDisplayName: string,
   orgProvince: string | null,
   orgLocality: string | null,
+  input: {
+    serviceKind: string;
+    displayName: string;
+    description: string | null;
+    durationMinutes: number;
+    slotCapacity: number;
+    priceArs: number | null;
+    eligibilitySpecies: ("dog" | "cat")[] | null;
+    eligibilityAgeMinMonths: number | null;
+    eligibilityAgeMaxMonths: number | null;
+  },
+): Promise<ServiceOfferingResult> {
+  return createServiceOfferingWriter(
+    actorUserId,
+    {
+      organizationId: orgId,
+      organizationPublicToken: orgToken,
+      organizationDisplayName: orgDisplayName,
+    },
+    orgProvince ?? "",
+    orgLocality ?? "",
+    input,
+  );
+}
+
+// ============================================================================
+// Shared inner writer — org and vet flows both go through here (Fase 2.5)
+// ============================================================================
+// Accepts a ProviderContext (discriminated union). The XOR is enforced by the
+// TypeScript type above AND the DB CHECK constraint `provider_xor` on
+// service_offerings.
+async function createServiceOfferingWriter(
+  actorUserId: string,
+  provider: ProviderContext,
+  province: string,
+  locality: string,
   input: {
     serviceKind: string;
     displayName: string;
@@ -70,17 +129,14 @@ export async function createServiceOfferingForOrg(
   }
 
   const publicToken = generateOfferingToken();
-  const province = orgProvince ?? "";
-  const locality = orgLocality ?? "";
-
-  // Fase 1.5: route notification to governing govt(s); fall back to admins.
   const authorityIds = await findAuthoritiesForJurisdiction({ province, locality });
 
   try {
     await db.transaction(async (tx) => {
       await tx.insert(serviceOfferings).values({
         publicToken,
-        organizationId: orgId,
+        organizationId: "organizationId" in provider ? provider.organizationId : null,
+        providerUserId: "providerUserId" in provider ? provider.providerUserId : null,
         jurisdictionProvince: province || null,
         jurisdictionLocality: locality || null,
         serviceKind: parsed.data.serviceKind,
@@ -95,7 +151,18 @@ export async function createServiceOfferingForOrg(
         status: "pending_approval",
       });
 
-      // Notify applicant
+      // Determine display name for notifications.
+      const providerLabel =
+        "organizationDisplayName" in provider && provider.organizationDisplayName
+          ? provider.organizationDisplayName
+          : "un veterinario independiente";
+
+      // Notify applicant.
+      const ctaUrl =
+        "organizationPublicToken" in provider && provider.organizationPublicToken
+          ? `/org/${provider.organizationPublicToken}/servicios`
+          : "/pro/servicios";
+
       await tx.insert(notifications).values({
         userId: actorUserId,
         notificationType: "service_offering_submitted",
@@ -103,32 +170,13 @@ export async function createServiceOfferingForOrg(
         body: `"${parsed.data.displayName}" (${kindDef.label}) fue enviado. Te avisamos cuando sea aprobado.`,
         severity: "info",
         ctaLabel: "Ver mis servicios",
-        ctaUrl: `/org/${orgToken}/servicios`,
+        ctaUrl,
       });
 
-      // Fase 1.5: fan out to authorities. Govts get /gob/servicios; admins get /admin/servicios.
-      // We need to know whether the resolved IDs are govts or admins to build the right CTA.
-      // Simplest approach: query their roles and insert different notification rows per role.
+      // Fan out to authorities.
       if (authorityIds.length > 0) {
-        const authorityProfiles = await tx
-          .select({ id: profiles.id, role: profiles.role })
-          .from(profiles)
-          .where(
-            and(
-              // IN clause via Drizzle — use inArray if needed; here we build per-id inserts
-              // to avoid the inArray import. The list is small (typically 1–3 users).
-              eq(profiles.id, authorityIds[0]),
-            ),
-          );
-
-        // For authorities beyond the first, fetch individually (list is small in practice).
-        // Build a map of id → role.
         const roleById = new Map<string, string>();
-        for (const p of authorityProfiles) {
-          roleById.set(p.id, p.role);
-        }
-        // Fetch remaining if any
-        for (const id of authorityIds.slice(1)) {
+        for (const id of authorityIds) {
           const [p] = await tx
             .select({ id: profiles.id, role: profiles.role })
             .from(profiles)
@@ -140,15 +188,15 @@ export async function createServiceOfferingForOrg(
         await tx.insert(notifications).values(
           authorityIds.map((authorityId) => {
             const role = roleById.get(authorityId) ?? "admin";
-            const ctaUrl = role === "govt" ? "/gob/servicios" : "/admin/servicios";
+            const authCtaUrl = role === "govt" ? "/gob/servicios" : "/admin/servicios";
             return {
               userId: authorityId,
               notificationType: "service_offering_pending_authority",
-              title: `Nuevo servicio a aprobar en ${locality || orgDisplayName}`,
-              body: `${orgDisplayName} solicitó aprobar "${parsed.data.displayName}" (${kindDef.label}).`,
+              title: `Nuevo servicio a aprobar en ${locality || providerLabel}`,
+              body: `${providerLabel} solicitó aprobar "${parsed.data.displayName}" (${kindDef.label}).`,
               severity: "info" as const,
               ctaLabel: "Revisar",
-              ctaUrl,
+              ctaUrl: authCtaUrl,
             };
           }),
         );
@@ -161,6 +209,35 @@ export async function createServiceOfferingForOrg(
   }
 
   return { ok: true };
+}
+
+// ============================================================================
+// createServiceOfferingForVetProvider — vet-side inner writer (Fase 2.5)
+// ============================================================================
+
+export async function createServiceOfferingForVetProvider(
+  actorUserId: string,
+  province: string,
+  locality: string,
+  input: {
+    serviceKind: string;
+    displayName: string;
+    description: string | null;
+    durationMinutes: number;
+    slotCapacity: number;
+    priceArs: number | null;
+    eligibilitySpecies: ("dog" | "cat")[] | null;
+    eligibilityAgeMinMonths: number | null;
+    eligibilityAgeMaxMonths: number | null;
+  },
+): Promise<ServiceOfferingResult> {
+  return createServiceOfferingWriter(
+    actorUserId,
+    { providerUserId: actorUserId },
+    province,
+    locality,
+    input,
+  );
 }
 
 export async function approveServiceOfferingForAuthority(
@@ -420,4 +497,59 @@ export async function rejectServiceOfferingAction(
   revalidatePath("/admin/servicios");
   revalidatePath("/gob/servicios");
   return { error: null };
+}
+
+// ============================================================================
+// Fase 2.5 — Vet-provider offering wrapper
+// ============================================================================
+// Same form fields as createServiceOfferingAction, but writes providerUserId
+// instead of organizationId. Province/locality come from hidden form fields.
+
+export async function createServiceOfferingForVetProviderAction(
+  _prev: ServiceOfferingFormState,
+  formData: FormData,
+): Promise<ServiceOfferingFormState> {
+  const { user } = await requireVetProviderOrRedirect();
+
+  const priceRaw = formData.get("priceArs");
+  const priceArs =
+    priceRaw !== null && priceRaw !== "" ? Number.parseFloat(String(priceRaw)) : null;
+
+  const durationRaw = formData.get("durationMinutes");
+  const durationMinutes = durationRaw !== null ? Number.parseInt(String(durationRaw), 10) : 15;
+
+  const capacityRaw = formData.get("slotCapacity");
+  const slotCapacity = capacityRaw !== null ? Number.parseInt(String(capacityRaw), 10) : 1;
+
+  const ageMinRaw = formData.get("eligibilityAgeMinMonths");
+  const ageMaxRaw = formData.get("eligibilityAgeMaxMonths");
+
+  const speciesRaw = formData.getAll("eligibilitySpecies");
+  const eligibilitySpecies =
+    speciesRaw.length > 0
+      ? (speciesRaw.map(String).filter((s) => s === "dog" || s === "cat") as ("dog" | "cat")[])
+      : null;
+
+  const province = String(formData.get("jurisdictionProvince") ?? "").trim();
+  const locality = String(formData.get("jurisdictionLocality") ?? "").trim();
+
+  const input = {
+    serviceKind: String(formData.get("serviceKind") ?? "").trim(),
+    displayName: String(formData.get("displayName") ?? "").trim(),
+    description: String(formData.get("description") ?? "").trim() || null,
+    durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : 15,
+    slotCapacity: Number.isFinite(slotCapacity) ? slotCapacity : 1,
+    priceArs: priceArs !== null && Number.isFinite(priceArs) ? priceArs : null,
+    eligibilitySpecies,
+    eligibilityAgeMinMonths:
+      ageMinRaw !== null && ageMinRaw !== "" ? Number.parseInt(String(ageMinRaw), 10) : null,
+    eligibilityAgeMaxMonths:
+      ageMaxRaw !== null && ageMaxRaw !== "" ? Number.parseInt(String(ageMaxRaw), 10) : null,
+  };
+
+  const result = await createServiceOfferingForVetProvider(user.id, province, locality, input);
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath("/pro/servicios");
+  redirect("/pro/servicios");
 }
