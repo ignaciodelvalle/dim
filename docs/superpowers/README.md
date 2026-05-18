@@ -15,14 +15,10 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 
 | Priority | Feature | Plan file | Why now |
 |----------|---------|-----------|---------|
-| 0 | **MiMAR rebrand + portal restructure** | `plans/2026-05-17-mimar-rebrand-and-portal-restructure.md` | Doc-first: AGENTS.md + specs/plans alignment con brand MiMAR, paths `/org/[orgToken]`, `/gob`, `/admin`, `/pro`. Pre-requisito de los demás planes para que las URLs no diverjan. ~3-4 horas. |
-| 1 | **Libreta Sanitaria — Parte B** | `plans/2026-05-16-libreta-sanitaria-parte-b.md` | Parte A landed (`lib/libreta-sanitaria.ts` exists). B is the dedicated `/libreta` route — the visible payoff of the rename. ~1 día. |
-| 2 | **Libreta Sanitaria — Parte C** | `plans/2026-05-16-libreta-sanitaria-parte-c.md` | Tier-2 shareable libreta. The killer adoption feature (dueños pueden mostrar libreta a un vet con un link). Reusa componentes de Parte B. ~2-3 días. |
-| 3 | **Code rename `/refugio` → `/org/[orgToken]`** | `plans/2026-05-17-code-rename-refugio-to-org.md` | Rename físico de carpetas con middleware redirect. Pre-requisito para que campaigns y lost-and-found escriban código con paths correctos. Cuando admin page Fase 0 lands, el rename debería estar mergeado para que la spec esté alineada cuando se implemente. ~medio día. |
-| 4 | **Event-agent foundations** | `plans/2026-05-16-event-agent-foundations.md` | Registry + reference URL-prefill (peso form). Foundational para el futuro agente conversacional. ~1 día. |
-| 5 | **Lost & Found completo** | `plans/2026-05-17-lost-and-found-complete.md` | 7 fases: cross-check + match flow + disclosure prefs + enriched flow + return-to-owner + broadcast + polish. El feature donde MiMAR honra su promesa de microchip. ~1.5 semanas. Idealmente después del code rename (prioridad 3). |
-| 6 | **Symptom → disease surveillance** | `plans/2026-05-17-symptom-disease-surveillance.md` | 5 fases: catálogo de síntomas + matcher + outbreak_signal event + notification. Activación del dashboard zoonosis. Dependencia parcial con admin page Fase 0 (para routing a govts en lugar de solo admin fallback). ~2-3 días. |
-| 7 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. Idealmente después del code rename (prioridad 3). ~2 semanas. |
+| 1 | **Event-agent foundations** | `plans/2026-05-16-event-agent-foundations.md` | Registry + reference URL-prefill (peso form). Foundational para el futuro agente conversacional. ~1 día. |
+| 2 | **Symptom → disease surveillance** | `plans/2026-05-17-symptom-disease-surveillance.md` | 5 fases: catálogo de síntomas + matcher + outbreak_signal event + notification. Activación del dashboard zoonosis. Dependencia parcial con admin page Fase 0 (para routing a govts en lugar de solo admin fallback). ~2-3 días. |
+| 3 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. ~2 semanas. |
+| 4 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance, separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
 
 **Bloqueadas por specs sin plan todavía:**
 
@@ -52,13 +48,13 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 | `2026-05-16-event-agent-foundations.md` | 🟢 Ready for CC | — (diseño en chat) | `lib/event-agent-registry.ts` + retrofit del peso form. Foundational para el futuro agente conversacional. |
 | `2026-05-16-vecino-mascota-en-transito.md` | ✅ Implementado | — (diseño en chat) | `custodyKind` field en `PetForm`, `shelter_custody` ownership branch en `createPetAction` |
 | `2026-05-16-libreta-sanitaria-parte-a.md` | ✅ Implementado | — | `lib/libreta-sanitaria.ts` con `LIBRETA_SANITARIA_EVENT_TYPES`, `NON_LIBRETA_EVENT_TYPES`, `LIBRETA_FILTER_CHIPS`, helpers + test de cobertura |
-| `2026-05-16-libreta-sanitaria-parte-b.md` | 🟢 Ready for CC | — | Ruta dedicada `/mis-mascotas/{token}/libreta` con vista agrupada por propósito clínico + print stylesheet |
-| `2026-05-16-libreta-sanitaria-parte-c.md` | 🟢 Ready for CC | — | Tier-2 shareable: tabla `libreta_share_tokens`, ruta pública gateada por token, owner-side share management |
-| `2026-05-17-mimar-rebrand-and-portal-restructure.md` | 🔵 In progress | — | Doc-first rebrand: AGENTS.md + README + todos los specs/plans + brand copy mínimo en código |
-| `2026-05-17-code-rename-refugio-to-org.md` | 🟢 Ready for CC | — | Rename físico `app/refugio/` → `app/org/[orgToken]/` con middleware redirect. Prerequisito: este rebrand mergeado. |
+| `2026-05-16-libreta-sanitaria-parte-b.md` | ✅ Implementado | — | Ruta `/mis-mascotas/{token}/libreta` con vista agrupada + cronológica + print stylesheet. Componentes `LibretaSanitariaView`, `LibretaIdentityHeader`. Grouping en `lib/libreta-sanitaria.ts`. |
+| `2026-05-16-libreta-sanitaria-parte-c.md` | ✅ Implementado | — | Tabla `libreta_share_tokens`, ruta pública `/libreta/compartir/[shareToken]`, server actions `createLibretaShareAction`/`revokeLibretaShareAction`, `SharesManager` owner UI, view-tracking via `pet_events` type `libreta_shared_viewed`. |
+| `2026-05-17-mimar-rebrand-and-portal-restructure.md` | 🟡 Doc-first done; brand copy pending | — | Paths alineados (`/pro`, `/gob`); falta pasada de copy user-facing (DIM → MiMAR en surfaces) si todavía queda alguno. |
+| `2026-05-17-code-rename-refugio-to-org.md` | ✅ Implementado | — | `app/refugio/` ya no existe; código vive en `app/org/[orgToken]/`. |
 | `2026-05-17-symptom-disease-surveillance.md` | 🟢 Ready for CC | `specs/2026-05-17-symptom-disease-surveillance-design.md` | 5 fases. Hoy routea solo a admins; cuando admin page Fase 0 mergee, una pasada chica extiende a govts en scope vía `/gob`. |
-| `2026-05-17-lost-and-found-complete.md` | 🟢 Ready for CC | `specs/2026-05-17-lost-and-found-complete-design.md` | 7 fases. Empezar por Fase 1 (schema foundation). |
-| `2026-05-16-health-campaigns-and-scheduling.md` | 🟢 Ready for CC | `specs/2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 10 fases. Empezar por Fase 0 (schema: 4 tablas + polymorphic provider columns). Idealmente después del code rename. |
+| `2026-05-17-lost-and-found-complete.md` | ✅ Implementado | `specs/2026-05-17-lost-and-found-complete-design.md` | 7 fases shipped en PRs #49–#55. Cross-check + match flow + disclosure prefs + enriched + return-to-owner + broadcast + polish. |
+| `2026-05-16-health-campaigns-and-scheduling.md` | 🟢 Ready for CC | `specs/2026-05-16-health-campaigns-and-scheduling-design.md` (v2.1) | 10 fases. Empezar por Fase 0 (schema: 4 tablas + polymorphic provider columns). Las sub-rutas finales viven en `/pro/servicios` + `/pro/agenda`. |
 
 **Leyenda:**
 
