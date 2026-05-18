@@ -65,6 +65,13 @@ export async function finalizeAdoptionAction(
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
+  // Two entry paths (spec foster-volunteers-pool v1.4 §15.1):
+  //   1. Manual DNI flow — refugio types the adopter's DNI + name (default).
+  //   2. Foster-shortcut flow — the active foster opts to adopt; the org
+  //      passes `adopterUserId` of the foster's profile, skipping the DNI
+  //      typing + stub-creation. We still validate the user is a personal
+  //      owner with verified DNI.
+  const adopterUserIdInput = String(formData.get("adopterUserId") ?? "").trim() || null;
   const dniRaw = String(formData.get("adopterDni") ?? "");
   const dni = normalizeDni(dniRaw);
   const displayName = String(formData.get("adopterDisplayName") ?? "").trim();
@@ -72,9 +79,11 @@ export async function finalizeAdoptionAction(
   const followupRaw = String(formData.get("followupMonths") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!dni) return { error: "Falta el DNI del adoptante." };
-  if (!isValidDni(dni)) return { error: "DNI inválido (deben ser 7 a 9 dígitos)." };
-  if (!displayName) return { error: "Falta el nombre del adoptante." };
+  if (!adopterUserIdInput) {
+    if (!dni) return { error: "Falta el DNI del adoptante." };
+    if (!isValidDni(dni)) return { error: "DNI inválido (deben ser 7 a 9 dígitos)." };
+    if (!displayName) return { error: "Falta el nombre del adoptante." };
+  }
 
   const followupMonths = followupRaw
     ? Math.min(36, Math.max(0, Number.parseInt(followupRaw, 10) || 0))
@@ -127,22 +136,51 @@ export async function finalizeAdoptionAction(
     .limit(1);
   const fosterUserId = fosterRow?.ownerUserId ?? null;
 
-  // Look up adopter by DNI. We trim and normalize here so the unique index
-  // catches collisions cleanly even if the refugio types punctuation.
-  const [existingProfile] = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.dniNumber, dni))
-    .limit(1);
-
+  // Resolve adopter — either the foster-shortcut path or the DNI lookup
+  // path. The foster-shortcut requires that the adopter user IS the
+  // currently-active foster of this pet (anti-spoof).
   let adopterUserId: string;
   let isStubAdopter: boolean;
-  if (existingProfile) {
-    adopterUserId = existingProfile.id;
+  if (adopterUserIdInput) {
+    if (!fosterRow || fosterRow.ownerUserId !== adopterUserIdInput) {
+      return {
+        error:
+          "El adoptante del atajo debe ser el tránsito activo de esta mascota. Usá el flujo DNI si es otra persona.",
+      };
+    }
+    const [adopterProfile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, adopterUserIdInput))
+      .limit(1);
+    if (!adopterProfile) {
+      return { error: "No encontramos el perfil del adoptante." };
+    }
+    if (
+      adopterProfile.accountType !== "personal" ||
+      adopterProfile.role !== "owner" ||
+      !adopterProfile.dniVerified
+    ) {
+      return {
+        error:
+          "El adoptante debe ser una cuenta personal con DNI verificado para usar el atajo de tránsito.",
+      };
+    }
+    adopterUserId = adopterProfile.id;
     isStubAdopter = false;
   } else {
-    adopterUserId = randomUUID();
-    isStubAdopter = true;
+    const [existingProfile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.dniNumber, dni))
+      .limit(1);
+    if (existingProfile) {
+      adopterUserId = existingProfile.id;
+      isStubAdopter = false;
+    } else {
+      adopterUserId = randomUUID();
+      isStubAdopter = true;
+    }
   }
 
   const now = new Date();

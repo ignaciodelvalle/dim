@@ -605,13 +605,29 @@ const fosterAssigned = z
 // event). Used when a tránsito returns the animal to the refugio, the foster
 // can't continue, or the refugio reassigns. `ended_reason` is free-text;
 // `ended_by` records who initiated the close.
+// Foster end — reason catalog (spec foster-volunteers-pool v1.4 §6.9):
+//   - returned                  — UI-selectable: devolución normal
+//   - early_return_by_foster    — UI-selectable: foster pide cortar antes
+//   - pet_died                  — programmatic ONLY: auto-emitted by recordDeathAction
+//   - lost_unrecovered          — UI-selectable: perdido sin recuperación >30d
+//   - adoption                  — programmatic ONLY: emitted inside finalizeAdoptionAction
+//   - other                     — UI-selectable catch-all
+// `death_event_id` is populated only when reason='pet_died' (FK to the
+// death_recorded event that triggered the auto-close).
 const fosterEnded = z
   .object(
     withVersion({
       foster_user_id: z.string().uuid(),
-      foster_assigned_event_id: z.string().uuid().nullable(),
-      ended_by: z.enum(["shelter", "foster_returned", "other"]),
-      reason: z.string().nullable(),
+      reason: z.enum([
+        "returned",
+        "early_return_by_foster",
+        "pet_died",
+        "lost_unrecovered",
+        "adoption",
+        "other",
+      ]),
+      notes: z.string().nullable().optional(),
+      death_event_id: z.string().uuid().nullable().optional(),
     }),
   )
   .strict();

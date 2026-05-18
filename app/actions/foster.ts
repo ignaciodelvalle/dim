@@ -8,10 +8,18 @@
 // Both stay active until the foster ends or the animal is adopted. AGENTS.md
 // → "Foster is distinct from shelter_custody" — neither replaces the other.
 
-import { db, notifications, organizationMemberships, ownerships, petEvents, pets } from "@/db";
+import {
+  db,
+  fosterVolunteers,
+  notifications,
+  organizationMemberships,
+  ownerships,
+  petEvents,
+  pets,
+} from "@/db";
 import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export type AssignFosterFormState = {
@@ -152,8 +160,16 @@ export type EndFosterFormState = {
   error: string | null;
 };
 
-type FosterEndedBy = "shelter" | "foster_returned" | "other";
-const FOSTER_ENDED_BY: readonly FosterEndedBy[] = ["shelter", "foster_returned", "other"];
+// UI-selectable subset of the foster_ended reason catalog. `pet_died` and
+// `adoption` are programmatic-only (emitted by recordDeathAction and
+// finalizeAdoptionAction respectively) — never offered in this form.
+const END_FOSTER_UI_REASONS = [
+  "returned",
+  "early_return_by_foster",
+  "lost_unrecovered",
+  "other",
+] as const;
+type EndFosterUIReason = (typeof END_FOSTER_UI_REASONS)[number];
 
 export async function endFosterAction(
   orgToken: string,
@@ -165,11 +181,11 @@ export async function endFosterAction(
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
-  const endedByRaw = String(formData.get("endedBy") ?? "").trim();
-  const endedBy: FosterEndedBy = FOSTER_ENDED_BY.includes(endedByRaw as FosterEndedBy)
-    ? (endedByRaw as FosterEndedBy)
-    : "shelter";
-  const reason = String(formData.get("reason") ?? "").trim() || null;
+  const reasonRaw = String(formData.get("reason") ?? "").trim();
+  const reason: EndFosterUIReason = END_FOSTER_UI_REASONS.includes(reasonRaw as EndFosterUIReason)
+    ? (reasonRaw as EndFosterUIReason)
+    : "returned";
+  const notes = String(formData.get("notes") ?? "").trim() || null;
 
   // Verify the pet is held by THIS org AND has an active foster row. We join
   // shelter_custody/owner/etc. through ownerships to confirm the org owns the
@@ -202,16 +218,6 @@ export async function endFosterAction(
     return { error: "Este animal no tiene un tránsito activo para finalizar." };
   }
 
-  // Find the original foster_assigned event for this foster, if it exists,
-  // so the foster_ended payload can link back to it. Best-effort — older
-  // rows might be missing the event (e.g. fosters assigned directly in SQL).
-  const [assignedEvent] = await db
-    .select({ id: petEvents.id })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "foster_assigned")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
-
   const now = new Date();
   const authorVerified = organization.verified;
   const fosterUserId = fosterRow.ownerUserId;
@@ -222,9 +228,8 @@ export async function endFosterAction(
 
       const payload = validateEventPayload("foster_ended", {
         foster_user_id: fosterUserId,
-        foster_assigned_event_id: assignedEvent?.id ?? null,
-        ended_by: endedBy,
         reason,
+        notes,
       });
       await tx.insert(petEvents).values({
         petId: pet.id,
@@ -243,13 +248,35 @@ export async function endFosterAction(
         notificationType: "foster_ended",
         title: `Finalizó tu tránsito: ${pet.name}`,
         body: `${organization.displayName} cerró el tránsito de ${pet.name}.${
-          reason ? ` Motivo: ${reason}` : ""
+          notes ? ` Nota: ${notes}` : ""
         }`,
         severity: "info",
         ctaLabel: "Ver detalles",
         ctaUrl: "/mis-mascotas",
         relatedPetId: pet.id,
       });
+
+      // Post-close slots prompt: if the volunteer is in the pool with 0
+      // available slots, surface a notification offering to re-enroll. The
+      // foster_ended row IS the slot-consuming event from a UX perspective
+      // (they finished the commitment), so this is the right moment to ask.
+      const [volunteer] = await tx
+        .select({ availableSlots: fosterVolunteers.availableSlots })
+        .from(fosterVolunteers)
+        .where(eq(fosterVolunteers.userId, fosterUserId))
+        .limit(1);
+      if (volunteer && volunteer.availableSlots === 0) {
+        await tx.insert(notifications).values({
+          userId: fosterUserId,
+          notificationType: "foster_volunteer_reenroll_prompt",
+          title: `Tu tránsito con ${pet.name} terminó`,
+          body: "¿Querés volver al pool y recibir nuevas propuestas?",
+          severity: "info",
+          ctaLabel: "Inscribirme de nuevo",
+          ctaUrl: "/cuenta/ofrecerme-como-transito",
+          relatedPetId: pet.id,
+        });
+      }
     });
   } catch (err) {
     return {

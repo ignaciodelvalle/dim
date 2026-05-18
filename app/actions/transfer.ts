@@ -133,9 +133,8 @@ export async function transferCustodyAction(
         await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterRow.id));
         const fosterEndedPayload = validateEventPayload("foster_ended", {
           foster_user_id: fosterRow.ownerUserId,
-          foster_assigned_event_id: null,
-          ended_by: "shelter",
-          reason: "Transferencia de custodia a otra organización.",
+          reason: "other",
+          notes: "Transferencia de custodia a otra organización.",
         });
         await tx.insert(petEvents).values({
           id: fosterEndedEventId,

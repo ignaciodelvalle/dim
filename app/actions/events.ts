@@ -1522,6 +1522,50 @@ export async function createDeathRecordAction(
         .set({ status: "deceased", deceasedAt: occurredAt, updatedAt: now })
         .where(eq(pets.id, pet.id));
 
+      // Auto-close any active foster row on this pet (spec foster-volunteers-pool
+      // v1.4 §6.9 case C). The foster_ended event references the death event so
+      // the libreta surfaces both as one block. Notification language for the
+      // foster intentionally non-judgmental: empathy first.
+      const activeFosters = await tx
+        .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "foster"),
+            isNull(ownerships.endedAt),
+          ),
+        );
+      for (const f of activeFosters) {
+        if (!f.ownerUserId) continue;
+        await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, f.id));
+        const endedPayload = validateEventPayload("foster_ended", {
+          foster_user_id: f.ownerUserId,
+          reason: "pet_died",
+          death_event_id: event.id,
+        });
+        await tx.insert(petEvents).values({
+          petId: pet.id,
+          eventType: "foster_ended",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: eventAuthorship.authorRole,
+          authorOrganizationId: eventAuthorship.authorOrganizationId,
+          authorVerified: eventAuthorship.authorVerified,
+          payload: endedPayload,
+        });
+        await tx.insert(notifications).values({
+          userId: f.ownerUserId,
+          notificationType: "foster_ended_by_death",
+          severity: "info",
+          title: `${pet.name} falleció`,
+          body: `Lamentamos avisarte que ${pet.name} falleció. Gracias por el tiempo que le diste como tránsito.`,
+          relatedPetId: pet.id,
+          relatedEventId: event.id,
+        });
+      }
+
       // Death-during-observation hook (bite-rabies-observation spec D9).
       // When the pet was in active 10-day rabies observation at time of death,
       // atomically close the observation with outcome='dead' and flip status.
