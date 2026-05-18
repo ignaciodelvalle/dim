@@ -32,40 +32,6 @@ const roleUpgradeVet = z
   )
   .strict();
 
-// role_upgrade_govt — applicant proposes one or more (province, locality)
-// rows they would cover. Approval inserts a govt_assignments row per
-// requested locality.
-const roleUpgradeGovt = z
-  .object(
-    withVersion({
-      organismo: z.string().min(2).max(200),
-      cargo: z.string().min(2).max(200),
-      motivo: z.string().min(10).max(2000),
-      requested_localities: z
-        .array(
-          z
-            .object({
-              province: z.string().min(1).max(60),
-              locality: z.string().min(1).max(120),
-            })
-            .strict(),
-        )
-        .min(1),
-    }),
-  )
-  .strict();
-
-// role_upgrade_admin — high-stakes. Documentary evidence is mandatory
-// (enforced application-side: applicant must attach at least one
-// approval_evidence attachment before submit).
-const roleUpgradeAdmin = z
-  .object(
-    withVersion({
-      motivo: z.string().min(20).max(2000),
-    }),
-  )
-  .strict();
-
 // organization_verification — accompanies a brand-new organizations row.
 // org_type echoes organizations.org_type for fast routing at review time.
 const organizationVerification = z
@@ -83,28 +49,12 @@ const organizationVerification = z
   )
   .strict();
 
-// govt_assignment_grant — existing govt asks to cover one additional
-// locality. Only `admin` can approve (the request goes to the admin queue
-// directly per the capability matrix).
-const govtAssignmentGrant = z
-  .object(
-    withVersion({
-      requested_province: z.string().min(1).max(60),
-      requested_locality: z.string().min(1).max(120),
-      motivo: z.string().min(10).max(2000),
-    }),
-  )
-  .strict();
-
 // Registry mirrors lib/event-schemas.ts. Partial<Record<...>> in case a new
 // type is added to the enum before its schema lands — validateApprovalPayload
 // throws a clear error rather than silently accepting.
 export const APPROVAL_PAYLOAD_SCHEMAS: Partial<Record<ApprovalRequestType, z.ZodTypeAny>> = {
   role_upgrade_vet: roleUpgradeVet,
-  role_upgrade_govt: roleUpgradeGovt,
-  role_upgrade_admin: roleUpgradeAdmin,
   organization_verification: organizationVerification,
-  govt_assignment_grant: govtAssignmentGrant,
 };
 
 export class ApprovalPayloadValidationError extends Error {

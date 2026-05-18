@@ -20,11 +20,9 @@ import {
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
 
 // Types that ONLY admin can decide. Spec §5.
-const ADMIN_ONLY_TYPES: ApprovalRequestType[] = [
-  "role_upgrade_govt",
-  "role_upgrade_admin",
-  "govt_assignment_grant",
-];
+// Note: role_upgrade_govt, role_upgrade_admin, govt_assignment_grant were
+// removed in migration 0015 — institutional accounts are created directly.
+const ADMIN_ONLY_TYPES: ApprovalRequestType[] = [];
 
 // Types that a scope-matching govt CAN decide (admin also can).
 const GOVT_DECIDABLE_TYPES: ApprovalRequestType[] = [

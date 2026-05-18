@@ -12,10 +12,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
-  role_upgrade_govt: "Alta de cuentas govt",
-  role_upgrade_admin: "Alta de cuentas admin",
   organization_verification: "Verificación de organizaciones",
-  govt_assignment_grant: "Asignación de jurisdicciones",
 };
 
 // Validate a raw searchParam value against the known enum.

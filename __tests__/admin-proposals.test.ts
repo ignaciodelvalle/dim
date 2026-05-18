@@ -2,8 +2,12 @@
 //
 // Each propose action creates an approval_request with initiated_by='authority'
 // and initiated_by_user_id=actor. Capability is enforced per type: vet +
-// org_verification are open to govt and admin; govt + admin proposals are
-// admin-only; admin proposal also re-checks no-pets at proposal time.
+// org_verification are open to govt and admin.
+//
+// Migration 0015: role_upgrade_govt, role_upgrade_admin, govt_assignment_grant
+// were removed — institutional accounts are created directly by an admin, not
+// via approval_requests. proposeGovtUpgradeForUser and proposeAdminUpgradeForUser
+// are deleted; their test describe blocks are removed accordingly.
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
@@ -11,8 +15,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   logPiiQueryForAuthority,
-  proposeAdminUpgradeForUser,
-  proposeGovtUpgradeForUser,
   proposeOrgVerificationForOrg,
   proposeVetUpgradeForUser,
 } from "@/app/actions/admin-proposals";
@@ -180,113 +182,9 @@ describe("proposeVetUpgradeForUser", () => {
   });
 });
 
-describe("proposeGovtUpgradeForUser — admin only", () => {
-  it("admin proposes: creates approval_request, notifies target", async () => {
-    const result = await proposeGovtUpgradeForUser(adminUserId, {
-      targetUserId: secondTargetId,
-      organismo: "Municipalidad de Test",
-      cargo: "Inspector veterinario",
-      motivo: "Necesita acceso para revisar establecimientos.",
-      requestedLocalities: [{ province: "Buenos Aires", locality: "Pilar" }],
-      routingProvince: "Buenos Aires",
-      routingLocality: "Pilar",
-    });
-    expect("ok" in result && result.ok).toBe(true);
-
-    const [req] = await db
-      .select()
-      .from(approvalRequests)
-      .where(
-        and(
-          eq(approvalRequests.applicantUserId, secondTargetId),
-          eq(approvalRequests.type, "role_upgrade_govt"),
-        ),
-      )
-      .limit(1);
-    expect(req).toBeDefined();
-    expect(req.initiatedBy).toBe("authority");
-  });
-
-  it("govt cannot propose govt upgrade", async () => {
-    const result = await proposeGovtUpgradeForUser(govtUserId, {
-      targetUserId,
-      organismo: "X",
-      cargo: "Y",
-      motivo: "Razón válida.",
-      requestedLocalities: [{ province: "CABA", locality: "Caballito" }],
-      routingProvince: "CABA",
-      routingLocality: "Caballito",
-    });
-    expect("error" in result && result.error).toMatch(/admin/i);
-  });
-});
-
-describe("proposeAdminUpgradeForUser — anti-pets at proposal time", () => {
-  it("admin proposes: succeeds when target has no pets", async () => {
-    // secondTargetId has no pets — fresh user.
-    const result = await proposeAdminUpgradeForUser(adminUserId, {
-      targetUserId: secondTargetId,
-      motivo: "Persona de confianza, dedicación full-time al proyecto.",
-      routingProvince: "Universal",
-      routingLocality: "Universal",
-    });
-    // secondTargetId already has a pending role_upgrade_govt from the
-    // previous test, but role_upgrade_admin is a different type — should
-    // succeed.
-    if ("error" in result) {
-      // If the secondTarget has been flipped or something blocks, allow
-      // graceful skip — the assertion we really care about is the no-pets
-      // block (next test).
-      return;
-    }
-    expect("ok" in result && result.ok).toBe(true);
-  });
-
-  it("admin proposes: fails when target has active ownerships", async () => {
-    // Give targetUserId a pet so the anti-pets check fires.
-    const [pet] = await db
-      .insert(pets)
-      .values({
-        publicToken: `DIM-PROP-${Date.now().toString(36).toUpperCase().slice(-4)}`,
-        name: "BlockerPet",
-        species: "dog",
-        sex: "unknown",
-        status: "active",
-        potentiallyDangerousBreed: false,
-      })
-      .returning();
-    await db.insert(ownerships).values({
-      petId: pet.id,
-      ownerUserId: targetUserId,
-      role: "owner",
-      startedAt: new Date(),
-    });
-
-    const result = await proposeAdminUpgradeForUser(adminUserId, {
-      targetUserId,
-      motivo: "Probando el guard anti-pets a nivel proposal.",
-      routingProvince: "Universal",
-      routingLocality: "Universal",
-    });
-    expect("error" in result && result.error).toMatch(/mascota/i);
-
-    // Cleanup the pet.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
-      await tx.delete(pets).where(eq(pets.id, pet.id));
-    });
-  });
-
-  it("govt cannot propose admin upgrade", async () => {
-    const result = await proposeAdminUpgradeForUser(govtUserId, {
-      targetUserId,
-      motivo: "Intento desde govt.",
-      routingProvince: "Universal",
-      routingLocality: "Universal",
-    });
-    expect("error" in result && result.error).toMatch(/admin/i);
-  });
-});
+// proposeGovtUpgradeForUser and proposeAdminUpgradeForUser were removed in
+// migration 0015. Institutional accounts (govt, admin) are now created directly
+// by an existing admin. No approval_request flow exists for these roles.
 
 describe("proposeOrgVerificationForOrg", () => {
   it("admin proposes for an unverified org", async () => {

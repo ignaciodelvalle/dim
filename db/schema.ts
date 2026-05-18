@@ -1018,13 +1018,14 @@ export type NewGovtAssignment = typeof govtAssignments.$inferInsert;
 // Approval request types — kept as TEXT (with a DB CHECK) so adding a new
 // type is one migration of the CHECK constraint, not an enum migration.
 // Validation happens in lib/approval-payloads.ts.
+// Institutional accounts (govt, admin) are created directly by an existing
+// admin via createInstitutionalAccountForAuthority — there is no
+// "user requests to become govt/admin" flow. Removed in migration 0015:
+//   role_upgrade_govt, role_upgrade_admin, govt_assignment_grant.
+// "service_provider_scheduling" is deferred to Fase 8.
 export const APPROVAL_REQUEST_TYPES = [
   "role_upgrade_vet",
-  "role_upgrade_govt",
-  "role_upgrade_admin",
   "organization_verification",
-  "govt_assignment_grant",
-  // "service_provider_scheduling" deferred to Fase 8.
 ] as const;
 export type ApprovalRequestType = (typeof APPROVAL_REQUEST_TYPES)[number];
 

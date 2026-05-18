@@ -367,17 +367,18 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
   });
 });
 
-describe("admin-no-pets invariant re-check at approval time", () => {
-  it("approving role_upgrade_admin fails if target has active ownerships", async () => {
-    // Create a pet owned by orgApplicantId (still role='owner' or 'vet' —
-    // the trigger blocks INSERTs only when the owner is already admin).
-    const [profileBefore] = await db
-      .select({ role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, orgApplicantId))
-      .limit(1);
-    if (profileBefore.role === "admin") return; // skip if already admin from a prior run
-
+// Migration 0015 replaced the role='admin'-scoped trigger with
+// enforce_institutional_no_pets which covers account_type='institutional'
+// (both govt AND admin). role_upgrade_admin and role_upgrade_govt were
+// removed from APPROVAL_REQUEST_TYPES — institutional accounts are now
+// created directly by an existing admin, not via approval_requests.
+//
+// This describe block now verifies the DB-level trigger fires when ANY
+// institutional user (admin or govt) tries to own a pet.
+describe("enforce_institutional_no_pets trigger (migration 0015)", () => {
+  it("inserting an ownership for an institutional user throws restrict_violation", async () => {
+    // adminUserId was seeded as role='admin' with account_type='institutional'
+    // in beforeAll. Attempting to give them a pet must throw.
     const [pet] = await db
       .insert(pets)
       .values({
@@ -389,41 +390,17 @@ describe("admin-no-pets invariant re-check at approval time", () => {
         potentiallyDangerousBreed: false,
       })
       .returning();
-    await db.insert(ownerships).values({
-      petId: pet.id,
-      ownerUserId: orgApplicantId,
-      role: "owner",
-      startedAt: new Date(),
-    });
 
-    // Hand-build a role_upgrade_admin approval_request for orgApplicantId
-    // (the Fase 1 writer doesn't expose admin upgrades — that's a
-    // self-service form for Fase 5/6).
-    const token = generateApprovalRequestToken();
-    await db.insert(approvalRequests).values({
-      publicToken: token,
-      type: "role_upgrade_admin",
-      status: "pending",
-      applicantUserId: orgApplicantId,
-      targetUserId: orgApplicantId,
-      jurisdictionProvince: "Universal",
-      jurisdictionLocality: "Universal",
-      payload: { payload_version: 1, motivo: "Quiero ser admin para colaborar." },
-    });
+    await expect(
+      db.insert(ownerships).values({
+        petId: pet.id,
+        ownerUserId: adminUserId,
+        role: "owner",
+        startedAt: new Date(),
+      }),
+    ).rejects.toThrow(/institutional|restrict/i);
 
-    const result = await approveRequestForAuthority(adminUserId, token, null);
-    expect("error" in result && result.error).toMatch(/mascota|admin/i);
-
-    // The approval_request stays pending (the tx rolled back).
-    const [stillPending] = await db
-      .select({ status: approvalRequests.status })
-      .from(approvalRequests)
-      .where(eq(approvalRequests.publicToken, token))
-      .limit(1);
-    expect(stillPending.status).toBe("pending");
-
-    // Cleanup the manually-inserted approval_request, ownership, pet.
-    await db.delete(approvalRequests).where(eq(approvalRequests.publicToken, token));
+    // Cleanup the pet (ownership was never inserted).
     await db.transaction(async (tx) => {
       await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
       await tx.delete(pets).where(eq(pets.id, pet.id));

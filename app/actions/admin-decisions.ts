@@ -11,7 +11,6 @@ import {
   govtAssignments,
   notifications,
   organizations,
-  ownerships,
   profiles,
 } from "@/db";
 import { canDecideRequest } from "@/lib/approval-scope";
@@ -255,78 +254,6 @@ async function applyApprovalMutation(
       };
     }
 
-    case "role_upgrade_govt": {
-      if (!request.targetUserId) throw new Error("role_upgrade_govt requires target_user_id.");
-      const payload = request.payload as {
-        requested_localities?: { province: string; locality: string }[];
-      };
-      const localities = payload.requested_localities ?? [];
-      if (localities.length === 0) {
-        throw new Error("Payload requested_localities is empty.");
-      }
-      await tx
-        .update(profiles)
-        .set({ role: "govt", updatedAt: new Date() })
-        .where(eq(profiles.id, request.targetUserId));
-      for (const loc of localities) {
-        await tx.insert(govtAssignments).values({
-          userId: request.targetUserId,
-          jurisdictionProvince: loc.province,
-          jurisdictionLocality: loc.locality,
-          grantedByUserId: actorUserId,
-        });
-      }
-      return {
-        kind: "role_upgrade_govt",
-        target_user_id: request.targetUserId,
-        assignments_granted: localities.length,
-      };
-    }
-
-    case "role_upgrade_admin": {
-      if (!request.targetUserId) throw new Error("role_upgrade_admin requires target_user_id.");
-      // Spec §7.2 — re-check the anti-pets invariant at decision time.
-      // Between submission and approval the target may have adopted pets.
-      const owned = await tx
-        .select({ id: ownerships.id })
-        .from(ownerships)
-        .where(and(eq(ownerships.ownerUserId, request.targetUserId), isNull(ownerships.endedAt)));
-      if (owned.length > 0) {
-        throw new Error(
-          `El usuario destino tiene ${owned.length} mascota(s) registrada(s). El rol admin no puede tener mascotas — transferí o dale de baja antes de aprobar.`,
-        );
-      }
-      await tx
-        .update(profiles)
-        .set({ role: "admin", updatedAt: new Date() })
-        .where(eq(profiles.id, request.targetUserId));
-      return { kind: "role_upgrade_admin", target_user_id: request.targetUserId };
-    }
-
-    case "govt_assignment_grant": {
-      if (!request.targetUserId) {
-        throw new Error("govt_assignment_grant requires target_user_id.");
-      }
-      const payload = request.payload as {
-        requested_province?: string;
-        requested_locality?: string;
-      };
-      if (!payload.requested_province || !payload.requested_locality) {
-        throw new Error("Payload missing requested_province or requested_locality.");
-      }
-      await tx.insert(govtAssignments).values({
-        userId: request.targetUserId,
-        jurisdictionProvince: payload.requested_province,
-        jurisdictionLocality: payload.requested_locality,
-        grantedByUserId: actorUserId,
-      });
-      return {
-        kind: "govt_assignment_grant",
-        target_user_id: request.targetUserId,
-        province: payload.requested_province,
-        locality: payload.requested_locality,
-      };
-    }
   }
 }
 
@@ -334,14 +261,8 @@ function titleForApproval(type: ApprovalRequest["type"]): string {
   switch (type) {
     case "role_upgrade_vet":
       return "Matrícula aprobada";
-    case "role_upgrade_govt":
-      return "Tu rol govt fue aprobado";
-    case "role_upgrade_admin":
-      return "Tu rol admin fue aprobado";
     case "organization_verification":
       return "Tu organización fue verificada";
-    case "govt_assignment_grant":
-      return "Tu nueva localidad fue aprobada";
   }
 }
 
@@ -350,14 +271,8 @@ function bodyForApproval(type: ApprovalRequest["type"], notes: string | null): s
   switch (type) {
     case "role_upgrade_vet":
       return `Verificamos tu matrícula. Ya figurás como veterinario/a en MiMAR.${trail}`;
-    case "role_upgrade_govt":
-      return `Te asignamos el rol govt con tus localidades solicitadas.${trail}`;
-    case "role_upgrade_admin":
-      return `Te aprobamos como admin de MiMAR.${trail}`;
     case "organization_verification":
       return `Tu organización ahora figura como verificada. Los eventos que registres aparecen con el sello de verificación.${trail}`;
-    case "govt_assignment_grant":
-      return `Tu solicitud para cubrir una nueva localidad fue aprobada.${trail}`;
   }
 }
 
@@ -365,14 +280,8 @@ function titleForRejection(type: ApprovalRequest["type"]): string {
   switch (type) {
     case "role_upgrade_vet":
       return "Matrícula rechazada";
-    case "role_upgrade_govt":
-      return "Solicitud govt rechazada";
-    case "role_upgrade_admin":
-      return "Solicitud admin rechazada";
     case "organization_verification":
       return "Verificación de organización rechazada";
-    case "govt_assignment_grant":
-      return "Solicitud de localidad rechazada";
   }
 }
 

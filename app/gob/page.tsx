@@ -24,10 +24,7 @@ const ACTION_LABELS: Record<string, string> = {
 // Human-readable labels per approval type (Spanish, Rioplatense).
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
-  role_upgrade_govt: "Alta de cuentas govt",
-  role_upgrade_admin: "Alta de cuentas admin",
   organization_verification: "Verificación de organizaciones",
-  govt_assignment_grant: "Asignación de jurisdicciones",
 };
 
 export default async function GobiernoDashboardPage() {
