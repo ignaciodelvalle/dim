@@ -167,14 +167,14 @@ beforeAll(async () => {
   ownerUserId = await createUserOrThrow(OWNER_EMAIL);
   govt2UserId = await createUserOrThrow(GOVT2_EMAIL);
 
-  // Assign roles
-  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
+  // Assign roles — migration 0015 requires account_type='institutional' for govt/admin.
+  await db.update(profiles).set({ role: "admin", accountType: "institutional" }).where(eq(profiles.id, adminUserId));
 
   // DNI prereq: ownerUserId calls createOrganizationForUser in seedVerifiedOrg.
   await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, ownerUserId));
   await db
     .update(profiles)
-    .set({ role: "govt" })
+    .set({ role: "govt", accountType: "institutional" })
     .where(or(eq(profiles.id, govtUserId), eq(profiles.id, govt2UserId)));
 
   // Seed vet profile fields
@@ -463,7 +463,7 @@ describe("revokeVetRoleForAuthority", () => {
     const wrongGovtEmail = "fase4-wronggov@dim-test.local";
     await deleteTestUser(wrongGovtEmail);
     const wrongGovtId = await createUserOrThrow(wrongGovtEmail);
-    await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, wrongGovtId));
+    await db.update(profiles).set({ role: "govt", accountType: "institutional" }).where(eq(profiles.id, wrongGovtId));
     await db.insert(govtAssignments).values({
       userId: wrongGovtId,
       jurisdictionProvince: "Córdoba",
@@ -908,8 +908,8 @@ describe("revokeGovtLocalityForAuthority", () => {
       })
       .returning({ id: govtAssignments.id });
 
-    // Upgrade ownerUserId to govt temporarily
-    await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, ownerUserId));
+    // Upgrade ownerUserId to govt temporarily (migration 0015: must set institutional)
+    await db.update(profiles).set({ role: "govt", accountType: "institutional" }).where(eq(profiles.id, ownerUserId));
 
     const attachmentId = await seedAttachment(govtUserId);
 

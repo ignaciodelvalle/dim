@@ -110,7 +110,7 @@ beforeAll(async () => {
   govtUserId = await createTestUser(GOVT_EMAIL);
   adminUserId = await createTestUser(ADMIN_EMAIL);
 
-  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
+  await db.update(profiles).set({ role: "admin", accountType: "institutional" }).where(eq(profiles.id, adminUserId));
 
   // DNI prereq: mark applicants verified so they can submit petitions.
   await db
@@ -332,7 +332,7 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
   it("govt without matching govt_assignment is rejected by capability check", async () => {
     // Promote govtUserId to govt + give them an assignment in a DIFFERENT
     // locality from the request being decided.
-    await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, govtUserId));
+    await db.update(profiles).set({ role: "govt", accountType: "institutional" }).where(eq(profiles.id, govtUserId));
     await db.insert(govtAssignments).values({
       userId: govtUserId,
       jurisdictionProvince: "Mendoza",

@@ -118,10 +118,12 @@ beforeAll(async () => {
   if (a.error || !a.data.user) throw new Error(`createUser admin: ${a.error?.message}`);
   adminUserId = a.data.user.id;
 
-  // Mark admin user as role='admin' in profiles.
+  // Mark admin user as institutional admin in profiles.
+  // account_type='institutional' is required by profiles_account_type_role_match
+  // CHECK (migration 0015) whenever role='admin' or role='govt'.
   await db
     .update(profiles)
-    .set({ role: "admin" })
+    .set({ role: "admin", accountType: "institutional" })
     .where(eq(profiles.id, adminUserId));
 });
 
@@ -202,7 +204,7 @@ describe("createSymptomObservedWriter — surveillance pipeline", () => {
     expect(notifs).toHaveLength(0);
   });
 
-  it("rabies symptoms → symptom_observed + outbreak_signal + notification to admin", async () => {
+  it("rabies symptoms → symptom_observed + outbreak_signal + notification to authority (admin fallback — no govt seeded for test locality)", async () => {
     const pet = await insertTestPet(ownerUserId, "RABIES");
 
     const result = await createSymptomObservedWriter({

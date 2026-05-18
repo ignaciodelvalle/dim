@@ -12,6 +12,7 @@
 // attachment / reminder) atomically → redirect back to the pet's detail page.
 
 import { attachments, db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
+import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { signalAuthorityReport } from "@/lib/authority";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
@@ -33,7 +34,7 @@ import {
 } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -1890,13 +1891,9 @@ export async function createSymptomObservedAction(
 /**
  * Route a notification for each outbreak_signal event to authority targets.
  *
- * v1: Routes only to active admins.
- *
- * TODO: once admin_page Fase 0 lands and govt_assignments + profiles.account_type
- * exist, route to govts whose jurisdiction matches pet.jurisdictionProvince +
- * pet.jurisdictionLocality first, then fallback to admins.
- * See docs/superpowers/specs/2026-05-17-admin-page-design.md.
- * CTA for govt portal will point to /gob/cola; admin portal to /admin/cola.
+ * v2: Uses findAuthoritiesForJurisdiction — routes to govts in scope first,
+ * falls back to active institutional admins when no govt covers the locality.
+ * CTA is per-recipient: govt → /gob/cola, admin → /admin/cola.
  */
 async function routeOutbreakSignalNotification(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -1913,20 +1910,25 @@ async function routeOutbreakSignalNotification(
 ): Promise<void> {
   const { signalEvent, pet, disease } = args;
 
-  // TODO: once admin_page Fase 0 lands, add:
-  //   eq(profiles.accountType, "institutional"), isNull(profiles.deactivatedAt)
-  // to scope to institutional govts in jurisdiction.
-  const adminUserIds = await tx
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.role, "admin"));
+  const province = pet.jurisdictionProvince ?? "";
+  const locality = pet.jurisdictionLocality ?? "";
 
-  if (adminUserIds.length === 0) {
+  // findAuthoritiesForJurisdiction uses db (not tx) for reads — acceptable for
+  // read-only scope resolution inside a write transaction.
+  const authorityIds = await findAuthoritiesForJurisdiction({ province, locality });
+
+  if (authorityIds.length === 0) {
     console.warn(
-      `No active admins to route outbreak_signal ${signalEvent.id} (disease=${disease.disease_code}). Signal recorded but no notification sent.`,
+      `No authorities to route outbreak_signal ${signalEvent.id} (disease=${disease.disease_code}, jurisdiction=${locality}/${province}). Signal recorded but no notification sent.`,
     );
     return;
   }
+
+  // Load roles in one batch so we can build per-recipient CTA URLs.
+  const authorityProfiles = await tx
+    .select({ id: profiles.id, role: profiles.role })
+    .from(profiles)
+    .where(inArray(profiles.id, authorityIds));
 
   const localityPart = pet.jurisdictionLocality ? ` en ${pet.jurisdictionLocality}` : "";
   const title = `Signal: posible ${disease.disease_label}${localityPart}`;
@@ -1940,15 +1942,18 @@ async function routeOutbreakSignalNotification(
     "_No es diagnóstico. Considerá el contexto: cuántos signals similares en la jurisdicción / período._",
   ].join("\n");
 
-  for (const admin of adminUserIds) {
+  for (const authority of authorityProfiles) {
+    const ctaUrl = authority.role === "govt" ? "/gob/cola" : "/admin/cola";
     await tx.insert(notifications).values({
-      userId: admin.id,
+      userId: authority.id,
       notificationType: "outbreak_signal_detected",
       title,
       body,
       severity: "warning",
       relatedPetId: pet.id,
       relatedEventId: signalEvent.id,
+      ctaLabel: "Ver señales",
+      ctaUrl,
     });
   }
 }

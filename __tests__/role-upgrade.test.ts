@@ -117,7 +117,7 @@ beforeAll(async () => {
   });
   if (r3.error || !r3.data.user) throw new Error(`createUser admin: ${r3.error?.message}`);
   adminUserId = r3.data.user.id;
-  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
+  await db.update(profiles).set({ role: "admin", accountType: "institutional" }).where(eq(profiles.id, adminUserId));
 });
 
 afterAll(async () => {
@@ -260,7 +260,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
 
   it("routes to scope-matching govt when one covers the locality", async () => {
     // Promote userId2 to govt and assign them to a specific locality.
-    await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, userId2));
+    await db.update(profiles).set({ role: "govt", accountType: "institutional" }).where(eq(profiles.id, userId2));
     await db.insert(govtAssignments).values({
       userId: userId2,
       jurisdictionProvince: "Buenos Aires",

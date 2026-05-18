@@ -53,10 +53,18 @@ export async function findAuthoritiesForJurisdiction(
     return Array.from(new Set(govts.map((g) => g.userId)));
   }
 
+  // Tightened per migration 0015: only active, non-deactivated institutional
+  // admins receive fallback notifications.
   const admins = await db
     .select({ id: profiles.id })
     .from(profiles)
-    .where(eq(profiles.role, "admin"));
+    .where(
+      and(
+        eq(profiles.role, "admin"),
+        eq(profiles.accountType, "institutional"),
+        isNull(profiles.deactivatedAt),
+      ),
+    );
 
   return admins.map((a) => a.id);
 }
