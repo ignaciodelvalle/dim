@@ -15,10 +15,9 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 
 | Priority | Feature | Plan file | Why now |
 |----------|---------|-----------|---------|
-| 1 | **Event-agent foundations** | `plans/2026-05-16-event-agent-foundations.md` | Registry + reference URL-prefill (peso form). Foundational para el futuro agente conversacional. ~1 día. |
-| 2 | **Symptom → disease surveillance** | `plans/2026-05-17-symptom-disease-surveillance.md` | 5 fases: catálogo de síntomas + matcher + outbreak_signal event + notification. Activación del dashboard zoonosis. Dependencia parcial con admin page Fase 0 (para routing a govts en lugar de solo admin fallback). ~2-3 días. |
-| 3 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. ~2 semanas. |
-| 4 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance, separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
+| 1 | **Symptom → disease surveillance** | `plans/2026-05-17-symptom-disease-surveillance.md` | 5 fases: catálogo de síntomas + matcher + outbreak_signal event + notification. Activación del dashboard zoonosis. Dependencia parcial con admin page Fase 0 (para routing a govts en lugar de solo admin fallback). ~2-3 días. |
+| 2 | **Health campaigns + scheduling** | `plans/2026-05-16-health-campaigns-and-scheduling.md` | 10 fases: schema → approval workflow → schedule rules → materialización cron → owner search/book → org attendance → owner cancellation → integration con form existente → sub-rutas `/pro/servicios` + `/pro/agenda` → polish. Sistema completo de turnos veterinarios. ~2 semanas. |
+| 3 | **Admin page Fase 0+** (plan to write) | (none yet — spec `specs/2026-05-17-admin-page-design.md`) | Schema foundation + Fases iniciales del admin/govt surface. Destraba aprobaciones reales de vet/org/govt, routing real a govts en surveillance, separación `/gob` vs `/admin` con scopes concretos. **Bloqueado por falta de plan escrito**. |
 
 **Bloqueadas por specs sin plan todavía:**
 
@@ -45,7 +44,7 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 | Plan | Status | Spec relacionado | Notas |
 |------|--------|------------------|-------|
 | `2026-05-15-timeline-type-filter.md` | ✅ Implementado | `specs/2026-05-15-timeline-type-filter-design.md` | — |
-| `2026-05-16-event-agent-foundations.md` | 🟢 Ready for CC | — (diseño en chat) | `lib/event-agent-registry.ts` + retrofit del peso form. Foundational para el futuro agente conversacional. |
+| `2026-05-16-event-agent-foundations.md` | ✅ Implementado | — (diseño en chat) | `lib/event-agent-registry.ts` con `EVENT_AGENT_REGISTRY` + `buildAgentDeeplink()`. Form de peso retrofitteado como referencia de URL-prefill (acepta `?kg=&occurredAt=&notes=`). Tests en `lib/event-agent-registry.test.ts`. |
 | `2026-05-16-vecino-mascota-en-transito.md` | ✅ Implementado | — (diseño en chat) | `custodyKind` field en `PetForm`, `shelter_custody` ownership branch en `createPetAction` |
 | `2026-05-16-libreta-sanitaria-parte-a.md` | ✅ Implementado | — | `lib/libreta-sanitaria.ts` con `LIBRETA_SANITARIA_EVENT_TYPES`, `NON_LIBRETA_EVENT_TYPES`, `LIBRETA_FILTER_CHIPS`, helpers + test de cobertura |
 | `2026-05-16-libreta-sanitaria-parte-b.md` | ✅ Implementado | — | Ruta `/mis-mascotas/{token}/libreta` con vista agrupada + cronológica + print stylesheet. Componentes `LibretaSanitariaView`, `LibretaIdentityHeader`. Grouping en `lib/libreta-sanitaria.ts`. |
