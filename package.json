@@ -22,6 +22,7 @@
     "rebuild:projections": "tsx scripts/rebuild-projections.ts",
     "seed:test": "tsx scripts/seed-test-users.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
+    "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
