@@ -386,16 +386,11 @@ export async function acceptFosterProposalAction(
 
         const now = new Date();
 
-        await tx
-          .update(fosterProposals)
-          .set({
-            status: "accepted",
-            respondedAt: now,
-            responseNotes: input.responseNotes?.trim() || null,
-            updatedAt: now,
-          })
-          .where(eq(fosterProposals.id, proposal.id));
-
+        // Create the foster ownership FIRST so we can flip the proposal to
+        // 'accepted' with resolved_ownership_id set in a single statement.
+        // The CHECK constraint `foster_proposals_response_consistent` enforces
+        // (status='accepted' → responded_at IS NOT NULL AND resolved_ownership_id IS NOT NULL),
+        // which fails if these are split across two UPDATEs.
         const [fosterOwnership] = await tx
           .insert(ownerships)
           .values({
@@ -409,7 +404,13 @@ export async function acceptFosterProposalAction(
 
         await tx
           .update(fosterProposals)
-          .set({ resolvedOwnershipId: fosterOwnership.id })
+          .set({
+            status: "accepted",
+            respondedAt: now,
+            responseNotes: input.responseNotes?.trim() || null,
+            resolvedOwnershipId: fosterOwnership.id,
+            updatedAt: now,
+          })
           .where(eq(fosterProposals.id, proposal.id));
 
         const acceptedPayload = validateEventPayload("foster_proposal_accepted", {
