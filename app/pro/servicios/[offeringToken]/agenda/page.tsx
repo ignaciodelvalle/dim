@@ -9,11 +9,13 @@ import {
   createScheduleRuleForVetAction,
   deleteScheduleRuleForVetAction,
 } from "@/app/actions/schedule-rules";
+import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 
 import { VetAgendaRuleForm } from "./VetAgendaRuleForm";
+import { MaterializeNowButton } from "./MaterializeNowButton";
 
 const WEEKDAY_LABELS: Record<number, string> = {
   1: "Lun",
@@ -158,6 +160,21 @@ export default async function VetAgendaPage({
             />
           </div>
         </section>
+
+        {/* Materialization — immediate preview */}
+        {rules.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-base font-semibold">Materializar turnos</h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Genera los turnos de los próximos 60 días a partir de las reglas activas.
+              El cron lo hace automáticamente; este botón es para preview inmediato.
+            </p>
+            <MaterializeNowButton
+              offeringToken={offeringToken}
+              materializeAction={materializeOfferingNowAction}
+            />
+          </section>
+        )}
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link

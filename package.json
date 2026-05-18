@@ -21,6 +21,7 @@
     "rls:smoke": "tsx scripts/rls-smoke.ts",
     "rebuild:projections": "tsx scripts/rebuild-projections.ts",
     "seed:test": "tsx scripts/seed-test-users.ts",
+    "materialize:slots": "tsx scripts/materialize-slots.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
