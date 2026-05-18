@@ -187,6 +187,11 @@ const deathRecorded = z
       disease_code: z.string().nullable(),
       confirmed_by_lab: z.boolean().nullable(),
       is_reportable: z.boolean(),
+      // Set true by the death action when the pet was in an active rabies
+      // observation at time of death (the same tx also emits
+      // rabies_observation_ended with outcome='dead'). Optional for
+      // back-compat with rows written before the bite-rabies hook landed.
+      during_rabies_observation: z.boolean().optional(),
     }),
   )
   .strict();

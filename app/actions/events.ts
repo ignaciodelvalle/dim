@@ -43,7 +43,7 @@ import {
 } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -1461,9 +1461,16 @@ export async function createDeathRecordAction(
 
   const now = new Date();
   let insertedEvent: { id: string } | null = null;
+  // Captured inside the tx so the post-tx authority escalation knows whether
+  // a rabies observation was auto-closed by this death.
+  let rabiesObservationClosed = false;
 
   try {
     await db.transaction(async (tx) => {
+      // Detect active rabies observation BEFORE inserting the death event so
+      // we can carry the during_rabies_observation flag into the payload.
+      const wasInObservation = pet.rabiesObservationStatus === "in_progress";
+
       const eventPayload = validateEventPayload("death_recorded", {
         cause,
         cause_detail: causeDetail,
@@ -1481,6 +1488,7 @@ export async function createDeathRecordAction(
         disease_code: diseaseCode,
         confirmed_by_lab: diseaseCode ? confirmedByLab : null,
         is_reportable: reportable,
+        ...(wasInObservation ? { during_rabies_observation: true } : {}),
       });
       const [event] = await tx
         .insert(petEvents)
@@ -1513,6 +1521,49 @@ export async function createDeathRecordAction(
         .update(pets)
         .set({ status: "deceased", deceasedAt: occurredAt, updatedAt: now })
         .where(eq(pets.id, pet.id));
+
+      // Death-during-observation hook (bite-rabies-observation spec D9).
+      // When the pet was in active 10-day rabies observation at time of death,
+      // atomically close the observation with outcome='dead' and flip status.
+      // Authority notification is best-effort post-tx — the auto-close itself
+      // is part of the atomic death transaction.
+      if (wasInObservation) {
+        const [startedEvent] = await tx
+          .select()
+          .from(petEvents)
+          .where(
+            and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "rabies_observation_started")),
+          )
+          .orderBy(desc(petEvents.occurredAt))
+          .limit(1);
+        if (startedEvent) {
+          const startedPayload = startedEvent.payload as Record<string, unknown>;
+          const endedPayload = validateEventPayload("rabies_observation_ended", {
+            bite_event_id: startedPayload.bite_event_id as string,
+            observation_started_event_id: startedEvent.id,
+            outcome: "dead",
+            closed_by_role: "system",
+            closure_notes: "Cierre automático por fallecimiento durante observación",
+            death_event_id: event.id,
+          });
+          await tx.insert(petEvents).values({
+            petId: pet.id,
+            eventType: "rabies_observation_ended",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: null,
+            authorRole: "system",
+            authorOrganizationId: null,
+            authorVerified: false,
+            payload: endedPayload,
+          });
+          await tx
+            .update(pets)
+            .set({ rabiesObservationStatus: "completed_dead", updatedAt: now })
+            .where(eq(pets.id, pet.id));
+          rabiesObservationClosed = true;
+        }
+      }
     });
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
@@ -1533,6 +1584,35 @@ export async function createDeathRecordAction(
       jurisdictionProvince: pet.jurisdictionProvince ?? null,
       jurisdictionLocality: pet.jurisdictionLocality ?? null,
     });
+  }
+
+  // Best-effort urgent escalation when this death closed an active rabies
+  // observation. Public-health critical regardless of declared cause — the
+  // overlap with a bite window is the signal that needs immediate review.
+  if (rabiesObservationClosed && insertedEvent) {
+    try {
+      if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
+        const authorityIds = await findAuthoritiesForJurisdiction({
+          province: pet.jurisdictionProvince,
+          locality: pet.jurisdictionLocality,
+        });
+        if (authorityIds.length > 0) {
+          await db.insert(notifications).values(
+            authorityIds.map((authorityId) => ({
+              userId: authorityId,
+              notificationType: "rabies_observation_completed_dead_authority",
+              severity: "urgent" as const,
+              title: `URGENTE — fallecimiento durante observación antirrábica (${pet.name})`,
+              body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. Requiere revisión inmediata por riesgo de rabia.`,
+              relatedPetId: pet.id,
+              relatedEventId: (insertedEvent as { id: string }).id,
+            })),
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[death] rabies-observation authority escalation failed:", err);
+    }
   }
 
   redirect(`/mis-mascotas/${publicToken}`);
