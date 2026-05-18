@@ -1,4 +1,4 @@
-# Health campaigns and scheduling — implementation plan
+﻿# Health campaigns and scheduling — implementation plan
 
 > Plan ejecutable para Claude Code. Diez fases que implementan el sistema completo de scheduling veterinario: orgs y vets independientes solicitan permiso → govt/admin aprueba (por scope) → orgs y vets publican agenda recurrente → cron materializa slots → owners buscan y reservan → asistencia emite el evento médico que cae en la libreta sanitaria. La opción de "agendar como recordatorio personal" se preserva en paralelo. Las fases son secuencialmente dependientes; Fase 10 (polish) es opcional.
 >
@@ -34,11 +34,11 @@ Ocho fases secuenciales:
 
 **Fase 1 — Approval workflow (org side).** Server actions: `createServiceOfferingAction`, `approveServiceOfferingAction`, `rejectServiceOfferingAction`. Routes en `/org/[orgToken]/servicios` para gestión org.
 
-**Fase 1.5 — Approval routing: govt + admin fallback.** El `createServiceOfferingAction` lookupa govts cuya scope cubre la `jurisdiction_locality` del offering. Notifica al govt cubriente vía `/gobierno/servicios`; fallback a admins vía `/admin/servicios` si no hay govt covering. Reemplaza el "notify all admins" del v2.0.
+**Fase 1.5 — Approval routing: govt + admin fallback.** El `createServiceOfferingAction` lookupa govts cuya scope cubre la `jurisdiction_locality` del offering. Notifica al govt cubriente vía `/gob/servicios`; fallback a admins vía `/admin/servicios` si no hay govt covering. Reemplaza el "notify all admins" del v2.0.
 
 **Fase 2 — Schedule rules.** CRUD de `service_schedule_rules` desde `/org/[orgToken]/servicios/{token}/agenda`. Server actions atómicas.
 
-**Fase 2.5 — `/profesional` route group para vet independientes.** Mirror reducido de la org-side: `/profesional/servicios`, `/profesional/servicios/nuevo`, `/profesional/servicios/{token}`, `/profesional/servicios/{token}/agenda`, `/profesional/agenda`. Mismo form que org-side, ownership `provider_user_id` en lugar de `organization_id`. Prerequisito: vet con `professional.provider` capability aprobada.
+**Fase 2.5 — sub-rutas `/pro/servicios` + `/pro/agenda` para vet independientes con capability `professional.provider`.** Mirror reducido de la org-side: `/pro/servicios`, `/pro/servicios/nuevo`, `/pro/servicios/{token}`, `/pro/servicios/{token}/agenda`, `/pro/agenda`. Mismo form que org-side, ownership `provider_user_id` en lugar de `organization_id`. Estas sub-rutas se agregan al portal `/pro` existente — no son un portal separado.
 
 **Fase 3 — Slot materialization.** Script `scripts/materialize-slots.ts` + cron route `/api/cron/materialize-slots`. Botón "Materializar ahora" para preview inmediato.
 
@@ -50,9 +50,9 @@ Ocho fases secuenciales:
 
 **Fase 7 — Integration con form existente.** Link en `/mis-mascotas/{token}/vacunas/programar` apuntando a `/turnos/buscar?service_kind=...`. Sección "Próximas vacunas" del pet profile muestra reminders puros + con appointment mezclados.
 
-**Fase 8 — Vet independiente attendance.** `/profesional/agenda` con bookings del día del vet. `markAppointmentAttendedAction` vía `/profesional/agenda/turnos/{token}`.
+**Fase 8 — Vet independiente attendance.** `/pro/agenda` con bookings del día del vet. `markAppointmentAttendedAction` vía `/pro/agenda/turnos/{token}`.
 
-**Fase 9 — Govt / admin approval UI.** Pages de review en `/gobierno/servicios` y `/admin/servicios`. Fallback queue visible al admin.
+**Fase 9 — Govt / admin approval UI.** Pages de review en `/gob/servicios` y `/admin/servicios`. Fallback queue visible al admin.
 
 **Fase 10 — Polish (opcional).** 24h reminder cron, logos en search, filtros extra.
 
@@ -87,7 +87,6 @@ Ocho fases secuenciales:
 - Tests por fase
 
 **Fuera (deferred per spec §13):**
-- Polimorfismo provider org/vet individual
 - Tabla `campaigns` separada (price=null + display_name explicativo es suficiente para v1)
 - Confirmation modes manual
 - Multi-pet booking en un solo slot

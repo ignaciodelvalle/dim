@@ -1,8 +1,8 @@
-# MiMAR rebrand + portal restructure — implementation plan
+﻿# MiMAR rebrand + portal restructure — implementation plan
 
-> Plan ejecutable para Claude Code. Cambia el brand user-facing a MiMAR (Mi Mascota Argentina), reestructura portales con cuatro surfaces claras (`/profesional`, `/org/[token]`, `/gobierno`, `/admin`), extiende `service_offerings` a polymorphic provider (org o vet independiente), y lockea Mi Argentina integration como premisa core. Actualiza AGENTS.md + todos los specs/plans in-flight + README + brand copy mínimo en código.
+> Plan ejecutable para Claude Code. Cambia el brand user-facing a MiMAR (Mi Mascota Argentina), reestructura portales con cuatro surfaces claras (`/pro`, `/org/[token]`, `/gob`, `/admin`), extiende `service_offerings` a polymorphic provider (org o vet independiente), y lockea Mi Argentina integration como premisa core. Actualiza AGENTS.md + todos los specs/plans in-flight + README + brand copy mínimo en código.
 >
-> Este plan es **doc-first**. El rename físico de carpetas (`app/refugio/` → `app/org/`) y el code refactor para soportar `/profesional` y polymorphic offerings son **pieces separadas** que vienen después; este plan deja los docs alineados para que esos PRs cuando lleguen tengan referencia clara.
+> Este plan es **doc-first**. El rename físico de carpetas (`app/refugio/` → `app/org/`) y el code refactor para soportar `/pro` y polymorphic offerings son **pieces separadas** que vienen después; este plan deja los docs alineados para que esos PRs cuando lleguen tengan referencia clara.
 >
 > **Fecha:** 2026-05-17
 > **Owner:** Ignacio Del Valle
@@ -17,7 +17,7 @@ Lectura obligatoria en este orden:
 
 1. **`AGENTS.md`** completo — vas a reescribir varias secciones (Naming, User roles & account types). Entender el doc actual end-to-end es prerequisito porque el cambio toca conceptual model
 2. **`docs/superpowers/README.md`** — el índice. Cambia su tabla de "what to attack next" porque los planes que están listos van a tocar paths nuevos
-3. **`docs/superpowers/specs/2026-05-16-health-campaigns-and-scheduling-design.md`** — el spec v2.0. Su D1 ("Provider = organization, no polimorfismo") **se revierte parcialmente** en este plan porque agregamos `/profesional` para vets independientes
+3. **`docs/superpowers/specs/2026-05-16-health-campaigns-and-scheduling-design.md`** — el spec v2.0. Su D1 ("Provider = organization, no polimorfismo") **se revierte parcialmente** en este plan porque agregamos `/pro` para vets independientes
 4. **`docs/superpowers/specs/2026-05-17-admin-page-design.md`** (v2.1) — tiene rutas compartidas govt/admin en `/admin/*`. Se dividen
 5. **`docs/superpowers/specs/2026-05-17-lost-and-found-complete-design.md`** y **`docs/superpowers/specs/2026-05-17-symptom-disease-surveillance-design.md`** — referencias a `/refugio` y a routing de notifications
 6. **Los planes correspondientes** en `docs/superpowers/plans/` para cada spec — mismas referencias
@@ -33,9 +33,9 @@ Cuatro cambios conceptuales con efecto en muchos docs:
 
 **1.2 Portal restructure:**
 - `/mis-mascotas` (owner) — sin cambios
-- `/profesional` (vet personal con `professional.provider` capability) — **nuevo**, para vets independientes que ofrecen servicios sin clínica afiliada
+- `/pro` (vet personal con `professional.provider` capability) — **nuevo**, para vets independientes que ofrecen servicios sin clínica afiliada
 - `/org/[orgToken]` (members de cualquier org) — **rename de `/refugio/[orgToken]`**, generalizado a todos los `org_type`
-- `/gobierno` (govt institutional accounts) — **nuevo**, para approvals scoped a localidad + dashboards regionales + business rules en su scope
+- `/gob` (govt institutional accounts) — **nuevo**, para approvals scoped a localidad + dashboards regionales + business rules en su scope
 - `/admin` (admin institutional accounts) — **refinado**, para meta-admin (crear cuentas institucionales, dashboards del aplicativo, audit cross-govt, business rules universales)
 - `/p/[publicToken]` (credencial pública) — sin cambios
 - `/libreta/compartir/[shareToken]` (libreta Tier-2) — sin cambios
@@ -52,12 +52,12 @@ Cuatro cambios conceptuales con efecto en muchos docs:
 | D2 | **MiMAR es el brand user-facing**. Aparece en metadata, header de credencial, signup/login copy, notifications títulos, marketing. "Mi Mascota Argentina" es el spelling-out cuando se necesita | Si el contexto es legal/oficial, el footer institucional dice "Documento de Identificación para Mascotas" para preservar legitimidad |
 | D3 | **Mi Argentina integration es premisa core, no opcional**. Sin esa conexión, el producto no tiene sentido. Documentado en AGENTS.md → Naming + North Star (extender ligeramente) | No bloquea v1 (integration real es deferred) pero el alignment guía todas las decisiones |
 | D4 | **`/refugio` se renombra a `/org`** (singular, corto) en todos los docs. Plus middleware redirect cuando se haga el code rename (PR separado, no este plan) | En docs, todas las refs a `/refugio/*` pasan a `/org/[orgToken]/*` |
-| D5 | **`/profesional`** es portal nuevo para vets independientes. Diferencia funcional vs `/org/[token]`: el vet personal ofrece servicios solos, sin las features de org (intake stray, foster, adoption, transfer custody, member management, coverage zones). El vet con clínica usa `/org/[token]` de su clínica | El vet con DOS hats (independiente + miembro de clínica) ve ambos portales con identidades distintas |
-| D6 | **`/gobierno` y `/admin` son surfaces separadas**. Govt: scoped a sus localidades, configuración regional, dashboards regionales. Admin: cuentas institucionales, dashboards del aplicativo, audit global, business rules universales | `/gobierno` reemplaza el uso compartido de `/admin` que estaba en admin page spec v2.1 |
+| D5 | **`/pro`** es portal nuevo para vets independientes. Diferencia funcional vs `/org/[token]`: el vet personal ofrece servicios solos, sin las features de org (intake stray, foster, adoption, transfer custody, member management, coverage zones). El vet con clínica usa `/org/[token]` de su clínica | El vet con DOS hats (independiente + miembro de clínica) ve ambos portales con identidades distintas |
+| D6 | **`/gob` y `/admin` son surfaces separadas**. Govt: scoped a sus localidades, configuración regional, dashboards regionales. Admin: cuentas institucionales, dashboards del aplicativo, audit global, business rules universales | `/gob` reemplaza el uso compartido de `/admin` que estaba en admin page spec v2.1 |
 | D7 | **`service_offerings` polymorphic**: `organization_id` OR `provider_user_id`, XOR enforced. Misma jurisdicción denormalizada en el offering (`jurisdiction_province` + `jurisdiction_locality`) para que govt routee approvals por scope independiente de quién es el provider | Schema change requiere migración (en plan separado de implementación, no acá) |
-| D8 | **Capability access dicta portal access**. Si tenés la capability aprobada, tenés acceso al portal donde se usa | `professional.provider` para `/profesional`, org membership para `/org/[token]`, `govt_assignments` activas para `/gobierno`, `role='admin'` para `/admin` |
+| D8 | **Capability access dicta portal access**. Si tenés la capability aprobada, tenés acceso al portal donde se usa | `professional.provider` para `/pro`, org membership para `/org/[token]`, `govt_assignments` activas para `/gob`, `role='admin'` para `/admin` |
 | D9 | **Business rules: govt scoped, admin universal con override**. Cascada: más específica gana. Locality > province > country > default hardcoded. Schema futuro, hoy solo documentado | No bloquea v1 |
-| D10 | **Este plan es doc-first**. Code refactor (rename de carpetas, polymorphic offering en schema, `/profesional` route implementation) son PRs separados que vienen después. Single excepción: brand copy mínimo en credencial pública + layout + auth pages | Reduce riesgo, permite reviewar el conceptual antes del implementation |
+| D10 | **Este plan es doc-first**. Code refactor (rename de carpetas, polymorphic offering en schema, `/pro` route implementation) son PRs separados que vienen después. Single excepción: brand copy mínimo en credencial pública + layout + auth pages | Reduce riesgo, permite reviewar el conceptual antes del implementation |
 
 ## 3. Scope
 
@@ -73,15 +73,15 @@ Cuatro cambios conceptuales con efecto en muchos docs:
 
 **Fuera de este plan (van en otros PRs después de que este mergee):**
 - Rename físico de carpeta `app/refugio/` → `app/org/` (mover archivos + actualizar imports + middleware redirect)
-- Implementación de `/profesional` route group con sus pages, components, server actions
+- Implementación de `/pro` route group con sus pages, components, server actions
 - Migración del schema para polymorphic `service_offerings` (organization_id nullable + provider_user_id + XOR constraint + jurisdiction columns)
-- Implementación de `/gobierno` route group con sus pages
+- Implementación de `/gob` route group con sus pages
 - Refactor de `/admin` para reflejar el split de capabilities
 - Tablas / business rules implementation
 - Code-level capability extension para `professional.provider`, `role='govt'` capabilities, `role='admin'` capabilities
 
 **Dependencias de plans que NO se ejecutan acá pero quedan habilitados después:**
-- `2026-05-16-health-campaigns-and-scheduling.md` — cuando se ejecute, debería usar `/org/[token]` y `/profesional` correctos. Si querés ejecutarlo ANTES del code rename, las URLs viejas funcionan via redirect; pero idealmente se hace después del code rename
+- `2026-05-16-health-campaigns-and-scheduling.md` — cuando se ejecute, debería usar `/org/[token]` y `/pro` correctos. Si querés ejecutarlo ANTES del code rename, las URLs viejas funcionan via redirect; pero idealmente se hace después del code rename
 - `2026-05-17-lost-and-found-complete.md` — mismo razonamiento
 - `2026-05-17-symptom-disease-surveillance.md` — notification routing logic actualizada
 
@@ -120,8 +120,8 @@ Buscar la tabla "The four roles" en la sección actual de "User roles & account 
 | Role | Account type | ... | Primary portal | Notes |
 |---|---|---|---|---|
 | `owner` | personal | ... | `/mis-mascotas` | (no change) |
-| `vet` | personal | ... | `/profesional` (when approved as service provider) **OR** via `/org/[orgToken]` membership | New: independent vets get `/profesional` after admin approval; clinic-affiliated vets work via the clinic's `/org/[token]` |
-| `govt` | institutional | ... | `/gobierno` | Multi-locality via `govt_assignments` |
+| `vet` | personal | ... | `/pro` (when approved as service provider) **OR** via `/org/[orgToken]` membership | New: independent vets get `/pro` after admin approval; clinic-affiliated vets work via the clinic's `/org/[token]` |
+| `govt` | institutional | ... | `/gob` | Multi-locality via `govt_assignments` |
 | `admin` | institutional | ... | `/admin` | Universal scope. Creates other institutional accounts. |
 
 Y agregar un bloque nuevo (después de "The four roles" subsection, antes de "Lifecycle and downgrade paths"):
@@ -132,18 +132,33 @@ Y agregar un bloque nuevo (después de "The four roles" subsection, antes de "Li
 A user's access to a portal is determined by whether they have at least one capability that's exercised in that portal:
 
 - **`/mis-mascotas`** — every authenticated personal account (owner or vet). No additional capability needed; the portal lists the user's own pets.
-- **`/profesional`** — vets with the `professional.provider` capability (granted by admin or govt approval of a `role_upgrade_vet_provider` request). A vet without this capability can still be a vet (their matrícula is verified, they can author events) but cannot offer services in DIM until approved as a service provider.
+- **`/pro`** — vets with the `professional.provider` capability (granted by admin or govt approval of a `role_upgrade_vet_provider` request). A vet without this capability can still be a vet (their matrícula is verified, they can author events) but cannot offer services in DIM until approved as a service provider.
 - **`/org/[orgToken]`** — users with an active `organization_memberships` row for that specific org and at least one org-level capability (e.g., `intake.create`, `appointment.manage`, `service_offering.create`).
-- **`/gobierno`** — `role='govt'` users with at least one active `govt_assignments` row.
+- **`/gob`** — `role='govt'` users with at least one active `govt_assignments` row.
 - **`/admin`** — `role='admin'` users with `account_type='institutional'` and `deactivated_at IS NULL`.
 
 Capabilities are layered: org-level (per-membership), professional-level (per-vet, e.g., `professional.provider`), and role-level (per-role, e.g., govt's `approve.org_verification`, admin's `account.create_institutional`). The portal layout asserts the right layer for entry; specific actions inside the portal assert finer-grained capabilities.
 
-### Functional difference between `/profesional` and `/org/[orgToken]`
+### Portal único /pro (modelo unificado)
+
+`/pro` es el portal personal de TODO vet — uno solo, no dos.
+
+- **Patient care** (mis pacientes, tratamientos recientes, agenda de mis pacientes, mis orgs): disponible para todo vet con `profiles.role='vet'`. No requiere capability extra. Es el contenido actual de `/pro` ya implementado.
+- **Service provider** (offerings, agenda de turnos públicos, cobros): viven como sub-rutas del mismo portal — `/pro/servicios`, `/pro/agenda`, `/pro/agenda/turnos/[token]`. Gated por capability `professional.provider` (otorgada vía aprobación de `role_upgrade_vet_provider`). Cuando un vet NO tiene esa capability, las sub-rutas son 404 / hidden; cuando la tiene, aparecen como secciones adicionales del mismo portal.
+
+Esto reemplaza el modelo previo donde se planteaban DOS portales separados para service-provider y patient-care. Decisión: un vet tiene un único surface personal (`/pro`); sus features dependen de sus capabilities.
+
+**Implicancias:**
+- `service_offerings` polimórfico sigue vivo (provider_user_id para vet personal), no cambia.
+- La capability `professional.provider` sigue existiendo conceptualmente; gate las sub-rutas `/pro/servicios*` + `/pro/agenda*`.
+- Approval type `role_upgrade_vet_provider` sigue vivo — sigue siendo la petición que el vet hace para destrabar las sub-rutas de provider.
+- El portal `/pro` ya existe en código (Fase actual); las sub-rutas de service-provider se implementan cuando se ejecute el health-campaigns plan.
+
+### Functional difference between `/pro` and `/org/[orgToken]`
 
 Both surfaces support **service offerings + scheduling**: define services, set recurring availability, accept bookings, mark attendance, emit pet_events.
 
-`/profesional` provides **only that**. The independent vet operates as a service provider; no intake of strays, no foster pipeline, no adoption workflow, no member management, no coverage zones, no cross-org transfers. Authorship attribution: `pet_events` emitted from `/profesional` set `recorded_by_user_id=vet`, `author_role='vet'`, `author_organization_id=null`.
+`/pro` provides **only that**. The independent vet operates as a service provider; no intake of strays, no foster pipeline, no adoption workflow, no member management, no coverage zones, no cross-org transfers. Authorship attribution: `pet_events` emitted from `/pro` set `recorded_by_user_id=vet`, `author_role='vet'`, `author_organization_id=null`.
 
 `/org/[orgToken]` provides scheduling **plus** the full org capabilities matching the `org_type`: shelter/rescue_network gets intake + foster + adoption pipelines; clinic gets primarily scheduling; sanitary_authority gets official campaigns + jurisdictional dashboards. Authorship attribution: `author_organization_id` is set to the org.
 
@@ -179,7 +194,7 @@ The ultimate trajectory is **integration with Mi Argentina**. This is not a nice
 
 **1.5 — Verificar:**
 
-Después de editar AGENTS.md, releer la sección Privacy tiers para asegurar que no hay nada que contradiga lo nuevo. Si la tabla menciona "(future) Verified vet via portal" como Tier 4, mantenerlo — eso ahora aplica al vet via `/org/[token]` o `/profesional`.
+Después de editar AGENTS.md, releer la sección Privacy tiers para asegurar que no hay nada que contradiga lo nuevo. Si la tabla menciona "(future) Verified vet via portal" como Tier 4, mantenerlo — eso ahora aplica al vet via `/org/[token]` o `/pro`.
 
 ### Paso 2 — `docs/superpowers/README.md`
 
@@ -190,7 +205,7 @@ Las prioridades 1-6 actuales son válidas. Solo cambiar:
 - Agregar prioridad 0 nueva al tope de la tabla, apuntando a este plan:
 
 ```markdown
-| 0 | **MiMAR rebrand + portal restructure** (this plan) | `plans/2026-05-17-mimar-rebrand-and-portal-restructure.md` | Doc-first: AGENTS.md + specs/plans alignment con brand MiMAR, paths /org, /gobierno, /admin, /profesional. Pre-requisito de los demás planes para que las URLs no diverjan. ~3-4 horas. |
+| 0 | **MiMAR rebrand + portal restructure** (this plan) | `plans/2026-05-17-mimar-rebrand-and-portal-restructure.md` | Doc-first: AGENTS.md + specs/plans alignment con brand MiMAR, paths /org, /gob, /admin, /pro. Pre-requisito de los demás planes para que las URLs no diverjan. ~3-4 horas. |
 ```
 
 **2.2 — Update tabla "All specs & plans" — solo las celdas que tocan paths.**
@@ -199,15 +214,15 @@ Para cada fila de spec/plan donde el "Notas" mencione paths viejos (`/refugio`, 
 
 **2.3 — Update sección "Cross-cutting dependencies".**
 
-El primer bullet dice "Admin page Fase 0 destraba...". Mantener pero clarificar que el destrabe ahora pasa por dos surfaces (`/gobierno` y `/admin`), no una sola.
+El primer bullet dice "Admin page Fase 0 destraba...". Mantener pero clarificar que el destrabe ahora pasa por dos surfaces (`/gob` y `/admin`), no una sola.
 
 Agregar un bullet nuevo:
 
 ```markdown
 - **Portal rename (este plan)** destraba:
-  - Coherencia entre todos los specs/plans (todos referencian `/org`, `/gobierno`, `/admin`, `/profesional` consistentemente)
+  - Coherencia entre todos los specs/plans (todos referencian `/org`, `/gob`, `/admin`, `/pro` consistentemente)
   - Reducción de fricción cuando llegue el code rename físico de `app/refugio/` → `app/org/`
-  - Habilita la implementación de `/profesional` para vets independientes
+  - Habilita la implementación de `/pro` para vets independientes
 ```
 
 **2.4 — Update sección "Convenciones" → Naming.**
@@ -218,13 +233,13 @@ Agregar al final:
 **Brand y rutas:**
 - Producto user-facing: **MiMAR** (Mi Mascota Argentina). Aparece en title, copy, notifications.
 - Codename interno: **DIM**. Schema, code, tokens, audit. Nunca cambia.
-- Paths user-facing: `/mis-mascotas`, `/profesional`, `/org/[orgToken]`, `/gobierno`, `/admin`, `/p/[publicToken]`, `/libreta/compartir/[shareToken]`.
-- Spanish naming convention para paths (`/gobierno`, no `/government`; `/organizaciones` se acortó a `/org` por brevidad consistente con `/admin`, `/p`).
+- Paths user-facing: `/mis-mascotas`, `/pro`, `/org/[orgToken]`, `/gob`, `/admin`, `/p/[publicToken]`, `/libreta/compartir/[shareToken]`.
+- Spanish naming convention para paths (`/gob`, no `/government`; `/organizaciones` se acortó a `/org` por brevidad consistente con `/admin`, `/p`).
 ```
 
 ### Paso 3 — `docs/superpowers/specs/2026-05-16-health-campaigns-and-scheduling-design.md`
 
-Este spec tiene la rewrite más significativa por D7 (polymorphic offerings) y la adición de `/profesional`.
+Este spec tiene la rewrite más significativa por D7 (polymorphic offerings) y la adición de `/pro`.
 
 **3.1 — Header: bump versión a v2.1.**
 
@@ -235,7 +250,7 @@ Cambiar:
 
 A:
 ```
-**Versión:** 2.1 — polymorphic provider (org o vet independiente), paths actualizados (`/org/[orgToken]`, `/profesional`, `/gobierno`, `/admin`), routing de approvals via govt. Reemplaza v2.0.
+**Versión:** 2.1 — polymorphic provider (org o vet independiente), paths actualizados (`/org/[orgToken]`, `/pro`, `/gob`, `/admin`), routing de approvals via govt. Reemplaza v2.0.
 ```
 
 **3.2 — D1: revertir parcialmente.**
@@ -252,7 +267,7 @@ Reemplazar por:
 
 La fila D8 actual habla de approval state en `service_offerings.status`. Mantener, pero agregar nota sobre el routing:
 
-> | D8 | **Approval state en columna `service_offerings.status`** (pending_approval, approved, rejected, paused, archived). El routing del request va a govt cuya scope cubre la `jurisdiction_locality` declarada en el offering (sea de org o de vet independiente); fallback a admin si no hay govt covering | Refleja la separación `/gobierno` (locality-scoped) vs `/admin` (universal). El offering declara su jurisdicción independiente de quién sea el provider |
+> | D8 | **Approval state en columna `service_offerings.status`** (pending_approval, approved, rejected, paused, archived). El routing del request va a govt cuya scope cubre la `jurisdiction_locality` declarada en el offering (sea de org o de vet independiente); fallback a admin si no hay govt covering | Refleja la separación `/gob` (locality-scoped) vs `/admin` (universal). El offering declara su jurisdicción independiente de quién sea el provider |
 
 **3.4 — §4.1 schema de `service_offerings`: hacer polymorphic.**
 
@@ -275,7 +290,7 @@ Buscar el bloque SQL de `service_offerings`. Cambios:
 
 El paso 5.2 actual dice "Admin abre `/admin/servicios`". Reemplazar con:
 
-- Govt cuya scope cubre la `jurisdiction_locality` del offering recibe la notification + ve el request en `/gobierno/servicios`
+- Govt cuya scope cubre la `jurisdiction_locality` del offering recibe la notification + ve el request en `/gob/servicios`
 - Admin recibe el request en `/admin/servicios` SOLO si no hay govt covering esa locality (fallback)
 
 El UI flow y los buttons (aprobar / rechazar) son los mismos; cambia quién los ve.
@@ -284,26 +299,26 @@ El UI flow y los buttons (aprobar / rechazar) son los mismos; cambia quién los 
 
 Buscar todas las refs a `/refugio/servicios`, `/refugio/agenda`, etc. Cambiar el patrón a `/org/[orgToken]/servicios`, `/org/[orgToken]/agenda`.
 
-**3.8 — §6.5 (nueva subsección): `/profesional` flow.**
+**3.8 — §6.5 (nueva subsección): `/pro` flow.**
 
 Agregar subsección después de §6.4:
 
 ```markdown
-### 6.5 Vet independiente: `/profesional`
+### 6.5 Vet independiente: `/pro`
 
-Un vet personal con `professional.provider` capability aprobada usa `/profesional` como surface. Funcionalmente equivalente a `/org/[orgToken]/servicios` + `/org/[orgToken]/agenda` colapsado a una sola ruta (no hay otra org context para distinguir):
+Un vet personal con `professional.provider` capability aprobada usa `/pro` como surface. Funcionalmente equivalente a `/org/[orgToken]/servicios` + `/org/[orgToken]/agenda` colapsado a una sola ruta (no hay otra org context para distinguir):
 
-- `/profesional` — dashboard del vet: sus offerings, su agenda del día
-- `/profesional/servicios` — sus offerings
-- `/profesional/servicios/nuevo` — crear offering nuevo (submit → status='pending_approval')
-- `/profesional/servicios/{token}` — detalle / editar
-- `/profesional/servicios/{token}/agenda` — schedule rules
-- `/profesional/agenda` — dashboard del día
-- `/profesional/agenda/turnos/{token}` — appointment detalle, marca attended/no_show/cancel
+- `/pro` — dashboard del vet: sus offerings, su agenda del día
+- `/pro/servicios` — sus offerings
+- `/pro/servicios/nuevo` — crear offering nuevo (submit → status='pending_approval')
+- `/pro/servicios/{token}` — detalle / editar
+- `/pro/servicios/{token}/agenda` — schedule rules
+- `/pro/agenda` — dashboard del día
+- `/pro/agenda/turnos/{token}` — appointment detalle, marca attended/no_show/cancel
 
 Mecánica idéntica a la del org-side. La diferencia es solo el ownership del offering (`provider_user_id` set en lugar de `organization_id`) y la authorship de los `pet_events` emitidos (`author_organization_id=null`).
 
-**Approval del vet como service provider:** prerequisito a usar `/profesional`. Es un approval_request nuevo de tipo `role_upgrade_vet_provider` (extensión natural del catálogo del admin page). El vet ya verified (matriculaVerified=true) pide upgrade a service provider; admin o govt scope-matching aprueba; capability `professional.provider` se le otorga.
+**Approval del vet como service provider:** prerequisito a usar `/pro`. Es un approval_request nuevo de tipo `role_upgrade_vet_provider` (extensión natural del catálogo del admin page). El vet ya verified (matriculaVerified=true) pide upgrade a service provider; admin o govt scope-matching aprueba; capability `professional.provider` se le otorga.
 ```
 
 **3.9 — §7 owner-side flow: aclaraciones.**
@@ -325,23 +340,23 @@ Reemplazar las tablas org-side / admin-side con tres tablas:
 | `/org/[orgToken]/servicios/nuevo` | Idem | Form para crear nuevo offering |
 | ... | ... | ... |
 
-### Professional-side (route group `/profesional`)
+### Professional-side (route group `/pro`)
 
 | Ruta | Quién | Función |
 |---|---|---|
-| `/profesional` | Vet con `professional.provider` capability | Dashboard del vet |
-| `/profesional/servicios` | Idem | Lista de sus offerings |
+| `/pro` | Vet con `professional.provider` capability | Dashboard del vet |
+| `/pro/servicios` | Idem | Lista de sus offerings |
 | ... | ... | ... |
 
 ### Owner-side (route group `/(app)`)
 
 (sin cambios respecto a v2.0, solo formato)
 
-### Govt-side (route group `/gobierno`, mínimo viable hasta admin page Fase 0)
+### Govt-side (route group `/gob`, mínimo viable hasta admin page Fase 0)
 
 | Ruta | Quién | Función |
 |---|---|---|
-| `/gobierno/servicios` | `role='govt'` users con scope covering | Lista de pending offerings en su scope |
+| `/gob/servicios` | `role='govt'` users con scope covering | Lista de pending offerings en su scope |
 | ... | ... | ... |
 
 ### Admin-side (route group `/admin`, mínimo viable)
@@ -357,16 +372,16 @@ Reemplazar las tablas org-side / admin-side con tres tablas:
 Sacar "Polimorfismo provider (org o vet individual): solo orgs." de la lista de "fuera" — ahora SÍ está.
 
 Agregar a "fuera":
-- `/profesional` para vets independientes: schema-ready, implementación de las pages es PR separado
+- `/pro` para vets independientes: schema-ready, implementación de las pages es PR separado
 - Capability `professional.provider` y su approval flow: schema-ready, implementación con el admin page
 
 ### Paso 4 — `docs/superpowers/specs/2026-05-17-admin-page-design.md`
 
-Este spec necesita un split de capabilities entre `/gobierno` y `/admin`.
+Este spec necesita un split de capabilities entre `/gob` y `/admin`.
 
 **4.1 — Header: bump a v2.2.**
 
-Nota de versión: *"v2.2 — split de surfaces `/gobierno` (govt scope-bound) vs `/admin` (universal meta-admin). Reemplaza v2.1."*
+Nota de versión: *"v2.2 — split de surfaces `/gob` (govt scope-bound) vs `/admin` (universal meta-admin). Reemplaza v2.1."*
 
 **4.2 — Capability matrix (§5): reorganizar por surface.**
 
@@ -377,25 +392,25 @@ El § actual tiene una sola tabla con columnas "govt en scope" y "admin". Manten
 
 | Action category | Surface | Visible to | Notes |
 |---|---|---|---|
-| Approvals scoped a locality | `/gobierno/cola` | Govt con assignment covering | Org verification, vet upgrade, service offering, scheduling |
-| Approvals fallback (no govt covering) | `/admin/cola` | Admin | Same actions as `/gobierno/cola` but for localities sin govt |
+| Approvals scoped a locality | `/gob/cola` | Govt con assignment covering | Org verification, vet upgrade, service offering, scheduling |
+| Approvals fallback (no govt covering) | `/admin/cola` | Admin | Same actions as `/gob/cola` but for localities sin govt |
 | Approvals meta (role upgrade to govt/admin) | `/admin/cola` | Admin only | role_upgrade_govt, role_upgrade_admin |
 | Crear cuentas institucionales | `/admin/cuentas` | Admin only | Create govt, create admin |
-| Dashboards regionales | `/gobierno/dashboards` | Govt en su scope | Vaccination coverage, mortality clusters, etc., filtered to assigned localities |
+| Dashboards regionales | `/gob/dashboards` | Govt en su scope | Vaccination coverage, mortality clusters, etc., filtered to assigned localities |
 | Dashboards del aplicativo | `/admin/sistema` | Admin only | DAU, signups, retention, perf, costs |
-| Audit log propio | `/gobierno/historial` o `/admin/historial` | Cada user el suyo | |
+| Audit log propio | `/gob/historial` o `/admin/historial` | Cada user el suyo | |
 | Audit log global cross-govt | `/admin/auditoria` | Admin only | |
-| Business rules en mi scope | `/gobierno/reglas` | Govt en su scope | Locality / province scoped rules |
+| Business rules en mi scope | `/gob/reglas` | Govt en su scope | Locality / province scoped rules |
 | Business rules universales | `/admin/reglas` | Admin | Country-wide defaults, override capability per any jurisdiction |
 ```
 
-La matrix de quién-puede-qué (debajo) se queda casi igual, solo aclarando que algunas filas son visibles en `/gobierno` y otras en `/admin` según la column nueva.
+La matrix de quién-puede-qué (debajo) se queda casi igual, solo aclarando que algunas filas son visibles en `/gob` y otras en `/admin` según la column nueva.
 
 **4.3 — §7 flows: split en sub-secciones.**
 
 Mantener los flows actuales (approval, revocation, etc.) pero etiquetar cada flow con su surface:
 
-- `request_review_flow` → tanto en `/gobierno/cola` (govt scope) como en `/admin/cola` (admin fallback). Mismo componente, distinto data scope
+- `request_review_flow` → tanto en `/gob/cola` (govt scope) como en `/admin/cola` (admin fallback). Mismo componente, distinto data scope
 - `create_institutional_govt_flow` → solo `/admin/cuentas`
 - etc.
 
@@ -405,7 +420,7 @@ Mantener los flows actuales (approval, revocation, etc.) pero etiquetar cada flo
 
 **4.5 — §13 / §15 / §16: pequeños ajustes.**
 
-Donde se mencione "admin page" como surface única, aclarar que ahora son dos. La fase de implementación (que estaba con todo en `/admin`) se split en dos PRs paralelos: uno para `/gobierno/*`, uno para `/admin/*`. La schema foundation queda la misma (govt_assignments, approval_requests, audit_log).
+Donde se mencione "admin page" como surface única, aclarar que ahora son dos. La fase de implementación (que estaba con todo en `/admin`) se split en dos PRs paralelos: uno para `/gob/*`, uno para `/admin/*`. La schema foundation queda la misma (govt_assignments, approval_requests, audit_log).
 
 ### Paso 5 — `docs/superpowers/specs/2026-05-17-lost-and-found-complete-design.md`
 
@@ -427,7 +442,7 @@ Igualmente liviano.
 
 **6.1 — Notification routing logic update.**
 
-Buscar la sección donde el `outbreak_signal` enrutaba "a govt en jurisdicción del pet con fallback admin". Mantener el concepto. Aclarar que ahora govt notifica via su `/gobierno/cola` y admin via su `/admin/cola` fallback (era ambiguo en el spec original cuando ambos compartían `/admin`).
+Buscar la sección donde el `outbreak_signal` enrutaba "a govt en jurisdicción del pet con fallback admin". Mantener el concepto. Aclarar que ahora govt notifica via su `/gob/cola` y admin via su `/admin/cola` fallback (era ambiguo en el spec original cuando ambos compartían `/admin`).
 
 **6.2 — Sin cambios estructurales.** Es solo aclaración de path.
 
@@ -439,7 +454,7 @@ Para cada plan en `docs/superpowers/plans/`:
 - Find/replace `/refugio/` → `/org/[orgToken]/`
 - Aclarar que la Fase 0 schema ahora incluye `service_offerings.provider_user_id` + XOR constraint + jurisdiction columns
 - Agregar Fase 1.5 (entre 1 y 2): "Approval routing: govt + admin fallback" — el `notify all admins` de v2.0 ahora es "lookup govts cuya scope cubre `jurisdiction_locality` del offering; fallback a admins si vacío"
-- Agregar nueva Fase 2.5 (después de 2): "`/profesional` route group para vet independientes (mirror reducido de `/org/[token]`)"
+- Agregar nueva Fase 2.5 (después de 2): "`/pro` route group para vet independientes (mirror reducido de `/org/[token]`)"
 - Actualizar números de fase / total: ahora son 10 fases (8 + 2 nuevas), no 8
 
 **7.2 — `2026-05-17-lost-and-found-complete.md`:**
@@ -558,7 +573,7 @@ Después de Paso 1 al 8:
 ## 6. Casos borde y trampas
 
 - **Rename físico de carpeta NO va en este plan.** Si Claude Code se siente tentado a hacer `mv app/refugio app/org`, **STOP**. Eso es PR separado y rompe cosas (imports, routes, tests). Este plan es solo docs y brand copy.
-- **`/profesional` route implementation NO va en este plan.** Solo se documenta como diseño. La implementación (pages, components, server actions) es otro PR.
+- **`/pro` route implementation NO va en este plan.** Solo se documenta como diseño. La implementación (pages, components, server actions) es otro PR.
 - **Brand en `pet_events` ya emitidos.** Si en algún payload de evento existente dice "DIM" como brand user-facing, **NO retroactivar**. Los eventos son immutable. Solo el copy que se renderiza en surface user-facing puede cambiar; los payloads no.
 - **Token format.** El público_token `DIM-XXXX-XXXX` **NO cambia**. No hay rename de tokens existentes ni del format para nuevos.
 - **Tests que assertan strings.** Si algún test dice `expect(page).toContain("DIM")` en un context user-facing, actualizar a "MiMAR". Si lo hace en context técnico (e.g., chequeando token format), dejar como está.
@@ -585,7 +600,7 @@ Después de Paso 1 al 8:
    - Mi Argentina alignment elevated from "future open question" to
      "core premise that shapes everything" in Naming and North Star.
    - Portal rename: /refugio → /org/[orgToken] (all org_types, not just
-     shelters). New /profesional for independent vet providers. /gobierno
+     shelters). New /pro for independent vet providers. /gob
      for govt (locality-scoped actions). /admin refined to meta-admin only.
    - service_offerings becomes polymorphic (organization_id OR
      provider_user_id, XOR) to support vet-independent providers.
@@ -593,15 +608,15 @@ Después de Paso 1 al 8:
      layered: govt scoped, admin universal with override.
 
    Minimal code touches (brand copy in layout, public credential, auth
-   pages). Physical folder rename (app/refugio → app/org), /profesional
-   implementation, polymorphic schema migration, and /gobierno route
+   pages). Physical folder rename (app/refugio → app/org), /pro
+   implementation, polymorphic schema migration, and /gob route
    implementation are all separate PRs that this plan enables.
    ```
 
 4. **Próximo paso natural** después de este plan en main:
    - Code rename de `app/refugio/` → `app/org/` con middleware redirect (1 PR, ~half day)
    - Schema migration de `service_offerings` polymorphic (1 PR, ~half day)
-   - Implementación de `/profesional` route group (1 PR, ~1-2 días)
-   - Implementación de `/gobierno` route group (parte de admin page Fase 0+)
+   - Implementación de `/pro` route group (1 PR, ~1-2 días)
+   - Implementación de `/gob` route group (parte de admin page Fase 0+)
 
 Hacé estos en el orden que tenga sentido para tu workflow. Ninguno está bloqueado por los otros una vez que este doc rebrand mergea.

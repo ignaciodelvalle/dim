@@ -81,7 +81,7 @@ State these in PR descriptions if anyone asks. They are deferred to future strea
 - Real verification workflow with admin tooling. v1 auto-verifies in dev; prod requires Studio.
 - Public API of adoption listings for third-party apps.
 - Integration with Animales BA / Mascotas CABA / Mi Argentina.
-- Vet portal (`/profesional`) and Government portal (`/gestion`). They share the same foundation; building them is separate streams.
+- Vet portal (`/pro`) and Government portal (`/gob`). They share the same foundation; building them is separate streams.
 - Vecino-tránsito UI.
 - React Native / mobile-native app. PWA only.
 
@@ -1058,8 +1058,8 @@ The org portal build is complete when **all** of the following are true:
 
 If any of the below come up mid-build, do not block; park them here and continue.
 
-- Vet portal (`/profesional`) and clinic context for `vet_individual` members — separate stream.
-- Government dashboards (`/gestion`) — separate stream.
+- Vet portal (`/pro`) and clinic context for `vet_individual` members — separate stream.
+- Government dashboards (`/gob`) — separate stream.
 - `pii_access_log` table for adopter-PII reads by org admins — currently a `console.info` TODO.
 - Per-pet "emergency info" flag toggle for Tier 0+ — covered in v1 closure stream.
 - Real transactional email — separate stream; will come back to invitations and notifications when wired.

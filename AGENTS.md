@@ -1,4 +1,4 @@
-# DIM — AGENTS.md
+﻿# DIM — AGENTS.md
 
 > Context for AI agents (and humans) working on this project.
 > If you're a Claude session reading this for the first time, start here.
@@ -90,15 +90,15 @@ DIM has **two account types** — `personal` and `institutional` — stored as `
 | Role    | Account type    | Who                                                                                                                              | Primary portal           | Notes                                                                                                                                |
 | ------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `owner` | personal        | Pet owner. Default for any self-serve signup.                                                                                    | `/mis-mascotas`          | Can have unlimited pets. May apply to upgrade to `vet`.                                                                              |
-| `vet`   | personal        | Veterinarian or animal-health professional. Has personal matrícula.                                                              | `/profesional` (when approved as service provider) **OR** via `/org/[orgToken]` membership | May still own pets like any owner. Upgrade via `/cuenta/upgrade`, approved by the `govt` of the declared locality (fallback: admin). New: independent vets get `/profesional` after admin/govt approval of `professional.provider` capability; clinic-affiliated vets work via the clinic's `/org/[orgToken]`. |
-| `govt`  | institutional   | Government / public-health / animal-welfare authority. Approves orgs, vet upgrades, and scheduling within **assigned localities**. | `/gobierno`              | Multi-locality via `govt_assignments`. Created by an existing admin. Service-account model — see "Single operator" below.            |
+| `vet`   | personal        | Veterinarian or animal-health professional. Has personal matrícula.                                                              | `/pro` (when approved as service provider) **OR** via `/org/[orgToken]` membership | May still own pets like any owner. Upgrade via `/cuenta/upgrade`, approved by the `govt` of the declared locality (fallback: admin). New: independent vets get `/pro` after admin/govt approval of `professional.provider` capability; clinic-affiliated vets work via the clinic's `/org/[orgToken]`. |
+| `govt`  | institutional   | Government / public-health / animal-welfare authority. Approves orgs, vet upgrades, and scheduling within **assigned localities**. | `/gob`              | Multi-locality via `govt_assignments`. Created by an existing admin. Service-account model — see "Single operator" below.            |
 | `admin` | institutional   | Technical-administrative user. Universal scope. Creates other institutional accounts. Approves anything outside any govt's scope. | `/admin`                 | Bootstrap admin seeded manually once via Studio; subsequent admins created by an existing admin. Cannot be self-deactivated.         |
 
 ### Lifecycle and downgrade paths
 
 **Personal accounts** are created via self-serve signup as `role='owner'`. Vet upgrades go through the admin-page approval flow:
 
-- *owner → vet*: applicant submits matrícula + evidence via `/cuenta/upgrade`. Creates `approval_request` of `type='role_upgrade_vet'`. Approved by the `govt` of the declared locality (fallback: admin if no govt covers that locality). On approval: `role='vet'`, `matriculaVerified=true`.
+- *owner → vet*: applicant submits matrícula + evidence via `/cuenta/upgrade`. Creates `approval_request` of `type='role_upgrade_vet'`. Approved by the `govt` of the declared locality (fallback: admin if no govt covers that locality). On approval: `role='vet'`, `matriculaVerified=true`. **Prerequisite**: `profiles.dni_verified=true` — see [`docs/patterns/petition-prerequisites.md`](docs/patterns/petition-prerequisites.md).
 - *vet → owner via self-resignation*: vet uses `/cuenta/renunciar`, confirms consequences. `role='owner'`, `matriculaVerified=false`. The `matriculaNumber` itself stays as historical data. Logged in `audit_log`.
 - *vet → owner via revocation*: the govt of the relevant locality, or admin, executes the revocation flow with mandatory reason + evidence. Same end state. Logged.
 - *delete account*: standard account deletion path (no admin-specific flow).
@@ -115,18 +115,18 @@ DIM has **two account types** — `personal` and `institutional` — stored as `
 A user's access to a portal is determined by whether they have at least one capability that's exercised in that portal:
 
 - **`/mis-mascotas`** — every authenticated personal account (owner or vet). No additional capability needed; the portal lists the user's own pets.
-- **`/profesional`** — vets with the `professional.provider` capability (granted by admin or govt approval of a `role_upgrade_vet_provider` request). A vet without this capability can still be a vet (their matrícula is verified, they can author events) but cannot offer services in DIM until approved as a service provider.
+- **`/pro`** — vets with the `professional.provider` capability (granted by admin or govt approval of a `role_upgrade_vet_provider` request). A vet without this capability can still be a vet (their matrícula is verified, they can author events) but cannot offer services in DIM until approved as a service provider.
 - **`/org/[orgToken]`** — users with an active `organization_memberships` row for that specific org and at least one org-level capability (e.g., `intake.create`, `appointment.manage`, `service_offering.create`).
-- **`/gobierno`** — `role='govt'` users with at least one active `govt_assignments` row.
+- **`/gob`** — `role='govt'` users with at least one active `govt_assignments` row.
 - **`/admin`** — `role='admin'` users with `account_type='institutional'` and `deactivated_at IS NULL`.
 
 Capabilities are layered: org-level (per-membership), professional-level (per-vet, e.g., `professional.provider`), and role-level (per-role, e.g., govt's `approve.org_verification`, admin's `account.create_institutional`). The portal layout asserts the right layer for entry; specific actions inside the portal assert finer-grained capabilities.
 
-### Functional difference between `/profesional` and `/org/[orgToken]`
+### Functional difference between `/pro` and `/org/[orgToken]`
 
 Both surfaces support **service offerings + scheduling**: define services, set recurring availability, accept bookings, mark attendance, emit pet_events.
 
-`/profesional` provides **only that**. The independent vet operates as a service provider; no intake of strays, no foster pipeline, no adoption workflow, no member management, no coverage zones, no cross-org transfers. Authorship attribution: `pet_events` emitted from `/profesional` set `recorded_by_user_id=vet`, `author_role='vet'`, `author_organization_id=null`.
+`/pro` provides **only that**. The independent vet operates as a service provider; no intake of strays, no foster pipeline, no adoption workflow, no member management, no coverage zones, no cross-org transfers. Authorship attribution: `pet_events` emitted from `/pro` set `recorded_by_user_id=vet`, `author_role='vet'`, `author_organization_id=null`.
 
 `/org/[orgToken]` provides scheduling **plus** the full org capabilities matching the `org_type`: shelter/rescue_network gets intake + foster + adoption pipelines; clinic gets primarily scheduling; sanitary_authority gets official campaigns + jurisdictional dashboards. Authorship attribution: `author_organization_id` is set to the org.
 
@@ -635,10 +635,10 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `mimar-go-to-market.md` for the GTM analysis)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
-- **`/profesional` portal** — independent vet portal for service offerings + scheduling. Schema-ready (polymorphic `service_offerings`). Route implementation is the next step after code rename.
+- **`/pro` portal** — independent vet portal for service offerings + scheduling. Schema-ready (polymorphic `service_offerings`). Route implementation is the next step after code rename.
 - **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md`.
-- **`/gobierno` portal** — govt scope-bound portal for locality approvals + regional dashboards. Designed in admin page spec v2.2; implementation follows admin page Fase 0.
-- **`/admin` portal** — already partially implemented; needs refinement to split govt-shared surfaces into `/gobierno`.
+- **`/gob` portal** — govt scope-bound portal for locality approvals + regional dashboards. Designed in admin page spec v2.2; implementation follows admin page Fase 0.
+- **`/admin` portal** — already partially implemented; needs refinement to split govt-shared surfaces into `/gob`.
 - **Adoption-listing public surface (`/adoptar`)** — projection over (`pets` where current `Ownership` is org-held by `org_type` in (`shelter`, `rescue_network`), not death, not paused). Filters, region, species. UX and listing copy open.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA alignment is the diplomatic open question; we want to feed it, not compete with it.
 - **Decomiso → temporary welfare-authority custody → refugio chain** — Ley Nacional 14.346 seizures should flow through `custody_transferred` events with a municipal welfare authority holding `shelter_custody` briefly before transferring to a refugio. Schema supports this; the authority-side portal and UX are open.

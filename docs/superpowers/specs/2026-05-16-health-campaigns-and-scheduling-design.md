@@ -1,11 +1,11 @@
-# Health campaigns and scheduling — design spec
+﻿# Health campaigns and scheduling — design spec
 
 > Sistema completo de agendamiento veterinario. Orgs verificadas solicitan permiso para ofrecer un servicio específico, admin aprueba, la org crea su agenda recurrente, el sistema materializa slots, los dueños buscan y reservan. La asistencia emite el `pet_event` correspondiente que queda en la libreta sanitaria. La opción de "agendar como recordatorio personal" se mantiene en paralelo — ambos flujos coexisten.
 >
 > **Fecha:** 2026-05-16 (rewrite 2026-05-17)
 > **Owner:** Ignacio Del Valle
 > **Estado:** ready for review, no code yet
-> **Versión:** 2.1 — polymorphic provider (org o vet independiente), paths actualizados (`/org/[orgToken]`, `/profesional`, `/gobierno`, `/admin`), routing de approvals via govt. Reemplaza v2.0.
+> **Versión:** 2.1 — polymorphic provider (org o vet independiente), paths actualizados (`/org/[orgToken]`, `/pro`, `/gob`, `/admin`), routing de approvals via govt. Reemplaza v2.0.
 
 ---
 
@@ -26,7 +26,7 @@ DIM hoy tiene "Agendar vacuna" implementado como un `Reminder` privado del dueñ
 | D5 | **Slots materializados en una ventana móvil de 60 días vía cron**. Job nocturno regenera. Idempotent | Mismo patrón que Calendly/Cal.com. Queries simples sobre `time_slots` indexada, intent declarativo preservado en las rules |
 | D6 | **Appointment es planning artifact mutable**, separado del `pet_event` inmutable. Al marcar asistencia se emite el evento (`vaccination_administered`, etc.) | Misma disciplina que `Reminder` vs `pet_event` — un appointment puede cancelarse o reagendarse sin tocar el log inmutable |
 | D7 | **Reminder integration: ambos flujos coexisten**. "Agendar vacuna" existente sigue funcionando (crea Reminder privado, sin appointment). El flujo nuevo de reservar crea Reminder + Appointment linkeados. La página "Próximas vacunas" muestra los dos casos mezclados | El dueño que se acuerda solo, sin reservar, sigue teniendo su libreta de papel digital. El que reserva queda mejor servido |
-| D8 | **Approval state en columna `service_offerings.status`** (pending_approval, approved, rejected, paused, archived). El routing del request va a govt cuya scope cubre la `jurisdiction_locality` declarada en el offering (sea de org o de vet independiente); fallback a admin si no hay govt covering. Govt ve requests en `/gobierno/servicios`; admin ve el fallback queue en `/admin/servicios` | Refleja la separación `/gobierno` (locality-scoped) vs `/admin` (universal). El offering declara su jurisdicción independiente de quién sea el provider |
+| D8 | **Approval state en columna `service_offerings.status`** (pending_approval, approved, rejected, paused, archived). El routing del request va a govt cuya scope cubre la `jurisdiction_locality` declarada en el offering (sea de org o de vet independiente); fallback a admin si no hay govt covering. Govt ve requests en `/gob/servicios`; admin ve el fallback queue en `/admin/servicios` | Refleja la separación `/gob` (locality-scoped) vs `/admin` (universal). El offering declara su jurisdicción independiente de quién sea el provider |
 | D9 | **Owner busca via filtro por service_kind + jurisdicción** del pet. La búsqueda muestra slots de orgs verified con offering aprobado. No hay paginación compleja, no hay search por nombre de org | Simple. El día que haya cientos de orgs por barrio, paginamos. Hoy alcanza |
 | D10 | **Race conditions sobre el último cupo** se manejan con advisory lock + DB constraint (`bookings_count <= capacity`). Ambos guardarrieles | Estándar para booking systems. Sin esto, dos owners agarran el último slot al mismo tiempo y termina overbooked |
 | D11 | **El evento médico se emite con el payload del form de atención** (vaccine_name, brand, batch para vacunación, etc.). El `service_offering.service_kind` no es suficiente — la org necesita confirmar detalles reales al momento de marcar asistencia | El `service_kind` define qué tipo de evento es; el payload concreto se llena al momento del acto médico real |
@@ -272,21 +272,21 @@ Submit → createServiceOfferingAction:
        - type='service_offering_submitted'
        - title="Solicitud nueva: {service_kind} de {provider display_name}"
        - severity='info'
-       - cta a /gobierno/servicios/{public_token}
+       - cta a /gob/servicios/{public_token}
      - If no govt covering: Insert Notification para todos los users con role='admin' (fallback)
        - Same shape but cta a /admin/servicios/{public_token}
-  4. Redirect a /org/[orgToken]/servicios/{public_token} (org offering) OR /profesional/servicios/{public_token} (vet offering) con badge "En revisión"
+  4. Redirect a /org/[orgToken]/servicios/{public_token} (org offering) OR /pro/servicios/{public_token} (vet offering) con badge "En revisión"
 ```
 
 ### 5.2 Govt / admin reviews
 
-**Govt (locality-scoped)** abre `/gobierno/servicios`:
+**Govt (locality-scoped)** abre `/gob/servicios`:
 
 ```
 Lista de service_offerings con status='pending_approval' cuya jurisdiction_locality
 está cubierta por al menos un govt_assignment del usuario actual.
 
-Click → /gobierno/servicios/{public_token}:
+Click → /gob/servicios/{public_token}:
   - Detalles completos del offering
   - Info del provider (org o vet, jurisdicción, verified status)
   - Botones:
@@ -298,7 +298,7 @@ Click → /gobierno/servicios/{public_token}:
 
 ```
 Lista de service_offerings con status='pending_approval' SIN govt covering su jurisdiction_locality.
-Mismo UI que /gobierno/servicios pero scope universal.
+Mismo UI que /gob/servicios pero scope universal.
 ```
 
 `approveServiceOfferingAction`:

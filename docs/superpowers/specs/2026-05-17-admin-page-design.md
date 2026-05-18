@@ -1,11 +1,11 @@
-# Admin page — design spec
+﻿# Admin page — design spec
 
 > Diseño exhaustivo de la página admin de DIM. Modelo de dos `account_type`s (`personal` y `institutional`), cuatro roles (`owner`, `vet`, `govt`, `admin`), govt scope-limitado por localidad, admin universal sin pets, workflows de approval / revocación / self-resign / deactivation con evidencia y audit log inmutable. Auto-contenido; el plan de implementación va aparte.
 >
 > **Fecha:** 2026-05-17
 > **Owner:** Ignacio Del Valle
 > **Estado:** ready for review, no code yet
-> **Versión:** 2.2 — split de surfaces `/gobierno` (govt scope-bound) vs `/admin` (universal meta-admin). Reemplaza v2.1.
+> **Versión:** 2.2 — split de surfaces `/gob` (govt scope-bound) vs `/admin` (universal meta-admin). Reemplaza v2.1.
 
 ---
 
@@ -322,15 +322,15 @@ Quién puede hacer qué. Hardcoded por role + account_type.
 
 | Action category | Surface | Visible to | Notes |
 |---|---|---|---|
-| Approvals scoped a locality | `/gobierno/cola` | Govt con assignment covering | Org verification, vet upgrade, service offering, scheduling |
-| Approvals fallback (no govt covering) | `/admin/cola` | Admin | Same actions as `/gobierno/cola` but for localities sin govt |
+| Approvals scoped a locality | `/gob/cola` | Govt con assignment covering | Org verification, vet upgrade, service offering, scheduling |
+| Approvals fallback (no govt covering) | `/admin/cola` | Admin | Same actions as `/gob/cola` but for localities sin govt |
 | Approvals meta (role upgrade to govt/admin) | `/admin/cola` | Admin only | role_upgrade_govt, role_upgrade_admin |
 | Crear cuentas institucionales | `/admin/cuentas` | Admin only | Create govt, create admin |
-| Dashboards regionales | `/gobierno/dashboards` | Govt en su scope | Vaccination coverage, mortality clusters, etc., filtered to assigned localities |
+| Dashboards regionales | `/gob/dashboards` | Govt en su scope | Vaccination coverage, mortality clusters, etc., filtered to assigned localities |
 | Dashboards del aplicativo | `/admin/sistema` | Admin only | DAU, signups, retention, perf, costs |
-| Audit log propio | `/gobierno/historial` o `/admin/historial` | Cada user el suyo | |
+| Audit log propio | `/gob/historial` o `/admin/historial` | Cada user el suyo | |
 | Audit log global cross-govt | `/admin/auditoria` | Admin only | |
-| Business rules en mi scope | `/gobierno/reglas` | Govt en su scope | Locality / province scoped rules (future) |
+| Business rules en mi scope | `/gob/reglas` | Govt en su scope | Locality / province scoped rules (future) |
 | Business rules universales | `/admin/reglas` | Admin | Country-wide defaults, override capability per any jurisdiction (future) |
 
 ### Approvals (approval_requests)

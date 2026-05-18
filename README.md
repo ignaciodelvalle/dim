@@ -1,4 +1,4 @@
-# MiMAR — Mi Mascota Argentina
+﻿# MiMAR — Mi Mascota Argentina
 
 **MiMAR** is Argentina's digital pet credential and health record system.
 
@@ -24,8 +24,8 @@ The full design — principles, data model, event catalog, privacy tiers, dashbo
 | Owner portal | `/mis-mascotas` | Pet owners (personal accounts) | Live |
 | Public credential | `/p/[publicToken]` | Anyone (no auth) | Live |
 | Org portal | `/org/[orgToken]` | Org members (shelter, clinic, rescue network) | Live at `/refugio/` — rename pending |
-| Independent vet portal | `/profesional` | Vets with `professional.provider` capability | Planned |
-| Govt portal | `/gobierno` | Govt institutional accounts (locality-scoped) | Planned |
+| Independent vet portal | `/pro` | Vets with `professional.provider` capability | Planned |
+| Govt portal | `/gob` | Govt institutional accounts (locality-scoped) | Planned |
 | Meta-admin portal | `/admin` | Admin institutional accounts (universal scope) | Live (partial) |
 | Tier-2 shared libreta | `/libreta/compartir/[shareToken]` | Anyone with a valid share link | Planned |
 
@@ -34,8 +34,8 @@ The full design — principles, data model, event catalog, privacy tiers, dashbo
 | Role | Account type | Portal | Notes |
 | ---- | ------------ | ------ | ----- |
 | `owner` | personal | `/mis-mascotas` | Default for self-serve signup. May upgrade to `vet`. |
-| `vet` | personal | `/profesional` or `/org/[orgToken]` | Independent vets use `/profesional` after `professional.provider` approval; clinic-affiliated vets use the clinic's `/org/[orgToken]`. |
-| `govt` | institutional | `/gobierno` | Locality-scoped approvals and regional dashboards. Multi-locality via `govt_assignments`. |
+| `vet` | personal | `/pro` or `/org/[orgToken]` | Independent vets use `/pro` after `professional.provider` approval; clinic-affiliated vets use the clinic's `/org/[orgToken]`. |
+| `govt` | institutional | `/gob` | Locality-scoped approvals and regional dashboards. Multi-locality via `govt_assignments`. |
 | `admin` | institutional | `/admin` | Universal scope. Creates institutional accounts, global audit, universal business rules. |
 
 Account type is DB-enforced via CHECK constraint on `profiles.account_type`. Personal accounts (`owner`, `vet`) can own pets and have Mi Argentina identity. Institutional accounts (`govt`, `admin`) have neither — they are service accounts for governance work.
@@ -68,7 +68,7 @@ Owner-facing data-collection layer is complete:
 - Per-user notifications (welcome on signup, PPP reminder on dangerous breeds), with mark-read / archive
 - Org portal (shelter, clinic, rescue network) — intake, foster, transfer, adoption flows
 
-Vet portal (`/profesional`), government portal (`/gobierno`), owner-facing forms for the rest of the event catalog (vaccination, vet visit, weight, etc.), and the scheduling system are next on the roadmap.
+Vet portal (`/pro`), government portal (`/gob`), owner-facing forms for the rest of the event catalog (vaccination, vet visit, weight, etc.), and the scheduling system are next on the roadmap.
 
 ## Local development
 
@@ -95,7 +95,7 @@ app/
     notificaciones/         notifications inbox
     cuenta/                 upgrade (vet / org creation)
   refugio/                  org portal — pending rename to org/[orgToken]/
-  admin/                    admin + govt shared portal — pending /gobierno split
+  admin/                    admin + govt shared portal — pending /gob split
   p/[publicToken]/          public credential page (no auth required)
   auth/callback/            Supabase OAuth/email-link return URL
   actions/                  server actions (auth, pets, scans, notifications)

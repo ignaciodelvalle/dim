@@ -1,4 +1,4 @@
-# Symptom → dangerous-disease surveillance — implementation plan
+﻿# Symptom → dangerous-disease surveillance — implementation plan
 
 > Plan ejecutable para Claude Code. Cinco fases que implementan el feature completo de detección de síntomas que podrían indicar enfermedades peligrosas y emiten signals silenciosos a la autoridad sanitaria. Las fases son secuencialmente dependientes pero pueden ir en PRs separados.
 >
@@ -22,7 +22,7 @@ Lectura obligatoria en este orden — el spec define el porqué; este plan defin
 7. **`db/schema.ts`** — la lista `EVENT_TYPES`. Agregás `"outbreak_signal"` al final
 8. **`app/actions/events.ts`** (si existe) o donde viven los server actions de creación de eventos — entender el patrón antes de crear `createSymptomObservedAction`
 
-**Una dependencia importante.** La Fase 4 (notification routing) idealmente lookuparía govts vía `govt_assignments` (tabla del admin page spec, todavía sin implementar). Como NO existe esa tabla aún, en este plan **Fase 4 routea solo a admins activos** — la notification CTA apunta a `/admin/cola`. Cuando admin page Fase 0 mergee, una pasada chica reemplaza el "solo admins" por "govts en scope (CTA a `/gobierno/cola`) + fallback admin (CTA a `/admin/cola`)". Eso está explícito en el código con un TODO inline que apunta al `2026-05-17-admin-page-design.md`.
+**Una dependencia importante.** La Fase 4 (notification routing) idealmente lookuparía govts vía `govt_assignments` (tabla del admin page spec, todavía sin implementar). Como NO existe esa tabla aún, en este plan **Fase 4 routea solo a admins activos** — la notification CTA apunta a `/admin/cola`. Cuando admin page Fase 0 mergee, una pasada chica reemplaza el "solo admins" por "govts en scope (CTA a `/gob/cola`) + fallback admin (CTA a `/admin/cola`)". Eso está explícito en el código con un TODO inline que apunta al `2026-05-17-admin-page-design.md`.
 
 ## 1. Qué construye este plan
 
