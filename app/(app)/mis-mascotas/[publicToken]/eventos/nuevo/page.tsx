@@ -78,6 +78,12 @@ const LIBRETA_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
+    slug: "mordedura",
+    label: "Mordedura",
+    description: "Reportar un incidente — inicia observación de 10 días",
+    enabled: true,
+  },
+  {
     slug: "fallecimiento",
     label: "Fallecimiento",
     description: "Registro y método de disposición",

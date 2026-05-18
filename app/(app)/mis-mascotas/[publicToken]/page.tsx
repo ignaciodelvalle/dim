@@ -336,6 +336,10 @@ export default async function PetDetailPage({
 
         {isTransit && <TransitBanner petName={pet.name} />}
 
+        {pet.rabiesObservationStatus === "in_progress" && (
+          <RabiesObservationBanner pet={pet} events={eventsWithAttachments} />
+        )}
+
         {/* Hero: photo + name + key facts */}
         <section className="flex items-start gap-5">
           {photoUrl ? (
@@ -634,6 +638,70 @@ function MedicationDosesSection({
             </div>
           ))}
         </div>
+      )}
+    </section>
+  );
+}
+
+type RabiesObservationBannerProps = {
+  pet: { name: string; publicToken: string };
+  events: Array<{ id: string; eventType: string; occurredAt: Date | string; payload: unknown }>;
+};
+
+// Banner shown while pet.rabies_observation_status='in_progress'. Pulls the
+// originating bite event (incident_reported with payload.incident_type='bite_inflicted')
+// and the rabies_observation_started event to render the dates. When the 10
+// days have elapsed AND there were no escalating symptoms during the period,
+// shows a button that calls ownerCloseRabiesObservationAction.
+function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) {
+  const startedEvent = events.find((e) => e.eventType === "rabies_observation_started");
+  const startedPayload = (startedEvent?.payload ?? {}) as Record<string, unknown>;
+  const observationUntilRaw = startedPayload.observation_until as string | undefined;
+  const observationUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
+
+  const biteEvent = events.find(
+    (e) =>
+      e.eventType === "incident_reported" &&
+      (e.payload as Record<string, unknown> | null)?.incident_type === "bite_inflicted",
+  );
+  const biteDate = biteEvent ? new Date(biteEvent.occurredAt) : null;
+
+  const periodClosed =
+    observationUntil !== null &&
+    Number.isFinite(observationUntil.getTime()) &&
+    observationUntil <= new Date();
+
+  return (
+    <section className="rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
+      <p className="font-medium text-amber-900 dark:text-amber-200">
+        Observación antirrábica en curso
+      </p>
+      <p className="text-sm text-amber-800 dark:text-amber-300">
+        {biteDate
+          ? `Por la mordedura del ${biteDate.toLocaleDateString("es-AR")}, `
+          : "Por una mordedura reportada recientemente, "}
+        {pet.name} está en observación obligatoria de 10 días.
+        {observationUntil && ` Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}.`}
+      </p>
+      <p className="text-xs text-amber-700 dark:text-amber-400">
+        Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
+        de comportamiento, consultá al veterinario de inmediato.
+      </p>
+      {periodClosed && (
+        <form
+          action={async () => {
+            "use server";
+            const { ownerCloseRabiesObservationAction } = await import("@/app/actions/bite");
+            await ownerCloseRabiesObservationAction(pet.publicToken);
+          }}
+        >
+          <button
+            type="submit"
+            className="px-3 py-1.5 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+          >
+            Confirmar fin de observación
+          </button>
+        </form>
       )}
     </section>
   );
