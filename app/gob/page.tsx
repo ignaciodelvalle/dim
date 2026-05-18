@@ -104,6 +104,22 @@ export default async function GobiernoDashboardPage() {
           />
         </section>
 
+        {/* Regional surfaces — Fase 11 */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Card
+            label="Vigilancia"
+            value="Señales de zoonosis"
+            sublabel="Outbreak signals filtrados a tu cobertura"
+            cta={{ href: "/gob/vigilancia", label: "Ver vigilancia" }}
+          />
+          <Card
+            label="Pérdidas"
+            value="Mascotas perdidas"
+            sublabel="Pets en status='lost' en tu cobertura"
+            cta={{ href: "/gob/perdidas", label: "Ver pérdidas" }}
+          />
+        </section>
+
         {/* Per-type breakdown grid */}
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
