@@ -410,6 +410,11 @@ export const pets = pgTable(
       .notNull()
       .default(true),
     allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
+    // External legal custody proceedings flag. Set true by
+    // custody_dispute_raised events (admin or govt initiated), unset by
+    // custody_dispute_resolved. Features that should respect the flag
+    // (transfers, adoption finalize, scheduling) opt in per-feature.
+    inCustodyDispute: boolean("in_custody_dispute").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
