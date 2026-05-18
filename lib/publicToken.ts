@@ -11,6 +11,7 @@
 //   LBR  — libreta share token (libreta_share_tokens.share_token)
 //   APR  — approval request public token (approval_requests.public_token)
 //   OFR  — service offering public token (service_offerings.public_token)
+//   APT  — appointment public token (appointments.public_token)
 
 import { randomBytes } from "node:crypto";
 
@@ -51,4 +52,9 @@ export function generateApprovalRequestToken(): string {
 /** Generates an OFR-XXXX-XXXX service offering public token. */
 export function generateOfferingToken(): string {
   return generatePrefixedToken("OFR");
+}
+
+/** Generates an APT-XXXX-XXXX appointment public token. */
+export function generateAppointmentToken(): string {
+  return generatePrefixedToken("APT");
 }
