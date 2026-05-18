@@ -2,10 +2,12 @@
 
 > Plan ejecutable para Claude Code. Seis fases que implementan el sistema completo de reporte de mordedura → observación antirrábica de 10 días → escalación cuando hay síntomas compatibles con rabia → cierre automático negativo o manual profesional. Aprovecha la infrastructure ya implementada (`symptom_observed` matcher, libreta sanitaria, notification routing govt-scope, cron pattern).
 >
-> **Fecha:** 2026-05-18
+> **Fecha:** 2026-05-18 (refactor 2026-05-18 post `event-catalog-cleanup`)
 > **Owner:** Ignacio Del Valle
-> **Tamaño:** 1 migración SQL + ~3 event types + ~4 server actions nuevos + ~6 rutas + 1 cron + 1 hook en server action existente
+> **Tamaño:** 1 migración SQL + **2 event types nuevos** (`rabies_observation_started`, `rabies_observation_ended`) + ~4 server actions nuevos + ~6 rutas + 1 cron + 1 hook en server action existente
 > **Estimación:** ~3-4 días
+>
+> **v1.1 nota:** los bites NO son un `event_type` propio. Viven dentro de `incident_reported` con `incident_type='bite_inflicted'`. El schema de `incident_reported` con campos bite-específicos ya está mergeado vía `event-catalog-cleanup`. Cuando esta plan diga "insert bite_inflicted", interpretar como "insert `incident_reported` con `payload.incident_type='bite_inflicted'`". Igual aplica a queries: para encontrar el bite originador del rabies_observation, filtrar por `event_type='incident_reported' AND payload->>'incident_type'='bite_inflicted'`.
 
 ---
 

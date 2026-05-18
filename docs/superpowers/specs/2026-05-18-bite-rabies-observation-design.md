@@ -7,7 +7,7 @@
 > **Fecha:** 2026-05-18
 > **Owner:** Ignacio Del Valle
 > **Estado:** ready for review, no code yet
-> **Versión:** 1.0
+> **Versión:** 1.1 — refactor de modelado: los bites NO son un `event_type` propio. Viven dentro de `incident_reported` con `incident_type='bite_inflicted'`. El schema de `incident_reported` ya incluye los campos bite-específicos como opcionales (ver `event-catalog-cleanup` paso 3). Funcionalmente equivalente a v1.0; cambia el plumbing del event_type.
 
 ---
 
@@ -58,48 +58,28 @@ Este spec cierra ese hueco haciendo lo que la ley pide, integrándolo con `sympt
 
 ## 4. Domain model
 
-### 4.1 Extender `EVENT_TYPES` con tres valores
+### 4.1 Extender `EVENT_TYPES` con dos valores
 
 En `db/schema.ts → EVENT_TYPES`:
 
 ```ts
-"bite_inflicted",
 "rabies_observation_started",
 "rabies_observation_ended",
 ```
 
-Y agregar los tres a `LIBRETA_SANITARIA_EVENT_TYPES` en `lib/libreta-sanitaria.ts` (son eventos médicos/sanitarios que el vet futuro consulta).
+Y agregar ambos a `LIBRETA_SANITARIA_EVENT_TYPES` en `lib/libreta-sanitaria.ts` (son eventos médicos/sanitarios que el vet futuro consulta).
+
+**Nota v1.1:** `bite_inflicted` NO se agrega como event_type. El bite vive dentro de `incident_reported` (que ya existe en EVENT_TYPES + schema desde `event-catalog-cleanup`) con `incident_type='bite_inflicted'`. Los campos bite-específicos (`victim_kind`, `victim_contact_*`, `rabies_vaccine_valid_at_incident`, etc.) ya están como opcionales en el schema de `incident_reported`.
 
 ### 4.2 Zod schemas en `lib/event-schemas.ts`
 
-```ts
-const biteInflicted = z
-  .object(
-    withVersion({
-      occurred_at: z.string(), // ISO date
-      // Location
-      location_description: z.string().nullable(), // free text, e.g. "Plaza Italia"
-      // Victim
-      victim_kind: z.enum(["human", "animal", "unknown"]),
-      victim_contact_name: z.string().nullable(),
-      victim_contact_phone: z.string().nullable(),
-      victim_pet_id: z.string().uuid().nullable(), // if victim is another DIM pet
-      victim_age_estimate: z.string().nullable(), // text, e.g. "niño", "adulto"
-      // Severity and context
-      severity: z.enum(["minor", "moderate", "severe"]),
-      context: z.string().nullable(), // free text: provocation, defense, casual, etc.
-      // Snapshot
-      rabies_vaccine_valid_at_bite: z.boolean(),
-      // Reporter
-      reporter_role: z.enum(["owner", "vet", "shelter", "govt", "witness"]),
-    }),
-  )
-  .strict();
+**Nota v1.1:** el bloque `biteInflicted` que la v1.0 incluía acá YA NO va. Los campos bite-específicos viven en el schema de `incident_reported` (extendido en `event-catalog-cleanup` paso 3). Los dos schemas que sí se agregan son `rabiesObservationStarted` y `rabiesObservationEnded`. El `bite_event_id` que ambos referencian es un uuid al `pet_events.id` de un row con `event_type='incident_reported' AND payload->>'incident_type'='bite_inflicted'`.
 
+```ts
 const rabiesObservationStarted = z
   .object(
     withVersion({
-      bite_event_id: z.string().uuid(), // FK to the originating bite_inflicted event
+      bite_event_id: z.string().uuid(), // FK to the originating incident_reported (bite) event
       observation_until: z.string(), // ISO date = bite occurred_at + 10 days
       location: z.enum(["in_situ", "official_site"]), // domicilio vs sede oficial (Instituto Pasteur, dispensario)
       official_site_organization_id: z.string().uuid().nullable(), // when location='official_site'
@@ -198,7 +178,7 @@ reportBiteAction atomic transaction:
   3. Computar rabies_vaccine_valid_at_bite:
      query latest vaccination_administered with vaccine_name matching antirrábica
      compare next_due_at > bite_date
-  4. Insert pet_events bite_inflicted con payload validado (Zod)
+  4. Insert pet_events incident_reported con incident_type='bite_inflicted' y payload validado (Zod)
   5. Insert pet_events rabies_observation_started con observation_until = bite_date + 10 days
   6. UPDATE pets SET rabies_observation_status = 'in_progress'
   7. Insert Notification al owner: bite_reported_owner + rabies_observation_started_owner
