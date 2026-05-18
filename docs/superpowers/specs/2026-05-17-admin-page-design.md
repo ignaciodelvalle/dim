@@ -4,8 +4,16 @@
 >
 > **Fecha:** 2026-05-17
 > **Owner:** Ignacio Del Valle
-> **Estado:** ready for review, no code yet
-> **Versión:** 2.2 — split de surfaces `/gob` (govt scope-bound) vs `/admin` (universal meta-admin). Reemplaza v2.1.
+> **Estado:** implementado — código alineado a spec en migración 0015
+> **Versión:** 2.3 — cierre de código vs spec: migration 0015 elimina los 3 tipos removidos de `approval_requests`, tightens CHECKs, reemplaza trigger. Reemplaza v2.2.
+
+### Changelog
+
+| Versión | Fecha | Cambios |
+|---|---|---|
+| **v2.3** | 2026-05-18 | **Cierre código-spec (migración 0015):** Tipos `role_upgrade_govt`, `role_upgrade_admin`, `govt_assignment_grant` eliminados del CHECK en `approval_requests` (nunca existieron en prod — cuentas institucionales se crean directo). Trigger renombrado de `enforce_admin_no_pets` a `enforce_institutional_no_pets` (scope correcto: `account_type='institutional'`). Constraints `profiles_account_type_role_match` y `profiles_institutional_no_pii` añadidos. Admin surfaces `/admin/cola`, `/admin/historial`, `/admin/auditoria`, `/admin/usuarios`, `/admin/organizaciones` + `/gob/historial` implementados. Routing `routeOutbreakSignalNotification` ahora usa `findAuthoritiesForJurisdiction` (govt-first, admin fallback) en lugar de admin-only. |
+| v2.2 | 2026-05-17 | Split de surfaces `/gob` (govt scope-bound) vs `/admin` (universal meta-admin). Los 3 tipos removidos respecto a v2.0 documentados en D7. |
+| v2.1 | — | Versión anterior. |
 
 ---
 
