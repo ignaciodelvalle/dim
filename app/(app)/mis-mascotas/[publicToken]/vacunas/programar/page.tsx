@@ -33,6 +33,19 @@ export default async function ScheduleVaccinePage({
           </p>
         </div>
         <ScheduleVaccineForm action={boundAction} species={pet.species} />
+
+        {/* Secondary CTA — book a real appointment instead of (or in addition to) a reminder */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            ¿Preferís ir directo a una clínica o campaña?
+          </p>
+          <Link
+            href="/turnos/buscar?service_kind=vaccination_rabies"
+            className="inline-flex items-center gap-1 text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          >
+            ¿Querés sacar turno con un veterinario? Buscar en mi zona →
+          </Link>
+        </div>
       </div>
     </main>
   );

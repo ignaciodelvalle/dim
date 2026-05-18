@@ -1,9 +1,11 @@
-// /turnos/buscar — Owner-facing service search (Fase 4).
+// /turnos/buscar — Owner-facing service search (Fase 4 + Fase 10 polish).
 //
 // Query params:
 //   service_kind  (required) — filters by serviceKind
 //   province      (optional) — filters by jurisdictionProvince
 //   locality      (optional) — filters by jurisdictionLocality
+//   fecha_desde   (optional, Fase 10) — only show slots >= YYYY-MM-DD
+//   solo_gratis   (optional, Fase 10) — true = only show free (campaign) offerings
 //
 // If province/locality are absent, we try to default to the user's first
 // owned pet's jurisdiction. If the user has no pets or the params are blank,
@@ -12,7 +14,7 @@
 // For each approved offering we show up to 7 days of available slots
 // (bookings_count < capacity AND starts_at >= now()).
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import {
@@ -30,12 +32,21 @@ import { findServiceKind, SERVICE_KINDS } from "@/lib/service-kinds";
 export default async function BuscarTurnosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ service_kind?: string; province?: string; locality?: string }>;
+  searchParams: Promise<{
+    service_kind?: string;
+    province?: string;
+    locality?: string;
+    fecha_desde?: string;
+    solo_gratis?: string;
+  }>;
 }) {
   const { user } = await requireUserOrRedirect();
   const params = await searchParams;
 
   const serviceKind = params.service_kind?.trim() ?? "";
+  // Fase 10 filters
+  const fechaDesde = params.fecha_desde?.trim() ?? "";
+  const soloGratis = params.solo_gratis === "true";
 
   // Resolve province/locality: params → user's first pet's jurisdiction.
   let province = params.province?.trim() ?? "";
@@ -86,6 +97,11 @@ export default async function BuscarTurnosPage({
 
   const now = new Date();
   const windowEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  // Fase 10: fecha_desde — clamp the slot window start to the requested date.
+  const slotWindowStart =
+    fechaDesde && /^\d{4}-\d{2}-\d{2}$/.test(fechaDesde)
+      ? new Date(Math.max(now.getTime(), new Date(fechaDesde).getTime()))
+      : now;
 
   // Build offering filter conditions.
   const offeringConditions = [
@@ -104,6 +120,11 @@ export default async function BuscarTurnosPage({
     );
   }
 
+  // Fase 10: solo_gratis filter — only free (campaign) offerings.
+  if (soloGratis) {
+    offeringConditions.push(isNull(serviceOfferings.priceArs));
+  }
+
   // Fetch approved offerings matching the filter.
   const offeringRows = await db
     .select({
@@ -111,6 +132,8 @@ export default async function BuscarTurnosPage({
       org: {
         displayName: organizations.displayName,
         avatarUrl: organizations.avatarUrl,
+        tier0ShowBranding: organizations.tier0ShowBranding,
+        verified: organizations.verified,
       },
       provider: {
         displayName: profiles.displayName,
@@ -135,7 +158,7 @@ export default async function BuscarTurnosPage({
       .where(
         sql`${timeSlots.serviceOfferingId} = ANY(${sql.raw(`ARRAY[${offeringIds.map((id) => `'${id}'`).join(",")}]::uuid[]`)})
             AND ${timeSlots.status} = 'open'
-            AND ${timeSlots.startsAt} >= ${now}
+            AND ${timeSlots.startsAt} >= ${slotWindowStart}
             AND ${timeSlots.startsAt} <= ${windowEnd}
             AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,
       )
@@ -177,6 +200,8 @@ export default async function BuscarTurnosPage({
           currentServiceKind={serviceKind}
           currentProvince={province}
           currentLocality={locality}
+          currentFechaDesde={fechaDesde}
+          currentSoloGratis={soloGratis}
         />
 
         {offeringsWithSlots.length === 0 ? (
@@ -218,13 +243,17 @@ export default async function BuscarTurnosPage({
                           {` · ${offering.durationMinutes} min`}
                         </p>
                       </div>
-                      {offering.organizationId && org?.avatarUrl && (
-                        <img
-                          src={org.avatarUrl}
-                          alt={org.displayName}
-                          className="w-10 h-10 rounded-full object-cover shrink-0"
-                        />
-                      )}
+                      {/* Fase 10: only show logo when tier_0_show_branding AND verified */}
+                      {offering.organizationId &&
+                        org?.avatarUrl &&
+                        org.tier0ShowBranding &&
+                        org.verified && (
+                          <img
+                            src={org.avatarUrl}
+                            alt={org.displayName}
+                            className="w-10 h-10 rounded-full object-cover shrink-0"
+                          />
+                        )}
                     </div>
                     <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400">
                       {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
@@ -278,66 +307,100 @@ function SearchFilters({
   currentServiceKind,
   currentProvince,
   currentLocality,
+  currentFechaDesde,
+  currentSoloGratis,
 }: {
   currentServiceKind: string;
   currentProvince: string;
   currentLocality: string;
+  currentFechaDesde: string;
+  currentSoloGratis: boolean;
 }) {
   const kinds = SERVICE_KINDS;
   return (
-    <form method="GET" className="flex flex-wrap gap-2 items-end">
-      <div className="space-y-1">
-        <label
-          htmlFor="service_kind_sel"
-          className="text-xs text-neutral-500 dark:text-neutral-400"
+    <form method="GET" className="space-y-3">
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="space-y-1">
+          <label
+            htmlFor="service_kind_sel"
+            className="text-xs text-neutral-500 dark:text-neutral-400"
+          >
+            Servicio
+          </label>
+          <select
+            id="service_kind_sel"
+            name="service_kind"
+            defaultValue={currentServiceKind}
+            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
+          >
+            {kinds.map((k) => (
+              <option key={k.code} value={k.code}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="locality_inp" className="text-xs text-neutral-500 dark:text-neutral-400">
+            Localidad
+          </label>
+          <input
+            id="locality_inp"
+            name="locality"
+            type="text"
+            defaultValue={currentLocality}
+            placeholder="Ej: Palermo"
+            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 w-40"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="province_inp" className="text-xs text-neutral-500 dark:text-neutral-400">
+            Provincia
+          </label>
+          <input
+            id="province_inp"
+            name="province"
+            type="text"
+            defaultValue={currentProvince}
+            placeholder="Ej: Buenos Aires"
+            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 w-40"
+          />
+        </div>
+        <button
+          type="submit"
+          className="text-sm px-4 py-1.5 rounded bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
         >
-          Servicio
-        </label>
-        <select
-          id="service_kind_sel"
-          name="service_kind"
-          defaultValue={currentServiceKind}
-          className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
-        >
-          {kinds.map((k) => (
-            <option key={k.code} value={k.code}>
-              {k.label}
-            </option>
-          ))}
-        </select>
+          Buscar
+        </button>
       </div>
-      <div className="space-y-1">
-        <label htmlFor="locality_inp" className="text-xs text-neutral-500 dark:text-neutral-400">
-          Localidad
+      {/* Fase 10: additional filters — fecha_desde + solo_gratis */}
+      <div className="flex flex-wrap gap-4 items-end">
+        <div className="space-y-1">
+          <label
+            htmlFor="fecha_desde_inp"
+            className="text-xs text-neutral-500 dark:text-neutral-400"
+          >
+            Desde
+          </label>
+          <input
+            id="fecha_desde_inp"
+            name="fecha_desde"
+            type="date"
+            defaultValue={currentFechaDesde}
+            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer pb-0.5">
+          <input
+            type="checkbox"
+            name="solo_gratis"
+            value="true"
+            defaultChecked={currentSoloGratis}
+            className="rounded border-neutral-300 dark:border-neutral-700"
+          />
+          Solo campañas gratuitas
         </label>
-        <input
-          id="locality_inp"
-          name="locality"
-          type="text"
-          defaultValue={currentLocality}
-          placeholder="Ej: Palermo"
-          className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 w-40"
-        />
       </div>
-      <div className="space-y-1">
-        <label htmlFor="province_inp" className="text-xs text-neutral-500 dark:text-neutral-400">
-          Provincia
-        </label>
-        <input
-          id="province_inp"
-          name="province"
-          type="text"
-          defaultValue={currentProvince}
-          placeholder="Ej: Buenos Aires"
-          className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 w-40"
-        />
-      </div>
-      <button
-        type="submit"
-        className="text-sm px-4 py-1.5 rounded bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-      >
-        Buscar
-      </button>
     </form>
   );
 }

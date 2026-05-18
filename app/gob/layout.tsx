@@ -58,6 +58,12 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
             >
               Organizaciones
             </Link>
+            <Link
+              href="/gob/servicios"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Servicios
+            </Link>
             {profile.role === "admin" && (
               <Link
                 href="/admin"

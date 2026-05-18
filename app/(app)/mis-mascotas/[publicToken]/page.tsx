@@ -1,13 +1,13 @@
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
-import { attachments, db, ownerships, petEvents, pets, reminders } from "@/db";
+import { appointments, attachments, db, ownerships, petEvents, pets, reminders, serviceOfferings, timeSlots } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
 import { requirePetAccess } from "@/lib/pet-access";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
@@ -280,6 +280,27 @@ export default async function PetDetailPage({
     )
     .orderBy(asc(reminders.dueAt));
 
+  // Upcoming confirmed appointments for this pet, soonest first (max 10).
+  const upcomingAppointments = await db
+    .select({
+      publicToken: appointments.publicToken,
+      status: appointments.status,
+      offeringDisplayName: serviceOfferings.displayName,
+      slotStartsAt: timeSlots.startsAt,
+    })
+    .from(appointments)
+    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+    .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+    .where(
+      and(
+        eq(appointments.petId, pet.id),
+        eq(appointments.status, "confirmed"),
+        gt(timeSlots.startsAt, new Date()),
+      ),
+    )
+    .orderBy(asc(timeSlots.startsAt))
+    .limit(10);
+
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
   return (
@@ -465,92 +486,12 @@ export default async function PetDetailPage({
           )}
         </section>
 
-        {/* Upcoming vaccine reminders */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-              Próximas vacunas
-            </h2>
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}/vacunas/programar`}
-              className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              + Programar
-            </Link>
-          </div>
-          {pendingVaccineReminders.length === 0 ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
-              No tenés vacunas pendientes para {pet.name}.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {pendingVaccineReminders.map((reminder) => {
-                const dueDate = new Date(reminder.dueAt);
-                const diffDays = Math.floor(
-                  (dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-                );
-                const isSoon = diffDays >= 0 && diffDays <= 30;
-                const isOverdue = diffDays < 0;
-                return (
-                  <li
-                    key={reminder.id}
-                    className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-0.5">
-                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                          {reminder.title}
-                        </p>
-                        {reminder.description && (
-                          <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                            {reminder.description}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-right text-xs shrink-0">
-                        <p className="text-neutral-700 dark:text-neutral-300">
-                          {formatDate(reminder.dueAt)}
-                        </p>
-                        {isOverdue && (
-                          <p className="text-red-600 dark:text-red-400 font-medium">
-                            Atrasada {Math.abs(diffDays)} día{Math.abs(diffDays) === 1 ? "" : "s"}
-                          </p>
-                        )}
-                        {isSoon && !isOverdue && (
-                          <p className="text-amber-600 dark:text-amber-400 font-medium">
-                            En {diffDays} día{diffDays === 1 ? "" : "s"}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/vacuna?reminderId=${reminder.id}`}
-                        className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-                      >
-                        Registrar aplicación
-                      </Link>
-                      <form
-                        action={deleteVaccineReminderAction.bind(
-                          null,
-                          pet.publicToken,
-                          reminder.id,
-                        )}
-                      >
-                        <button
-                          type="submit"
-                          className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-                        >
-                          Eliminar
-                        </button>
-                      </form>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        {/* Unified "Próximas citas y recordatorios" — mixes active appointments + vaccine reminders */}
+        <UpcomingAppointmentsAndReminders
+          pet={pet}
+          upcomingAppointments={upcomingAppointments}
+          pendingVaccineReminders={pendingVaccineReminders}
+        />
 
         {/* Upcoming medication dose reminders */}
         <MedicationDosesSection
@@ -713,6 +654,162 @@ function TransitBanner({ petName }: { petName: string }) {
           Buscar nuevo hogar
         </button>
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Upcoming appointments + vaccine reminders — unified section (Fase 7)
+// ---------------------------------------------------------------------------
+// Rows are merged by date (appointments by slot.starts_at, reminders by due_at)
+// and sorted ascending so the soonest item appears first.
+// ---------------------------------------------------------------------------
+
+type UpcomingAppointmentRow = {
+  publicToken: string;
+  status: string;
+  offeringDisplayName: string;
+  slotStartsAt: Date;
+};
+
+function UpcomingAppointmentsAndReminders({
+  pet,
+  upcomingAppointments,
+  pendingVaccineReminders,
+}: {
+  pet: Pet;
+  upcomingAppointments: UpcomingAppointmentRow[];
+  pendingVaccineReminders: Reminder[];
+}) {
+  type MergedRow =
+    | { kind: "appointment"; date: Date; apt: UpcomingAppointmentRow }
+    | { kind: "reminder"; date: Date; reminder: Reminder };
+
+  const merged: MergedRow[] = [
+    ...upcomingAppointments.map(
+      (apt): MergedRow => ({ kind: "appointment", date: new Date(apt.slotStartsAt), apt }),
+    ),
+    ...pendingVaccineReminders.map(
+      (r): MergedRow => ({ kind: "reminder", date: new Date(r.dueAt), reminder: r }),
+    ),
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          Próximas citas y recordatorios
+        </h2>
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}/vacunas/programar`}
+          className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+        >
+          + Programar
+        </Link>
+      </div>
+      {merged.length === 0 ? (
+        <p className="text-sm text-neutral-500 dark:text-neutral-500">
+          No hay citas ni recordatorios próximos para {pet.name}.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {merged.map((row) => {
+            if (row.kind === "appointment") {
+              const { apt } = row;
+              return (
+                <li
+                  key={`apt-${apt.publicToken}`}
+                  className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                        {apt.offeringDisplayName}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                        {row.date.toLocaleString("es-AR", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                      turno
+                    </span>
+                  </div>
+                  <Link
+                    href={`/mis-turnos/${apt.publicToken}`}
+                    className="inline-block text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+                  >
+                    Ver detalle →
+                  </Link>
+                </li>
+              );
+            }
+
+            // reminder row
+            const { reminder } = row;
+            const diffDays = Math.floor((row.date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            const isSoon = diffDays >= 0 && diffDays <= 30;
+            const isOverdue = diffDays < 0;
+            return (
+              <li
+                key={`rem-${reminder.id}`}
+                className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                      {reminder.title}
+                    </p>
+                    {reminder.description && (
+                      <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                        {reminder.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400">
+                      recordatorio
+                    </span>
+                    <p className="text-xs text-neutral-700 dark:text-neutral-300">
+                      {formatDate(reminder.dueAt)}
+                    </p>
+                    {isOverdue && (
+                      <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+                        Atrasada {Math.abs(diffDays)} día{Math.abs(diffDays) === 1 ? "" : "s"}
+                      </p>
+                    )}
+                    {isSoon && !isOverdue && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        En {diffDays} día{diffDays === 1 ? "" : "s"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/vacuna?reminderId=${reminder.id}`}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+                  >
+                    Registrar aplicación
+                  </Link>
+                  <form
+                    action={deleteVaccineReminderAction.bind(null, pet.publicToken, reminder.id)}
+                  >
+                    <button
+                      type="submit"
+                      className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                    >
+                      Eliminar
+                    </button>
+                  </form>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }
