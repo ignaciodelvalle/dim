@@ -1332,9 +1332,11 @@ export const appointments = pgTable(
       .references(() => profiles.id, { onDelete: "cascade" }),
     serviceOfferingId: uuid("service_offering_id")
       .notNull()
-      .references(() => serviceOfferings.id),
+      .references(() => serviceOfferings.id, { onDelete: "cascade" }),
     // Denormalized from offering. Null for independent-vet offerings.
-    organizationId: uuid("organization_id").references(() => organizations.id),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     status: text("status").notNull().default("confirmed"),
 
     attendedAt: timestamp("attended_at", { withTimezone: true }),

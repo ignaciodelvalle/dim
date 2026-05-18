@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
+import { CancelButton } from "./CancelButton";
 
 export default async function AppointmentDetailPage({
   params,
@@ -145,12 +146,10 @@ export default async function AppointmentDetailPage({
           )}
         </dl>
 
-        {/* Cancellation — Block F wires the action; this is the placeholder */}
+        {/* Cancellation — Fase 6 */}
         {canCancel && (
           <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800">
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-3">
-              La cancelación estará disponible en la próxima versión.
-            </p>
+            <CancelButton appointmentToken={appointmentToken} />
           </div>
         )}
 

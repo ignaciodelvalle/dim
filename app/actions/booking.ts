@@ -22,7 +22,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { appointments, db, ownerships, timeSlots } from "@/db";
+import { appointments, db, notifications, ownerships, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { generateAppointmentToken } from "@/lib/publicToken";
 
@@ -170,4 +170,130 @@ export async function bookSlotAction(
 
   revalidatePath("/mis-turnos");
   redirect(`/mis-turnos/${result.appointmentToken}`);
+}
+
+// ============================================================================
+// Owner cancellation action (Fase 6)
+// ============================================================================
+
+export type CancelAppointmentResult = { ok: true } | { error: string };
+
+/**
+ * Owner cancels their own appointment.
+ * Guards:
+ *   - Must be the authenticated owner of the pet on the appointment.
+ *   - The slot must still be in the future.
+ * Side-effects:
+ *   - UPDATE appointments status → cancelled_by_owner.
+ *   - DECREMENT time_slots.bookings_count (frees capacity).
+ *   - INSERT notification to the provider org (if org-side).
+ */
+export async function cancelAppointmentByOwnerAction(
+  appointmentToken: string,
+): Promise<CancelAppointmentResult> {
+  const { user } = await requireUserOrRedirect();
+
+  // Load appointment + slot + offering (for provider notification).
+  const [row] = await db
+    .select({
+      id: appointments.id,
+      slotId: appointments.slotId,
+      ownerUserId: appointments.ownerUserId,
+      organizationId: appointments.organizationId,
+      status: appointments.status,
+      serviceOfferingId: appointments.serviceOfferingId,
+      startsAt: timeSlots.startsAt,
+    })
+    .from(appointments)
+    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+    .where(eq(appointments.publicToken, appointmentToken))
+    .limit(1);
+
+  if (!row) return { error: "Turno no encontrado." };
+
+  // Ownership check.
+  if (row.ownerUserId !== user.id) {
+    return { error: "Este turno no te pertenece." };
+  }
+
+  if (row.status !== "confirmed") {
+    return { error: "El turno ya fue procesado." };
+  }
+
+  // Can only cancel future slots.
+  if (row.startsAt <= new Date()) {
+    return { error: "No podés cancelar un turno que ya pasó." };
+  }
+
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    // 1. Update appointment status.
+    await tx
+      .update(appointments)
+      .set({
+        status: "cancelled_by_owner",
+        cancelledAt: now,
+        cancelledByUserId: user.id,
+        updatedAt: now,
+      })
+      .where(eq(appointments.id, row.id));
+
+    // 2. Decrement bookings_count (free capacity).
+    await tx
+      .update(timeSlots)
+      .set({
+        bookingsCount: sql`${timeSlots.bookingsCount} - 1`,
+        updatedAt: now,
+      })
+      .where(eq(timeSlots.id, row.slotId));
+
+    // 3. Notify the provider org members (org_id path only).
+    if (row.organizationId) {
+      // Find all admin/coordinator/member/vet_individual members of the org to notify.
+      const orgMembers = await tx.execute(
+        sql`SELECT user_id FROM organization_memberships
+            WHERE organization_id = ${row.organizationId}
+              AND left_at IS NULL
+              AND role IN ('admin', 'coordinator', 'member', 'vet_individual')
+            LIMIT 10`,
+      );
+
+      for (const m of orgMembers as unknown as { user_id: string }[]) {
+        await tx.insert(notifications).values({
+          userId: m.user_id,
+          notificationType: "appointment_cancelled_by_owner",
+          title: "Turno cancelado por el propietario",
+          body: "Un propietario canceló su turno reservado.",
+          severity: "info",
+          ctaLabel: "Ver agenda",
+          ctaUrl: "/org/agenda",
+        });
+      }
+    } else {
+      // Independent vet path — notify the vet provider directly.
+      const [offering] = await tx
+        .select({ providerUserId: serviceOfferings.providerUserId })
+        .from(serviceOfferings)
+        .where(eq(serviceOfferings.id, row.serviceOfferingId))
+        .limit(1);
+
+      if (offering?.providerUserId) {
+        await tx.insert(notifications).values({
+          userId: offering.providerUserId,
+          notificationType: "appointment_cancelled_by_owner",
+          title: "Turno cancelado por el propietario",
+          body: "Un propietario canceló su turno reservado.",
+          severity: "info",
+          ctaLabel: "Ver agenda",
+          ctaUrl: "/pro/agenda",
+        });
+      }
+    }
+  });
+
+  revalidatePath("/mis-turnos");
+  revalidatePath(`/mis-turnos/${appointmentToken}`);
+
+  return { ok: true };
 }

@@ -1,0 +1,92 @@
+"use client";
+
+// Sterilization attendance form.
+// Maps to the sterilization_performed event payload schema in lib/event-schemas.ts.
+
+import { useTransition } from "react";
+
+import type { AttendanceResult, SterilizationPayload } from "@/app/actions/attendance";
+
+type Props = {
+  appointmentToken: string;
+  onSubmit: (payload: { kind: "sterilization" } & SterilizationPayload) => Promise<AttendanceResult>;
+  onSuccess?: () => void;
+  submitLabel?: string;
+};
+
+export function SterilizationAttendanceForm({ appointmentToken, onSubmit, onSuccess, submitLabel = "Marcar asistencia" }: Props) {
+  const [pending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+
+    const procedure = String(data.get("procedure") ?? "castration") as "castration" | "spay";
+    const payload = {
+      kind: "sterilization" as const,
+      procedure,
+      performed_by: String(data.get("performed_by") ?? "").trim() || null,
+      clinic: String(data.get("clinic") ?? "").trim() || null,
+    };
+
+    startTransition(async () => {
+      const result = await onSubmit(payload);
+      if ("error" in result) {
+        alert(result.error);
+        return;
+      }
+      onSuccess?.();
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          Procedimiento
+        </label>
+        <select
+          name="procedure"
+          defaultValue="castration"
+          className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="castration">Castración (macho)</option>
+          <option value="spay">Ovariectomía / Castración (hembra)</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          Realizado por
+        </label>
+        <input
+          name="performed_by"
+          type="text"
+          placeholder="Nombre del cirujano (opcional)"
+          className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          Clínica / establecimiento
+        </label>
+        <input
+          name="clinic"
+          type="text"
+          placeholder="Nombre del lugar (opcional)"
+          className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="w-full px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {pending ? "Guardando…" : submitLabel}
+      </button>
+    </form>
+  );
+}
