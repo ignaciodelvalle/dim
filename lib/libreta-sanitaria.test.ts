@@ -80,7 +80,9 @@ describe("libretaGroupForEvent", () => {
     // were removed 2026-05-18 and now live as `clinical_info_logged` sub_kinds
     // (asserted in the next test). Microchip lifecycle events route through
     // the same "microchip" group as the initial implant.
-    expect(libretaGroupForEvent({ eventType: "microchip_replaced", payload: {} })).toBe("microchip");
+    expect(libretaGroupForEvent({ eventType: "microchip_replaced", payload: {} })).toBe(
+      "microchip",
+    );
     expect(libretaGroupForEvent({ eventType: "microchip_revoked", payload: {} })).toBe("microchip");
   });
 

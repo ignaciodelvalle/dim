@@ -452,45 +452,43 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 23 types
+## Event catalog — 39 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
-Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration.
+Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration. The Zod schema lands in `lib/event-schemas.ts` in the same PR (a CI test in `__tests__/event-schemas.test.ts` enforces coverage minus a small explicit `UNIMPLEMENTED` allowlist).
 
 **Lifecycle**
 
 | Type                  | UI    | Payload                                                                                              |
 | --------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `pet_registered`      | v1    | initial profile snapshot                                                                             |
-| `pet_profile_updated` | v1    | `{ field, old_value, new_value }`                                                                    |
-| `status_changed`      | v1    | `{ from_status, to_status: active\|lost, reason? }` — death uses `death_recorded`, not this          |
-| `death_recorded`      | v1    | `{ cause: known\|unknown\|natural\|disease\|accident\|euthanasia\|other, cause_detail?, confirmed_by_vet?, vet_name?, disposition_method?: cremation\|burial\|rendering\|unknown, facility? }` |
+| `pet_profile_updated` | v1    | `{ changes: [{field, old, new}], photo_replaced }`                                                   |
+| `status_changed`      | v1    | `{ from_status, to_status: active\|lost, location_description?, reason?, disclosure_prefs_snapshot?, lost_description? }` — death uses `death_recorded`, not this |
+| `death_recorded`      | v1    | `{ cause, cause_detail?, confirmed_by_vet?, vet_name?, disposition_method?, facility?, death_at_clinic?, vet_contacted_owner?, vet_decided_alone?, owner_to_private_crematorium?, disease_code?, confirmed_by_lab?, is_reportable }` |
 
 **Preventive medicine**
 
 | Type                       | UI | Payload                                                                                |
 | -------------------------- | -- | -------------------------------------------------------------------------------------- |
-| `vaccination_administered` | v1 | `{ vaccine_name, brand?, batch?, administered_by?, campaign_id?, next_due_at? }`       |
+| `vaccination_administered` | v1 | `{ vaccine_name, brand?, batch?, administered_by?, next_due_at? }`                     |
 | `deworming_administered`   | v1 | `{ product, type: internal\|external\|both, next_due_at? }`                            |
-| `sterilization_performed`  | v1 | `{ procedure: castration\|spay, performed_by?, clinic?, campaign_id? }`                |
+| `sterilization_performed`  | v1 | `{ procedure: castration\|spay, performed_by?, clinic? }`                              |
 
 **Medication**
 
-| Type                 | UI | Payload                                                |
-| -------------------- | -- | ------------------------------------------------------ |
-| `medication_started` | v1 | `{ drug_name, dose, frequency, prescribed_by? }`       |
-| `medication_stopped` | v1 | `{ medication_started_event_id, reason? }`             |
+| Type                    | UI | Payload                                                                                  |
+| ----------------------- | -- | ---------------------------------------------------------------------------------------- |
+| `medication_started`    | v1 | `{ drug_name, dose, frequency, prescribed_by?, drug_code?, first_dose_at, duration_days?, custom_hours?, schedule_count }` |
+| `medication_stopped`    | v1 | `{ medication_started_event_id, reason? }`                                               |
+| `medication_dose_taken` | v1 | `{ medication_started_event_id?, scheduled_for, reminder_id }` — dual-write with `reminder.completedAt` for the adherence cron |
 
 **Clinical encounters and findings**
 
 | Type                  | UI    | Payload                                                                                  |
 | --------------------- | ----- | ---------------------------------------------------------------------------------------- |
 | `vet_visit_logged`    | v1    | `{ reason, diagnosis?, vet_name?, clinic? }`                                             |
-| `lab_work_performed`  | later | `{ test_type: blood_panel\|urinalysis\|stool\|biopsy\|culture\|other, ordered_by?, summary?, attachment_id? }` |
-| `imaging_performed`   | later | `{ imaging_type: xray\|ultrasound\|ct\|mri\|endoscopy\|other, body_area?, findings?, attachment_id? }` |
-| `surgery_performed`   | later | `{ procedure_name, performed_by?, clinic?, anesthesia_type?, complications?, recovery_notes? }` — distinct from `sterilization_performed` |
-| `allergy_detected`    | later | `{ allergen, severity?: mild\|moderate\|severe, source?: test\|observation\|reaction, prescribed_by? }` — when discovered; differs from the static `pets.known_allergies` list which is the current state |
+| `clinical_info_logged`| v1    | `{ sub_kind: lab_work\|imaging\|surgery\|allergy_detection\|other, title, details?, performed_by? }` — umbrella event with sub-kind discriminator (covers what lab/imaging/surgery/allergy used to model as dedicated event_types pre-2026-05-18) |
 
 **Body metrics**
 
@@ -503,23 +501,9 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | Type                       | UI    | Payload                                                                                              |
 | -------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `microchip_implanted`      | v1    | `{ chip_number, country_code?, implanted_by?, location_on_body?, implant_date_known? }` — fired automatically at pet creation if a chip is provided |
-| `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at, attached_documents? }` — owner registers their PPP in the official provincial registry |
-
-**Custody & adoption**
-
-| Type                              | UI    | Payload                                                                                          |
-| --------------------------------- | ----- | ------------------------------------------------------------------------------------------------ |
-| `shelter_intake_recorded`         | later | `{ intake_reason: rescue\|surrender\|seizure\|stray_found\|other, intake_condition?, rescue_jurisdiction? }` — fired when a shelter *or citizen* takes custody of an unowned animal; can roll into `pet_registered.payload` when the registering author is a shelter |
-| `foster_assigned`                 | later | `{ foster_user_id, expected_weeks?, notes? }` — refugio assigns a voluntario to physically care for an animal it holds in custody |
-| `foster_ended`                    | later | `{ foster_user_id, reason: adoption\|returned\|escalated\|other }`                              |
-| `adoption_application_submitted`  | later | `{ applicant_user_id, related_organization_id, housing_type?, other_pets?, daily_routine?, notes? }` |
-| `adoption_application_reviewed`   | later | `{ application_event_id, reviewer_user_id, notes? }`                                             |
-| `adoption_application_approved`   | later | `{ application_event_id, reviewer_user_id, conditions? }`                                        |
-| `adoption_application_rejected`   | later | `{ application_event_id, reviewer_user_id, reason? }`                                            |
-| `adoption_finalized`              | later | `{ previous_owner_organization_id?, foster_user_id?, contract_attachment_id?, post_adoption_followup_months? }` — **composite event.** Source of truth for the transfer: atomically ends prior `shelter_custody` and `foster` rows and inserts a new `owner` row. Read as one event in the timeline. |
-| `post_adoption_checkin`           | later | `{ related_organization_id, photo_attachment_ids?: uuid[], notes? }` — owner self-reports during the followup window; refugio dashboard acknowledges. Missing check-ins generate notifications to both adopter and refugio. No public-credential degradation. |
-| `adoption_revoked`                | later | `{ reason, returned_to_organization_id }` — refugio reclaims animal per contract                |
-| `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason? }` — for handoffs that are not adoption (refugio→refugio, citizen→refugio, capacity transfers, decomiso intake). Always recorded as an event; the `Ownership` table updates as a projection. |
+| `microchip_replaced`       | later | `{ previous_chip_number, new_chip_number, reason: damaged\|unreadable\|duplicate_detected\|other, replaced_by?, replaced_at }` — chip swap (the old chip is no longer authoritative) |
+| `microchip_revoked`        | later | `{ chip_number, reason: fraud_detected\|owner_request\|device_failure\|other, revoked_by_role: admin\|govt\|vet, revoked_by_user_id, notes? }` — chip retired without a replacement |
+| `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at }` — owner registers their PPP in the official provincial registry |
 
 **Free-form**
 
@@ -531,20 +515,105 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 
 | Type                 | UI     | Payload                                                                                                 |
 | -------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| `credential_scanned` | system | `{ viewer_user_id?, ip_country?, user_agent?, is_self_scan, viewer_authenticated }` — location goes in event's `location_point` |
-| `incident_reported`  | later  | `{ incident_type: dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved? }` — distinct from `maltreatment_reported` (incident is non-human-cruelty) |
+| `credential_scanned` | system | `{ is_self_scan, viewer_authenticated }` — location goes in the event's `location_point` column        |
+| `incident_reported`  | later  | `{ incident_type: bite_inflicted\|bite_suffered\|dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved?, location_description?, victim_kind?, victim_contact_name?, victim_contact_phone?, victim_pet_id?, victim_age_estimate?, context?, rabies_vaccine_valid_at_incident?, reporter_role? }` — umbrella covers bite events (rabies observation flow filters by `payload->>'incident_type'='bite_inflicted'`). `dog_attack` is deprecated in favor of `bite_suffered`. Distinct from `maltreatment_reported` (incident is non-human-cruelty) |
+| `outbreak_signal`    | system | `{ source_symptom_event_id, disease_code, disease_label, match_strength: {high_count, medium_count, low_count, matched_symptom_codes}, pet_jurisdiction_country, pet_jurisdiction_province?, pet_jurisdiction_locality?, pet_species }` — emitted when `symptom_observed` triggers a reportable-disease match. Owner does not see this in the libreta |
 
 **Schema-ready, requires non-owner reporting flow**
 
 | Type                    | UI    | Payload                                                                                          |
 | ----------------------- | ----- | ------------------------------------------------------------------------------------------------ |
-| `symptom_observed`      | later | `{ symptoms: text[], severity?, onset_at? }` — owner self-reported; aggregates matter for outbreak signal |
-| `abandonment_reported`  | later | `{ reporter_role: owner\|witness\|authority, description? }`                                     |
-| `maltreatment_reported` | later | `{ reporter_role, description, severity? }` — eventually integrates with Ley Nacional 14.346 denuncia pipelines |
+| `symptom_observed`      | v1    | `{ source: libreta\|welfare_report, welfare_report_id?, reporter_role: owner\|witness\|vet, free_text, matched_symptom_codes, alerted_disease_codes, severity_self_assessed?, onset_at? }` |
+| `abandonment_reported`  | later | `{ welfare_report_id, reporter_role: owner\|witness, description }`                              |
+| `maltreatment_reported` | later | `{ welfare_report_id, reporter_role, description, severity, kind }` — eventually integrates with Ley Nacional 14.346 denuncia pipelines |
+
+**Custody & adoption**
+
+| Type                              | UI    | Payload                                                                                          |
+| --------------------------------- | ----- | ------------------------------------------------------------------------------------------------ |
+| `shelter_intake_recorded`         | later | `{ intake_reason: rescue\|surrender\|seizure\|stray_found\|other, intake_condition?, rescue_jurisdiction? }` — fired when a shelter or citizen takes custody of an unowned animal |
+| `foster_assigned`                 | later | `{ foster_user_id, expected_weeks?, notes? }` — refugio assigns a voluntario |
+| `foster_ended`                    | later | `{ foster_user_id, foster_assigned_event_id?, ended_by: shelter\|foster_returned\|other, reason? }` |
+| `adoption_application_submitted`  | later | `{ applicant_user_id, related_organization_id, housing_type?, other_pets?, daily_routine?, notes? }` |
+| `adoption_application_approved`   | later | `{ application_event_id, reviewer_user_id, conditions? }`                                        |
+| `adoption_application_rejected`   | later | `{ application_event_id, reviewer_user_id, reason? }`                                            |
+| `adoption_withdrawn`              | later | `{ application_event_id, withdrawn_by_user_id, reason? }` — the applicant retires their application |
+| `adoption_finalized`              | later | `{ previous_owner_organization_id, adopter_user_id, foster_user_id?, contract_attachment_id?, post_adoption_followup_months?, notes? }` — **composite event.** Atomically ends `shelter_custody` and `foster` rows and inserts a new `owner` row |
+| `post_adoption_checkin`           | later | `{ related_organization_id, photo_attachment_ids, notes? }`                                      |
+| `adoption_revoked`                | later | `{ reason, returned_to_organization_id }` — refugio reclaims animal per contract                |
+| `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, from_role, to_role, reason?, matched_against_pet_id?, foster_ended_event_id?, notes? }` — handoffs that are not adoption |
+| `custody_transfer_proposed`       | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason, matched_against_pet_id?, proposed_at, notes? }` — Phase 1 of the return-to-owner / cross-org two-phase handshake |
+| `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt, raised_by_user_id, external_proceeding_reference?, reason }` — admin or govt flags the pet as subject to external legal proceedings. Sets `pets.in_custody_dispute = true` |
+| `custody_dispute_resolved`        | later | `{ raised_event_id, resolved_by_role: admin\|govt, resolved_by_user_id, outcome: ownership_confirmed\|ownership_transferred\|case_dismissed\|other, notes? }` — closes a prior `custody_dispute_raised`. Sets `pets.in_custody_dispute = false` |
+
+**System telemetry**
+
+| Type                     | UI     | Payload                                                                                       |
+| ------------------------ | ------ | --------------------------------------------------------------------------------------------- |
+| `libreta_shared_viewed`  | system | `{ share_token_id, viewer_ip_hash?, user_agent? }` — telemetry of Tier-2 share token use; NON-libreta classification |
+
+### Deprecated event types
+
+These event_types existed in earlier versions but are no longer written by any flow. Historical `pet_events` rows with these types remain in the database (events are immutable) and continue to render via `eventPayloadSummary`'s catch-all branch.
+
+| Deprecated                       | Replacement                                                            | Deprecated since |
+| -------------------------------- | ---------------------------------------------------------------------- | ---------------- |
+| `lab_work_performed`             | `clinical_info_logged` with `sub_kind='lab_work'`                      | 2026-05-18       |
+| `imaging_performed`              | `clinical_info_logged` with `sub_kind='imaging'`                       | 2026-05-18       |
+| `surgery_performed`              | `clinical_info_logged` with `sub_kind='surgery'`                       | 2026-05-18       |
+| `allergy_detected`               | `clinical_info_logged` with `sub_kind='allergy_detection'`             | 2026-05-18       |
+| `adoption_application_reviewed`  | Application-table status field already captures the "in review" stage | 2026-05-18       |
+
+The `incident_type='dog_attack'` value inside `incident_reported.payload` is also deprecated in favor of the unambiguous `incident_type='bite_suffered'`. Historical rows with `dog_attack` are preserved by keeping the value in the Zod enum.
 
 Self-scans (owner viewing own pet's public page) are recorded with `is_self_scan: true` and hidden from default timeline UI.
 
 Events with a real-world location should populate the `PetEvent.location_point` column (top-level), not duplicate it inside `payload`. The payload is for event-type-specific data; `location_point` is universal across event types and used by every geographic projection.
+
+### Cross-cutting event design patterns
+
+Four recurring patterns emerge from DIM's event catalog. New event design should recognize which pattern fits and use the established shape rather than inventing new structure.
+
+**1. `*_started` / `*_ended` pairs with auto-close cron.**
+
+Used for time-bounded processes — for example the planned `rabies_observation_started`/`_ended` (10-day legal period) and `foster_assigned`/`foster_ended`. Each pair has:
+- An originating event that opens the period and writes a denormalized status column on the relevant row (`pets.rabies_observation_status='in_progress'`, `pets.in_custody_dispute=true`).
+- A closing event that flips the status to a terminal state.
+- A daily cron that auto-closes the happy path; manual closure for non-happy cases. Cron must be idempotent.
+
+The pattern preserves the immutable event log while giving fast queries via the denormalized status column. When designing a new bounded-process event, follow this shape.
+
+**2. `*_signal` system-emitted events for surveillance and audit.**
+
+Used when the system itself produces a record not directly authored by a user. Examples: `outbreak_signal` (system detected a disease pattern from `symptom_observed`), `libreta_shared_viewed` (telemetry of share-token use), `credential_scanned` (QR scan log). Each has:
+- `author_role = 'system'` (or the relevant party for authenticated scans); anonymous-scan rows have `recorded_by_user_id = null`.
+- Severity tagged when actionable (`urgent | warning | info`).
+- Classified as NON-libreta — these are system telemetry, not pet medical history.
+
+When designing a new system-emitted event, ensure it's NON-libreta and the trigger that emits it is explicitly documented.
+
+**3. `*_proposed` / `*_executed` two-phase with lazy auto-cancel.**
+
+Used for high-trust transfers requiring acceptance: `custody_transfer_proposed` + `custody_transferred` (org-to-org and refugio-to-owner), the adoption pipeline (`adoption_application_submitted` → `_approved` / `_rejected` / `adoption_withdrawn` → `adoption_finalized`). Each pair has:
+- Phase 1: proposing party emits the `*_proposed` event. State is "pending".
+- Phase 2: receiving party accepts → emits the `*_executed` event in an atomic transaction; ends related ownership rows, starts new ones.
+- Lazy auto-cancel: at Phase 2 accept time, the receiver's server action validates preconditions (proposer still has standing, target state still matches the proposal context). If any precondition fails, the proposal auto-cancels with a `note_added` event + notification to the original proposer. No sweep job needed.
+
+When designing a new transfer or approval workflow, use this pattern. Avoid ad-hoc state machines; reuse the proposed/executed shape.
+
+**4. `*_reported` umbrella with sub_kind discriminator.**
+
+Used when several variants share a common event shape: `incident_reported` with `incident_type` (`bite_inflicted | bite_suffered | dog_attack | fight | traffic_accident | fall | poisoning | escape | other`), `clinical_info_logged` with `sub_kind` (`lab_work | imaging | surgery | allergy_detection | other`), `symptom_observed` with implicit sub_kind via `matched_symptom_codes`. Each has:
+- A single event_type covering N variants.
+- A discriminator field in payload (`incident_type`, `sub_kind`, …).
+- Optional fields per variant that are only meaningful for some discriminator values (validated as `optional`/`nullable` at the schema level; the form layer enforces conditional requirements when needed).
+
+When designing a new event with 3+ semantically-similar variants, prefer this umbrella over N separate event_types. Easier to extend (add a new discriminator value, optionally add new payload fields) than to add N event types each with their own schema.
+
+**When NOT to use these patterns.**
+
+- For purely additive write-once facts (`vaccination_administered`, `weight_recorded`, `death_recorded`), no pattern needed. Just an event_type with payload.
+- For UI preferences (`emergencyInfoVisible`, `disclose_*_when_lost` on `pets`), these aren't events at all — they're mutable state on the entity row. Don't emit events for preference flips.
 
 **Payload enrichments to add when their forms get built** (already justified by the legal framework above and the CABA acquisition-trend data):
 
@@ -649,7 +718,8 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 - **Dangerous breed registry support** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event + (eventually) export to provincial registry.
 - **Disposition method on death_recorded** — Ley CABA 5470 (cremation traceability). Payload field plus optional facility.
 - **Acquisition method on pet_registered** — adoption-trend measurement (EAH 2018 shows adoption is the growing modality).
-- Non-owner reporting flow for `abandonment_reported`, `maltreatment_reported`, `symptom_observed` on unregistered pets — requires schema additions for "report subject = unowned animal" plus moderation. `maltreatment_reported` ultimately wants integration with Ley Nacional 14.346 denuncia pipelines.
+- Non-owner reporting flow for `abandonment_reported`, `maltreatment_reported`, `symptom_observed` on unregistered pets — requires schema additions for "report subject = unowned animal" plus moderation. `maltreatment_reported` ultimately wants integration with Ley Nacional 14.346 denuncia pipelines
+- **Vaccination-due warning to owner** — when a vaccination approaches or passes its `next_due_at`. Confirmed via `docs/legal-framework-full.md` (2026-05-18 pass) that NO Argentine norm requires the system to warn — the obligation rests on the owner to keep vaccinations current (Ley 22.953, DL 8056, Ord. 41.831). A system-side warning is a UX feature, not a compliance requirement. Future spec if product decides to implement.
 - Materialized views for expensive projections — keep event log as source of truth, cache when query latency justifies
 - Campaign management UX (gov-side scheduling, slot allocation) — referenced by `campaign_id` in vaccination/sterilization events. Campaigns belong to clinics or sanitary authorities, not individual vets.
 - Lost/found feature expansion beyond simple status flip
