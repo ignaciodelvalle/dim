@@ -1,60 +1,91 @@
 "use client";
 
 import { type FinalizeAdoptionFormState, finalizeAdoptionAction } from "@/app/actions/adoption";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
 
 export function FinalizeAdoptionForm({
   orgToken,
   publicToken,
+  fosterShortcut,
 }: {
   orgToken: string;
   publicToken: string;
+  fosterShortcut: { adopterUserId: string; displayName: string } | null;
 }) {
   const action = finalizeAdoptionAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const [useFosterShortcut, setUseFosterShortcut] = useState(Boolean(fosterShortcut));
 
   return (
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
-          Adoptante
-        </h2>
-        <label className="block space-y-1">
-          <span className="text-sm">DNI *</span>
-          <input
-            name="adopterDni"
-            required
-            inputMode="numeric"
-            placeholder="12345678"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
-          />
-          <span className="block text-xs text-neutral-500">
-            Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil
-            preliminar que podrá reclamar más adelante.
-          </span>
-        </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="block space-y-1">
-            <span className="text-sm">Nombre completo *</span>
+      {fosterShortcut && (
+        <section className="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 space-y-3">
+          <div className="flex items-start gap-3">
             <input
-              name="adopterDisplayName"
-              required
-              maxLength={200}
+              id="use-foster-shortcut"
+              type="checkbox"
+              checked={useFosterShortcut}
+              onChange={(e) => setUseFosterShortcut(e.target.checked)}
+              className="h-4 w-4 mt-0.5"
+            />
+            <label htmlFor="use-foster-shortcut" className="text-sm cursor-pointer">
+              <strong className="block text-emerald-900 dark:text-emerald-100">
+                Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
+              </strong>
+              <span className="text-emerald-800 dark:text-emerald-200 text-xs block mt-1">
+                El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos el
+                paso de pedirte el DNI.
+              </span>
+            </label>
+          </div>
+          {useFosterShortcut && (
+            <input type="hidden" name="adopterUserId" value={fosterShortcut.adopterUserId} />
+          )}
+        </section>
+      )}
+
+      {!useFosterShortcut && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
+            Adoptante
+          </h2>
+          <label className="block space-y-1">
+            <span className="text-sm">DNI *</span>
+            <input
+              name="adopterDni"
+              required={!useFosterShortcut}
+              inputMode="numeric"
+              placeholder="12345678"
               className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
             />
+            <span className="block text-xs text-neutral-500">
+              Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil
+              preliminar que podrá reclamar más adelante.
+            </span>
           </label>
-          <label className="block space-y-1">
-            <span className="text-sm">Teléfono</span>
-            <input
-              name="adopterPhone"
-              maxLength={30}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
-            />
-          </label>
-        </div>
-      </section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block space-y-1">
+              <span className="text-sm">Nombre completo *</span>
+              <input
+                name="adopterDisplayName"
+                required={!useFosterShortcut}
+                maxLength={200}
+                className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-sm">Teléfono</span>
+              <input
+                name="adopterPhone"
+                maxLength={30}
+                className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              />
+            </label>
+          </div>
+        </section>
+      )}
 
       <section className="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">

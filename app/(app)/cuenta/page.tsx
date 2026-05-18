@@ -187,6 +187,16 @@ export default async function CuentaPage() {
                   label="Propuestas de tránsito"
                   description="Refugios proponiéndote cuidar mascotas"
                 />
+                <ActionCard
+                  href="/cuenta/transitos/activos"
+                  label="Tránsitos activos"
+                  description="Mascotas que estás cuidando ahora"
+                />
+                <ActionCard
+                  href="/cuenta/transitos/historial"
+                  label="Historial de tránsitos"
+                  description="Tránsitos terminados y propuestas no concretadas"
+                />
               </>
             )}
             {profile.role === "vet" && (

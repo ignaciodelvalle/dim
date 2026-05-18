@@ -261,7 +261,27 @@ export default async function OrgDashboardPage({
                       Estado de las propuestas de tránsito que enviaste.
                     </p>
                   </Link>
+                  <Link
+                    href={`/org/${orgToken}/transitos`}
+                    className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  >
+                    <p className="text-sm font-semibold">Tránsitos activos</p>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                      Mascotas con tránsito en curso (pool, miembro o vecino).
+                    </p>
+                  </Link>
                 </>
+              )}
+              {canIntake && (
+                <Link
+                  href={`/org/${orgToken}/pets/no-aptas`}
+                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                >
+                  <p className="text-sm font-semibold">Mascotas no aptas para adopción</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    Animales marcados como no aptos, agrupados por motivo.
+                  </p>
+                </Link>
               )}
             </section>
           )}

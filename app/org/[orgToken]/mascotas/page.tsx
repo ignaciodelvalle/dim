@@ -314,6 +314,18 @@ export default async function OrgMascotasPage({
                           Cerrar tránsito
                         </Link>
                       )}
+                      {canIntake && ownershipRole === "shelter_custody" && (
+                        <Link
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
+                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                        >
+                          {pet.adoptionEligible === true
+                            ? "Apta ✓"
+                            : pet.adoptionEligible === false
+                              ? "NO apta"
+                              : "Elegibilidad"}
+                        </Link>
+                      )}
                       {canFinalizeAdoption && ownershipRole === "shelter_custody" && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}

@@ -3,7 +3,7 @@
 // event form. Heavy lifting (DNI lookup, atomic custody transfer, stub-profile
 // creation) lives in app/actions/adoption.ts.
 
-import { db, ownerships, pets } from "@/db";
+import { db, fosterProposals, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, eq, isNull } from "drizzle-orm";
@@ -72,6 +72,35 @@ export default async function AdoptionPage({
   }
   const pet = petRow.pet;
 
+  // Detect "foster came from the pool" shortcut (spec §15.1). When an active
+  // foster row was created via an accepted foster_proposal, surface the
+  // shortcut button so the org can finalize directly to that foster.
+  const [poolFosterRow] = await db
+    .select({
+      ownership: ownerships,
+      foster: profiles,
+    })
+    .from(ownerships)
+    .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
+    .innerJoin(
+      fosterProposals,
+      and(
+        eq(fosterProposals.resolvedOwnershipId, ownerships.id),
+        eq(fosterProposals.status, "accepted"),
+      ),
+    )
+    .where(
+      and(eq(ownerships.petId, pet.id), eq(ownerships.role, "foster"), isNull(ownerships.endedAt)),
+    )
+    .limit(1);
+
+  const fosterShortcut = poolFosterRow
+    ? {
+        adopterUserId: poolFosterRow.foster.id,
+        displayName: poolFosterRow.foster.displayName,
+      }
+    : null;
+
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -86,7 +115,27 @@ export default async function AdoptionPage({
           </p>
         </header>
 
-        <FinalizeAdoptionForm orgToken={orgToken} publicToken={publicToken} />
+        {!pet.adoptionEligible && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm space-y-1">
+            <p className="text-amber-900 dark:text-amber-100">
+              {pet.adoptionEligible === false
+                ? `Esta mascota está marcada como NO apta para adopción (motivo: ${pet.adoptionIneligibleReason ?? "sin motivo"}).`
+                : "Esta mascota no fue evaluada para adopción todavía."}
+            </p>
+            <Link
+              href={`/org/${orgToken}/mascotas/${publicToken}/eligibility`}
+              className="inline-block underline text-amber-900 dark:text-amber-100"
+            >
+              Resolver elegibilidad
+            </Link>
+          </div>
+        )}
+
+        <FinalizeAdoptionForm
+          orgToken={orgToken}
+          publicToken={publicToken}
+          fosterShortcut={fosterShortcut}
+        />
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link
