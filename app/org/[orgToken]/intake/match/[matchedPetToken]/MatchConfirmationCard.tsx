@@ -78,7 +78,7 @@ export function MatchConfirmationCard({
           Posible coincidencia detectada
         </p>
         <p className="text-sm text-amber-700 dark:text-amber-400">
-          El microchip ya figura en DIM asociado a la siguiente mascota.
+          El microchip ya figura en MiMAR asociado a la siguiente mascota.
         </p>
       </div>
 

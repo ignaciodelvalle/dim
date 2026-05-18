@@ -270,7 +270,7 @@ export async function createPetAction(
       if (match.pet.status === "deceased") {
         return {
           error:
-            "Este chip está asociado a una mascota registrada como fallecida en DIM. Pedile a un admin que revise el caso antes de continuar.",
+            "Este chip está asociado a una mascota registrada como fallecida en MiMAR. Pedile a un admin que revise el caso antes de continuar.",
         };
       }
     }

@@ -187,7 +187,7 @@ export function LocalityCombobox({
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
           Sin resultados.{" "}
           <a
-            href={`mailto:ignaciodelvalle2014@gmail.com?subject=DIM%20%E2%80%94%20Agregar%20localidad&body=Provincia:%20${encodeURIComponent(provinceCode ?? "")}%0ALocalidad:%20${encodeURIComponent(query)}`}
+            href={`mailto:ignaciodelvalle2014@gmail.com?subject=MiMAR%20%E2%80%94%20Agregar%20localidad&body=Provincia:%20${encodeURIComponent(provinceCode ?? "")}%0ALocalidad:%20${encodeURIComponent(query)}`}
             className="underline"
           >
             Sugerí esta localidad

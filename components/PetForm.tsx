@@ -171,7 +171,7 @@ export function PetForm({
                 <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
                   Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
                   Ley Provincial 14.107). Vas a tener que registrarte en el registro provincial
-                  correspondiente. DIM marcará tu mascota con la flag oficial y te avisará en
+                  correspondiente. MiMAR marcará tu mascota con la flag oficial y te avisará en
                   notificaciones.
                 </div>
               )}

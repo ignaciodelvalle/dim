@@ -92,7 +92,7 @@ export default async function VecinoMatchPage({
         <header className="space-y-1">
           <h1 className="text-3xl font-semibold">Coincidencia de microchip</h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            El chip que ingresaste ya esta registrado en DIM. Confirma si es el mismo animal.
+            El chip que ingresaste ya esta registrado en MiMAR. Confirma si es el mismo animal.
           </p>
         </header>
 

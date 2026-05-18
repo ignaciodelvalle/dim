@@ -180,7 +180,7 @@ export async function createIntakeAction(
         // BLOCK unconditionally — admin review required.
         return {
           error:
-            "Este chip está asociado a una mascota registrada como fallecida en DIM. Pedile a un admin que revise el caso antes de continuar.",
+            "Este chip está asociado a una mascota registrada como fallecida en MiMAR. Pedile a un admin que revise el caso antes de continuar.",
         };
       }
     }
