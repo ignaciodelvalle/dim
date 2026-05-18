@@ -1433,7 +1433,10 @@ export const arLocalities = pgTable(
     removedAt: timestamp("removed_at", { withTimezone: true }),
   },
   (table) => ({
-    provinceSlugUniq: uniqueIndex("ar_localities_province_slug_uniq")
+    // Non-unique partial index: INDEC legitimately ships duplicates of
+    // (province, name) across departments (68 such collisions as of
+    // 2026-05-18). Uniqueness is enforced by indec_id alone (column-level).
+    provinceSlugIdx: index("ar_localities_province_slug_idx")
       .on(table.provinceCode, table.localitySlug)
       .where(sql`${table.removedAt} IS NULL`),
     provinceIdx: index("ar_localities_province_idx")

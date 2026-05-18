@@ -77,38 +77,45 @@ describe("ar_localities schema", () => {
     ).rejects.toThrow(/ar_localities_source_valid/);
   });
 
-  it("enforces (province_code, locality_slug) uniqueness while removed_at IS NULL", async () => {
+  it("allows multiple rows with the same (province, slug) — INDEC ships duplicates across departments", async () => {
+    // Migration 0020 dropped the partial unique on (province, slug). The
+    // canonical identifier for uniqueness is `indec_id`. The slug is a
+    // denormalized URL/lookup convenience that can legitimately repeat.
     const slug = `${TEST_SLUG_PREFIX}duplicate-${Date.now()}`;
     const base = {
-      provinceCode: "AR-C",
-      localityName: "Duplicado",
+      provinceCode: "AR-K", // Catamarca, where "Las Juntas" appears twice in real INDEC data
+      localityName: "Las Juntas",
       localitySlug: slug,
       category: "localidad" as const,
       source: "manual" as const,
     };
-    const [first] = await db.insert(arLocalities).values(base).returning();
-    await expect(db.insert(arLocalities).values(base)).rejects.toThrow();
-    await db.delete(arLocalities).where(eq(arLocalities.id, first.id));
-  });
-
-  it("allows a re-insert with the same (province, slug) once the original is soft-deleted", async () => {
-    const slug = `${TEST_SLUG_PREFIX}revive-${Date.now()}`;
-    const base = {
-      provinceCode: "AR-C",
-      localityName: "Revive",
-      localitySlug: slug,
-      category: "localidad" as const,
-      source: "manual" as const,
-    };
-    const [first] = await db.insert(arLocalities).values(base).returning();
-    // Soft-delete: removedAt set → partial unique index no longer covers this row.
-    await db
-      .update(arLocalities)
-      .set({ removedAt: new Date() })
-      .where(eq(arLocalities.id, first.id));
-    const [second] = await db.insert(arLocalities).values(base).returning();
-    expect(second.id).not.toBe(first.id);
+    const [first] = await db
+      .insert(arLocalities)
+      .values({ ...base, departmentName: "Ambato" })
+      .returning();
+    const [second] = await db
+      .insert(arLocalities)
+      .values({ ...base, departmentName: "El Alto" })
+      .returning();
+    expect(first.id).not.toBe(second.id);
     await db.delete(arLocalities).where(eq(arLocalities.id, first.id));
     await db.delete(arLocalities).where(eq(arLocalities.id, second.id));
+  });
+
+  it("enforces indec_id uniqueness as the canonical identifier", async () => {
+    const indecId = `TEST-${Date.now()}`;
+    const base = {
+      provinceCode: "AR-C",
+      localityName: "Indec dup test",
+      localitySlug: `${TEST_SLUG_PREFIX}indec-${Date.now()}`,
+      category: "localidad" as const,
+      source: "manual" as const,
+      indecId,
+    };
+    const [first] = await db.insert(arLocalities).values(base).returning();
+    await expect(
+      db.insert(arLocalities).values({ ...base, localitySlug: `${base.localitySlug}-2` }),
+    ).rejects.toThrow();
+    await db.delete(arLocalities).where(eq(arLocalities.id, first.id));
   });
 });
