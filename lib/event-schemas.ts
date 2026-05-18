@@ -550,6 +550,12 @@ const outbreakSignal = z
       pet_jurisdiction_province: z.string().nullable(),
       pet_jurisdiction_locality: z.string().nullable(),
       pet_species: z.string(),
+      // True when this signal was emitted while the pet was in active rabies
+      // observation (pet.rabies_observation_status='in_progress'). Used by
+      // govt dashboards to highlight rabies-suspected signals that overlap
+      // with an open observation. Optional for back-compat with historical
+      // rows written before the bite-rabies-observation feature landed.
+      bite_observation_active: z.boolean().optional(),
     }),
   )
   .strict();

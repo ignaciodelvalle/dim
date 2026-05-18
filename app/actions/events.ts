@@ -1846,7 +1846,17 @@ export async function createSymptomObservedAction(
         .returning();
 
       // 5. For each alertable reportable disease: emit outbreak_signal + Notification.
+      // If the pet is in an active rabies observation AND the matcher returned
+      // rabies_suspected with high-specificity matches, escalate: bump severity
+      // to 'urgent' on the authority signal and send the owner an extra urgent
+      // notification (explicit exception to surveillance D1, justified by the
+      // concrete public-health risk — see bite-rabies-observation spec D5).
+      const rabiesObservationActive = pet.rabiesObservationStatus === "in_progress";
+
       for (const d of alertableDiseases) {
+        const isRabiesEscalation =
+          rabiesObservationActive && d.disease_code === "rabies_suspected" && d.high_count >= 1;
+
         const signalPayload = validateEventPayload("outbreak_signal", {
           source_symptom_event_id: symptomEvent.id,
           disease_code: d.disease_code,
@@ -1861,6 +1871,7 @@ export async function createSymptomObservedAction(
           pet_jurisdiction_province: pet.jurisdictionProvince ?? null,
           pet_jurisdiction_locality: pet.jurisdictionLocality ?? null,
           pet_species: pet.species,
+          ...(isRabiesEscalation ? { bite_observation_active: true } : {}),
         });
 
         const [signalEvent] = await tx
@@ -1878,8 +1889,31 @@ export async function createSymptomObservedAction(
           })
           .returning();
 
-        // 6. Route notification to authority targets.
-        await routeOutbreakSignalNotification(tx, { signalEvent, pet, disease: d });
+        // 6. Route notification to authority targets — severity bumped to
+        // 'urgent' when this signal is an active-observation rabies escalation.
+        await routeOutbreakSignalNotification(tx, {
+          signalEvent,
+          pet,
+          disease: d,
+          escalation: isRabiesEscalation,
+        });
+
+        // 7. Owner-side urgent nudge during an active rabies observation. Spec
+        // D5: explicit exception to "owner sees no diagnoses" — the bite
+        // window + PEP timing make this a legitimate public-health prompt.
+        if (isRabiesEscalation) {
+          await tx.insert(notifications).values({
+            userId: user.id,
+            notificationType: "rabies_observation_escalation_owner",
+            severity: "urgent",
+            title: `URGENTE — posible signo de rabia en ${pet.name}`,
+            body: "Durante el período de observación antirrábica, registraste síntomas compatibles con rabia. CONSULTÁ AL VETERINARIO INMEDIATAMENTE. Si no podés, andá al dispensario antirrábico más cercano o llamá al 107.",
+            relatedPetId: pet.id,
+            relatedEventId: signalEvent.id,
+            ctaLabel: "Ver mascota",
+            ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+          });
+        }
       }
     });
   } catch (err) {
@@ -1915,9 +1949,13 @@ async function routeOutbreakSignalNotification(
       high_count: number;
       medium_count: number;
     };
+    // When true (rabies escalation during an active 10-day observation),
+    // the authority notification fires at severity='urgent' with a banner
+    // line marking the overlap.
+    escalation?: boolean;
   },
 ): Promise<void> {
-  const { signalEvent, pet, disease } = args;
+  const { signalEvent, pet, disease, escalation } = args;
 
   const province = pet.jurisdictionProvince ?? "";
   const locality = pet.jurisdictionLocality ?? "";
@@ -1940,16 +1978,27 @@ async function routeOutbreakSignalNotification(
     .where(inArray(profiles.id, authorityIds));
 
   const localityPart = pet.jurisdictionLocality ? ` en ${pet.jurisdictionLocality}` : "";
-  const title = `Signal: posible ${disease.disease_label}${localityPart}`;
-  const body = [
+  const titlePrefix = escalation ? "URGENTE — " : "Signal: ";
+  const title = `${titlePrefix}posible ${disease.disease_label}${localityPart}`;
+  const bodyLines = [
     `**Signal automático.** Síntomas auto-reportados por dueño matchearon con la enfermedad reportable **${disease.disease_label}**.`,
     "",
+  ];
+  if (escalation) {
+    bodyLines.push(
+      "**Observación antirrábica activa.** Esta señal ocurre dentro del período de 10 días de observación post-mordedura. Coordinar inspección inmediata.",
+      "",
+    );
+  }
+  bodyLines.push(
     `- Especie: ${pet.species}`,
     `- Jurisdicción: ${[pet.jurisdictionLocality, pet.jurisdictionProvince].filter(Boolean).join(", ") || "no especificada"}`,
     `- Match strength: ${disease.high_count} high · ${disease.medium_count} medium`,
     "",
     "_No es diagnóstico. Considerá el contexto: cuántos signals similares en la jurisdicción / período._",
-  ].join("\n");
+  );
+  const body = bodyLines.join("\n");
+  const severity = escalation ? ("urgent" as const) : ("warning" as const);
 
   for (const authority of authorityProfiles) {
     const ctaUrl = authority.role === "govt" ? "/gob/cola" : "/admin/cola";
@@ -1958,7 +2007,7 @@ async function routeOutbreakSignalNotification(
       notificationType: "outbreak_signal_detected",
       title,
       body,
-      severity: "warning",
+      severity,
       relatedPetId: pet.id,
       relatedEventId: signalEvent.id,
       ctaLabel: "Ver señales",
