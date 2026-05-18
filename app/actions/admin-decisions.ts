@@ -303,6 +303,8 @@ export async function approveRequestAction(
   if ("ok" in result) {
     revalidatePath("/gob/cola");
     revalidatePath(`/gob/cola/${publicToken}`);
+    revalidatePath("/admin/cola");
+    revalidatePath(`/admin/cola/${publicToken}`);
   }
   return result;
 }
@@ -316,6 +318,8 @@ export async function rejectRequestAction(
   if ("ok" in result) {
     revalidatePath("/gob/cola");
     revalidatePath(`/gob/cola/${publicToken}`);
+    revalidatePath("/admin/cola");
+    revalidatePath(`/admin/cola/${publicToken}`);
   }
   return result;
 }

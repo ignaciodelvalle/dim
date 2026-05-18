@@ -31,6 +31,36 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Dashboard
             </Link>
             <Link
+              href="/admin/cola"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Cola
+            </Link>
+            <Link
+              href="/admin/usuarios"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Usuarios
+            </Link>
+            <Link
+              href="/admin/organizaciones"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Organizaciones
+            </Link>
+            <Link
+              href="/admin/historial"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Historial
+            </Link>
+            <Link
+              href="/admin/auditoria"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Auditoría
+            </Link>
+            <Link
               href="/admin/govts"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
