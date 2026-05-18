@@ -44,3 +44,4 @@ supabase/snippets/Untitled*.sql
 
 # agent tool caches
 .atl/
+.claude/
