@@ -291,6 +291,18 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: str("response_notes") ?? str("cancellation_reason") ?? null,
       };
     }
+    case "adoption_reversed": {
+      const actor = str("actor");
+      const map: Record<string, string> = {
+        shelter: "Adopción revertida por el refugio",
+        adopter: "Adopción revertida por el adoptante",
+        court: "Adopción revertida por orden judicial",
+      };
+      return {
+        primary: (actor && map[actor]) || "Adopción revertida",
+        secondary: str("reason"),
+      };
+    }
     default:
       return { primary: null, secondary: null };
   }

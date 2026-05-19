@@ -274,8 +274,9 @@ export const EVENT_TYPES = [
   "adoption_application_rejected",
   "adoption_finalized",
   "post_adoption_checkin",
-  "adoption_revoked",
-  "adoption_withdrawn",
+  // adoption_reversed is the umbrella for adoption_revoked + adoption_withdrawn
+  // (catalog cleanup 2026-05-19). actor: shelter | adopter | court.
+  "adoption_reversed",
   "custody_transferred",
   // Lost & Found — two-phase return-to-owner handshake (Fase 5).
   // Proposed by the actor holding shelter_custody; accepted by the owner.

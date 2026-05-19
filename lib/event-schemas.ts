@@ -730,15 +730,18 @@ const custodyTransferred = z
     { message: "at most one of to_user_id / to_organization_id may be set" },
   );
 
-// Adoption withdrawn — the applicant retires their pending application.
-// Reduces noise vs. emitting a generic `note_added`. Status field on the
-// application stays the source of truth; this event is the audit trail.
-const adoptionWithdrawn = z
+// Adoption reversed — umbrella event collapsing the previous
+// adoption_revoked (shelter/court-initiated) and adoption_withdrawn
+// (adopter-initiated) into one (catalog cleanup 2026-05-19). The actor
+// discriminator picks the perspective; reason is free text. When the
+// reversed finalization event id is known (post event-sourcing era)
+// it's referenced; older data leaves it null.
+const adoptionReversed = z
   .object(
     withVersion({
-      application_event_id: z.string().uuid(),
-      withdrawn_by_user_id: z.string().uuid(),
+      actor: z.enum(["shelter", "adopter", "court"]),
       reason: z.string().nullable(),
+      reverted_finalization_event_id: z.string().uuid().nullable().optional(),
     }),
   )
   .strict();
@@ -1029,7 +1032,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_assigned: fosterAssigned,
   foster_ended: fosterEnded,
   adoption_finalized: adoptionFinalized,
-  adoption_withdrawn: adoptionWithdrawn,
+  adoption_reversed: adoptionReversed,
   adoption_application_submitted: adoptionApplicationSubmitted,
   adoption_application_approved: adoptionApplicationApproved,
   adoption_application_rejected: adoptionApplicationRejected,
