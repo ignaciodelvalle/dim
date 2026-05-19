@@ -1080,7 +1080,15 @@ export type NewGovtAssignment = typeof govtAssignments.$inferInsert;
 // "user requests to become govt/admin" flow. Removed in migration 0015:
 //   role_upgrade_govt, role_upgrade_admin, govt_assignment_grant.
 // "service_provider_scheduling" is deferred to Fase 8.
-export const APPROVAL_REQUEST_TYPES = ["role_upgrade_vet", "organization_verification"] as const;
+export const APPROVAL_REQUEST_TYPES = [
+  "role_upgrade_vet",
+  "organization_verification",
+  // Ley 26.858 service-dog credential verification. The applicant is the
+  // pet owner; targetUserId is the owner (one approval per pet, identified
+  // by `payload.pet_id`). Approving sets pet_service_dog.credential_status
+  // to 'vigente' + verified_at + verified_by_user_id.
+  "service_dog_credential_verification",
+] as const;
 export type ApprovalRequestType = (typeof APPROVAL_REQUEST_TYPES)[number];
 
 export const APPROVAL_REQUEST_STATUSES = ["pending", "approved", "rejected", "withdrawn"] as const;
@@ -1189,6 +1197,9 @@ export const AUDIT_LOG_ACTIONS = [
   "dispute_party_added",
   "dispute_resolved",
   "dispute_withdrawn",
+  // Ley 26.858: service-dog credential lifecycle. Created by owner, verified
+  // by admin/govt via the approval flow, revoked by admin/govt with motivo.
+  "service_dog_credential_revoked",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -1747,3 +1758,76 @@ export const custodyDisputeParties = pgTable("custody_dispute_parties", {
 
 export type CustodyDispute = typeof custodyDisputes.$inferSelect;
 export type CustodyDisputeParty = typeof custodyDisputeParties.$inferSelect;
+
+// ============================================================================
+// Service dogs — Ley 26.858 (perro guía o de asistencia)
+// ============================================================================
+// Sibling table to pets (1-to-1). Owners create the row in
+// 'pendiente_verificacion' and submit an approval_request of type
+// 'service_dog_credential_verification'. Admin/govt approves → 'vigente'.
+// The public banner on /p/[publicToken] renders ONLY for vigente+inService
+// rows where public_visibility='full_banner' and serviceType is one of the
+// five ANDIS-recognized categories ('otro' is allowed in the form but never
+// renders the banner).
+//
+// Privacy posture: marking a pet as service dog reveals owner disability
+// under Ley 25.326 Art. 7. public_visibility defaults to 'private_only'.
+
+export const SERVICE_DOG_TYPES = [
+  "guia",
+  "asistencia_motriz",
+  "alerta_medica",
+  "senal_auditiva",
+  "asistencia_tea",
+  "otro",
+] as const;
+export type ServiceDogType = (typeof SERVICE_DOG_TYPES)[number];
+
+// `otro` is allowed in the form but never renders the public banner.
+export const SERVICE_DOG_BANNER_TYPES = SERVICE_DOG_TYPES.filter((t) => t !== "otro");
+
+export const SERVICE_DOG_STATUSES = [
+  "en_entrenamiento",
+  "pendiente_verificacion",
+  "vigente",
+  "vencida",
+  "revocada",
+] as const;
+export type ServiceDogStatus = (typeof SERVICE_DOG_STATUSES)[number];
+
+export const SERVICE_DOG_VISIBILITIES = ["full_banner", "private_only"] as const;
+export type ServiceDogVisibility = (typeof SERVICE_DOG_VISIBILITIES)[number];
+
+export const petServiceDog = pgTable("pet_service_dog", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  petId: uuid("pet_id")
+    .notNull()
+    .unique()
+    .references(() => pets.id, { onDelete: "cascade" }),
+  serviceType: text("service_type").notNull().$type<ServiceDogType>(),
+  credentialStatus: text("credential_status")
+    .notNull()
+    .default("pendiente_verificacion")
+    .$type<ServiceDogStatus>(),
+  rupgaCredential: text("rupga_credential"),
+  trainingCenter: text("training_center").notNull(),
+  trainingCertDate: date("training_cert_date"),
+  credentialIssueDate: date("credential_issue_date"),
+  credentialExpiryDate: date("credential_expiry_date"),
+  inService: boolean("in_service").notNull().default(true),
+  publicVisibility: text("public_visibility")
+    .notNull()
+    .default("private_only")
+    .$type<ServiceDogVisibility>(),
+  notes: text("notes"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  verifiedByUserId: uuid("verified_by_user_id").references(() => profiles.id),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id),
+  revocationReason: text("revocation_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PetServiceDog = typeof petServiceDog.$inferSelect;
+export type NewPetServiceDog = typeof petServiceDog.$inferInsert;

@@ -11,6 +11,7 @@ import {
   govtAssignments,
   notifications,
   organizations,
+  petServiceDog,
   profiles,
 } from "@/db";
 import { canDecideRequest } from "@/lib/approval-scope";
@@ -262,6 +263,37 @@ async function applyApprovalMutation(
         target_organization_id: request.targetOrganizationId,
       };
     }
+
+    case "service_dog_credential_verification": {
+      // The pet is identified by request.payload.pet_id (stored at submit
+      // time). We anchor on pet_id rather than reading it back from the
+      // owner profile so the approval survives an ownership change before
+      // verification lands.
+      const payload = (request.payload ?? {}) as { pet_id?: string };
+      if (!payload.pet_id) {
+        throw new Error("service_dog_credential_verification requires payload.pet_id");
+      }
+      const now = new Date();
+      const updated = await tx
+        .update(petServiceDog)
+        .set({
+          credentialStatus: "vigente",
+          verifiedAt: now,
+          verifiedByUserId: actorUserId,
+          updatedAt: now,
+        })
+        .where(eq(petServiceDog.petId, payload.pet_id))
+        .returning({ id: petServiceDog.id });
+      if (updated.length === 0) {
+        throw new Error(
+          "service_dog row not found for pet — owner may have withdrawn it before approval landed",
+        );
+      }
+      return {
+        kind: "service_dog_credential_verification",
+        pet_id: payload.pet_id,
+      };
+    }
   }
 }
 
@@ -271,6 +303,8 @@ function titleForApproval(type: ApprovalRequest["type"]): string {
       return "Matrícula aprobada";
     case "organization_verification":
       return "Tu organización fue verificada";
+    case "service_dog_credential_verification":
+      return "Credencial de perro de asistencia verificada";
   }
 }
 
@@ -281,6 +315,8 @@ function bodyForApproval(type: ApprovalRequest["type"], notes: string | null): s
       return `Verificamos tu matrícula. Ya figurás como veterinario/a en MiMAR.${trail}`;
     case "organization_verification":
       return `Tu organización ahora figura como verificada. Los eventos que registres aparecen con el sello de verificación.${trail}`;
+    case "service_dog_credential_verification":
+      return `Tu credencial RUPGA fue verificada. Ya podés activar el banner público de acceso (Ley 26.858).${trail}`;
   }
 }
 
@@ -290,10 +326,19 @@ function titleForRejection(type: ApprovalRequest["type"]): string {
       return "Matrícula rechazada";
     case "organization_verification":
       return "Verificación de organización rechazada";
+    case "service_dog_credential_verification":
+      return "Verificación de credencial de perro de asistencia rechazada";
   }
 }
 
 function ctaForApplicant(request: ApprovalRequest): string {
+  if (request.type === "service_dog_credential_verification") {
+    const payload = (request.payload ?? {}) as { pet_public_token?: string };
+    if (payload.pet_public_token) {
+      return `/mis-mascotas/${payload.pet_public_token}/asistencia`;
+    }
+    return "/mis-mascotas";
+  }
   if (request.targetOrganizationId) return "/org";
   return "/cuenta/upgrade";
 }

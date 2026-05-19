@@ -522,6 +522,17 @@ export default async function PetDetailPage({
             Ver libreta completa →
           </Link>
         </section>
+
+        {pet.species === "dog" && (
+          <section>
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}/asistencia`}
+              className="block w-full text-center px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+            >
+              Perro de asistencia / guía (Ley 26.858) →
+            </Link>
+          </section>
+        )}
       </div>
     </main>
   );

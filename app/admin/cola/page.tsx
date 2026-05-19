@@ -14,6 +14,7 @@ import { requireAdminOrRedirect } from "@/lib/auth-guards";
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
   organization_verification: "Verificación de organizaciones",
+  service_dog_credential_verification: "Credenciales de perro de asistencia (RUPGA)",
 };
 
 function parseTypeParam(raw: string | undefined): ApprovalRequestType | null {

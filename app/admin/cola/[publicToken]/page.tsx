@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { logRequestViewedForAuthority } from "@/app/actions/admin-decisions";
-import { approvalRequests, db, organizations, profiles } from "@/db";
+import { approvalRequests, db, organizations, petServiceDog, pets, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 import { ReviewActions } from "./ReviewActions";
@@ -11,6 +11,7 @@ import { ReviewActions } from "./ReviewActions";
 const TYPE_LABELS: Record<string, string> = {
   role_upgrade_vet: "Matrícula veterinaria",
   organization_verification: "Verificación de organización",
+  service_dog_credential_verification: "Credencial perro de asistencia (RUPGA)",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -43,6 +44,38 @@ export default async function AdminReviewRequestPage({
     .from(profiles)
     .where(eq(profiles.id, request.applicantUserId))
     .limit(1);
+
+  // Pull the service-dog row when this is a credential verification request.
+  // The applicant has already filled out training center / RUPGA number /
+  // categoría — render those inline so the reviewer doesn't have to bounce.
+  let serviceDogContext: {
+    pet: { name: string; species: string; publicToken: string };
+    serviceDog: typeof petServiceDog.$inferSelect;
+  } | null = null;
+  if (request.type === "service_dog_credential_verification") {
+    const payload = (request.payload ?? {}) as { pet_id?: string };
+    if (payload.pet_id) {
+      const [row] = await db
+        .select({
+          pet: pets,
+          sd: petServiceDog,
+        })
+        .from(pets)
+        .innerJoin(petServiceDog, eq(petServiceDog.petId, pets.id))
+        .where(eq(pets.id, payload.pet_id))
+        .limit(1);
+      if (row) {
+        serviceDogContext = {
+          pet: {
+            name: row.pet.name,
+            species: row.pet.species,
+            publicToken: row.pet.publicToken,
+          },
+          serviceDog: row.sd,
+        };
+      }
+    }
+  }
 
   let targetOrg: { displayName: string; legalName: string; orgType: string } | null = null;
   if (request.targetOrganizationId) {
@@ -102,6 +135,59 @@ export default async function AdminReviewRequestPage({
             <p className="text-xs text-neutral-500 dark:text-neutral-500">
               {targetOrg.legalName} · {targetOrg.orgType}
             </p>
+          </Section>
+        )}
+
+        {serviceDogContext && (
+          <Section title="Credencial de perro de asistencia">
+            <div className="space-y-2 text-sm">
+              <p>
+                <span className="text-neutral-500">Mascota:</span>{" "}
+                <strong>{serviceDogContext.pet.name}</strong>{" "}
+                <span className="text-neutral-500 font-mono text-xs">
+                  ({serviceDogContext.pet.publicToken})
+                </span>
+              </p>
+              <p>
+                <span className="text-neutral-500">Tipo de servicio:</span>{" "}
+                {serviceDogContext.serviceDog.serviceType}
+                {serviceDogContext.serviceDog.serviceType === "otro" && (
+                  <span className="text-amber-700 dark:text-amber-300">
+                    {" "}
+                    — categoría "otro" no habilita banner público
+                  </span>
+                )}
+              </p>
+              <p>
+                <span className="text-neutral-500">Centro de entrenamiento:</span>{" "}
+                {serviceDogContext.serviceDog.trainingCenter}
+              </p>
+              {serviceDogContext.serviceDog.rupgaCredential && (
+                <p>
+                  <span className="text-neutral-500">Nº RUPGA:</span>{" "}
+                  <span className="font-mono text-xs">
+                    {serviceDogContext.serviceDog.rupgaCredential}
+                  </span>
+                </p>
+              )}
+              {serviceDogContext.serviceDog.credentialExpiryDate && (
+                <p>
+                  <span className="text-neutral-500">Vencimiento credencial:</span>{" "}
+                  {new Date(serviceDogContext.serviceDog.credentialExpiryDate).toLocaleDateString(
+                    "es-AR",
+                  )}
+                </p>
+              )}
+              {serviceDogContext.serviceDog.notes && (
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  {serviceDogContext.serviceDog.notes}
+                </p>
+              )}
+              <p className="text-xs text-neutral-500 mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                Verificar contra RUPGA (ANDIS, Res. 2588/2022). Centros válidos: miembros IGDF o
+                ADI. El aplicante debe tener CUD vigente — verificable fuera de MiMAR.
+              </p>
+            </div>
           </Section>
         )}
 

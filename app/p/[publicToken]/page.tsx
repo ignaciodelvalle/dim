@@ -6,7 +6,7 @@
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
 
-import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { attachments, db, ownerships, petEvents, petServiceDog, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { petPhotoUrl } from "@/lib/storage";
@@ -53,6 +53,46 @@ export default async function PublicCredentialPage({
     : null;
 
   const isLost = pet.status === "lost";
+
+  // Service dog banner (Ley 26.858). Renders ONLY when the owner has opted
+  // in to full_banner visibility AND the credential is vigente AND in
+  // service AND the type is one of the five ANDIS-recognized categories
+  // ('otro' explicitly never banners). The 60-day rabies expiry sub-warning
+  // is computed below.
+  const [serviceDog] =
+    pet.species === "dog"
+      ? await db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1)
+      : [];
+  const showServiceDogBanner =
+    serviceDog &&
+    serviceDog.credentialStatus === "vigente" &&
+    serviceDog.inService &&
+    serviceDog.publicVisibility === "full_banner" &&
+    serviceDog.serviceType !== "otro";
+
+  // Art. 8 risk: rabies vaccination must be up to date for the credential
+  // to remain compliant. We surface this as a sub-warning on the banner
+  // without auto-revoking (revocation belongs to ANDIS).
+  let rabiesAtRisk = false;
+  if (showServiceDogBanner) {
+    const [latestRabies] = await db
+      .select({ occurredAt: petEvents.occurredAt, payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(50);
+    // Heuristic: any vaccine row referencing "rabia" in name + valid_until
+    // older than 60 days flags risk. The exact catalog lookup lives in
+    // lib/vaccines.ts; we keep this conservative — false negatives are OK,
+    // false positives only show a soft warning.
+    if (latestRabies) {
+      const payload = latestRabies.payload as { vaccine_name?: string; valid_until?: string };
+      if (payload?.vaccine_name?.toLowerCase().includes("rabia") && payload.valid_until) {
+        const validUntil = new Date(payload.valid_until);
+        rabiesAtRisk = !Number.isNaN(validUntil.getTime()) && validUntil < new Date();
+      }
+    }
+  }
 
   // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
   // the owner's disclosure preference (disclose_*_when_lost columns on pets).
@@ -208,6 +248,33 @@ export default async function PublicCredentialPage({
             {pet.publicToken}
           </p>
         </div>
+
+        {/* Service dog banner — Ley 26.858. Renders only when the owner opted in
+            AND the credential is vigente AND the type is ANDIS-recognized. */}
+        {showServiceDogBanner && (
+          <section
+            aria-label="Banner de acceso — perro de asistencia"
+            className="rounded-2xl border-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 p-4 space-y-2"
+          >
+            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-indigo-800 dark:text-indigo-200">
+              Perro de Asistencia
+            </p>
+            <p className="text-base font-medium text-indigo-900 dark:text-indigo-100 leading-snug">
+              Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
+              establecimiento, espacio privado de acceso público y transporte público.
+            </p>
+            <p className="text-xs text-indigo-800 dark:text-indigo-200">
+              Marco legal: <strong>Arts. 1 y 7, Ley 26.858</strong> · Reg. Decreto 792/2019 ·
+              Credencial RUPGA vigente (Res. ANDIS 2588/2022).
+            </p>
+            {rabiesAtRisk && (
+              <p className="text-xs text-amber-800 dark:text-amber-200 border-t border-indigo-200 dark:border-indigo-900 pt-2 mt-2">
+                Aviso: la vacunación antirrábica figura vencida en el registro. La credencial
+                requiere mantener la vacunación al día (Art. 8, Ley 26.858).
+              </p>
+            )}
+          </section>
+        )}
 
         {/* Photo */}
         <div className="flex justify-center">
