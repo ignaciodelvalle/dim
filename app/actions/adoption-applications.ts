@@ -23,8 +23,10 @@
 // will be built when the org-side review surface lands.
 
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 import { db, notifications, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 
@@ -200,4 +202,212 @@ export async function submitAdoptionApplicationAction(
   }
 
   return { ok: true, applicationEventId };
+}
+
+// ============================================================================
+// Org-side review (spec adoption-listing-public §11 + Fase 6 follow-up).
+//
+// The shelter's admin/coordinator opens a pending application from
+// /org/{orgToken}/adopciones/{appEventId} and either approves it (signals
+// to the applicant the refugio wants to move forward — coordination
+// happens by email, the actual ownership transition is still
+// adoption_finalized) or rejects it.
+//
+// Both actions are gated on `adoption.review` and check:
+//   - the application event exists and belongs to the org's pet,
+//   - it has not already been resolved (any _approved/_rejected later),
+//   - the pet has not been finalized (an adoption_finalized event closes
+//     the door — the F5.5 cascade should have handled this, but we re-check
+//     defensively).
+// ============================================================================
+
+export type ReviewAdoptionInput = {
+  applicationEventId: string;
+  notes?: string | null;
+};
+
+export type ReviewAdoptionResult = { ok: true } | { error: string };
+
+async function loadPendingApplication(
+  applicationEventId: string,
+  organizationId: string,
+): Promise<
+  | { error: string }
+  | {
+      application: typeof petEvents.$inferSelect;
+      pet: typeof pets.$inferSelect;
+    }
+> {
+  const [row] = await db
+    .select({ application: petEvents, pet: pets })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(petEvents.id, applicationEventId),
+        eq(petEvents.eventType, "adoption_application_submitted"),
+        eq(ownerships.ownerOrganizationId, organizationId),
+        eq(ownerships.role, "shelter_custody"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+  if (!row) {
+    return { error: "Postulación no encontrada o no pertenece a tu organización." };
+  }
+
+  // Defensive: any later resolution closes the door.
+  const decided = await db.execute<{ id: string }>(sql`
+    SELECT id FROM pet_events
+    WHERE pet_id = ${row.pet.id}
+      AND event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+      AND payload->>'application_event_id' = ${applicationEventId}
+    LIMIT 1
+  `);
+  if (decided.length > 0) {
+    return { error: "Esta postulación ya fue resuelta." };
+  }
+
+  const finalized = await db.execute<{ id: string }>(sql`
+    SELECT id FROM pet_events
+    WHERE pet_id = ${row.pet.id}
+      AND event_type = 'adoption_finalized'
+    LIMIT 1
+  `);
+  if (finalized.length > 0) {
+    return { error: "Esta mascota ya fue adoptada — no es posible revisar postulaciones." };
+  }
+
+  return { application: row.application, pet: row.pet };
+}
+
+export async function approveAdoptionApplicationAction(
+  orgToken: string,
+  input: ReviewAdoptionInput,
+): Promise<ReviewAdoptionResult> {
+  const auth = await requireCapability("adoption.review");
+  if (auth.error !== null) return { error: auth.error };
+  const { user, organization } = auth;
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
+  const loaded = await loadPendingApplication(input.applicationEventId, organization.id);
+  if ("error" in loaded) return loaded;
+  const { application, pet } = loaded;
+
+  const notes = input.notes?.trim() || null;
+  const now = new Date();
+  const payload = validateEventPayload("adoption_application_approved", {
+    application_event_id: application.id,
+    reviewer_user_id: user.id,
+    notes,
+  });
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "adoption_application_approved",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "shelter",
+        authorOrganizationId: organization.id,
+        authorVerified: organization.verified,
+        payload,
+      });
+
+      const applicantUserId = (application.payload as { applicant_user_id?: string })
+        .applicant_user_id;
+      if (applicantUserId) {
+        await tx.insert(notifications).values({
+          userId: applicantUserId,
+          notificationType: "adoption_application_approved",
+          title: `Tu postulación para ${pet.name} fue aprobada`,
+          body: `${organization.displayName} quiere avanzar con tu postulación. Te van a contactar por email para coordinar los próximos pasos.`,
+          severity: "success",
+          ctaLabel: "Ver mi postulación",
+          ctaUrl: "/mis-mascotas/postulaciones",
+          relatedPetId: pet.id,
+          relatedEventId: application.id,
+        });
+      }
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo aprobar: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  revalidatePath(`/org/${orgToken}/adopciones`);
+  revalidatePath(`/org/${orgToken}/adopciones/${input.applicationEventId}`);
+  return { ok: true };
+}
+
+export async function rejectAdoptionApplicationAction(
+  orgToken: string,
+  input: ReviewAdoptionInput,
+): Promise<ReviewAdoptionResult> {
+  const auth = await requireCapability("adoption.review");
+  if (auth.error !== null) return { error: auth.error };
+  const { user, organization } = auth;
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
+  const loaded = await loadPendingApplication(input.applicationEventId, organization.id);
+  if ("error" in loaded) return loaded;
+  const { application, pet } = loaded;
+
+  const notes = input.notes?.trim() || null;
+  const now = new Date();
+  const payload = validateEventPayload("adoption_application_rejected", {
+    application_event_id: application.id,
+    reviewer_user_id: user.id,
+    reason: notes ?? "manual_rejection",
+    auto_generated: false,
+    notes,
+  });
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "adoption_application_rejected",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "shelter",
+        authorOrganizationId: organization.id,
+        authorVerified: organization.verified,
+        payload,
+      });
+
+      const applicantUserId = (application.payload as { applicant_user_id?: string })
+        .applicant_user_id;
+      if (applicantUserId) {
+        await tx.insert(notifications).values({
+          userId: applicantUserId,
+          notificationType: "adoption_application_rejected",
+          title: `Tu postulación para ${pet.name} no avanzó`,
+          body: `${organization.displayName} no avanzó con tu postulación esta vez. Hay otras mascotas buscando hogar.`,
+          severity: "info",
+          ctaLabel: "Ver otras en adopción",
+          ctaUrl: "/adoptar",
+          relatedPetId: pet.id,
+          relatedEventId: application.id,
+        });
+      }
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo rechazar: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  revalidatePath(`/org/${orgToken}/adopciones`);
+  revalidatePath(`/org/${orgToken}/adopciones/${input.applicationEventId}`);
+  return { ok: true };
 }
