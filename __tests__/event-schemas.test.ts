@@ -21,12 +21,7 @@ import {
 // EVENT_TYPES entry must have a registered PayloadSchema. As the adoption
 // pipeline server actions land, their entries leave this list and an
 // accompanying schema lands in lib/event-schemas.ts in the same PR.
-const UNIMPLEMENTED: ReadonlyArray<EventType> = [
-  "adoption_application_submitted",
-  "adoption_application_approved",
-  "adoption_application_rejected",
-  "adoption_revoked",
-];
+const UNIMPLEMENTED: ReadonlyArray<EventType> = ["adoption_revoked"];
 
 describe("PayloadSchemas — coverage", () => {
   it("every event type with a real writer has a registered schema", () => {

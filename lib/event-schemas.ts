@@ -743,6 +743,58 @@ const adoptionWithdrawn = z
   )
   .strict();
 
+// Adoption application submitted — emitted by the public adoption flow
+// (spec adoption-listing-public §8.4) when a visitor completes
+// /adoptar/{petToken}/postular. The four free-text payload fields are the
+// raw user input from the form; the related_organization_id is denormalized
+// from the current shelter_custody ownership so the reader can audit which
+// refugio received the application without re-joining ownerships at read
+// time. housing_type is the only structured field.
+const adoptionApplicationSubmitted = z
+  .object(
+    withVersion({
+      applicant_user_id: z.string().uuid(),
+      related_organization_id: z.string().uuid(),
+      housing_type: z.enum(["casa_con_patio", "casa_sin_patio", "departamento", "otro"]),
+      other_pets: z.string().nullable(),
+      daily_routine: z.string().nullable(),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// Adoption application approved — emitted by the shelter's admin/coordinator
+// from the org portal when they decide to move forward with this applicant.
+// `application_event_id` references the original `_submitted` event. The
+// approval is informational — `adoption_finalized` is the event that
+// actually transitions ownership.
+const adoptionApplicationApproved = z
+  .object(
+    withVersion({
+      application_event_id: z.string().uuid(),
+      reviewer_user_id: z.string().uuid(),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// Adoption application rejected — emitted by the shelter (manual rejection)
+// or by `finalizeAdoptionAction` (auto-rejection cascade for the other
+// pending applications, spec adoption-listing-public §12 Fase 5.5). When
+// `auto_generated` is true, `reason` is the literal
+// "another_application_finalized" and `reviewer_user_id` is the finalizer.
+const adoptionApplicationRejected = z
+  .object(
+    withVersion({
+      application_event_id: z.string().uuid(),
+      reviewer_user_id: z.string().uuid(),
+      reason: z.string(),
+      auto_generated: z.boolean().default(false),
+      notes: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // Custody dispute raised — admin or govt flags the pet as subject to external
 // legal proceedings (parental divorce, succession, criminal seizure pending
 // return). Sets `pets.in_custody_dispute = true` via dual-write from the
@@ -998,6 +1050,9 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_ended: fosterEnded,
   adoption_finalized: adoptionFinalized,
   adoption_withdrawn: adoptionWithdrawn,
+  adoption_application_submitted: adoptionApplicationSubmitted,
+  adoption_application_approved: adoptionApplicationApproved,
+  adoption_application_rejected: adoptionApplicationRejected,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
   custody_transfer_proposed: custodyTransferProposed,

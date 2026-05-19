@@ -2,31 +2,30 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
-import { db, organizations, ownerships, pets, profiles } from "@/db";
+import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { APPLY_INTENT_COOKIE_NAME, validateApplyIntentToken } from "@/lib/apply-intent";
 import { createClient } from "@/lib/supabase/server";
 
+import { ApplicationForm } from "./ApplicationForm";
+
 // Gate page for the adoption application form (spec
-// adoption-listing-public §8). F4 only sets up the gate; the real form
-// lands in F5. The gate runs four checks in order:
+// adoption-listing-public §8 + Fase 5). Five checks run in order:
 //
-//   1. Auth — requireUserOrRedirect bounces anonymous visitors to /login
-//      with returnTo. Anyone who reaches the body is authenticated.
-//   2. Institutional reject — admin/govt accounts are not allowed to
-//      apply; we render a clear message + back link.
-//   3. Pet listable — re-run the same predicate as queryAdoptionListing.
-//      If the pet went off-listing between the CTA click and arrival here
-//      (lost, deceased, finalized, paused, in dispute, rabies obs, etc.),
-//      we surface a friendly notice instead of letting the form open.
-//   4. Apply-intent cookie — if present, verify it and clear it. The
-//      cookie is signed against the petToken, so a stolen-from-pet-A
-//      cookie does NOT open pet-B's form. Missing cookie is fine for the
-//      already-authenticated path; only signed-and-stale tokens fail.
-//
-// Once all four pass we render the F4 placeholder. F5 swaps the body for
-// the real submitAdoptionApplicationAction form.
+//   1. Auth — anonymous → redirect to /login with returnTo so the loop
+//      survives expired sessions.
+//   2. Institutional reject — admin/govt cannot adopt; render a clear
+//      message instead of a 403.
+//   3. Listability — same predicate as queryAdoptionListing / ficha page /
+//      startApplyIntentAction. If the pet went off-listing between CTA
+//      and arrival, surface a friendly notice rather than 404'ing.
+//   4. Apply-intent cookie — optional. Verify (signed against the
+//      petToken so a pet-A cookie can't open pet-B's form), then clear.
+//   5. Idempotency — if the applicant already has an unresolved
+//      `_submitted` for this pet, render the "ya postulaste" message
+//      instead of letting them re-submit. The submit action also blocks
+//      double-writes, but checking here gives a clean UX.
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +37,7 @@ export default async function PostularPage({
   const { petToken } = await params;
   const returnTo = `/adoptar/${petToken}/postular`;
 
-  // 1) Auth — pass the postular URL as returnTo so anonymous visitors who
-  // landed here (e.g. expired session after the JWT redirect) come back to
-  // the right place after login. We don't use requireUserOrRedirect because
-  // its default redirect target is /login without returnTo.
+  // 1) Auth.
   const supabase = await createClient();
   const {
     data: { user },
@@ -50,9 +46,9 @@ export default async function PostularPage({
     redirect(`/login?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
   }
 
-  // 2) Institutional reject — clearer to render a message than to 403.
+  // 2) Institutional reject.
   const [profile] = await db
-    .select({ accountType: profiles.accountType })
+    .select({ accountType: profiles.accountType, email: profiles.id })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
@@ -60,9 +56,7 @@ export default async function PostularPage({
     return <InstitutionalBlocked petToken={petToken} />;
   }
 
-  // 3) Listability — duplicated predicate, see /adoptar/[petToken]/page.tsx
-  // and /actions/apply-intent.ts. Living in three places is acceptable while
-  // each call site reads a different row shape.
+  // 3) Listability.
   const [row] = await db
     .select({ pet: pets, org: organizations })
     .from(pets)
@@ -92,7 +86,7 @@ export default async function PostularPage({
     return <NoLongerAvailable name={pet.name} />;
   }
 
-  // 4) Apply-intent cookie — optional. Validate + clear if present.
+  // 4) Apply-intent cookie.
   const cookieStore = await cookies();
   const intentCookie = cookieStore.get(APPLY_INTENT_COOKIE_NAME);
   let intentExpired = false;
@@ -100,6 +94,27 @@ export default async function PostularPage({
     const ok = validateApplyIntentToken(petToken, intentCookie.value);
     if (!ok) intentExpired = true;
     cookieStore.delete(APPLY_INTENT_COOKIE_NAME);
+  }
+
+  // 5) Idempotency — render "ya postulaste" if there's an unresolved
+  // _submitted from this applicant for this pet.
+  const pending = await db.execute<{ id: string; submitted_at: string }>(sql`
+    SELECT e.id::text AS id,
+           e.recorded_at AS submitted_at
+    FROM ${petEvents} e
+    WHERE e.pet_id = ${pet.id}
+      AND e.event_type = 'adoption_application_submitted'
+      AND e.payload->>'applicant_user_id' = ${user.id}
+      AND NOT EXISTS (
+        SELECT 1 FROM ${petEvents} d
+        WHERE d.pet_id = e.pet_id
+          AND d.event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+          AND d.payload->>'application_event_id' = e.id::text
+      )
+    LIMIT 1
+  `);
+  if (pending.length > 0) {
+    return <AlreadyApplied name={pet.name} />;
   }
 
   return (
@@ -128,15 +143,11 @@ export default async function PostularPage({
           </output>
         )}
 
-        <section className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-6 space-y-3">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-            Formulario en construcción.
-          </p>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            El form de postulación (tipo de vivienda, otras mascotas, rutina diaria, notas) se
-            habilita en la próxima entrega. La gate de auth y el flujo de intención ya están listos.
-          </p>
-        </section>
+        <ApplicationForm
+          petPublicToken={petToken}
+          petName={pet.name}
+          applicantEmail={user.email ?? ""}
+        />
       </div>
     </main>
   );
@@ -180,6 +191,28 @@ function NoLongerAvailable({ name }: { name: string }) {
           className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
         >
           Ver otras en adopción
+        </Link>
+      </div>
+    </main>
+  );
+}
+
+function AlreadyApplied({ name }: { name: string }) {
+  return (
+    <main className="min-h-screen bg-white dark:bg-neutral-950">
+      <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          Ya postulaste para {name}
+        </h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          El refugio recibió tu postulación y la está revisando. Te van a contactar por email cuando
+          tengan novedades.
+        </p>
+        <Link
+          href="/mis-mascotas/postulaciones"
+          className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
+        >
+          Ver mis postulaciones
         </Link>
       </div>
     </main>

@@ -1252,6 +1252,13 @@ export const AUDIT_LOG_ACTIONS = [
   // either by passing it to triage (unflag) or confirming it as spam.
   "welfare_report_unflagged",
   "welfare_report_confirmed_spam",
+  // Adoption application lifecycle (adoption-listing-public §11). Submitted
+  // by the applicant via /adoptar/{token}/postular, approved/rejected by
+  // admin/coordinator of the shelter from the org portal. The auto-rejected
+  // cascade triggered by adoption_finalized also emits _rejected rows.
+  "adoption_application_submitted",
+  "adoption_application_approved",
+  "adoption_application_rejected",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
