@@ -13,7 +13,7 @@ import {
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
 } from "@/lib/welfare";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, or } from "drizzle-orm";
 
 const STATUS_TONE: Record<string, string> = {
   open: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200",
@@ -65,10 +65,23 @@ export default async function GobMaltratoPage({
   // filter client-side after the status pre-filter (default to "active"
   // means anything that's not terminal). Volume is bounded — admin sees
   // everything; govt sees only their scope.
+  // Exclude rows that are flagged AND not yet resolved by a moderator —
+  // those live in /admin/moderacion and shouldn't pollute the triage queue.
+  // Resolved-flagged rows DO appear here (moderator already cleared them
+  // and passed them down).
+  const notUnderModeration = or(
+    isNull(welfareReports.flaggedAt),
+    isNotNull(welfareReports.moderationResolvedAt),
+  );
+
   let rows = await db
     .select()
     .from(welfareReports)
-    .where(activeStatus ? eq(welfareReports.status, activeStatus) : undefined)
+    .where(
+      activeStatus
+        ? and(eq(welfareReports.status, activeStatus), notUnderModeration)
+        : notUnderModeration,
+    )
     .orderBy(desc(welfareReports.createdAt))
     .limit(500);
 

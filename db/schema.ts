@@ -932,6 +932,16 @@ export const welfareReports = pgTable(
     }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     resolutionNotes: text("resolution_notes"),
+    // Moderation layer — auto-flagged anonymous denuncias await admin
+    // review at /admin/moderacion. /gob/maltrato excludes flagged-not-
+    // resolved rows so govt only sees triage-ready cases.
+    flaggedAt: timestamp("flagged_at", { withTimezone: true }),
+    flagReasons: jsonb("flag_reasons").notNull().default([]),
+    moderationResolvedAt: timestamp("moderation_resolved_at", { withTimezone: true }),
+    moderationResolvedByUserId: uuid("moderation_resolved_by_user_id").references(
+      () => profiles.id,
+      { onDelete: "set null" },
+    ),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1206,6 +1216,10 @@ export const AUDIT_LOG_ACTIONS = [
   "welfare_report_triaged",
   "welfare_report_started",
   "welfare_report_closed",
+  // Moderation layer — admin resolves an auto-flagged anonymous report
+  // either by passing it to triage (unflag) or confirming it as spam.
+  "welfare_report_unflagged",
+  "welfare_report_confirmed_spam",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

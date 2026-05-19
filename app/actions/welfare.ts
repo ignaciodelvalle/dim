@@ -21,6 +21,7 @@ import { writePoint } from "@/lib/location";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { generateReferenceCode } from "@/lib/welfare-codes";
+import { computeFlagReasons } from "@/lib/welfare-moderation";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -368,6 +369,35 @@ export async function createWelfareReportAction(
       error:
         "La denuncia se guardó pero no se pudieron registrar los archivos adjuntos. Intentá de nuevo.",
     };
+  }
+
+  // Auto-flag anonymous denuncias against the moderation heuristics. Logged-in
+  // submissions skip this — identity is a strong-enough signal that
+  // legitimate volume from advocates doesn't need triage friction. Flagged
+  // rows hide from /gob/maltrato until an admin resolves them at
+  // /admin/moderacion.
+  if (!user) {
+    try {
+      const attachmentCount = uploadResult?.uploaded?.length ?? 0;
+      const flagReasons = await computeFlagReasons({
+        reportId: insertedId,
+        description,
+        severity,
+        subjectKind,
+        attachmentCount,
+      });
+      if (flagReasons.length > 0) {
+        await db
+          .update(welfareReports)
+          .set({ flaggedAt: new Date(), flagReasons })
+          .where(eq(welfareReports.id, insertedId));
+      }
+    } catch (err) {
+      // Auto-flagging is best-effort. A failure here MUST NOT roll back the
+      // denuncia itself — the case still belongs in the system, just enters
+      // the triage queue without the pre-filter. Log and move on.
+      console.error("[welfare] auto-flag heuristics failed (non-fatal):", err);
+    }
   }
 
   await signalWelfareReport({
