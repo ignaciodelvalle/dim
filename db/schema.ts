@@ -241,8 +241,10 @@ export const EVENT_TYPES = [
   "weight_recorded",
   // Identification & legal
   "microchip_implanted",
+  // microchip_replaced is the umbrella for replacement + revocation
+  // (catalog cleanup 2026-05-19). new_chip_number === null distinguishes
+  // a revocation (no replacement chip) from a normal replacement.
   "microchip_replaced",
-  "microchip_revoked",
   "dangerous_breed_attested",
   // Free-form
   "note_added",

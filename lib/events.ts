@@ -82,6 +82,23 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: by,
       };
     }
+    case "microchip_replaced": {
+      const previous = str("previous_chip_number");
+      const next = str("new_chip_number");
+      const reason = str("reason");
+      // new_chip_number === null means revocation (chip retired without
+      // replacement). Reads as a separate verb on the timeline.
+      if (next === null) {
+        return {
+          primary: previous ? `Microchip revocado · ${previous}` : "Microchip revocado",
+          secondary: reason,
+        };
+      }
+      return {
+        primary: next ? `Microchip reemplazado · ${next}` : "Microchip reemplazado",
+        secondary: previous ? `Anterior: ${previous}` : reason,
+      };
+    }
     case "dangerous_breed_attested": {
       const registry = str("registry");
       const registryId = str("registry_id");

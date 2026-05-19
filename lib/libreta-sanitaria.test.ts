@@ -83,7 +83,6 @@ describe("libretaGroupForEvent", () => {
     expect(libretaGroupForEvent({ eventType: "microchip_replaced", payload: {} })).toBe(
       "microchip",
     );
-    expect(libretaGroupForEvent({ eventType: "microchip_revoked", payload: {} })).toBe("microchip");
   });
 
   it("splits clinical_info_logged by sub_kind", () => {

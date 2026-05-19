@@ -27,10 +27,10 @@ export const LIBRETA_SANITARIA_EVENT_TYPES = [
   "weight_recorded",
   "clinical_info_logged",
   "microchip_implanted",
-  // Microchip lifecycle beyond the initial implant — replacements and
-  // revocations are identificatoria info the vet/owner care about.
+  // Microchip lifecycle beyond the initial implant — replacement
+  // (and revocation, via new_chip_number=null) is identificatoria
+  // info the vet/owner care about.
   "microchip_replaced",
-  "microchip_revoked",
   "incident_reported",
   // Rabies observation lifecycle — clinical record (the vet of the future
   // wants to see "this dog bit someone in 2026 and completed observation
@@ -179,7 +179,6 @@ export function libretaGroupForEvent(event: {
       return "peso";
     case "microchip_implanted":
     case "microchip_replaced":
-    case "microchip_revoked":
       return "microchip";
     case "symptom_observed":
       return "sintomas";

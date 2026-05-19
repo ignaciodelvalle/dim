@@ -343,32 +343,37 @@ const dangerousBreedAttested = z
 // Microchip lifecycle (beyond the initial implant)
 // ---------------------------------------------------------------------------
 
-// Replacement chip — old chip removed/disabled, new one implanted. Owner or
-// vet flow. Libreta-sanitaria entry (identificatoria).
+// Microchip replacement / revocation — umbrella event (catalog cleanup
+// 2026-05-19). new_chip_number === null distinguishes a pure revocation
+// (chip retired, no replacement) from a normal replacement. The reason
+// enum is the union of legacy {replaced, revoked} reasons.
+//
+// actor_role + actor_user_id are populated when the operation was driven
+// by an institutional actor (vet/admin/govt — for fraud or device-failure
+// revocations). Owner-initiated revocations and owner-managed
+// replacements omit those (default actor_role = "owner").
 const microchipReplaced = z
   .object(
     withVersion({
       previous_chip_number: z.string(),
-      new_chip_number: z.string(),
-      reason: z.enum(["damaged", "unreadable", "duplicate_detected", "other"]),
+      new_chip_number: z.string().nullable(),
+      reason: z.enum([
+        // Replacement reasons.
+        "damaged",
+        "unreadable",
+        "duplicate_detected",
+        // Revocation reasons (carry-over from microchip_revoked).
+        "fraud_detected",
+        "owner_request",
+        "device_failure",
+        "other",
+      ]),
       replaced_by: z.string().nullable(),
-      // ISO date when the replacement was performed.
+      // ISO date when the operation was performed.
       replaced_at: z.string(),
-    }),
-  )
-  .strict();
-
-// Revocation — chip is invalidated (fraud detected, owner request, device
-// failure). The chip number is logically retired; downstream credential
-// validation should treat it as non-authoritative. Libreta-sanitaria entry.
-const microchipRevoked = z
-  .object(
-    withVersion({
-      chip_number: z.string(),
-      reason: z.enum(["fraud_detected", "owner_request", "device_failure", "other"]),
-      revoked_by_role: z.enum(["admin", "govt", "vet"]),
-      revoked_by_user_id: z.string().uuid(),
-      notes: z.string().nullable(),
+      actor_role: z.enum(["owner", "vet", "admin", "govt"]).default("owner"),
+      actor_user_id: z.string().uuid().nullable().optional(),
+      notes: z.string().nullable().optional(),
     }),
   )
   .strict();
@@ -1003,7 +1008,6 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   clinical_info_logged: clinicalInfoLogged,
   microchip_implanted: microchipImplanted,
   microchip_replaced: microchipReplaced,
-  microchip_revoked: microchipRevoked,
   dangerous_breed_attested: dangerousBreedAttested,
   note_added: noteAdded,
   credential_scanned: credentialScanned,
