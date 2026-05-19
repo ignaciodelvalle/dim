@@ -8,7 +8,7 @@
 //  2. govt   → /gob
 //  3. vet    → /pro
 //  4. owner with active org-admin membership → /org  (index redirects to their org)
-//  5. everyone else → /mis-mascotas
+//  5. everyone else → /inicio  (owner dashboard; pet list still reachable at /mis-mascotas)
 
 export function pathForRole(role: string, hasOrgMembership: boolean): string {
   switch (role) {
@@ -19,9 +19,9 @@ export function pathForRole(role: string, hasOrgMembership: boolean): string {
     case "vet":
       return "/pro";
     case "owner":
-      return hasOrgMembership ? "/org" : "/mis-mascotas";
+      return hasOrgMembership ? "/org" : "/inicio";
     default:
-      return "/mis-mascotas";
+      return "/inicio";
   }
 }
 

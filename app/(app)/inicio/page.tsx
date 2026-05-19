@@ -8,6 +8,7 @@ import { db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   countUnreadNotifications,
+  fetchLivingPetLocalities,
   fetchOngoingMedications,
   fetchOpenWorkflows,
   fetchPetsForOwner,
@@ -18,11 +19,13 @@ import {
 
 import { AppointmentsWidget } from "./_components/AppointmentsWidget";
 import { MedicationsWidget } from "./_components/MedicationsWidget";
+import { NewsPlaceholder } from "./_components/NewsPlaceholder";
 import { NotificationsWidget } from "./_components/NotificationsWidget";
 import { OpenWorkflowsWidget } from "./_components/OpenWorkflowsWidget";
 import { PetsGridWidget } from "./_components/PetsGridWidget";
 import { PreviousWorkflowsWidget } from "./_components/PreviousWorkflowsWidget";
 import { QuickCaptureWidget } from "./_components/QuickCaptureWidget";
+import { RegulationsPlaceholder } from "./_components/RegulationsPlaceholder";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +33,7 @@ export default async function InicioPage() {
   const { user } = await requireUserOrRedirect();
 
   // Everything loads in parallel — one round-trip for the full dashboard.
-  const [profile, pets, appointments, notifications, unreadCount, meds, openWf, prevWf] =
+  const [profile, pets, appointments, notifications, unreadCount, meds, openWf, prevWf, locs] =
     await Promise.all([
       db
         .select({ displayName: profiles.displayName })
@@ -44,6 +47,7 @@ export default async function InicioPage() {
       fetchOngoingMedications(user.id),
       fetchOpenWorkflows(user.id),
       fetchPreviousWorkflows(user.id, 10),
+      fetchLivingPetLocalities(user.id),
     ]);
 
   const firstName = (profile[0]?.displayName ?? "").trim().split(/\s+/)[0] || "Hola";
@@ -75,6 +79,11 @@ export default async function InicioPage() {
         <OpenWorkflowsWidget items={openWf} />
 
         <PreviousWorkflowsWidget items={prevWf} />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <NewsPlaceholder />
+          <RegulationsPlaceholder localities={locs} />
+        </div>
       </div>
     </main>
   );
