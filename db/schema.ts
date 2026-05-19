@@ -1200,6 +1200,12 @@ export const AUDIT_LOG_ACTIONS = [
   // Ley 26.858: service-dog credential lifecycle. Created by owner, verified
   // by admin/govt via the approval flow, revoked by admin/govt with motivo.
   "service_dog_credential_revoked",
+  // Welfare-officer queue triage actions (Ley 14.346 denuncia pipeline).
+  // Govt/admin moves welfare_reports rows through the state machine; each
+  // transition writes one of these audit rows with from/to status + notes.
+  "welfare_report_triaged",
+  "welfare_report_started",
+  "welfare_report_closed",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
