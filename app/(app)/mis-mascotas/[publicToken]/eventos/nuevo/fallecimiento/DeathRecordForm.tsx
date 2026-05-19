@@ -29,9 +29,11 @@ const defaultFacilityHint = { label: "Instalación", placeholder: "Veterinaria, 
 export function DeathRecordForm({
   action,
   species,
+  defaults,
 }: {
   action: FormAction;
   species: string | null;
+  defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
@@ -319,7 +321,7 @@ export function DeathRecordForm({
           name="occurredAt"
           type="date"
           required
-          defaultValue={today}
+          defaultValue={defaults?.occurredAt ?? today}
           className={inputClass}
         />
       </div>
@@ -328,7 +330,13 @@ export function DeathRecordForm({
         <label htmlFor="notes" className={labelClass}>
           Notas
         </label>
-        <textarea id="notes" name="notes" rows={3} className={inputClass} />
+        <textarea
+          id="notes"
+          name="notes"
+          rows={3}
+          defaultValue={defaults?.notes ?? ""}
+          className={inputClass}
+        />
       </div>
 
       <AttachmentField />

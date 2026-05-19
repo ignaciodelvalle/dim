@@ -8,7 +8,13 @@ const initialState: CheckinFormState = { error: null };
 
 type FormAction = (prev: CheckinFormState, formData: FormData) => Promise<CheckinFormState>;
 
-export function CheckinForm({ action }: { action: FormAction }) {
+export function CheckinForm({
+  action,
+  defaults,
+}: {
+  action: FormAction;
+  defaults?: { notes: string | null };
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   return (
@@ -24,6 +30,7 @@ export function CheckinForm({ action }: { action: FormAction }) {
           id="notes"
           name="notes"
           rows={5}
+          defaultValue={defaults?.notes ?? ""}
           placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />

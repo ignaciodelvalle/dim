@@ -5,12 +5,20 @@ import { NoteForm } from "./NoteForm";
 
 export default async function NewNotePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ text?: string; occurredAt?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
+
+  const defaults = {
+    text: sp.text ?? null,
+    occurredAt: sp.occurredAt ?? null,
+  };
 
   const boundAction = createNoteAction.bind(null, pet.publicToken);
 
@@ -31,7 +39,7 @@ export default async function NewNotePage({
             Cualquier observación sobre {pet.name} que valga la pena recordar.
           </p>
         </div>
-        <NoteForm action={boundAction} />
+        <NoteForm action={boundAction} defaults={defaults} />
       </div>
     </main>
   );

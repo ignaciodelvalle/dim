@@ -8,7 +8,13 @@ const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
-export function DewormingForm({ action }: { action: FormAction }) {
+export function DewormingForm({
+  action,
+  defaults,
+}: {
+  action: FormAction;
+  defaults?: { product: string | null; occurredAt: string | null; notes: string | null };
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -20,6 +26,7 @@ export function DewormingForm({ action }: { action: FormAction }) {
         type="text"
         label="Producto"
         required
+        defaultValue={defaults?.product ?? undefined}
         placeholder="Frontline, Advocate, Milbemax..."
       />
 
@@ -65,7 +72,7 @@ export function DewormingForm({ action }: { action: FormAction }) {
         type="date"
         label="Fecha de aplicación"
         required
-        defaultValue={today}
+        defaultValue={defaults?.occurredAt ?? today}
       />
 
       <Field
@@ -86,6 +93,7 @@ export function DewormingForm({ action }: { action: FormAction }) {
           id="notes"
           name="notes"
           rows={3}
+          defaultValue={defaults?.notes ?? ""}
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
       </div>

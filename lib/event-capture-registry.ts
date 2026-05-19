@@ -54,7 +54,9 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
   deworming_administered: {
     route: "/eventos/nuevo/antiparasitario",
     description: "El usuario registra un antiparasitario o desparasitación",
-    prefillSlots: ["drugName", "occurredAt", "notes"],
+    // `product` matches the input name in DewormingForm.tsx — the action
+    // handler reads formData.get("product"), so the slot has to mirror it.
+    prefillSlots: ["product", "occurredAt", "notes"],
   },
   sterilization_performed: {
     route: "/eventos/nuevo/esterilizacion",
@@ -69,12 +71,16 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
   microchip_implanted: {
     route: "/eventos/nuevo/microchip",
     description: "El usuario registra la colocación del microchip",
-    prefillSlots: ["microchipId", "occurredAt", "notes"],
+    // `chipNumber` matches MicrochipForm.tsx — the action handler reads
+    // formData.get("chipNumber").
+    prefillSlots: ["chipNumber", "occurredAt", "notes"],
   },
   note_added: {
     route: "/eventos/nuevo/nota",
     description: "El usuario agrega una nota libre sobre su mascota",
-    prefillSlots: ["body", "occurredAt"],
+    // `text` matches NoteForm.tsx — the main body field is named `text`,
+    // not `body`. Keep slot aligned to the handler.
+    prefillSlots: ["text", "occurredAt"],
   },
   death_recorded: {
     route: "/eventos/nuevo/fallecimiento",
@@ -84,7 +90,9 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
   post_adoption_checkin: {
     route: "/eventos/nuevo/checkin",
     description: "El adoptante reporta un check-in post-adopción",
-    prefillSlots: ["occurredAt", "notes"],
+    // CheckinForm has no `occurredAt` input — the action timestamps
+    // server-side. Only `notes` is prefillable.
+    prefillSlots: ["notes"],
   },
   // ---- Forms reachable, slots not pre-filled (parsing needs LLM) ----
   medication_started: {

@@ -5,12 +5,21 @@ import { MicrochipForm } from "./MicrochipForm";
 
 export default async function NewMicrochipPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ chipNumber?: string; occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
+
+  const defaults = {
+    chipNumber: sp.chipNumber ?? null,
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
 
   const boundAction = createMicrochipAction.bind(null, pet.publicToken);
 
@@ -32,7 +41,7 @@ export default async function NewMicrochipPage({
             completamos automáticamente.
           </p>
         </div>
-        <MicrochipForm action={boundAction} />
+        <MicrochipForm action={boundAction} defaults={defaults} />
       </div>
     </main>
   );

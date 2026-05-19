@@ -17,10 +17,13 @@ import { CheckinForm } from "./CheckinForm";
 
 export default async function PostAdoptionCheckinPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const access = await requirePetAccess(publicToken);
   if (!access.ok) {
     if (access.error === "Sesión expirada.") redirect("/login");
@@ -100,7 +103,7 @@ export default async function PostAdoptionCheckinPage({
             contales cómo está, sumá una foto si querés.
           </p>
         </div>
-        <CheckinForm action={boundAction} />
+        <CheckinForm action={boundAction} defaults={{ notes: sp.notes ?? null }} />
       </div>
     </main>
   );

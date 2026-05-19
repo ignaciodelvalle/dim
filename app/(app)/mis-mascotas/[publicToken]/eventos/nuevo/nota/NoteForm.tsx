@@ -16,7 +16,13 @@ const CATEGORIES = [
   { value: "otro", label: "Otro" },
 ];
 
-export function NoteForm({ action }: { action: FormAction }) {
+export function NoteForm({
+  action,
+  defaults,
+}: {
+  action: FormAction;
+  defaults?: { text: string | null; occurredAt: string | null };
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -34,6 +40,7 @@ export function NoteForm({ action }: { action: FormAction }) {
           name="text"
           rows={5}
           required
+          defaultValue={defaults?.text ?? ""}
           placeholder="¿Qué observaste?"
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
@@ -73,7 +80,7 @@ export function NoteForm({ action }: { action: FormAction }) {
           name="occurredAt"
           type="date"
           required
-          defaultValue={today}
+          defaultValue={defaults?.occurredAt ?? today}
           className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
         />
       </div>

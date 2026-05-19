@@ -5,12 +5,20 @@ import { SterilizationForm } from "./SterilizationForm";
 
 export default async function NewSterilizationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
+
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
 
   const boundAction = createSterilizationAction.bind(null, pet.publicToken);
 
@@ -31,7 +39,7 @@ export default async function NewSterilizationPage({
             Registrá el procedimiento de esterilización de {pet.name}.
           </p>
         </div>
-        <SterilizationForm action={boundAction} />
+        <SterilizationForm action={boundAction} defaults={defaults} />
       </div>
     </main>
   );

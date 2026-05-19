@@ -6,16 +6,24 @@ import { DeathRecordForm } from "./DeathRecordForm";
 
 export default async function NewDeathRecordPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
 
   if (pet.status === "deceased") {
     redirect(`/mis-mascotas/${pet.publicToken}`);
   }
+
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
 
   const boundAction = createDeathRecordAction.bind(null, pet.publicToken);
 
@@ -37,7 +45,7 @@ export default async function NewDeathRecordPage({
             <strong>fallecida</strong> y queda en el historial permanentemente.
           </p>
         </div>
-        <DeathRecordForm action={boundAction} species={pet.species} />
+        <DeathRecordForm action={boundAction} species={pet.species} defaults={defaults} />
       </div>
     </main>
   );

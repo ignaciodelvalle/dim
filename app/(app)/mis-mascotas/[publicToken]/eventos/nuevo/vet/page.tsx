@@ -5,12 +5,20 @@ import { VetVisitForm } from "./VetVisitForm";
 
 export default async function NewVetVisitPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
+
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
 
   const boundAction = createVetVisitAction.bind(null, pet.publicToken);
 
@@ -32,7 +40,7 @@ export default async function NewVetVisitPage({
             cargarlo después como evento separado.
           </p>
         </div>
-        <VetVisitForm action={boundAction} />
+        <VetVisitForm action={boundAction} defaults={defaults} />
       </div>
     </main>
   );
