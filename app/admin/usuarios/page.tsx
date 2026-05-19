@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
+import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { searchUsers } from "@/lib/admin-search";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
@@ -74,48 +75,51 @@ export default async function AdminUsuariosPage({
               : `Mostrando los primeros ${results.length} usuarios ordenados por rol y nombre.`}
         </p>
 
-        <ul className="space-y-2">
-          {results.map((u) => (
-            <li
-              key={u.id}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 space-y-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                    {u.displayName}
-                  </p>
-                  <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
-                    {u.id}
-                  </p>
+        <BulkRevokeList
+          items={results.map((u) => ({ id: u.id, label: `${u.displayName} (${u.role})`, raw: u }))}
+          targetKind="vet"
+          actorUserId={user.id}
+          isRevocable={(item) => (item as { raw: (typeof results)[number] }).raw.role === "vet"}
+          renderItem={(item) => {
+            const u = (item as { raw: (typeof results)[number] }).raw;
+            return (
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                      {u.displayName}
+                    </p>
+                    <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
+                      {u.id}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${ROLE_TONES[u.role] ?? ""}`}
+                  >
+                    {ROLE_LABELS[u.role] ?? u.role}
+                  </span>
                 </div>
-                <span
-                  className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${ROLE_TONES[u.role] ?? ""}`}
-                >
-                  {ROLE_LABELS[u.role] ?? u.role}
-                </span>
-              </div>
-
-              <ProposeUserActions
-                target={{ id: u.id, displayName: u.displayName, role: u.role }}
-                actorRole="admin"
-              />
-              {u.role === "vet" && (
-                <RevokeUserActions
-                  target={{
-                    id: u.id,
-                    displayName: u.displayName,
-                    matriculaJurisdiccion: u.matriculaJurisdiccion,
-                    role: u.role,
-                  }}
-                  actorUserId={user.id}
+                <ProposeUserActions
+                  target={{ id: u.id, displayName: u.displayName, role: u.role }}
                   actorRole="admin"
-                  jurisdictions={[]}
                 />
-              )}
-            </li>
-          ))}
-        </ul>
+                {u.role === "vet" && (
+                  <RevokeUserActions
+                    target={{
+                      id: u.id,
+                      displayName: u.displayName,
+                      matriculaJurisdiccion: u.matriculaJurisdiccion,
+                      role: u.role,
+                    }}
+                    actorUserId={user.id}
+                    actorRole="admin"
+                    jurisdictions={[]}
+                  />
+                )}
+              </div>
+            );
+          }}
+        />
 
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           <Link

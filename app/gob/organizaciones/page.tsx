@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
+import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { searchOrganizations } from "@/lib/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
@@ -67,51 +68,53 @@ export default async function OrganizacionesPage({
             : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
         </p>
 
-        <ul className="space-y-2">
-          {results.map((o) => (
-            <li
-              key={o.id}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 space-y-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                    {o.displayName}
-                  </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                    {o.legalName} · {ORG_TYPE_LABELS[o.orgType] ?? o.orgType}
-                    {o.cuit && ` · CUIT ${o.cuit}`}
-                  </p>
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-600">
-                    {o.jurisdictionLocality ?? "—"}, {o.jurisdictionProvince ?? "—"}
-                  </p>
+        <BulkRevokeList
+          items={results.map((o) => ({ id: o.id, label: o.displayName, raw: o }))}
+          targetKind="org"
+          actorUserId={user.id}
+          isRevocable={(item) => (item as { raw: (typeof results)[number] }).raw.verified}
+          renderItem={(item) => {
+            const o = (item as { raw: (typeof results)[number] }).raw;
+            return (
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                      {o.displayName}
+                    </p>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                      {o.legalName} · {ORG_TYPE_LABELS[o.orgType] ?? o.orgType}
+                      {o.cuit && ` · CUIT ${o.cuit}`}
+                    </p>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-600">
+                      {o.jurisdictionLocality ?? "—"}, {o.jurisdictionProvince ?? "—"}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {o.verified ? (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        Verificada
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                        Pendiente
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  {o.verified && (
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      Verificada
-                    </span>
-                  )}
-                  {!o.verified && (
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                      Pendiente
-                    </span>
-                  )}
-                </div>
+                <ProposeOrgActions org={o} />
+                {o.verified && (
+                  <RevokeOrgActions
+                    org={o}
+                    actorUserId={user.id}
+                    actorRole={profile.role}
+                    jurisdictions={jurisdictions}
+                  />
+                )}
               </div>
-
-              <ProposeOrgActions org={o} />
-              {o.verified && (
-                <RevokeOrgActions
-                  org={o}
-                  actorUserId={user.id}
-                  actorRole={profile.role}
-                  jurisdictions={jurisdictions}
-                />
-              )}
-            </li>
-          ))}
-        </ul>
+            );
+          }}
+        />
 
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           <Link
