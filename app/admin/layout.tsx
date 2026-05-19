@@ -97,6 +97,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Moderación
             </Link>
             <Link
+              href="/admin/casos"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Casos
+            </Link>
+            <Link
               href="/gob"
               className="text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
             >

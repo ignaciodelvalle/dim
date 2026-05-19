@@ -89,6 +89,12 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
               Maltrato
             </Link>
             <Link
+              href="/gob/casos"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Casos
+            </Link>
+            <Link
               href="/gob/historial"
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >

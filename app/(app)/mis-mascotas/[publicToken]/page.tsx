@@ -1,5 +1,6 @@
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
+import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import {
   appointments,
   attachments,
@@ -339,6 +340,12 @@ export default async function PetDetailPage({
         {pet.rabiesObservationStatus === "in_progress" && (
           <RabiesObservationBanner pet={pet} events={eventsWithAttachments} />
         )}
+
+        {/* Cases system (Fase E): surface open cases attached to this pet
+            above the libreta so the owner can jump to /casos/[publicCode]
+            from their pet profile. Renders nothing when there are no
+            open cases. */}
+        <PetOpenCasesSection petId={pet.id} />
 
         {/* Hero: photo + name + key facts */}
         <section className="flex items-start gap-5">
