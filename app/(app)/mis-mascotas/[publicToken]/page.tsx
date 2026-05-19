@@ -2,6 +2,8 @@ import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
+import { PpPCard } from "@/components/PpPCard";
+import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
 import {
   appointments,
   attachments,
@@ -375,6 +377,30 @@ export default async function PetDetailPage({
             open cases. */}
         <PetOpenCasesSection petId={pet.id} />
 
+        {/* Pet profile v2 §4.7 — PPP card (status legal público, Ley 4078). */}
+        {pet.potentiallyDangerousBreed && (
+          <PpPCard
+            petPublicToken={pet.publicToken}
+            breed={pet.breed}
+            events={eventsWithAttachments}
+            isTransit={isTransit}
+          />
+        )}
+
+        {/* Pet profile v2 §4.8 — Service dog credential card (Ley 26.858).
+            Only shown when credentialStatus='vigente' AND in_service. */}
+        {serviceDogRow &&
+          serviceDogRow.credentialStatus === "vigente" &&
+          serviceDogRow.inService && (
+            <ServiceDogCredentialCard
+              petPublicToken={pet.publicToken}
+              petName={pet.name}
+              microchipId={pet.microchipId}
+              serviceDog={serviceDogRow}
+              photoUrl={photoUrl}
+            />
+          )}
+
         {/* Hero: photo + name + key facts */}
         <section className="flex items-start gap-5">
           {photoUrl ? (
@@ -458,51 +484,8 @@ export default async function PetDetailPage({
           )}
         </section>
 
-        {pet.potentiallyDangerousBreed && (
-          <div className="p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 space-y-2">
-            <p className="text-xs text-amber-900 dark:text-amber-200">
-              Esta mascota está marcada como raza potencialmente peligrosa (Ley CABA 4078, Ley
-              Provincial 14.107). Recordá registrarla en el registro provincial correspondiente.
-            </p>
-            {(() => {
-              const latestAttestation = eventsWithAttachments.find(
-                (e) => e.eventType === "dangerous_breed_attested",
-              );
-              if (latestAttestation) {
-                return (
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}/historial`}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-100"
-                  >
-                    ✓ Atestación registrada — ver historial
-                  </Link>
-                );
-              }
-              // Transit custodians can't atestar — the legal PPP registry
-              // obligation belongs to the legal owner, not a caretaker.
-              if (isTransit) {
-                return (
-                  <button
-                    type="button"
-                    disabled
-                    title="Lo registra el dueño cuando aparezca"
-                    className="inline-block px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium text-amber-800 dark:text-amber-300 opacity-60 cursor-not-allowed"
-                  >
-                    Registrar atestación de raza peligrosa
-                  </button>
-                );
-              }
-              return (
-                <Link
-                  href={`/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`}
-                  className="inline-block px-3 py-1.5 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-xs font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
-                >
-                  Registrar atestación de raza peligrosa
-                </Link>
-              );
-            })()}
-          </div>
-        )}
+        {/* PPP atestación inline removed — moved into the new PpPCard
+            above the hero (pet profile v2 §4.7). */}
 
         {/* Action buttons */}
         <section className="flex flex-wrap gap-3">
