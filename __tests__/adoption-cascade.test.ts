@@ -1,0 +1,306 @@
+// Integration test for the auto-rejection cascade triggered by
+// finalizeAdoptionAction (spec adoption-listing-public Fase 5.5).
+//
+// Setup: 3 applicants postulan a la misma mascota. El refugio finaliza la
+// adopción para el applicant #1. Esperamos:
+//   - 1 adoption_finalized event para applicant #1 (su postulación queda
+//     "finalized_to_me" porque hay un adoption_finalized con adopter=ella).
+//   - 2 adoption_application_rejected events con auto_generated=true para
+//     applicants #2 y #3.
+//   - 2 notifications "adoption_application_closed" enviadas.
+//   - El applicant #1 no recibe un _rejected (no aplica).
+
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { and, eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(),
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
+import { submitAdoptionApplicationAction } from "@/app/actions/adoption-applications";
+import {
+  db,
+  notifications,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+} from "@/db";
+import { createClient } from "@/lib/supabase/server";
+
+const SUPABASE_URL = "http://127.0.0.1:54321";
+const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
+  auth: { persistSession: false },
+});
+
+const APPLICANT_1_EMAIL = "adopt-cascade-app1@dim-test.local";
+const APPLICANT_2_EMAIL = "adopt-cascade-app2@dim-test.local";
+const APPLICANT_3_EMAIL = "adopt-cascade-app3@dim-test.local";
+const COORD_EMAIL = "adopt-cascade-coord@dim-test.local";
+const PASS = "AdoptCascade_2026!";
+
+let applicant1Id: string;
+let applicant2Id: string;
+let applicant3Id: string;
+let coordUserId: string;
+let orgId: string;
+let orgToken: string;
+let petId: string;
+let petToken: string;
+
+function mockSessionAs(userId: string) {
+  vi.mocked(createClient).mockResolvedValue({
+    auth: {
+      getUser: async () => ({
+        data: { user: { id: userId } as unknown },
+        error: null,
+      }),
+    },
+    // biome-ignore lint/suspicious/noExplicitAny: minimal stub
+  } as any);
+}
+
+async function purgeUserByEmail(email: string) {
+  const { data } = await supabaseAdmin.auth.admin.listUsers();
+  const found = data?.users.find((u) => u.email === email);
+  const displayName = email.split("@")[0];
+  const orphans = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.displayName, displayName));
+  const ids = [
+    ...(found ? [found.id] : []),
+    ...orphans.map((o) => o.id).filter((id) => id !== found?.id),
+  ];
+  for (const uid of ids) {
+    await db.delete(notifications).where(eq(notifications.userId, uid));
+    await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
+    await db.delete(ownerships).where(eq(ownerships.ownerUserId, uid));
+    await db.delete(profiles).where(eq(profiles.id, uid));
+  }
+  if (found) await supabaseAdmin.auth.admin.deleteUser(found.id);
+}
+
+beforeAll(async () => {
+  for (const email of [APPLICANT_1_EMAIL, APPLICANT_2_EMAIL, APPLICANT_3_EMAIL, COORD_EMAIL]) {
+    await purgeUserByEmail(email);
+  }
+
+  const users: { email: string; ref: "app1" | "app2" | "app3" | "coord" }[] = [
+    { email: APPLICANT_1_EMAIL, ref: "app1" },
+    { email: APPLICANT_2_EMAIL, ref: "app2" },
+    { email: APPLICANT_3_EMAIL, ref: "app3" },
+    { email: COORD_EMAIL, ref: "coord" },
+  ];
+  for (const u of users) {
+    const r = await supabaseAdmin.auth.admin.createUser({
+      email: u.email,
+      password: PASS,
+      email_confirm: true,
+    });
+    if (r.error || !r.data.user) throw new Error(`createUser ${u.ref}: ${r.error?.message}`);
+    if (u.ref === "app1") applicant1Id = r.data.user.id;
+    if (u.ref === "app2") applicant2Id = r.data.user.id;
+    if (u.ref === "app3") applicant3Id = r.data.user.id;
+    if (u.ref === "coord") coordUserId = r.data.user.id;
+  }
+
+  // All applicants need a personal owner profile with DNI to be eligible
+  // as a non-stub adopter. Applicant1 specifically needs a verified DNI
+  // because finalizeAdoptionAction takes DNI as input.
+  await db
+    .update(profiles)
+    .set({
+      displayName: "Applicant One",
+      phone: "+541111111111",
+      dniNumber: "30000001",
+      dniVerified: true,
+      role: "owner",
+      accountType: "personal",
+    })
+    .where(eq(profiles.id, applicant1Id));
+  await db
+    .update(profiles)
+    .set({
+      displayName: "Applicant Two",
+      role: "owner",
+      accountType: "personal",
+    })
+    .where(eq(profiles.id, applicant2Id));
+  await db
+    .update(profiles)
+    .set({
+      displayName: "Applicant Three",
+      role: "owner",
+      accountType: "personal",
+    })
+    .where(eq(profiles.id, applicant3Id));
+  await db
+    .update(profiles)
+    .set({
+      displayName: "Cascade Coord",
+      role: "owner",
+      accountType: "personal",
+    })
+    .where(eq(profiles.id, coordUserId));
+
+  orgToken = "DIM-CASCADE-001";
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      publicToken: orgToken,
+      legalName: "Cascade Test Refugio SRL",
+      displayName: "Cascade Refugio",
+      orgType: "shelter",
+      email: "cascade@dim-test.local",
+      verified: true,
+    })
+    .returning();
+  orgId = org.id;
+
+  await db.insert(organizationMemberships).values({
+    organizationId: orgId,
+    userId: coordUserId,
+    role: "admin",
+    canWritePetEvents: true,
+  });
+
+  const now = new Date();
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: "DIM-CASC-PET1",
+      name: "Cascada",
+      species: "dog",
+      sex: "female",
+      potentiallyDangerousBreed: false,
+      adoptionListedAt: now,
+      adoptionEligible: true,
+      adoptionEligibilitySetAt: now,
+      inCustodyDispute: false,
+      rabiesObservationStatus: null,
+    })
+    .returning();
+  petId = pet.id;
+  petToken = pet.publicToken;
+
+  await db.insert(ownerships).values({
+    petId,
+    ownerOrganizationId: orgId,
+    role: "shelter_custody",
+    startedAt: now,
+  });
+});
+
+afterAll(async () => {
+  await db.delete(notifications).where(eq(notifications.relatedPetId, petId));
+  await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+    await tx.delete(pets).where(eq(pets.id, petId));
+  });
+  await db.delete(organizationMemberships).where(eq(organizationMemberships.organizationId, orgId));
+  await db.delete(organizations).where(eq(organizations.id, orgId));
+  for (const email of [APPLICANT_1_EMAIL, APPLICANT_2_EMAIL, APPLICANT_3_EMAIL, COORD_EMAIL]) {
+    await purgeUserByEmail(email);
+  }
+});
+
+describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
+  it("rejects other pending applications + notifies their applicants", async () => {
+    // 3 applicants postulan.
+    for (const userId of [applicant1Id, applicant2Id, applicant3Id]) {
+      mockSessionAs(userId);
+      const r = await submitAdoptionApplicationAction({
+        petPublicToken: petToken,
+        housingType: "casa_con_patio",
+        otherPets: null,
+        dailyRoutine: null,
+        notes: null,
+      });
+      expect("ok" in r && r.ok).toBe(true);
+    }
+
+    // Sanity: 3 submitted events.
+    const beforeFinalize = await db
+      .select({ type: petEvents.eventType })
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_submitted")),
+      );
+    expect(beforeFinalize).toHaveLength(3);
+
+    // Coord finalizes to applicant1 (using their verified DNI).
+    mockSessionAs(coordUserId);
+    const { finalizeAdoptionAction } = await import("@/app/actions/adoption");
+    const formData = new FormData();
+    formData.set("adopterDni", "30000001");
+    formData.set("adopterDisplayName", "Applicant One");
+    formData.set("adopterPhone", "+541111111111");
+    formData.set("followupMonths", "0");
+    formData.set("notes", "Cascade test finalize");
+    let redirectErr: unknown = null;
+    let returnValue: unknown = null;
+    try {
+      returnValue = await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
+    } catch (e) {
+      redirectErr = e;
+    }
+    if (!redirectErr) {
+      throw new Error(
+        `finalizeAdoptionAction returned instead of redirecting: ${JSON.stringify(returnValue)}`,
+      );
+    }
+
+    // 1 adoption_finalized event with adopter=applicant1.
+    const finalizedEvents = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_finalized")));
+    expect(finalizedEvents).toHaveLength(1);
+    const finalPayload = finalizedEvents[0].payload as { adopter_user_id: string };
+    expect(finalPayload.adopter_user_id).toBe(applicant1Id);
+
+    // 2 auto-rejection events, one each for applicant2 + applicant3.
+    const rejections = await db
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_rejected")),
+      );
+    expect(rejections).toHaveLength(2);
+    for (const r of rejections) {
+      const payload = r.payload as {
+        application_event_id: string;
+        reviewer_user_id: string;
+        reason: string;
+        auto_generated: boolean;
+      };
+      expect(payload.reason).toBe("another_application_finalized");
+      expect(payload.auto_generated).toBe(true);
+      expect(payload.reviewer_user_id).toBe(coordUserId);
+    }
+
+    // 2 notifications, one each to applicant2 + applicant3.
+    const closedNotifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.relatedPetId, petId),
+          eq(notifications.notificationType, "adoption_application_closed"),
+        ),
+      );
+    const closedRecipients = closedNotifs.map((n) => n.userId).sort();
+    expect(closedRecipients).toEqual([applicant2Id, applicant3Id].sort());
+  });
+});

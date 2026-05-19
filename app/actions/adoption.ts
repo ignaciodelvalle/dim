@@ -28,7 +28,7 @@ import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 // Post-adoption check-in windows (months after adoption_finalized). The
@@ -267,6 +267,62 @@ export async function finalizeAdoptionAction(
           payload,
         })
         .returning({ id: petEvents.id });
+
+      // Auto-rejection cascade for the other pending adoption applications
+      // (spec adoption-listing-public §12 Fase 5.5). When THIS adoption
+      // finalizes, every other applicant who had an unresolved _submitted
+      // for this pet gets a _rejected event with auto_generated=true plus
+      // an empathy notification. The applicant who ended up adopting (if
+      // they had a _submitted) is skipped because their thread is now
+      // "finalized_to_me" via adoption_finalized — no _rejected needed.
+      const pendingApplications = await tx.execute<{
+        application_id: string;
+        applicant_user_id: string;
+      }>(sql`
+        SELECT e.id::text AS application_id,
+               e.payload->>'applicant_user_id' AS applicant_user_id
+        FROM pet_events e
+        WHERE e.pet_id = ${pet.id}
+          AND e.event_type = 'adoption_application_submitted'
+          AND e.payload->>'applicant_user_id' <> ${adopterUserId}
+          AND NOT EXISTS (
+            SELECT 1 FROM pet_events d
+            WHERE d.pet_id = e.pet_id
+              AND d.event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+              AND d.payload->>'application_event_id' = e.id::text
+          )
+      `);
+
+      for (const app of pendingApplications) {
+        const rejectionPayload = validateEventPayload("adoption_application_rejected", {
+          application_event_id: app.application_id,
+          reviewer_user_id: user.id,
+          reason: "another_application_finalized",
+          auto_generated: true,
+          notes: null,
+        });
+        await tx.insert(petEvents).values({
+          petId: pet.id,
+          eventType: "adoption_application_rejected",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "shelter",
+          authorOrganizationId: organization.id,
+          authorVerified,
+          payload: rejectionPayload,
+        });
+        await tx.insert(notifications).values({
+          userId: app.applicant_user_id,
+          notificationType: "adoption_application_closed",
+          title: `${pet.name} encontró hogar`,
+          body: `${pet.name} fue adoptado/a por otra postulación. Sabemos que es decepcionante. ${organization.displayName} tiene otras mascotas en adopción.`,
+          severity: "info",
+          ctaLabel: "Ver otras en adopción",
+          ctaUrl: "/adoptar",
+          relatedPetId: pet.id,
+        });
+      }
 
       // Persist the contract attachment row with the explicit upfront UUID
       // so the event payload's contract_attachment_id is a real FK target.
