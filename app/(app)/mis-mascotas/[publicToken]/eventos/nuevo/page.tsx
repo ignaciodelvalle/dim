@@ -91,6 +91,15 @@ const LIBRETA_OPTIONS: EventOption[] = [
   },
 ];
 
+// Surfaced only for female pets of supported species (spec pregnancy-tracking PR2).
+const PREGNANCY_OPTION: EventOption = {
+  slug: "embarazo",
+  label: "Embarazo",
+  description: "Registro de gestación / cierre del embarazo",
+  enabled: true,
+};
+const PREGNANCY_SPECIES = new Set(["dog", "cat", "other"]);
+
 // Non-libreta entries — owner annotations, identity / status changes. Live
 // in /historial alongside the libreta but rendered as a secondary group here.
 const OTHER_OPTIONS: EventOption[] = [
@@ -172,6 +181,9 @@ export default async function PickEventPage({
             {LIBRETA_OPTIONS.map((option) => (
               <EventOptionRow key={option.slug} option={option} pet={pet} />
             ))}
+            {pet.sex === "female" && PREGNANCY_SPECIES.has(pet.species) && (
+              <EventOptionRow option={PREGNANCY_OPTION} pet={pet} />
+            )}
           </ul>
         </section>
 

@@ -458,6 +458,11 @@ export const pets = pgTable(
     // / completed_lost_to_followup). null when no active observation.
     // See lib/rabies-observation.ts → RabiesObservationStatus.
     rabiesObservationStatus: text("rabies_observation_status"),
+    // Denormalized pregnancy lifecycle flag — spec pregnancy-tracking PR4.
+    // Re-derivable from clinical_info_logged(sub_kind='pregnancy') events.
+    // Server actions recordPregnancyStartedAction / recordPregnancyEndedAction
+    // dual-write this. CHECK constraint in migration 0036 locks the value set.
+    pregnancyStatus: text("pregnancy_status"),
     // Adoption eligibility — spec foster-volunteers-pool v1.4 §17. NULL = not
     // determined yet; the surface "/adoptar" (future) lists only TRUE; the
     // org "no aptas" surface lists FALSE with the structured reason.

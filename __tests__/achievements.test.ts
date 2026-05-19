@@ -197,8 +197,10 @@ describe("lostAndFound achievement (A3)", () => {
   });
 });
 
-describe("iHadLitter (A4) + globetrotter (A5) — not_yet_computable", () => {
-  it("both surface in getNotYetComputableAchievements", () => {
+describe("globetrotter (A5) — not_yet_computable", () => {
+  // A4 (i_had_litter) moved to computable when the pregnancy-tracking
+  // feature landed; it now resolves to 'not_yet' with zero events.
+  it("globetrotter surfaces in getNotYetComputableAchievements", () => {
     const notYet = getNotYetComputableAchievements({
       pet: makePet(),
       events: [],
@@ -206,8 +208,8 @@ describe("iHadLitter (A4) + globetrotter (A5) — not_yet_computable", () => {
       cases: EMPTY_CASES,
     });
     const ids = notYet.map((n) => n.id).sort();
-    expect(ids).toContain("i_had_litter");
     expect(ids).toContain("globetrotter");
+    expect(ids).not.toContain("i_had_litter");
     for (const a of notYet) {
       expect(typeof a.missing).toBe("string");
       expect(a.missing.length).toBeGreaterThan(0);

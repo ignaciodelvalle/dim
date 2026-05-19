@@ -54,7 +54,23 @@ export function CaptureBox({
       return;
     }
 
-    const url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
+    // Sub-flows of a shared eventType (e.g. pregnancy started/ended over
+    // clinical_info_logged) opt into a routeOverride. When present, build
+    // the URL by appending slots as querystring; otherwise fall back to
+    // the registry deeplink.
+    let url: string | null;
+    if (match.routeOverride) {
+      const base = `/mis-mascotas/${petPublicToken}${match.routeOverride}`;
+      const sep = match.routeOverride.includes("?") ? "&" : "?";
+      const slotParams = new URLSearchParams();
+      for (const [k, v] of Object.entries(match.slots)) {
+        if (v !== "" && v !== undefined) slotParams.set(k, v);
+      }
+      const qs = slotParams.toString();
+      url = qs ? `${base}${sep}${qs}` : base;
+    } else {
+      url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
+    }
     if (!url) {
       // Registry entry missing for the matched event type. Shouldn't
       // happen because the matcher only emits types that we registered,

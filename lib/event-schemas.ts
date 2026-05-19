@@ -376,6 +376,7 @@ const clinicalInfoLogged = z
         "surgery",
         "allergy_detection",
         "disease_diagnosis",
+        "pregnancy",
         "other",
       ]),
       title: z.string(),
@@ -390,6 +391,15 @@ const clinicalInfoLogged = z
       lab_name: z.string().nullable().optional(),
       lab_report_reference: z.string().nullable().optional(),
       diagnosis_date: z.string().nullable().optional(),
+      // pregnancy sub_kind fields (spec pregnancy-tracking PR3 + PR5 + PR6).
+      pregnancy_phase: z.enum(["started", "ended"]).optional(),
+      weeks_at_diagnosis: z.number().int().min(0).max(12).nullable().optional(),
+      outcome: z
+        .enum(["live_birth", "stillbirth", "miscarriage", "termination", "unknown"])
+        .nullable()
+        .optional(),
+      live_births_count: z.number().int().min(0).max(20).nullable().optional(),
+      vet_consulted: z.string().nullable().optional(),
     }),
   )
   .strict()
@@ -413,6 +423,40 @@ const clinicalInfoLogged = z
           code: "custom",
           message: `disease_code '${p.disease_code}' is not in the catalog`,
           path: ["disease_code"],
+        });
+      }
+    }
+    if (p.sub_kind === "pregnancy") {
+      if (!p.pregnancy_phase) {
+        ctx.addIssue({
+          code: "custom",
+          message: "pregnancy_phase required when sub_kind='pregnancy'",
+          path: ["pregnancy_phase"],
+        });
+      }
+      if (p.pregnancy_phase === "ended" && !p.outcome) {
+        ctx.addIssue({
+          code: "custom",
+          message: "outcome required when pregnancy_phase='ended'",
+          path: ["outcome"],
+        });
+      }
+      if (p.pregnancy_phase === "started" && p.outcome) {
+        ctx.addIssue({
+          code: "custom",
+          message: "outcome not allowed when pregnancy_phase='started'",
+          path: ["outcome"],
+        });
+      }
+      if (
+        p.live_births_count !== null &&
+        p.live_births_count !== undefined &&
+        p.outcome !== "live_birth"
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "live_births_count only valid when outcome='live_birth'",
+          path: ["live_births_count"],
         });
       }
     }

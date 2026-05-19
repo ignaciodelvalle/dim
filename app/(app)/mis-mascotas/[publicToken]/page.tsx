@@ -3,6 +3,7 @@ import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PpPCard } from "@/components/PpPCard";
+import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
 import {
   appointments,
@@ -270,6 +271,47 @@ export default async function PetDetailPage({
     attachmentUrl: eventAttachmentUrls.get(e.id) ?? null,
   }));
 
+  // Pregnancy in-progress data (spec pregnancy-tracking §5.3). When the flag
+  // is set we surface a destacada card above the identity header. Re-derive
+  // started_at + weeks_at_diagnosis from the most recent
+  // clinical_info_logged(sub_kind='pregnancy', pregnancy_phase='started')
+  // event. Re-derivable beats denormalizing every payload field on `pets`.
+  const PREGNANCY_DURATION_WEEKS_BY_SPECIES: Record<string, number> = {
+    dog: 9,
+    cat: 9,
+    other: 9,
+  };
+  let pregnancyCardData: {
+    startedAt: Date;
+    weeksAtDiagnosis: number | null;
+    expectedBirthAt: Date;
+    lastClinicalAt: Date | null;
+  } | null = null;
+  if (pet.pregnancyStatus === "in_progress") {
+    const startedEvent = events.find((e) => {
+      if (e.eventType !== "clinical_info_logged") return false;
+      const p = e.payload as { sub_kind?: string; pregnancy_phase?: string };
+      return p.sub_kind === "pregnancy" && p.pregnancy_phase === "started";
+    });
+    if (startedEvent) {
+      const payload = startedEvent.payload as { weeks_at_diagnosis?: number | null };
+      const speciesWeeks = PREGNANCY_DURATION_WEEKS_BY_SPECIES[pet.species] ?? 9;
+      const remaining = Math.max(speciesWeeks - (payload.weeks_at_diagnosis ?? 0), 0);
+      const expectedBirthAt = new Date(
+        startedEvent.occurredAt.getTime() + remaining * 7 * 86400000,
+      );
+      const lastClinical = events.find(
+        (e) => e.eventType === "clinical_info_logged" && e.occurredAt > startedEvent.occurredAt,
+      );
+      pregnancyCardData = {
+        startedAt: startedEvent.occurredAt,
+        weeksAtDiagnosis: payload.weeks_at_diagnosis ?? null,
+        expectedBirthAt,
+        lastClinicalAt: lastClinical?.occurredAt ?? null,
+      };
+    }
+  }
+
   // Achievements (pet profile v2, spec 2026-05-19-pet-profile-v2-design §5).
   // Computed on-read from the already-loaded data — no schema migration,
   // no separate cache. The helper expects events ordered ascending; we
@@ -376,6 +418,19 @@ export default async function PetDetailPage({
             from their pet profile. Renders nothing when there are no
             open cases. */}
         <PetOpenCasesSection petId={pet.id} />
+
+        {/* Pet profile v2 §4.10 — Pregnancy in-progress card (spec
+            pregnancy-tracking §5.3). Surfaced above the identity header
+            so an active pregnancy is the first thing the owner sees. */}
+        {pregnancyCardData && (
+          <PregnancyInProgressCard
+            petPublicToken={pet.publicToken}
+            pregnancyStartedAt={pregnancyCardData.startedAt}
+            weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
+            expectedBirthAt={pregnancyCardData.expectedBirthAt}
+            lastClinicalAt={pregnancyCardData.lastClinicalAt}
+          />
+        )}
 
         {/* Pet profile v2 §4.7 — PPP card (status legal público, Ley 4078). */}
         {pet.potentiallyDangerousBreed && (

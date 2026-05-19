@@ -101,12 +101,32 @@ const iHadLitterAchievement: AchievementDef = {
   id: "i_had_litter",
   label: "Tuve crías",
   icon: "🐣",
-  description: "Soy mamá. Quedó registrado mi embarazo en mi libreta sanitaria.",
-  computeStatus: () => ({
-    kind: "not_yet_computable",
-    missing:
-      "Requiere un event_type 'litter_recorded' o un sub_kind 'pregnancy' en clinical_info_logged que el catálogo todavía no tiene.",
-  }),
+  description: "Soy mamá. Quedó registrado mi parto en la libreta sanitaria.",
+  computeStatus: ({ events }) => {
+    const liveBirths = events.filter((e) => {
+      if (e.eventType !== "clinical_info_logged") return false;
+      const p = e.payload as {
+        sub_kind?: string;
+        pregnancy_phase?: string;
+        outcome?: string;
+      };
+      return (
+        p.sub_kind === "pregnancy" && p.pregnancy_phase === "ended" && p.outcome === "live_birth"
+      );
+    });
+    if (liveBirths.length === 0) return { kind: "not_yet" };
+    const last = liveBirths[liveBirths.length - 1];
+    const totalLitterSize = liveBirths.reduce((sum, e) => {
+      const p = e.payload as { live_births_count?: number | null };
+      return sum + (p.live_births_count ?? 0);
+    }, 0);
+    return {
+      kind: "earned",
+      earnedAt: new Date(last.occurredAt),
+      count: liveBirths.length > 1 ? liveBirths.length : undefined,
+      detail: totalLitterSize > 0 ? `${totalLitterSize} crías totales` : undefined,
+    };
+  },
 };
 
 // ---------------------------------------------------------------------------

@@ -29,6 +29,13 @@ export type MatchResult = {
   slots: Record<string, string>;
   /** The first trigger pattern that matched. Useful for debugging + tests. */
   matchedPattern: string;
+  /**
+   * Optional route override. When present, the caller uses this instead
+   * of the registry's deeplink. Used by sub-flows of a single eventType
+   * (e.g. pregnancy started vs ended both share `clinical_info_logged`
+   * but live at `/eventos/nuevo/embarazo`).
+   */
+  routeOverride?: string;
 };
 
 type Pattern = {
@@ -42,6 +49,8 @@ type Pattern = {
    */
   slotExtractors?: Array<{ slot: string; pattern: RegExp; transform?: (m: string) => string }>;
   confidence?: ConfidenceLabel;
+  /** Static route override appended to `/mis-mascotas/{publicToken}`. */
+  routeOverride?: string;
 };
 
 // IMPORTANT: order matters. More specific patterns must come BEFORE
@@ -120,6 +129,49 @@ const PATTERNS: Pattern[] = [
     eventType: "incident_reported",
     triggers: [/\bmord/i, /\bataque\b/i, /\bse pele[oó]\b/i],
     confidence: "medium",
+  },
+
+  // Pregnancy — pair of started/ended sub-flows over clinical_info_logged.
+  // Patterns checked BEFORE the symptom catch-all so "perdió el embarazo"
+  // doesn't get classified as a generic symptom.
+  // The deeplinks route to /eventos/nuevo/embarazo because pregnancy has
+  // a dedicated form, not the generic clinical info form.
+  {
+    eventType: "clinical_info_logged",
+    triggers: [
+      /pari[óo]\s+(\d+)?/i,
+      /tuvo\s+(\d+)?\s*(cachorr|cr[íi]as|gatit)/i,
+      /nacieron\s+(\d+)?\s*(cachorr|cr[íi]as|gatit)/i,
+    ],
+    slotExtractors: [
+      {
+        slot: "liveBirthsCount",
+        pattern: /(?:pari[óo]|tuvo|nacieron)\s+(\d+)/i,
+      },
+    ],
+    confidence: "high",
+    routeOverride: "/eventos/nuevo/embarazo?phase=ended&outcome=live_birth",
+  },
+  {
+    eventType: "clinical_info_logged",
+    triggers: [
+      /perdi[óo]\s+(?:el\s+)?embarazo/i,
+      /tuvo\s+un\s+aborto/i,
+      /se\s+complic[óo]\s+el\s+embarazo/i,
+    ],
+    confidence: "high",
+    routeOverride: "/eventos/nuevo/embarazo?phase=ended&outcome=miscarriage",
+  },
+  {
+    eventType: "clinical_info_logged",
+    triggers: [
+      /est[áa]\s+embarazada/i,
+      /est[áa]\s+pre[ñn]ada/i,
+      /espera\s+(?:cachorr|cr[íi]as|gatit)/i,
+      /panza\s+de\s+embaraz/i,
+    ],
+    confidence: "high",
+    routeOverride: "/eventos/nuevo/embarazo?phase=started",
   },
 
   // Síntoma — vómitos, diarrea, fiebre, tos, etc. The catalog has 30+
@@ -328,6 +380,7 @@ export function matchCaptureIntent(text: string): MatchResult | null {
       confidence: pattern.confidence ?? "medium",
       slots,
       matchedPattern: firedTrigger,
+      ...(pattern.routeOverride ? { routeOverride: pattern.routeOverride } : {}),
     };
   }
 
