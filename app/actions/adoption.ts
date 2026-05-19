@@ -16,6 +16,7 @@
 import { randomUUID } from "node:crypto";
 import {
   attachments,
+  cases,
   db,
   notifications,
   ownerships,
@@ -25,6 +26,7 @@ import {
   reminders,
 } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
+import { closeCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -232,6 +234,26 @@ export async function finalizeAdoptionAction(
       // Close foster (if any).
       if (fosterRow) {
         await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterRow.id));
+        // Cases system (Fase D5): close the foster_placement case
+        // alongside the foster ownership row. Reason 'resolved' — the
+        // foster reached its happy outcome (adoption).
+        const [fosterCase] = await tx
+          .select({ id: cases.id })
+          .from(cases)
+          .where(
+            and(
+              eq(cases.primaryPetId, pet.id),
+              eq(cases.caseKind, "foster_placement"),
+              eq(cases.status, "open"),
+            ),
+          )
+          .limit(1);
+        if (fosterCase) {
+          await closeCase(
+            { caseId: fosterCase.id, reason: "resolved", closedByUserId: user.id },
+            tx,
+          );
+        }
       }
 
       // New owner row. The unique-active-owner index ensures we never create

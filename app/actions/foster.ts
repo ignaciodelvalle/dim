@@ -9,6 +9,7 @@
 // → "Foster is distinct from shelter_custody" — neither replaces the other.
 
 import {
+  cases,
   db,
   fosterVolunteers,
   notifications,
@@ -18,6 +19,7 @@ import {
   pets,
 } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
+import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -110,6 +112,23 @@ export async function assignFosterAction(
         startedAt: now,
       });
 
+      // Cases system (Fase D5): open a foster_placement case for this
+      // (pet, org) so the foster lifecycle has a first-class home in
+      // /casos. The foster_assigned event below carries case_id.
+      const caseRow = await openCase(
+        {
+          kind: "foster_placement",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          jurisdictionProvince: pet.jurisdictionProvince,
+          jurisdictionLocality: pet.jurisdictionLocality,
+          openedByUserId: user.id,
+          openedByOrganizationId: organization.id,
+          openedReason: `Foster placement assigned by ${organization.displayName}${expectedWeeks ? ` — expected ${expectedWeeks} weeks` : ""}`,
+        },
+        tx,
+      );
+
       const payload = validateEventPayload("foster_assigned", {
         foster_user_id: fosterUserId,
         expected_weeks: expectedWeeks,
@@ -125,6 +144,7 @@ export async function assignFosterAction(
         authorOrganizationId: organization.id,
         authorVerified,
         payload,
+        caseId: caseRow.id,
       });
 
       await tx.insert(notifications).values({
@@ -136,6 +156,7 @@ export async function assignFosterAction(
         ctaLabel: "Ver detalles",
         ctaUrl: "/mis-mascotas",
         relatedPetId: pet.id,
+        relatedCaseId: caseRow.id,
       });
     });
   } catch (err) {
@@ -222,6 +243,20 @@ export async function endFosterAction(
   const authorVerified = organization.verified;
   const fosterUserId = fosterRow.ownerUserId;
 
+  // Cases system (Fase D5): look up the open foster_placement so the
+  // foster_ended event carries case_id and the case closes alongside.
+  const [fosterCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "foster_placement"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   try {
     await db.transaction(async (tx) => {
       await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterRow.id));
@@ -241,7 +276,20 @@ export async function endFosterAction(
         authorOrganizationId: organization.id,
         authorVerified,
         payload,
+        caseId: fosterCase?.id ?? null,
       });
+
+      // Map foster_ended reason → case closed_reason. Returned and
+      // lost_unrecovered are real terminal outcomes; early_return is
+      // closed `cancelled` because the engagement didn't run its course.
+      if (fosterCase) {
+        const closedReason: "resolved" | "cancelled" =
+          reason === "early_return_by_foster" ? "cancelled" : "resolved";
+        await closeCase(
+          { caseId: fosterCase.id, reason: closedReason, closedByUserId: user.id },
+          tx,
+        );
+      }
 
       await tx.insert(notifications).values({
         userId: fosterUserId,

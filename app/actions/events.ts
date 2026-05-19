@@ -1555,6 +1555,21 @@ export async function createDeathRecordAction(
             isNull(ownerships.endedAt),
           ),
         );
+
+      // Cases system (Fase D5): find the open foster_placement (if any)
+      // so the cascade foster_ended carries case_id + the case closes.
+      const [fosterCaseForDeath] = await tx
+        .select({ id: cases.id })
+        .from(cases)
+        .where(
+          and(
+            eq(cases.primaryPetId, pet.id),
+            eq(cases.caseKind, "foster_placement"),
+            eq(cases.status, "open"),
+          ),
+        )
+        .limit(1);
+
       for (const f of activeFosters) {
         if (!f.ownerUserId) continue;
         await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, f.id));
@@ -1573,6 +1588,7 @@ export async function createDeathRecordAction(
           authorOrganizationId: eventAuthorship.authorOrganizationId,
           authorVerified: eventAuthorship.authorVerified,
           payload: endedPayload,
+          caseId: fosterCaseForDeath?.id ?? null,
         });
         await tx.insert(notifications).values({
           userId: f.ownerUserId,
@@ -1582,7 +1598,11 @@ export async function createDeathRecordAction(
           body: `Lamentamos avisarte que ${pet.name} falleció. Gracias por el tiempo que le diste como tránsito.`,
           relatedPetId: pet.id,
           relatedEventId: event.id,
+          relatedCaseId: fosterCaseForDeath?.id ?? null,
         });
+      }
+      if (fosterCaseForDeath && activeFosters.length > 0) {
+        await closeCase({ caseId: fosterCaseForDeath.id, reason: "resolved" }, tx);
       }
 
       // Death-during-observation hook (bite-rabies-observation spec D9).

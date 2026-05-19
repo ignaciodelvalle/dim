@@ -9,6 +9,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
+  cases,
   db,
   fosterProposals,
   fosterVolunteers,
@@ -325,6 +326,19 @@ export async function setCoFosterAllowedAction(
         allow_co_foster: input.allowCoFoster,
         foster_ownership_id: input.fosterOwnershipId,
       });
+      // Cases system (Fase D5): attach to the open foster_placement
+      // case for this pet so the toggle event lands in the case timeline.
+      const [fosterCase] = await tx
+        .select({ id: cases.id })
+        .from(cases)
+        .where(
+          and(
+            eq(cases.primaryPetId, ownership.petId),
+            eq(cases.caseKind, "foster_placement"),
+            eq(cases.status, "open"),
+          ),
+        )
+        .limit(1);
       await tx.insert(petEvents).values({
         petId: ownership.petId,
         eventType: "foster_co_foster_allowed",
@@ -335,6 +349,7 @@ export async function setCoFosterAllowedAction(
         authorOrganizationId: null,
         authorVerified: false,
         payload,
+        caseId: fosterCase?.id ?? null,
       });
 
       // Optional: notify orgs holding shelter_custody on this pet so they can
