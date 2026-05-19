@@ -1,11 +1,51 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { db, ownerships, petServiceDog, pets } from "@/db";
+import { type Pet, db, ownerships, petServiceDog, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { ServiceDogForm } from "./ServiceDogForm";
+
+// es-AR labels for non-owner ownership roles. Surfaces in the friendly
+// "owner-only" page so the visitor sees their actual relationship to
+// the pet instead of a bare 404.
+const ROLE_LABELS: Record<string, string> = {
+  shelter_custody: "custodia temporal (tránsito)",
+  foster: "tránsito formal",
+  co_owner: "co-dueño",
+  caretaker: "cuidador",
+};
+
+function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
+  const roleLabel = ROLE_LABELS[role] ?? role;
+  return (
+    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <div className="max-w-2xl mx-auto pt-10 space-y-4">
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}`}
+          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+        >
+          ← Volver al perfil
+        </Link>
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          Perro de asistencia · {pet.name}
+        </h1>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+          <p className="font-medium">
+            La credencial de perro de asistencia (Ley 26.858) se registra solo bajo dueño legal
+            permanente.
+          </p>
+          <p>
+            Tu vínculo actual con <strong>{pet.name}</strong> es de <strong>{roleLabel}</strong>.
+            Para registrar al animal como de asistencia, primero debe completarse la transferencia
+            legal de custodia (adopción finalizada o pase a dueño definitivo).
+          </p>
+        </div>
+      </div>
+    </main>
+  );
+}
 
 const STATUS_LABELS: Record<string, string> = {
   en_entrenamiento: "En entrenamiento",
@@ -31,21 +71,30 @@ export default async function AsistenciaPage({
   const { publicToken } = await params;
   const { user } = await requireUserOrRedirect();
 
-  const [petRow] = await db
-    .select({ pet: pets })
+  // Two-step access check (fix-service-dog-404 plan):
+  //   1. Resolve any active ownership the caller has on the pet. No row
+  //      means the pet is truly outside the caller's scope → bare 404.
+  //   2. If the role is anything other than `owner`, the page surfaces a
+  //      friendly explainer instead of a cryptic 404 — service-dog
+  //      credentials are owner-only by law (Ley 26.858), but fosters /
+  //      caretakers shouldn't be left guessing why the link broke.
+  const [accessRow] = await db
+    .select({ pet: pets, role: ownerships.role })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .where(
       and(
         eq(pets.publicToken, publicToken),
         eq(ownerships.ownerUserId, user.id),
-        eq(ownerships.role, "owner"),
         isNull(ownerships.endedAt),
       ),
     )
     .limit(1);
-  if (!petRow) notFound();
-  const pet = petRow.pet;
+  if (!accessRow) notFound();
+  if (accessRow.role !== "owner") {
+    return <FriendlyOwnerOnlyPage pet={accessRow.pet} role={accessRow.role} />;
+  }
+  const pet = accessRow.pet;
 
   const [serviceDog] = await db
     .select()

@@ -215,6 +215,11 @@ export default async function PetDetailPage({
   // relationship is surfaced via the org banner instead, so isTransit stays
   // false on that path.
   let isTransit = false;
+  // Active ownership role of the caller over this pet. Used to gate
+  // owner-only links like "Perro de asistencia" (Ley 26.858 is
+  // owner-only). Stays null when accessPath !== "owner" — org-mediated
+  // viewers aren't owners by definition.
+  let ownershipRole: string | null = null;
   if (accessPath === "owner") {
     const [ownerRow] = await db
       .select({ role: ownerships.role })
@@ -228,6 +233,7 @@ export default async function PetDetailPage({
       )
       .limit(1);
     isTransit = ownerRow?.role === "shelter_custody";
+    ownershipRole = ownerRow?.role ?? null;
   }
 
   // Event timeline, newest first. Self-scans are filtered at the DB level
@@ -536,7 +542,11 @@ export default async function PetDetailPage({
           </Link>
         </section>
 
-        {pet.species === "dog" && (
+        {/* Ley 26.858 ata la credencial al dueño legal permanente. Foster,
+            shelter_custody (vecino-en-tránsito), co_owner y caretaker no
+            pueden registrar la pet como de asistencia — el link se
+            esconde para ellos para evitar el 404 cryptico. */}
+        {pet.species === "dog" && ownershipRole === "owner" && (
           <section>
             <Link
               href={`/mis-mascotas/${pet.publicToken}/asistencia`}
