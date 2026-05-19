@@ -1,18 +1,22 @@
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
+import { AchievementsSection } from "@/components/AchievementsSection";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import {
   appointments,
   attachments,
+  cases,
   db,
   ownerships,
   petEvents,
+  petServiceDog,
   pets,
   reminders,
   serviceOfferings,
   timeSlots,
 } from "@/db";
 import type { Pet, Reminder } from "@/db";
+import { getEarnedAchievements } from "@/lib/achievements/catalog";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
@@ -264,6 +268,24 @@ export default async function PetDetailPage({
     attachmentUrl: eventAttachmentUrls.get(e.id) ?? null,
   }));
 
+  // Achievements (pet profile v2, spec 2026-05-19-pet-profile-v2-design §5).
+  // Computed on-read from the already-loaded data — no schema migration,
+  // no separate cache. The helper expects events ordered ascending; we
+  // hold the descending list for the timeline, so reverse here.
+  const [serviceDogRow] = await db
+    .select()
+    .from(petServiceDog)
+    .where(eq(petServiceDog.petId, pet.id))
+    .limit(1);
+  const allCases = await db.select().from(cases).where(eq(cases.primaryPetId, pet.id));
+  const eventsAsc = [...events].reverse();
+  const earnedAchievements = getEarnedAchievements({
+    pet,
+    events: eventsAsc,
+    serviceDog: serviceDogRow ?? null,
+    cases: allCases,
+  });
+
   // Deceased pets get the in-memoriam screen instead of the full detail page.
   if (pet.status === "deceased") {
     return (
@@ -379,6 +401,11 @@ export default async function PetDetailPage({
             </p>
           </div>
         </section>
+
+        {/* Pet profile v2 — Achievements POC. Renders chips for the 5
+            achievements defined in lib/achievements/catalog.ts; empty
+            state is a warm "tu mascota recién empieza" placeholder. */}
+        <AchievementsSection earned={earnedAchievements} />
 
         {/* Info grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
