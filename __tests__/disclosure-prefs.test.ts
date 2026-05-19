@@ -48,6 +48,23 @@ async function purgeUserByEmail(email: string) {
     ...orphans.map((o) => o.id).filter((id) => id !== found?.id),
   ];
   for (const uid of ids) {
+    // Cases system (Fase D3): cases.opened_by_user_id and
+    // closed_by_user_id reference profiles with RESTRICT semantics in
+    // migration 0033 — null them out before deleting the profile.
+    // Also break pet_events.recorded_by_user_id (cascade SET NULL would
+    // UPDATE pet_events and hit the append-only guard).
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      await tx.execute(
+        sql`UPDATE pet_events SET recorded_by_user_id = NULL WHERE recorded_by_user_id = ${uid}`,
+      );
+      await tx.execute(
+        sql`UPDATE cases SET opened_by_user_id = NULL WHERE opened_by_user_id = ${uid}`,
+      );
+      await tx.execute(
+        sql`UPDATE cases SET closed_by_user_id = NULL WHERE closed_by_user_id = ${uid}`,
+      );
+    });
     await db.delete(profiles).where(eq(profiles.id, uid));
   }
   if (found) await supabase.auth.admin.deleteUser(found.id);
@@ -73,6 +90,11 @@ afterAll(async () => {
   for (const petId of insertedPetIds) {
     await db.transaction(async (tx) => {
       await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      // Cases system (Fase D3): setPetLostWriter opens a lost_pet_episode
+      // case. pet_events.case_id RESTRICTs cases deletion → wipe events
+      // first, then the case row, then the pet.
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id = ${petId}`);
       await tx.delete(pets).where(eq(pets.id, petId));
     });
   }

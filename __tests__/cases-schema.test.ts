@@ -20,10 +20,24 @@ const insertedCaseIds: string[] = [];
 
 beforeAll(async () => {
   // Clean up any leftovers from previous test runs (failed inserts may
-  // have skipped the afterAll cleanup).
-  await db.execute(sql`DELETE FROM cases WHERE public_code LIKE 'CAS-%'`);
-  await db.execute(sql`DELETE FROM pets WHERE public_token IN ('DIM-CASES-PA1', 'DIM-CASES-PB1')`);
-  await db.execute(sql`DELETE FROM organizations WHERE public_token = 'DIM-CASES-ORG1'`);
+  // have skipped the afterAll cleanup). Scope the LIKE to this test's
+  // public_code prefixes — other suites also create CAS-* cases and
+  // we don't want to step on theirs.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+      SELECT id FROM pets WHERE public_token IN ('DIM-CASES-PA1', 'DIM-CASES-PB1')
+    )`);
+    await tx.execute(sql`DELETE FROM cases WHERE public_code LIKE 'CAS-CHK-%'
+      OR public_code LIKE 'CAS-OK-%' OR public_code LIKE 'CAS-DUP-%' OR public_code LIKE 'CAS-AA-%'`);
+    await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
+      SELECT id FROM pets WHERE public_token IN ('DIM-CASES-PA1', 'DIM-CASES-PB1')
+    )`);
+    await tx.execute(
+      sql`DELETE FROM pets WHERE public_token IN ('DIM-CASES-PA1', 'DIM-CASES-PB1')`,
+    );
+    await tx.execute(sql`DELETE FROM organizations WHERE public_token = 'DIM-CASES-ORG1'`);
+  });
 
   // Pet A (the main subject for most tests).
   const [petA] = await db
@@ -69,16 +83,37 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Clean up cases we inserted (Drizzle bypasses RLS via service role).
-  for (const id of insertedCaseIds) {
-    await db.execute(sql`DELETE FROM cases WHERE id = ${id}`);
-  }
-  await db.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
-    SELECT id FROM pets WHERE public_token = ${petTokenA} OR public_token = ${petTokenB}
-  )`);
-  await db.execute(
-    sql`DELETE FROM pets WHERE public_token = ${petTokenA} OR public_token = ${petTokenB}`,
-  );
-  await db.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
+  // Wrapped in a tx so pet_events.case_id RESTRICT can be relaxed via
+  // explicit ordering. Guard against undefined fixture state from a
+  // beforeAll that may have crashed mid-setup.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    for (const id of insertedCaseIds) {
+      await tx.execute(sql`DELETE FROM pet_events WHERE case_id = ${id}`);
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${id}`);
+    }
+    if (petTokenA) {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${petTokenA}
+      )`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${petTokenA}
+      )`);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${petTokenA}`);
+    }
+    if (petTokenB) {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${petTokenB}
+      )`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${petTokenB}
+      )`);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${petTokenB}`);
+    }
+    if (orgId) {
+      await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
+    }
+  });
 });
 
 async function insertCase(values: {

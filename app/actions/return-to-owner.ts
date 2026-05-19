@@ -25,6 +25,7 @@
 
 import {
   type PetEvent,
+  cases,
   db,
   notifications,
   organizations,
@@ -35,6 +36,7 @@ import {
 } from "@/db";
 import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
+import { closeCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 
@@ -161,6 +163,21 @@ export async function proposeReturnAsRefugioWriter({
   const now = new Date();
   let eventId = "";
 
+  // Cases system (Fase D3): look up the open lost_pet_episode so the
+  // proposal event attaches to it. Null when the pet was marked lost
+  // before D3 rolled out.
+  const [lostCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "lost_pet_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   try {
     await db.transaction(async (tx) => {
       // Fetch actor's display name for the notification body.
@@ -193,6 +210,7 @@ export async function proposeReturnAsRefugioWriter({
           authorRole: "shelter",
           authorOrganizationId: organization.id,
           payload,
+          caseId: lostCase?.id ?? null,
         })
         .returning({ id: petEvents.id });
 
@@ -207,6 +225,7 @@ export async function proposeReturnAsRefugioWriter({
         body: `${actorName} está listo para devolverte a ${pet.name}. Confirmá cuando la tengas físicamente.`,
         relatedPetId: pet.id,
         relatedEventId: proposalEvent.id,
+        relatedCaseId: lostCase?.id ?? null,
         ctaLabel: "Coordinar devolución",
         ctaUrl: `/mis-mascotas/${pet.publicToken}/devolucion`,
       });
@@ -284,6 +303,20 @@ export async function proposeReturnAsVecinoWriter({
   const now = new Date();
   let eventId = "";
 
+  // Cases system (Fase D3): attach proposal to the open lost_pet_episode
+  // when present (legacy lost pets have no case yet).
+  const [lostCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "lost_pet_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   try {
     await db.transaction(async (tx) => {
       const [actorProfile] = await tx
@@ -314,6 +347,7 @@ export async function proposeReturnAsVecinoWriter({
           recordedByUserId: userId,
           authorRole: "owner",
           payload,
+          caseId: lostCase?.id ?? null,
         })
         .returning({ id: petEvents.id });
 
@@ -327,6 +361,7 @@ export async function proposeReturnAsVecinoWriter({
         body: `${actorName} está listo para devolverte a ${pet.name}. Confirmá cuando la tengas físicamente.`,
         relatedPetId: pet.id,
         relatedEventId: proposalEvent.id,
+        relatedCaseId: lostCase?.id ?? null,
         ctaLabel: "Coordinar devolución",
         ctaUrl: `/mis-mascotas/${pet.publicToken}/devolucion`,
       });
@@ -512,6 +547,22 @@ export async function ownerAcceptReturnWriter({
   // HAPPY PATH: execute the transfer.
   // -------------------------------------------------------------------------
   const now = new Date();
+  // Cases system (Fase D3): look up the open lost_pet_episode so the
+  // transfer + cascade status_changed events attach to it AND the case
+  // closes with closed_reason='resolved'. Null for legacy pets without
+  // a case.
+  const [lostCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "lost_pet_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   try {
     await db.transaction(async (tx) => {
       // 1. Insert custody_transferred event.
@@ -537,6 +588,7 @@ export async function ownerAcceptReturnWriter({
           recordedByUserId: userId,
           authorRole: "owner",
           payload: transferPayload,
+          caseId: lostCase?.id ?? null,
         })
         .returning({ id: petEvents.id });
 
@@ -563,7 +615,14 @@ export async function ownerAcceptReturnWriter({
           recordedByUserId: userId,
           authorRole: "owner",
           payload: statusPayload,
+          caseId: lostCase?.id ?? null,
         });
+
+        // Close the lost_pet_episode case — the return-to-owner reaches
+        // the happy outcome.
+        if (lostCase) {
+          await closeCase({ caseId: lostCase.id, reason: "resolved", closedByUserId: userId }, tx);
+        }
       }
 
       // 4. Notify the actor.

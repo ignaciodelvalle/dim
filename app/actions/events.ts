@@ -24,7 +24,7 @@ import {
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { signalAuthorityReport } from "@/lib/authority";
-import { closeCase } from "@/lib/case-helpers";
+import { closeCase, openCase } from "@/lib/case-helpers";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -548,6 +548,22 @@ export async function setPetLostWriter(params: {
 
   try {
     await db.transaction(async (tx) => {
+      // Cases system (Fase D3): open a lost_pet_episode case atomically
+      // with the status_changed event so the timeline + dashboards can
+      // group everything related to this lost episode.
+      const caseRow = await openCase(
+        {
+          kind: "lost_pet_episode",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: petId,
+          jurisdictionProvince: petJurisdictionProvince,
+          jurisdictionLocality: petJurisdictionLocality,
+          openedByUserId: recordedByUserId,
+          openedReason: `Pet ${petPublicToken || petId} marked as lost by owner${reason ? ` — ${reason}` : ""}`,
+        },
+        tx,
+      );
+
       const eventPayload = validateEventPayload("status_changed", {
         from_status: fromStatus as "active" | "lost" | "deceased",
         to_status: "lost",
@@ -567,6 +583,7 @@ export async function setPetLostWriter(params: {
         locationLat: latVal,
         locationLng: lngVal,
         payload: eventPayload,
+        caseId: caseRow.id,
       });
 
       // Update status, all 5 disclosure preference columns, and (optionally)
@@ -1886,6 +1903,21 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
 
   const now = new Date();
 
+  // Cases system (Fase D3): look up the open lost_pet_episode so the
+  // status_changed event carries case_id and the case is closed in the
+  // same tx. Falls back to null for legacy rows.
+  const [lostCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "lost_pet_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   await db.transaction(async (tx) => {
     const eventPayload = validateEventPayload("status_changed", {
       from_status: "lost",
@@ -1899,8 +1931,12 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
       recordedByUserId: user.id,
       ...eventAuthorship,
       payload: eventPayload,
+      caseId: lostCase?.id ?? null,
     });
     await tx.update(pets).set({ status: "active", updatedAt: now }).where(eq(pets.id, pet.id));
+    if (lostCase) {
+      await closeCase({ caseId: lostCase.id, reason: "resolved", closedByUserId: user.id }, tx);
+    }
   });
 
   redirect(`/mis-mascotas/${publicToken}`);
