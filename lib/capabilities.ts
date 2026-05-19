@@ -113,6 +113,12 @@ export const CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
     description:
       "Registrar mordeduras presenciadas o conocidas clínicamente. Inicia automáticamente la observación antirrábica de 10 días (Decreto 4669/1973 PBA).",
   },
+  {
+    capability: "adoption.listing.manage",
+    label: "Publicar adopciones",
+    description:
+      "Publicar, pausar y editar el contenido de adopción que se ve en /adoptar (historia, requisitos, edad, talle, energía).",
+  },
 ] as const;
 
 const CAPABILITY_SET = new Set<string>(ORGANIZATION_CAPABILITIES);

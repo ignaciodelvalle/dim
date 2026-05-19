@@ -172,6 +172,10 @@ export const ORGANIZATION_CAPABILITIES = [
   // on a pet that is NOT in their custody (owner-held). The bite atomically
   // starts the 10-day rabies observation per Decreto 4669/1973 (PBA).
   "bite.report",
+  // Adoption listing management (spec adoption-listing-public v1.3 D2/D3).
+  // Toggles publicar/pausar and edits the shelter-curated copy that renders
+  // on /adoptar (story, requirements, buckets, tri-state checkboxes).
+  "adoption.listing.manage",
 ] as const;
 export type OrganizationCapability = (typeof ORGANIZATION_CAPABILITIES)[number];
 

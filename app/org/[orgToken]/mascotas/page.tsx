@@ -72,6 +72,7 @@ export default async function OrgMascotasPage({
   const canFinalizeAdoption = granted.has("adoption.finalize");
   const canTransfer = granted.has("custody.transfer");
   const canReturnToOwner = granted.has("custody.transfer");
+  const canManageAdoptionListing = granted.has("adoption.listing.manage");
   const canRead = granted.has("pet.read_held") || membership.role === "admin";
 
   if (!canRead) {
@@ -324,6 +325,18 @@ export default async function OrgMascotasPage({
                             : pet.adoptionEligible === false
                               ? "NO apta"
                               : "Elegibilidad"}
+                        </Link>
+                      )}
+                      {canManageAdoptionListing && ownershipRole === "shelter_custody" && (
+                        <Link
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoptar`}
+                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                        >
+                          {pet.adoptionListedAt && !pet.adoptionListingPausedAt
+                            ? "Publicada ✓"
+                            : pet.adoptionListedAt && pet.adoptionListingPausedAt
+                              ? "Pausada"
+                              : "Publicar"}
                         </Link>
                       )}
                       {canFinalizeAdoption && ownershipRole === "shelter_custody" && (

@@ -53,6 +53,7 @@ const NOTIFICATION_LABELS: Record<OrganizationCapability, string> = {
   "service_offering.create": "Publicar servicios",
   "appointment.manage": "Gestionar turnos",
   "bite.report": "Reportar mordeduras",
+  "adoption.listing.manage": "Publicar adopciones",
 };
 
 function labelFor(capability: OrganizationCapability): string {
