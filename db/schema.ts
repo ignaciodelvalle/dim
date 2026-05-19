@@ -947,6 +947,13 @@ export const welfareReports = pgTable(
     reporterUserId: uuid("reporter_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
+    // Org-side denuncia (spec 2026-05-19-org-abuse-investigation): set
+    // when a member of a verified org emits the report on behalf of
+    // the org. Drives priority sort in /gob/maltrato, audit attribution,
+    // and multi-source escalation when ≥2 orgs report the same subject.
+    reporterOrganizationId: uuid("reporter_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
     reporterContactEmail: text("reporter_contact_email"),
     reporterContactPhone: text("reporter_contact_phone"),
 
@@ -1300,6 +1307,10 @@ export const AUDIT_LOG_ACTIONS = [
   // either by passing it to triage (unflag) or confirming it as spam.
   "welfare_report_unflagged",
   "welfare_report_confirmed_spam",
+  // Org-side welfare denuncia (spec 2026-05-19-org-abuse-investigation).
+  // Emitted by `createOrgWelfareReportAction` to distinguish institutional
+  // reports from the anon/civil flow tracked by `welfare_report_submitted`.
+  "welfare_report_submitted_by_org",
   // Adoption application lifecycle (adoption-listing-public §11). Submitted
   // by the applicant via /adoptar/{token}/postular, approved/rejected by
   // admin/coordinator of the shelter from the org portal. The auto-rejected
