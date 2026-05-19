@@ -5,17 +5,29 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default async function MisMascotasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reclamado?: string }>;
+  searchParams: Promise<{ reclamado?: string; as?: string }>;
 }) {
   const { user } = await requireUserOrRedirect();
 
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   const params = await searchParams;
   const claimedCount = params.reclamado ? Number.parseInt(params.reclamado, 10) : null;
+
+  // Verified vets default-land at /pro (the professional portal). They can
+  // still operate as owners on their own pets via direct sub-paths
+  // (`/mis-mascotas/[token]/...`) or by explicitly passing `?as=owner`.
+  // Until `professional.provider` lands as a real profile-level capability
+  // (per AGENTS.md and lib/auth-guards.ts:138 swap-point), the gate is
+  // `role='vet' && matriculaVerified === true` — same predicate
+  // `requireVetProviderOrRedirect` uses.
+  if (profile?.role === "vet" && profile.matriculaVerified && params.as !== "owner") {
+    redirect("/pro");
+  }
 
   // Pets where this user is the *current* custodian (any role), with the
   // primary photo and the ownership role for the "En tránsito" badge.

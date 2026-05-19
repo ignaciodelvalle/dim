@@ -183,11 +183,13 @@ export default async function ProPortalPage() {
 
   return (
     <main className="min-h-screen bg-white dark:bg-neutral-950">
-      {/* Cross-portal nav rail */}
+      {/* Cross-portal nav rail. The owner-portal link uses ?as=owner so
+          the vet→/pro auto-redirect at /mis-mascotas doesn't bounce the
+          user back here. */}
       <nav className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-2">
         <div className="max-w-3xl mx-auto flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
           <Link
-            href="/mis-mascotas"
+            href="/mis-mascotas?as=owner"
             className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
           >
             Mis mascotas
@@ -380,7 +382,7 @@ export default async function ProPortalPage() {
             </h2>
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/mis-mascotas"
+                href="/mis-mascotas?as=owner"
                 className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
               >
                 Mis mascotas (como dueño)
