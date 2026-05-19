@@ -9,6 +9,11 @@
 import { attachments, db, ownerships, petEvents, petServiceDog, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
+import {
+  type PermanentCondition,
+  isPermanentCondition,
+  permanentConditionShortLabel,
+} from "@/lib/permanent-conditions";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
@@ -239,6 +244,17 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
+        {/* Permanent conditions — owner-toggled (disclose_conditions_publicly).
+            Helps a finder/vet/visitor understand the pet's lifelong needs at a
+            glance. Renders only when both the toggle is on AND there is at
+            least one condition recorded. */}
+        {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
+          <PermanentConditionsBanner
+            codes={pet.permanentConditions}
+            other={pet.permanentConditionsOther}
+          />
+        )}
+
         {/* Credential header */}
         <div className="text-center space-y-1">
           <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
@@ -438,5 +454,35 @@ function Badge({
       <p className="text-[10px] uppercase tracking-wider opacity-70">{label}</p>
       <p className="text-sm font-medium">{value}</p>
     </div>
+  );
+}
+
+function PermanentConditionsBanner({
+  codes,
+  other,
+}: {
+  codes: string[];
+  other: string | null;
+}) {
+  const safe: PermanentCondition[] = codes.filter(isPermanentCondition);
+  if (safe.length === 0) return null;
+  const hasOther = safe.includes("otra");
+  return (
+    <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 px-4 py-3 space-y-2">
+      <p className="text-xs uppercase tracking-wider font-semibold text-indigo-800 dark:text-indigo-200">
+        Necesidades especiales
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {safe.map((code) => (
+          <span
+            key={code}
+            className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-600 text-white"
+          >
+            {permanentConditionShortLabel(code)}
+          </span>
+        ))}
+      </div>
+      {hasOther && other && <p className="text-xs text-indigo-900 dark:text-indigo-200">{other}</p>}
+    </section>
   );
 }

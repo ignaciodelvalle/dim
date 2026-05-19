@@ -30,6 +30,11 @@ import { parseDateInput } from "@/lib/format";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
+import {
+  PERMANENT_CONDITIONS,
+  type PermanentCondition,
+  sanitizeConditionCodes,
+} from "@/lib/permanent-conditions";
 import { requirePetAccess } from "@/lib/pet-access";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
@@ -92,6 +97,9 @@ type ParsedPet = {
   potentiallyDangerousBreed: boolean;
   acquisitionMethod: AcquisitionMethod | null;
   emergencyInfoVisible: boolean;
+  permanentConditions: PermanentCondition[];
+  permanentConditionsOther: string | null;
+  discloseConditionsPublicly: boolean;
   // "owner" by default. "foster_in_transit" is the vecino-helps-stray case
   // (AGENTS.md → Organizations): the user is caretaking, not claiming
   // ownership. Drives ownerships.role at insert and gets recorded in the
@@ -208,11 +216,45 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
       acquisitionMethod,
       emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
+      permanentConditions: parsePermanentConditions(formData),
+      permanentConditionsOther:
+        String(formData.get("permanentConditionsOther") ?? "").trim() || null,
+      discloseConditionsPublicly: formData.get("discloseConditionsPublicly") === "true",
       custodyKind,
     },
     error: null,
   };
 }
+
+// PetForm submits the conditions as a CSV string. Sanitize via the
+// catalog to drop anything not currently recognized — this is the
+// defense for "form was opened on an older client".
+function parsePermanentConditions(formData: FormData): PermanentCondition[] {
+  const raw = String(formData.get("permanentConditions") ?? "");
+  const candidates = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return sanitizeConditionCodes(candidates);
+}
+
+// Drop disclose flag if no conditions were selected. The form does this
+// in the UI (disabled checkbox) but the server needs to defend too in
+// case the request was crafted by hand.
+function normalizeDisclose(parsed: ParsedPet): boolean {
+  if (parsed.permanentConditions.length === 0) return false;
+  return parsed.discloseConditionsPublicly;
+}
+
+// Defensive: when 'otra' is not selected, drop the free-text field.
+function normalizeConditionsOther(parsed: ParsedPet): string | null {
+  if (!parsed.permanentConditions.includes("otra")) return null;
+  return parsed.permanentConditionsOther;
+}
+
+// Re-export for the create/update write sites — keeps the helper local
+// to the file but explicit at call sites.
+export { PERMANENT_CONDITIONS };
 
 // ---------------------------------------------------------------------------
 // CREATE
@@ -325,6 +367,9 @@ export async function createPetAction(
           jurisdictionLocality: parsed.jurisdictionLocality,
           acquisitionMethod: parsed.acquisitionMethod,
           emergencyInfoVisible: parsed.emergencyInfoVisible,
+          permanentConditions: parsed.permanentConditions,
+          permanentConditionsOther: normalizeConditionsOther(parsed),
+          discloseConditionsPublicly: normalizeDisclose(parsed),
         })
         .returning();
 
@@ -619,6 +664,9 @@ export async function updatePetAction(
           jurisdictionLocality: parsed.jurisdictionLocality,
           acquisitionMethod: parsed.acquisitionMethod,
           emergencyInfoVisible: parsed.emergencyInfoVisible,
+          permanentConditions: parsed.permanentConditions,
+          permanentConditionsOther: normalizeConditionsOther(parsed),
+          discloseConditionsPublicly: normalizeDisclose(parsed),
           updatedAt: now,
         })
         .where(eq(pets.id, existingPet.id));

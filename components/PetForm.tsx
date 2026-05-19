@@ -16,6 +16,13 @@ import {
   MICROCHIP_LOCATIONS,
   TRAINING_LEVELS,
 } from "@/lib/lookups";
+import {
+  PERMANENT_CONDITIONS,
+  PERMANENT_CONDITION_GROUPS,
+  type PermanentCondition,
+  permanentConditionGroup,
+  permanentConditionLabel,
+} from "@/lib/permanent-conditions";
 import { useActionState, useMemo, useState } from "react";
 import { LocationFields } from "./LocationFields";
 
@@ -74,6 +81,31 @@ export function PetForm({
       ? "other_unlisted"
       : "";
   const [custodyKind, setCustodyKind] = useState<"owner" | "foster_in_transit">("owner");
+
+  // Permanent conditions state. We keep the array as a Set for cheap
+  // toggling; serialize to a CSV hidden field at submit time (one input
+  // per pattern would also work but a single hidden value is simpler to
+  // parse server-side).
+  const initialConditions: ReadonlyArray<PermanentCondition> =
+    (existingPet?.permanentConditions ?? []).filter((c): c is PermanentCondition =>
+      (PERMANENT_CONDITIONS as readonly string[]).includes(c),
+    ) ?? [];
+  const [conditions, setConditions] = useState<Set<PermanentCondition>>(new Set(initialConditions));
+  const [conditionsOther, setConditionsOther] = useState<string>(
+    existingPet?.permanentConditionsOther ?? "",
+  );
+  const [discloseConditions, setDiscloseConditions] = useState<boolean>(
+    existingPet?.discloseConditionsPublicly ?? false,
+  );
+
+  function toggleCondition(code: PermanentCondition) {
+    setConditions((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
 
   const breedOptions = useMemo(() => breedsForSpecies(species), [species]);
   const breedIsDangerous = isPotentiallyDangerousBreed(species, breed);
@@ -390,6 +422,96 @@ export function PetForm({
                 </span>
                 <span className="block text-xs text-neutral-600 dark:text-neutral-400">
                   Aparece en la página pública sin revelar tu nombre ni datos sensibles.
+                </span>
+              </span>
+            </label>
+          </Section>
+
+          {/* SECTION: Condiciones permanentes */}
+          <Section title="Condiciones permanentes" defaultOpen={isEdit && conditions.size > 0}>
+            <input
+              type="hidden"
+              name="permanentConditions"
+              value={Array.from(conditions).join(",")}
+            />
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
+              Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora,
+              médica). Esto ayuda a otros veterinarios y, si decidís compartirla, a personas que
+              quieran adoptarla.
+            </p>
+            <div className="space-y-3">
+              {PERMANENT_CONDITION_GROUPS.map((group) => {
+                const codes = PERMANENT_CONDITIONS.filter(
+                  (c) => permanentConditionGroup(c) === group.id,
+                );
+                if (codes.length === 0) return null;
+                return (
+                  <fieldset key={group.id} className="space-y-1">
+                    <legend className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                      {group.label}
+                    </legend>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                      {codes.map((code) => (
+                        <label
+                          key={code}
+                          className="flex items-center gap-2 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={conditions.has(code)}
+                            onChange={() => toggleCondition(code)}
+                            className="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+                          />
+                          <span className="text-neutral-800 dark:text-neutral-200">
+                            {permanentConditionLabel(code)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                );
+              })}
+            </div>
+            {conditions.has("otra") && (
+              <div className="mt-3 space-y-1">
+                <label
+                  htmlFor="permanentConditionsOther"
+                  className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+                >
+                  Especificá la condición
+                </label>
+                <input
+                  id="permanentConditionsOther"
+                  name="permanentConditionsOther"
+                  type="text"
+                  required={conditions.has("otra")}
+                  maxLength={120}
+                  value={conditionsOther}
+                  onChange={(e) => setConditionsOther(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                />
+              </div>
+            )}
+            {!conditions.has("otra") && (
+              <input type="hidden" name="permanentConditionsOther" value="" />
+            )}
+            <label className="mt-4 flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="discloseConditionsPublicly"
+                value="true"
+                checked={discloseConditions}
+                onChange={(e) => setDiscloseConditions(e.target.checked)}
+                disabled={conditions.size === 0}
+                className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50 disabled:opacity-50"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+                  Compartir estas condiciones en superficies públicas
+                </span>
+                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+                  Cuando está marcado, las condiciones se muestran en la credencial pública y en{" "}
+                  /adoptar si el refugio publica al pet en adopción. Sin esto quedan privadas.
                 </span>
               </span>
             </label>

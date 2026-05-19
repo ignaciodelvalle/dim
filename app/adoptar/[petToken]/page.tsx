@@ -4,6 +4,11 @@ import { notFound } from "next/navigation";
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
 import { sexLabel, speciesLabel } from "@/lib/format";
+import {
+  type PermanentCondition,
+  isPermanentCondition,
+  permanentConditionLabel,
+} from "@/lib/permanent-conditions";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
@@ -263,6 +268,36 @@ export default async function AdoptarFichaPage({
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* Permanent conditions — only if the caregiver opted to disclose */}
+        {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+              Necesidades especiales
+            </h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              {pet.name} convive con condiciones permanentes que es importante que conozcas antes de
+              postularte. El refugio puede contarte cómo cuidarla.
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {pet.permanentConditions
+                .filter(isPermanentCondition)
+                .map((code: PermanentCondition) => (
+                  <li
+                    key={code}
+                    className="text-sm font-medium px-3 py-1 rounded-full bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200"
+                  >
+                    {permanentConditionLabel(code)}
+                  </li>
+                ))}
+            </ul>
+            {pet.permanentConditions.includes("otra") && pet.permanentConditionsOther && (
+              <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                {pet.permanentConditionsOther}
+              </p>
+            )}
           </section>
         )}
 

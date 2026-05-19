@@ -480,6 +480,13 @@ export const pets = pgTable(
     adoptionNeedsYard: boolean("adoption_needs_yard"),
     adoptionFeeArs: integer("adoption_fee_ars"),
 
+    // Permanent conditions (migration 0031). text[] holds catalog codes
+    // from lib/permanent-conditions.ts; `permanent_conditions_other` is
+    // free text only meaningful when 'otra' is in the array.
+    permanentConditions: text("permanent_conditions").array().notNull().default(sql`'{}'::text[]`),
+    permanentConditionsOther: text("permanent_conditions_other"),
+    discloseConditionsPublicly: boolean("disclose_conditions_publicly").notNull().default(false),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
