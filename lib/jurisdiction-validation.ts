@@ -75,3 +75,35 @@ export async function resolveCanonicalJurisdictionById(input: {
   }
   return { province, locality };
 }
+
+// Soft variant — returns canonical names when the input resolves cleanly,
+// otherwise falls back to trimmed input as-is. Use this in actions that
+// historically accepted free-text (pet registration, intake, welfare,
+// service offerings, vet upgrade, org creation) where breaking on a
+// missing catalog entry would block legit submissions from places INDEC
+// hasn't catalogued yet (notably CABA barrios — INDEC treats CABA as one
+// locality; barrios live in `data.buenosaires.gob.ar`, pending import).
+//
+// Strict callers (admin-side `createInstitutionalAccountForAuthority` and
+// `assignGovtLocalityForAuthority`) keep using `resolveCanonicalJurisdiction`
+// directly so a govt assignment can never land off-catalog.
+export async function tryResolveCanonicalJurisdiction(input: {
+  rawProvince: string;
+  rawLocality: string;
+}): Promise<{ province: string; locality: string; canonical: boolean }> {
+  const rawProvince = input.rawProvince.trim();
+  const rawLocality = input.rawLocality.trim();
+  if (!rawProvince || !rawLocality) {
+    return { province: rawProvince, locality: rawLocality, canonical: false };
+  }
+  try {
+    const resolved = await resolveCanonicalJurisdiction({ rawProvince, rawLocality });
+    return {
+      province: resolved.province.name,
+      locality: resolved.locality.localityName,
+      canonical: true,
+    };
+  } catch {
+    return { province: rawProvince, locality: rawLocality, canonical: false };
+  }
+}

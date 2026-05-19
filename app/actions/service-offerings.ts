@@ -24,6 +24,7 @@ import { db, notifications, organizationMemberships, profiles, serviceOfferings 
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
+import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -122,8 +123,22 @@ async function createServiceOfferingWriter(
     return { error: "Tipo de servicio no reconocido." };
   }
 
+  // Canonicalize jurisdiction so the approval routing + future filters
+  // agree on the INDEC spelling. When both fields are empty (vet provider
+  // without operational scope yet), persist as null. When the lookup misses
+  // (uncatalogued locality), we keep the trimmed input — tolerant variant.
+  const canonical = await tryResolveCanonicalJurisdiction({
+    rawProvince: province,
+    rawLocality: locality,
+  });
+  const canonicalProvince: string | null = canonical.province || null;
+  const canonicalLocality: string | null = canonical.locality || null;
+
   const publicToken = generateOfferingToken();
-  const authorityIds = await findAuthoritiesForJurisdiction({ province, locality });
+  const authorityIds = await findAuthoritiesForJurisdiction({
+    province: canonicalProvince ?? "",
+    locality: canonicalLocality ?? "",
+  });
 
   try {
     await db.transaction(async (tx) => {
@@ -131,8 +146,8 @@ async function createServiceOfferingWriter(
         publicToken,
         organizationId: "organizationId" in provider ? provider.organizationId : null,
         providerUserId: "providerUserId" in provider ? provider.providerUserId : null,
-        jurisdictionProvince: province || null,
-        jurisdictionLocality: locality || null,
+        jurisdictionProvince: canonicalProvince,
+        jurisdictionLocality: canonicalLocality,
         serviceKind: parsed.data.serviceKind,
         displayName: parsed.data.displayName,
         description: parsed.data.description,

@@ -16,6 +16,7 @@ import { provinceByCode } from "@/lib/ar-provincias";
 import { signalWelfareReport } from "@/lib/authority";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -84,11 +85,22 @@ export async function createWelfareReportAction(
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
   const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
   // Shared LocationFields posts ISO codes for the province; resolve to the
-  // display name for storage. localityName is free text (no canonical lookup
-  // until gov dashboards need ar_localities).
-  const jurisdictionProvince =
-    provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null;
-  const jurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  // canonical display name for storage. The locality is then resolved against
+  // the INDEC catalog so the welfare-officer queue and govt scope matching
+  // anchor on the same spelling. Both are optional — anonymous denuncias
+  // about a general location may legitimately omit them.
+  const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
+  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
+  const provinceName = provinceByCode(provinceCodeRaw)?.name ?? null;
+  const jurisdictionCanonical = provinceName
+    ? await tryResolveCanonicalJurisdiction({
+        rawProvince: provinceName,
+        rawLocality: localityNameRaw,
+      })
+    : null;
+  const jurisdictionProvince: string | null = jurisdictionCanonical?.province || provinceName;
+  const jurisdictionLocality: string | null =
+    jurisdictionCanonical?.locality || localityNameRaw || null;
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();

@@ -15,9 +15,9 @@ Recommended order based on dependency chains and leverage. Each item is a Claude
 
 | Priority | Feature | Plan file | Why now |
 |----------|---------|-----------|---------|
-| 1 | **Welfare-officer queue** (`/gob/maltrato`) | (plan a escribir) | Las denuncias de maltrato (welfare_reports) hoy se acumulan sin que ninguna autoridad las vea. Spec pendiente — depende del modelo de scope govt. ~3 días cuando se escriba. |
-| 2 | **Validación canonical en 5 actions restantes** (follow-up de INDEC) | (mismo plan, Fase E ampliada) | Las 2 actions críticas govt ya validan canonical. Faltan: `requestVetUpgradeForUser`, `createOrganizationForUser`, service-offerings, welfare, events.ts. ~1 día. |
-| 3 | **Bulk revoke UI** (follow-up Fase 13) | (mismo plan, Fase 13) | Server action `bulkRevokeAction` ya implementado y testeado. Falta la UI para las 4 queues de revoke (`/admin/usuarios`, `/gob/usuarios`, `/admin/organizaciones`, `/gob/organizaciones`) — necesita attachment uploader bulk. ~½ día. |
+| 1 | **Validación canonical en 5 actions restantes** (follow-up de INDEC) | (mismo plan, Fase E ampliada) | Las 2 actions críticas govt ya validan canonical. Faltan: `requestVetUpgradeForUser`, `createOrganizationForUser`, service-offerings, welfare, events.ts. ~1 día. |
+| 2 | **Bulk revoke UI** (follow-up Fase 13) | (mismo plan, Fase 13) | Server action `bulkRevokeAction` ya implementado y testeado. Falta la UI para las 4 queues de revoke (`/admin/usuarios`, `/gob/usuarios`, `/admin/organizaciones`, `/gob/organizaciones`) — necesita attachment uploader bulk. ~½ día. |
+| 3 | **Welfare moderation queue** (auto-flag anónimas spam) | (plan a escribir) | Las denuncias anónimas hoy entran directo al queue triage. Falta layer de moderation para auto-flag patrones de spam/abuse. Plan separado. ~1 día. |
 | 4 | **CABA barrios import** (follow-up INDEC) | (mismo plan que INDEC) | INDEC trata CABA como 1 sola localidad. Importar barrios de `data.buenosaires.gob.ar` con `source='caba_open_data'`. ~½ día. |
 | 5 | **Adoption listing public** (`/adoptar`) | (plan a escribir post-OK del spec v1.3) | 21 decisiones cerradas + cross-spec guards. 6 fases ~1.5 semanas. |
 | 6 | **Physical tag** (`/t/[serial]`) | (plan a escribir post-OK del spec v1.0) | Chapa identificadora física que cuelga del collar. Spec con preguntas abiertas en §15 (material, fabricante, auto-revoke on death). |

@@ -27,6 +27,7 @@ import { isPotentiallyDangerousBreed } from "@/lib/breeds";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { requirePetAccess } from "@/lib/pet-access";
@@ -229,6 +230,18 @@ export async function createPetAction(
 
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
+
+  // Canonicalize jurisdiction against the INDEC catalog when it resolves;
+  // on a miss we keep the trimmed input so registrations from uncatalogued
+  // localities (CABA barrios pending import, etc.) still land.
+  if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
+    const canonical = await tryResolveCanonicalJurisdiction({
+      rawProvince: parsed.jurisdictionProvince,
+      rawLocality: parsed.jurisdictionLocality,
+    });
+    parsed.jurisdictionProvince = canonical.province;
+    parsed.jurisdictionLocality = canonical.locality;
+  }
 
   // Lost & Found Fase 7 — validate chip format (ISO 11784/11785, 15 digits).
   // Applied whenever a chip number is provided, regardless of acquisition method,
@@ -544,6 +557,16 @@ export async function updatePetAction(
 
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
+
+  // Canonicalize jurisdiction (tolerant — same posture as createPetAction).
+  if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
+    const canonical = await tryResolveCanonicalJurisdiction({
+      rawProvince: parsed.jurisdictionProvince,
+      rawLocality: parsed.jurisdictionLocality,
+    });
+    parsed.jurisdictionProvince = canonical.province;
+    parsed.jurisdictionLocality = canonical.locality;
+  }
 
   const photoFile = formData.get("photo") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
