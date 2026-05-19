@@ -139,6 +139,14 @@ export const VET_INDIVIDUAL_IMPLICIT_CAPS: readonly OrganizationCapability[] = [
   "intake.create",
 ] as const;
 
+// Cross-org transfer capabilities are auto-implicit for coordinator + admin
+// roles per spec 2026-05-19-cross-org-transfer-ux CT9. They can still be
+// granted explicitly to other roles via the standard approval flow.
+const COORDINATOR_IMPLICIT_CAPS: readonly OrganizationCapability[] = [
+  "org.transfer.propose",
+  "org.transfer.accept",
+] as const;
+
 export type ActiveMembership = {
   membership: OrganizationMembership;
   organization: Organization;
@@ -182,6 +190,11 @@ export async function getGrantedCapabilities(
   }
   if (membership.role === "vet_individual") {
     for (const cap of VET_INDIVIDUAL_IMPLICIT_CAPS) set.add(cap);
+  }
+  // Coordinator role gets the cross-org transfer capabilities implicitly
+  // (CT9). admin already has them via the all-caps grant above.
+  if (membership.role === "coordinator") {
+    for (const cap of COORDINATOR_IMPLICIT_CAPS) set.add(cap);
   }
   return set;
 }

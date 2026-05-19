@@ -10,6 +10,7 @@ import { adoptionApplicationLifecycle } from "./adoption-application";
 import { adoptionListingLifecycle } from "./adoption-listing";
 import { biteIncidentLifecycle } from "./bite-incident";
 import { custodyDisputeLifecycle } from "./custody-dispute";
+import { custodyTransferHandshakeLifecycle } from "./custody-transfer-handshake";
 import { fosterPlacementLifecycle } from "./foster-placement";
 import { lostPetEpisodeLifecycle } from "./lost-pet-episode";
 import type { CaseLifecycle } from "./types";
@@ -25,6 +26,7 @@ const LIFECYCLES: Partial<Record<CaseKind, CaseLifecycle>> = {
   adoption_application: adoptionApplicationLifecycle,
   custody_dispute: custodyDisputeLifecycle,
   foster_placement: fosterPlacementLifecycle,
+  custody_transfer_handshake: custodyTransferHandshakeLifecycle,
   // Deferred kinds have no lifecycle declaration. getLifecycle returns null.
 };
 

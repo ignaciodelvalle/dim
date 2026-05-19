@@ -38,6 +38,9 @@ export const V1_CASE_KINDS: readonly CaseKind[] = [
   "adoption_application",
   "custody_dispute",
   "foster_placement",
+  // Activated in spec 2026-05-19-cross-org-transfer-ux-design.
+  // Previously deferred (per attachment spec §6).
+  "custody_transfer_handshake",
 ];
 
 export function isCaseKind(value: string): value is CaseKind {

@@ -176,6 +176,13 @@ export const ORGANIZATION_CAPABILITIES = [
   // Toggles publicar/pausar and edits the shelter-curated copy that renders
   // on /adoptar (story, requirements, buckets, tri-state checkboxes).
   "adoption.listing.manage",
+  // Cross-org transfer handshake (spec 2026-05-19-cross-org-transfer-ux).
+  // `propose` lets the sender open a custody_transfer_proposed; `accept`
+  // lets the receiver finalize the custody_transferred + ownership flip.
+  // CT9 says these are auto-implicit for admin/coordinator roles but the
+  // grant table still applies for explicit grants to member/volunteer.
+  "org.transfer.propose",
+  "org.transfer.accept",
 ] as const;
 export type OrganizationCapability = (typeof ORGANIZATION_CAPABILITIES)[number];
 
@@ -1311,6 +1318,13 @@ export const AUDIT_LOG_ACTIONS = [
   // Emitted by `createOrgWelfareReportAction` to distinguish institutional
   // reports from the anon/civil flow tracked by `welfare_report_submitted`.
   "welfare_report_submitted_by_org",
+  // Cross-org transfer handshake (spec 2026-05-19-cross-org-transfer-ux).
+  // The handshake lifecycle is two-phase: propose → accept/reject/cancel.
+  "cross_org_transfer_proposed",
+  "cross_org_transfer_accepted",
+  "cross_org_transfer_rejected",
+  "cross_org_transfer_cancelled_by_sender",
+  "cross_org_transfer_auto_expired",
   // Adoption application lifecycle (adoption-listing-public §11). Submitted
   // by the applicant via /adoptar/{token}/postular, approved/rejected by
   // admin/coordinator of the shelter from the org portal. The auto-rejected

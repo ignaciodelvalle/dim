@@ -753,6 +753,14 @@ const custodyTransferReason = z.enum([
   "org_to_org_handoff",
   "return_to_original_owner",
   "citizen_to_org_handoff",
+  // Cross-org transfer specific reasons (spec
+  // 2026-05-19-cross-org-transfer-ux-design CT4). Used by the
+  // refugio→refugio handshake flow.
+  "space_constraint",
+  "specialization_needed",
+  "network_redistribution",
+  "shelter_closing",
+  "post_adoption_failed_return",
   "other",
 ]);
 
