@@ -1,12 +1,16 @@
 "use client";
 
-// MapLibre + OpenStreetMap tile renderer for event detail. Loaded via
-// next/dynamic from the server page (Next 15 forbids `ssr:false` in server
-// components). Because the heavy `maplibre-gl` runtime is imported inside
-// the useEffect below, it never participates in SSR; the server-rendered
-// output is just the loading skeleton from the dynamic() wrapper, and the
-// JS chunk is only fetched on the client when this component mounts. The
-// event detail page itself renders the rest of its content without JS.
+// MapLibre + OpenStreetMap tile renderer. Loaded via next/dynamic from
+// server pages (Next 15 forbids `ssr:false` in server components). Because
+// the heavy `maplibre-gl` runtime is imported inside the useEffect below,
+// it never participates in SSR; the server-rendered output is just the
+// loading skeleton from the dynamic() wrapper, and the JS chunk is only
+// fetched on the client when this component mounts.
+//
+// Consumed by:
+//   - app/(app)/mis-mascotas/[publicToken]/eventos/[eventId] — pet event detail
+//   - app/(app)/denuncias/[id]                                — welfare report authed
+//   - app/denuncias/codigo/[code]                             — welfare report anon
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -17,21 +21,17 @@ type Props = {
   lng: number;
 };
 
-export default function EventMap({ lat, lng }: Props) {
+export default function LocationMap({ lat, lng }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let map: MapLibreMap | null = null;
     let cancelled = false;
     (async () => {
-      // Dynamic import so MapLibre only loads at view time. The CSS is already
-      // included by the static `import` above (Next/Webpack hoists side-effects).
       const maplibregl = (await import("maplibre-gl")).default;
       if (cancelled || !containerRef.current) return;
       map = new maplibregl.Map({
         container: containerRef.current,
-        // Free, no-token OSM raster style. Suffices for v1 — when we add radius
-        // queries we can swap to a vector style without changing this file.
         style: {
           version: 8,
           sources: {

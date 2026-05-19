@@ -673,14 +673,112 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - **Authorized actors (vet portal, gov portal, when they exist) see PII within their legitimate scope only**, gated by Postgres Row Level Security. The data layer enforces tier visibility, not just the app code.
 - **Owner-facing RLS lives in `db/rls.sql`.** It enables RLS on the seven core tables (`profiles`, `pets`, `ownerships`, `pet_events`, `reminders`, `attachments`, `notifications`) and locks every PostgREST read/write to the authenticated owner. `pet_events` has no UPDATE or DELETE policy — the append-only rule (`AGENTS.md → Core principles #2`) is enforced both by code discipline and by RLS. Apply via Supabase Studio (same pattern as `db/welfare_rls.sql` and `db/organizations_rls.sql`); do not use `pnpm db:push`, which would propose dropping unmodeled policies. Server-side reads via Drizzle bypass RLS by design — the public credential page at `/p/{public_token}` continues to work because its server component goes through Drizzle, not supabase-js. Verify the policies via `pnpm rls:smoke`, which runs two test accounts against PostgREST and asserts isolation end-to-end.
 
-## v1 screens
+## Feature inventory
 
-1. **Signup** — email/password + "Connect with Mi Argentina" placeholder; *immediately* collects first pet profile (photo, name, species, base info) in same flow
-2. **Login** — email/password + Mi Argentina placeholder
-3. **Pet List** — grid of owner's pets (photo + name), tappable
-4. **Pet Profile** — info panel + event timeline
-5. **Event Detail** — full event info, geolocation if available
-6. **Public Credential** — Tier 0 view at `/p/{public_token}`
+Lectura rápida de qué hace DIM hoy, qué está spec'd y pendiente de ejecución, y qué queda como pregunta abierta. Es la respuesta canónica a "¿existe X?" antes de asumir o construir desde cero. Cuando una feature lande o cambie de status, actualizar esta tabla en el mismo PR.
+
+Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar · 🟡 spec only (falta plan) · ⚪ idea / open question.
+
+### Owner-facing (PWA principal)
+
+| Estado | Feature | Ruta / surface |
+|---|---|---|
+| ✅ | Signup con primera-mascota inline + Mi Argentina placeholder | `/signup` |
+| ✅ | Login (email/password + Mi Argentina placeholder) | `/login` |
+| ✅ | Lista de mascotas | `/mis-mascotas` |
+| ✅ | Pet profile + event timeline | `/mis-mascotas/[publicToken]` |
+| ✅ | Event detail con mapa de OSM cuando hay coords | `/mis-mascotas/[publicToken]/eventos/[eventId]` |
+| ✅ | Libreta sanitaria (vista agrupada + cronológica + print) | `/mis-mascotas/[publicToken]/libreta` |
+| ✅ | Tier-2 shareable libreta vía share token revocable | `/libreta/compartir/[shareToken]` |
+| ✅ | Public credential Tier 0/0+/1 con disclosure prefs owner-controlled | `/p/[publicToken]` |
+| ✅ | Marcar perdida + enriched description para pets sin chip | `/mis-mascotas/[publicToken]/perdida` |
+| ✅ | Marcar encontrada / coordinar devolución refugio→owner | `/mis-mascotas/[publicToken]/devolucion` |
+| ✅ | Vecino-en-tránsito (custody flow para vecino con stray) | `/mis-mascotas/nueva?custodyKind=transito` |
+| ✅ | Reservar turnos en campaigns/clinics, ver agenda propia | `/turnos/buscar` + `/mis-mascotas/[publicToken]/turnos` |
+| ✅ | Form de event-capture URL-prefill (compat con futuro agente conversacional) | `/mis-mascotas/[publicToken]/eventos/nuevo/[type]` |
+| 🟢 | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2, plan pendiente) |
+| 🟢 | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4, plan listo) |
+
+### Welfare denuncias (Ley 14.346)
+
+| Estado | Feature | Ruta / surface |
+|---|---|---|
+| ✅ | Form público de denuncia (anonymous-capable, 5 attachments × 25MB, 9 kinds, 4 severidades) | `/denuncias/nueva` |
+| ✅ | Tracking anónimo via reference code `DEN-XXXX-XXXX` | `/denuncias/codigo/[code]` |
+| ✅ | Lista de mis denuncias (autenticado) | `/denuncias/mias` y `/denuncias/[id]` |
+| ✅ | Bridge a pet_events (`maltreatment_reported`, `abandonment_reported`, `symptom_observed`) cuando subject es registered pet | server-side en `app/actions/welfare.ts` |
+| 🟢 | Bug fix: location bridge a pet_event + mapa en detail page denuncia + rate-limit anon | plan `2026-05-18-welfare-reports-polish.md` |
+| ⚪ | Welfare-officer queue para triagear casos | `/gob/maltrato` (no spec'd, gap operativo principal) |
+| ⚪ | Moderation queue para denuncias anónimas auto-flagged | `/admin/maltrato/moderacion` |
+| ⚪ | Export template a fiscalía MPF CABA (Ley 14.346 pipeline) | — |
+
+### Organizations (refugios, clinics, rescue networks, sanitary authorities)
+
+| Estado | Feature | Ruta / surface |
+|---|---|---|
+| ✅ | Org portal — intake, foster, custody, adoption, scheduling, member management | `/org/[orgToken]/*` |
+| ✅ | Intake (new pet) + transfer-in con microchip cross-check | `/org/[orgToken]/intake` |
+| ✅ | Foster assign / end (member-based) | dentro de `/org/[orgToken]/mascotas/[petToken]` |
+| ✅ | Custody transfer org→org (two-phase: propose / accept / cancel) | `/org/[orgToken]/transferencias` |
+| ✅ | Adoption pipeline completo (submitted/reviewed/approved/rejected/finalized/revoked) | `/org/[orgToken]/adopciones` |
+| ✅ | Post-adoption check-ins | `/org/[orgToken]/checkins` |
+| ✅ | Service offerings + scheduling con materialización vía cron | `/org/[orgToken]/servicios` |
+| ✅ | Coverage zones para targeting de lost-pet broadcast | `/org/[orgToken]/cobertura` |
+| ✅ | Members + capability grants | `/org/[orgToken]/miembros` |
+| 🟢 | Surface unificado de mascotas en tránsito (member + voluntary pool + vecino) | `/org/[orgToken]/transitos` (parte del plan foster pool) |
+| 🟢 | Listado de pets no aptas para adopción (con razón estructurada) | `/org/[orgToken]/pets/no-aptas` (parte del plan foster pool) |
+| ⚪ | Bulk operations para refugios high-capacity (200+ animales) | — |
+
+### Surveillance & health
+
+| Estado | Feature | Surface / mecanismo |
+|---|---|---|
+| ✅ | Symptom-disease surveillance (matcher fuzzy → reportable diseases → outbreak signal silent a govt) | server-side, sin UI directa al owner |
+| ✅ | Bite-rabies observation 10-day (Ley CABA + Decreto PBA) con auto-close + escalation hooks | `/admin/observaciones/[publicToken]` |
+| ✅ | Cron de cierre automático de observaciones | `/api/cron/close-rabies-observations` |
+| ⚪ | Vaccination-due warning al owner (UX feature, NO compliance requirement) | — |
+
+### Professional & vet
+
+| Estado | Feature | Ruta / surface |
+|---|---|---|
+| ✅ | Vet con membership en org puede emitir eventos clínicos | dentro de `/org/[orgToken]` |
+| 🟡 | `/pro` portal para vet independiente (servicios + agenda) | spec implícita en health-campaigns; route pendiente |
+
+### Admin & govt
+
+| Estado | Feature | Ruta / surface |
+|---|---|---|
+| ✅ | Admin surface básico (orgs + vet upgrades review) | `/admin/*` parcial |
+| 🟡 | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`), plan parcial existe |
+| ⚪ | `/gob` portal scope-bound por localidad | parte de admin page spec |
+| ⚪ | Government dashboards (sanitary / analyst / welfare officer) | proyecciones sobre event log, no UI |
+
+### Identity & legal
+
+| Estado | Feature | Pendiente |
+|---|---|---|
+| ✅ | Microchip implant event + tracking (`microchip_implanted`) | — |
+| 🟡 | Dangerous breed (PPP) registry support — Ley CABA 4078 / Prov 14.107 | flag + attestation event + export provincial |
+| ⚪ | Disposition method en `death_recorded` — Ley CABA 5470 | payload field |
+| ⚪ | Acquisition method en `pet_registered` — EAH 2018 trend tracking | payload field |
+| ⚪ | DNI verification provider (RENAPER directo vs intermediary) | — |
+| ⚪ | Mi Argentina integration — OAuth y/o emisión federada de credenciales | — |
+
+### Infra & cross-cutting
+
+| Estado | Feature | Ubicación |
+|---|---|---|
+| ✅ | Event sourcing hardening (Zod schemas estrictos + append-only triggers + validateEventPayload) | `lib/event-schemas.ts` + DB triggers |
+| ✅ | Bidirectional geocoding (text ↔ map pin via Nominatim/OSM) | `components/LocationFields` |
+| ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
+| ✅ | RLS aplicada en 7 core tables + welfare + organizations | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
+| ✅ | RLS smoke test cross-account vía PostgREST | `pnpm rls:smoke` |
+| 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
+| ⚪ | Push notifications (iOS PWA limitations) | — |
+| ⚪ | Native mobile via React Native sharing data layer | — |
+| ⚪ | Conversational event-capture agent (audio/text → form prefilled) | forward-compat ya garantizada via URL-prefill |
+| ⚪ | Materialized views para proyecciones caras | — |
 
 ## Naming
 
@@ -718,7 +816,7 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 - **Dangerous breed registry support** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event + (eventually) export to provincial registry.
 - **Disposition method on death_recorded** — Ley CABA 5470 (cremation traceability). Payload field plus optional facility.
 - **Acquisition method on pet_registered** — adoption-trend measurement (EAH 2018 shows adoption is the growing modality).
-- Non-owner reporting flow for `abandonment_reported`, `maltreatment_reported`, `symptom_observed` on unregistered pets — requires schema additions for "report subject = unowned animal" plus moderation. `maltreatment_reported` ultimately wants integration with Ley Nacional 14.346 denuncia pipelines
+- **Non-owner reporting flow — base completa, queue triage pendiente.** `welfare_reports` table con `subjectKind` enum polimórfico (`registered_pet | unowned_animal | location | general`) cubre el caso del subject no registrado sin necesidad de ghost_subject pets. Form público + anonymous + 5 attachments + bridge a pet_events vivo en `app/actions/welfare.ts` + `app/denuncias/nueva/`. Polish del plan `2026-05-18-welfare-reports-polish.md` shipped: bridge copia `locationLat/locationLng` a los 3 pet_events emitidos, `LocationMap` montado en las 2 detail pages de denuncia (auth + anon), rate-limit persistente para anonymous (`rate_limit_buckets` + `enforceRateLimit`, 1/min + 3/hour por IP). **Pendientes:** (a) welfare-officer queue en `/gob/maltrato` para triagear casos (gap operativo principal — sin esto las denuncias se acumulan invisibles), (b) moderation queue para denuncias anónimas auto-flagged, (c) export template a fiscalía MPF CABA (Ley 14.346 pipeline). La spec `2026-05-18-maltreatment-reporting-design.md` quedó **superseded** — NO seguirla. Ver Feature inventory arriba.
 - **Vaccination-due warning to owner** — when a vaccination approaches or passes its `next_due_at`. Confirmed via `docs/legal-framework-full.md` (2026-05-18 pass) that NO Argentine norm requires the system to warn — the obligation rests on the owner to keep vaccinations current (Ley 22.953, DL 8056, Ord. 41.831). A system-side warning is a UX feature, not a compliance requirement. Future spec if product decides to implement.
 - Materialized views for expensive projections — keep event log as source of truth, cache when query latency justifies
 - Campaign management UX (gov-side scheduling, slot allocation) — referenced by `campaign_id` in vaccination/sterilization events. Campaigns belong to clinics or sanitary authorities, not individual vets.
@@ -726,7 +824,7 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 - Push notifications (iOS PWA limitations — may need native shell eventually). EAH 2018 finding: social media is the dominant channel for pet-health info reaching households; shareability is first-order.
 - Native mobile via React Native sharing the data layer
 - Per-pet "emergency info" public flag toggle
-- **Conversational event-capture agent (audio/text → intent → pre-filled form)** — Spanish-only voice/text interface that detects which of the 23 event types the user is describing and opens the corresponding `/eventos/nuevo/*` form with slots pre-filled. Narrow domain (es-AR, fixed catalog, user acts on own pets) keeps it cheap and reliable. **Forward-compat that must hold from today onward:** (a) every event-creation route is URL-addressable with query-param prefill — new event forms MUST accept their payload fields as `searchParams` so a future agent can deeplink with full state. *El registro canónico vive en `lib/event-agent-registry.ts` con la función `buildAgentDeeplink(eventType, publicToken, slots)`. La implementación de referencia del patrón URL-prefill es el form de peso (`app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/peso/`); copiarla cuando se agreguen nuevos forms.* (b) per-event-type Zod schemas (already a known gap, see `docs/event-sourcing-hardening-prompt.md`) double as function-calling tool definitions for the agent — the same schema validates the human form submit and the agent's structured output; (c) the slugs at `/mis-mascotas/[token]/eventos/nuevo/*` become public contract once the agent ships — rename before launch, freeze after. **Design principles when it lands:** agent proposes, user confirms — never silent writes to `pet_events` (preserves the append-only invariant and keeps `author_role='owner'` honest); audio is not persisted (events are the source of truth, not the recording); the agent reads as well as writes — natural-language queries open filtered timeline projections, not a parallel chat surface. Legally-fraught events (`abandonment_reported`, `maltreatment_reported`, `dangerous_breed_attested`) are out of agent scope — those force the full manual flow with all disclaimers visible. LLM provider, hosting jurisdiction, and iOS PWA audio fallback are TBD when implementation lands.
+- **Conversational event-capture agent (audio/text → intent → pre-filled form)** — Spanish-only voice/text interface that detects which of the 23 event types the user is describing and opens the corresponding `/eventos/nuevo/*` form with slots pre-filled. Narrow domain (es-AR, fixed catalog, user acts on own pets) keeps it cheap and reliable. **Forward-compat that must hold from today onward:** (a) every event-creation route is URL-addressable with query-param prefill — new event forms MUST accept their payload fields as `searchParams` so a future agent can deeplink with full state. *El registro canónico vive en `lib/event-agent-registry.ts` con la función `buildAgentDeeplink(eventType, publicToken, slots)`. La implementación de referencia del patrón URL-prefill es el form de peso (`app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/peso/`); copiarla cuando se agreguen nuevos forms.* (b) per-event-type Zod schemas (already a known gap, see `docs/archive/event-sourcing-hardening-prompt.md` — already implemented, see `lib/event-schemas.ts` and `validateEventPayload`) double as function-calling tool definitions for the agent — the same schema validates the human form submit and the agent's structured output; (c) the slugs at `/mis-mascotas/[token]/eventos/nuevo/*` become public contract once the agent ships — rename before launch, freeze after. **Design principles when it lands:** agent proposes, user confirms — never silent writes to `pet_events` (preserves the append-only invariant and keeps `author_role='owner'` honest); audio is not persisted (events are the source of truth, not the recording); the agent reads as well as writes — natural-language queries open filtered timeline projections, not a parallel chat surface. Legally-fraught events (`abandonment_reported`, `maltreatment_reported`, `dangerous_breed_attested`) are out of agent scope — those force the full manual flow with all disclaimers visible. LLM provider, hosting jurisdiction, and iOS PWA audio fallback are TBD when implementation lands.
 
 ## How Claude should work in this repo
 

@@ -6,9 +6,10 @@
 // the row is inserted, signalWelfareReport is called as the
 // integration placeholder — today a no-op.
 //
-// TODO(rate-limit): anonymous insertions should be rate-limited at the
-// edge (Vercel middleware or a Supabase Edge Function) to prevent spam.
-// Out of scope for v1.
+// Anonymous submissions are rate-limited at the action layer using the
+// persistent `enforceRateLimit` helper (rate_limit_buckets table). Limits:
+// 1 per minute, 3 per hour per IP. Authenticated users skip this gate —
+// the auth gate is sufficient.
 
 import { db, ownerships, petEvents, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
@@ -16,10 +17,12 @@ import { signalWelfareReport } from "@/lib/authority";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
+import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { generateReferenceCode } from "@/lib/welfare-codes";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { and, eq, isNull } from "drizzle-orm";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export type WelfareReportFormState = {
@@ -48,6 +51,29 @@ export async function createWelfareReportAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Rate-limit anonymous submissions only. Authenticated users get a free
+  // pass because the auth gate is the strong defense; we don't want to
+  // accidentally throttle a logged-in advocate filing multiple legit cases
+  // (e.g. a refugio reporting on a string of cases from one IP).
+  if (!user) {
+    const hdrs = await headers();
+    const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    try {
+      await enforceRateLimit("welfare_anon", ip, {
+        maxPerMinute: 1,
+        maxPerHour: 3,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return {
+          error:
+            "Estás enviando demasiadas denuncias seguidas. Esperá unos minutos y volvé a intentar. Si tenés muchos casos legítimos para reportar, considerá crear una cuenta.",
+        };
+      }
+      throw err;
+    }
+  }
 
   // Read fields (most optional)
   const kind = String(formData.get("kind") ?? "").trim();
@@ -264,6 +290,10 @@ export async function createWelfareReportAction(
             recordedByUserId: user?.id ?? null,
             authorRole,
             payload: abandonmentEventPayload,
+            // Mirror coords from the welfare report so the pet's event detail
+            // page can render the LocationMap without joining welfare_reports.
+            locationLat,
+            locationLng,
           });
         } else if (MALTREATMENT_KINDS.has(kind)) {
           const maltreatmentEventPayload = validateEventPayload("maltreatment_reported", {
@@ -281,6 +311,8 @@ export async function createWelfareReportAction(
             recordedByUserId: user?.id ?? null,
             authorRole,
             payload: maltreatmentEventPayload,
+            locationLat,
+            locationLng,
           });
         }
 
@@ -306,6 +338,8 @@ export async function createWelfareReportAction(
             recordedByUserId: user?.id ?? null,
             authorRole,
             payload: symptomEventPayload,
+            locationLat,
+            locationLng,
           });
         }
       }

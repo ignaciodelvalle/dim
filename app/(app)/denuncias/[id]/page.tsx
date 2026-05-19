@@ -10,8 +10,15 @@ import {
   welfareReportSubjectKindLabel,
 } from "@/lib/welfare";
 import { and, eq } from "drizzle-orm";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+
+const LocationMap = dynamic(() => import("@/components/LocationMap"), {
+  loading: () => (
+    <div className="w-full h-64 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 animate-pulse" />
+  ),
+});
 
 // Status badge color mapping — matches mis-denuncias page.
 function statusBadgeClass(status: string): string {
@@ -199,10 +206,12 @@ export default async function WelfareReportDetailPage({
                 </p>
               )}
               {locationPoint && (
-                <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
-                  Coordenadas registradas: {locationPoint.lat.toFixed(6)},{" "}
-                  {locationPoint.lng.toFixed(6)}
-                </p>
+                <>
+                  <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+                  <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
+                    {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
+                  </p>
+                </>
               )}
             </div>
           </section>

@@ -21,11 +21,10 @@ import { notFound } from "next/navigation";
 
 // MapLibre is heavy and only relevant when the event carries a location.
 // next/dynamic with a loading placeholder + the MapLibre runtime imported
-// inside EventMap's useEffect means the bundle only fetches MapLibre at view
-// time. SSR returns the placeholder div, the client hydrates and lazy-loads.
-// (Next 15 forbids `ssr: false` in Server Components — and we don't need it
-// here, because the heavy work happens in useEffect anyway.)
-const EventMap = dynamic(() => import("./EventMap"), {
+// inside LocationMap's useEffect means the bundle only fetches MapLibre at
+// view time. SSR returns the placeholder div, the client hydrates and
+// lazy-loads. (Next 15 forbids `ssr: false` in Server Components.)
+const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
     <div className="w-full h-64 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 animate-pulse" />
   ),
@@ -112,7 +111,7 @@ export default async function EventDetailPage({
             Ubicación
           </h2>
           {point ? (
-            <EventMap lat={point.lat} lng={point.lng} />
+            <LocationMap lat={point.lat} lng={point.lng} />
           ) : (
             <p className="text-sm text-neutral-500 dark:text-neutral-500 italic">
               Sin ubicación registrada.

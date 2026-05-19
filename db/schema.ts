@@ -1831,3 +1831,20 @@ export const petServiceDog = pgTable("pet_service_dog", {
 
 export type PetServiceDog = typeof petServiceDog.$inferSelect;
 export type NewPetServiceDog = typeof petServiceDog.$inferInsert;
+
+// ============================================================================
+// Rate limit buckets — generic TTL counter for anti-spam
+// ============================================================================
+// Used by anonymous welfare report submissions today; reusable for any
+// endpoint that wants throttling without a Redis dependency. bucketKey
+// encodes endpoint + identifier + window so disjoint requesters and
+// disjoint windows don't compete.
+
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  bucketKey: text("bucket_key").primaryKey(),
+  count: integer("count").notNull().default(1),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;

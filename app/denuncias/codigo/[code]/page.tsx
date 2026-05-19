@@ -11,8 +11,15 @@ import {
 } from "@/lib/welfare";
 import { isValidReferenceCodeFormat, normalizeReferenceCode } from "@/lib/welfare-codes";
 import { eq } from "drizzle-orm";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+const LocationMap = dynamic(() => import("@/components/LocationMap"), {
+  loading: () => (
+    <div className="w-full h-64 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 animate-pulse" />
+  ),
+});
 
 function statusBadgeClass(status: string): string {
   switch (status) {
@@ -185,10 +192,12 @@ export default async function WelfareReportByCodePage({
                 </p>
               )}
               {locationPoint && (
-                <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
-                  Coordenadas registradas: {locationPoint.lat.toFixed(6)},{" "}
-                  {locationPoint.lng.toFixed(6)}
-                </p>
+                <>
+                  <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+                  <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
+                    {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
+                  </p>
+                </>
               )}
             </div>
           </section>
