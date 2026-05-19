@@ -23,6 +23,7 @@ import {
   reminders,
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { signalAuthorityReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { findDisease, isReportable } from "@/lib/diseases";
@@ -38,6 +39,7 @@ import {
   parseFrequencyFields,
 } from "@/lib/medication-schedule";
 import { validateMicrochipId } from "@/lib/microchip-validation";
+import { maybeNotifyOwnersOfPublicAlert } from "@/lib/owner-disease-alerts";
 import {
   type SupabaseServerClient,
   requireAlivePetAccess,
@@ -2115,6 +2117,18 @@ export async function createSymptomObservedAction(
             ctaUrl: `/mis-mascotas/${pet.publicToken}`,
           });
         }
+
+        // 8. Owner-side public-health alert. Only fires for diseases in the
+        // curated PUBLIC_ALERT_DISEASES catalog (ENO spec §7.2). Throttled
+        // per (pet, disease) at 30 days inside the helper.
+        await maybeNotifyOwnersOfPublicAlert(
+          {
+            pet: { id: pet.id, name: pet.name },
+            diseaseCode: d.disease_code,
+            triggerEventId: signalEvent.id,
+          },
+          tx,
+        );
       }
     });
   } catch (err) {
@@ -2126,6 +2140,229 @@ export async function createSymptomObservedAction(
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
   redirect(`/mis-mascotas/${publicToken}?evento=sintoma_registrado`);
+}
+
+// ---------------------------------------------------------------------------
+// ENO direct disease diagnosis (vet-only)
+// ---------------------------------------------------------------------------
+//
+// Spec 2026-05-19-eno-vet-direct-report-and-owner-alerts §6.
+// Lets a verified vet log a confirmed (or strongly-suspected) reportable
+// disease diagnosis on ANY pet — not only their own patients. The action:
+//
+//   1. Validates the vet has matriculaVerified=true (via requireVetProviderOrRedirect).
+//   2. Resolves the pet by publicToken (no ownership check — the vet can
+//      diagnose any pet; cross-pet privacy is bounded by what the vet
+//      already needs to know to write the row).
+//   3. Inserts a `clinical_info_logged` row with sub_kind='disease_diagnosis'
+//      and the structured disease fields.
+//   4. When the disease is `reportable`, emits an `outbreak_signal` with
+//      triggered_by='direct_diagnosis' — no symptom-event source.
+//   5. When the disease is in the curated PUBLIC_ALERT_DISEASES catalog,
+//      dispatches owner-side notifications via maybeNotifyOwnersOfPublicAlert.
+//
+// All steps run in one transaction; failure rolls everything back.
+
+export type RecordDiseaseDiagnosisWriterParams = {
+  petId: string;
+  petName: string;
+  petSpecies: string;
+  petJurisdictionCountry: string;
+  petJurisdictionProvince: string | null;
+  petJurisdictionLocality: string | null;
+  vetUserId: string;
+  vetDisplayName: string;
+  diseaseCode: string;
+  confirmedByLab: boolean;
+  labName: string | null;
+  labReportReference: string | null;
+  diagnosisDate: Date;
+  notes: string | null;
+  now?: Date;
+};
+
+export type RecordDiseaseDiagnosisWriterResult =
+  | {
+      ok: true;
+      diagnosisEventId: string;
+      signalEventId: string | null;
+      ownerNotificationsDelivered: number;
+    }
+  | { ok: false; error: string };
+
+/**
+ * Core write path for a vet's direct disease diagnosis (ENO spec §6).
+ * Exported so integration tests can call it without the Next.js request
+ * context. Same logic as recordDiseaseDiagnosisAction minus auth + form
+ * parsing.
+ */
+export async function recordDiseaseDiagnosisWriter(
+  params: RecordDiseaseDiagnosisWriterParams,
+): Promise<RecordDiseaseDiagnosisWriterResult> {
+  const disease = findDisease(params.diseaseCode);
+  if (!disease) return { ok: false, error: "unknown disease_code" };
+
+  const now = params.now ?? new Date();
+  let diagnosisEventId = "";
+  let signalEventId: string | null = null;
+  let ownerNotificationsDelivered = 0;
+
+  try {
+    await db.transaction(async (tx) => {
+      const diagnosisPayload = validateEventPayload("clinical_info_logged", {
+        sub_kind: "disease_diagnosis",
+        title: `Diagnóstico: ${disease.label}`,
+        details: null,
+        performed_by: params.vetDisplayName,
+        performed_by_user_id: params.vetUserId,
+        performed_by_organization_id: null,
+        disease_code: params.diseaseCode,
+        confirmed_by_lab: params.confirmedByLab,
+        lab_name: params.labName,
+        lab_report_reference: params.labReportReference,
+        diagnosis_date: params.diagnosisDate.toISOString(),
+      });
+      const [diagnosisEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: params.petId,
+          eventType: "clinical_info_logged",
+          occurredAt: params.diagnosisDate,
+          recordedAt: now,
+          recordedByUserId: params.vetUserId,
+          authorRole: "vet",
+          authorVerified: true,
+          authorOrganizationId: null,
+          payload: diagnosisPayload,
+          notes: params.notes,
+        })
+        .returning();
+      diagnosisEventId = diagnosisEvent.id;
+
+      if (isReportable(params.diseaseCode)) {
+        const signalPayload = validateEventPayload("outbreak_signal", {
+          triggered_by: "direct_diagnosis",
+          source_symptom_event_id: null,
+          source_disease_diagnosis_event_id: diagnosisEvent.id,
+          confirmed_by_lab: params.confirmedByLab,
+          disease_code: params.diseaseCode,
+          disease_label: disease.label,
+          match_strength: {
+            high_count: 0,
+            medium_count: 0,
+            low_count: 0,
+            matched_symptom_codes: [],
+          },
+          pet_jurisdiction_country: params.petJurisdictionCountry,
+          pet_jurisdiction_province: params.petJurisdictionProvince,
+          pet_jurisdiction_locality: params.petJurisdictionLocality,
+          pet_species: params.petSpecies,
+        });
+        const [signalEvent] = await tx
+          .insert(petEvents)
+          .values({
+            petId: params.petId,
+            eventType: "outbreak_signal",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: null,
+            authorRole: "system",
+            authorOrganizationId: null,
+            authorVerified: false,
+            payload: signalPayload,
+          })
+          .returning();
+        signalEventId = signalEvent.id;
+
+        const fakePet = {
+          id: params.petId,
+          jurisdictionCountry: params.petJurisdictionCountry,
+          jurisdictionProvince: params.petJurisdictionProvince,
+          jurisdictionLocality: params.petJurisdictionLocality,
+          species: params.petSpecies,
+        } as typeof pets.$inferSelect;
+        await routeOutbreakSignalNotification(tx, {
+          signalEvent,
+          pet: fakePet,
+          disease: {
+            disease_code: params.diseaseCode,
+            disease_label: disease.label,
+            high_count: 0,
+            medium_count: 0,
+          },
+          escalation: false,
+        });
+
+        const alertResult = await maybeNotifyOwnersOfPublicAlert(
+          {
+            pet: { id: params.petId, name: params.petName },
+            diseaseCode: params.diseaseCode,
+            triggerEventId: signalEvent.id,
+          },
+          tx,
+        );
+        ownerNotificationsDelivered = alertResult.delivered;
+      }
+    });
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "unknown error" };
+  }
+
+  return { ok: true, diagnosisEventId, signalEventId, ownerNotificationsDelivered };
+}
+
+export async function recordDiseaseDiagnosisAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const session = await requireVetProviderOrRedirect();
+
+  const diseaseCode = String(formData.get("diseaseCode") ?? "").trim();
+  const confirmedByLab = formData.get("confirmedByLab") === "on";
+  const labName = String(formData.get("labName") ?? "").trim() || null;
+  const labReportRef = String(formData.get("labReportReference") ?? "").trim() || null;
+  const diagnosisDateRaw = String(formData.get("diagnosisDate") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!diseaseCode) return { error: "Falta el código de enfermedad." };
+  const disease = findDisease(diseaseCode);
+  if (!disease) return { error: "Código de enfermedad desconocido." };
+  if (!diagnosisDateRaw) return { error: "Falta la fecha del diagnóstico." };
+  const diagnosisDate = parseDateInput(diagnosisDateRaw);
+  if (!diagnosisDate) return { error: "Fecha de diagnóstico inválida." };
+
+  if (confirmedByLab && !labName) {
+    return {
+      error: "Para marcar como confirmado por laboratorio indicá el nombre del laboratorio.",
+    };
+  }
+
+  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  if (!pet) return { error: "Mascota no encontrada." };
+
+  const result = await recordDiseaseDiagnosisWriter({
+    petId: pet.id,
+    petName: pet.name,
+    petSpecies: pet.species,
+    petJurisdictionCountry: pet.jurisdictionCountry,
+    petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+    petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+    vetUserId: session.user.id,
+    vetDisplayName: session.profile.displayName,
+    diseaseCode,
+    confirmedByLab,
+    labName,
+    labReportReference: labReportRef,
+    diagnosisDate,
+    notes,
+  });
+
+  if (!result.ok) {
+    return { error: `No se pudo registrar el diagnóstico: ${result.error}` };
+  }
+  revalidatePath("/pro");
+  return { error: null };
 }
 
 // ---------------------------------------------------------------------------

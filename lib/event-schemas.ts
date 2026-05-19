@@ -26,6 +26,7 @@
 import { z } from "zod";
 
 import { EVENT_TYPES, type EventType } from "@/db/schema";
+import { findDisease } from "@/lib/diseases";
 
 // Helper: every schema gets the version field baked in.
 const withVersion = <T extends z.ZodRawShape>(shape: T) => ({
@@ -362,16 +363,33 @@ const weightRecorded = z
   )
   .strict();
 
+// `sub_kind='disease_diagnosis'` is a structured shape that powers the ENO
+// vet direct-report flow (spec 2026-05-19-eno-vet-direct-report-and-owner-alerts §6.1).
+// When set, the disease_* fields below carry the diagnosis; otherwise they
+// stay null and the row is a plain clinical note.
 const clinicalInfoLogged = z
   .object(
     withVersion({
-      sub_kind: z.enum(["lab_work", "imaging", "surgery", "allergy_detection", "other"]),
+      sub_kind: z.enum([
+        "lab_work",
+        "imaging",
+        "surgery",
+        "allergy_detection",
+        "disease_diagnosis",
+        "other",
+      ]),
       title: z.string(),
       details: z.string().nullable(),
       performed_by: z.string().nullable(),
       // performed_by autocomplete (spec 2026-05-19): FK pair.
       performed_by_organization_id: z.string().uuid().nullable().optional(),
       performed_by_user_id: z.string().uuid().nullable().optional(),
+      // disease_diagnosis sub_kind fields (spec ENO §6.1).
+      disease_code: z.string().nullable().optional(),
+      confirmed_by_lab: z.boolean().optional(),
+      lab_name: z.string().nullable().optional(),
+      lab_report_reference: z.string().nullable().optional(),
+      diagnosis_date: z.string().nullable().optional(),
     }),
   )
   .strict()
@@ -382,6 +400,21 @@ const clinicalInfoLogged = z
         message: "performed_by text snapshot required when FK populated",
         path: ["performed_by"],
       });
+    }
+    if (p.sub_kind === "disease_diagnosis") {
+      if (!p.disease_code) {
+        ctx.addIssue({
+          code: "custom",
+          message: "disease_code is required when sub_kind='disease_diagnosis'",
+          path: ["disease_code"],
+        });
+      } else if (!findDisease(p.disease_code)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `disease_code '${p.disease_code}' is not in the catalog`,
+          path: ["disease_code"],
+        });
+      }
     }
   });
 
@@ -627,13 +660,29 @@ const symptomObserved = z
     { message: "welfare_report_id must be set iff source='welfare_report'" },
   );
 
-// Surveillance signal emitted by the system when symptom_observed triggers
-// a reportable disease match. NON-libreta (owner never sees this).
-// See docs/superpowers/specs/2026-05-17-symptom-disease-surveillance-design.md §4.4.
+// Surveillance signal emitted by the system in two flavors:
+//   - 'matcher'         — symptom_observed crossed the disease-match
+//                         threshold (legacy path, pre-ENO).
+//   - 'direct_diagnosis' — vet recorded clinical_info_logged with
+//                          sub_kind='disease_diagnosis' (ENO direct
+//                          report path, spec 2026-05-19 §6.2).
+// NON-libreta (owner never sees this row directly; the public-alert
+// notification, when applicable, is a separate write).
+// See docs/superpowers/specs/2026-05-17-symptom-disease-surveillance-design.md §4.4
+// and docs/superpowers/specs/2026-05-19-eno-vet-direct-report-and-owner-alerts-design.md §6.2.
 const outbreakSignal = z
   .object(
     withVersion({
-      source_symptom_event_id: z.string().uuid(),
+      // Required when triggered_by='matcher'; null when 'direct_diagnosis'.
+      source_symptom_event_id: z.string().uuid().nullable().optional(),
+      // Required when triggered_by='direct_diagnosis'; null when 'matcher'.
+      source_disease_diagnosis_event_id: z.string().uuid().nullable().optional(),
+      // Path discriminator. Optional for back-compat: rows written before
+      // ENO are implicitly 'matcher' (read path defaults).
+      triggered_by: z.enum(["matcher", "direct_diagnosis"]).optional(),
+      // True when the vet attested a confirmatory lab result (ENO §6.1).
+      // Lifts the signal severity in govt dashboards.
+      confirmed_by_lab: z.boolean().optional(),
       disease_code: z.string(),
       disease_label: z.string(),
       match_strength: z.object({
@@ -656,7 +705,28 @@ const outbreakSignal = z
       bite_observation_active: z.boolean().optional(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    // When triggered_by is set, enforce the source-event invariant. When
+    // undefined (historical rows / matcher path), require source_symptom_event_id
+    // to preserve the original contract.
+    const path = p.triggered_by ?? "matcher";
+    if (path === "matcher" && !p.source_symptom_event_id) {
+      ctx.addIssue({
+        code: "custom",
+        message: "source_symptom_event_id is required when triggered_by='matcher'",
+        path: ["source_symptom_event_id"],
+      });
+    }
+    if (path === "direct_diagnosis" && !p.source_disease_diagnosis_event_id) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "source_disease_diagnosis_event_id is required when triggered_by='direct_diagnosis'",
+        path: ["source_disease_diagnosis_event_id"],
+      });
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Custody & adoption (refugio portal)
