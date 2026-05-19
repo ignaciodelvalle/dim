@@ -5,8 +5,13 @@
 // a domain SME — they are intentionally omitted here rather than guessed.
 //
 // Species filter: a disease appears in the picker only when the pet's species
-// is in `species` (or `species` includes "any"). For pets with species "other"
-// or null, all diseases are shown.
+// is in `species` (or `species` includes "any"). Behaviour per species:
+//   - "dog" / "cat" → species-tagged + any.
+//   - "other" or null → full catalog (no info to filter by).
+//   - any other companion species (rabbit, guinea_pig, ferret, …) → any-tagged
+//     only, since the catalog is dog/cat-centric. The "any" zoonoses still
+//     apply (rabia, leptospirosis, tbc, carbunclo, toxoplasmosis-ish).
+//     Add species-specific entries as the catalog evolves.
 
 export type DiseaseSpecies = "dog" | "cat" | "any";
 
@@ -89,9 +94,14 @@ export function findDisease(code: string | null | undefined): DiseaseDef | null 
 export function diseasesForSpecies(species: string | null | undefined): readonly DiseaseDef[] {
   // For "other" or null, show the full catalog (no filtering).
   if (!species || species === "other") return DISEASES;
-  return DISEASES.filter(
-    (d) => d.species.includes("any") || d.species.includes(species as DiseaseSpecies),
-  );
+  // Dog/cat get the species-specific filter.
+  if (species === "dog" || species === "cat") {
+    return DISEASES.filter((d) => d.species.includes("any") || d.species.includes(species));
+  }
+  // Companion species not yet in the catalog (rabbit, guinea_pig, ferret, …):
+  // surface only the cross-species zoonoses (`any`-tagged) instead of an
+  // empty picker. Species-specific entries land when the catalog grows.
+  return DISEASES.filter((d) => d.species.includes("any"));
 }
 
 export function isReportable(diseaseCode: string | null | undefined): boolean {

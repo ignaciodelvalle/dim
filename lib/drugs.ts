@@ -282,7 +282,11 @@ export function drugsForSpecies(species: string | null | undefined): readonly Dr
   if (species === "dog" || species === "cat") {
     return DRUG_CATALOG.filter((d) => d.species.includes(species));
   }
-  // For "other" or null, show the full catalog.
+  // For "other", null, or companion species not yet catalogued
+  // (rabbit, guinea_pig, ferret), show the full catalog. The dose
+  // ranges are canine/feline-typed so they are NOT prescriptive for
+  // exotics — picker is intentionally informational + the actual dose
+  // is free text. Species-tagged entries land as the catalog grows.
   return DRUG_CATALOG;
 }
 
