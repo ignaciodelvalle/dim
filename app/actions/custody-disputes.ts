@@ -22,6 +22,7 @@ import {
   type DisputePartyRole,
   type DisputeResolution,
   auditLog,
+  cases,
   custodyDisputeParties,
   custodyDisputes,
   db,
@@ -31,6 +32,7 @@ import {
   pets,
 } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { generatePrefixedToken } from "@/lib/publicToken";
 
@@ -131,6 +133,27 @@ export async function openDisputeFromEvent(
     .update(pets)
     .set({ inCustodyDispute: true, updatedAt: new Date() })
     .where(eq(pets.id, input.petId));
+
+  // Cases system (Fase D4): open the custody_dispute case so the
+  // dispute's lifecycle has a first-class entry in /casos. The raising
+  // event row (input.raisingEventId) already exists at this point —
+  // pet_events.case_id is append-only so we don't backfill it. Future
+  // iterations of the dispute-raising flow should pre-create the case,
+  // pass case_id to the raising event INSERT, then call this helper.
+  await openCase(
+    {
+      kind: "custody_dispute",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: input.petId,
+      jurisdictionProvince: input.jurisdictionProvince,
+      jurisdictionLocality: input.jurisdictionLocality,
+      openedByUserId: input.raisedByUserId,
+      openedByOrganizationId: input.raisedByOrgId ?? null,
+      openedReason: `Custody dispute raised on pet — raised_by_role=${input.raisedByRole}`,
+      custodyDisputeId: dispute.id,
+    },
+    tx,
+  );
 
   await tx.insert(auditLog).values({
     actorUserId: input.raisedByUserId,
@@ -251,6 +274,14 @@ export async function resolveDisputeAction(
         throw new Error("Esta disputa está fuera de tu jurisdicción.");
       }
 
+      // Cases system (Fase D4): find the case opened for this dispute
+      // so cascade events carry case_id + the case closes alongside.
+      const [linkedCase] = await tx
+        .select({ id: cases.id })
+        .from(cases)
+        .where(eq(cases.custodyDisputeId, dispute.id))
+        .limit(1);
+
       let transferEventId: string | null = null;
 
       if (input.resolution === "ownership_transferred") {
@@ -303,6 +334,7 @@ export async function resolveDisputeAction(
               authorOrganizationId: null,
               authorVerified: true,
               payload: fosterEndedPayload,
+              caseId: linkedCase?.id ?? null,
             })
             .returning({ id: petEvents.id });
           fosterEndedEventId = fEnded.id;
@@ -331,6 +363,7 @@ export async function resolveDisputeAction(
             authorOrganizationId: null,
             authorVerified: true,
             payload: transferPayload,
+            caseId: linkedCase?.id ?? null,
           })
           .returning({ id: petEvents.id });
         transferEventId = te.id;
@@ -367,6 +400,7 @@ export async function resolveDisputeAction(
           authorOrganizationId: null,
           authorVerified: true,
           payload: resolvedPayload,
+          caseId: linkedCase?.id ?? null,
         })
         .returning({ id: petEvents.id });
 
@@ -387,6 +421,16 @@ export async function resolveDisputeAction(
         .update(pets)
         .set({ inCustodyDispute: false, updatedAt: now })
         .where(eq(pets.id, dispute.petId));
+
+      // Cases system (Fase D4): close the linked case. All 4 outcomes
+      // (ownership_confirmed / ownership_transferred / case_dismissed /
+      // other) are "real" determinations — map to closed_reason='resolved'.
+      if (linkedCase) {
+        await closeCase(
+          { caseId: linkedCase.id, reason: "resolved", closedByUserId: session.user.id },
+          tx,
+        );
+      }
 
       await tx.insert(auditLog).values({
         actorUserId: session.user.id,
@@ -466,6 +510,20 @@ export async function withdrawDisputeAction(
         .update(pets)
         .set({ inCustodyDispute: false, updatedAt: now })
         .where(eq(pets.id, dispute.petId));
+
+      // Cases system (Fase D4): close the linked case as `cancelled`.
+      // Withdrawal isn't a real determination — the case is set aside.
+      const [linkedCase] = await tx
+        .select({ id: cases.id })
+        .from(cases)
+        .where(eq(cases.custodyDisputeId, dispute.id))
+        .limit(1);
+      if (linkedCase) {
+        await closeCase(
+          { caseId: linkedCase.id, reason: "cancelled", closedByUserId: session.user.id },
+          tx,
+        );
+      }
 
       await tx.insert(auditLog).values({
         actorUserId: session.user.id,
