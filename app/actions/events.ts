@@ -13,6 +13,7 @@
 
 import {
   attachments,
+  cases,
   db,
   notifications,
   ownerships,
@@ -23,6 +24,7 @@ import {
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { signalAuthorityReport } from "@/lib/authority";
+import { closeCase } from "@/lib/case-helpers";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -1582,6 +1584,21 @@ export async function createDeathRecordAction(
           .limit(1);
         if (startedEvent) {
           const startedPayload = startedEvent.payload as Record<string, unknown>;
+          // Cases system (Fase D2): find the open bite_incident case so
+          // the cascade rabies_observation_ended carries case_id and the
+          // case itself closes alongside the observation.
+          const [biteCase] = await tx
+            .select({ id: cases.id })
+            .from(cases)
+            .where(
+              and(
+                eq(cases.primaryPetId, pet.id),
+                eq(cases.caseKind, "bite_incident"),
+                eq(cases.status, "open"),
+              ),
+            )
+            .limit(1);
+
           const endedPayload = validateEventPayload("rabies_observation_ended", {
             bite_event_id: startedPayload.bite_event_id as string,
             observation_started_event_id: startedEvent.id,
@@ -1600,11 +1617,15 @@ export async function createDeathRecordAction(
             authorOrganizationId: null,
             authorVerified: false,
             payload: endedPayload,
+            caseId: biteCase?.id ?? null,
           });
           await tx
             .update(pets)
             .set({ rabiesObservationStatus: "completed_dead", updatedAt: now })
             .where(eq(pets.id, pet.id));
+          if (biteCase) {
+            await closeCase({ caseId: biteCase.id, reason: "resolved" }, tx);
+          }
           rabiesObservationClosed = true;
         }
       }

@@ -17,10 +17,11 @@ import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db, notifications, ownerships, petEvents, pets } from "@/db";
+import { cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
+import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import {
@@ -123,10 +124,26 @@ export async function reportBiteAction(
   const now = new Date();
   const observationUntil = computeObservationUntil(occurredAt);
 
-  // 5. Atomic: incident_reported + rabies_observation_started + pet UPDATE +
-  //    owner notification. Authority notifications are best-effort (post-tx).
+  // 5. Atomic: open bite_incident case + incident_reported +
+  //    rabies_observation_started + pet UPDATE + owner notification.
+  //    Authority notifications are best-effort (post-tx).
   try {
     await db.transaction(async (tx) => {
+      // Cases system (Fase D2): open the bite_incident case first so the
+      // 2 events that follow carry its case_id.
+      const caseRow = await openCase(
+        {
+          kind: "bite_incident",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          jurisdictionProvince: pet.jurisdictionProvince,
+          jurisdictionLocality: pet.jurisdictionLocality,
+          openedByUserId: user.id,
+          openedReason: `Bite incident reported by owner — victim=${victimKind}, severity=${severity}`,
+        },
+        tx,
+      );
+
       const incidentPayload = validateEventPayload("incident_reported", {
         incident_type: "bite_inflicted",
         severity,
@@ -152,6 +169,7 @@ export async function reportBiteAction(
           recordedByUserId: user.id,
           ...eventAuthorship,
           payload: incidentPayload,
+          caseId: caseRow.id,
         })
         .returning();
 
@@ -169,6 +187,7 @@ export async function reportBiteAction(
         recordedByUserId: user.id,
         ...eventAuthorship,
         payload: observationPayload,
+        caseId: caseRow.id,
       });
 
       await tx
@@ -183,6 +202,7 @@ export async function reportBiteAction(
         title: `Observación antirrábica iniciada — ${pet.name}`,
         body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR")}, ${pet.name} entra en observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
         relatedPetId: pet.id,
+        relatedCaseId: caseRow.id,
         ctaLabel: "Ver mascota",
         ctaUrl: `/mis-mascotas/${pet.publicToken}`,
       });
@@ -287,6 +307,21 @@ export async function ownerCloseRabiesObservationAction(
   }
 
   const biteEventId = startedPayload.bite_event_id as string;
+  // Cases system (Fase D2): find the open bite_incident case to attach
+  // the ended event + close. Falls back to null when no case exists
+  // (legacy rows from before D2).
+  const [biteCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "bite_incident"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   try {
     await db.transaction(async (tx) => {
       const endedPayload = validateEventPayload("rabies_observation_ended", {
@@ -305,11 +340,15 @@ export async function ownerCloseRabiesObservationAction(
         recordedByUserId: user.id,
         ...eventAuthorship,
         payload: endedPayload,
+        caseId: biteCase?.id ?? null,
       });
       await tx
         .update(pets)
         .set({ rabiesObservationStatus: "completed_negative", updatedAt: now })
         .where(eq(pets.id, pet.id));
+      if (biteCase) {
+        await closeCase({ caseId: biteCase.id, reason: "resolved", closedByUserId: user.id }, tx);
+      }
       await tx.insert(notifications).values({
         userId: user.id,
         notificationType: "rabies_observation_completed_negative_owner",
@@ -317,6 +356,7 @@ export async function ownerCloseRabiesObservationAction(
         title: `Observación completada — ${pet.name}`,
         body: `La observación antirrábica de 10 días terminó sin incidentes. ${pet.name} sigue normal.`,
         relatedPetId: pet.id,
+        relatedCaseId: biteCase?.id ?? null,
       });
     });
   } catch (err) {
@@ -445,9 +485,26 @@ export async function reportBiteFromOrgAction(
     authorVerified: organization.verified,
   };
 
-  // 5. Atomic: incident_reported + rabies_observation_started + pet UPDATE.
+  // 5. Atomic: open bite_incident case + incident_reported +
+  //    rabies_observation_started + pet UPDATE.
   try {
     await db.transaction(async (tx) => {
+      // Cases system (Fase D2): open bite_incident case attributed to the
+      // reporting org.
+      const caseRow = await openCase(
+        {
+          kind: "bite_incident",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          jurisdictionProvince: pet.jurisdictionProvince,
+          jurisdictionLocality: pet.jurisdictionLocality,
+          openedByUserId: user.id,
+          openedByOrganizationId: organization.id,
+          openedReason: `Bite incident reported by ${organization.displayName} (${reporterRole}) — victim=${victimKind}, severity=${severity}`,
+        },
+        tx,
+      );
+
       const incidentPayload = validateEventPayload("incident_reported", {
         incident_type: "bite_inflicted",
         severity,
@@ -473,6 +530,7 @@ export async function reportBiteFromOrgAction(
           recordedByUserId: user.id,
           ...eventAuthorship,
           payload: incidentPayload,
+          caseId: caseRow.id,
         })
         .returning();
 
@@ -490,6 +548,7 @@ export async function reportBiteFromOrgAction(
         recordedByUserId: user.id,
         ...eventAuthorship,
         payload: observationPayload,
+        caseId: caseRow.id,
       });
 
       await tx
@@ -518,6 +577,7 @@ export async function reportBiteFromOrgAction(
           title: `Mordedura reportada por ${organization.displayName} — ${pet.name}`,
           body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR")} en ${pet.name}. Inicia un período de observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
           relatedPetId: pet.id,
+          relatedCaseId: caseRow.id,
           ctaLabel: "Ver mascota",
           ctaUrl: `/mis-mascotas/${pet.publicToken}`,
         });
@@ -622,6 +682,24 @@ export async function professionalCloseRabiesObservationAction(
   const biteEventId = startedPayload.bite_event_id as string;
   const now = new Date();
 
+  // Cases system (Fase D2): outcome → closed_reason mapping. Outcomes
+  // that reach a real determination (negative/positive_rabies/dead) close
+  // as `resolved`; `lost_to_followup` is `cancelled` (we couldn't get a
+  // determination).
+  const closedReason: "resolved" | "cancelled" =
+    outcome === "lost_to_followup" ? "cancelled" : "resolved";
+  const [biteCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "bite_incident"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   try {
     await db.transaction(async (tx) => {
       const endedPayload = validateEventPayload("rabies_observation_ended", {
@@ -645,11 +723,18 @@ export async function professionalCloseRabiesObservationAction(
         authorOrganizationId: null,
         authorVerified: false,
         payload: endedPayload,
+        caseId: biteCase?.id ?? null,
       });
       await tx
         .update(pets)
         .set({ rabiesObservationStatus: outcomeToStatus(outcome), updatedAt: now })
         .where(eq(pets.id, pet.id));
+      if (biteCase) {
+        await closeCase(
+          { caseId: biteCase.id, reason: closedReason, closedByUserId: profile.id },
+          tx,
+        );
+      }
 
       // Notify the active owner of the professional closure.
       const [activeOwnership] = await tx
@@ -672,6 +757,7 @@ export async function professionalCloseRabiesObservationAction(
           title: `Observación cerrada profesionalmente — ${pet.name}`,
           body: `La observación antirrábica de ${pet.name} fue cerrada por ${profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con outcome: ${outcome}.${closureNotes ? ` Notas: ${closureNotes}` : ""}`,
           relatedPetId: pet.id,
+          relatedCaseId: biteCase?.id ?? null,
         });
       }
     });
