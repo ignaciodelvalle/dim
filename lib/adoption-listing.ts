@@ -10,7 +10,7 @@
 
 import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
-import { db, organizations, ownerships, pets } from "@/db";
+import { attachments, db, organizations, ownerships, pets } from "@/db";
 
 // ---------------------------------------------------------------------------
 // Catalogs (kept here so consumers — page, form, filters bar — import from
@@ -102,6 +102,7 @@ export type AdoptionListingItem = {
   sex: string;
   color: string | null;
   primaryPhotoId: string | null;
+  primaryPhotoStoragePath: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   microchipId: string | null;
@@ -200,6 +201,7 @@ export async function queryAdoptionListing(
       sex: pets.sex,
       color: pets.color,
       primaryPhotoId: pets.primaryPhotoId,
+      primaryPhotoStoragePath: attachments.storagePath,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
       microchipId: pets.microchipId,
@@ -224,6 +226,7 @@ export async function queryAdoptionListing(
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(and(...conditions))
     .orderBy(desc(pets.adoptionListedAt), desc(pets.id))
     .limit(pageSize + 1);
