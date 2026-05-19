@@ -295,10 +295,7 @@ describe("logLibretaShareViewForToken", () => {
     expect(row.lastViewedAtCached).not.toBeNull();
 
     // Verify the share_telemetry row was inserted.
-    const events = await db
-      .select()
-      .from(shareTelemetry)
-      .where(eq(shareTelemetry.petId, petId));
+    const events = await db.select().from(shareTelemetry).where(eq(shareTelemetry.petId, petId));
     expect(events.length).toBeGreaterThanOrEqual(1);
 
     // Cleanup — share_telemetry is plain mutable, no GUC needed.

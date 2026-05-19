@@ -452,7 +452,7 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 39 types
+## Event catalog — 41 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -501,8 +501,7 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | Type                       | UI    | Payload                                                                                              |
 | -------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `microchip_implanted`      | v1    | `{ chip_number, country_code?, implanted_by?, location_on_body?, implant_date_known? }` — fired automatically at pet creation if a chip is provided |
-| `microchip_replaced`       | later | `{ previous_chip_number, new_chip_number, reason: damaged\|unreadable\|duplicate_detected\|other, replaced_by?, replaced_at }` — chip swap (the old chip is no longer authoritative) |
-| `microchip_revoked`        | later | `{ chip_number, reason: fraud_detected\|owner_request\|device_failure\|other, revoked_by_role: admin\|govt\|vet, revoked_by_user_id, notes? }` — chip retired without a replacement |
+| `microchip_replaced`       | later | `{ previous_chip_number, new_chip_number: string\|null, reason: damaged\|unreadable\|duplicate_detected\|fraud_detected\|owner_request\|device_failure\|other, replaced_by?, replaced_at, actor_role: owner\|vet\|admin\|govt, actor_user_id?, notes? }` — `new_chip_number=null` means revocation without replacement (replaces the retired `microchip_revoked` event_type, catalog cleanup 2026-05-19) |
 | `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at }` — owner registers their PPP in the official provincial registry |
 
 **Free-form**
@@ -535,12 +534,10 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `foster_assigned`                 | later | `{ foster_user_id, expected_weeks?, notes? }` — refugio assigns a voluntario |
 | `foster_ended`                    | later | `{ foster_user_id, foster_assigned_event_id?, ended_by: shelter\|foster_returned\|other, reason? }` |
 | `adoption_application_submitted`  | later | `{ applicant_user_id, related_organization_id, housing_type?, other_pets?, daily_routine?, notes? }` |
-| `adoption_application_approved`   | later | `{ application_event_id, reviewer_user_id, conditions? }`                                        |
-| `adoption_application_rejected`   | later | `{ application_event_id, reviewer_user_id, reason? }`                                            |
-| `adoption_withdrawn`              | later | `{ application_event_id, withdrawn_by_user_id, reason? }` — the applicant retires their application |
+| `adoption_application_resolved`   | later | `{ application_event_id, reviewer_user_id, outcome: approved\|rejected, reason?, auto_generated?, notes? }` — umbrella for approve/reject decisions; `auto_generated=true` marks the F5.5 cascade rejections triggered by `adoption_finalized` |
 | `adoption_finalized`              | later | `{ previous_owner_organization_id, adopter_user_id, foster_user_id?, contract_attachment_id?, post_adoption_followup_months?, notes? }` — **composite event.** Atomically ends `shelter_custody` and `foster` rows and inserts a new `owner` row |
 | `post_adoption_checkin`           | later | `{ related_organization_id, photo_attachment_ids, notes? }`                                      |
-| `adoption_revoked`                | later | `{ reason, returned_to_organization_id }` — refugio reclaims animal per contract                |
+| `adoption_reversed`               | later | `{ actor: shelter\|adopter\|court, reason, reverted_finalization_event_id? }` — replaces both `adoption_revoked` and `adoption_withdrawn` (catalog cleanup 2026-05-19) |
 | `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, from_role, to_role, reason?, matched_against_pet_id?, foster_ended_event_id?, notes? }` — handoffs that are not adoption |
 | `custody_transfer_proposed`       | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason, matched_against_pet_id?, proposed_at, notes? }` — Phase 1 of the return-to-owner / cross-org two-phase handshake |
 | `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt, raised_by_user_id, external_proceeding_reference?, reason }` — admin or govt flags the pet as subject to external legal proceedings. Sets `pets.in_custody_dispute = true` |
@@ -548,13 +545,11 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 
 **System telemetry**
 
-| Type                     | UI     | Payload                                                                                       |
-| ------------------------ | ------ | --------------------------------------------------------------------------------------------- |
-| `libreta_shared_viewed`  | system | `{ share_token_id, viewer_ip_hash?, user_agent? }` — telemetry of Tier-2 share token use; NON-libreta classification |
+Share-view tracking (Tier-2 libreta share tokens) moved out of `pet_events` and into the dedicated `share_telemetry` table during the 2026-05-19 catalog cleanup. `pet_events` no longer carries non-clinical telemetry of share use; the `libreta_shared_viewed` event_type was retired (see Deprecated table). Only `outbreak_signal` and `credential_scanned` remain as system-emitted entries inside the events log.
 
 ### Deprecated event types
 
-These event_types existed in earlier versions but are no longer written by any flow. Historical `pet_events` rows with these types remain in the database (events are immutable) and continue to render via `eventPayloadSummary`'s catch-all branch.
+These event_types existed in earlier versions but are no longer written by any flow. **Note:** DB will be wiped before the next migration cycle (per 2026-05-19 catalog cleanup plan), so historical rows with these types will not be preserved — no catch-all renderer required. The Zod registry has dropped them; any seed scripts that still write them are stale and will be regenerated post-wipe.
 
 | Deprecated                       | Replacement                                                            | Deprecated since |
 | -------------------------------- | ---------------------------------------------------------------------- | ---------------- |
@@ -563,6 +558,16 @@ These event_types existed in earlier versions but are no longer written by any f
 | `surgery_performed`              | `clinical_info_logged` with `sub_kind='surgery'`                       | 2026-05-18       |
 | `allergy_detected`               | `clinical_info_logged` with `sub_kind='allergy_detection'`             | 2026-05-18       |
 | `adoption_application_reviewed`  | Application-table status field already captures the "in review" stage | 2026-05-18       |
+| `foster_proposal_accepted`       | `foster_proposal_resolved` with `outcome='accepted'`                   | 2026-05-19       |
+| `foster_proposal_rejected`       | `foster_proposal_resolved` with `outcome='rejected'`                   | 2026-05-19       |
+| `foster_proposal_cancelled`      | `foster_proposal_resolved` with `outcome='cancelled'`                  | 2026-05-19       |
+| `foster_proposal_expired`        | `foster_proposal_resolved` with `outcome='expired'`                    | 2026-05-19       |
+| `adoption_application_approved`  | `adoption_application_resolved` with `outcome='approved'`              | 2026-05-19       |
+| `adoption_application_rejected`  | `adoption_application_resolved` with `outcome='rejected'`              | 2026-05-19       |
+| `adoption_revoked`               | `adoption_reversed` with `actor='shelter'` or `'court'`                | 2026-05-19       |
+| `adoption_withdrawn`             | `adoption_reversed` with `actor='adopter'`                             | 2026-05-19       |
+| `libreta_shared_viewed`          | Moved out of `pet_events` into the `share_telemetry` table             | 2026-05-19       |
+| `microchip_revoked`              | `microchip_replaced` with `new_chip_number=null`                       | 2026-05-19       |
 
 The `incident_type='dog_attack'` value inside `incident_reported.payload` is also deprecated in favor of the unambiguous `incident_type='bite_suffered'`. Historical rows with `dog_attack` are preserved by keeping the value in the Zod enum.
 
