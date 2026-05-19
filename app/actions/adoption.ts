@@ -288,22 +288,23 @@ export async function finalizeAdoptionAction(
           AND NOT EXISTS (
             SELECT 1 FROM pet_events d
             WHERE d.pet_id = e.pet_id
-              AND d.event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+              AND d.event_type = 'adoption_application_resolved'
               AND d.payload->>'application_event_id' = e.id::text
           )
       `);
 
       for (const app of pendingApplications) {
-        const rejectionPayload = validateEventPayload("adoption_application_rejected", {
+        const rejectionPayload = validateEventPayload("adoption_application_resolved", {
           application_event_id: app.application_id,
           reviewer_user_id: user.id,
+          outcome: "rejected",
           reason: "another_application_finalized",
           auto_generated: true,
           notes: null,
         });
         await tx.insert(petEvents).values({
           petId: pet.id,
-          eventType: "adoption_application_rejected",
+          eventType: "adoption_application_resolved",
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: user.id,

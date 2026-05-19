@@ -109,7 +109,7 @@ export async function submitAdoptionApplicationAction(
       AND NOT EXISTS (
         SELECT 1 FROM pet_events d
         WHERE d.pet_id = e.pet_id
-          AND d.event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+          AND d.event_type = 'adoption_application_resolved'
           AND d.payload->>'application_event_id' = e.id::text
       )
     LIMIT 1
@@ -261,7 +261,7 @@ async function loadPendingApplication(
   const decided = await db.execute<{ id: string }>(sql`
     SELECT id FROM pet_events
     WHERE pet_id = ${row.pet.id}
-      AND event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+      AND event_type = 'adoption_application_resolved'
       AND payload->>'application_event_id' = ${applicationEventId}
     LIMIT 1
   `);
@@ -299,9 +299,10 @@ export async function approveAdoptionApplicationAction(
 
   const notes = input.notes?.trim() || null;
   const now = new Date();
-  const payload = validateEventPayload("adoption_application_approved", {
+  const payload = validateEventPayload("adoption_application_resolved", {
     application_event_id: application.id,
     reviewer_user_id: user.id,
+    outcome: "approved",
     notes,
   });
 
@@ -309,7 +310,7 @@ export async function approveAdoptionApplicationAction(
     await db.transaction(async (tx) => {
       await tx.insert(petEvents).values({
         petId: pet.id,
-        eventType: "adoption_application_approved",
+        eventType: "adoption_application_resolved",
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: user.id,
@@ -363,9 +364,10 @@ export async function rejectAdoptionApplicationAction(
 
   const notes = input.notes?.trim() || null;
   const now = new Date();
-  const payload = validateEventPayload("adoption_application_rejected", {
+  const payload = validateEventPayload("adoption_application_resolved", {
     application_event_id: application.id,
     reviewer_user_id: user.id,
+    outcome: "rejected",
     reason: notes ?? "manual_rejection",
     auto_generated: false,
     notes,
@@ -375,7 +377,7 @@ export async function rejectAdoptionApplicationAction(
     await db.transaction(async (tx) => {
       await tx.insert(petEvents).values({
         petId: pet.id,
-        eventType: "adoption_application_rejected",
+        eventType: "adoption_application_resolved",
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: user.id,

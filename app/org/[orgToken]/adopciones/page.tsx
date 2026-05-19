@@ -74,10 +74,7 @@ export default async function AdoptionReviewIndexPage({
       AND NOT EXISTS (
         SELECT 1 FROM pet_events d
         WHERE d.pet_id = s.pet_id
-          AND d.event_type IN (
-            'adoption_application_approved',
-            'adoption_application_rejected'
-          )
+          AND d.event_type = 'adoption_application_resolved'
           AND d.payload->>'application_event_id' = s.id::text
       )
       AND NOT EXISTS (

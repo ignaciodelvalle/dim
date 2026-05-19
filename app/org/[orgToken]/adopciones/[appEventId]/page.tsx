@@ -88,20 +88,20 @@ export default async function AdoptionReviewDetailPage({
   // Has this application already been resolved? If so we hide the action
   // controls and show the decision summary.
   const decision = await db.execute<{
-    event_type: string;
+    outcome: string;
     reviewer_user_id: string;
     notes: string | null;
     auto_generated: string | null;
     decided_at: string;
   }>(sql`
-    SELECT event_type::text,
+    SELECT payload->>'outcome' AS outcome,
            payload->>'reviewer_user_id' AS reviewer_user_id,
            payload->>'notes' AS notes,
            payload->>'auto_generated' AS auto_generated,
            recorded_at::text AS decided_at
     FROM pet_events
     WHERE pet_id = ${pet.id}
-      AND event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+      AND event_type = 'adoption_application_resolved'
       AND payload->>'application_event_id' = ${appEventId}
     ORDER BY recorded_at DESC
     LIMIT 1
@@ -159,7 +159,7 @@ export default async function AdoptionReviewDetailPage({
           <section className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-2">
             <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
               Esta postulación ya fue resuelta:{" "}
-              {decision[0].event_type === "adoption_application_approved"
+              {decision[0].outcome === "approved"
                 ? "aprobada"
                 : decision[0].auto_generated === "true"
                   ? "cerrada automáticamente (otra adopción se finalizó)"

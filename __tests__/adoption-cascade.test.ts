@@ -270,13 +270,17 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
     const finalPayload = finalizedEvents[0].payload as { adopter_user_id: string };
     expect(finalPayload.adopter_user_id).toBe(applicant1Id);
 
-    // 2 auto-rejection events, one each for applicant2 + applicant3.
-    const rejections = await db
+    // 2 auto-rejection events (resolved + outcome=rejected + auto_generated),
+    // one each for applicant2 + applicant3.
+    const resolvedEvents = await db
       .select()
       .from(petEvents)
       .where(
-        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_rejected")),
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_resolved")),
       );
+    const rejections = resolvedEvents.filter(
+      (r) => (r.payload as { outcome?: string }).outcome === "rejected",
+    );
     expect(rejections).toHaveLength(2);
     for (const r of rejections) {
       const payload = r.payload as {

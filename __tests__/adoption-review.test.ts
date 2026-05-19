@@ -218,15 +218,17 @@ describe("approve/reject adoption application actions", () => {
       .select()
       .from(petEvents)
       .where(
-        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_approved")),
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_resolved")),
       );
     expect(approved).toHaveLength(1);
     const payload = approved[0].payload as {
       application_event_id: string;
       reviewer_user_id: string;
+      outcome: string;
     };
     expect(payload.application_event_id).toBe(applicationEventId);
     expect(payload.reviewer_user_id).toBe(coordUserId);
+    expect(payload.outcome).toBe("approved");
 
     const applicantNotif = await db
       .select()
@@ -268,15 +270,17 @@ describe("approve/reject adoption application actions", () => {
     });
     expect("ok" in r).toBe(true);
 
-    const rejected = await db
+    const resolved = await db
       .select()
       .from(petEvents)
       .where(
-        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_rejected")),
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "adoption_application_resolved")),
       );
-    // Both auto-generated cascade rejections AND this manual one would
-    // count if a cascade had fired — but we never finalized so we expect
-    // exactly 1 here.
+    // There's the approval from the previous test + this rejection.
+    expect(resolved).toHaveLength(2);
+    const rejected = resolved.filter(
+      (e) => (e.payload as { outcome?: string }).outcome === "rejected",
+    );
     expect(rejected).toHaveLength(1);
     const payload = rejected[0].payload as {
       application_event_id: string;

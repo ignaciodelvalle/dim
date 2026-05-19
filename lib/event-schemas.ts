@@ -766,34 +766,26 @@ const adoptionApplicationSubmitted = z
   )
   .strict();
 
-// Adoption application approved — emitted by the shelter's admin/coordinator
-// from the org portal when they decide to move forward with this applicant.
-// `application_event_id` references the original `_submitted` event. The
-// approval is informational — `adoption_finalized` is the event that
-// actually transitions ownership.
-const adoptionApplicationApproved = z
+// Adoption application resolved — umbrella for approved + rejected
+// decisions (catalog cleanup 2026-05-19). The shelter's admin/coordinator
+// emits this from the org portal when reviewing a postulation, and the
+// finalize-cascade in adoption.ts emits the `rejected + auto_generated`
+// variant for sibling applications when one application is finalized
+// (spec adoption-listing-public §12 Fase 5.5).
+//
+// outcome === "rejected" → reason should be set (required by app-layer
+// for manual rejections; the cascade uses literal "another_application_finalized").
+// outcome === "approved" → reason is optional. Zod stays permissive on
+// the correlation; the server actions enforce it.
+const adoptionApplicationResolved = z
   .object(
     withVersion({
       application_event_id: z.string().uuid(),
       reviewer_user_id: z.string().uuid(),
-      notes: z.string().nullable(),
-    }),
-  )
-  .strict();
-
-// Adoption application rejected — emitted by the shelter (manual rejection)
-// or by `finalizeAdoptionAction` (auto-rejection cascade for the other
-// pending applications, spec adoption-listing-public §12 Fase 5.5). When
-// `auto_generated` is true, `reason` is the literal
-// "another_application_finalized" and `reviewer_user_id` is the finalizer.
-const adoptionApplicationRejected = z
-  .object(
-    withVersion({
-      application_event_id: z.string().uuid(),
-      reviewer_user_id: z.string().uuid(),
-      reason: z.string(),
-      auto_generated: z.boolean().default(false),
-      notes: z.string().nullable(),
+      outcome: z.enum(["approved", "rejected"]),
+      reason: z.string().nullable().optional(),
+      auto_generated: z.boolean().default(false).optional(),
+      notes: z.string().nullable().optional(),
     }),
   )
   .strict();
@@ -1034,8 +1026,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_finalized: adoptionFinalized,
   adoption_reversed: adoptionReversed,
   adoption_application_submitted: adoptionApplicationSubmitted,
-  adoption_application_approved: adoptionApplicationApproved,
-  adoption_application_rejected: adoptionApplicationRejected,
+  adoption_application_resolved: adoptionApplicationResolved,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
   custody_transfer_proposed: custodyTransferProposed,

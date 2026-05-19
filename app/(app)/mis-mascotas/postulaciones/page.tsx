@@ -79,13 +79,13 @@ export default async function MisPostulacionesPage({
     decisions AS (
       SELECT
         s.id AS application_id,
-        d.event_type,
+        d.payload->>'outcome' AS outcome,
         d.payload->>'auto_generated' AS auto_generated,
         d.recorded_at AS decision_at
       FROM my_submissions s
       JOIN pet_events d
         ON d.pet_id = s.pet_id
-       AND d.event_type IN ('adoption_application_approved', 'adoption_application_rejected')
+       AND d.event_type = 'adoption_application_resolved'
        AND d.payload->>'application_event_id' = s.id::text
     ),
     finalizations AS (
@@ -115,10 +115,10 @@ export default async function MisPostulacionesPage({
       s.submitted_at::text AS submitted_at,
       CASE
         WHEN f.finalized_at IS NOT NULL THEN 'finalized_to_me'
-        WHEN d.event_type = 'adoption_application_approved' THEN 'approved'
-        WHEN d.event_type = 'adoption_application_rejected'
+        WHEN d.outcome = 'approved' THEN 'approved'
+        WHEN d.outcome = 'rejected'
           AND COALESCE(d.auto_generated, 'false') = 'true' THEN 'auto_rejected'
-        WHEN d.event_type = 'adoption_application_rejected' THEN 'rejected'
+        WHEN d.outcome = 'rejected' THEN 'rejected'
         ELSE 'pending'
       END AS status,
       COALESCE(f.finalized_at, d.decision_at)::text AS decision_at

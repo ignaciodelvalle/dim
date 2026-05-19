@@ -303,6 +303,17 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: str("reason"),
       };
     }
+    case "adoption_application_resolved": {
+      const outcome = str("outcome");
+      const auto = str("auto_generated") === "true";
+      let primary: string;
+      if (outcome === "approved") primary = "Postulación aprobada";
+      else if (outcome === "rejected" && auto)
+        primary = "Postulación cerrada (otra adopción se finalizó)";
+      else if (outcome === "rejected") primary = "Postulación no avanzó";
+      else primary = "Postulación resuelta";
+      return { primary, secondary: str("notes") };
+    }
     default:
       return { primary: null, secondary: null };
   }

@@ -270,8 +270,10 @@ export const EVENT_TYPES = [
   "foster_assigned",
   "foster_ended",
   "adoption_application_submitted",
-  "adoption_application_approved",
-  "adoption_application_rejected",
+  // adoption_application_resolved is the umbrella for approved + rejected
+  // decisions (catalog cleanup 2026-05-19). outcome discriminates;
+  // auto_generated=true is set by the F5.5 finalize cascade.
+  "adoption_application_resolved",
   "adoption_finalized",
   "post_adoption_checkin",
   // adoption_reversed is the umbrella for adoption_revoked + adoption_withdrawn
@@ -1267,8 +1269,7 @@ export const AUDIT_LOG_ACTIONS = [
   // admin/coordinator of the shelter from the org portal. The auto-rejected
   // cascade triggered by adoption_finalized also emits _rejected rows.
   "adoption_application_submitted",
-  "adoption_application_approved",
-  "adoption_application_rejected",
+  "adoption_application_resolved",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
