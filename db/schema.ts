@@ -453,6 +453,29 @@ export const pets = pgTable(
     adoptionEligibilitySetByUserId: uuid("adoption_eligibility_set_by_user_id").references(
       () => profiles.id,
     ),
+
+    // Adoption listing — spec 2026-05-18 adoption-listing-public v1.3.
+    // Two timestamps + 9 columns of shelter-curated copy + a fee. Together
+    // they drive /adoptar listing visibility and ficha rendering. CHECK
+    // constraints in migration 0030 enforce enum-style values without
+    // forcing a Postgres enum migration on every label tweak.
+    adoptionListedAt: timestamp("adoption_listed_at", { withTimezone: true }),
+    adoptionListingPausedAt: timestamp("adoption_listing_paused_at", { withTimezone: true }),
+    adoptionStory: text("adoption_story"),
+    adoptionRequirements: text("adoption_requirements"),
+    adoptionEnergyLevel: text("adoption_energy_level").$type<"low" | "medium" | "high">(),
+    adoptionSizeEstimate: text("adoption_size_estimate").$type<
+      "small" | "medium" | "large" | "xl"
+    >(),
+    adoptionAgeBucket: text("adoption_age_bucket").$type<
+      "puppy" | "junior" | "young" | "adult" | "senior"
+    >(),
+    adoptionGoodWithKids: boolean("adoption_good_with_kids"),
+    adoptionGoodWithDogs: boolean("adoption_good_with_dogs"),
+    adoptionGoodWithCats: boolean("adoption_good_with_cats"),
+    adoptionNeedsYard: boolean("adoption_needs_yard"),
+    adoptionFeeArs: integer("adoption_fee_ars"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -465,6 +488,11 @@ export const pets = pgTable(
       table.jurisdictionLocality,
     ),
     statusIdx: index("pets_status_idx").on(table.status),
+    adoptionListingIdx: index("pets_adoption_listing_active_idx")
+      .on(table.adoptionListedAt, table.id)
+      .where(
+        sql`${table.adoptionListedAt} IS NOT NULL AND ${table.adoptionListingPausedAt} IS NULL`,
+      ),
   }),
 );
 
