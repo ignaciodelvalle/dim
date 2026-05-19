@@ -1479,7 +1479,15 @@ export const ARGENTINE_LOCALITY_CATEGORIES = [
 ] as const;
 export type ArgentineLocalityCategory = (typeof ARGENTINE_LOCALITY_CATEGORIES)[number];
 
-export const ARGENTINE_LOCALITY_SOURCES = ["indec_cppdyl", "bahra", "manual"] as const;
+export const ARGENTINE_LOCALITY_SOURCES = [
+  "indec_cppdyl",
+  "bahra",
+  "manual",
+  // CABA barrios — INDEC treats CABA as one locality; the 48 barrios live
+  // in the city's open-data portal (data.buenosaires.gob.ar). Distinct
+  // source so re-imports can target this slice independently.
+  "caba_open_data",
+] as const;
 export type ArgentineLocalitySource = (typeof ARGENTINE_LOCALITY_SOURCES)[number];
 
 export const arLocalities = pgTable(
