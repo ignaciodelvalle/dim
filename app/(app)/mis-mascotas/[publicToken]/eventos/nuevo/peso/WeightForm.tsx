@@ -10,9 +10,9 @@
  *  3. The page's server component reads `searchParams`, builds the
  *     `defaults` object, and passes it down.
  *  4. The form name="..." attributes MUST match the keys in
- *     `lib/event-agent-registry.ts → EVENT_AGENT_REGISTRY[event_type].prefillSlots`
- *     — that registry is the contract the future conversational agent
- *     will deeplink against.
+ *     `lib/event-capture-registry.ts → EVENT_CAPTURE_REGISTRY[event_type].prefillSlots`
+ *     — that registry is the contract the Captura rápida matcher (and
+ *     any future LLM agent) deeplinks against.
  *
  * Why prop and not useSearchParams: server components own search-param
  * reading. The form is client-side; keeping it stateless re: URLs means
