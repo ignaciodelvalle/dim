@@ -739,6 +739,9 @@ export const petEvents = pgTable(
     // customType support for it; lift-and-shift will be straightforward.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
+    // Cases system (migration 0033). Nullable — at most one case per event.
+    // The case_id is append-only at the DB level (enforced by trigger).
+    caseId: uuid("case_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -900,6 +903,10 @@ export const notifications = pgTable(
     relatedReminderId: uuid("related_reminder_id").references(() => reminders.id, {
       onDelete: "set null",
     }),
+    // Cases system (migration 0033). Lets the dashboard collapse N
+    // case-derived notifications into one "Caso X" entry. Nullable —
+    // free-standing notifications never set this.
+    relatedCaseId: uuid("related_case_id"),
     // State.
     readAt: timestamp("read_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -986,6 +993,9 @@ export const welfareReports = pgTable(
       () => profiles.id,
       { onDelete: "set null" },
     ),
+    // Cases system (migration 0033). Linked to the welfare_denuncia case
+    // opened atomically on submit. Nullable for historical rows.
+    caseId: uuid("case_id"),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1952,3 +1962,105 @@ export const rateLimitBuckets = pgTable("rate_limit_buckets", {
 });
 
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
+
+// ============================================================================
+// Cases (expedientes) — coordinación liviana sobre el event log
+// ============================================================================
+// Wrapping object over `pet_events` + `welfare_reports`. Each event row can
+// optionally attach to one case (`case_id` nullable). Cases are polymorphic
+// in subject (registered pet, unowned animal, location, general).
+//
+// Source specs:
+//   docs/superpowers/specs/2026-05-19-cases-event-attachment-design.md (v1.1+)
+//   docs/superpowers/specs/2026-05-19-cases-lifecycles-design.md (v1.0+)
+//   docs/superpowers/plans/2026-05-19-cases-system.md
+//
+// case_kind values are NOT enum-constrained at DB level so adding a new kind
+// is one line in lib/case-kinds.ts (no migration). Validated in app code.
+
+export const CASE_STATUSES = ["open", "escalated", "closed", "merged"] as const;
+export type CaseStatus = (typeof CASE_STATUSES)[number];
+
+export const CASE_CLOSED_REASONS = ["resolved", "cancelled", "auto_expired", "merged"] as const;
+export type CaseClosedReason = (typeof CASE_CLOSED_REASONS)[number];
+
+export const CASE_SUBJECT_KINDS = [
+  "registered_pet",
+  "unowned_animal",
+  "location",
+  "general",
+] as const;
+export type CaseSubjectKind = (typeof CASE_SUBJECT_KINDS)[number];
+
+export const cases = pgTable(
+  "cases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicCode: text("public_code").notNull().unique(),
+    caseKind: text("case_kind").notNull(),
+
+    status: text("status").notNull().default("open").$type<CaseStatus>(),
+    closedReason: text("closed_reason").$type<CaseClosedReason | null>(),
+    // Self-reference for merged cases (drizzle handles the FK via DB; no `.references` to avoid cycle).
+    supersededByCaseId: uuid("superseded_by_case_id"),
+
+    primarySubjectKind: text("primary_subject_kind").notNull().$type<CaseSubjectKind>(),
+    primaryPetId: uuid("primary_pet_id").references(() => pets.id),
+    primaryLocationLat: numeric("primary_location_lat", { precision: 10, scale: 7 }),
+    primaryLocationLng: numeric("primary_location_lng", { precision: 10, scale: 7 }),
+
+    // Used by adoption_application — write-once at open. No FK because
+    // applications live as pet_events rows (no dedicated table).
+    applicantUserId: uuid("applicant_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+
+    // Jurisdicción (denormalized from primary_pet or location)
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    openedByUserId: uuid("opened_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    openedByOrganizationId: uuid("opened_by_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    openedReason: text("opened_reason"),
+
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByUserId: uuid("closed_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+
+    // Linkbacks to auxiliary tables (optional per kind)
+    welfareReportId: uuid("welfare_report_id").references(() => welfareReports.id, {
+      onDelete: "set null",
+    }),
+    // adoption_application_id has no FK until the adoption-listing-public spec lands.
+    adoptionApplicationId: uuid("adoption_application_id"),
+    custodyDisputeId: uuid("custody_dispute_id").references(() => custodyDisputes.id, {
+      onDelete: "set null",
+    }),
+
+    // For adoption_application: linkage to its parent listing case.
+    parentListingCaseId: uuid("parent_listing_case_id"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    publicCodeIdx: uniqueIndex("cases_public_code_unique").on(table.publicCode),
+    // The partial unique indexes that enforce business uniqueness per kind
+    // live in the SQL migration — Drizzle's partial index syntax doesn't
+    // express them ergonomically. The SQL definition is authoritative.
+    openByJurisdictionIdx: index("cases_open_by_jurisdiction_kind_idx").on(
+      table.jurisdictionLocality,
+      table.caseKind,
+    ),
+  }),
+);
+
+export type Case = typeof cases.$inferSelect;
+export type NewCase = typeof cases.$inferInsert;
