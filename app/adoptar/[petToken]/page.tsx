@@ -7,6 +7,8 @@ import { sexLabel, speciesLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
+import { ApplyButton } from "./ApplyButton";
+
 // Individual adoption ficha — mirrors the listing-visibility guards so a
 // pet that's gone unlisted, paused, fell into a custody dispute, etc.,
 // returns 404 instead of leaking. The exception (D7.2) is a gentle
@@ -295,12 +297,7 @@ export default async function AdoptarFichaPage({
 
         {/* CTA */}
         <section className="rounded-xl border-2 border-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 p-6 space-y-3">
-          <Link
-            href={`/adoptar/${petToken}/postular`}
-            className="block w-full text-center px-6 py-4 rounded-lg bg-emerald-600 text-white text-lg font-semibold hover:bg-emerald-700 transition-colors"
-          >
-            Postularme para adoptar a {pet.name}
-          </Link>
+          <ApplyButton petToken={petToken} petName={pet.name} />
           <p className="text-xs text-emerald-900 dark:text-emerald-200 text-center">
             Tu postulación inicia un proceso con {org.displayName}. Ellos coordinan visita,
             evaluación y, si todo encaja, la finalización de la adopción.

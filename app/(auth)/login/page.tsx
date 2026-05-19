@@ -3,18 +3,31 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole } from "@/lib/role-landing";
+import { pathForRole, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 
 import { LoginForm } from "./LoginForm";
 
-export default async function LoginPage() {
+// Login mirrors signup's `intent=apply` + `returnTo` plumbing so a visitor
+// who clicks "¿Ya tenés cuenta?" on the signup-from-adoption flow keeps
+// the apply intent through the entire round-trip.
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ intent?: string; returnTo?: string }>;
+}) {
+  const sp = await searchParams;
+  const intent = sp.intent === "apply" ? "apply" : null;
+  const returnTo = safeReturnTo(sp.returnTo);
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (user) {
+    if (returnTo) redirect(returnTo);
     const [profile] = await db
       .select({ role: profiles.role })
       .from(profiles)
@@ -48,14 +61,20 @@ export default async function LoginPage() {
             Iniciar sesión
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Bienvenido de vuelta a MiMAR
+            {intent === "apply"
+              ? "Iniciá sesión para continuar con tu postulación."
+              : "Bienvenido de vuelta a MiMAR"}
           </p>
         </div>
-        <LoginForm />
+        <LoginForm returnTo={returnTo} />
         <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
           ¿No tenés cuenta?{" "}
           <Link
-            href="/signup"
+            href={
+              intent === "apply" && returnTo
+                ? `/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`
+                : "/signup"
+            }
             className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
           >
             Crear cuenta

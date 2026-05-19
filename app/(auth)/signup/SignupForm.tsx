@@ -4,6 +4,7 @@ import { type AuthFormState, signupAction } from "@/app/actions/auth";
 import { createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 const initialAuthState: AuthFormState = { error: null };
@@ -19,14 +20,31 @@ const initialAuthState: AuthFormState = { error: null };
 // PetForm surfaces its own error inline, and the always-visible escape
 // note below the form points the (already authenticated) user to
 // /mis-mascotas so they can add a pet later — no rollback needed.
+//
+// Adoption-apply branch (spec adoption-listing-public §8.3): when the form
+// is opened with `intent=apply`, we skip step 2 entirely — a visitor who
+// came here to ADOPT does not have a pet of their own to register yet.
+// On step-1 success we push them straight to `returnTo` (the postular page).
 
-export function SignupForm() {
+export function SignupForm({
+  intent,
+  returnTo,
+}: {
+  intent: "apply" | null;
+  returnTo: string | null;
+}) {
+  const router = useRouter();
   const [step, setStep] = useState<"account" | "pet">("account");
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
 
   useEffect(() => {
-    if (authState.ok) setStep("pet");
-  }, [authState.ok]);
+    if (!authState.ok) return;
+    if (intent === "apply" && returnTo) {
+      router.replace(returnTo);
+      return;
+    }
+    setStep("pet");
+  }, [authState.ok, intent, returnTo, router]);
 
   if (step === "pet") {
     return (
@@ -68,7 +86,7 @@ export function SignupForm() {
   return (
     <div className="space-y-5">
       <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500 text-center">
-        Paso 1 de 2
+        {intent === "apply" ? "Paso 1 de 1" : "Paso 1 de 2"}
       </p>
 
       <button

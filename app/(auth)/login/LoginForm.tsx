@@ -5,7 +5,7 @@ import { useActionState } from "react";
 
 const initialState: AuthFormState = { error: null };
 
-export function LoginForm() {
+export function LoginForm({ returnTo }: { returnTo: string | null }) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
 
   return (
@@ -26,6 +26,7 @@ export function LoginForm() {
       </div>
 
       <form action={formAction} className="space-y-4">
+        {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
         <div className="space-y-1.5">
           <label
             htmlFor="email"

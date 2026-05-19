@@ -7,7 +7,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole } from "@/lib/role-landing";
+import { pathForRole, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -78,6 +78,12 @@ export async function loginAction(
 
   const userId = signInData.user.id;
 
+  // returnTo wins over role-based landing when it's a safe same-origin path
+  // (set by the apply-intent flow on the login form). For institutional
+  // accounts we still fall through to the role landing — the (app) layout
+  // would bounce them off anyway, this just shortens the loop.
+  const returnTo = safeReturnTo(String(formData.get("returnTo") ?? ""));
+
   // Fetch role for landing-page resolution.
   const [profile] = await db
     .select({ role: profiles.role })
@@ -86,6 +92,7 @@ export async function loginAction(
     .limit(1);
 
   const role = profile?.role ?? "owner";
+  if (returnTo && role !== "admin" && role !== "govt") redirect(returnTo);
 
   // For owners: check whether they hold an active admin membership in any org
   // so we can drop them directly into the org portal.
