@@ -130,6 +130,8 @@ function PetListingCard({ item }: { item: CardItem }) {
   if (item.adoptionSizeEstimate) facts.push(sizeLabel(item.adoptionSizeEstimate));
   if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel));
 
+  const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
+
   return (
     <li className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 hover:shadow-lg transition-shadow">
       <Link href={`/adoptar/${item.petPublicToken}`} className="block">
@@ -143,6 +145,20 @@ function PetListingCard({ item }: { item: CardItem }) {
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-5xl text-neutral-400 dark:text-neutral-600">
               {item.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          {(item.isSterilized || item.microchipId) && (
+            <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+              {item.isSterilized && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  {sterilizedLabel}
+                </span>
+              )}
+              {item.microchipId && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-sky-600 text-white">
+                  Con chip
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -170,7 +186,7 @@ function PetListingCard({ item }: { item: CardItem }) {
           <p className="text-[11px] text-neutral-500 pt-1 border-t border-neutral-100 dark:border-neutral-900">
             Publica:{" "}
             <Link
-              href={`/adoptar?org=${item.orgPublicToken}`}
+              href={`/refugios/${item.orgPublicToken}`}
               className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
             >
               {item.orgDisplayName}

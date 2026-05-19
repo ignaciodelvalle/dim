@@ -121,6 +121,11 @@ export type AdoptionListingItem = {
   orgPublicToken: string;
   orgDisplayName: string;
   orgAvatarUrl: string | null;
+  // Derived booleans for card badges. The presence of an event is the
+  // source of truth — we don't materialize these on `pets` because
+  // recompute-from-events is cheap and there is no surface that needs
+  // them outside the listing.
+  isSterilized: boolean;
 };
 
 const DEFAULT_PAGE_SIZE = 24;
@@ -222,6 +227,11 @@ export async function queryAdoptionListing(
       // organizations doesn't have an avatar column today; expose null and
       // a future spec can backfill without changing this interface.
       orgAvatarUrl: sql<string | null>`NULL`,
+      isSterilized: sql<boolean>`EXISTS (
+        SELECT 1 FROM pet_events e
+        WHERE e.pet_id = ${pets.id}
+          AND e.event_type = 'sterilization_performed'
+      )`,
     })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
