@@ -207,20 +207,50 @@ const vaccinationAdministered = z
       brand: z.string().nullable(),
       batch: z.string().nullable(),
       administered_by: z.string().nullable(),
+      // performed_by autocomplete (spec 2026-05-19-performed-by-autocomplete):
+      // optional FK pair. When either is set, `administered_by` must be
+      // the display-name snapshot at insert time (immutable, append-only).
+      administered_by_organization_id: z.string().uuid().nullable().optional(),
+      administered_by_user_id: z.string().uuid().nullable().optional(),
       next_due_at: z.string().nullable(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    if ((p.administered_by_organization_id || p.administered_by_user_id) && !p.administered_by) {
+      ctx.addIssue({
+        code: "custom",
+        message: "administered_by text snapshot required when FK populated",
+        path: ["administered_by"],
+      });
+    }
+  });
 
 const dewormingAdministered = z
   .object(
     withVersion({
       product: z.string(),
       type: z.enum(["internal", "external", "both"]),
+      // performed_by autocomplete (spec 2026-05-19): the existing deworming
+      // schema didn't track who administered the product. The text + FK
+      // pair lands as optional fields — owner-self entries that omit them
+      // keep validating.
+      administered_by: z.string().nullable().optional(),
+      administered_by_organization_id: z.string().uuid().nullable().optional(),
+      administered_by_user_id: z.string().uuid().nullable().optional(),
       next_due_at: z.string().nullable(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    if ((p.administered_by_organization_id || p.administered_by_user_id) && !p.administered_by) {
+      ctx.addIssue({
+        code: "custom",
+        message: "administered_by text snapshot required when FK populated",
+        path: ["administered_by"],
+      });
+    }
+  });
 
 const sterilizationPerformed = z
   .object(
@@ -228,9 +258,27 @@ const sterilizationPerformed = z
       procedure: z.enum(["castration", "spay"]),
       performed_by: z.string().nullable(),
       clinic: z.string().nullable(),
+      // performed_by autocomplete (spec 2026-05-19): FK pair covers both
+      // the vet (user) and clinic (organization) cases. The snapshot text
+      // stays in performed_by + clinic respectively.
+      performed_by_organization_id: z.string().uuid().nullable().optional(),
+      performed_by_user_id: z.string().uuid().nullable().optional(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    if (
+      (p.performed_by_organization_id || p.performed_by_user_id) &&
+      !p.performed_by &&
+      !p.clinic
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "performed_by or clinic text snapshot required when FK populated",
+        path: ["performed_by"],
+      });
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Medication
@@ -289,9 +337,22 @@ const vetVisitLogged = z
       diagnosis: z.string().nullable(),
       vet_name: z.string().nullable(),
       clinic: z.string().nullable(),
+      // performed_by autocomplete (spec 2026-05-19): FK pair links the
+      // visit to a real vet (user) or clinic (organization).
+      attended_by_organization_id: z.string().uuid().nullable().optional(),
+      attended_by_user_id: z.string().uuid().nullable().optional(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    if ((p.attended_by_organization_id || p.attended_by_user_id) && !p.vet_name && !p.clinic) {
+      ctx.addIssue({
+        code: "custom",
+        message: "vet_name or clinic text snapshot required when FK populated",
+        path: ["vet_name"],
+      });
+    }
+  });
 
 const weightRecorded = z
   .object(
@@ -308,9 +369,21 @@ const clinicalInfoLogged = z
       title: z.string(),
       details: z.string().nullable(),
       performed_by: z.string().nullable(),
+      // performed_by autocomplete (spec 2026-05-19): FK pair.
+      performed_by_organization_id: z.string().uuid().nullable().optional(),
+      performed_by_user_id: z.string().uuid().nullable().optional(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    if ((p.performed_by_organization_id || p.performed_by_user_id) && !p.performed_by) {
+      ctx.addIssue({
+        code: "custom",
+        message: "performed_by text snapshot required when FK populated",
+        path: ["performed_by"],
+      });
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Identification & legal
@@ -322,12 +395,24 @@ const microchipImplanted = z
       chip_number: z.string(),
       country_code: z.string().nullable(),
       implanted_by: z.string().nullable(),
+      // performed_by autocomplete (spec 2026-05-19): FK pair.
+      implanted_by_organization_id: z.string().uuid().nullable().optional(),
+      implanted_by_user_id: z.string().uuid().nullable().optional(),
       location_on_body: z.string().nullable(),
       // Only the two pets.ts writers add this; createMicrochipAction omits it.
       implant_date_known: z.boolean().optional(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    if ((p.implanted_by_organization_id || p.implanted_by_user_id) && !p.implanted_by) {
+      ctx.addIssue({
+        code: "custom",
+        message: "implanted_by text snapshot required when FK populated",
+        path: ["implanted_by"],
+      });
+    }
+  });
 
 const dangerousBreedAttested = z
   .object(
