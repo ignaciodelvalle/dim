@@ -1,0 +1,34 @@
+// bite_incident lifecycle (lifecycles spec §5).
+//
+// Opens: incident_reported with incident_type='bite_inflicted'. Atomic
+// with the rabies_observation_started emit.
+// Terminal: rabies_observation_ended. Cron emits the negative outcome
+// at day 11 (12h cron schedule) if no escalation happened.
+// Escalated: symptom_observed with rabies-high-spec match → status='escalated'.
+// No reopen, no manual open.
+
+import type { CaseLifecycle } from "./types";
+
+export const biteIncidentLifecycle: CaseLifecycle = {
+  kind: "bite_incident",
+  statusValues: ["open", "escalated", "closed"],
+  phases: [
+    "observation_open",
+    "observation_escalated",
+    "observation_closed_negative",
+    "observation_closed_positive",
+    "observation_closed_dead",
+    "observation_closed_lost_to_followup",
+  ],
+  opensEvents: [
+    {
+      eventType: "incident_reported",
+      whenPayload: (p) => p.incident_type === "bite_inflicted",
+    },
+  ],
+  terminalEvents: ["rabies_observation_ended"],
+  cronCloseRoute: "/api/cron/close-rabies-observations",
+  cronCloseScheduleHours: 12,
+  manualOpenAllowed: false,
+  reopenAllowed: false,
+};
