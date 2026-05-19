@@ -280,10 +280,8 @@ export type CaseNotificationTemplateId = keyof typeof TEMPLATE_DEFS;
  * see the common shape (ctaLabel/ctaUrlPattern as optional) regardless
  * of which entries set those fields.
  */
-export const CASE_NOTIFICATION_TEMPLATES: Record<
-  CaseNotificationTemplateId,
-  NotificationTemplate
-> = TEMPLATE_DEFS;
+export const CASE_NOTIFICATION_TEMPLATES: Record<CaseNotificationTemplateId, NotificationTemplate> =
+  TEMPLATE_DEFS;
 
 /**
  * Resolve a template + substitute placeholders. Returns the same

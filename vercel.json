@@ -19,7 +19,23 @@
     },
     {
       "path": "/api/cron/close-rabies-observations",
-      "schedule": "0 5 * * *"
+      "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/cron/close-stale-lost-episodes",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/close-followup-expired-adoptions",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/escalate-stale-welfare-cases",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/escalate-stale-disputes",
+      "schedule": "0 4 * * *"
     }
   ]
 }

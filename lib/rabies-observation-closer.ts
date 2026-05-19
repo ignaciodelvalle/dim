@@ -16,9 +16,9 @@
 // Idempotent: a second run on the same day re-reads in_progress rows, finds
 // them already flipped to terminal states, and does nothing.
 
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
-import { db, notifications, ownerships, petEvents, pets } from "@/db";
+import { cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { validateEventPayload } from "@/lib/event-schemas";
 
@@ -130,6 +130,22 @@ export async function closeEligibleRabiesObservations(options?: {
 
       // Happy path: auto-close as negative.
       const biteEventId = startedPayload.bite_event_id as string;
+      // Find the open bite_incident case for this pet (cases system —
+      // Fase A schema + Fase D wires the auto-open at bite-report time).
+      // Pre-Fase-D rows have no case, so `caseId` is null on the event
+      // and the case-close step is skipped.
+      const [biteCase] = await db
+        .select({ id: cases.id })
+        .from(cases)
+        .where(
+          and(
+            eq(cases.primaryPetId, pet.id),
+            eq(cases.caseKind, "bite_incident"),
+            inArray(cases.status, ["open", "escalated"]),
+          ),
+        )
+        .limit(1);
+
       await db.transaction(async (tx) => {
         const endedPayload = validateEventPayload("rabies_observation_ended", {
           bite_event_id: biteEventId,
@@ -149,11 +165,28 @@ export async function closeEligibleRabiesObservations(options?: {
           authorOrganizationId: null,
           authorVerified: false,
           payload: endedPayload,
+          caseId: biteCase?.id ?? null,
         });
         await tx
           .update(pets)
           .set({ rabiesObservationStatus: "completed_negative", updatedAt: now })
           .where(eq(pets.id, pet.id));
+
+        // Close the bite_incident case with closed_reason='auto_expired'
+        // (per lifecycles spec §5.10 — the 10-day legal period elapsed
+        // cleanly without escalation, which the system rules treat as
+        // an auto-close, not a human-driven resolution).
+        if (biteCase) {
+          await tx
+            .update(cases)
+            .set({
+              status: "closed",
+              closedReason: "auto_expired",
+              closedAt: now,
+              updatedAt: now,
+            })
+            .where(and(eq(cases.id, biteCase.id), eq(cases.status, "open")));
+        }
 
         // Best-effort owner notification — find the active owner row.
         const [activeOwnership] = await tx

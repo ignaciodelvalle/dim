@@ -385,8 +385,11 @@ const microchipReplaced = z
 const noteAdded = z
   .object(
     withVersion({
+      // `system` is reserved for cron-emitted notes (close-stale-lost-episodes,
+      // close-followup-expired-adoptions). Owner-facing forms restrict to the
+      // first five via `NOTE_CATEGORIES` in app/actions/events.ts.
       category: z
-        .enum(["comportamiento", "dieta", "grooming", "estado_de_animo", "otro"])
+        .enum(["comportamiento", "dieta", "grooming", "estado_de_animo", "otro", "system"])
         .nullable(),
       text: z.string(),
     }),
