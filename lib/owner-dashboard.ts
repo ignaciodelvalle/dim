@@ -1,0 +1,684 @@
+// Data layer for the owner dashboard at /inicio.
+//
+// Every export is a Promise<…[]> shaped to be consumed by a single widget.
+// The page calls them in Promise.all to fan out fetching. Queries are
+// indexed and capped at ≤ 10 rows where appropriate so the dashboard
+// loads in one round-trip without N+1 surprises.
+//
+// Helpers in here MUST NOT throw — return empty arrays on no-data so the
+// widgets can render the empty state uniformly.
+
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+
+import {
+  appointments,
+  approvalRequests,
+  attachments,
+  custodyDisputeParties,
+  custodyDisputes,
+  db,
+  fosterProposals,
+  notifications,
+  organizations,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  serviceOfferings,
+  timeSlots,
+  welfareReports,
+} from "@/db";
+
+// ---------------------------------------------------------------------------
+// Pets
+// ---------------------------------------------------------------------------
+
+export type DashboardPet = {
+  id: string;
+  publicToken: string;
+  name: string;
+  species: string;
+  status: string;
+  color: string | null;
+  primaryPhotoStoragePath: string | null;
+  ownershipRole: string;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+};
+
+export async function fetchPetsForOwner(userId: string): Promise<DashboardPet[]> {
+  const rows = await db
+    .select({
+      pet: pets,
+      photo: attachments,
+      ownershipRole: ownerships.role,
+    })
+    .from(ownerships)
+    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+    .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
+    .orderBy(desc(pets.createdAt));
+
+  return rows.map((r) => ({
+    id: r.pet.id,
+    publicToken: r.pet.publicToken,
+    name: r.pet.name,
+    species: r.pet.species,
+    status: r.pet.status,
+    color: r.pet.color,
+    primaryPhotoStoragePath: r.photo?.storagePath ?? null,
+    ownershipRole: r.ownershipRole,
+    jurisdictionProvince: r.pet.jurisdictionProvince,
+    jurisdictionLocality: r.pet.jurisdictionLocality,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Appointments
+// ---------------------------------------------------------------------------
+
+export type UpcomingAppointment = {
+  appointment: { publicToken: string; status: string };
+  slot: { startsAt: Date };
+  offering: { displayName: string; serviceKind: string; organizationId: string | null };
+  pet: { name: string };
+  org: { displayName: string } | null;
+  provider: { displayName: string } | null;
+};
+
+export async function fetchUpcomingAppointments(
+  userId: string,
+  limit = 5,
+): Promise<UpcomingAppointment[]> {
+  const now = new Date();
+  const rows = await db
+    .select({
+      appointment: { publicToken: appointments.publicToken, status: appointments.status },
+      slot: { startsAt: timeSlots.startsAt },
+      offering: {
+        displayName: serviceOfferings.displayName,
+        serviceKind: serviceOfferings.serviceKind,
+        organizationId: serviceOfferings.organizationId,
+      },
+      pet: { name: pets.name },
+      org: { displayName: organizations.displayName },
+      provider: { displayName: profiles.displayName },
+    })
+    .from(appointments)
+    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+    .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+    .innerJoin(pets, eq(pets.id, appointments.petId))
+    .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
+    .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
+    .where(
+      and(
+        eq(appointments.ownerUserId, userId),
+        eq(appointments.status, "confirmed"),
+        gte(timeSlots.startsAt, now),
+      ),
+    )
+    .orderBy(timeSlots.startsAt)
+    .limit(limit);
+
+  // Drizzle's leftJoin returns columns from the joined table that may be
+  // null when the join didn't match. The shared AppointmentCard already
+  // handles null org/provider; just normalize.
+  return rows.map((r) => ({
+    appointment: r.appointment,
+    slot: r.slot,
+    offering: r.offering,
+    pet: r.pet,
+    org: r.org?.displayName ? { displayName: r.org.displayName } : null,
+    provider: r.provider?.displayName ? { displayName: r.provider.displayName } : null,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export type DashboardNotification = {
+  notification: typeof notifications.$inferSelect;
+  pet: { publicToken: string; name: string } | null;
+};
+
+export async function fetchUnreadNotifications(
+  userId: string,
+  limit = 5,
+): Promise<DashboardNotification[]> {
+  const rows = await db
+    .select({ notification: notifications, pet: pets })
+    .from(notifications)
+    .leftJoin(pets, eq(notifications.relatedPetId, pets.id))
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        isNull(notifications.readAt),
+        isNull(notifications.archivedAt),
+      ),
+    )
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    notification: r.notification,
+    pet: r.pet ? { publicToken: r.pet.publicToken, name: r.pet.name } : null,
+  }));
+}
+
+export async function countUnreadNotifications(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        isNull(notifications.readAt),
+        isNull(notifications.archivedAt),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Ongoing medical treatments — medication_started without medication_stopped
+// ---------------------------------------------------------------------------
+
+export type OngoingMedication = {
+  eventId: string;
+  petName: string;
+  petPublicToken: string;
+  drugName: string;
+  frequency: string | null;
+  startedAt: Date;
+};
+
+export async function fetchOngoingMedications(userId: string): Promise<OngoingMedication[]> {
+  const rows = await db.execute<{
+    event_id: string;
+    pet_name: string;
+    pet_public_token: string;
+    drug_name: string;
+    frequency: string | null;
+    started_at: string;
+  }>(sql`
+    SELECT
+      e.id::text AS event_id,
+      p.name AS pet_name,
+      p.public_token AS pet_public_token,
+      COALESCE(e.payload->>'drug_name', 'Medicación') AS drug_name,
+      e.payload->>'frequency' AS frequency,
+      e.occurred_at::text AS started_at
+    FROM pet_events e
+    JOIN pets p ON p.id = e.pet_id
+    JOIN ownerships o ON o.pet_id = p.id
+     AND o.owner_user_id = ${userId}
+     AND o.ended_at IS NULL
+    WHERE e.event_type = 'medication_started'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events stop
+        WHERE stop.event_type = 'medication_stopped'
+          AND stop.pet_id = e.pet_id
+          AND stop.payload->>'medication_started_event_id' = e.id::text
+      )
+    ORDER BY e.occurred_at DESC
+    LIMIT 20
+  `);
+
+  return rows.map((r) => ({
+    eventId: r.event_id,
+    petName: r.pet_name,
+    petPublicToken: r.pet_public_token,
+    drugName: r.drug_name,
+    frequency: r.frequency,
+    startedAt: new Date(r.started_at),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Workflows (open + previous)
+// ---------------------------------------------------------------------------
+
+export type WorkflowKind =
+  | "foster_proposal_pending"
+  | "pet_lost"
+  | "welfare_report_open"
+  | "adoption_application_pending"
+  | "custody_transfer_pending"
+  | "approval_request_pending"
+  | "custody_dispute_open"
+  | "foster_proposal_resolved"
+  | "welfare_report_closed"
+  | "adoption_application_resolved"
+  | "approval_request_decided";
+
+export type WorkflowItem = {
+  id: string;
+  kind: WorkflowKind;
+  title: string;
+  subtitle: string | null;
+  ctaUrl: string;
+  since: Date;
+  severity: "info" | "warning" | "urgent";
+};
+
+async function fetchPendingFosterProposals(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: fosterProposals.id,
+      publicToken: fosterProposals.publicToken,
+      proposedAt: fosterProposals.proposedAt,
+      petName: pets.name,
+      orgName: organizations.displayName,
+    })
+    .from(fosterProposals)
+    .innerJoin(pets, eq(pets.id, fosterProposals.petId))
+    .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
+    .where(and(eq(fosterProposals.volunteerUserId, userId), eq(fosterProposals.status, "pending")));
+  return rows.map((r) => ({
+    id: `foster_proposal:${r.id}`,
+    kind: "foster_proposal_pending" as const,
+    title: `Propuesta de tránsito para ${r.petName}`,
+    subtitle: `${r.orgName} espera tu respuesta`,
+    ctaUrl: `/cuenta/transitos/propuestas/${r.publicToken}`,
+    since: r.proposedAt,
+    severity: "warning" as const,
+  }));
+}
+
+async function fetchLostPets(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      name: pets.name,
+      updatedAt: pets.updatedAt,
+    })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "lost"),
+      ),
+    );
+  return rows.map((r) => ({
+    id: `pet_lost:${r.id}`,
+    kind: "pet_lost" as const,
+    title: `${r.name} está reportada como perdida`,
+    subtitle: "Avisanos cuando aparezca",
+    ctaUrl: `/mis-mascotas/${r.publicToken}`,
+    since: r.updatedAt,
+    severity: "urgent" as const,
+  }));
+}
+
+async function fetchOpenWelfareReports(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: welfareReports.id,
+      referenceCode: welfareReports.referenceCode,
+      status: welfareReports.status,
+      createdAt: welfareReports.createdAt,
+    })
+    .from(welfareReports)
+    .where(
+      and(eq(welfareReports.reporterUserId, userId), ne(welfareReports.status, "closed")),
+    );
+  return rows.map((r) => ({
+    id: `welfare_report:${r.id}`,
+    kind: "welfare_report_open" as const,
+    title: "Denuncia de bienestar animal",
+    subtitle: r.status === "open" ? "En espera de revisión" : "En revisión por autoridad",
+    ctaUrl: `/denuncias/codigo/${r.referenceCode}`,
+    since: r.createdAt,
+    severity: "info" as const,
+  }));
+}
+
+async function fetchPendingAdoptionApplications(userId: string): Promise<WorkflowItem[]> {
+  // Same predicate as /mis-mascotas/postulaciones: submitted by user, no
+  // resolution yet, and not finalized to me.
+  const rows = await db.execute<{
+    application_id: string;
+    pet_name: string;
+    pet_public_token: string;
+    submitted_at: string;
+  }>(sql`
+    SELECT
+      e.id::text AS application_id,
+      p.name AS pet_name,
+      p.public_token AS pet_public_token,
+      e.recorded_at::text AS submitted_at
+    FROM pet_events e
+    JOIN pets p ON p.id = e.pet_id
+    WHERE e.event_type = 'adoption_application_submitted'
+      AND e.payload->>'applicant_user_id' = ${userId}
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events r
+        WHERE r.pet_id = e.pet_id
+          AND r.event_type = 'adoption_application_resolved'
+          AND r.payload->>'application_event_id' = e.id::text
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events f
+        WHERE f.pet_id = e.pet_id
+          AND f.event_type = 'adoption_finalized'
+      )
+    ORDER BY e.recorded_at DESC
+  `);
+  return rows.map((r) => ({
+    id: `adoption_application:${r.application_id}`,
+    kind: "adoption_application_pending" as const,
+    title: `Tu postulación para ${r.pet_name}`,
+    subtitle: "Pendiente de revisión del refugio",
+    ctaUrl: "/mis-mascotas/postulaciones",
+    since: new Date(r.submitted_at),
+    severity: "info" as const,
+  }));
+}
+
+async function fetchPendingCustodyTransfers(userId: string): Promise<WorkflowItem[]> {
+  // Pets the user owns where a custody_transfer_proposed exists and no
+  // subsequent custody_transferred resolves it.
+  const rows = await db.execute<{
+    pet_id: string;
+    pet_public_token: string;
+    pet_name: string;
+    proposed_at: string;
+  }>(sql`
+    SELECT
+      p.id::text AS pet_id,
+      p.public_token AS pet_public_token,
+      p.name AS pet_name,
+      e.occurred_at::text AS proposed_at
+    FROM pet_events e
+    JOIN pets p ON p.id = e.pet_id
+    JOIN ownerships o ON o.pet_id = p.id
+     AND o.owner_user_id = ${userId}
+     AND o.role = 'owner'
+     AND o.ended_at IS NULL
+    WHERE e.event_type = 'custody_transfer_proposed'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events t
+        WHERE t.pet_id = e.pet_id
+          AND t.event_type = 'custody_transferred'
+          AND t.occurred_at >= e.occurred_at
+      )
+    ORDER BY e.occurred_at DESC
+  `);
+  return rows.map((r) => ({
+    id: `custody_transfer:${r.pet_id}`,
+    kind: "custody_transfer_pending" as const,
+    title: `Propuesta de devolución para ${r.pet_name}`,
+    subtitle: "Alguien intenta devolverla — confirmá la transferencia",
+    ctaUrl: `/mis-mascotas/${r.pet_public_token}/devolucion`,
+    since: new Date(r.proposed_at),
+    severity: "warning" as const,
+  }));
+}
+
+async function fetchPendingApprovalRequests(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: approvalRequests.id,
+      publicToken: approvalRequests.publicToken,
+      type: approvalRequests.type,
+      createdAt: approvalRequests.createdAt,
+    })
+    .from(approvalRequests)
+    .where(
+      and(eq(approvalRequests.applicantUserId, userId), eq(approvalRequests.status, "pending")),
+    );
+  return rows.map((r) => ({
+    id: `approval_request:${r.id}`,
+    kind: "approval_request_pending" as const,
+    title: humanizeApprovalRequestType(r.type),
+    subtitle: "Esperando aprobación de la autoridad",
+    ctaUrl: `/cuenta/aprobaciones/${r.publicToken}`,
+    since: r.createdAt,
+    severity: "info" as const,
+  }));
+}
+
+async function fetchOpenCustodyDisputes(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: custodyDisputes.id,
+      publicToken: custodyDisputes.publicToken,
+      petId: custodyDisputes.petId,
+      createdAt: custodyDisputes.createdAt,
+      petName: pets.name,
+    })
+    .from(custodyDisputeParties)
+    .innerJoin(custodyDisputes, eq(custodyDisputes.id, custodyDisputeParties.disputeId))
+    .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
+    .where(
+      and(
+        eq(custodyDisputeParties.partyUserId, userId),
+        eq(custodyDisputes.status, "open"),
+      ),
+    );
+  return rows.map((r) => ({
+    id: `custody_dispute:${r.id}`,
+    kind: "custody_dispute_open" as const,
+    title: `Disputa de custodia sobre ${r.petName}`,
+    subtitle: "Procedimiento en curso ante la autoridad",
+    ctaUrl: `/mis-mascotas/${r.petId}`,
+    since: r.createdAt,
+    severity: "warning" as const,
+  }));
+}
+
+export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]> {
+  const [foster, lost, welfare, adoption, custody, approval, disputes] = await Promise.all([
+    fetchPendingFosterProposals(userId),
+    fetchLostPets(userId),
+    fetchOpenWelfareReports(userId),
+    fetchPendingAdoptionApplications(userId),
+    fetchPendingCustodyTransfers(userId),
+    fetchPendingApprovalRequests(userId),
+    fetchOpenCustodyDisputes(userId),
+  ]);
+  // Sort by `since` desc — most recently opened workflow on top.
+  return [...foster, ...lost, ...welfare, ...adoption, ...custody, ...approval, ...disputes].sort(
+    (a, b) => b.since.getTime() - a.since.getTime(),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Previous workflows — last N resolved items across all domains
+// ---------------------------------------------------------------------------
+
+async function fetchResolvedFosterProposals(
+  userId: string,
+  limit: number,
+): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: fosterProposals.id,
+      publicToken: fosterProposals.publicToken,
+      status: fosterProposals.status,
+      respondedAt: fosterProposals.respondedAt,
+      proposedAt: fosterProposals.proposedAt,
+      petName: pets.name,
+    })
+    .from(fosterProposals)
+    .innerJoin(pets, eq(pets.id, fosterProposals.petId))
+    .where(
+      and(
+        eq(fosterProposals.volunteerUserId, userId),
+        inArray(fosterProposals.status, ["accepted", "rejected", "cancelled", "expired"]),
+      ),
+    )
+    .orderBy(desc(fosterProposals.respondedAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: `foster_proposal_resolved:${r.id}`,
+    kind: "foster_proposal_resolved" as const,
+    title: `Propuesta de tránsito · ${r.petName}`,
+    subtitle: `Estado: ${r.status}`,
+    ctaUrl: `/cuenta/transitos/propuestas/${r.publicToken}`,
+    since: r.respondedAt ?? r.proposedAt,
+    severity: "info" as const,
+  }));
+}
+
+async function fetchClosedWelfareReports(
+  userId: string,
+  limit: number,
+): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: welfareReports.id,
+      referenceCode: welfareReports.referenceCode,
+      closedAt: welfareReports.closedAt,
+      createdAt: welfareReports.createdAt,
+    })
+    .from(welfareReports)
+    .where(and(eq(welfareReports.reporterUserId, userId), eq(welfareReports.status, "closed")))
+    .orderBy(desc(welfareReports.closedAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: `welfare_report_closed:${r.id}`,
+    kind: "welfare_report_closed" as const,
+    title: "Denuncia de bienestar cerrada",
+    subtitle: "Resuelta por la autoridad",
+    ctaUrl: `/denuncias/codigo/${r.referenceCode}`,
+    since: r.closedAt ?? r.createdAt,
+    severity: "info" as const,
+  }));
+}
+
+async function fetchResolvedAdoptionApplications(
+  userId: string,
+  limit: number,
+): Promise<WorkflowItem[]> {
+  const rows = await db.execute<{
+    application_id: string;
+    pet_name: string;
+    outcome: string;
+    decided_at: string;
+  }>(sql`
+    SELECT
+      s.id::text AS application_id,
+      p.name AS pet_name,
+      d.payload->>'outcome' AS outcome,
+      d.recorded_at::text AS decided_at
+    FROM pet_events s
+    JOIN pets p ON p.id = s.pet_id
+    JOIN pet_events d
+      ON d.pet_id = s.pet_id
+     AND d.event_type = 'adoption_application_resolved'
+     AND d.payload->>'application_event_id' = s.id::text
+    WHERE s.event_type = 'adoption_application_submitted'
+      AND s.payload->>'applicant_user_id' = ${userId}
+    ORDER BY d.recorded_at DESC
+    LIMIT ${limit}
+  `);
+  return rows.map((r) => ({
+    id: `adoption_application_resolved:${r.application_id}`,
+    kind: "adoption_application_resolved" as const,
+    title: `Postulación para ${r.pet_name}`,
+    subtitle: r.outcome === "approved" ? "Aprobada" : "No avanzó",
+    ctaUrl: "/mis-mascotas/postulaciones",
+    since: new Date(r.decided_at),
+    severity: "info" as const,
+  }));
+}
+
+async function fetchDecidedApprovalRequests(
+  userId: string,
+  limit: number,
+): Promise<WorkflowItem[]> {
+  const rows = await db
+    .select({
+      id: approvalRequests.id,
+      publicToken: approvalRequests.publicToken,
+      type: approvalRequests.type,
+      status: approvalRequests.status,
+      decidedAt: approvalRequests.decidedAt,
+      createdAt: approvalRequests.createdAt,
+    })
+    .from(approvalRequests)
+    .where(
+      and(
+        eq(approvalRequests.applicantUserId, userId),
+        isNotNull(approvalRequests.decidedAt),
+      ),
+    )
+    .orderBy(desc(approvalRequests.decidedAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: `approval_request_decided:${r.id}`,
+    kind: "approval_request_decided" as const,
+    title: humanizeApprovalRequestType(r.type),
+    subtitle: `Resuelta: ${r.status}`,
+    ctaUrl: `/cuenta/aprobaciones/${r.publicToken}`,
+    since: r.decidedAt ?? r.createdAt,
+    severity: "info" as const,
+  }));
+}
+
+export async function fetchPreviousWorkflows(
+  userId: string,
+  limit = 10,
+): Promise<WorkflowItem[]> {
+  const [foster, welfare, adoption, approval] = await Promise.all([
+    fetchResolvedFosterProposals(userId, limit),
+    fetchClosedWelfareReports(userId, limit),
+    fetchResolvedAdoptionApplications(userId, limit),
+    fetchDecidedApprovalRequests(userId, limit),
+  ]);
+  return [...foster, ...welfare, ...adoption, ...approval]
+    .sort((a, b) => b.since.getTime() - a.since.getTime())
+    .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Living-pet localities (for the regulations placeholder)
+// ---------------------------------------------------------------------------
+
+export async function fetchLivingPetLocalities(
+  userId: string,
+): Promise<Array<{ province: string; locality: string | null }>> {
+  const rows = await db
+    .selectDistinct({
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        isNull(ownerships.endedAt),
+        ne(pets.status, "deceased"),
+        isNotNull(pets.jurisdictionProvince),
+      ),
+    );
+  return rows
+    .filter((r): r is { province: string; locality: string | null } => r.province !== null)
+    .map((r) => ({ province: r.province, locality: r.locality }));
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function humanizeApprovalRequestType(type: string): string {
+  switch (type) {
+    case "role_upgrade_vet":
+      return "Solicitud para verificar tu matrícula veterinaria";
+    case "org_create":
+      return "Solicitud de creación de organización";
+    case "govt_assignment":
+      return "Solicitud de asignación gubernamental";
+    case "service_offering":
+      return "Solicitud de servicio profesional";
+    default:
+      return `Solicitud de aprobación (${type})`;
+  }
+}
