@@ -282,15 +282,18 @@ describe("foster-e2e: propose → accept → adopt", () => {
     expect(resolved.status).toBe("accepted");
     expect(resolved.resolvedOwnershipId).toBe(fosterOwn.id);
 
-    // foster_assigned + foster_proposal_accepted + foster_co_foster_allowed events emitted.
+    // foster_assigned + foster_proposal_resolved(outcome=accepted) + foster_co_foster_allowed
+    // events emitted.
     const acceptEvents = await db
-      .select({ type: petEvents.eventType })
+      .select({ type: petEvents.eventType, payload: petEvents.payload })
       .from(petEvents)
       .where(eq(petEvents.petId, petId));
     const types = acceptEvents.map((e) => e.type);
-    expect(types).toContain("foster_proposal_accepted");
+    expect(types).toContain("foster_proposal_resolved");
     expect(types).toContain("foster_assigned");
     expect(types).toContain("foster_co_foster_allowed");
+    const resolvedEvent = acceptEvents.find((e) => e.type === "foster_proposal_resolved");
+    expect((resolvedEvent?.payload as { outcome?: string })?.outcome).toBe("accepted");
 
     // ----- Step 4: org marks the pet adoption-eligible -----
     mockSessionAs(coordUserId);

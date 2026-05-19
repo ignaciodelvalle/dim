@@ -75,10 +75,7 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "custody_dispute_resolved",
   // Foster volunteers pool — proposal lifecycle telemetry, NOT clinical.
   "foster_proposed",
-  "foster_proposal_accepted",
-  "foster_proposal_rejected",
-  "foster_proposal_cancelled",
-  "foster_proposal_expired",
+  "foster_proposal_resolved",
   "foster_co_foster_allowed",
   // Adoption eligibility flag — operational state of the pet, not clinical.
   "adoption_eligibility_set",

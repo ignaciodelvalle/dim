@@ -278,6 +278,19 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
         secondary: loc || reason,
       };
     }
+    case "foster_proposal_resolved": {
+      const outcome = str("outcome");
+      const map: Record<string, string> = {
+        accepted: "Propuesta de tránsito aceptada",
+        rejected: "Propuesta de tránsito rechazada",
+        cancelled: "Propuesta de tránsito cancelada",
+        expired: "Propuesta de tránsito expirada",
+      };
+      return {
+        primary: (outcome && map[outcome]) || "Propuesta de tránsito resuelta",
+        secondary: str("response_notes") ?? str("cancellation_reason") ?? null,
+      };
+    }
     default:
       return { primary: null, secondary: null };
   }

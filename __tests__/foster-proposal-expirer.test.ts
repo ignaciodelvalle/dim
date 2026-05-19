@@ -194,8 +194,11 @@ describe("expireFosterProposals", () => {
     const events = await db
       .select()
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "foster_proposal_expired")));
-    expect(events.length).toBeGreaterThanOrEqual(1);
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "foster_proposal_resolved")));
+    const expired = events.filter(
+      (e) => (e.payload as { outcome?: string }).outcome === "expired",
+    );
+    expect(expired.length).toBeGreaterThanOrEqual(1);
 
     // Cleanup the events (they're append-only — need GUC).
     await db.transaction(async (tx) => {

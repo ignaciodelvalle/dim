@@ -250,14 +250,15 @@ export async function withdrawFosterVolunteerAction(): Promise<WithdrawFosterVol
           })
           .where(eq(fosterProposals.id, p.id));
 
-        const payload = validateEventPayload("foster_proposal_cancelled", {
+        const payload = validateEventPayload("foster_proposal_resolved", {
           proposal_public_token: p.publicToken,
+          outcome: "cancelled",
           cancellation_reason: "volunteer_withdrew",
           auto_cancelled: true,
         });
         await tx.insert(petEvents).values({
           petId: p.petId,
-          eventType: "foster_proposal_cancelled",
+          eventType: "foster_proposal_resolved",
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: user.id,

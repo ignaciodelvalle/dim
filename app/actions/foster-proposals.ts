@@ -413,8 +413,9 @@ export async function acceptFosterProposalAction(
           })
           .where(eq(fosterProposals.id, proposal.id));
 
-        const acceptedPayload = validateEventPayload("foster_proposal_accepted", {
+        const acceptedPayload = validateEventPayload("foster_proposal_resolved", {
           proposal_public_token: proposal.publicToken,
+          outcome: "accepted",
           response_notes: input.responseNotes?.trim() || null,
         });
         const assignedPayload = validateEventPayload("foster_assigned", {
@@ -425,7 +426,7 @@ export async function acceptFosterProposalAction(
         await tx.insert(petEvents).values([
           {
             petId: pet.id,
-            eventType: "foster_proposal_accepted",
+            eventType: "foster_proposal_resolved",
             occurredAt: now,
             recordedAt: now,
             recordedByUserId: user.id,
@@ -496,14 +497,15 @@ export async function acceptFosterProposalAction(
               })
               .where(eq(fosterProposals.id, p.id));
 
-            const cancelPayload = validateEventPayload("foster_proposal_cancelled", {
+            const cancelPayload = validateEventPayload("foster_proposal_resolved", {
               proposal_public_token: p.publicToken,
+              outcome: "cancelled",
               cancellation_reason: "volunteer_accepted_another",
               auto_cancelled: true,
             });
             await tx.insert(petEvents).values({
               petId: p.petId,
-              eventType: "foster_proposal_cancelled",
+              eventType: "foster_proposal_resolved",
               occurredAt: now,
               recordedAt: now,
               recordedByUserId: user.id,
@@ -606,14 +608,15 @@ export async function rejectFosterProposalAction(
         })
         .where(eq(fosterProposals.id, proposal.id));
 
-      const payload = validateEventPayload("foster_proposal_rejected", {
+      const payload = validateEventPayload("foster_proposal_resolved", {
         proposal_public_token: proposal.publicToken,
+        outcome: "rejected",
         rejection_reason: input.rejectionReason,
         response_notes: input.responseNotes?.trim() || null,
       });
       await tx.insert(petEvents).values({
         petId: proposal.petId,
-        eventType: "foster_proposal_rejected",
+        eventType: "foster_proposal_resolved",
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: user.id,
@@ -683,14 +686,15 @@ export async function cancelFosterProposalAction(
         })
         .where(eq(fosterProposals.id, proposal.id));
 
-      const payload = validateEventPayload("foster_proposal_cancelled", {
+      const payload = validateEventPayload("foster_proposal_resolved", {
         proposal_public_token: proposal.publicToken,
+        outcome: "cancelled",
         cancellation_reason: input.cancellationReason?.trim() || "org_cancelled",
         auto_cancelled: false,
       });
       await tx.insert(petEvents).values({
         petId: proposal.petId,
-        eventType: "foster_proposal_cancelled",
+        eventType: "foster_proposal_resolved",
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: user.id,

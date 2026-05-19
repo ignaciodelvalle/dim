@@ -847,49 +847,29 @@ const fosterProposed = z
   )
   .strict();
 
-const fosterProposalAccepted = z
+// Umbrella resolution event for a foster proposal's terminal state (catalog
+// cleanup 2026-05-19). The `outcome` discriminator picks which optional
+// fields apply:
+//   - accepted: response_notes
+//   - rejected: rejection_reason (enum) + response_notes
+//   - cancelled: cancellation_reason + auto_cancelled (true when the D18
+//     cascade closed it — volunteer's last slot consumed by accepting
+//     another proposal)
+//   - expired: only proposal_public_token
+// The Zod schema is permissive on the optional fields; the server action
+// that writes each row enforces the outcome ↔ fields correlation.
+const fosterProposalResolved = z
   .object(
     withVersion({
       proposal_public_token: z.string(),
+      outcome: z.enum(["accepted", "rejected", "cancelled", "expired"]),
       response_notes: z.string().nullable().optional(),
-    }),
-  )
-  .strict();
-
-const fosterProposalRejected = z
-  .object(
-    withVersion({
-      proposal_public_token: z.string(),
-      rejection_reason: z.enum([
-        "capacity",
-        "health_mismatch",
-        "timing",
-        "distance",
-        "household",
-        "other",
-      ]),
-      response_notes: z.string().nullable().optional(),
-    }),
-  )
-  .strict();
-
-// `auto_cancelled` is true when this row was cancelled by the D18 cascade
-// (volunteer's last slot consumed by accepting another proposal). Org-initiated
-// cancellations leave it false.
-const fosterProposalCancelled = z
-  .object(
-    withVersion({
-      proposal_public_token: z.string(),
+      rejection_reason: z
+        .enum(["capacity", "health_mismatch", "timing", "distance", "household", "other"])
+        .nullable()
+        .optional(),
       cancellation_reason: z.string().nullable().optional(),
-      auto_cancelled: z.boolean().default(false),
-    }),
-  )
-  .strict();
-
-const fosterProposalExpired = z
-  .object(
-    withVersion({
-      proposal_public_token: z.string(),
+      auto_cancelled: z.boolean().default(false).optional(),
     }),
   )
   .strict();
@@ -1059,10 +1039,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   custody_dispute_raised: custodyDisputeRaised,
   custody_dispute_resolved: custodyDisputeResolved,
   foster_proposed: fosterProposed,
-  foster_proposal_accepted: fosterProposalAccepted,
-  foster_proposal_rejected: fosterProposalRejected,
-  foster_proposal_cancelled: fosterProposalCancelled,
-  foster_proposal_expired: fosterProposalExpired,
+  foster_proposal_resolved: fosterProposalResolved,
   foster_co_foster_allowed: fosterCoFosterAllowed,
   adoption_eligibility_set: adoptionEligibilitySet,
   libreta_shared_viewed: libretaSharedViewed,

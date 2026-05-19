@@ -287,11 +287,13 @@ export const EVENT_TYPES = [
   // Foster volunteers pool — two-phase proposal lifecycle (org→volunteer),
   // plus the co-foster opt-in flag (D17). See
   // docs/superpowers/specs/2026-05-18-foster-volunteers-pool-design.md v1.4.
+  //
+  // foster_proposal_resolved is the umbrella terminal event with
+  // `outcome: accepted | rejected | cancelled | expired` in the payload.
+  // Replaces the 4 dedicated event_types (accepted/rejected/cancelled/expired)
+  // that lived here prior to the 2026-05-19 catalog cleanup.
   "foster_proposed",
-  "foster_proposal_accepted",
-  "foster_proposal_rejected",
-  "foster_proposal_cancelled",
-  "foster_proposal_expired",
+  "foster_proposal_resolved",
   "foster_co_foster_allowed",
   // Adoption eligibility flag set/changed — see spec foster-volunteers-pool §17.
   "adoption_eligibility_set",

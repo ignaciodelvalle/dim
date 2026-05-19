@@ -86,12 +86,13 @@ export async function expireFosterProposals(): Promise<ExpireFosterProposalsStat
           .set({ status: "expired", updatedAt: now })
           .where(eq(fosterProposals.id, p.id));
 
-        const payload = validateEventPayload("foster_proposal_expired", {
+        const payload = validateEventPayload("foster_proposal_resolved", {
           proposal_public_token: p.publicToken,
+          outcome: "expired",
         });
         await tx.insert(petEvents).values({
           petId: p.petId,
-          eventType: "foster_proposal_expired",
+          eventType: "foster_proposal_resolved",
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: null,
