@@ -300,8 +300,6 @@ export const EVENT_TYPES = [
   "foster_co_foster_allowed",
   // Adoption eligibility flag set/changed — see spec foster-volunteers-pool §17.
   "adoption_eligibility_set",
-  // Libreta Tier-2 share telemetry — system event, not a medical entry.
-  "libreta_shared_viewed",
   // Surveillance — emitted when symptom_observed triggers a reportable disease match.
   "outbreak_signal",
 ] as const;
@@ -1078,6 +1076,32 @@ export const libretaShareTokens = pgTable(
 
 export type LibretaShareToken = typeof libretaShareTokens.$inferSelect;
 export type NewLibretaShareToken = typeof libretaShareTokens.$inferInsert;
+
+// Share telemetry — Tier-2 libreta share-view tracking (catalog cleanup
+// 2026-05-19). Lives in its own table so `pet_events` stays free of
+// non-medical noise. Server-only; no RLS (no public endpoint exposes it).
+// PII posture: viewer_ip_hash, not the raw IP.
+export const shareTelemetry = pgTable(
+  "share_telemetry",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    shareTokenId: uuid("share_token_id")
+      .notNull()
+      .references(() => libretaShareTokens.id, { onDelete: "cascade" }),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }).notNull().defaultNow(),
+    viewerIpHash: text("viewer_ip_hash"),
+    userAgent: text("user_agent"),
+  },
+  (table) => ({
+    petIdx: index("share_telemetry_pet_idx").on(table.petId),
+    tokenIdx: index("share_telemetry_token_viewed_idx").on(table.shareTokenId, table.viewedAt),
+  }),
+);
+
+export type ShareTelemetry = typeof shareTelemetry.$inferSelect;
 
 // ============================================================================
 // Admin governance — govt_assignments, approval_requests, audit_log

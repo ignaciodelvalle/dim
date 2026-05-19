@@ -63,8 +63,6 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "abandonment_reported",
   "maltreatment_reported",
   "note_added",
-  // Tier-2 share telemetry — system event, not a medical entry.
-  "libreta_shared_viewed",
   // Lost & Found — custody proposal event (Fase 5). Not a medical entry.
   "custody_transfer_proposed",
   // Custody disputes — external legal proceedings flagged by admin/govt.

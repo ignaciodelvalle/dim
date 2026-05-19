@@ -4,8 +4,7 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, libretaShareTokens, ownerships, petEvents, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { db, libretaShareTokens, ownerships, pets, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 
@@ -128,21 +127,18 @@ export async function logLibretaShareViewForToken(input: {
   if (row.expiresAt !== null && row.expiresAt < new Date()) return;
 
   const now = new Date();
-  const payload = validateEventPayload("libreta_shared_viewed", {
-    share_token_id: row.id,
-    viewer_ip_hash: null,
-    user_agent: input.userAgent,
-  });
 
   await db.transaction(async (tx) => {
-    await tx.insert(petEvents).values({
+    // Tier-2 share view telemetry lives in its own table (not pet_events)
+    // since the 2026-05-19 catalog cleanup. The cached counters on
+    // libreta_share_tokens are still maintained for the owner's quick
+    // glance at view count without scanning telemetry.
+    await tx.insert(shareTelemetry).values({
       petId: row.petId,
-      eventType: "libreta_shared_viewed",
-      occurredAt: now,
-      recordedAt: now,
-      recordedByUserId: null,
-      authorRole: "system",
-      payload,
+      shareTokenId: row.id,
+      viewedAt: now,
+      viewerIpHash: null,
+      userAgent: input.userAgent,
     });
 
     await tx

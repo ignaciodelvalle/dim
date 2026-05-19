@@ -971,17 +971,11 @@ const postAdoptionCheckin = z
   )
   .strict();
 
-// Libreta Tier-2 share view — system telemetry emitted on each public view of
-// a share link. Not a medical event; classified in NON_LIBRETA_EVENT_TYPES.
-const libretaSharedViewed = z
-  .object(
-    withVersion({
-      share_token_id: z.string().uuid(),
-      viewer_ip_hash: z.string().nullable(),
-      user_agent: z.string().nullable(),
-    }),
-  )
-  .strict();
+// Libreta Tier-2 share view telemetry used to live here as
+// `libreta_shared_viewed`. The 2026-05-19 catalog cleanup moved that
+// signal out of pet_events into the dedicated `share_telemetry` table
+// (see db/schema.ts → shareTelemetry). No Zod schema needed anymore;
+// the only writer is app/actions/libreta-share.ts.
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -1036,7 +1030,6 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_proposal_resolved: fosterProposalResolved,
   foster_co_foster_allowed: fosterCoFosterAllowed,
   adoption_eligibility_set: adoptionEligibilitySet,
-  libreta_shared_viewed: libretaSharedViewed,
 };
 
 /**

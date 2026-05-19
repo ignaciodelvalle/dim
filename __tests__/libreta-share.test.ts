@@ -13,7 +13,7 @@ import {
   logLibretaShareViewForToken,
   revokeLibretaShareForUser,
 } from "@/app/actions/libreta-share";
-import { db, libretaShareTokens, ownerships, petEvents, pets } from "@/db";
+import { db, libretaShareTokens, ownerships, pets, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -294,23 +294,15 @@ describe("logLibretaShareViewForToken", () => {
     expect(row.viewCountCached).toBe(1);
     expect(row.lastViewedAtCached).not.toBeNull();
 
-    // Verify the pet_event was inserted.
+    // Verify the share_telemetry row was inserted.
     const events = await db
       .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+      .from(shareTelemetry)
+      .where(eq(shareTelemetry.petId, petId));
     expect(events.length).toBeGreaterThanOrEqual(1);
-    const latest = events[events.length - 1];
-    expect(latest.authorRole).toBe("system");
-    expect(latest.recordedByUserId).toBeNull();
 
-    // Cleanup the event (append-only guard requires GUC).
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
-      await tx
-        .delete(petEvents)
-        .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
-    });
+    // Cleanup — share_telemetry is plain mutable, no GUC needed.
+    await db.delete(shareTelemetry).where(eq(shareTelemetry.petId, petId));
   });
 
   it("revoked share: no event inserted, no counter increment", async () => {
@@ -334,15 +326,15 @@ describe("logLibretaShareViewForToken", () => {
 
     const countBefore = await db
       .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+      .from(shareTelemetry)
+      .where(eq(shareTelemetry.petId, petId));
 
     await logLibretaShareViewForToken({ shareToken, userAgent: null });
 
     const countAfter = await db
       .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+      .from(shareTelemetry)
+      .where(eq(shareTelemetry.petId, petId));
     expect(countAfter.length).toBe(countBefore.length);
 
     const [updated] = await db
@@ -377,15 +369,15 @@ describe("logLibretaShareViewForToken", () => {
 
     const countBefore = await db
       .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+      .from(shareTelemetry)
+      .where(eq(shareTelemetry.petId, petId));
 
     await logLibretaShareViewForToken({ shareToken, userAgent: null });
 
     const countAfter = await db
       .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "libreta_shared_viewed")));
+      .from(shareTelemetry)
+      .where(eq(shareTelemetry.petId, petId));
     expect(countAfter.length).toBe(countBefore.length);
 
     const [updated] = await db
