@@ -29,6 +29,7 @@ import { revalidatePath } from "next/cache";
 
 import { auditLog, db, govtAssignments, notifications, profiles, welfareReports } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { closeCase } from "@/lib/case-helpers";
 import type { WelfareReportStatus } from "@/lib/welfare";
 
 const MIN_NOTES_LEN = 10;
@@ -170,6 +171,22 @@ export async function triageWelfareReportAction(input: {
             : "Tu denuncia se cerró por falta de elementos para avanzar.",
         );
       }
+
+      // Cases system (Fase D1): mirror terminal triage decisions to the
+      // linked case. The closed_reason enum is `resolved|cancelled|
+      // auto_expired|merged`; we map invalid/duplicate to `cancelled`
+      // (the case was set aside, not progressed). Skipped silently when
+      // the report predates the cases-system rollout (case_id null).
+      if (isTerminal && report.caseId) {
+        await closeCase(
+          {
+            caseId: report.caseId,
+            reason: "cancelled",
+            closedByUserId: session.user.id,
+          },
+          tx,
+        );
+      }
     });
   } catch (err) {
     return {
@@ -308,6 +325,20 @@ export async function closeWelfareReportAction(input: {
         "Tu denuncia fue cerrada",
         "La autoridad cerró tu denuncia con una resolución. Podés ver el detalle desde el panel.",
       );
+
+      // Cases system (Fase D1): mirror the close to the linked case.
+      // closed_reason='resolved' — the report ran its course and reached
+      // a real outcome.
+      if (report.caseId) {
+        await closeCase(
+          {
+            caseId: report.caseId,
+            reason: "resolved",
+            closedByUserId: session.user.id,
+          },
+          tx,
+        );
+      }
     });
   } catch (err) {
     return {

@@ -14,6 +14,7 @@
 import { db, ownerships, petEvents, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { signalWelfareReport } from "@/lib/authority";
+import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
@@ -257,7 +258,10 @@ export async function createWelfareReportAction(
     }
   }
 
-  // Attachment rows + pet_event emissions go in a single tx.
+  // Attachment rows + case open + pet_event emissions go in a single tx.
+  // The welfare_denuncia case row is created here (cases system, Fase D1)
+  // so the welfare_report → case linkage and the bridge events all land
+  // atomically — partial state is impossible.
   try {
     await db.transaction(async (tx) => {
       // Welfare report attachment rows.
@@ -273,6 +277,41 @@ export async function createWelfareReportAction(
           })),
         );
       }
+
+      // Cases system: open the welfare_denuncia case atomically. The
+      // primary subject mirrors the welfare_report.subject_kind. Location
+      // subjects without coords fall back to 'general' to keep the
+      // cases_subject_location_consistency CHECK happy.
+      const subjectIsLocationWithCoords =
+        subjectKind === "location" && locationLat !== null && locationLng !== null;
+      const primarySubjectKind =
+        subjectKind === "registered_pet" && subjectPetId
+          ? "registered_pet"
+          : subjectKind === "unowned_animal"
+            ? "unowned_animal"
+            : subjectIsLocationWithCoords
+              ? "location"
+              : "general";
+
+      const caseRow = await openCase(
+        {
+          kind: "welfare_denuncia",
+          primarySubjectKind,
+          primaryPetId: primarySubjectKind === "registered_pet" ? subjectPetId : null,
+          primaryLocationLat: subjectIsLocationWithCoords ? locationLat : null,
+          primaryLocationLng: subjectIsLocationWithCoords ? locationLng : null,
+          jurisdictionProvince,
+          jurisdictionLocality,
+          openedByUserId: user?.id ?? null,
+          openedReason: `Welfare denuncia ${referenceCode} — kind=${kind}, severity=${severity}`,
+          welfareReportId: insertedId as string,
+        },
+        tx,
+      );
+      await tx
+        .update(welfareReports)
+        .set({ caseId: caseRow.id })
+        .where(eq(welfareReports.id, insertedId as string));
 
       // Pet-event bridge: only when the subject is a registered pet with a resolved ID.
       if (subjectKind === "registered_pet" && subjectPetId) {
@@ -307,6 +346,7 @@ export async function createWelfareReportAction(
             // page can render the LocationMap without joining welfare_reports.
             locationLat,
             locationLng,
+            caseId: caseRow.id,
           });
         } else if (MALTREATMENT_KINDS.has(kind)) {
           const maltreatmentEventPayload = validateEventPayload("maltreatment_reported", {
@@ -326,6 +366,7 @@ export async function createWelfareReportAction(
             payload: maltreatmentEventPayload,
             locationLat,
             locationLng,
+            caseId: caseRow.id,
           });
         }
 
@@ -353,6 +394,7 @@ export async function createWelfareReportAction(
             payload: symptomEventPayload,
             locationLat,
             locationLng,
+            caseId: caseRow.id,
           });
         }
       }

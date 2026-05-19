@@ -13,6 +13,14 @@ import { cases, db, type Case, type NewCase } from "@/db";
 import type { CaseKind } from "./case-kinds";
 import { generatePrefixedToken } from "./publicToken";
 
+/**
+ * Drizzle's transaction callback parameter. Server actions that need
+ * to open/close cases atomically with their pet_event inserts pass the
+ * `tx` from `db.transaction` into these helpers via the optional
+ * executor argument.
+ */
+type CaseExecutor = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
+
 // ---------------------------------------------------------------------------
 // public_code generator (CAS-XXXX-XXXX)
 // ---------------------------------------------------------------------------
@@ -23,11 +31,14 @@ const MAX_CODE_RETRIES = 5;
  * Allocate a new unique CAS-XXXX-XXXX code. Retries on the very rare
  * collision with the unique index. The base entropy is ~8.5e11 — five
  * retries is plenty.
+ *
+ * Accepts an optional executor so it can run inside a transaction
+ * alongside the `cases` INSERT it's about to feed.
  */
-export async function generateUniqueCasePublicCode(): Promise<string> {
+export async function generateUniqueCasePublicCode(executor: CaseExecutor = db): Promise<string> {
   for (let attempt = 0; attempt < MAX_CODE_RETRIES; attempt++) {
     const candidate = generatePrefixedToken("CAS");
-    const [existing] = await db
+    const [existing] = await executor
       .select({ id: cases.id })
       .from(cases)
       .where(eq(cases.publicCode, candidate))
@@ -67,11 +78,11 @@ export interface OpenCaseInput {
  * The caller is responsible for picking an appropriate kind and for
  * setting up the jurisdiction from the subject pet (or the location).
  *
- * Use inside a `db.transaction` so the case + the triggering
- * pet_event land atomically.
+ * Pass `executor` (the tx from `db.transaction`) to land the case row
+ * atomically with the triggering pet_event in the same transaction.
  */
-export async function openCase(input: OpenCaseInput): Promise<Case> {
-  const publicCode = await generateUniqueCasePublicCode();
+export async function openCase(input: OpenCaseInput, executor: CaseExecutor = db): Promise<Case> {
+  const publicCode = await generateUniqueCasePublicCode(executor);
   const values: NewCase = {
     publicCode,
     caseKind: input.kind,
@@ -92,7 +103,7 @@ export async function openCase(input: OpenCaseInput): Promise<Case> {
     custodyDisputeId: input.custodyDisputeId ?? null,
     parentListingCaseId: input.parentListingCaseId ?? null,
   };
-  const [row] = await db.insert(cases).values(values).returning();
+  const [row] = await executor.insert(cases).values(values).returning();
   return row;
 }
 
@@ -111,13 +122,16 @@ export interface CloseCaseInput {
  * closed_by_user_id. Idempotent: closing an already-closed case is a
  * no-op (returns the existing row).
  */
-export async function closeCase(input: CloseCaseInput): Promise<Case | null> {
-  const [existing] = await db.select().from(cases).where(eq(cases.id, input.caseId)).limit(1);
+export async function closeCase(
+  input: CloseCaseInput,
+  executor: CaseExecutor = db,
+): Promise<Case | null> {
+  const [existing] = await executor.select().from(cases).where(eq(cases.id, input.caseId)).limit(1);
   if (!existing) return null;
   if (existing.status === "closed" || existing.status === "merged") {
     return existing;
   }
-  const [updated] = await db
+  const [updated] = await executor
     .update(cases)
     .set({
       status: "closed",
