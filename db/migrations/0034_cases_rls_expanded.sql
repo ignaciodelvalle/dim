@@ -1,23 +1,20 @@
--- Cases RLS — Fase F (expanded). Production rules per kind.
+-- Cases system — Fase F. Full per-kind RLS.
 --
--- `can_read_case(case_id, user_id)` is the single hook every related
--- policy composes with (pet_events SELECT, attachments SELECT). The
--- function returns true for admin, govt-in-scope, subject-pet-owner
--- (except welfare_denuncia), and per-kind parties (foster, org member,
--- applicant, dispute party).
+-- Replaces the Fase A shell (cases_rls.sql) with the production rules.
+-- After this migration:
+--   - `can_read_case(case_id, user_id)` returns true for admin, govt-in-
+--     scope, subject-pet-owner (except welfare_denuncia), and per-kind
+--     parties (foster, org member, applicant, dispute party).
+--   - `cases` SELECT policy delegates to `can_read_case`.
+--   - `pet_events` SELECT policy gains an OR branch via `can_read_case`
+--     so case-attached events surface to case participants who aren't
+--     the pet owner (e.g. a dispute party).
+--   - `attachments` SELECT policy gains the same OR branch.
 --
--- Drizzle (server-side) bypasses RLS via the service role. These
--- policies guard PostgREST and any future RLS-aware reader.
+-- Drizzle bypasses RLS via the service role. These policies guard
+-- PostgREST and any future RLS-aware reader.
 --
--- Idempotent — safe to re-run. The applied migration is
--- `db/migrations/0034_cases_rls_expanded.sql`; this file mirrors the
--- final state for fresh DB bootstraps.
-
--- ===========================================================================
--- Enable RLS on cases
--- ===========================================================================
-
-alter table public.cases enable row level security;
+-- Idempotent — safe to re-run.
 
 -- ===========================================================================
 -- can_read_case — expanded
@@ -41,6 +38,7 @@ begin
     return false;
   end if;
 
+  -- Admin: universal scope.
   if exists (
     select 1 from public.profiles
     where id = p_user_id and role = 'admin' and deactivated_at is null
@@ -48,6 +46,9 @@ begin
     return true;
   end if;
 
+  -- Govt: jurisdiction-scoped match against active govt_assignments. A
+  -- govt user sees the case when (province, locality) match AT LEAST one
+  -- of their assigned scopes.
   if exists (
     select 1
     from public.profiles p
@@ -62,6 +63,8 @@ begin
     return true;
   end if;
 
+  -- Subject-pet owner — except welfare_denuncia, where the owner is the
+  -- subject of the investigation and must not see the case.
   if c.primary_pet_id is not null and exists (
     select 1
     from public.ownerships o
@@ -76,6 +79,7 @@ begin
     return true;
   end if;
 
+  -- Per-kind extensions.
   if c.case_kind = 'adoption_application' then
     return c.applicant_user_id = p_user_id;
   end if;
@@ -90,6 +94,7 @@ begin
   end if;
 
   if c.case_kind = 'foster_placement' then
+    -- (a) the active foster user, OR (b) members of the org that opened the case.
     if c.primary_pet_id is not null and exists (
       select 1 from public.ownerships o
       where o.pet_id = c.primary_pet_id
@@ -124,12 +129,15 @@ begin
     );
   end if;
 
+  -- bite_incident already covered above via subject-pet owner.
+  -- lost_pet_episode: same.
+  -- Anything else: deny.
   return false;
 end;
 $$;
 
 -- ===========================================================================
--- cases SELECT — delegate to can_read_case
+-- cases SELECT — single composed policy
 -- ===========================================================================
 
 drop policy if exists cases_select_subject_owner on public.cases;
@@ -139,5 +147,58 @@ drop policy if exists cases_select_visible on public.cases;
 create policy cases_select_visible on public.cases for select
   using (public.can_read_case(id, auth.uid()));
 
--- No INSERT / UPDATE / DELETE policies at this stage — every writer goes
--- through Drizzle on the server which bypasses RLS via service role.
+-- ===========================================================================
+-- pet_events SELECT — extend with case visibility
+-- ===========================================================================
+-- Current policy (from db/rls.sql) only allows the active owner. Extend
+-- so a non-owner who legitimately can read the case (foster, dispute
+-- party, govt-in-scope, etc.) also sees the case-attached events.
+
+drop policy if exists "Pet events readable by active owner" on public.pet_events;
+create policy "Pet events readable by active owner"
+  on public.pet_events
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.ownerships o
+      where o.pet_id = pet_events.pet_id
+        and o.owner_user_id = auth.uid()
+        and o.ended_at is null
+    )
+    or (
+      pet_events.case_id is not null
+      and public.can_read_case(pet_events.case_id, auth.uid())
+    )
+  );
+
+-- ===========================================================================
+-- attachments SELECT — extend with case visibility
+-- ===========================================================================
+
+drop policy if exists "Attachments readable by pet owner" on public.attachments;
+create policy "Attachments readable by pet owner"
+  on public.attachments
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.ownerships o
+      where o.owner_user_id = auth.uid()
+        and o.ended_at is null
+        and (
+          o.pet_id = attachments.pet_id
+          or o.pet_id = (
+            select pe.pet_id from public.pet_events pe where pe.id = attachments.event_id
+          )
+        )
+    )
+    or exists (
+      select 1 from public.pet_events pe
+      where pe.id = attachments.event_id
+        and pe.case_id is not null
+        and public.can_read_case(pe.case_id, auth.uid())
+    )
+  );

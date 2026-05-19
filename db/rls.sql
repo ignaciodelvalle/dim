@@ -157,7 +157,11 @@ create policy "Ownerships updatable by self"
 -- ============================================================================
 alter table public.pet_events enable row level security;
 
--- Readable when the caller has an active ownership on the event's pet.
+-- Readable when the caller has an active ownership on the event's pet,
+-- OR (Fase F of the cases system) when the event is attached to a case
+-- the caller can read. The OR branch surfaces case-attached events to
+-- non-owner participants (foster, dispute party, govt-in-scope, etc.)
+-- via `can_read_case`.
 drop policy if exists "Pet events readable by active owner" on public.pet_events;
 create policy "Pet events readable by active owner"
   on public.pet_events
@@ -170,6 +174,10 @@ create policy "Pet events readable by active owner"
       where o.pet_id = pet_events.pet_id
         and o.owner_user_id = auth.uid()
         and o.ended_at is null
+    )
+    or (
+      pet_events.case_id is not null
+      and public.can_read_case(pet_events.case_id, auth.uid())
     )
   );
 
@@ -270,6 +278,14 @@ create policy "Attachments readable by pet owner"
             select pe.pet_id from public.pet_events pe where pe.id = attachments.event_id
           )
         )
+    )
+    -- Fase F: case participants see attachments on case-attached events
+    -- via the same can_read_case hook used by pet_events.
+    or exists (
+      select 1 from public.pet_events pe
+      where pe.id = attachments.event_id
+        and pe.case_id is not null
+        and public.can_read_case(pe.case_id, auth.uid())
     )
   );
 
