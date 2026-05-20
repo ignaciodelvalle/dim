@@ -18,6 +18,7 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:bootstrap": "tsx scripts/db-bootstrap.ts",
     "rls:smoke": "tsx scripts/rls-smoke.ts",
     "rebuild:projections": "tsx scripts/rebuild-projections.ts",
     "seed:test": "tsx scripts/seed-test-users.ts",
