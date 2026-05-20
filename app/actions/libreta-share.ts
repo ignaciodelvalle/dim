@@ -4,7 +4,7 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, libretaShareTokens, ownerships, pets, shareTelemetry } from "@/db";
+import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 
@@ -84,20 +84,21 @@ export async function revokeLibretaShareForUser(
     .limit(1);
   if (!row) return { error: "Compartido no encontrado." };
 
-  // Creator can always revoke. Current owner of the pet can also revoke (D6).
+  // Authorization policy (review 2026-05-19 §2.2): creator can always revoke;
+  // app admins can revoke for moderation / compliance. Other current owners
+  // of the pet (including fosters and post-transfer owners) CANNOT revoke
+  // someone else's share — that protects the medical-history continuity that
+  // libreta shares depend on. A new owner who wants to clean up old shares
+  // contacts support, or the share simply expires on schedule.
   if (row.createdByUserId !== userId) {
-    const [ownership] = await db
-      .select({ id: ownerships.id })
-      .from(ownerships)
-      .where(
-        and(
-          eq(ownerships.petId, row.petId),
-          eq(ownerships.ownerUserId, userId),
-          isNull(ownerships.endedAt),
-        ),
-      )
+    const [callerProfile] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
       .limit(1);
-    if (!ownership) return { error: "Sin permisos para revocar este compartido." };
+    if (callerProfile?.role !== "admin") {
+      return { error: "Sin permisos para revocar este compartido." };
+    }
   }
 
   await db
