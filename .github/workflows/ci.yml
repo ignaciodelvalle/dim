@@ -170,15 +170,19 @@ jobs:
         # db/triggers.sql). CI is ephemeral so we apply them on every run.
         # handle_new_user MUST exist or any test that signs a user up gets
         # "Perfil no encontrado." — the public.profiles row never lands.
+        #
+        # Order matters: cases_rls.sql defines `can_read_case(uuid,uuid)` and
+        # rls.sql references it. triggers go first since later policy files
+        # may call functions defined there.
         env:
           PGPASSWORD: postgres
         run: |
           for f in db/triggers.sql \
+                   db/cases_rls.sql \
                    db/rls.sql \
                    db/organizations_rls.sql \
                    db/welfare_rls.sql \
                    db/foster_rls.sql \
-                   db/cases_rls.sql \
                    db/scheduling_rls.sql \
                    db/storage.sql \
                    db/welfare_storage.sql; do
