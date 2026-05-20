@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { auditLog, db, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { sanitizeNext } from "@/lib/dni-next";
 
 // ============================================================================
 // Types
@@ -117,18 +118,6 @@ export type DniVerifyFormState = {
   ok?: boolean;
   next?: string;
 };
-
-/**
- * Validates `next` to prevent open-redirect: must start with `/` and must not
- * contain `//` or `://`. Falls back to `/cuenta` on invalid values.
- */
-function sanitizeNext(raw: string | null): string {
-  if (!raw) return "/cuenta";
-  const trimmed = raw.trim();
-  if (!trimmed.startsWith("/")) return "/cuenta";
-  if (trimmed.includes("//") || trimmed.includes("://")) return "/cuenta";
-  return trimmed;
-}
 
 export async function verifyDniAction(
   _prev: DniVerifyFormState,
