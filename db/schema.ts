@@ -502,10 +502,14 @@ export const pets = pgTable(
     // Permanent conditions (migration 0031). text[] holds catalog codes
     // from lib/permanent-conditions.ts; `permanent_conditions_other` is
     // free text only meaningful when 'otra' is in the array.
-    // Use the drizzle-native empty-array default so the serialized form matches
-    // what PG returns from introspection (raw `sql` templates produce a literal
-    // that drizzle's diff doesn't normalize, causing perpetual drift).
-    permanentConditions: text("permanent_conditions").array().notNull().default([]),
+    // ARRAY[]::text[] is the canonical form PG normalizes empty-array defaults
+    // to on introspection; using it as the schema default avoids perpetual
+    // drift from drizzle-kit comparing '{}' (its own array serialization) to
+    // PG's introspected '{}'::text[]/ARRAY[]::text[] form.
+    permanentConditions: text("permanent_conditions")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     permanentConditionsOther: text("permanent_conditions_other"),
     discloseConditionsPublicly: boolean("disclose_conditions_publicly").notNull().default(false),
 
