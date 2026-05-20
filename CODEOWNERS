@@ -1,0 +1,25 @@
+# DIM code ownership.
+#
+# Each PR that touches a path matched below auto-requests review from the
+# listed owner(s). When you add collaborators, append targeted lines above
+# the catch-all so domain experts get pinged for their areas.
+
+# Catch-all
+*                                @ignaciodelvalle
+
+# Schema, migrations, triggers — anything that changes the DB shape
+/db/                             @ignaciodelvalle
+
+# Admin surfaces (capability grants, decisions, revocations)
+/app/admin/                      @ignaciodelvalle
+
+# Specs and plans — the source-of-truth that code descends from
+/docs/superpowers/               @ignaciodelvalle
+/docs/action-plan-*.md           @ignaciodelvalle
+/docs/project-review-*.md        @ignaciodelvalle
+
+# CI and contribution conventions
+/.github/                        @ignaciodelvalle
+/AGENTS.md                       @ignaciodelvalle
+/CONTRIBUTING.md                 @ignaciodelvalle
+/CODEOWNERS                      @ignaciodelvalle
