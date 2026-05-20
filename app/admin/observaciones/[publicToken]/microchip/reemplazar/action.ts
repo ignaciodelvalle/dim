@@ -86,5 +86,5 @@ export async function replaceMicrochipAdminAction(
     return { error: result.error };
   }
 
-  redirect(`/admin/observaciones`);
+  redirect("/admin/observaciones");
 }
