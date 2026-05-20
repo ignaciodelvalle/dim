@@ -129,11 +129,16 @@ jobs:
     # deleteUser,...} and the libreta-share / role-upgrade / dni-verification
     # suites depend on real auth.users rows. supabase CLI brings the stack up
     # via Docker on the same ports as local dev (54321 API, 54322 DB).
+    #
+    # SUPABASE_SERVICE_ROLE_KEY is the deterministic local-stack secret
+    # from `supabase status` — same across local stacks of the same CLI
+    # version family. The seed step's auth.admin.createUser calls need a
+    # real local key (not a dummy) to land users that the trigger picks up.
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
-      SUPABASE_SERVICE_ROLE_KEY: dummy_service_role_key
+      SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
 
     steps:
       - name: Checkout
@@ -160,79 +165,14 @@ jobs:
         # list if a future test needs it.
         run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
 
-      - name: Apply schema (drizzle-kit push)
-        # Push creates everything modeled in schema.ts: enums, tables,
-        # columns, indexes, FKs. Migrations on their own can't bootstrap an
-        # empty DB — e.g. 0000_orgs_foundation.sql references
-        # public.ownership_role, an enum defined only in schema.ts.
-        run: pnpm db:push
-
-      - name: Replay migrations for custom SQL (best-effort)
-        # After db:push the schema matches schema.ts, but migrations carry
-        # extra SQL schema.ts can't express: CHECK constraints (e.g. the
-        # cases invariants), functions (check_pet_event_case_id_immutable,
-        # enforce_admin_no_pets, cases_set_updated_at, etc.) and triggers.
-        #
-        # Best-effort: not every migration is idempotent — 0007 does
-        # `ALTER TABLE ADD COLUMN` without IF NOT EXISTS and several others
-        # have similar patterns. We continue past those errors because they
-        # are benign (db:push already created the column). Real-deal
-        # failures (broken function definitions, RLS misconfigurations)
-        # surface as test failures downstream.
-        env:
-          PGPASSWORD: postgres
-        run: |
-          set +e
-          for f in $(ls db/migrations/*.sql | sort); do
-            echo "::group::Replaying $f"
-            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -f "$f"
-            echo "::endgroup::"
-          done
-          # Always succeed — the test step is the real gate.
-          exit 0
-
-      - name: Apply non-Drizzle SQL (triggers, RLS, storage)
-        # Drizzle only manages tables/columns/indexes/enums — triggers, RLS
-        # policies, and storage bootstrap live in db/*.sql and are normally
-        # pasted into Supabase Studio once per environment (see the header of
-        # db/triggers.sql). CI is ephemeral so we apply them on every run.
-        # handle_new_user MUST exist or any test that signs a user up gets
-        # "Perfil no encontrado." — the public.profiles row never lands.
-        #
-        # Order matters: cases_rls.sql defines `can_read_case(uuid,uuid)` and
-        # rls.sql references it. triggers go first since later policy files
-        # may call functions defined there.
-        env:
-          PGPASSWORD: postgres
-        run: |
-          for f in db/triggers.sql \
-                   db/cases_rls.sql \
-                   db/rls.sql \
-                   db/organizations_rls.sql \
-                   db/welfare_rls.sql \
-                   db/foster_rls.sql \
-                   db/scheduling_rls.sql \
-                   db/storage.sql \
-                   db/welfare_storage.sql; do
-            echo "::group::Applying $f"
-            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
-            echo "::endgroup::"
-          done
+      - name: Bootstrap DB (schema + triggers + RLS + seeds)
+        # One script replaces what used to be four CI steps: db:push, replay
+        # migrations, apply db/*.sql (triggers/RLS/storage), seed reference
+        # data + test users. See scripts/db-bootstrap.ts for the contract.
+        run: pnpm db:bootstrap
 
       - name: Run tests (vitest)
-        # The 6 tests excluded below depend on the INDEC localities seed
-        # (~50k rows imported via scripts/import-indec-localities.ts) and the
-        # CABA barrios seed (scripts/import-caba-barrios.ts). Wiring those
-        # into CI is tracked as follow-up (see the PR description); for now
-        # those tests don't gate PRs. The remaining 82 tests do.
-        run: |
-          pnpm test -- \
-            --exclude "**/ar-localidades.test.ts" \
-            --exclude "**/ar-localities-schema.test.ts" \
-            --exclude "**/ar-provincias.test.ts" \
-            --exclude "**/caba-barrios.test.ts" \
-            --exclude "**/import-indec-localities.test.ts" \
-            --exclude "**/localities-search-action.test.ts"
+        run: pnpm test
 
       - name: Stop Supabase local stack
         if: always()
