@@ -9,11 +9,28 @@
 // the stub by DNI: ownership rows transfer from stub.id → real.id, the stub
 // row is deleted, and the user's profile takes the DNI. The immutable
 // adoption_finalized payload keeps the stub uuid for historical accuracy.
+//
+// SECURITY GATE (review 2026-05-19 §2.1): DNI is public information in
+// Argentina (printed on national ID cards, 8-digit space). Until DNI
+// verification through Mi Argentina OAuth ships, anyone who knows another
+// person's DNI could claim that stub and inherit their pet ownerships /
+// medical records. The action is therefore disabled at the top: it returns
+// an explanatory error immediately. The downstream tx / merge logic is kept
+// in place because re-enabling once Mi Argentina lands should be a one-line
+// revert. ClaimForm.tsx renders a "paused" notice instead of the input
+// form so users see the explanation before reaching the server action.
 
 import { db, notifications, ownerships, petEvents, profiles, reminders } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
+
+// SECURITY GATE (review 2026-05-19 §2.1): flip to `true` once Mi Argentina
+// identity verification lands. Until then the action returns early with an
+// explanatory error; ClaimForm.tsx renders a "paused" notice in parallel.
+// The flag is typed as `boolean` (not the literal `false`) so the rest of
+// the function stays reachable for typecheck purposes.
+const STUB_CLAIM_ENABLED: boolean = false;
 
 // Mirrors app/actions/adoption.ts → CHECKIN_WINDOWS_MONTHS. Kept inline
 // (rather than extracted) because this is the only second use site; if a
@@ -42,6 +59,14 @@ export async function claimStubProfileAction(
   _previous: ClaimFormState,
   formData: FormData,
 ): Promise<ClaimFormState> {
+  // SECURITY GATE — see STUB_CLAIM_ENABLED and file header.
+  if (!STUB_CLAIM_ENABLED) {
+    return {
+      error:
+        "El reclamo por DNI está temporalmente pausado mientras integramos la verificación de identidad con Mi Argentina. Si tu refugio te avisó que registró tu adopción, escribinos a soporte y te ayudamos a vincular el perfil manualmente.",
+    };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
