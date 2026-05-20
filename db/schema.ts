@@ -1467,6 +1467,8 @@ export const AUDIT_LOG_ACTIONS = [
   // The session must also set app.allow_event_mutation_actor (uuid) so the
   // trigger has an accountable actor; otherwise the mutation is refused.
   "pet_events_mutation_override",
+  // Microchip replacement / revocation (Sprint 1B Phase B).
+  "microchip.replace",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
