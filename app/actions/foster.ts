@@ -103,6 +103,9 @@ export async function assignFosterAction(
   const now = new Date();
   const authorVerified = organization.verified;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx.insert(ownerships).values({
@@ -147,7 +150,7 @@ export async function assignFosterAction(
         caseId: caseRow.id,
       });
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: fosterUserId,
         notificationType: "foster_assigned",
         title: `Te asignaron tránsito: ${pet.name}`,
@@ -165,6 +168,14 @@ export async function assignFosterAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   redirect(`/org/${orgToken}/mascotas?foster=${publicToken}`);
@@ -257,6 +268,9 @@ export async function endFosterAction(
     )
     .limit(1);
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterRow.id));
@@ -291,7 +305,7 @@ export async function endFosterAction(
         );
       }
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: fosterUserId,
         notificationType: "foster_ended",
         title: `Finalizó tu tránsito: ${pet.name}`,
@@ -314,7 +328,7 @@ export async function endFosterAction(
         .where(eq(fosterVolunteers.userId, fosterUserId))
         .limit(1);
       if (volunteer && volunteer.availableSlots === 0) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: fosterUserId,
           notificationType: "foster_volunteer_reenroll_prompt",
           title: `Tu tránsito con ${pet.name} terminó`,
@@ -332,6 +346,14 @@ export async function endFosterAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   redirect(`/org/${orgToken}/mascotas?fostend=${publicToken}`);

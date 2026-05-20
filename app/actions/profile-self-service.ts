@@ -175,6 +175,9 @@ export async function govtSelfDeactivateForUser(
   // 4+5. Coverage check + deactivation inside a single transaction.
   // SELECT FOR UPDATE on profiles + govtAssignments rows prevents concurrent
   // self-deactivations from two govts in the same locality racing past coverage.
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Lock caller's profile row to serialise concurrent self-deactivation attempts.
@@ -275,18 +278,16 @@ export async function govtSelfDeactivateForUser(
           ),
         );
 
-      if (activeAdmins.length > 0) {
-        await tx.insert(notifications).values(
-          activeAdmins.map((admin) => ({
-            userId: admin.id,
-            notificationType: "govt_self_deactivated_admin_notice",
-            title: "Un operador govt se auto-desactivó",
-            body: `El operador con ID ${userId} desactivó su propia cuenta.${input?.reason ? ` Motivo: ${input.reason}` : ""}`,
-            severity: "warning" as const,
-            ctaUrl: `/admin/govts/${userId}`,
-            ctaLabel: "Ver perfil",
-          })),
-        );
+      for (const admin of activeAdmins) {
+        pendingNotifications.push({
+          userId: admin.id,
+          notificationType: "govt_self_deactivated_admin_notice",
+          title: "Un operador govt se auto-desactivó",
+          body: `El operador con ID ${userId} desactivó su propia cuenta.${input?.reason ? ` Motivo: ${input.reason}` : ""}`,
+          severity: "warning" as const,
+          ctaUrl: `/admin/govts/${userId}`,
+          ctaLabel: "Ver perfil",
+        });
       }
 
       // 5e. Notify other govts who now sole-cover one of the revoked localities.
@@ -318,18 +319,16 @@ export async function govtSelfDeactivateForUser(
         }
       }
 
-      if (cascadeGovtIds.size > 0) {
-        await tx.insert(notifications).values(
-          [...cascadeGovtIds].map((gId) => ({
-            userId: gId,
-            notificationType: "govt_self_deactivated_cascade_notice",
-            title: "Cambio en tus localidades asignadas",
-            body: "Un operador govt de tu área desactivó su cuenta. Tus asignaciones de localidad siguen activas y pueden tener mayor alcance.",
-            severity: "info" as const,
-            ctaUrl: "/gob",
-            ctaLabel: "Ver mi panel",
-          })),
-        );
+      for (const gId of cascadeGovtIds) {
+        pendingNotifications.push({
+          userId: gId,
+          notificationType: "govt_self_deactivated_cascade_notice",
+          title: "Cambio en tus localidades asignadas",
+          body: "Un operador govt de tu área desactivó su cuenta. Tus asignaciones de localidad siguen activas y pueden tener mayor alcance.",
+          severity: "info" as const,
+          ctaUrl: "/gob",
+          ctaLabel: "Ver mi panel",
+        });
       }
     });
   } catch (err) {
@@ -346,6 +345,14 @@ export async function govtSelfDeactivateForUser(
     return {
       error: err instanceof Error ? err.message : "Error desconocido al desactivar cuenta.",
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (govtSelfDeactivateForUser did succeed)", e);
+    }
   }
 
   return { ok: true };

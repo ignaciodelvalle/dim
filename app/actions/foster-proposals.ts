@@ -253,6 +253,9 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
   const expiresAt = new Date(now.getTime() + PROPOSAL_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
   const publicToken = generatePrefixedToken("FP");
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx.insert(fosterProposals).values({
@@ -289,7 +292,7 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
         payload,
       });
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: input.volunteerUserId,
         notificationType: "foster_proposal_received",
         severity: "info",
@@ -306,6 +309,14 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (proposeFosterAction did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${input.orgToken}/voluntarios/propuestas`);
@@ -325,6 +336,9 @@ export async function acceptFosterProposalAction(
 
   const cascadeCancelled: string[] = [];
   let result: { fosterOwnershipId: string; remainingSlots: number } | null = null;
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     result = await db.transaction(
@@ -474,6 +488,8 @@ export async function acceptFosterProposalAction(
           .where(eq(fosterVolunteers.id, volunteer.id));
 
         // D18 — auto-cancel cascade when the last slot is consumed.
+        // Recipients are computed inside tx (we need the org ids from each
+        // proposal); push onto pendingNotifications for post-commit fire.
         if (newSlots === 0) {
           const others = await tx
             .select()
@@ -518,7 +534,7 @@ export async function acceptFosterProposalAction(
             // Notify the affected org coordinators.
             const otherOrgIds = await getOrgFosterCoordinatorUserIds(p.organizationId);
             for (const uid of otherOrgIds) {
-              await tx.insert(notifications).values({
+              pendingNotifications.push({
                 userId: uid,
                 notificationType: "foster_proposal_auto_cancelled_org",
                 severity: "info",
@@ -540,7 +556,7 @@ export async function acceptFosterProposalAction(
           .where(eq(profiles.id, user.id))
           .limit(1);
         for (const uid of acceptOrgIds) {
-          await tx.insert(notifications).values({
+          pendingNotifications.push({
             userId: uid,
             notificationType: "foster_proposal_accepted_org",
             severity: "success",
@@ -560,6 +576,14 @@ export async function acceptFosterProposalAction(
   }
 
   if (!result) return { error: "Error inesperado al aceptar." };
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (acceptFosterProposalAction did succeed)", e);
+    }
+  }
 
   revalidatePath("/cuenta/transitos/propuestas");
   revalidatePath("/mis-mascotas");
@@ -584,6 +608,9 @@ export async function rejectFosterProposalAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesión expirada." };
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -628,7 +655,7 @@ export async function rejectFosterProposalAction(
 
       const orgIds = await getOrgFosterCoordinatorUserIds(proposal.organizationId);
       for (const uid of orgIds) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: uid,
           notificationType: "foster_proposal_rejected_org",
           severity: "info",
@@ -642,6 +669,14 @@ export async function rejectFosterProposalAction(
     return {
       error: err instanceof Error ? err.message : "No se pudo rechazar la propuesta.",
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (rejectFosterProposalAction did succeed)", e);
+    }
   }
 
   revalidatePath("/cuenta/transitos/propuestas");
@@ -658,6 +693,9 @@ export async function cancelFosterProposalAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesión expirada." };
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -705,7 +743,7 @@ export async function cancelFosterProposalAction(
       });
 
       // Notify volunteer.
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: proposal.volunteerUserId,
         notificationType: "foster_proposal_cancelled_volunteer",
         severity: "info",
@@ -718,6 +756,14 @@ export async function cancelFosterProposalAction(
     return {
       error: err instanceof Error ? err.message : "No se pudo cancelar la propuesta.",
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (cancelFosterProposalAction did succeed)", e);
+    }
   }
 
   return { ok: true };

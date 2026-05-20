@@ -346,6 +346,9 @@ export async function createPetAction(
   const publicToken = generatePublicToken();
   const now = new Date();
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const [newPet] = await tx
@@ -475,7 +478,7 @@ export async function createPetAction(
       // inscribe in the provincial PPP registry belongs to the legal owner,
       // not a transitional caretaker. Sending it to a vecino would be misleading.
       if (potentiallyDangerousBreed && parsed.custodyKind !== "foster_in_transit") {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: user.id,
           notificationType: "ppp_registration_reminder",
           title: `${parsed.name}: registrá tu PPP en el provincial`,
@@ -499,6 +502,14 @@ export async function createPetAction(
     return {
       error: `No se pudo crear la mascota: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   redirect("/mis-mascotas");
@@ -656,6 +667,9 @@ export async function updatePetAction(
 
   const now = new Date();
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -735,7 +749,7 @@ export async function updatePetAction(
         // this notification to the org-member who edited — the obligation
         // doesn't apply to org custody, and the org member isn't the owner.
         if (becamePPP && accessPath === "owner") {
-          await tx.insert(notifications).values({
+          pendingNotifications.push({
             userId: user.id,
             notificationType: "ppp_registration_reminder",
             title: `${parsed.name}: registrá tu PPP en el provincial`,
@@ -780,6 +794,14 @@ export async function updatePetAction(
     return {
       error: `No se pudo actualizar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   redirect(`/mis-mascotas/${publicToken}`);

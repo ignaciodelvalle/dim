@@ -148,6 +148,8 @@ export async function submitAdoptionApplicationAction(
 
   const now = new Date();
   let applicationEventId = "";
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -177,20 +179,18 @@ export async function submitAdoptionApplicationAction(
           AND role IN ('admin', 'coordinator')
         LIMIT 25
       `);
-      if (orgMembers.length > 0) {
-        await tx.insert(notifications).values(
-          orgMembers.map((m) => ({
-            userId: m.user_id,
-            notificationType: "adoption_application_received",
-            title: `Nueva postulación para ${pet.name}`,
-            body: "Una persona se postuló para adoptar. Entrá para revisar la historia y decidir.",
-            severity: "info" as const,
-            ctaLabel: "Revisar postulación",
-            ctaUrl: `/org/${org.publicToken}/adopciones/${eventRow.id}`,
-            relatedPetId: pet.id,
-            relatedEventId: eventRow.id,
-          })),
-        );
+      for (const m of orgMembers) {
+        pendingNotifications.push({
+          userId: m.user_id,
+          notificationType: "adoption_application_received",
+          title: `Nueva postulación para ${pet.name}`,
+          body: "Una persona se postuló para adoptar. Entrá para revisar la historia y decidir.",
+          severity: "info" as const,
+          ctaLabel: "Revisar postulación",
+          ctaUrl: `/org/${org.publicToken}/adopciones/${eventRow.id}`,
+          relatedPetId: pet.id,
+          relatedEventId: eventRow.id,
+        });
       }
     });
   } catch (err) {
@@ -199,6 +199,14 @@ export async function submitAdoptionApplicationAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true, applicationEventId };
@@ -306,6 +314,9 @@ export async function approveAdoptionApplicationAction(
     notes,
   });
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotificationsApprove: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx.insert(petEvents).values({
@@ -323,7 +334,7 @@ export async function approveAdoptionApplicationAction(
       const applicantUserId = (application.payload as { applicant_user_id?: string })
         .applicant_user_id;
       if (applicantUserId) {
-        await tx.insert(notifications).values({
+        pendingNotificationsApprove.push({
           userId: applicantUserId,
           notificationType: "adoption_application_approved",
           title: `Tu postulación para ${pet.name} fue aprobada`,
@@ -340,6 +351,14 @@ export async function approveAdoptionApplicationAction(
     return {
       error: `No se pudo aprobar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotificationsApprove.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotificationsApprove);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${orgToken}/adopciones`);
@@ -373,6 +392,9 @@ export async function rejectAdoptionApplicationAction(
     notes,
   });
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotificationsReject: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx.insert(petEvents).values({
@@ -390,7 +412,7 @@ export async function rejectAdoptionApplicationAction(
       const applicantUserId = (application.payload as { applicant_user_id?: string })
         .applicant_user_id;
       if (applicantUserId) {
-        await tx.insert(notifications).values({
+        pendingNotificationsReject.push({
           userId: applicantUserId,
           notificationType: "adoption_application_rejected",
           title: `Tu postulación para ${pet.name} no avanzó`,
@@ -407,6 +429,14 @@ export async function rejectAdoptionApplicationAction(
     return {
       error: `No se pudo rechazar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotificationsReject.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotificationsReject);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${orgToken}/adopciones`);

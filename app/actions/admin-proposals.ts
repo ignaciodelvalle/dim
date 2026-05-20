@@ -126,6 +126,9 @@ export async function proposeVetUpgradeForUser(
   }
 
   const publicToken = generateApprovalRequestToken();
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   await db.transaction(async (tx) => {
     await tx.insert(approvalRequests).values({
       publicToken,
@@ -139,7 +142,7 @@ export async function proposeVetUpgradeForUser(
       jurisdictionLocality: input.operationalLocality.trim(),
       payload,
     });
-    await tx.insert(notifications).values({
+    pendingNotifications.push({
       userId: input.targetUserId,
       notificationType: "approval_request_proposed_authority",
       title: "Te propusieron el rol veterinario",
@@ -149,6 +152,14 @@ export async function proposeVetUpgradeForUser(
       ctaUrl: "/cuenta/upgrade",
     });
   });
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
 
   return { ok: true, publicToken };
 }
@@ -216,6 +227,9 @@ export async function proposeOrgVerificationForOrg(
   const province = org.jurisdictionProvince;
   const locality = org.jurisdictionLocality;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   await db.transaction(async (tx) => {
     await tx.insert(approvalRequests).values({
       publicToken,
@@ -230,7 +244,7 @@ export async function proposeOrgVerificationForOrg(
       payload,
     });
     if (applicantUserId !== actorUserId) {
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: applicantUserId,
         notificationType: "approval_request_proposed_authority",
         title: "Verificación propuesta para tu organización",
@@ -241,6 +255,14 @@ export async function proposeOrgVerificationForOrg(
       });
     }
   });
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
 
   return { ok: true, publicToken };
 }

@@ -125,8 +125,11 @@ export async function reportBiteAction(
   const observationUntil = computeObservationUntil(occurredAt);
 
   // 5. Atomic: open bite_incident case + incident_reported +
-  //    rabies_observation_started + pet UPDATE + owner notification.
+  //    rabies_observation_started + pet UPDATE.
   //    Authority notifications are best-effort (post-tx).
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Cases system (Fase D2): open the bite_incident case first so the
@@ -195,7 +198,7 @@ export async function reportBiteAction(
         .set({ rabiesObservationStatus: "in_progress", updatedAt: now })
         .where(eq(pets.id, pet.id));
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: user.id,
         notificationType: "rabies_observation_started_owner",
         severity: "warning",
@@ -214,6 +217,14 @@ export async function reportBiteAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   // 6. Best-effort: notify authorities in the pet's jurisdiction. Failure does
@@ -322,6 +333,9 @@ export async function ownerCloseRabiesObservationAction(
     )
     .limit(1);
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const endedPayload = validateEventPayload("rabies_observation_ended", {
@@ -349,7 +363,7 @@ export async function ownerCloseRabiesObservationAction(
       if (biteCase) {
         await closeCase({ caseId: biteCase.id, reason: "resolved", closedByUserId: user.id }, tx);
       }
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: user.id,
         notificationType: "rabies_observation_completed_negative_owner",
         severity: "info",
@@ -366,6 +380,14 @@ export async function ownerCloseRabiesObservationAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
@@ -487,6 +509,9 @@ export async function reportBiteFromOrgAction(
 
   // 5. Atomic: open bite_incident case + incident_reported +
   //    rabies_observation_started + pet UPDATE.
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Cases system (Fase D2): open bite_incident case attributed to the
@@ -570,7 +595,7 @@ export async function reportBiteFromOrgAction(
         )
         .limit(1);
       if (activeOwnership?.ownerUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: activeOwnership.ownerUserId,
           notificationType: "bite_reported_by_org_owner",
           severity: "warning",
@@ -590,6 +615,14 @@ export async function reportBiteFromOrgAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   // 6. Best-effort authority notification.
@@ -700,6 +733,9 @@ export async function professionalCloseRabiesObservationAction(
     )
     .limit(1);
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const endedPayload = validateEventPayload("rabies_observation_ended", {
@@ -749,11 +785,12 @@ export async function professionalCloseRabiesObservationAction(
         )
         .limit(1);
       if (activeOwnership?.ownerUserId) {
-        const severity = outcome === "positive_rabies" ? ("urgent" as const) : ("info" as const);
-        await tx.insert(notifications).values({
+        const notifSeverity =
+          outcome === "positive_rabies" ? ("urgent" as const) : ("info" as const);
+        pendingNotifications.push({
           userId: activeOwnership.ownerUserId,
           notificationType: "rabies_observation_completed_professional_owner",
-          severity,
+          severity: notifSeverity,
           title: `Observación cerrada profesionalmente — ${pet.name}`,
           body: `La observación antirrábica de ${pet.name} fue cerrada por ${profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con outcome: ${outcome}.${closureNotes ? ` Notas: ${closureNotes}` : ""}`,
           relatedPetId: pet.id,
@@ -766,6 +803,14 @@ export async function professionalCloseRabiesObservationAction(
     return {
       error: `No se pudo cerrar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   redirect("/admin/observaciones");

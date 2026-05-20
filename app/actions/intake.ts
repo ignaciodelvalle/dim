@@ -215,6 +215,9 @@ export async function createIntakeAction(
     },
   );
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const [newPet] = await tx
@@ -304,7 +307,7 @@ export async function createIntakeAction(
       // confirmation, not an alert — severity=success. The refugio's other
       // members aren't pinged in v1; bulk-fanout on every intake would noise
       // them out at high-capacity shelters (per AGENTS.md "El Campito scale").
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: user.id,
         notificationType: "shelter_intake_confirmed",
         title: `Ingreso registrado: ${parsed.name}`,
@@ -321,6 +324,14 @@ export async function createIntakeAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   redirect(`/org/${orgToken}/mascotas?nueva=${publicToken}`);
