@@ -31,6 +31,7 @@ function checkRateLimit(sessionKey: string): boolean {
   return true;
 }
 
+// @no-auth-required: test-only utility, prefixed with `__` to mark non-public surface.
 // Exposed so a test can reset between cases. Not part of the public surface.
 export async function __resetRateLimitForTests(): Promise<void> {
   rateLimitMap.clear();

@@ -1005,6 +1005,9 @@ function autoCancelBody(reason: string, petName: string): string {
 // Org-member lookup helper — used by UI pages to build the proposal context.
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: read-only context loader, no mutations. The calling page
+// already auth-gates via the route's `requireOrgAccessByToken` / pet-access
+// helpers. Belongs in lib/ — moving it is a separate refactor.
 export async function loadProposalContext(petId: string): Promise<{
   latestProposal: PetEvent | null;
   actorDisplayName: string | null;
