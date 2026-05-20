@@ -15,7 +15,7 @@
 // The single-item RevokeUserActions / RevokeOrgActions remain on the
 // row for one-off revocations; this component is additive.
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
@@ -164,6 +164,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
     failed: { id: string; reason: string }[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const evidenciaInputId = useId();
 
   const motivoTrimmed = motivo.trim();
   const motivoValid = motivoTrimmed.length >= MOTIVO_MIN;
@@ -229,6 +230,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+      // biome-ignore lint/a11y/useSemanticElements: native <dialog> requires imperative showModal() which doesn't fit this controlled isOpen pattern; tracked as a follow-up to migrate to a Headless UI modal primitive.
       role="dialog"
       aria-modal="true"
     >
@@ -314,10 +316,14 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor={evidenciaInputId}
+                className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 Evidencia (al menos 1 archivo)
               </label>
               <input
+                id={evidenciaInputId}
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFilesChange}

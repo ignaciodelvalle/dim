@@ -45,9 +45,9 @@ function EmptyState() {
 
 function AchievementChip({ achievement }: { achievement: EarnedAchievement }) {
   const dateLabel = formatDate(achievement.earnedAt);
-  const tooltip =
-    `${achievement.description}\nLogrado el ${dateLabel}` +
-    (achievement.count && achievement.count > 1 ? ` · ${achievement.count} veces` : "");
+  const countSuffix =
+    achievement.count && achievement.count > 1 ? ` · ${achievement.count} veces` : "";
+  const tooltip = `${achievement.description}\nLogrado el ${dateLabel}${countSuffix}`;
   return (
     <span
       title={tooltip}

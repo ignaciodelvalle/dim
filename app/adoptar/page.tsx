@@ -5,9 +5,9 @@ import {
   buildSearchParams,
   energyLabel,
   parseSearchParams,
-  queryAdoptionListing,
   sizeLabel,
 } from "@/lib/adoption-listing";
+import { queryAdoptionListing } from "@/lib/adoption-listing-query";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { petPhotoUrl } from "@/lib/storage";
 

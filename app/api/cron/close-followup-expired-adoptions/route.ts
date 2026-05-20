@@ -3,9 +3,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
+  type FollowupExpiredCandidate,
   closeFollowupExpiredAdoption,
   findFollowupExpiredAdoptions,
-  type FollowupExpiredCandidate,
 } from "@/lib/case-closers/close-followup-expired-adoptions";
 import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
 

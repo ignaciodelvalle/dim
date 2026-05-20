@@ -566,7 +566,7 @@ export async function createOrgWelfareReportAction(
 
   // Severity is auto-overridden to 'critical' per spec OA2. The form
   // may post a value but the server is authoritative.
-  const severity: "critical" = "critical";
+  const severity = "critical" as const;
 
   let subjectPetId: string | null = null;
   if (subjectKind === "registered_pet" && subjectPetToken) {

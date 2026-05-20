@@ -3,9 +3,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
+  type StaleDisputeCandidate,
   escalateStaleDispute,
   findStaleDisputes,
-  type StaleDisputeCandidate,
 } from "@/lib/case-closers/escalate-stale-disputes";
 import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
 

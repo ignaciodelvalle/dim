@@ -16,7 +16,7 @@
 //   - organizationId → set when the selected suggestion is an org
 //   - userId         → set when the selected suggestion is a vet profile
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { searchVetsAndClinicsAction } from "@/app/actions/performed-by";
 import type { PerformedBySuggestion, SearchJurisdiction } from "@/lib/performed-by-search";
@@ -99,6 +99,7 @@ export function PerformedByCombobox({
   const [errored, setErrored] = useState(false);
   const [pending, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputId = useId();
 
   // Debounced fetch.
   useEffect(() => {
@@ -166,7 +167,10 @@ export function PerformedByCombobox({
 
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+      <label
+        htmlFor={inputId}
+        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
+      >
         {label}
       </label>
 
@@ -208,6 +212,7 @@ export function PerformedByCombobox({
       ) : (
         <div className="relative">
           <input
+            id={inputId}
             type="text"
             value={query}
             onChange={(e) => {

@@ -4,12 +4,8 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 
 import { db, organizations } from "@/db";
-import {
-  ageBucketLabel,
-  energyLabel,
-  queryAdoptionListing,
-  sizeLabel,
-} from "@/lib/adoption-listing";
+import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
+import { queryAdoptionListing } from "@/lib/adoption-listing-query";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { petPhotoUrl } from "@/lib/storage";
 

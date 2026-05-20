@@ -324,9 +324,7 @@ async function fetchOpenWelfareReports(userId: string): Promise<WorkflowItem[]> 
       createdAt: welfareReports.createdAt,
     })
     .from(welfareReports)
-    .where(
-      and(eq(welfareReports.reporterUserId, userId), ne(welfareReports.status, "closed")),
-    );
+    .where(and(eq(welfareReports.reporterUserId, userId), ne(welfareReports.status, "closed")));
   return rows.map((r) => ({
     id: `welfare_report:${r.id}`,
     kind: "welfare_report_open" as const,
@@ -455,12 +453,7 @@ async function fetchOpenCustodyDisputes(userId: string): Promise<WorkflowItem[]>
     .from(custodyDisputeParties)
     .innerJoin(custodyDisputes, eq(custodyDisputes.id, custodyDisputeParties.disputeId))
     .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
-    .where(
-      and(
-        eq(custodyDisputeParties.partyUserId, userId),
-        eq(custodyDisputes.status, "open"),
-      ),
-    );
+    .where(and(eq(custodyDisputeParties.partyUserId, userId), eq(custodyDisputes.status, "open")));
   return rows.map((r) => ({
     id: `custody_dispute:${r.id}`,
     kind: "custody_dispute_open" as const,
@@ -526,10 +519,7 @@ async function fetchResolvedFosterProposals(
   }));
 }
 
-async function fetchClosedWelfareReports(
-  userId: string,
-  limit: number,
-): Promise<WorkflowItem[]> {
+async function fetchClosedWelfareReports(userId: string, limit: number): Promise<WorkflowItem[]> {
   const rows = await db
     .select({
       id: welfareReports.id,
@@ -603,12 +593,7 @@ async function fetchDecidedApprovalRequests(
       createdAt: approvalRequests.createdAt,
     })
     .from(approvalRequests)
-    .where(
-      and(
-        eq(approvalRequests.applicantUserId, userId),
-        isNotNull(approvalRequests.decidedAt),
-      ),
-    )
+    .where(and(eq(approvalRequests.applicantUserId, userId), isNotNull(approvalRequests.decidedAt)))
     .orderBy(desc(approvalRequests.decidedAt))
     .limit(limit);
   return rows.map((r) => ({
@@ -622,10 +607,7 @@ async function fetchDecidedApprovalRequests(
   }));
 }
 
-export async function fetchPreviousWorkflows(
-  userId: string,
-  limit = 10,
-): Promise<WorkflowItem[]> {
+export async function fetchPreviousWorkflows(userId: string, limit = 10): Promise<WorkflowItem[]> {
   const [foster, welfare, adoption, approval] = await Promise.all([
     fetchResolvedFosterProposals(userId, limit),
     fetchClosedWelfareReports(userId, limit),

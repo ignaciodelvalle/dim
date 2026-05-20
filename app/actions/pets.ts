@@ -23,7 +23,7 @@
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds";
+import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
@@ -250,10 +250,6 @@ function normalizeConditionsOther(parsed: ParsedPet): string | null {
   if (!parsed.permanentConditions.includes("otra")) return null;
   return parsed.permanentConditionsOther;
 }
-
-// Re-export for the create/update write sites — keeps the helper local
-// to the file but explicit at call sites.
-export { PERMANENT_CONDITIONS };
 
 // ---------------------------------------------------------------------------
 // CREATE

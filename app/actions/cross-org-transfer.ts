@@ -495,7 +495,7 @@ export async function rejectCrossOrgTransferAction(input: {
             userId: r.userId,
             notificationType: "cross_org_transfer_rejected_sender" as const,
             severity: "info" as const,
-            title: `Tu propuesta de transferencia fue rechazada`,
+            title: "Tu propuesta de transferencia fue rechazada",
             body: `${organization.displayName} rechazó la propuesta. Motivo: ${reasonNote}`,
             ctaLabel: "Ver caso",
             ctaUrl: `/casos/${caseRow.publicCode}`,
