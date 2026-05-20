@@ -118,3 +118,62 @@ jobs:
             exit 1
           fi
           echo "::notice::Only known false-positive drift (pets.permanent_conditions array default) detected; treating as no-op."
+
+  test:
+    name: Tests (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Tests need the full Supabase local stack (Postgres + GoTrue + PostgREST),
+    # not just bare Postgres — 11 tests call admin.auth.admin.{listUsers,
+    # deleteUser,...} and the libreta-share / role-upgrade / dni-verification
+    # suites depend on real auth.users rows. supabase CLI brings the stack up
+    # via Docker on the same ports as local dev (54321 API, 54322 DB).
+    #
+    # SUPABASE_SERVICE_ROLE_KEY is the deterministic local-stack secret
+    # from `supabase status` — same across local stacks of the same CLI
+    # version family. The seed step's auth.admin.createUser calls need a
+    # real local key (not a dummy) to land users that the trigger picks up.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
+      SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start Supabase local stack
+        # studio/inbucket/imgproxy/edge-runtime/realtime are excluded — the
+        # test suite doesn't touch any of them, and skipping them shaves
+        # several minutes off cold-cache startup. Add a service back to the
+        # list if a future test needs it.
+        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+
+      - name: Bootstrap DB (schema + triggers + RLS + seeds)
+        # One script replaces what used to be four CI steps: db:push, replay
+        # migrations, apply db/*.sql (triggers/RLS/storage), seed reference
+        # data + test users. See scripts/db-bootstrap.ts for the contract.
+        run: pnpm db:bootstrap
+
+      - name: Run tests (vitest)
+        run: pnpm test
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup
