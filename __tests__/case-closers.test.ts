@@ -12,7 +12,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
-import { withMutationOverride } from "./_helpers/db-overrides";
 import {
   closeFollowupExpiredAdoption,
   findFollowupExpiredAdoptions,
@@ -29,6 +28,7 @@ import {
   escalateStaleWelfareCase,
   findStaleWelfareCases,
 } from "@/lib/case-closers/escalate-stale-welfare-cases";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const PET_TOKENS = ["DIM-CC-PA1", "DIM-CC-PB1", "DIM-CC-PC1", "DIM-CC-PD1"] as const;
 const ORG_TOKEN = "DIM-CC-ORG1";

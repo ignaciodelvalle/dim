@@ -6,13 +6,13 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
-import { withMutationOverride } from "./_helpers/db-overrides";
 import {
   fetchDiseaseSummary,
   fetchLostPets,
   fetchSurveillanceSignals,
 } from "@/lib/govt-dashboards";
 import { generatePublicToken } from "@/lib/publicToken";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -30,7 +30,10 @@ async function ensureOwner(): Promise<string> {
     // Verify the matching profile row also exists (handle_new_user trigger
     // populates it on user creation). An orphan auth user with no profile
     // breaks the ownership FK on insertFixturePet — rebuild from scratch.
-    const [profile] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.id, existing.id));
+    const [profile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, existing.id));
     if (profile) return existing.id;
     await adminSdk.auth.admin.deleteUser(existing.id);
   }

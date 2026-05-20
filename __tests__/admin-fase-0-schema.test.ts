@@ -16,8 +16,8 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, ownerships, pets, profiles } from "@/db";
-import { withMutationOverride } from "./_helpers/db-overrides";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

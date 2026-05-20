@@ -9,8 +9,8 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, pets } from "@/db";
-import { withMutationOverride } from "./_helpers/db-overrides";
 import { closeCase, openCase } from "@/lib/case-helpers";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const PET_TOKEN = "DIM-D5-PA1";
 
