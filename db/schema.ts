@@ -473,6 +473,7 @@ export const pets = pgTable(
     adoptionEligibilitySetAt: timestamp("adoption_eligibility_set_at", { withTimezone: true }),
     adoptionEligibilitySetByUserId: uuid("adoption_eligibility_set_by_user_id").references(
       () => profiles.id,
+      { onDelete: "set null" },
     ),
 
     // Adoption listing — spec 2026-05-18 adoption-listing-public v1.3.
@@ -521,6 +522,25 @@ export const pets = pgTable(
       .where(
         sql`${table.adoptionListedAt} IS NOT NULL AND ${table.adoptionListingPausedAt} IS NULL`,
       ),
+    adoptionIneligibleReasonValid: check(
+      "pets_adoption_ineligible_reason_valid",
+      sql`${table.adoptionIneligibleReason} IS NULL OR ${table.adoptionIneligibleReason} IN ('medical_treatment','behavioral_evaluation','recovery','quarantine','legal_hold','age','pending_intake_eval','other')`,
+    ),
+    adoptionEligibilityConsistent: check(
+      "pets_adoption_eligibility_consistent",
+      sql`(${table.adoptionEligible} IS NOT NULL AND ${table.adoptionEligibilitySetAt} IS NOT NULL) OR (${table.adoptionEligible} IS NULL AND ${table.adoptionEligibilitySetAt} IS NULL)`,
+    ),
+    adoptionIneligibleReasonRequired: check(
+      "pets_adoption_ineligible_reason_required",
+      sql`${table.adoptionEligible} IS NULL OR ${table.adoptionEligible} = true OR (${table.adoptionEligible} = false AND ${table.adoptionIneligibleReason} IS NOT NULL)`,
+    ),
+    adoptionIneligibleOtherNeedsNotes: check(
+      "pets_adoption_ineligible_other_needs_notes",
+      sql`${table.adoptionIneligibleReason} IS NULL OR ${table.adoptionIneligibleReason} != 'other' OR (${table.adoptionIneligibleReasonNotes} IS NOT NULL AND length(trim(${table.adoptionIneligibleReasonNotes})) > 0)`,
+    ),
+    adoptionEligibilitySetByIdx: index("pets_adoption_eligibility_set_by_idx").on(
+      table.adoptionEligibilitySetByUserId,
+    ),
   }),
 );
 
@@ -1157,10 +1177,14 @@ export const govtAssignments = pgTable(
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province").notNull(),
     jurisdictionLocality: text("jurisdiction_locality").notNull(),
-    grantedByUserId: uuid("granted_by_user_id").references(() => profiles.id),
+    grantedByUserId: uuid("granted_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     revocationReason: text("revocation_reason"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1214,7 +1238,9 @@ export const approvalRequests = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
     initiatedBy: text("initiated_by").notNull().default("self").$type<"self" | "authority">(),
-    initiatedByUserId: uuid("initiated_by_user_id").references(() => profiles.id),
+    initiatedByUserId: uuid("initiated_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     // Polymorphic target — exactly one set per type (enforced by DB CHECK).
     targetUserId: uuid("target_user_id").references(() => profiles.id, { onDelete: "cascade" }),
     targetOrganizationId: uuid("target_organization_id").references(() => organizations.id, {
@@ -1226,7 +1252,9 @@ export const approvalRequests = pgTable(
     jurisdictionLocality: text("jurisdiction_locality").notNull(),
     payload: jsonb("payload").notNull().default({}),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
-    decidedByUserId: uuid("decided_by_user_id").references(() => profiles.id),
+    decidedByUserId: uuid("decided_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     decisionNotes: text("decision_notes"),
     withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1244,6 +1272,8 @@ export const approvalRequests = pgTable(
       .on(table.jurisdictionProvince, table.jurisdictionLocality)
       .where(sql`${table.status} = 'pending'`),
     typeIdx: index("approval_requests_type_idx").on(table.type, table.status),
+    initiatedByIdx: index("approval_requests_initiated_by_idx").on(table.initiatedByUserId),
+    decidedByIdx: index("approval_requests_decided_by_idx").on(table.decidedByUserId),
   }),
 );
 
@@ -1352,10 +1382,16 @@ export const auditLog = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: "restrict" }),
     action: text("action").notNull().$type<AuditLogAction>(),
-    approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id),
-    targetUserId: uuid("target_user_id").references(() => profiles.id),
-    targetOrganizationId: uuid("target_organization_id").references(() => organizations.id),
-    targetGovtAssignmentId: uuid("target_govt_assignment_id").references(() => govtAssignments.id),
+    approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id, {
+      onDelete: "set null",
+    }),
+    targetUserId: uuid("target_user_id").references(() => profiles.id, { onDelete: "set null" }),
+    targetOrganizationId: uuid("target_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    targetGovtAssignmentId: uuid("target_govt_assignment_id").references(() => govtAssignments.id, {
+      onDelete: "set null",
+    }),
     payload: jsonb("payload").notNull().default({}),
     performedAt: timestamp("performed_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1363,6 +1399,9 @@ export const auditLog = pgTable(
     actorIdx: index("audit_log_actor_idx").on(table.actorUserId, table.performedAt),
     requestIdx: index("audit_log_request_idx").on(table.approvalRequestId),
     targetUserIdx: index("audit_log_target_user_idx").on(table.targetUserId),
+    targetOrganizationIdx: index("audit_log_target_organization_idx").on(
+      table.targetOrganizationId,
+    ),
     actionIdx: index("audit_log_action_idx").on(table.action, table.performedAt),
   }),
 );
@@ -1818,7 +1857,7 @@ export const fosterProposals = pgTable(
       .references(() => pets.id, { onDelete: "cascade" }),
     proposedByUserId: uuid("proposed_by_user_id")
       .notNull()
-      .references(() => profiles.id),
+      .references(() => profiles.id, { onDelete: "set null" }),
 
     proposedAt: timestamp("proposed_at", { withTimezone: true }).notNull().defaultNow(),
     proposedDurationWeeks: integer("proposed_duration_weeks"),
@@ -1833,10 +1872,14 @@ export const fosterProposals = pgTable(
     rejectionReason: text("rejection_reason"),
 
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
-    cancelledByUserId: uuid("cancelled_by_user_id").references(() => profiles.id),
+    cancelledByUserId: uuid("cancelled_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     cancellationReason: text("cancellation_reason"),
 
-    resolvedOwnershipId: uuid("resolved_ownership_id").references(() => ownerships.id),
+    resolvedOwnershipId: uuid("resolved_ownership_id").references(() => ownerships.id, {
+      onDelete: "set null",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1856,6 +1899,11 @@ export const fosterProposals = pgTable(
       .on(table.petId)
       .where(sql`${table.status} IN ('pending','accepted')`),
     statusIdx: index("foster_proposals_status_idx").on(table.status, table.expiresAt),
+    proposedByIdx: index("foster_proposals_proposed_by_idx").on(table.proposedByUserId),
+    cancelledByIdx: index("foster_proposals_cancelled_by_idx").on(table.cancelledByUserId),
+    resolvedOwnershipIdx: index("foster_proposals_resolved_ownership_idx").on(
+      table.resolvedOwnershipId,
+    ),
   }),
 );
 
@@ -1920,20 +1968,28 @@ export const custodyDisputes = pgTable("custody_disputes", {
   petId: uuid("pet_id")
     .notNull()
     .references(() => pets.id, { onDelete: "cascade" }),
-  raisedByUserId: uuid("raised_by_user_id").references(() => profiles.id),
-  raisedByOrgId: uuid("raised_by_org_id").references(() => organizations.id),
+  raisedByUserId: uuid("raised_by_user_id").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
+  raisedByOrgId: uuid("raised_by_org_id").references(() => organizations.id, {
+    onDelete: "set null",
+  }),
   raisedByRole: text("raised_by_role").notNull().$type<"owner" | "org" | "govt" | "admin">(),
   raisingEventId: uuid("raising_event_id")
     .notNull()
-    .references(() => petEvents.id),
+    .references(() => petEvents.id, { onDelete: "cascade" }),
   jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
   jurisdictionProvince: text("jurisdiction_province").notNull(),
   jurisdictionLocality: text("jurisdiction_locality").notNull(),
   status: text("status").notNull().default("open").$type<DisputeStatus>(),
   resolution: text("resolution").$type<DisputeResolution | null>(),
   resolutionSummary: text("resolution_summary"),
-  resolutionEventId: uuid("resolution_event_id").references(() => petEvents.id),
-  resolvedByUserId: uuid("resolved_by_user_id").references(() => profiles.id),
+  resolutionEventId: uuid("resolution_event_id").references(() => petEvents.id, {
+    onDelete: "set null",
+  }),
+  resolvedByUserId: uuid("resolved_by_user_id").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1944,11 +2000,15 @@ export const custodyDisputeParties = pgTable("custody_dispute_parties", {
   disputeId: uuid("dispute_id")
     .notNull()
     .references(() => custodyDisputes.id, { onDelete: "cascade" }),
-  partyUserId: uuid("party_user_id").references(() => profiles.id),
-  partyOrganizationId: uuid("party_organization_id").references(() => organizations.id),
+  partyUserId: uuid("party_user_id").references(() => profiles.id, { onDelete: "set null" }),
+  partyOrganizationId: uuid("party_organization_id").references(() => organizations.id, {
+    onDelete: "set null",
+  }),
   partyRole: text("party_role").notNull().$type<DisputePartyRole>(),
   partyPositionSummary: text("party_position_summary"),
-  addedByUserId: uuid("added_by_user_id").references(() => profiles.id),
+  addedByUserId: uuid("added_by_user_id").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -2017,9 +2077,13 @@ export const petServiceDog = pgTable("pet_service_dog", {
     .$type<ServiceDogVisibility>(),
   notes: text("notes"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
-  verifiedByUserId: uuid("verified_by_user_id").references(() => profiles.id),
+  verifiedByUserId: uuid("verified_by_user_id").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
-  revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id),
+  revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+    onDelete: "set null",
+  }),
   revocationReason: text("revocation_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2087,7 +2151,7 @@ export const cases = pgTable(
     supersededByCaseId: uuid("superseded_by_case_id"),
 
     primarySubjectKind: text("primary_subject_kind").notNull().$type<CaseSubjectKind>(),
-    primaryPetId: uuid("primary_pet_id").references(() => pets.id),
+    primaryPetId: uuid("primary_pet_id").references(() => pets.id, { onDelete: "cascade" }),
     primaryLocationLat: numeric("primary_location_lat", { precision: 10, scale: 7 }),
     primaryLocationLng: numeric("primary_location_lng", { precision: 10, scale: 7 }),
 
