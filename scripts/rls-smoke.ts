@@ -213,6 +213,87 @@ async function main() {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Phase 4.2 widening (action plan 2026-05-20 §4.2):
+  // Anonymous client (no signed-in user) must not read or write to any
+  // owner-scoped table. The anon role is the public surface — anything that
+  // leaks here leaks to the open internet. Each check uses a fresh client
+  // with NO auth session.
+  // -------------------------------------------------------------------------
+  const anonClient = createClient(
+    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+
+  type AnonReadTarget = { table: string; filter?: { column: string; value: string } };
+  const anonReadTargets: AnonReadTarget[] = [
+    { table: "pets" },
+    { table: "pet_events", filter: { column: "pet_id", value: aPetId } },
+    { table: "reminders", filter: { column: "pet_id", value: aPetId } },
+    { table: "attachments", filter: { column: "pet_id", value: aPetId } },
+    { table: "ownerships", filter: { column: "pet_id", value: aPetId } },
+    { table: "notifications", filter: { column: "user_id", value: a.userId } },
+    { table: "profiles", filter: { column: "id", value: a.userId } },
+    { table: "libreta_share_tokens" },
+    { table: "approval_requests" },
+    { table: "audit_log" },
+  ];
+
+  for (const t of anonReadTargets) {
+    let query = anonClient.from(t.table).select("*").limit(1);
+    if (t.filter) {
+      query = anonClient.from(t.table).select("*").eq(t.filter.column, t.filter.value).limit(1);
+    }
+    const { data, error } = await query;
+    // Pass criterion: either RLS returns an error (PostgREST 42501-style) OR
+    // returns zero rows. A non-empty result is a regression.
+    const rowsReturned = (data ?? []).length;
+    record(
+      `anon cannot read ${t.table}${t.filter ? ` (${t.filter.column}=…)` : ""}`,
+      rowsReturned === 0,
+      error ? `error: ${error.message}` : `rows_returned=${rowsReturned}`,
+    );
+  }
+
+  // Anon write attempts. Each one targets a column set that SHOULD be denied
+  // by the table's RLS INSERT policy (or by the lack of one). The threat is an
+  // over-broad public INSERT policy.
+  type AnonWriteAttempt = { table: string; row: Record<string, unknown>; note: string };
+  const anonWriteAttempts: AnonWriteAttempt[] = [
+    {
+      table: "notifications",
+      row: {
+        user_id: a.userId,
+        notification_type: "rls_smoke_anon_write",
+        title: "anon-write probe",
+        body: "rls-smoke",
+        severity: "info",
+      },
+      note: "no anon role should be able to seed notifications to a real user",
+    },
+    {
+      table: "profiles",
+      row: { id: "00000000-0000-0000-0000-000000000000", display_name: "anon-profile-probe" },
+      note: "no anon role should be able to create profiles",
+    },
+    {
+      table: "ownerships",
+      row: { pet_id: aPetId, owner_user_id: a.userId, role: "owner" },
+      note: "no anon role should be able to seize a pet",
+    },
+  ];
+
+  for (const attempt of anonWriteAttempts) {
+    const { error, data } = await anonClient.from(attempt.table).insert(attempt.row).select("id");
+    const rowsInserted = (data ?? []).length;
+    record(
+      `anon cannot write ${attempt.table} (${attempt.note})`,
+      rowsInserted === 0,
+      error ? `error: ${error.message}` : `rows_inserted=${rowsInserted}`,
+    );
+  }
+
   // Report.
   const failed = checks.filter((c) => !c.pass);
   console.log("");
