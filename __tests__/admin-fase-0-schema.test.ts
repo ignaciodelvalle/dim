@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, ownerships, pets, profiles } from "@/db";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -53,8 +54,7 @@ async function purgeUserByEmail(email: string) {
       .from(ownerships)
       .where(eq(ownerships.ownerUserId, uid));
     if (owned.length > 0) {
-      await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      await withMutationOverride(async (tx) => {
         for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
       });
     }
@@ -125,8 +125,7 @@ describe("enforce_admin_no_pets trigger", () => {
 
     // Cleanup: drop the pet (no ownership row exists yet because the insert
     // was rejected by the trigger).
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(pets).where(eq(pets.id, pet.id));
     });
   });
@@ -151,8 +150,7 @@ describe("enforce_admin_no_pets trigger", () => {
       startedAt: new Date(),
     });
 
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(pets).where(eq(pets.id, pet.id));
     });
   });

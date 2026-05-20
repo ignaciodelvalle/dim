@@ -12,6 +12,7 @@ import {
   fetchSurveillanceSignals,
 } from "@/lib/govt-dashboards";
 import { generatePublicToken } from "@/lib/publicToken";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -25,7 +26,17 @@ const TEST_PET_TOKEN_PREFIX = "GD-TEST-";
 async function ensureOwner(): Promise<string> {
   const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 200 });
   const existing = list?.users.find((u) => u.email === OWNER_EMAIL);
-  if (existing) return existing.id;
+  if (existing) {
+    // Verify the matching profile row also exists (handle_new_user trigger
+    // populates it on user creation). An orphan auth user with no profile
+    // breaks the ownership FK on insertFixturePet — rebuild from scratch.
+    const [profile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, existing.id));
+    if (profile) return existing.id;
+    await adminSdk.auth.admin.deleteUser(existing.id);
+  }
   const r = await adminSdk.auth.admin.createUser({
     email: OWNER_EMAIL,
     password: "GovtDashTest_2026!",
@@ -44,8 +55,7 @@ async function cleanupFixtureRows() {
   if (ids.length === 0) return;
   // pet_events has a BEFORE DELETE trigger blocking mutations; the
   // app.allow_event_mutation GUC is the documented escape hatch.
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.delete(petEvents).where(inArray(petEvents.petId, ids));
   });
   await db.delete(ownerships).where(inArray(ownerships.petId, ids));

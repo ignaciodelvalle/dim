@@ -1776,6 +1776,20 @@ export const arLocalities = pgTable(
     provinceIdx: index("ar_localities_province_idx")
       .on(table.provinceCode)
       .where(sql`${table.removedAt} IS NULL`),
+    // CHECK constraints — also declared inline in migration 0019 (province,
+    // category) and 0028 (source). Declared here too so that `drizzle-kit
+    // push` against a fresh DB applies them; otherwise migration replay is
+    // a no-op (CREATE TABLE IF NOT EXISTS skips the inline constraints when
+    // the table already exists from db:push).
+    provinceValid: check("ar_localities_province_valid", sql`${table.provinceCode} ~ '^AR-[A-Z]$'`),
+    categoryValid: check(
+      "ar_localities_category_valid",
+      sql`${table.category} IN ('localidad','ciudad','pueblo','comuna','barrio','componente')`,
+    ),
+    sourceValid: check(
+      "ar_localities_source_valid",
+      sql`${table.source} IN ('indec_cppdyl','bahra','manual','caba_open_data')`,
+    ),
   }),
 );
 

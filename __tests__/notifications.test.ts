@@ -5,11 +5,12 @@
 // tears it down at the end so the file is safe to re-run.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { runVaccineDueScan } from "@/lib/notifications";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -34,8 +35,7 @@ async function provisionFixture() {
     const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, found.id));
     // Pet cascade hits the append-only trigger on pet_events; wrap the
     // teardown delete in a tx with the session-local escape hatch set.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
     });
     await admin.auth.admin.deleteUser(found.id);
@@ -98,8 +98,7 @@ async function provisionFixture() {
 async function teardownFixture() {
   const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, userId));
   // See provisionFixture cleanup note: cascade hits the append-only trigger.
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
   });
   await admin.auth.admin.deleteUser(userId);

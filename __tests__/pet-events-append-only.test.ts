@@ -3,10 +3,11 @@
 // which is exactly the surface the trigger has to close).
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -27,8 +28,7 @@ beforeAll(async () => {
   if (found) {
     const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, found.id));
     // Same reason as afterAll: pet cascade hits the append-only trigger.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
     });
     await admin.auth.admin.deleteUser(found.id);
@@ -75,8 +75,7 @@ afterAll(async () => {
   // delete unless the escape hatch is set. Wrap in a tx with SET LOCAL so the
   // exception (the test fixture teardown) is explicitly opted in.
   const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, userId));
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
   });
   await admin.auth.admin.deleteUser(userId);
@@ -102,10 +101,9 @@ describe("pet_events append-only trigger", () => {
   });
 
   it("allows mutation when the session-local escape hatch is set", async () => {
-    // Run the entire update inside one transaction with SET LOCAL so the
-    // escape hatch is scoped to this tx only and reverts on commit.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    // withMutationOverride wraps the update in a tx with both required GUCs.
+    // Escape hatch is scoped to this tx only and reverts on commit.
+    await withMutationOverride(async (tx) => {
       await tx
         .update(petEvents)
         .set({ notes: "audited correction via escape hatch" })

@@ -41,6 +41,7 @@ import {
   generateOfferingToken,
   generatePublicToken,
 } from "@/lib/publicToken";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (bypasses RLS for test fixture setup)
@@ -115,8 +116,7 @@ async function purgeUserByEmail(email: string) {
     // enforce_pet_events_append_only trigger blocks any UPDATE/DELETE on
     // pet_events unless the GUC bypass is set. Wrap in a tx to scope the
     // SET LOCAL to this cleanup only. Same pattern as admin-decisions.test.ts.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(notifications).where(eq(notifications.userId, uid));
       await tx.delete(profiles).where(eq(profiles.id, uid));
     });
@@ -332,8 +332,7 @@ afterAll(async () => {
     // pet_events deletes are blocked by enforce_pet_events_append_only;
     // bypass via the SET LOCAL GUC inside a transaction (same pattern as
     // admin-decisions.test.ts).
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
       await tx.execute(sql`DELETE FROM reminders WHERE pet_id = ${petId}`);
       // Delete appointments + slots by service_offering_id (broader than pet_id —

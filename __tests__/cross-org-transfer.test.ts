@@ -17,6 +17,7 @@ import { closeCase, openCase } from "@/lib/case-helpers";
 import { V1_CASE_KINDS } from "@/lib/case-kinds";
 import { getLifecycle } from "@/lib/case-lifecycles";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SENDER_TOKEN = "DIM-XO-SND1";
 const RECEIVER_TOKEN = "DIM-XO-RCV1";
@@ -28,8 +29,7 @@ let petId: string;
 let caseId: string;
 
 beforeAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
       SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
     )`);
@@ -92,8 +92,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
     // Two cases may exist (the happy-path one + the stale-cron one). Wipe
     // everything for this pet so the pets DELETE doesn't trip on

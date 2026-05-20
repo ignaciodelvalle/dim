@@ -17,6 +17,7 @@ import {
   welfareReports,
 } from "@/db";
 import { openCase } from "@/lib/case-helpers";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const ORG_TOKEN = "DIM-ORGWLF-1";
 const PET_TOKEN = "DIM-ORGWLF-PA1";
@@ -30,8 +31,7 @@ let caseId: string;
 const TEST_ROLE = "coordinator";
 
 beforeAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(
       sql`UPDATE welfare_reports SET case_id = NULL WHERE reference_code = ${REF_CODE}`,
     );
@@ -96,8 +96,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`UPDATE welfare_reports SET case_id = NULL WHERE id = ${welfareReportId}`);
     await tx.execute(sql`UPDATE cases SET welfare_report_id = NULL WHERE id = ${caseId}`);
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
