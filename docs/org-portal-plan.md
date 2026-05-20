@@ -374,7 +374,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
    - Guards authentication (redirects to `/login`).
    - For routes under `/refugio/[orgToken]/*`: loads the org by `public_token`, verifies the current user has an active membership, sets `current_org` cookie to this org if not already, renders a sidebar with sections (Dashboard / Mascotas / Tránsitos / Aplicaciones / Miembros / Cobertura / Configuración).
 2. Registration page `/refugio/nueva`:
-   - Form fields per §5.1.1 of `docs/org-portal-prompt.md` (legal_name, display_name, org_type, CUIT, personería, email, phone, website, avatar upload, jurisdiction via `<LocationFields mode="jurisdiction">`).
+   - Form fields per §5.1.1 of `docs/archive/org-portal-prompt.md` (legal_name, display_name, org_type, CUIT, personería, email, phone, website, avatar upload, jurisdiction via `<LocationFields mode="jurisdiction">`).
    - Validate CUIT checksum when present using `lib/cuit.ts`.
    - Submit calls `createOrganizationAction`.
 3. `createOrganizationAction`:
@@ -862,7 +862,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 **Steps.**
 1. Migration `0005_origin_org_branding.sql`: add `pets.tier_0_show_origin_org boolean not null default true`. Idempotent.
 2. PetForm: add a "Privacidad de la credencial pública" section with the toggle. Adopter explanation: "Si lo apagás, no aparece el refugio que te dio en adopción en la página pública de tu mascota."
-3. On `/p/[publicToken]`, compute the badge per the algorithm in `docs/org-portal-prompt.md` § Task 4.3:
+3. On `/p/[publicToken]`, compute the badge per the algorithm in `docs/archive/org-portal-prompt.md` § Task 4.3:
    - Resolve candidate org: current `shelter_custody` org, or origin org from latest `adoption_finalized` if within followup window.
    - Badge renders only when `org.verified=true AND org.tier_0_show_branding=true AND (currently shelter-held OR pet.tier_0_show_origin_org=true)`.
 4. When the badge renders, the existing "¿Encontraste a esta mascota?" form posts to a server action that fans-out to both the legal owner and the originating org.

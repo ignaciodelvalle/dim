@@ -10,7 +10,7 @@
 
 ## 0. Contexto — por qué este plan existe ahora
 
-El event-sourcing hardening (`docs/event-sourcing-hardening-prompt.md`) cerró la mayor parte de los gaps que hacían riesgoso construir un agente conversacional encima de DIM:
+El event-sourcing hardening (prompt original archivado en `docs/archive/event-sourcing-hardening-prompt.md`; implementación viva en `lib/event-schemas.ts` + triggers DB) cerró la mayor parte de los gaps que hacían riesgoso construir un agente conversacional encima de DIM:
 
 - Items 1, 2, 4 y 6 **están implementados** (projection rebuild script, Zod schemas estrictos por event_type, trigger append-only, filtro server-side de self-scans)
 - Item 3 **está parcialmente implementado** (`payload_version: z.literal(1).default(1)` está en cada schema; el upcaster registry no existe todavía pero tampoco hay nada para upcastear — la fundación está)

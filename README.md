@@ -23,7 +23,8 @@ The full design — principles, data model, event catalog, privacy tiers, dashbo
 | ------- | ----- | --- | ------ |
 | Owner portal | `/mis-mascotas` | Pet owners (personal accounts) | Live |
 | Public credential | `/p/[publicToken]` | Anyone (no auth) | Live |
-| Org portal | `/org/[orgToken]` | Org members (shelter, clinic, rescue network) | Live at `/refugio/` — rename pending |
+| Org portal | `/org/[orgToken]` | Org members (shelter, clinic, rescue network, sanitary authority) | Live |
+| Public shelter profile | `/refugios/[orgToken]` | Anyone (no auth) — only verified `shelter` or `rescue_network` orgs | Live |
 | Independent vet portal | `/pro` | Vets with `professional.provider` capability | Planned |
 | Govt portal | `/gob` | Govt institutional accounts (locality-scoped) | Planned |
 | Meta-admin portal | `/admin` | Admin institutional accounts (universal scope) | Live (partial) |
@@ -94,7 +95,8 @@ app/
     mis-mascotas/           pet list, new pet, [token] detail + editar, eventos/
     notificaciones/         notifications inbox
     cuenta/                 upgrade (vet / org creation)
-  refugio/                  org portal — pending rename to org/[orgToken]/
+  org/[orgToken]/           org portal — shelter, clinic, rescue network, sanitary authority
+  refugios/[orgToken]/      public shelter profile (no auth) — verified shelters only
   admin/                    admin + govt shared portal — pending /gob split
   p/[publicToken]/          public credential page (no auth required)
   auth/callback/            Supabase OAuth/email-link return URL

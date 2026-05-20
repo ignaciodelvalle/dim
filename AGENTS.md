@@ -132,6 +132,18 @@ Both surfaces support **service offerings + scheduling**: define services, set r
 
 A vet with **both** an independent practice AND a clinic affiliation has both portals available and chooses contextually which identity to act under. The data model captures this naturally — the offering, the appointment, and the emitted event all carry the right `author_*` fields per case.
 
+### Naming convention: `refugio` vs `org`
+
+Internal identifiers, routes for the authenticated admin portal, DB column names, and English-language doc references are `org` — generic across all `org_type` values (`shelter`, `clinic`, `rescue_network`, `sanitary_authority`). The admin portal lives at `/org/[orgToken]`. There is no `app/refugio/` folder; the historical singular route was renamed end-to-end.
+
+`Refugio` (singular and plural) survives in exactly three places, all deliberate:
+
+1. **User-facing copy** in `es-AR` referring to the `shelter` org-type ("Refugio", "refugios verificados"). This is the correct Argentine Spanish noun for animal shelters and shouldn't be translated away.
+2. **The public shelter-profile route** `/refugios/[orgToken]` (plural). It renders only verified `shelter | rescue_network` orgs and 404s for clinics / authorities — the URL is a public handle specifically for shelters and naming it `/refugios` matches user expectation. It is conceptually distinct from `/org/[orgToken]` (anonymous browse vs. authenticated portal).
+3. **Schema comments in `db/schema.ts`** that use "refugios" as the plural domain noun ("used by refugios", "refugio coordinator"). These describe what the data represents in the real world; they aren't identifier drift.
+
+If you find a `refugio` reference outside these three categories — a route, a column, a function name, an English doc — that's drift; rename it to `org`.
+
 ### Business rules ownership (future)
 
 When the system grows to support configurable business rules (minimum age to register a pet, mandatory vaccinations by jurisdiction, eligibility criteria for service offerings, etc.), the configuration follows a layered ownership:
@@ -764,9 +776,9 @@ Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar ·
 | Estado | Feature | Pendiente |
 |---|---|---|
 | ✅ | Microchip implant event + tracking (`microchip_implanted`) | — |
-| 🟡 | Dangerous breed (PPP) registry support — Ley CABA 4078 / Prov 14.107 | flag + attestation event + export provincial |
-| ⚪ | Disposition method en `death_recorded` — Ley CABA 5470 | payload field |
-| ⚪ | Acquisition method en `pet_registered` — EAH 2018 trend tracking | payload field |
+| 🟡 | Dangerous breed (PPP) registry support — Ley CABA 4078 / Prov 14.107 | flag + attestation event ✅ shipped (column `pets.potentially_dangerous_breed` + event `dangerous_breed_attested`); export provincial pendiente (placeholder por ahora, ver spec `2026-05-19-ppp-pet-profile-display-design.md` cuando se escriba el export real) |
+| ✅ | Disposition method en `death_recorded` — Ley CABA 5470 | shipped: `DISPOSITION_METHODS` enum en `app/actions/events.ts:1379` (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`) + opcional `facility` + form en `app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/fallecimiento/`. `createDeathRecordAction` valida y persiste |
+| ✅ | Acquisition method en `pet_registered` — EAH 2018 trend tracking | shipped: `petAcquisitionMethodEnum` (`adopted | purchased | found_stray | gift | born_in_litter | other`) + columna `pets.acquisitionMethod` + validación Zod en `pet_registered.payload.acquisition_method` (`lib/event-schemas.ts:76`). UI en `PetForm` recolecta |
 | ⚪ | DNI verification provider (RENAPER directo vs intermediary) | — |
 | ⚪ | Mi Argentina integration — OAuth y/o emisión federada de credenciales | — |
 
@@ -818,9 +830,7 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 - **Cross-org transfer UX** — refugio-to-refugio handoffs need a sender-confirms / receiver-accepts flow. Event always emitted on completion (`custody_transferred`).
 - Government dashboards: three audiences in scope (sanitary authority, analyst, welfare officer); build order TBD by where adoption lands first
 - **Mascotas CABA program integration** — the GCBA's existing (non-digitalized) free-vet-attention program. DIM is the data layer it lacks; explore as a partnership path.
-- **Dangerous breed registry support** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event + (eventually) export to provincial registry.
-- **Disposition method on death_recorded** — Ley CABA 5470 (cremation traceability). Payload field plus optional facility.
-- **Acquisition method on pet_registered** — adoption-trend measurement (EAH 2018 shows adoption is the growing modality).
+- **Dangerous breed registry export** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event ✅ shipped; **export provincial pendiente** (placeholder por ahora — la atestación se persiste localmente y se muestra en el perfil identificando como PPP, pero el push automático al registro municipal/provincial es futuro). Spec abierta: nombrar cuando se priorice integración real.
 - **Non-owner reporting flow — base completa, queue triage pendiente.** `welfare_reports` table con `subjectKind` enum polimórfico (`registered_pet | unowned_animal | location | general`) cubre el caso del subject no registrado sin necesidad de ghost_subject pets. Form público + anonymous + 5 attachments + bridge a pet_events vivo en `app/actions/welfare.ts` + `app/denuncias/nueva/`. Polish del plan `2026-05-18-welfare-reports-polish.md` shipped: bridge copia `locationLat/locationLng` a los 3 pet_events emitidos, `LocationMap` montado en las 2 detail pages de denuncia (auth + anon), rate-limit persistente para anonymous (`rate_limit_buckets` + `enforceRateLimit`, 1/min + 3/hour por IP). **Pendientes:** (a) welfare-officer queue en `/gob/maltrato` para triagear casos (gap operativo principal — sin esto las denuncias se acumulan invisibles), (b) moderation queue para denuncias anónimas auto-flagged, (c) export template a fiscalía MPF CABA (Ley 14.346 pipeline). La spec `2026-05-18-maltreatment-reporting-design.md` quedó **superseded** — NO seguirla. Ver Feature inventory arriba.
 - **Vaccination-due warning to owner** — when a vaccination approaches or passes its `next_due_at`. Confirmed via `docs/legal-framework-full.md` (2026-05-18 pass) that NO Argentine norm requires the system to warn — the obligation rests on the owner to keep vaccinations current (Ley 22.953, DL 8056, Ord. 41.831). A system-side warning is a UX feature, not a compliance requirement. Future spec if product decides to implement.
 - Materialized views for expensive projections — keep event log as source of truth, cache when query latency justifies

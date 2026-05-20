@@ -1,5 +1,9 @@
 # Code rename: `/refugio` → `/org/[orgToken]`
 
+> ## ✅ ESTADO: EJECUTADO
+>
+> Este plan fue aplicado. `app/refugio/` ya no existe en el repo, todo el portal vive bajo `app/org/[orgToken]/`, los `Link` internos apuntan al nuevo path y AGENTS.md / specs consistentemente referencian `/org/[orgToken]/*`. Se conserva este documento como referencia histórica del refactor — no volver a ejecutar. La convención `refugio` (es-AR copy + ruta pública `/refugios/[orgToken]`) vs `org` (identificadores internos + portal admin) está fijada en `AGENTS.md → Naming convention: refugio vs org`.
+>
 > Plan ejecutable para Claude Code. Mueve físicamente la carpeta `app/refugio/` a `app/org/[orgToken]/`, introduce el `orgToken` explícito como segment de URL, actualiza todos los `Link` internos, agrega validación de membership por orgToken en el layout, y deja middleware de redirect para bookmarks viejos. No agrega features — es rename + refactor estructural.
 >
 > **Fecha:** 2026-05-17
