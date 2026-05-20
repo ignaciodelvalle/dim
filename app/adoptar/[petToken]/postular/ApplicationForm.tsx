@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { submitAdoptionApplicationAction } from "@/app/actions/adoption-applications";
+import { labelClass } from "@/lib/form-classes";
 
 type HousingType = "casa_con_patio" | "casa_sin_patio" | "departamento" | "otro";
 
@@ -91,10 +92,7 @@ export function ApplicationForm({
       </fieldset>
 
       <div>
-        <label
-          htmlFor="other-pets"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-        >
+        <label htmlFor="other-pets" className={`${labelClass} mb-1`}>
           ¿Tenés otras mascotas? <span className="text-neutral-500">(opcional)</span>
         </label>
         <textarea
@@ -108,10 +106,7 @@ export function ApplicationForm({
       </div>
 
       <div>
-        <label
-          htmlFor="daily-routine"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-        >
+        <label htmlFor="daily-routine" className={`${labelClass} mb-1`}>
           Cómo es tu día a día <span className="text-neutral-500">(opcional)</span>
         </label>
         <textarea
@@ -125,10 +120,7 @@ export function ApplicationForm({
       </div>
 
       <div>
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-        >
+        <label htmlFor="notes" className={`${labelClass} mb-1`}>
           Algo más que quieras contar <span className="text-neutral-500">(opcional)</span>
         </label>
         <textarea

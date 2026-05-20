@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -27,10 +28,7 @@ export function MedicationEndForm({
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor="medicationStartedEventId"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="medicationStartedEventId" className={labelClass}>
           Medicación a cerrar<span className="text-red-500 ml-0.5">*</span>
         </label>
         <select
@@ -38,7 +36,7 @@ export function MedicationEndForm({
           name="medicationStartedEventId"
           required
           defaultValue=""
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         >
           <option value="" disabled>
             Seleccioná un medicamento...
@@ -52,10 +50,7 @@ export function MedicationEndForm({
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="occurredAt"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="occurredAt" className={labelClass}>
           Fecha de fin<span className="text-red-500 ml-0.5">*</span>
         </label>
         <input
@@ -64,15 +59,12 @@ export function MedicationEndForm({
           type="date"
           required
           defaultValue={today}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="reason"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="reason" className={labelClass}>
           Motivo (opcional)
         </label>
         <input
@@ -80,23 +72,15 @@ export function MedicationEndForm({
           name="reason"
           type="text"
           placeholder="Tratamiento completo, efectos adversos..."
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           Notas
         </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-        />
+        <textarea id="notes" name="notes" rows={3} className={inputClass} />
       </div>
 
       <AttachmentField />

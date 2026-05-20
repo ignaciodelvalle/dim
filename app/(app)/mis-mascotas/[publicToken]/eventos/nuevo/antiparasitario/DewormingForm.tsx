@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -31,7 +32,7 @@ export function DewormingForm({
       />
 
       <div className="space-y-1.5">
-        <p className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+        <p className={labelClass}>
           Tipo<span className="text-red-500 ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
@@ -83,10 +84,7 @@ export function DewormingForm({
       />
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           Notas
         </label>
         <textarea
@@ -94,7 +92,7 @@ export function DewormingForm({
           name="notes"
           rows={3}
           defaultValue={defaults?.notes ?? ""}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
@@ -136,10 +134,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor={id} className={labelClass}>
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
@@ -150,7 +145,7 @@ function Field({
         required={required}
         defaultValue={defaultValue}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        className={inputClass}
       />
     </div>
   );

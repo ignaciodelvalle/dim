@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { labelClass } from "@/lib/form-classes";
+
 import {
   setAdoptionListingStatusAction,
   updateAdoptionListingContentAction,
@@ -177,10 +179,7 @@ export function AdoptionListingForm({
       {/* Content edits */}
       <form onSubmit={saveContent} className="space-y-4">
         <div>
-          <label
-            htmlFor="story"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-          >
+          <label htmlFor="story" className={`${labelClass} mb-1`}>
             Historia
           </label>
           <textarea
@@ -195,10 +194,7 @@ export function AdoptionListingForm({
         </div>
 
         <div>
-          <label
-            htmlFor="requirements"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-          >
+          <label htmlFor="requirements" className={`${labelClass} mb-1`}>
             Requisitos para adoptar
           </label>
           <textarea

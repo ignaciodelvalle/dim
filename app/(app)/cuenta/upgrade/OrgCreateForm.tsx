@@ -1,6 +1,7 @@
 "use client";
 
 import { type UpgradeFormState, createOrganizationAction } from "@/app/actions/upgrade";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 
 const initialState: UpgradeFormState = { error: null };
@@ -56,18 +57,10 @@ export function OrgCreateForm() {
       />
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="orgType"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="orgType" className={labelClass}>
           Tipo de organización
         </label>
-        <select
-          id="orgType"
-          name="orgType"
-          required
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-        >
+        <select id="orgType" name="orgType" required className={inputClass}>
           <option value="">Seleccioná un tipo</option>
           {ORG_TYPE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -144,19 +137,10 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor={id} className={labelClass}>
         {label}
       </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-      />
+      <input id={id} name={name} type={type} required={required} className={inputClass} />
       {hint && <p className="text-xs text-neutral-500 dark:text-neutral-500">{hint}</p>}
     </div>
   );

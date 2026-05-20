@@ -20,6 +20,7 @@
  */
 
 import type { EventFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -46,10 +47,7 @@ export function WeightForm({
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor="kg"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="kg" className={labelClass}>
           Peso (kg)<span className="text-red-500 ml-0.5">*</span>
         </label>
         <input
@@ -61,15 +59,12 @@ export function WeightForm({
           required
           defaultValue={defaults?.kg ?? undefined}
           placeholder="Ej: 12.5"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="occurredAt"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="occurredAt" className={labelClass}>
           Fecha<span className="text-red-500 ml-0.5">*</span>
         </label>
         <input
@@ -78,15 +73,12 @@ export function WeightForm({
           type="date"
           required
           defaultValue={defaults?.occurredAt ?? today}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           Notas
         </label>
         <textarea
@@ -94,7 +86,7 @@ export function WeightForm({
           name="notes"
           rows={3}
           defaultValue={defaults?.notes ?? undefined}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 
 const initialState: AuthFormState = { error: null };
@@ -28,10 +29,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
       <form action={formAction} className="space-y-4">
         {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
         <div className="space-y-1.5">
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-          >
+          <label htmlFor="email" className={labelClass}>
             Correo electrónico
           </label>
           <input
@@ -40,14 +38,11 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
             type="email"
             autoComplete="email"
             required
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+            className={inputClass}
           />
         </div>
         <div className="space-y-1.5">
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-          >
+          <label htmlFor="password" className={labelClass}>
             Contraseña
           </label>
           <input
@@ -56,7 +51,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
             type="password"
             autoComplete="current-password"
             required
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+            className={inputClass}
           />
         </div>
 

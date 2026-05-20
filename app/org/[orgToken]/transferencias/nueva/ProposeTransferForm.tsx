@@ -7,6 +7,7 @@
 import { useState, useTransition } from "react";
 
 import { proposeCrossOrgTransferAction } from "@/app/actions/cross-org-transfer";
+import { labelClass } from "@/lib/form-classes";
 import { useRouter } from "next/navigation";
 
 interface ReceiverOption {
@@ -73,10 +74,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
   return (
     <div className="space-y-5">
       <div>
-        <label
-          htmlFor="receiverOrgId"
-          className="mb-1 block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="receiverOrgId" className={`${labelClass} mb-1`}>
           Organización destinataria
         </label>
         <select
@@ -100,10 +98,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       </div>
 
       <div>
-        <label
-          htmlFor="reason"
-          className="mb-1 block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="reason" className={`${labelClass} mb-1`}>
           Motivo de la transferencia
         </label>
         <select
@@ -123,10 +118,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       </div>
 
       <div>
-        <label
-          htmlFor="notes"
-          className="mb-1 block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={`${labelClass} mb-1`}>
           Notas{reasonRequiresNotes ? " (obligatorias)" : " (opcional)"}
         </label>
         <textarea

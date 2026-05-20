@@ -9,6 +9,7 @@ import type { NewPetFormState } from "@/app/actions/pets";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/ar-provincias";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -230,10 +231,7 @@ export function PetForm({
           {/* SECTION: Identificación y raza */}
           <Section title="Identificación y raza" defaultOpen={isEdit && !!existingPet?.breed}>
             <div className="space-y-1.5">
-              <label
-                htmlFor="breed"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="breed" className={labelClass}>
                 Raza
               </label>
               <input
@@ -245,7 +243,7 @@ export function PetForm({
                 onChange={(e) => setBreed(e.target.value)}
                 placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
                 disabled={!species}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent disabled:opacity-50"
+                className={`${inputClass} disabled:opacity-50`}
               />
               <datalist id="breed-options">
                 {breedOptions.map((b) => (
@@ -330,10 +328,7 @@ export function PetForm({
           {/* SECTION: Seguro */}
           <Section title="Seguro de mascota">
             <div className="space-y-1.5">
-              <label
-                htmlFor="insuranceCompany"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="insuranceCompany" className={labelClass}>
                 Compañía
               </label>
               <input
@@ -343,7 +338,7 @@ export function PetForm({
                 list="insurance-companies"
                 placeholder="Buscar o tipear…"
                 defaultValue={existingPet?.insuranceCompany ?? undefined}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+                className={inputClass}
               />
               <datalist id="insurance-companies">
                 {INSURANCE_COMPANIES.map((c) => (
@@ -474,10 +469,7 @@ export function PetForm({
             </div>
             {conditions.has("otra") && (
               <div className="mt-3 space-y-1">
-                <label
-                  htmlFor="permanentConditionsOther"
-                  className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-                >
+                <label htmlFor="permanentConditionsOther" className={labelClass}>
                   Especificá la condición
                 </label>
                 <input
@@ -551,9 +543,7 @@ function CustodyKindToggle({
 }) {
   return (
     <div className="space-y-3">
-      <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-        ¿Es tu mascota o la estás cuidando?
-      </span>
+      <span className={labelClass}>¿Es tu mascota o la estás cuidando?</span>
       <input type="hidden" name="custodyKind" value={value} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <CustodyOptionCard
@@ -665,9 +655,7 @@ function AgeFields({
 }) {
   return (
     <div className="space-y-1.5">
-      <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-        Edad aproximada
-      </span>
+      <span className={labelClass}>Edad aproximada</span>
       <div className="grid grid-cols-2 gap-3">
         <input
           id="ageYears"
@@ -677,7 +665,7 @@ function AgeFields({
           max="40"
           placeholder="Años"
           defaultValue={defaultYears ?? undefined}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
         <input
           id="ageMonths"
@@ -687,7 +675,7 @@ function AgeFields({
           max="11"
           placeholder="Meses"
           defaultValue={defaultMonths ?? undefined}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
       <p className="text-xs text-neutral-500 dark:text-neutral-500">
@@ -769,9 +757,7 @@ function CheckboxGroup({
 
   return (
     <div className="space-y-2">
-      <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-        {label}
-      </span>
+      <span className={labelClass}>{label}</span>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         {options.map((opt) => (
           <label
@@ -795,7 +781,7 @@ function CheckboxGroup({
         type="text"
         placeholder="Otros (separá por coma si querés varios)"
         defaultValue={otherDefaultValue}
-        className="w-full mt-1 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        className={`${inputClass} mt-1 text-sm`}
       />
     </div>
   );
@@ -810,9 +796,7 @@ function PhotoField({
 }) {
   return (
     <div className="space-y-2">
-      <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-        Foto (opcional)
-      </span>
+      <span className={labelClass}>Foto (opcional)</span>
       <label
         htmlFor="photo"
         className="flex items-center gap-4 p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
@@ -871,10 +855,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor={id} className={labelClass}>
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
@@ -887,7 +868,7 @@ function Field({
         defaultValue={defaultValue}
         step={step}
         min={min}
-        className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        className={inputClass}
       />
     </div>
   );
@@ -915,10 +896,7 @@ function SelectField({
   const controlled = value !== undefined;
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor={id} className={labelClass}>
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
@@ -927,7 +905,7 @@ function SelectField({
         name={name}
         required={required}
         {...(controlled ? { value, onChange } : { defaultValue: defaultValue ?? "" })}
-        className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        className={inputClass}
       >
         {children}
       </select>
