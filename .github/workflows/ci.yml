@@ -163,6 +163,30 @@ jobs:
       - name: Apply schema (drizzle-kit push)
         run: pnpm db:push
 
+      - name: Apply non-Drizzle SQL (triggers, RLS, storage)
+        # Drizzle only manages tables/columns/indexes/enums — triggers, RLS
+        # policies, and storage bootstrap live in db/*.sql and are normally
+        # pasted into Supabase Studio once per environment (see the header of
+        # db/triggers.sql). CI is ephemeral so we apply them on every run.
+        # handle_new_user MUST exist or any test that signs a user up gets
+        # "Perfil no encontrado." — the public.profiles row never lands.
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in db/triggers.sql \
+                   db/rls.sql \
+                   db/organizations_rls.sql \
+                   db/welfare_rls.sql \
+                   db/foster_rls.sql \
+                   db/cases_rls.sql \
+                   db/scheduling_rls.sql \
+                   db/storage.sql \
+                   db/welfare_storage.sql; do
+            echo "::group::Applying $f"
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
+            echo "::endgroup::"
+          done
+
       - name: Run tests (vitest)
         run: pnpm test
 
