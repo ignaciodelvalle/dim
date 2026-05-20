@@ -859,7 +859,9 @@ async function main() {
   console.log(`Shared password: ${SHARED_PASSWORD}\n`);
   console.log(`  ${EMAILS.admin.padEnd(24)}  role=admin   → /admin  /gob`);
   console.log(`  ${EMAILS.owner.padEnd(24)}  role=owner   → /mis-mascotas`);
-  console.log(`  ${EMAILS.vet.padEnd(24)}  role=vet     → /pro (matrícula verificada)`);
+  console.log(
+    `  ${EMAILS.vet.padEnd(24)}  role=vet     → /cuenta (matrícula verificada, no org yet)`,
+  );
   console.log(`  ${EMAILS.orgAdmin.padEnd(24)}  role=owner   → /org/${orgToken}`);
   console.log(`  ${EMAILS.govt.padEnd(24)}  role=govt    → /gob (Ushuaia + El Calafate)`);
   console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA)`);

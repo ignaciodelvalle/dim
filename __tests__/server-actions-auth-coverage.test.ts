@@ -58,7 +58,6 @@ const AUTH_GUARDS = [
   "requireOwnedPet",
   "requireOwnedPetByToken",
   "requireOwnedAndAlive",
-  "requireVetProviderOrRedirect",
   "auth.getUser",
 ] as const;
 

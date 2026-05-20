@@ -6,7 +6,6 @@
 //   - Org-side: requireCapability('service_offering.create') + offering must be
 //     status='approved' before rules can be created/edited. Soft-delete sets
 //     status='archived' (never hard-delete: materialized time_slots may reference).
-//   - Vet-side: requireVetProviderOrRedirect + offering.provider_user_id === actor.
 //
 // Writer/wrapper split mirrors app/actions/service-offerings.ts.
 
@@ -14,8 +13,6 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
-import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { CreateScheduleRuleInput, UpdateScheduleRuleInput } from "@/lib/scheduling-schemas";
 
@@ -186,157 +183,6 @@ export async function deleteScheduleRuleForOrg(
   return { ok: true };
 }
 
-// ── Vet-side inner writers ───────────────────────────────────────────────────
-
-export async function createScheduleRuleForVetProvider(
-  actorUserId: string,
-  input: {
-    serviceOfferingId: string;
-    daysOfWeek: number[];
-    startTimeLocal: string;
-    endTimeLocal: string;
-    effectiveFrom: string;
-    effectiveUntil: string | null;
-  },
-): Promise<ScheduleRuleResult> {
-  const parsed = CreateScheduleRuleInput.safeParse(input);
-  if (!parsed.success) {
-    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
-  }
-
-  // Verify offering belongs to this vet and is approved.
-  const [offering] = await db
-    .select({
-      id: serviceOfferings.id,
-      status: serviceOfferings.status,
-      providerUserId: serviceOfferings.providerUserId,
-    })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, parsed.data.serviceOfferingId))
-    .limit(1);
-
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.providerUserId !== actorUserId) return { error: "El servicio no te pertenece." };
-  if (offering.status !== "approved") {
-    return { error: "Solo se pueden crear reglas de agenda para servicios aprobados." };
-  }
-
-  try {
-    await db.insert(serviceScheduleRules).values({
-      serviceOfferingId: parsed.data.serviceOfferingId,
-      daysOfWeek: parsed.data.daysOfWeek.map((d) => d as unknown as number),
-      startTimeLocal: parsed.data.startTimeLocal,
-      endTimeLocal: parsed.data.endTimeLocal,
-      effectiveFrom: parsed.data.effectiveFrom,
-      effectiveUntil: parsed.data.effectiveUntil ?? null,
-      status: "active",
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo crear la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-export async function updateScheduleRuleForVetProvider(
-  actorUserId: string,
-  ruleId: string,
-  input: {
-    daysOfWeek?: number[];
-    startTimeLocal?: string;
-    endTimeLocal?: string;
-    effectiveFrom?: string;
-    effectiveUntil?: string | null;
-  },
-): Promise<ScheduleRuleResult> {
-  const parsed = UpdateScheduleRuleInput.safeParse(input);
-  if (!parsed.success) {
-    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
-  }
-
-  const [rule] = await db
-    .select({
-      id: serviceScheduleRules.id,
-      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
-    })
-    .from(serviceScheduleRules)
-    .where(eq(serviceScheduleRules.id, ruleId))
-    .limit(1);
-
-  if (!rule) return { error: "Regla no encontrada." };
-
-  const [offering] = await db
-    .select({ providerUserId: serviceOfferings.providerUserId })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, rule.serviceOfferingId))
-    .limit(1);
-
-  if (!offering || offering.providerUserId !== actorUserId) {
-    return { error: "No tenés permiso para editar esta regla." };
-  }
-
-  const updates: Partial<typeof serviceScheduleRules.$inferInsert> = {};
-  if (parsed.data.daysOfWeek !== undefined) {
-    updates.daysOfWeek = parsed.data.daysOfWeek.map((d) => d as unknown as number);
-  }
-  if (parsed.data.startTimeLocal !== undefined) updates.startTimeLocal = parsed.data.startTimeLocal;
-  if (parsed.data.endTimeLocal !== undefined) updates.endTimeLocal = parsed.data.endTimeLocal;
-  if (parsed.data.effectiveFrom !== undefined) updates.effectiveFrom = parsed.data.effectiveFrom;
-  if ("effectiveUntil" in parsed.data) updates.effectiveUntil = parsed.data.effectiveUntil ?? null;
-  updates.updatedAt = new Date();
-
-  try {
-    await db.update(serviceScheduleRules).set(updates).where(eq(serviceScheduleRules.id, ruleId));
-  } catch (err) {
-    return {
-      error: `No se pudo actualizar la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-export async function deleteScheduleRuleForVetProvider(
-  actorUserId: string,
-  ruleId: string,
-): Promise<ScheduleRuleResult> {
-  const [rule] = await db
-    .select({
-      id: serviceScheduleRules.id,
-      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
-    })
-    .from(serviceScheduleRules)
-    .where(eq(serviceScheduleRules.id, ruleId))
-    .limit(1);
-
-  if (!rule) return { error: "Regla no encontrada." };
-
-  const [offering] = await db
-    .select({ providerUserId: serviceOfferings.providerUserId })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, rule.serviceOfferingId))
-    .limit(1);
-
-  if (!offering || offering.providerUserId !== actorUserId) {
-    return { error: "No tenés permiso para eliminar esta regla." };
-  }
-
-  try {
-    await db
-      .update(serviceScheduleRules)
-      .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(serviceScheduleRules.id, ruleId));
-  } catch (err) {
-    return {
-      error: `No se pudo eliminar la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
 // ============================================================================
 // Form-shaped wrappers — gate auth + capability, delegate to inner writers
 // ============================================================================
@@ -438,86 +284,5 @@ export async function deleteScheduleRuleAction(
   if ("error" in result) return { error: result.error };
 
   revalidatePath(`/org/${orgToken}/servicios/${offeringToken}/agenda`);
-  return { error: null };
-}
-
-// ── Vet-side wrappers ────────────────────────────────────────────────────────
-
-export async function createScheduleRuleForVetAction(
-  _prev: ScheduleRuleFormState,
-  formData: FormData,
-): Promise<ScheduleRuleFormState> {
-  const { user } = await requireVetProviderOrRedirect();
-
-  const serviceOfferingId = String(formData.get("serviceOfferingId") ?? "").trim();
-  const daysRaw = formData.getAll("daysOfWeek").map((v) => Number.parseInt(String(v), 10));
-  const startTimeLocal = String(formData.get("startTimeLocal") ?? "").trim();
-  const endTimeLocal = String(formData.get("endTimeLocal") ?? "").trim();
-  const effectiveFrom = String(formData.get("effectiveFrom") ?? "").trim();
-  const effectiveUntilRaw = String(formData.get("effectiveUntil") ?? "").trim();
-  const effectiveUntil = effectiveUntilRaw || null;
-
-  const result = await createScheduleRuleForVetProvider(user.id, {
-    serviceOfferingId,
-    daysOfWeek: daysRaw.filter((d) => !Number.isNaN(d)),
-    startTimeLocal,
-    endTimeLocal,
-    effectiveFrom,
-    effectiveUntil,
-  });
-
-  if ("error" in result) return { error: result.error };
-
-  const offeringToken = String(formData.get("offeringPublicToken") ?? "").trim();
-  if (offeringToken) {
-    revalidatePath(`/pro/servicios/${offeringToken}/agenda`);
-  }
-
-  return { error: null };
-}
-
-export async function updateScheduleRuleForVetAction(
-  _prev: ScheduleRuleFormState,
-  formData: FormData,
-): Promise<ScheduleRuleFormState> {
-  const { user } = await requireVetProviderOrRedirect();
-
-  const ruleId = String(formData.get("ruleId") ?? "").trim();
-  const daysRaw = formData.getAll("daysOfWeek").map((v) => Number.parseInt(String(v), 10));
-  const startTimeLocal = String(formData.get("startTimeLocal") ?? "").trim() || undefined;
-  const endTimeLocal = String(formData.get("endTimeLocal") ?? "").trim() || undefined;
-  const effectiveFrom = String(formData.get("effectiveFrom") ?? "").trim() || undefined;
-  const effectiveUntilRaw = formData.get("effectiveUntil");
-  const effectiveUntil =
-    effectiveUntilRaw !== null ? String(effectiveUntilRaw).trim() || null : undefined;
-
-  const result = await updateScheduleRuleForVetProvider(user.id, ruleId, {
-    daysOfWeek: daysRaw.length > 0 ? daysRaw.filter((d) => !Number.isNaN(d)) : undefined,
-    startTimeLocal,
-    endTimeLocal,
-    effectiveFrom,
-    effectiveUntil,
-  });
-
-  if ("error" in result) return { error: result.error };
-
-  const offeringToken = String(formData.get("offeringPublicToken") ?? "").trim();
-  if (offeringToken) {
-    revalidatePath(`/pro/servicios/${offeringToken}/agenda`);
-  }
-
-  return { error: null };
-}
-
-export async function deleteScheduleRuleForVetAction(
-  ruleId: string,
-  offeringToken: string,
-): Promise<{ error: string | null }> {
-  const { user } = await requireVetProviderOrRedirect();
-
-  const result = await deleteScheduleRuleForVetProvider(user.id, ruleId);
-  if ("error" in result) return { error: result.error };
-
-  revalidatePath(`/pro/servicios/${offeringToken}/agenda`);
   return { error: null };
 }

@@ -145,19 +145,6 @@ export default async function OrgDashboardPage({
           >
             Mi cuenta
           </Link>
-          {userRole === "vet" && (
-            <>
-              <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
-                ·
-              </span>
-              <Link
-                href="/pro"
-                className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-              >
-                Portal pro
-              </Link>
-            </>
-          )}
           {userRole === "admin" && (
             <>
               <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>

@@ -610,7 +610,7 @@ describe("cancelAppointmentByOwnerAction (capacity freeing + provider notificati
         body: "Un propietario canceló su turno reservado.",
         severity: "info",
         ctaLabel: "Ver agenda",
-        ctaUrl: "/pro/agenda",
+        ctaUrl: "/cuenta/memberships",
       });
     });
 

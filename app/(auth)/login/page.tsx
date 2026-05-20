@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole, safeReturnTo } from "@/lib/role-landing";
+import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 
 import { LoginForm } from "./LoginForm";
@@ -35,6 +35,9 @@ export default async function LoginPage({
       .limit(1);
 
     const role = profile?.role ?? "owner";
+    if (role === "vet") {
+      redirect(await resolveVetLanding(user.id));
+    }
     let hasOrgAdminMembership = false;
     if (role === "owner") {
       const [membership] = await db
@@ -50,7 +53,7 @@ export default async function LoginPage({
         .limit(1);
       hasOrgAdminMembership = !!membership;
     }
-    redirect(pathForRole(role, hasOrgAdminMembership));
+    redirect(pathForRole(role, { hasOrgAdminMembership }));
   }
 
   return (

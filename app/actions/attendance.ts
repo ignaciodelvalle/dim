@@ -3,14 +3,12 @@
 // Server actions for appointment attendance, no-show, and org cancellation
 // (Fases 5 + 8).
 //
-// Provider polymorphism:
-//   - appointment.organization_id set → org-side path → requireCapability('appointment.manage', orgId)
-//   - appointment.provider_user_id set (via offering) → vet path → requireVetProviderOrRedirect + identity check
+// All appointments are now org-scoped (post Phase A backfill). The independent
+// vet path has been removed; every appointment has an organization_id.
 //
 // Medical event authorship rules:
 //   - Org member with role=vet_individual: author_role='vet', author_organization_id=orgId, author_verified=org.verified
 //   - Other org members: author_role='shelter', author_organization_id=orgId, author_verified=org.verified
-//   - Independent vet provider: author_role='vet', author_organization_id=null, author_verified=true (matriculaVerified gate)
 //
 // Writer/wrapper split:
 //   markAppointmentAttendedWriter — pure DB function, testable without HTTP context.
@@ -30,7 +28,6 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { type RequireCapabilitySuccess, requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -249,55 +246,25 @@ export async function markAppointmentAttendedAction(
 
   if (!appt) return { error: "Turno no encontrado." };
 
-  if (appt.organizationId) {
-    // Org-side path.
-    const capResult = await requireCapability("appointment.manage", appt.organizationId);
-    if (capResult.error) return { error: capResult.error };
-    const cap = capResult as RequireCapabilitySuccess;
+  if (!appt.organizationId) return { error: "Prestador no encontrado." };
 
-    // Determine author_role: vet_individual membership → 'vet', else 'shelter'.
-    const authorRole: "vet" | "shelter" =
-      cap.membership.role === "vet_individual" ? "vet" : "shelter";
+  const capResult = await requireCapability("appointment.manage", appt.organizationId);
+  if (capResult.error) return { error: capResult.error };
+  const cap = capResult as RequireCapabilitySuccess;
 
-    const author: AuthorDescriptor = {
-      actorUserId: cap.user.id,
-      authorRole,
-      authorOrganizationId: appt.organizationId,
-      authorVerified: cap.organization.verified,
-    };
-
-    const result = await markAppointmentAttendedWriter(appt.id, payload, author);
-    if ("ok" in result) {
-      revalidatePath(`/org/${cap.organization.publicToken}/agenda`);
-      revalidatePath("/mis-mascotas");
-    }
-    return result;
-  }
-
-  // Independent vet path — check the offering's provider_user_id.
-  const [offering] = await db
-    .select({ providerUserId: serviceOfferings.providerUserId })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, appt.serviceOfferingId))
-    .limit(1);
-
-  if (!offering?.providerUserId) return { error: "Prestador no encontrado." };
-
-  const vetSession = await requireVetProviderOrRedirect();
-  if (vetSession.user.id !== offering.providerUserId) {
-    return { error: "No tenés permiso para este turno." };
-  }
+  const authorRole: "vet" | "shelter" =
+    cap.membership.role === "vet_individual" ? "vet" : "shelter";
 
   const author: AuthorDescriptor = {
-    actorUserId: vetSession.user.id,
-    authorRole: "vet",
-    authorOrganizationId: null,
-    authorVerified: true, // matriculaVerified is the gate in requireVetProviderOrRedirect
+    actorUserId: cap.user.id,
+    authorRole,
+    authorOrganizationId: appt.organizationId,
+    authorVerified: cap.organization.verified,
   };
 
   const result = await markAppointmentAttendedWriter(appt.id, payload, author);
   if ("ok" in result) {
-    revalidatePath("/pro/agenda");
+    revalidatePath(`/org/${cap.organization.publicToken}/agenda`);
     revalidatePath("/mis-mascotas");
   }
   return result;
@@ -327,29 +294,11 @@ export async function markAppointmentNoShowAction(
     return { error: "El turno ya fue procesado." };
   }
 
-  let actorUserId: string;
-  let orgPublicToken: string | null = null;
+  if (!appt.organizationId) return { error: "Prestador no encontrado." };
 
-  if (appt.organizationId) {
-    const capResult = await requireCapability("appointment.manage", appt.organizationId);
-    if (capResult.error) return { error: capResult.error };
-    const cap = capResult as RequireCapabilitySuccess;
-    actorUserId = cap.user.id;
-    orgPublicToken = cap.organization.publicToken;
-  } else {
-    const [offering] = await db
-      .select({ providerUserId: serviceOfferings.providerUserId })
-      .from(serviceOfferings)
-      .where(eq(serviceOfferings.id, appt.serviceOfferingId))
-      .limit(1);
-
-    if (!offering?.providerUserId) return { error: "Prestador no encontrado." };
-    const vetSession = await requireVetProviderOrRedirect();
-    if (vetSession.user.id !== offering.providerUserId) {
-      return { error: "No tenés permiso para este turno." };
-    }
-    actorUserId = vetSession.user.id;
-  }
+  const capResult = await requireCapability("appointment.manage", appt.organizationId);
+  if (capResult.error) return { error: capResult.error };
+  const cap = capResult as RequireCapabilitySuccess;
 
   const now = new Date();
   await db
@@ -362,11 +311,7 @@ export async function markAppointmentNoShowAction(
     })
     .where(eq(appointments.id, appt.id));
 
-  if (orgPublicToken) {
-    revalidatePath(`/org/${orgPublicToken}/agenda`);
-  } else {
-    revalidatePath("/pro/agenda");
-  }
+  revalidatePath(`/org/${cap.organization.publicToken}/agenda`);
 
   return { ok: true };
 }
@@ -397,31 +342,15 @@ export async function cancelAppointmentByOrgAction(
     return { error: "El turno ya fue procesado." };
   }
 
-  let actorUserId: string;
-  let orgPublicToken: string | null = null;
-  let orgDisplayName: string | null = null;
+  if (!appt.organizationId) return { error: "Prestador no encontrado." };
 
-  if (appt.organizationId) {
-    const capResult = await requireCapability("appointment.manage", appt.organizationId);
-    if (capResult.error) return { error: capResult.error };
-    const cap = capResult as RequireCapabilitySuccess;
-    actorUserId = cap.user.id;
-    orgPublicToken = cap.organization.publicToken;
-    orgDisplayName = cap.organization.displayName;
-  } else {
-    const [offering] = await db
-      .select({ providerUserId: serviceOfferings.providerUserId })
-      .from(serviceOfferings)
-      .where(eq(serviceOfferings.id, appt.serviceOfferingId))
-      .limit(1);
+  const capResult = await requireCapability("appointment.manage", appt.organizationId);
+  if (capResult.error) return { error: capResult.error };
+  const cap = capResult as RequireCapabilitySuccess;
 
-    if (!offering?.providerUserId) return { error: "Prestador no encontrado." };
-    const vetSession = await requireVetProviderOrRedirect();
-    if (vetSession.user.id !== offering.providerUserId) {
-      return { error: "No tenés permiso para este turno." };
-    }
-    actorUserId = vetSession.user.id;
-  }
+  const actorUserId = cap.user.id;
+  const orgPublicToken = cap.organization.publicToken;
+  const orgDisplayName = cap.organization.displayName;
 
   const now = new Date();
 
@@ -464,11 +393,7 @@ export async function cancelAppointmentByOrgAction(
     }
   });
 
-  if (orgPublicToken) {
-    revalidatePath(`/org/${orgPublicToken}/agenda`);
-  } else {
-    revalidatePath("/pro/agenda");
-  }
+  revalidatePath(`/org/${orgPublicToken}/agenda`);
   revalidatePath("/mis-turnos");
 
   return { ok: true };

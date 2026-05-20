@@ -2,6 +2,7 @@ import { logoutAction } from "@/app/actions/auth";
 import { PetCard } from "@/components/PetCard";
 import { attachments, db, notifications, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -18,15 +19,10 @@ export default async function MisMascotasPage({
   const params = await searchParams;
   const claimedCount = params.reclamado ? Number.parseInt(params.reclamado, 10) : null;
 
-  // Verified vets default-land at /pro (the professional portal). They can
-  // still operate as owners on their own pets via direct sub-paths
-  // (`/mis-mascotas/[token]/...`) or by explicitly passing `?as=owner`.
-  // Until `professional.provider` lands as a real profile-level capability
-  // (per AGENTS.md and lib/auth-guards.ts:138 swap-point), the gate is
-  // `role='vet' && matriculaVerified === true` — same predicate
-  // `requireVetProviderOrRedirect` uses.
-  if (profile?.role === "vet" && profile.matriculaVerified && params.as !== "owner") {
-    redirect("/pro");
+  // Vets land at their org portal (or /cuenta if they have no org yet).
+  // They can still access their pet list via direct sub-paths or `?as=owner`.
+  if (profile?.role === "vet" && params.as !== "owner") {
+    redirect(await resolveVetLanding(user.id));
   }
 
   // Pets where this user is the *current* custodian (any role), with the

@@ -928,7 +928,7 @@ async function main(): Promise<void> {
   console.log("\nLogin at /login and visit:");
   console.log("  /admin           — DIM Admin");
   console.log("  /gob             — Lucas (govt CABA)");
-  console.log("  /pro             — Lilian (vet)");
+  console.log("  /cuenta          — Lilian (vet, resolves to /org/[token] if clinic exists)");
   console.log("  /mis-mascotas    — Ignacio / Noelí (owners)");
 }
 

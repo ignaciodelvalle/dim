@@ -22,7 +22,6 @@ import { redirect } from "next/navigation";
 
 import { db, notifications, organizationMemberships, profiles, serviceOfferings } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateOfferingToken } from "@/lib/publicToken";
@@ -36,22 +35,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export type ServiceOfferingResult = { error: string } | { ok: true };
 
-// Discriminated union for the shared offering writer.
-// XOR: exactly one of organizationId or providerUserId must be set,
-// mirroring the DB CHECK constraint `provider_xor`.
 type OrgProvider = {
   organizationId: string;
   organizationPublicToken: string;
   organizationDisplayName: string;
-  providerUserId?: never;
 };
-type VetProvider = {
-  providerUserId: string;
-  organizationId?: never;
-  organizationPublicToken?: never;
-  organizationDisplayName?: never;
-};
-type ProviderContext = OrgProvider | VetProvider;
 
 // ============================================================================
 // Inner writers — testable without auth context
@@ -90,15 +78,9 @@ export async function createServiceOfferingForOrg(
   );
 }
 
-// ============================================================================
-// Shared inner writer — org and vet flows both go through here (Fase 2.5)
-// ============================================================================
-// Accepts a ProviderContext (discriminated union). The XOR is enforced by the
-// TypeScript type above AND the DB CHECK constraint `provider_xor` on
-// service_offerings.
 async function createServiceOfferingWriter(
   actorUserId: string,
-  provider: ProviderContext,
+  provider: OrgProvider,
   province: string,
   locality: string,
   input: {
@@ -144,8 +126,8 @@ async function createServiceOfferingWriter(
     await db.transaction(async (tx) => {
       await tx.insert(serviceOfferings).values({
         publicToken,
-        organizationId: "organizationId" in provider ? provider.organizationId : null,
-        providerUserId: "providerUserId" in provider ? provider.providerUserId : null,
+        organizationId: provider.organizationId,
+        providerUserId: null,
         jurisdictionProvince: canonicalProvince,
         jurisdictionLocality: canonicalLocality,
         serviceKind: parsed.data.serviceKind,
@@ -160,17 +142,10 @@ async function createServiceOfferingWriter(
         status: "pending_approval",
       });
 
-      // Determine display name for notifications.
-      const providerLabel =
-        "organizationDisplayName" in provider && provider.organizationDisplayName
-          ? provider.organizationDisplayName
-          : "un veterinario independiente";
+      const providerLabel = provider.organizationDisplayName;
 
       // Notify applicant.
-      const ctaUrl =
-        "organizationPublicToken" in provider && provider.organizationPublicToken
-          ? `/org/${provider.organizationPublicToken}/servicios`
-          : "/pro/servicios";
+      const ctaUrl = `/org/${provider.organizationPublicToken}/servicios`;
 
       await tx.insert(notifications).values({
         userId: actorUserId,
@@ -218,35 +193,6 @@ async function createServiceOfferingWriter(
   }
 
   return { ok: true };
-}
-
-// ============================================================================
-// createServiceOfferingForVetProvider — vet-side inner writer (Fase 2.5)
-// ============================================================================
-
-export async function createServiceOfferingForVetProvider(
-  actorUserId: string,
-  province: string,
-  locality: string,
-  input: {
-    serviceKind: string;
-    displayName: string;
-    description: string | null;
-    durationMinutes: number;
-    slotCapacity: number;
-    priceArs: number | null;
-    eligibilitySpecies: ("dog" | "cat")[] | null;
-    eligibilityAgeMinMonths: number | null;
-    eligibilityAgeMaxMonths: number | null;
-  },
-): Promise<ServiceOfferingResult> {
-  return createServiceOfferingWriter(
-    actorUserId,
-    { providerUserId: actorUserId },
-    province,
-    locality,
-    input,
-  );
 }
 
 export async function approveServiceOfferingForAuthority(
@@ -504,59 +450,4 @@ export async function rejectServiceOfferingAction(
   revalidatePath("/admin/servicios");
   revalidatePath("/gob/servicios");
   return { error: null };
-}
-
-// ============================================================================
-// Fase 2.5 — Vet-provider offering wrapper
-// ============================================================================
-// Same form fields as createServiceOfferingAction, but writes providerUserId
-// instead of organizationId. Province/locality come from hidden form fields.
-
-export async function createServiceOfferingForVetProviderAction(
-  _prev: ServiceOfferingFormState,
-  formData: FormData,
-): Promise<ServiceOfferingFormState> {
-  const { user } = await requireVetProviderOrRedirect();
-
-  const priceRaw = formData.get("priceArs");
-  const priceArs =
-    priceRaw !== null && priceRaw !== "" ? Number.parseFloat(String(priceRaw)) : null;
-
-  const durationRaw = formData.get("durationMinutes");
-  const durationMinutes = durationRaw !== null ? Number.parseInt(String(durationRaw), 10) : 15;
-
-  const capacityRaw = formData.get("slotCapacity");
-  const slotCapacity = capacityRaw !== null ? Number.parseInt(String(capacityRaw), 10) : 1;
-
-  const ageMinRaw = formData.get("eligibilityAgeMinMonths");
-  const ageMaxRaw = formData.get("eligibilityAgeMaxMonths");
-
-  const speciesRaw = formData.getAll("eligibilitySpecies");
-  const eligibilitySpecies =
-    speciesRaw.length > 0
-      ? (speciesRaw.map(String).filter((s) => s === "dog" || s === "cat") as ("dog" | "cat")[])
-      : null;
-
-  const province = String(formData.get("jurisdictionProvince") ?? "").trim();
-  const locality = String(formData.get("jurisdictionLocality") ?? "").trim();
-
-  const input = {
-    serviceKind: String(formData.get("serviceKind") ?? "").trim(),
-    displayName: String(formData.get("displayName") ?? "").trim(),
-    description: String(formData.get("description") ?? "").trim() || null,
-    durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : 15,
-    slotCapacity: Number.isFinite(slotCapacity) ? slotCapacity : 1,
-    priceArs: priceArs !== null && Number.isFinite(priceArs) ? priceArs : null,
-    eligibilitySpecies,
-    eligibilityAgeMinMonths:
-      ageMinRaw !== null && ageMinRaw !== "" ? Number.parseInt(String(ageMinRaw), 10) : null,
-    eligibilityAgeMaxMonths:
-      ageMaxRaw !== null && ageMaxRaw !== "" ? Number.parseInt(String(ageMaxRaw), 10) : null,
-  };
-
-  const result = await createServiceOfferingForVetProvider(user.id, province, locality, input);
-  if ("error" in result) return { error: result.error };
-
-  revalidatePath("/pro/servicios");
-  redirect("/pro/servicios");
 }
