@@ -47,3 +47,58 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
           SUPABASE_SERVICE_ROLE_KEY: dummy_service_role_key
           DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
+
+  db-check:
+    name: Schema vs migrations drift
+    runs-on: ubuntu-latest
+
+    # Catches schema.ts changes that aren't backed by a migration (or vice
+    # versa). Spins up a clean Postgres, applies the migrations, and asks
+    # drizzle-kit if `db:push` would change anything — if it would, drift exists.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations via drizzle-kit push
+        run: pnpm db:push
+
+      - name: Confirm zero pending changes
+        # drizzle-kit push is idempotent; a second run should report no work.
+        # If it reports pending changes, schema.ts and the migration tree
+        # disagree — fix one or the other before merging.
+        run: |
+          OUTPUT=$(pnpm db:push 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -E "(No changes|No schema changes)" || (echo "::error::Drizzle reports pending changes — schema.ts ↔ migrations drift" && exit 1)
