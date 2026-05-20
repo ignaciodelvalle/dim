@@ -9,6 +9,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
@@ -18,8 +19,7 @@ let petId: string;
 let caseId: string;
 
 beforeAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
       SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
     )`);
@@ -43,8 +43,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
     await tx.execute(sql`DELETE FROM cases WHERE id = ${caseId}`);
     await tx.execute(sql`DELETE FROM pets WHERE id = ${petId}`);

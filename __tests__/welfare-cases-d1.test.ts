@@ -16,6 +16,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets, welfareReports } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
@@ -33,8 +34,7 @@ beforeAll(async () => {
   //   cases.primary_pet_id → pets (RESTRICT)
   // Null both sides of the welfare↔case pair, drop pet_events first, then
   // cases, welfare_reports, pets.
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(
       sql`UPDATE welfare_reports SET case_id = NULL WHERE reference_code = ${REF_CODE}`,
     );
@@ -81,8 +81,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     // Null out both sides of the bidirectional welfare↔case FK pair.
     await tx.execute(sql`UPDATE welfare_reports SET case_id = NULL WHERE id = ${welfareReportId}`);
     await tx.execute(sql`UPDATE cases SET welfare_report_id = NULL WHERE id = ${caseId}`);

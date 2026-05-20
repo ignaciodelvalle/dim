@@ -12,6 +12,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import {
   closeFollowupExpiredAdoption,
   findFollowupExpiredAdoptions,
@@ -44,8 +45,7 @@ beforeAll(async () => {
   // pet_events.case_id has a FK to cases.id — events go first. Deleting
   // pet_events is normally blocked by the append-only trigger; bypass
   // via the session-local escape hatch (db/triggers.sql).
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM notifications WHERE notification_type IN (
       'welfare_denuncia_stale_govt', 'custody_dispute_stale'
     )`);
@@ -126,8 +126,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM notifications WHERE notification_type IN (
       'welfare_denuncia_stale_govt', 'custody_dispute_stale'
     )`);

@@ -11,7 +11,7 @@
 // All rows created here are deleted in afterAll.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -32,6 +32,7 @@ import {
   profiles,
 } from "@/db";
 import { generatePublicToken } from "@/lib/publicToken";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -73,11 +74,16 @@ async function purgeUserByEmail(email: string) {
     ...(found ? [found.id] : []),
     ...orphans.map((o) => o.id).filter((id) => id !== found?.id),
   ];
-  for (const uid of ids) {
-    await db.delete(notifications).where(eq(notifications.userId, uid));
-    await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
-    await db.delete(profiles).where(eq(profiles.id, uid));
-  }
+  // Deleting profiles cascades to pet_events.recorded_by_user_id (ON DELETE
+  // SET NULL), which triggers the append-only protection. Wrap so the
+  // cascading UPDATE is allowed.
+  await withMutationOverride(async (tx) => {
+    for (const uid of ids) {
+      await tx.delete(notifications).where(eq(notifications.userId, uid));
+      await tx.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
+      await tx.delete(profiles).where(eq(profiles.id, uid));
+    }
+  });
   if (found) await supabase.auth.admin.deleteUser(found.id);
 }
 
@@ -144,8 +150,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const petId of insertedPetIds) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(pets).where(eq(pets.id, petId));
     });
   }
@@ -541,7 +546,7 @@ describe("ownerAcceptReturnWriter — auto-cancel", () => {
 
     // Insert proposal event directly (bypassing the lost-status check in propose).
     const now = new Date();
-    await db.transaction(async (tx) => {
+    await withMutationOverride(async (tx) => {
       const { validateEventPayload } = await import("@/lib/event-schemas");
       const payload = validateEventPayload("custody_transfer_proposed", {
         from_user_id: null,
@@ -553,7 +558,6 @@ describe("ownerAcceptReturnWriter — auto-cancel", () => {
         matched_against_pet_id: petId,
         proposed_at: now.toISOString(),
       });
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
       await tx.insert(petEvents).values({
         petId,
         eventType: "custody_transfer_proposed",

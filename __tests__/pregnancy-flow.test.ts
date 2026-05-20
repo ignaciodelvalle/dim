@@ -2,11 +2,12 @@
 // 2026-05-19-pregnancy-tracking-design §10).
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recordPregnancyEndedWriter, recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
 import { db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { getEarnedAchievements } from "@/lib/achievements/catalog";
 import { matchCaptureIntent } from "@/lib/event-capture-matcher";
 
@@ -31,10 +32,15 @@ async function purgeUserByEmail(email: string) {
     ...(found ? [found.id] : []),
     ...orphans.map((o) => o.id).filter((id) => id !== found?.id),
   ];
-  for (const uid of ids) {
-    await db.delete(notifications).where(eq(notifications.userId, uid));
-    await db.delete(profiles).where(eq(profiles.id, uid));
-  }
+  // Deleting profiles cascades to pet_events.recorded_by_user_id (ON DELETE
+  // SET NULL), which triggers the append-only protection. Wrap so the
+  // cascading UPDATE is allowed.
+  await withMutationOverride(async (tx) => {
+    for (const uid of ids) {
+      await tx.delete(notifications).where(eq(notifications.userId, uid));
+      await tx.delete(profiles).where(eq(profiles.id, uid));
+    }
+  });
   if (found) await supabase.auth.admin.deleteUser(found.id);
 }
 
@@ -76,8 +82,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const petId of insertedPetIds) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(reminders).where(eq(reminders.petId, petId));
       await tx.delete(pets).where(eq(pets.id, petId));
     });

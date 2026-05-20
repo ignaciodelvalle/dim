@@ -9,6 +9,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, ownerships, petEvents, pets } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import {
   expireCrossOrgTransfer,
   findExpiredCrossOrgTransfers,
@@ -28,8 +29,7 @@ let petId: string;
 let caseId: string;
 
 beforeAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
       SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
     )`);
@@ -92,8 +92,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
     // Two cases may exist (the happy-path one + the stale-cron one). Wipe
     // everything for this pet so the pets DELETE doesn't trip on

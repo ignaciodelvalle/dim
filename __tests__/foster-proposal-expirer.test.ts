@@ -3,7 +3,7 @@
 // users + DB fixtures, cleaned up in afterAll.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -19,6 +19,7 @@ import {
   profiles,
 } from "@/db";
 import { expireFosterProposals } from "@/lib/foster-proposal-expirer";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -130,8 +131,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(fosterProposals).where(eq(fosterProposals.petId, petId));
   await db.delete(notifications).where(eq(notifications.relatedPetId, petId));
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.delete(pets).where(eq(pets.id, petId));
   });
   await db.delete(organizationMemberships).where(eq(organizationMemberships.organizationId, orgId));
@@ -199,8 +199,7 @@ describe("expireFosterProposals", () => {
     expect(expired.length).toBeGreaterThanOrEqual(1);
 
     // Cleanup the events (they're append-only — need GUC).
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(petEvents).where(eq(petEvents.petId, petId));
     });
   });
@@ -216,8 +215,7 @@ describe("expireFosterProposals", () => {
     expect(second.candidates).toBe(0);
     expect(second.expired).toBe(0);
 
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(petEvents).where(eq(petEvents.petId, petId));
     });
   });

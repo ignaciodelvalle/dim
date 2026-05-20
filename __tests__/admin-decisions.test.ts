@@ -27,6 +27,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -90,8 +91,7 @@ async function deleteTestUser(email: string) {
       .from(ownerships)
       .where(eq(ownerships.ownerUserId, uid));
     if (owned.length > 0) {
-      await db.transaction(async (tx) => {
-        await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+      await withMutationOverride(async (tx) => {
         for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
       });
     }
@@ -407,8 +407,7 @@ describe("enforce_institutional_no_pets trigger (migration 0015)", () => {
     ).rejects.toThrow(/institutional|restrict/i);
 
     // Cleanup the pet (ownership was never inserted).
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(pets).where(eq(pets.id, pet.id));
     });
   });

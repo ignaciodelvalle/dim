@@ -9,7 +9,7 @@
 //   5. Retroactive microchip with duplicate microchipId → fails (uniqueness), tx rolls back
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -18,6 +18,7 @@ import {
   setPetLostWriter,
 } from "@/app/actions/events";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { generatePublicToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -56,8 +57,7 @@ async function purgeUserByEmail(email: string) {
     // Cases system (Fase D3): cases.opened_by_user_id and
     // closed_by_user_id reference profiles with RESTRICT semantics in
     // migration 0033 — null them out before deleting the profile.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.execute(
         sql`UPDATE pet_events SET recorded_by_user_id = NULL WHERE recorded_by_user_id = ${uid}`,
       );
@@ -77,8 +77,34 @@ async function purgeUserByEmail(email: string) {
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
+// Hardcoded microchips this suite asserts against. Listed up front so the
+// pre-run cleanup can purge any leftover pets from a previously crashed run
+// that would otherwise hit pets_microchip_unique_when_present.
+const TEST_MICROCHIPS = [
+  "982000411111111",
+  "982000422222222",
+  "982000433333333",
+  "982000444444444",
+  "982000499999999",
+];
+
 beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
+
+  // Defensive: drop any leftover pet that owns one of the test microchips.
+  // The unique-when-present constraint will otherwise reject re-inserts on
+  // every retry.
+  const stale = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(inArray(pets.microchipId, TEST_MICROCHIPS));
+  for (const { id } of stale) {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${id}`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id = ${id}`);
+      await tx.delete(pets).where(eq(pets.id, id));
+    });
+  }
 
   const o = await supabase.auth.admin.createUser({
     email: OWNER_EMAIL,
@@ -91,8 +117,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const petId of insertedPetIds) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       // Cases system (Fase D3): setPetLostWriter opens a lost_pet_episode
       // case. pet_events.case_id RESTRICTs cases deletion → wipe events
       // first, then the case row, then the pet.

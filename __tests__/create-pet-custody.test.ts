@@ -8,10 +8,11 @@
 // validateEventPayload path the action uses.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -30,8 +31,7 @@ beforeAll(async () => {
   const found = list?.users.find((u) => u.email === EMAIL);
   if (found) {
     const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, found.id));
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
     });
     await admin.auth.admin.deleteUser(found.id);
@@ -47,8 +47,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, userId));
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
   });
   await admin.auth.admin.deleteUser(userId);

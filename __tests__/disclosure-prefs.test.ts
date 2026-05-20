@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type DisclosurePrefsInput, setPetLostWriter } from "@/app/actions/events";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { generatePublicToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -53,8 +54,7 @@ async function purgeUserByEmail(email: string) {
     // migration 0033 — null them out before deleting the profile.
     // Also break pet_events.recorded_by_user_id (cascade SET NULL would
     // UPDATE pet_events and hit the append-only guard).
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.execute(
         sql`UPDATE pet_events SET recorded_by_user_id = NULL WHERE recorded_by_user_id = ${uid}`,
       );
@@ -88,8 +88,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const petId of insertedPetIds) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       // Cases system (Fase D3): setPetLostWriter opens a lost_pet_episode
       // case. pet_events.case_id RESTRICTs cases deletion → wipe events
       // first, then the case row, then the pet.

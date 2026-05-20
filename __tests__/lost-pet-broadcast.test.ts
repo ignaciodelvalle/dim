@@ -29,6 +29,7 @@ import {
   profiles,
 } from "@/db";
 import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { generatePublicToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -89,8 +90,7 @@ async function purgeUserByEmail(email: string) {
     await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
     // Cases system (Fase D3): break pet_events + cases FKs to the
     // profile before deleting it.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.execute(
         sql`UPDATE pet_events SET recorded_by_user_id = NULL WHERE recorded_by_user_id = ${uid}`,
       );
@@ -149,8 +149,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const petId of insertedPetIds) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       // Cases system (Fase D3): setPetLostWriter now opens a
       // lost_pet_episode case. pet_events with case_id RESTRICT
       // deletion of the cases row, so we wipe events first, then

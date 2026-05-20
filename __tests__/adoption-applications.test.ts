@@ -11,7 +11,7 @@
 //   - institutional applicant → { error }.
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -34,6 +34,7 @@ import {
   profiles,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -77,15 +78,42 @@ async function purgeUserByEmail(email: string) {
     ...(found ? [found.id] : []),
     ...orphans.map((o) => o.id).filter((id) => id !== found?.id),
   ];
-  for (const uid of ids) {
-    await db.delete(notifications).where(eq(notifications.userId, uid));
-    await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
-    await db.delete(profiles).where(eq(profiles.id, uid));
-  }
+  // Deleting profiles cascades to pet_events.recorded_by_user_id (ON DELETE
+  // SET NULL), which triggers the append-only protection. Wrap so the
+  // cascading UPDATE is allowed.
+  await withMutationOverride(async (tx) => {
+    for (const uid of ids) {
+      await tx.delete(notifications).where(eq(notifications.userId, uid));
+      await tx.delete(organizationMemberships).where(eq(organizationMemberships.userId, uid));
+      await tx.delete(profiles).where(eq(profiles.id, uid));
+    }
+  });
   if (found) await supabaseAdmin.auth.admin.deleteUser(found.id);
 }
 
 beforeAll(async () => {
+  // Clean up any leftover rows from a previous crashed run (hardcoded tokens).
+  await withMutationOverride(async (tx) => {
+    const stalePets = await tx
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, "DIM-AAPP-PET1"));
+    for (const { id } of stalePets) {
+      await tx.delete(notifications).where(eq(notifications.relatedPetId, id));
+      await tx.delete(ownerships).where(eq(ownerships.petId, id));
+      await tx.delete(petEvents).where(eq(petEvents.petId, id));
+      await tx.delete(pets).where(eq(pets.id, id));
+    }
+  });
+  const staleOrgs = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.publicToken, "DIM-ADOPTAPP-001"));
+  for (const { id } of staleOrgs) {
+    await db.delete(organizationMemberships).where(eq(organizationMemberships.organizationId, id));
+    await db.delete(organizations).where(eq(organizations.id, id));
+  }
+
   await purgeUserByEmail(APPLICANT_EMAIL);
   await purgeUserByEmail(COORD_EMAIL);
   await purgeUserByEmail(ADMIN_EMAIL);
@@ -193,8 +221,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(notifications).where(eq(notifications.relatedPetId, petId));
   await db.delete(ownerships).where(eq(ownerships.petId, petId));
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.delete(petEvents).where(eq(petEvents.petId, petId));
     await tx.delete(pets).where(eq(pets.id, petId));
   });

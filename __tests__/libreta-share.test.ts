@@ -5,7 +5,7 @@
 // role-upgrade.test.ts.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -14,6 +14,7 @@ import {
   revokeLibretaShareForUser,
 } from "@/app/actions/libreta-share";
 import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { generateLibretaShareToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -41,8 +42,7 @@ async function cleanupUser(email: string) {
     .from(ownerships)
     .where(eq(ownerships.ownerUserId, found.id));
   if (owned.length > 0) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
     });
   }
@@ -54,8 +54,7 @@ beforeAll(async () => {
   await cleanupUser(EMAIL2);
 
   // Also clean up the shared pet token in case a previous run left it.
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.delete(pets).where(eq(pets.publicToken, PET_TOKEN));
   });
 
@@ -99,8 +98,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Delete the test pet (cascades ownerships, libreta_share_tokens).
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+  await withMutationOverride(async (tx) => {
     await tx.delete(pets).where(eq(pets.publicToken, PET_TOKEN));
   });
   await admin.auth.admin.deleteUser(userId).catch(() => {});

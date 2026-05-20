@@ -11,6 +11,7 @@ import {
   updateBusinessRuleWriter,
 } from "@/app/actions/business-rules";
 import { auditLog, db, govtBusinessRules, notifications, ownerships, pets, profiles } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -31,8 +32,19 @@ async function ensureUser(email: string): Promise<string> {
   const { data: existing } = await supabase.auth.admin.listUsers();
   const found = existing?.users.find((u) => u.email === email);
   if (found) {
-    await db.delete(notifications).where(eq(notifications.userId, found.id));
-    return found.id;
+    // Verify the auto-created profile row also exists. An orphan auth user
+    // with no profile (e.g. leftover from a crashed run that dropped the
+    // profiles table) breaks every subsequent profile/audit_log/FK operation
+    // silently. Rebuild from scratch when we detect the orphan.
+    const [profile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, found.id));
+    if (profile) {
+      await db.delete(notifications).where(eq(notifications.userId, found.id));
+      return found.id;
+    }
+    await supabase.auth.admin.deleteUser(found.id);
   }
   const created = await supabase.auth.admin.createUser({
     email,
@@ -90,8 +102,7 @@ afterAll(async () => {
       'BR-INVALID-PROVINCE', 'BR-UPDATE-PROVINCE', 'BR-DELETE-PROVINCE')
   `);
   for (const petId of insertedPetIds) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`set local app.allow_event_mutation = 'true'`);
+    await withMutationOverride(async (tx) => {
       await tx.delete(pets).where(eq(pets.id, petId));
     });
   }
