@@ -60,6 +60,12 @@ const LIBRETA_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
+    slug: "microchip-reemplazo",
+    label: "Reemplazar microchip",
+    description: "Chip dañado, ilegible o duplicado",
+    enabled: true,
+  },
+  {
     slug: "clinico",
     label: "Información clínica",
     description: "Análisis, imágenes, cirugías, alergias",
