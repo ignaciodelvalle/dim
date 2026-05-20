@@ -35,6 +35,13 @@
  *   pnpm db:bootstrap                  # full bootstrap (1+2+3+4)
  *   pnpm db:bootstrap --no-seeds       # skip step 4 (schema only, fast)
  *   pnpm db:bootstrap --bare           # only step 1 (schema.ts → DB)
+ *   pnpm db:bootstrap --allow-remote   # opt out of the local-host guard
+ *
+ * Safety: refuses to run unless DATABASE_URL points at one of
+ * {127.0.0.1, localhost, host.docker.internal, ::1}. The remote opt-out
+ * exists for staging bootstraps but should never appear in a CI workflow
+ * for the test job. Every step here is destructive — running it against
+ * production by mistake is a real incident.
  *
  * Env:
  *   DATABASE_URL                       required. Read from .env.local.
@@ -45,6 +52,7 @@
  *   1   step 1 (db:push) or step 3 (db/*.sql) failed
  *   2   step 4 (a seed script) failed
  *   3   DATABASE_URL not set
+ *   4   DATABASE_URL points at a non-local host (use --allow-remote to override)
  */
 
 import { spawnSync } from "node:child_process";
@@ -63,6 +71,7 @@ loadEnv({ path: ".env" });
 const args = new Set(process.argv.slice(2));
 const BARE = args.has("--bare");
 const NO_SEEDS = args.has("--no-seeds") || BARE;
+const ALLOW_REMOTE = args.has("--allow-remote");
 
 // ---------------------------------------------------------------------------
 // Env validation
@@ -93,6 +102,60 @@ function parsePgUrl(url: string) {
 }
 
 const pg = parsePgUrl(DATABASE_URL);
+
+// ---------------------------------------------------------------------------
+// Safety guard — refuse to run against a remote DB unless explicitly allowed
+// ---------------------------------------------------------------------------
+//
+// Bootstrap is destructive at every step: db:push alters schema, replayed
+// migrations alter schema, db/*.sql adds policies + functions, and the seed
+// step inserts thousands of rows. Aiming this at production by mistake is
+// catastrophic. The repo had no separation between local and remote
+// DATABASE_URL configuration when this script was written — until that's
+// fixed at the project level, this guard is the seatbelt.
+//
+// Allow-list a few hostnames that are unambiguously local. Anything else
+// requires --allow-remote, which prints a loud confirmation in the output
+// so reviewers can spot it in a CI log or shell history.
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "host.docker.internal", "::1"]);
+
+if (!LOCAL_HOSTS.has(pg.host) && !ALLOW_REMOTE) {
+  console.error(
+    [
+      "",
+      "==============================================================",
+      "  ABORT: db:bootstrap target is NOT a local Postgres.",
+      "==============================================================",
+      `  DATABASE_URL host: ${pg.host}`,
+      `  Allowed local hosts: ${[...LOCAL_HOSTS].join(", ")}`,
+      "",
+      "  This script applies destructive schema changes and writes",
+      "  thousands of seed rows. Running it against a remote DB by",
+      "  mistake is a production incident.",
+      "",
+      "  If you meant to target this host, re-run with --allow-remote.",
+      "  Otherwise edit .env.local to point at the local Postgres:",
+      "    DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      "==============================================================",
+      "",
+    ].join("\n"),
+  );
+  process.exit(4);
+}
+
+if (!LOCAL_HOSTS.has(pg.host) && ALLOW_REMOTE) {
+  console.warn(
+    [
+      "",
+      "==============================================================",
+      "  WARNING: --allow-remote in effect.",
+      `  DATABASE_URL host: ${pg.host}`,
+      "  About to apply destructive changes to a remote DB.",
+      "==============================================================",
+      "",
+    ].join("\n"),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
