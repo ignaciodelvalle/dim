@@ -24,7 +24,7 @@
  * projection-managed. This script does not touch it.
  */
 
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "../db";
 import { replayPetMicrochip } from "../lib/projections/pet-microchip";
@@ -157,56 +157,82 @@ async function main() {
   let fixedCount = 0;
 
   for (const pet of targetPets) {
-    const events = await db
-      .select({
-        id: petEvents.id,
-        eventType: petEvents.eventType,
-        occurredAt: petEvents.occurredAt,
-        recordedAt: petEvents.recordedAt,
-        payload: petEvents.payload,
-      })
-      .from(petEvents)
-      .where(eq(petEvents.petId, pet.id))
-      .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
+    // Phase 3.5 (action plan 2026-05-20): the read-events / compute /
+    // update-pet sequence MUST be atomic per pet. Without this, a writer
+    // appending a new pet_event between our SELECT and UPDATE would have
+    // its projection clobbered by our stale UPDATE.
+    //
+    // Per-pet pg_advisory_xact_lock serializes rebuilds with any other
+    // writer that takes the same lock (none today, but the lock key is
+    // here so future writers can opt in cheaply). Held until the tx
+    // commits — no manual release needed.
+    //
+    // `hashtext(pet.id::text)` gives us a stable int8 lock key derived
+    // from the pet uuid.
+    const outcome = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
 
-    const statusProj = replayPetStatus(events);
-    const weightProj = replayPetWeight(events);
-    const microchipProj = replayPetMicrochip(events);
+      const events = await tx
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          recordedAt: petEvents.recordedAt,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(eq(petEvents.petId, pet.id))
+        .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
 
-    const expected = { ...statusProj, ...weightProj, ...microchipProj };
-    const drifts = diffPet(pet, expected);
+      const statusProj = replayPetStatus(events);
+      const weightProj = replayPetWeight(events);
+      const microchipProj = replayPetMicrochip(events);
 
-    if (drifts.length === 0) {
+      const expected = { ...statusProj, ...weightProj, ...microchipProj };
+      const drifts = diffPet(pet, expected);
+
+      if (drifts.length === 0) {
+        return { status: "ok" as const };
+      }
+
+      const summary = drifts
+        .map((d) => `${d.column}: ${JSON.stringify(d.current)} → ${JSON.stringify(d.expected)}`)
+        .join("; ");
+
+      if (!args.apply) {
+        return { status: "drift" as const, summary };
+      }
+
+      await tx
+        .update(pets)
+        .set({
+          status: expected.status,
+          deceasedAt: expected.deceasedAt,
+          estimatedWeightKg: expected.estimatedWeightKg,
+          microchipId: expected.microchipId,
+          microchipCountryCode: expected.microchipCountryCode,
+          microchipImplantedAt: expected.microchipImplantedAt,
+          microchipImplantedBy: expected.microchipImplantedBy,
+          microchipLocation: expected.microchipLocation,
+          updatedAt: new Date(),
+        })
+        .where(eq(pets.id, pet.id));
+
+      return { status: "fixed" as const, summary };
+    });
+
+    if (outcome.status === "ok") {
       console.log(`OK     ${pet.publicToken}`);
       continue;
     }
 
     driftCount++;
-    const summary = drifts
-      .map((d) => `${d.column}: ${JSON.stringify(d.current)} → ${JSON.stringify(d.expected)}`)
-      .join("; ");
-
-    if (!args.apply) {
-      console.log(`DRIFT  ${pet.publicToken}  ${summary}`);
-      continue;
+    if (outcome.status === "drift") {
+      console.log(`DRIFT  ${pet.publicToken}  ${outcome.summary}`);
+    } else {
+      fixedCount++;
+      console.log(`FIXED  ${pet.publicToken}  ${outcome.summary}`);
     }
-
-    await db
-      .update(pets)
-      .set({
-        status: expected.status,
-        deceasedAt: expected.deceasedAt,
-        estimatedWeightKg: expected.estimatedWeightKg,
-        microchipId: expected.microchipId,
-        microchipCountryCode: expected.microchipCountryCode,
-        microchipImplantedAt: expected.microchipImplantedAt,
-        microchipImplantedBy: expected.microchipImplantedBy,
-        microchipLocation: expected.microchipLocation,
-        updatedAt: new Date(),
-      })
-      .where(eq(pets.id, pet.id));
-    fixedCount++;
-    console.log(`FIXED  ${pet.publicToken}  ${summary}`);
   }
 
   console.log("");
