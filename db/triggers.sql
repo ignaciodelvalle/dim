@@ -68,16 +68,42 @@ create trigger on_auth_user_created
 -- rule to service_role and direct Drizzle connections — closing the gap
 -- named in AGENTS.md → Event sourcing → Known gaps.
 --
--- Escape hatch: set the session-local flag `app.allow_event_mutation = 'true'`
--- in the same transaction as the mutation. Used only by deliberate,
--- audit-logged corrections (none today). Default is to raise.
+-- Escape hatch: set BOTH session-local flags in the same transaction:
+--   set local app.allow_event_mutation = 'true';
+--   set local app.allow_event_mutation_actor = '<actor-uuid>';
+-- When the escape hatch is active the trigger writes an `audit_log` row
+-- (action='pet_events_mutation_override') with the operation, the affected
+-- pet_event_id, pet_id, event_type and occurred_at, attributed to the actor
+-- uuid. If the actor GUC is missing the mutation is refused — the escape
+-- hatch is unusable without accountability.
 
 create or replace function public.enforce_pet_events_append_only()
 returns trigger
 language plpgsql
 as $$
+declare
+  override_actor uuid;
 begin
   if current_setting('app.allow_event_mutation', true) = 'true' then
+    override_actor := nullif(current_setting('app.allow_event_mutation_actor', true), '')::uuid;
+    if override_actor is null then
+      raise exception 'pet_events mutation override requires app.allow_event_mutation_actor (uuid) to be set in the same session'
+        using errcode = 'restrict_violation';
+    end if;
+
+    insert into public.audit_log (actor_user_id, action, payload)
+    values (
+      override_actor,
+      'pet_events_mutation_override',
+      jsonb_build_object(
+        'operation',    tg_op,
+        'pet_event_id', coalesce(new.id,          old.id),
+        'pet_id',       coalesce(new.pet_id,      old.pet_id),
+        'event_type',   coalesce(new.event_type,  old.event_type),
+        'occurred_at',  coalesce(new.occurred_at, old.occurred_at)
+      )
+    );
+
     return coalesce(new, old);
   end if;
   raise exception 'pet_events is append-only (AGENTS.md). % blocked.', tg_op

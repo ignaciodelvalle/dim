@@ -1341,6 +1341,11 @@ export const AUDIT_LOG_ACTIONS = [
   "govt_business_rule_created",
   "govt_business_rule_updated",
   "govt_business_rule_deleted",
+  // Append-only escape hatch — emitted by the pet_events trigger whenever
+  // app.allow_event_mutation is set during an UPDATE/DELETE on pet_events.
+  // The session must also set app.allow_event_mutation_actor (uuid) so the
+  // trigger has an accountable actor; otherwise the mutation is refused.
+  "pet_events_mutation_override",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
