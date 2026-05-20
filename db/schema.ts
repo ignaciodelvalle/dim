@@ -367,6 +367,21 @@ export const profiles = pgTable(
     institutionalActiveIdx: index("profiles_institutional_active_idx")
       .on(table.role)
       .where(sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`),
+    // CHECK constraints — added via ALTER in migrations 0011 / 0015.
+    // NOTE: profiles_account_type_role_match was added in 0015 and dropped
+    // in 0016 ("Drop profiles_account_type_role_match — keep app-layer
+    // enforcement only"). DO NOT mirror it here. Tests insert admin/govt
+    // profiles with account_type=personal during fixture setup; reinstating
+    // this check breaks admin-institutional, role-upgrade, and revocation
+    // suites.
+    profilesAccountTypeValid: check(
+      "profiles_account_type_valid",
+      sql`${table.accountType} in ('personal', 'institutional')`,
+    ),
+    profilesInstitutionalNoPii: check(
+      "profiles_institutional_no_pii",
+      sql`${table.accountType} = 'personal' or (${table.dniNumber} is null and ${table.matriculaNumber} is null and ${table.matriculaJurisdiccion} is null)`,
+    ),
   }),
 );
 
@@ -548,6 +563,35 @@ export const pets = pgTable(
     ),
     adoptionEligibilitySetByIdx: index("pets_adoption_eligibility_set_by_idx").on(
       table.adoptionEligibilitySetByUserId,
+    ),
+    // CHECK constraints also declared via ALTER in migrations 0021, 0030, 0031, 0036.
+    petsRabiesObservationStatusValid: check(
+      "pets_rabies_observation_status_valid",
+      sql`${table.rabiesObservationStatus} is null or ${table.rabiesObservationStatus} in ('in_progress', 'completed_negative', 'completed_positive_rabies', 'completed_dead', 'completed_lost_to_followup')`,
+    ),
+    petsAdoptionEnergyLevelValid: check(
+      "pets_adoption_energy_level_valid",
+      sql`${table.adoptionEnergyLevel} is null or ${table.adoptionEnergyLevel} in ('low','medium','high')`,
+    ),
+    petsAdoptionSizeEstimateValid: check(
+      "pets_adoption_size_estimate_valid",
+      sql`${table.adoptionSizeEstimate} is null or ${table.adoptionSizeEstimate} in ('small','medium','large','xl')`,
+    ),
+    petsAdoptionAgeBucketValid: check(
+      "pets_adoption_age_bucket_valid",
+      sql`${table.adoptionAgeBucket} is null or ${table.adoptionAgeBucket} in ('puppy','junior','young','adult','senior')`,
+    ),
+    petsAdoptionFeeNonNegative: check(
+      "pets_adoption_fee_non_negative",
+      sql`${table.adoptionFeeArs} is null or ${table.adoptionFeeArs} >= 0`,
+    ),
+    petsConditionsOtherConsistent: check(
+      "pets_conditions_other_consistent",
+      sql`${table.permanentConditionsOther} is null or 'otra' = any(${table.permanentConditions})`,
+    ),
+    petsPregnancyStatusValid: check(
+      "pets_pregnancy_status_valid",
+      sql`${table.pregnancyStatus} is null or ${table.pregnancyStatus} in ('in_progress', 'completed_live_birth', 'completed_stillbirth', 'completed_miscarriage', 'completed_termination')`,
     ),
   }),
 );
@@ -1300,6 +1344,27 @@ export const approvalRequests = pgTable(
     typeIdx: index("approval_requests_type_idx").on(table.type, table.status),
     initiatedByIdx: index("approval_requests_initiated_by_idx").on(table.initiatedByUserId),
     decidedByIdx: index("approval_requests_decided_by_idx").on(table.decidedByUserId),
+    // CHECK constraints — also declared via ALTER in migrations 0015, 0017.
+    approvalTypeValid: check(
+      "approval_type_valid",
+      sql`${table.type} in ('role_upgrade_vet', 'organization_verification', 'service_dog_credential_verification')`,
+    ),
+    approvalStatusValid: check(
+      "approval_status_valid",
+      sql`${table.status} in ('pending', 'approved', 'rejected', 'withdrawn')`,
+    ),
+    approvalInitiatedValid: check(
+      "approval_initiated_valid",
+      sql`${table.initiatedBy} in ('self', 'authority')`,
+    ),
+    approvalTargetConsistent: check(
+      "approval_target_consistent",
+      sql`case ${table.type} when 'role_upgrade_vet' then ${table.targetUserId} is not null and ${table.targetOrganizationId} is null when 'organization_verification' then ${table.targetUserId} is null and ${table.targetOrganizationId} is not null end`,
+    ),
+    approvalDecisionConsistent: check(
+      "approval_decision_consistent",
+      sql`(${table.status} in ('approved', 'rejected') and ${table.decidedAt} is not null and ${table.decidedByUserId} is not null) or (${table.status} in ('pending', 'withdrawn') and ${table.decidedAt} is null and ${table.decidedByUserId} is null)`,
+    ),
   }),
 );
 
@@ -1481,6 +1546,10 @@ export const govtBusinessRules = pgTable(
   },
   (table) => ({
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
+    govtBusinessRulesRuleTypeValid: check(
+      "govt_business_rules_rule_type_valid",
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries')`,
+    ),
   }),
 );
 
@@ -1561,6 +1630,16 @@ export const serviceOfferings = pgTable(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
     ),
+    providerXor: check(
+      "provider_xor",
+      sql`(${table.organizationId} is not null and ${table.providerUserId} is null) or (${table.organizationId} is null and ${table.providerUserId} is not null)`,
+    ),
+    serviceStatusValid: check(
+      "service_status_valid",
+      sql`${table.status} in ('pending_approval', 'approved', 'rejected', 'paused', 'archived')`,
+    ),
+    serviceCapacityPositive: check("service_capacity_positive", sql`${table.slotCapacity} > 0`),
+    serviceDurationPositive: check("service_duration_positive", sql`${table.durationMinutes} > 0`),
   }),
 );
 
@@ -1598,6 +1677,19 @@ export const serviceScheduleRules = pgTable(
     offeringActiveIdx: index("schedule_rules_offering_active_idx")
       .on(table.serviceOfferingId)
       .where(sql`${table.status} = 'active'`),
+    ruleTimeWindowSane: check(
+      "rule_time_window_sane",
+      sql`${table.endTimeLocal} > ${table.startTimeLocal}`,
+    ),
+    ruleDatesSane: check(
+      "rule_dates_sane",
+      sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`,
+    ),
+    ruleDaysNonempty: check("rule_days_nonempty", sql`array_length(${table.daysOfWeek}, 1) > 0`),
+    ruleStatusValid: check(
+      "rule_status_valid",
+      sql`${table.status} in ('active', 'paused', 'archived')`,
+    ),
   }),
 );
 
@@ -1641,6 +1733,17 @@ export const timeSlots = pgTable(
     searchIdx: index("time_slots_search_idx")
       .on(table.serviceOfferingId, table.startsAt)
       .where(sql`${table.status} IN ('open', 'full')`),
+    slotWindowSane: check("slot_window_sane", sql`${table.endsAt} > ${table.startsAt}`),
+    slotCapacityPositive: check("slot_capacity_positive", sql`${table.capacity} > 0`),
+    slotBookingsNonNegative: check("slot_bookings_non_negative", sql`${table.bookingsCount} >= 0`),
+    slotBookingsWithinCapacity: check(
+      "slot_bookings_within_capacity",
+      sql`${table.bookingsCount} <= ${table.capacity}`,
+    ),
+    slotStatusValid: check(
+      "slot_status_valid",
+      sql`${table.status} in ('open', 'full', 'cancelled')`,
+    ),
   }),
 );
 
@@ -1711,6 +1814,14 @@ export const appointments = pgTable(
     slotIdx: index("appointments_slot_idx")
       .on(table.slotId)
       .where(sql`${table.status} = 'confirmed'`),
+    appointmentStatusValid: check(
+      "appointment_status_valid",
+      sql`${table.status} in ('confirmed', 'attended', 'no_show', 'cancelled_by_owner', 'cancelled_by_org')`,
+    ),
+    appointmentOutcomeOnlyWhenAttended: check(
+      "appointment_outcome_only_when_attended",
+      sql`(${table.outcomeEventId} is null) or (${table.status} = 'attended')`,
+    ),
   }),
 );
 
@@ -1816,6 +1927,10 @@ export const arLocalitiesImportRuns = pgTable(
   },
   (table) => ({
     startedAtIdx: index("ar_localities_import_runs_idx").on(table.startedAt),
+    arImportsStatusValid: check(
+      "ar_imports_status_valid",
+      sql`${table.status} in ('running','ok','failed')`,
+    ),
   }),
 );
 
@@ -1883,6 +1998,18 @@ export const fosterVolunteers = pgTable(
     localityIdx: index("foster_volunteers_locality_idx")
       .on(table.jurisdictionProvince, table.jurisdictionLocality)
       .where(sql`${table.status} = 'active' AND ${table.availableSlots} > 0`),
+    fosterVolunteersStatusValid: check(
+      "foster_volunteers_status_valid",
+      sql`${table.status} in ('active','paused','withdrawn')`,
+    ),
+    fosterVolunteersSlotsNonNegative: check(
+      "foster_volunteers_slots_non_negative",
+      sql`${table.availableSlots} >= 0`,
+    ),
+    fosterVolunteersAtLeastOneSpecies: check(
+      "foster_volunteers_at_least_one_species",
+      sql`${table.status} != 'active' or (${table.acceptsDogs} or ${table.acceptsCats} or ${table.acceptsOtherSpecies})`,
+    ),
   }),
 );
 
@@ -1953,6 +2080,18 @@ export const fosterProposals = pgTable(
     resolvedOwnershipIdx: index("foster_proposals_resolved_ownership_idx").on(
       table.resolvedOwnershipId,
     ),
+    fosterProposalsStatusValid: check(
+      "foster_proposals_status_valid",
+      sql`${table.status} in ('pending','accepted','rejected','expired','cancelled')`,
+    ),
+    fosterProposalsRejectionReasonValid: check(
+      "foster_proposals_rejection_reason_valid",
+      sql`${table.rejectionReason} is null or ${table.rejectionReason} in ('capacity','health_mismatch','timing','distance','household','other')`,
+    ),
+    fosterProposalsResponseConsistent: check(
+      "foster_proposals_response_consistent",
+      sql`(${table.status} = 'pending'   and ${table.respondedAt} is null and ${table.cancelledAt} is null) or (${table.status} = 'accepted'  and ${table.respondedAt} is not null and ${table.resolvedOwnershipId} is not null) or (${table.status} = 'rejected'  and ${table.respondedAt} is not null) or (${table.status} = 'expired'   and (${table.respondedAt} is null or ${table.expiresAt} <= ${table.respondedAt})) or (${table.status} = 'cancelled' and ${table.cancelledAt} is not null and ${table.cancelledByUserId} is not null)`,
+    ),
   }),
 );
 
@@ -1978,6 +2117,10 @@ export const cronRuns = pgTable(
   },
   (table) => ({
     nameStartedIdx: index("cron_runs_name_started_idx").on(table.cronName, table.startedAt),
+    cronRunsStatusValid: check(
+      "cron_runs_status_valid",
+      sql`${table.status} in ('running','ok','failed')`,
+    ),
   }),
 );
 
@@ -2011,38 +2154,59 @@ export const DISPUTE_PARTY_ROLES = [
 ] as const;
 export type DisputePartyRole = (typeof DISPUTE_PARTY_ROLES)[number];
 
-export const custodyDisputes = pgTable("custody_disputes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  publicToken: text("public_token").notNull().unique(),
-  petId: uuid("pet_id")
-    .notNull()
-    .references(() => pets.id, { onDelete: "cascade" }),
-  raisedByUserId: uuid("raised_by_user_id").references(() => profiles.id, {
-    onDelete: "set null",
+export const custodyDisputes = pgTable(
+  "custody_disputes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicToken: text("public_token").notNull().unique(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    raisedByUserId: uuid("raised_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    raisedByOrgId: uuid("raised_by_org_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    raisedByRole: text("raised_by_role").notNull().$type<"owner" | "org" | "govt" | "admin">(),
+    raisingEventId: uuid("raising_event_id")
+      .notNull()
+      .references(() => petEvents.id, { onDelete: "cascade" }),
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province").notNull(),
+    jurisdictionLocality: text("jurisdiction_locality").notNull(),
+    status: text("status").notNull().default("open").$type<DisputeStatus>(),
+    resolution: text("resolution").$type<DisputeResolution | null>(),
+    resolutionSummary: text("resolution_summary"),
+    resolutionEventId: uuid("resolution_event_id").references(() => petEvents.id, {
+      onDelete: "set null",
+    }),
+    resolvedByUserId: uuid("resolved_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    custodyDisputesStatusValid: check(
+      "custody_disputes_status_valid",
+      sql`${table.status} in ('open','resolved','withdrawn')`,
+    ),
+    custodyDisputesResolutionConsistent: check(
+      "custody_disputes_resolution_consistent",
+      sql`(${table.status} = 'open' and ${table.resolution} is null and ${table.resolvedByUserId} is null and ${table.resolvedAt} is null) or (${table.status} in ('resolved','withdrawn') and ${table.resolvedByUserId} is not null and ${table.resolvedAt} is not null)`,
+    ),
+    custodyDisputesResolutionRequiredWhenResolved: check(
+      "custody_disputes_resolution_required_when_resolved",
+      sql`${table.status} != 'resolved' or (${table.resolution} is not null and ${table.resolutionSummary} is not null)`,
+    ),
+    custodyDisputesRaisedRoleValid: check(
+      "custody_disputes_raised_role_valid",
+      sql`${table.raisedByRole} in ('owner','org','govt','admin')`,
+    ),
   }),
-  raisedByOrgId: uuid("raised_by_org_id").references(() => organizations.id, {
-    onDelete: "set null",
-  }),
-  raisedByRole: text("raised_by_role").notNull().$type<"owner" | "org" | "govt" | "admin">(),
-  raisingEventId: uuid("raising_event_id")
-    .notNull()
-    .references(() => petEvents.id, { onDelete: "cascade" }),
-  jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
-  jurisdictionProvince: text("jurisdiction_province").notNull(),
-  jurisdictionLocality: text("jurisdiction_locality").notNull(),
-  status: text("status").notNull().default("open").$type<DisputeStatus>(),
-  resolution: text("resolution").$type<DisputeResolution | null>(),
-  resolutionSummary: text("resolution_summary"),
-  resolutionEventId: uuid("resolution_event_id").references(() => petEvents.id, {
-    onDelete: "set null",
-  }),
-  resolvedByUserId: uuid("resolved_by_user_id").references(() => profiles.id, {
-    onDelete: "set null",
-  }),
-  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+);
 
 export const custodyDisputeParties = pgTable(
   "custody_dispute_parties",
@@ -2067,6 +2231,14 @@ export const custodyDisputeParties = pgTable(
       columns: [table.partyOrganizationId],
       foreignColumns: [organizations.id],
     }).onDelete("set null"),
+    disputePartyExactlyOneSubject: check(
+      "dispute_party_exactly_one_subject",
+      sql`(${table.partyUserId} is not null and ${table.partyOrganizationId} is null) or (${table.partyUserId} is null and ${table.partyOrganizationId} is not null)`,
+    ),
+    disputePartyRoleValid: check(
+      "dispute_party_role_valid",
+      sql`${table.partyRole} in ('current_owner','claimant_owner','current_org_custody','claimant_org','witness')`,
+    ),
   }),
 );
 
@@ -2112,40 +2284,65 @@ export type ServiceDogStatus = (typeof SERVICE_DOG_STATUSES)[number];
 export const SERVICE_DOG_VISIBILITIES = ["full_banner", "private_only"] as const;
 export type ServiceDogVisibility = (typeof SERVICE_DOG_VISIBILITIES)[number];
 
-export const petServiceDog = pgTable("pet_service_dog", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  petId: uuid("pet_id")
-    .notNull()
-    .unique()
-    .references(() => pets.id, { onDelete: "cascade" }),
-  serviceType: text("service_type").notNull().$type<ServiceDogType>(),
-  credentialStatus: text("credential_status")
-    .notNull()
-    .default("pendiente_verificacion")
-    .$type<ServiceDogStatus>(),
-  rupgaCredential: text("rupga_credential"),
-  trainingCenter: text("training_center").notNull(),
-  trainingCertDate: date("training_cert_date"),
-  credentialIssueDate: date("credential_issue_date"),
-  credentialExpiryDate: date("credential_expiry_date"),
-  inService: boolean("in_service").notNull().default(true),
-  publicVisibility: text("public_visibility")
-    .notNull()
-    .default("private_only")
-    .$type<ServiceDogVisibility>(),
-  notes: text("notes"),
-  verifiedAt: timestamp("verified_at", { withTimezone: true }),
-  verifiedByUserId: uuid("verified_by_user_id").references(() => profiles.id, {
-    onDelete: "set null",
+export const petServiceDog = pgTable(
+  "pet_service_dog",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    petId: uuid("pet_id")
+      .notNull()
+      .unique()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    serviceType: text("service_type").notNull().$type<ServiceDogType>(),
+    credentialStatus: text("credential_status")
+      .notNull()
+      .default("pendiente_verificacion")
+      .$type<ServiceDogStatus>(),
+    rupgaCredential: text("rupga_credential"),
+    trainingCenter: text("training_center").notNull(),
+    trainingCertDate: date("training_cert_date"),
+    credentialIssueDate: date("credential_issue_date"),
+    credentialExpiryDate: date("credential_expiry_date"),
+    inService: boolean("in_service").notNull().default(true),
+    publicVisibility: text("public_visibility")
+      .notNull()
+      .default("private_only")
+      .$type<ServiceDogVisibility>(),
+    notes: text("notes"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedByUserId: uuid("verified_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    revocationReason: text("revocation_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    petServiceDogServiceTypeValid: check(
+      "pet_service_dog_service_type_valid",
+      sql`${table.serviceType} in ('guia','asistencia_motriz','alerta_medica','senal_auditiva','asistencia_tea','otro')`,
+    ),
+    petServiceDogStatusValid: check(
+      "pet_service_dog_status_valid",
+      sql`${table.credentialStatus} in ('en_entrenamiento','pendiente_verificacion','vigente','vencida','revocada')`,
+    ),
+    petServiceDogVisibilityValid: check(
+      "pet_service_dog_visibility_valid",
+      sql`${table.publicVisibility} in ('full_banner','private_only')`,
+    ),
+    petServiceDogVigenteRequiresVerification: check(
+      "pet_service_dog_vigente_requires_verification",
+      sql`${table.credentialStatus} != 'vigente' or (${table.verifiedAt} is not null and ${table.verifiedByUserId} is not null)`,
+    ),
+    petServiceDogRevokedRequiresMotivo: check(
+      "pet_service_dog_revoked_requires_motivo",
+      sql`${table.credentialStatus} != 'revocada' or (${table.revokedAt} is not null and ${table.revokedByUserId} is not null and ${table.revocationReason} is not null)`,
+    ),
   }),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
-  revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
-    onDelete: "set null",
-  }),
-  revocationReason: text("revocation_reason"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+);
 
 export type PetServiceDog = typeof petServiceDog.$inferSelect;
 export type NewPetServiceDog = typeof petServiceDog.$inferInsert;
@@ -2259,12 +2456,45 @@ export const cases = pgTable(
   },
   (table) => ({
     publicCodeIdx: uniqueIndex("cases_public_code_unique").on(table.publicCode),
-    // The partial unique indexes that enforce business uniqueness per kind
-    // live in the SQL migration — Drizzle's partial index syntax doesn't
-    // express them ergonomically. The SQL definition is authoritative.
-    openByJurisdictionIdx: index("cases_open_by_jurisdiction_kind_idx").on(
-      table.jurisdictionLocality,
-      table.caseKind,
+    openByJurisdictionIdx: index("cases_open_by_jurisdiction_kind_idx")
+      .on(table.jurisdictionLocality, table.caseKind)
+      .where(sql`${table.status} IN ('open', 'escalated')`),
+    // Partial unique indexes (migration 0033). Modeled here too so that
+    // `drizzle-kit push` doesn't drop them — the bootstrap flow runs push
+    // AFTER migration replay, and unmodeled indexes silently disappear.
+    openPerPetKindIdx: uniqueIndex("cases_open_per_pet_kind_idx")
+      .on(table.primaryPetId, table.caseKind)
+      .where(
+        sql`${table.status} IN ('open', 'escalated') AND ${table.caseKind} NOT IN ('adoption_application', 'adoption_listing', 'welfare_denuncia', 'foster_placement')`,
+      ),
+    openAdoptionAppPerApplicantIdx: uniqueIndex("cases_open_adoption_app_per_applicant_idx")
+      .on(table.primaryPetId, table.applicantUserId)
+      .where(
+        sql`${table.status} IN ('open', 'escalated') AND ${table.caseKind} = 'adoption_application'`,
+      ),
+    openByOwnerPetIdx: index("cases_open_by_owner_pet_idx")
+      .on(table.primaryPetId)
+      .where(sql`${table.status} IN ('open', 'escalated')`),
+    // CHECK constraints also declared via ALTER in migration 0033.
+    casesSubjectPetConsistency: check(
+      "cases_subject_pet_consistency",
+      sql`(${table.primarySubjectKind} = 'registered_pet') = (${table.primaryPetId} is not null)`,
+    ),
+    casesSubjectLocationConsistency: check(
+      "cases_subject_location_consistency",
+      sql`(${table.primarySubjectKind} = 'location') = (${table.primaryLocationLat} is not null and ${table.primaryLocationLng} is not null)`,
+    ),
+    casesMergedConsistency: check(
+      "cases_merged_consistency",
+      sql`(${table.status} = 'merged') = (${table.supersededByCaseId} is not null and ${table.closedReason} = 'merged')`,
+    ),
+    casesClosedConsistency: check(
+      "cases_closed_consistency",
+      sql`(${table.status} in ('closed', 'merged')) = (${table.closedAt} is not null)`,
+    ),
+    casesOpenedReasonMinLength: check(
+      "cases_opened_reason_min_length",
+      sql`${table.openedReason} is null or length(${table.openedReason}) >= 10`,
     ),
   }),
 );
