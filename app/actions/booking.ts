@@ -22,7 +22,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { appointments, db, notifications, ownerships, serviceOfferings, timeSlots } from "@/db";
+import { appointments, db, notifications, ownerships, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { generateAppointmentToken } from "@/lib/publicToken";
 
@@ -284,25 +284,6 @@ export async function cancelAppointmentByOwnerAction(
           severity: "info",
           ctaLabel: "Ver agenda",
           ctaUrl: "/org/agenda",
-        });
-      }
-    } else {
-      // Independent vet path — notify the vet provider directly.
-      const [offering] = await tx
-        .select({ providerUserId: serviceOfferings.providerUserId })
-        .from(serviceOfferings)
-        .where(eq(serviceOfferings.id, row.serviceOfferingId))
-        .limit(1);
-
-      if (offering?.providerUserId) {
-        await tx.insert(notifications).values({
-          userId: offering.providerUserId,
-          notificationType: "appointment_cancelled_by_owner",
-          title: "Turno cancelado por el propietario",
-          body: "Un propietario canceló su turno reservado.",
-          severity: "info",
-          ctaLabel: "Ver agenda",
-          ctaUrl: "/pro/agenda",
         });
       }
     }

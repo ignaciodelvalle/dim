@@ -7,7 +7,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole, safeReturnTo } from "@/lib/role-landing";
+import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -96,6 +96,10 @@ export async function loginAction(
   const role = profile?.role ?? "owner";
   if (returnTo && role !== "admin" && role !== "govt") redirect(returnTo);
 
+  if (role === "vet") {
+    redirect(await resolveVetLanding(userId));
+  }
+
   // For owners: check whether they hold an active admin membership in any org
   // so we can drop them directly into the org portal.
   let hasOrgAdminMembership = false;
@@ -114,7 +118,7 @@ export async function loginAction(
     hasOrgAdminMembership = !!membership;
   }
 
-  redirect(pathForRole(role, hasOrgAdminMembership));
+  redirect(pathForRole(role, { hasOrgAdminMembership }));
 }
 
 // @no-auth-required: logout invalidates whatever session exists (or none).

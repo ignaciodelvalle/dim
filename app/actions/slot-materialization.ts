@@ -16,7 +16,6 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
-import { requireUserOrRedirect, requireVetProviderOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { materializeSlotsForRule } from "@/lib/slot-materialization";
 
@@ -136,25 +135,19 @@ export type MaterializeNowResult =
   | { error: string };
 
 /**
- * Server action wired to the "Materializar ahora" button on both agenda pages.
+ * Server action wired to the "Materializar ahora" button on org agenda pages.
  *
- * Authorization:
- *   - Org offerings: requireCapability('service_offering.create') + offering must
- *     belong to the org.
- *   - Independent-vet offerings: requireVetProviderOrRedirect + offering.provider_user_id
- *     must match the authenticated user.
+ * Authorization: requireCapability('service_offering.create') + offering must
+ * belong to the org.
  */
 export async function materializeOfferingNowAction(
   offeringToken: string,
 ): Promise<MaterializeNowResult> {
-  // Load the offering by token first.
   const [offering] = await db
     .select({
       id: serviceOfferings.id,
       organizationId: serviceOfferings.organizationId,
-      providerUserId: serviceOfferings.providerUserId,
       status: serviceOfferings.status,
-      publicToken: serviceOfferings.publicToken,
     })
     .from(serviceOfferings)
     .where(eq(serviceOfferings.publicToken, offeringToken))
@@ -164,30 +157,17 @@ export async function materializeOfferingNowAction(
   if (offering.status !== "approved") {
     return { error: "Solo se pueden materializar turnos para servicios aprobados." };
   }
+  if (!offering.organizationId) return { error: "Proveedor del servicio no reconocido." };
 
-  // Authorize based on provider type.
-  if (offering.organizationId) {
-    // Org-owned offering: check capability.
-    const auth = await requireCapability("service_offering.create", offering.organizationId);
-    if (auth.error !== null) return { error: auth.error };
-    if (auth.organization?.id !== offering.organizationId) {
-      return { error: "No tenés permiso para materializar turnos de este servicio." };
-    }
-  } else if (offering.providerUserId) {
-    // Vet-owned offering: check actor identity.
-    const { user } = await requireVetProviderOrRedirect();
-    if (user.id !== offering.providerUserId) {
-      return { error: "No tenés permiso para materializar turnos de este servicio." };
-    }
-  } else {
-    return { error: "Proveedor del servicio no reconocido." };
+  const auth = await requireCapability("service_offering.create", offering.organizationId);
+  if (auth.error !== null) return { error: auth.error };
+  if (auth.organization?.id !== offering.organizationId) {
+    return { error: "No tenés permiso para materializar turnos de este servicio." };
   }
 
   try {
     const result = await materializeSlotsForOffering(offering.id);
-    // Revalidate the agenda page so the UI reflects the new slots.
-    revalidatePath(`/org/[orgToken]/servicios/${offeringToken}/agenda`);
-    revalidatePath(`/pro/servicios/${offeringToken}/agenda`);
+    revalidatePath(`/org/${auth.organization.publicToken}/servicios/${offeringToken}/agenda`);
     return result;
   } catch (err) {
     return {

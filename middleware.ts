@@ -9,6 +9,15 @@ import { type NextRequest, NextResponse } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Permanent redirect: /pro/* → /cuenta/memberships.
+  // The /pro portal has been removed; vets now operate through /org/[orgToken].
+  // This catches browser bookmarks and external links for 30-day grace.
+  if (pathname === "/pro" || pathname.startsWith("/pro/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/cuenta/memberships";
+    return NextResponse.redirect(url, { status: 308 });
+  }
+
   // Permanent redirect: legacy /refugio/* → /org (the org picker).
   // We send the user to /org rather than attempting to reconstruct an
   // org-scoped URL because we don't have the orgToken in the old paths.

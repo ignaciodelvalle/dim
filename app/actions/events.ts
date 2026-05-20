@@ -23,7 +23,7 @@ import {
   reminders,
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { requireVetProviderOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { signalAuthorityReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { findDisease, isReportable } from "@/lib/diseases";
@@ -2171,7 +2171,7 @@ export async function createSymptomObservedAction(
 // Lets a verified vet log a confirmed (or strongly-suspected) reportable
 // disease diagnosis on ANY pet — not only their own patients. The action:
 //
-//   1. Validates the vet has matriculaVerified=true (via requireVetProviderOrRedirect).
+//   1. Validates the vet has role='vet' and matriculaVerified=true.
 //   2. Resolves the pet by publicToken (no ownership check — the vet can
 //      diagnose any pet; cross-pet privacy is bounded by what the vet
 //      already needs to know to write the row).
@@ -2351,7 +2351,20 @@ export async function recordDiseaseDiagnosisAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const session = await requireVetProviderOrRedirect();
+  const { user } = await requireUserOrRedirect();
+  const [vetProfile] = await db
+    .select({
+      role: profiles.role,
+      matriculaVerified: profiles.matriculaVerified,
+      displayName: profiles.displayName,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+  if (!vetProfile || vetProfile.role !== "vet" || !vetProfile.matriculaVerified) {
+    return { error: "Solo veterinarios con matrícula verificada pueden registrar diagnósticos." };
+  }
+  const session = { user, profile: vetProfile };
 
   const diseaseCode = String(formData.get("diseaseCode") ?? "").trim();
   const confirmedByLab = formData.get("confirmedByLab") === "on";
@@ -2396,7 +2409,6 @@ export async function recordDiseaseDiagnosisAction(
   if (!result.ok) {
     return { error: `No se pudo registrar el diagnóstico: ${result.error}` };
   }
-  revalidatePath("/pro");
   return { error: null };
 }
 
