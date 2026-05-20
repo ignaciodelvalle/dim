@@ -4,10 +4,10 @@
 >
 > **Fecha:** 2026-05-18
 > **Owner:** Ignacio Del Valle
-> **Estado:** ready for review, no code yet
-> **Versión:** 1.2 — explicitar que el listing nunca se pausa por tener postulaciones en curso (D15), agregar el comportamiento de las otras pending al `adoption_finalized` (auto-rejection), y documentar que el adoptante nunca ve a sus "competencia". Reemplaza v1.1.
+> **Estado:** 🟢 Ready for CC
+> **Versión:** 1.4 — consent + history sharing del postulante con el refugio. Agrega D22 que introduce un consent checkbox obligatorio en el form "Postularme" (`profile_sharing_consent_at` en `adoption_applications`), una vista nueva "Historial del postulante en MiMAR" accesible al refugio SOLO mientras la application está abierta (scope-bound vía RLS), y políticas RLS adicionales sobre `pets` y `ownerships` que abren acceso read-only del refugio a las mascotas-del-postulante durante el review. Materializa la idea: el postulante acepta compartir su trayectoria para que el refugio tome mejor decisión. Sin esto, el refugio decidía a ciegas o pedía info ad-hoc fuera del sistema.
 >
-> **Versiones previas:** 1.1 — "Postularme" (no "Reservar"), bucket de edad granular de 5 niveles. 1.0 — diseño inicial.
+> **Versiones previas:** 1.3 — cross-spec consistency guards (D18-D21). 1.2 — el listing nunca se pausa por tener postulaciones en curso (D15), auto-rejection de pending al `adoption_finalized` (D16), adoptante nunca ve a su "competencia" (D17). 1.1 — "Postularme" (no "Reservar"), bucket de edad granular de 5 niveles. 1.0 — diseño inicial.
 
 ---
 
@@ -62,6 +62,11 @@ Este doc cierra esos seis huecos. Schema mínimo (un alter sobre `pets`, una col
 | D15 | **El listing NUNCA se pausa automáticamente por tener postulaciones en curso.** Aunque haya 1, 5 o 50 `adoption_application_submitted` pending para el mismo pet, la mascota sigue visible en `/adoptar` y aceptando nuevas postulaciones. El refugio puede avanzar con 1 o varias en paralelo (review, visita, evaluación) y eventualmente otorga la adopción a 1 solo (`adoption_finalized`). El listing sale del feed **únicamente** cuando: (a) el current ownership deja de ser `shelter_custody`, o (b) el refugio toca explícitamente "Despublicar / Pausar" en `/org/[orgToken]/mascotas/{petToken}` (D3) | Refleja la realidad operativa del refugio responsable: no hay "primer postulante gana", el matching mutuo necesita pool de candidatos. Esconder el pet al primer apply nos pondría en la trampa de first-come-first-served (lo opuesto a D7). Cerrar la lista cuando "todavía no decidimos" reduce las opciones del refugio sin razón válida |
 | D16 | **Al `adoption_finalized`, las otras postulaciones pending para ese mismo pet se cierran automáticamente con `adoption_application_rejected` y reason `another_application_finalized`.** Es parte del Flow 7 transaccional, no del listing per se | Si no las cerramos, quedan zombies con el adoptante esperando respuesta para siempre. Notificación clara al postulante: "Otra postulación para {pet.name} fue finalizada. Sabemos que es decepcionante; {Refugio} tiene otras mascotas en adopción en MiMAR." con link a `/adoptar?org={orgToken}`. Cerrar **explícitamente** preserva audit trail y es menos cruel que ghosting |
 | D17 | **El postulante NUNCA ve cuántas otras postulaciones hay para el mismo pet.** Ni count, ni nombres, ni indicación de posición en cola | Mostrar competencia genera urgencia falsa, presiona a postular impulsivamente y va contra el espíritu de adopción responsable. Cada postulante ve solo su propio estado. El refugio sí ve la lista completa internamente |
+| D18 | **`pets.status='lost'` excluye del listing.** Si una pet listada se escapa del refugio (real, pasa), el WHERE del query la filtra automáticamente. El refugio NO tiene que despublicarla manualmente — vuelve sola al listing cuando emite `status_changed: lost → home` post-recuperación | Coherencia operativa: un pet perdido no está disponible para adopción. Y el listing mostrando "Conocé a Negrita" con foto cuando Negrita está perdida es contradictorio y crea expectations rotas. La exclusión es automática vía WHERE — sin acción del refugio, sin riesgo de olvido |
+| D19 | **`pets.adoption_eligible=false` excluye del listing** (cross-spec con foster-volunteers v1.4 D14). Además, `setAdoptionListingStatusAction` (toggle Publicar/Pausar de §12 Fase 2) valida que `adoption_eligible=true` antes de permitir publicación. Si está `false` o `NULL`, error: "Esta mascota no está apta para adopción todavía. Marcala apta primero en /org/[orgToken]/mascotas/[petToken]." | Cross-consistency con el spec de foster-volunteers v1.4 que define el flag de eligibility como gate operativo del refugio (medical_treatment / quarantine / legal_hold / etc.). Sin este guard, el refugio podría tocar "Publicar" sobre un pet en cuarentena por parvo y aparecería en `/adoptar` — riesgo sanitario + violación de la decisión del propio refugio. Doble guard (DB filter + server validation) defensive |
+| D20 | **`pets.in_custody_dispute=true` excluye del listing** (cross-spec con event-catalog-cleanup + custody disputes Fase 10 del admin). Una pet en disputa de titularidad está bloqueada para transfer/adopción por decisión del cleanup plan. El listing la oculta automáticamente; cuando la dispute se resuelve (status='resolved' o 'withdrawn' del `custody_disputes` table → flag baja a `false`), el pet vuelve al listing si seguía con `adoption_listed_at` set | Lógica: no podés adoptar lo que no se sabe de quién es legalmente. El refugio que tiene el pet en custodia mientras la dispute corre no puede ofrecerla en adopción hasta que se resuelva. Misma exclusión defensive automática vía WHERE — sin acción manual del refugio |
+| D21 | **`pets.rabies_observation_status='active'` excluye del listing** (cross-spec con bite-rabies-observation spec). Pet en cuarentena de observación 10 días post-mordedura (Decreto 4669/1973 PBA + Ord. CABA 41.831/1987) NO debe aparecer en listing público — riesgo sanitario + obligación legal del refugio de mantenerla aislada. Cuando la observación cierra negativa (cron auto-close o veterinario), el flag baja y el pet vuelve al listing si seguía con `adoption_listed_at` set | Idem D20: la cuarentena sanitaria es un estado temporal que bloquea muchas cosas, incluyendo aparición pública. La exclusión automática evita que el refugio tenga que recordar despausar/republicar manualmente |
+| D22 | **Consent obligatorio de compartir historial + ventana de acceso scope-bound al refugio.** Al postularse, el visitante debe tildar un checkbox: *"Acepto compartir con [refugio name] mi historial de adopciones, fosters y mascotas registradas en MiMAR para esta postulación. El refugio solo accederá mientras mi postulación esté abierta."* Sin tilde → el form no submitea (CHECK constraint también en DB defensive). Se persiste `adoption_applications.profile_sharing_consent_at` (timestamp). RLS sobre `pets`, `ownerships` y `pet_events` se extiende: el refugio de la org receptora de una `adoption_application open` con consent active puede READ las pets del applicant + sus ownerships + eventos non-sensitive (libreta sanitaria del applicant pet, ownership history). NO puede ver: notificaciones, otras applications del applicant a OTRAS listings, denuncias welfare en las que el applicant sea reporter. Cuando la application cierra (resolved / cancelled / cascade), el acceso revoca instantáneamente vía la cláusula RLS basada en `cases.status`. **Habilita** la nueva vista "Historial del postulante en MiMAR" en el detail de la application en el org portal (§13.3 nueva sub-sección) | El refugio que recibe N postulaciones a una pet hoy decide casi a ciegas: ve `housing_type`, `other_pets`, `daily_routine`, `notes` del form, y nada más. Saber si el postulante ya adoptó antes (y cómo le fue: checkins post-adopción regulares? adoption_reversed?) es señal de fondo. El consent explícito + scope temporal + RLS hard la implementan limpio. Por defecto OFF en el form (la persona lo tilda activamente), nunca on hidden. Compatible con Ley 25.326 (consent informado, propósito específico, ventana temporal acotada) |
 
 ## 3. Glosario
 
@@ -155,10 +160,15 @@ create index pets_adoption_listing_idx
   on pets (adoption_listed_at desc, id desc)
   where adoption_listed_at is not null
     and adoption_listing_paused_at is null
-    and status != 'deceased';
+    and status not in ('deceased', 'lost')                -- D18
+    and (adoption_eligible is null or adoption_eligible = true)  -- D19 (null tolerado en index para no excluir pets pre-eligibility-feature; el query del listing fuerza true)
+    and (in_custody_dispute is null or in_custody_dispute = false)  -- D20
+    and (rabies_observation_status is null or rabies_observation_status != 'active');  -- D21
 ```
 
-Partial index — solo cubre filas listables. Para el orden de paginación keyset.
+Partial index — solo cubre filas listables tras los 4 guards cross-spec. Para el orden de paginación keyset.
+
+**Nota sobre nullability de las columnas cross-spec**: este spec se redacta antes de que las migraciones de foster-volunteers v1.4 (`pets.adoption_eligible`), event-catalog-cleanup (`pets.in_custody_dispute`) y bite-rabies-observation (`pets.rabies_observation_status`) hayan aplicado. El partial index tolera `IS NULL` en cada columna para que el index siga funcionando si alguno de esos specs no se ha aplicado todavía. El query del listing (§5) usa la forma estricta (`= true` / `!= 'active'`) ignorando NULL, lo cual es el comportamiento correcto post-aplicación de todos los specs. Si CC corre estas migraciones en orden distinto, el index sigue válido pero hasta que las columnas existan habrá que aplicar la migración del adoption-listing al final.
 
 ### 4.3 Nada cambia en `organizations`
 
@@ -212,7 +222,17 @@ export async function queryAdoptionListing(
   const baseConditions = [
     isNotNull(pets.adoptionListedAt),
     isNull(pets.adoptionListingPausedAt),
-    ne(pets.status, "deceased"),
+    // D18: excluye status terminal o no-disponible
+    notInArray(pets.status, ["deceased", "lost"]),
+    // D19: cross-spec con foster-volunteers v1.4 — solo aptas para adopción
+    eq(pets.adoptionEligible, true),
+    // D20: cross-spec con custody-disputes (event-catalog-cleanup / admin Fase 10)
+    or(isNull(pets.inCustodyDispute), eq(pets.inCustodyDispute, false)),
+    // D21: cross-spec con bite-rabies-observation — excluye cuarentena activa
+    or(
+      isNull(pets.rabiesObservationStatus),
+      ne(pets.rabiesObservationStatus, "active"),
+    ),
     isNull(ownerships.endedAt),
     eq(ownerships.role, "shelter_custody"),
     eq(organizations.verified, true),
@@ -603,6 +623,12 @@ T+1M Reminder de check-in mes 1 dispara, Pilar emite post_adoption_checkin.
 - Form con textarea para story + requirements + selects para buckets + tri-state checkboxes para good_with_*
 - **Nueva capability `adoption.listing.manage`** — agregarla al `Capability` union de `lib/org-permissions.ts` y a la matriz de `docs/org-portal-permissions.md`. Propuesta: `admin: yes`, `coordinator: yes`, `member: no`, `volunteer: no`, `foster: no`, `vet_individual: no` (mismas filas que `adoption.applications.*`).
 - No emite `pet_events` (es contenido de listing, no fact del pet)
+- **Server-side validations en `setAdoptionListingStatusAction` cuando action='publish' (D19, D20, D21)**:
+  - `pets.adoption_eligible = true` → si false/null, error claro con CTA a marcar apta (D19)
+  - `pets.in_custody_dispute = false` o null → si true, error "Esta mascota está en disputa de custodia. Resolvé la dispute antes de publicar." (D20)
+  - `pets.rabies_observation_status != 'active'` → si active, error "Esta mascota está en período de observación sanitaria. Esperá al cierre del período antes de publicar." (D21)
+  - `pets.status not in ('deceased', 'lost')` → si lost, error "Esta mascota está reportada como perdida. Marcala recuperada antes de publicar." Si deceased, error final (D18)
+- Mismas validations corren como pre-check al cargar el form de listing copy: si alguno de los 4 guards falla, el form muestra el motivo + CTA y el botón "Publicar" queda disabled. El refugio puede igual editar la story/requirements para tenerla lista cuando el pet califique
 
 **Fase 3 — Listing público + ficha individual (1 PR).**
 - `app/(public)/adoptar/page.tsx` con FiltersBar, ResultsHeader, listado de PetListingCard, "Mostrar más"
@@ -641,6 +667,210 @@ T+1M Reminder de check-in mes 1 dispara, Pilar emite post_adoption_checkin.
 
 Total: ~6-7 PRs chicos, ~1.5 semanas. Cada fase entregable de forma independiente — desde la 1 ya hay valor (helper testeado y schema lista), desde la 2 el refugio puede preparar contenido, desde la 3 el listing es navegable, desde la 5 cierra el loop, desde la 5.5 las cascadas son limpias.
 
+## 12.5 Addendum v1.4 — Consent + history sharing
+
+Materializa D22. Self-contained: schema delta + form field + RLS extension + nueva view org-side, todo en un solo lugar.
+
+### 12.5.1 Schema delta
+
+Cuando se cree la tabla `adoption_applications` (Fase 1 del plan de listing-public), incluir:
+
+```ts
+// db/schema.ts → adoptionApplications
+profileSharingConsentAt: timestamp('profile_sharing_consent_at', { withTimezone: true }).notNull(),
+// CHECK: required at INSERT time. No nullable; el server action lo setea con now()
+// si la checkbox del form viene marcada. Sin marcar → server action rechaza
+// con error "Consent obligatorio".
+```
+
+Migration SQL agrega CHECK defensive:
+
+```sql
+alter table adoption_applications
+  add constraint adoption_applications_consent_required
+  check (profile_sharing_consent_at is not null);
+```
+
+### 12.5.2 Form field — `/adoptar/{petToken}/postular`
+
+Agregar como último campo del form de §8.4, ANTES del botón "Enviar postulación":
+
+```
+[ ] Acepto compartir con Refugio Belgrano Animales mi historial de adopciones,
+    fosters y mascotas registradas en MiMAR para esta postulación. El refugio
+    solo accederá mientras mi postulación esté abierta y dejará de verlo en
+    cuanto la postulación cierre (sea aprobada, rechazada o cancelada).
+    [Más info sobre tu privacidad — Ley 25.326]
+
+[Enviar postulación]   ← deshabilitado hasta tildar el checkbox
+```
+
+El link "Más info sobre tu privacidad" abre modal con copy:
+
+> Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden compartirse con consentimiento informado y para un propósito específico.
+>
+> **Qué compartirías:** la lista de tus adopciones previas en MiMAR (con outcome — exitosa, revertida, etc.), tus fosters previos, tus mascotas registradas actualmente (species, sex, año aproximado de nacimiento, no nombre completo del veterinario ni medical detail). NO compartirías: tus notificaciones, otras postulaciones a OTRAS mascotas, denuncias de bienestar que hayas hecho, dirección exacta.
+>
+> **Por cuánto tiempo:** solo mientras tu postulación a [Negrita] esté abierta. Al cerrarse, el refugio pierde acceso inmediatamente.
+>
+> **Por qué te pedimos esto:** el refugio toma mejor decisión con contexto. Una persona con buena trayectoria de adopciones previas (checkins regulares, sin reversiones) tiene más probabilidad de ser elegida. Sin el consent, el refugio decide solo con lo que escribís acá.
+
+UI behaviour:
+- Checkbox unchecked por default — el usuario lo tilda activamente.
+- Submit button disabled hasta tildar.
+- Mensaje del checkbox y modal en es-AR.
+- Idempotente al re-render del form (recordá el state via `useState`).
+
+### 12.5.3 Server action — `submitAdoptionApplicationAction`
+
+Extender el flow de §8.4#3:
+
+3. Validar `payload.profile_sharing_consent === true`. Si no, error 400 con copy "Consent obligatorio".
+4. Insertar `adoption_applications` con `profile_sharing_consent_at = new Date()`.
+5. (Resto del flow igual: emitir event, notificar al refugio, etc.)
+
+### 12.5.4 Vista nueva org-side — "Historial del postulante en MiMAR"
+
+Ubicación: dentro del detail de la application en `/org/{orgToken}/adopciones/{applicationId}`. Card colapsado que se expande on click ("Ver historial del postulante en MiMAR →").
+
+Mock:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Historial de Juan Pérez (juan@ejemplo.com) en MiMAR          │
+│                                                              │
+│ ╶─ Mascotas actuales ─╴                                      │
+│   🐕 Negrita (perro, hembra, ~2018) — actual desde 2024-03   │
+│   🐈 Luna (gato, hembra, ~2020) — actual desde 2022-08       │
+│                                                              │
+│ ╶─ Adopciones previas ─╴                                     │
+│   2024-03  Refugio Patitas Vagabundas  → Negrita             │
+│            ✓ Adopción completada · 12 checkins en seguimiento│
+│   2022-08  Refugio Otro                → Luna                │
+│            ✓ Adopción completada                             │
+│                                                              │
+│ ╶─ Fosters previos ─╴                                        │
+│   2023-06 → 2023-09  Refugio Tres Patas  · 3 pets            │
+│            ✓ Todos terminados a adopción/return ok           │
+│                                                              │
+│ ╶─ Postulaciones previas (a esta organización) ─╴            │
+│   2024-01  → Manchas  · rechazada (motivo: housing_size)     │
+│                                                              │
+│ ⓘ Tu acceso a este historial cierra cuando esta postulación  │
+│   se cierre. Hoy: visible.                                   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Lo que NO se muestra**:
+- Notificaciones del applicant
+- Postulaciones a otras orgs (sí postulaciones previas a ESTA org como contexto)
+- Denuncias welfare en las que el applicant figure como reporter
+- Medical detail de las mascotas (nombre del vet, medicamentos específicos)
+- Dirección exacta, DNI, teléfono salvo email (que viene del form)
+
+### 12.5.5 RLS extensions
+
+Sobre `pets`, `ownerships`, `pet_events`:
+
+```sql
+-- pets: org receptora de adoption_application open con consent active read
+-- los pets del applicant
+create policy pets_select_visible_to_active_applicant_review on pets for select
+  using (
+    exists (
+      select 1
+      from ownerships o
+      inner join adoption_applications app
+        on app.applicant_user_id = o.owner_user_id
+       and app.profile_sharing_consent_at is not null
+      inner join cases c
+        on c.adoption_application_id = app.id
+       and c.status in ('open', 'escalated')
+      inner join organization_memberships m
+        on m.organization_id = c.opened_by_organization_id
+       and m.user_id = auth.uid()
+       and m.left_at is null
+      where o.pet_id = pets.id
+        and o.role = 'owner'
+        and o.ended_at is null
+    )
+  );
+
+-- ownerships: idem chain
+create policy ownerships_select_visible_to_active_applicant_review on ownerships for select
+  using (
+    exists (
+      select 1
+      from adoption_applications app
+      inner join cases c on c.adoption_application_id = app.id
+      inner join organization_memberships m on m.organization_id = c.opened_by_organization_id
+      where app.applicant_user_id = ownerships.owner_user_id
+        and app.profile_sharing_consent_at is not null
+        and c.status in ('open', 'escalated')
+        and m.user_id = auth.uid()
+        and m.left_at is null
+    )
+  );
+
+-- pet_events: limitado a tipos non-sensitive (libreta sanitaria + ownership audit, NO welfare denuncias bridge events)
+create policy pet_events_select_visible_to_active_applicant_review on pet_events for select
+  using (
+    pet_events.event_type in (
+      'pet_registered', 'pet_profile_updated',
+      'vaccination_administered', 'deworming_administered', 'sterilization_performed',
+      'vet_visit_logged', 'weight_recorded',
+      'post_adoption_checkin',
+      -- adoption_application_* del applicant a la MISMA org (contexto histórico interno)
+      'adoption_application_submitted', 'adoption_application_resolved',
+      'adoption_finalized', 'adoption_reversed',
+      'foster_assigned', 'foster_ended'
+      -- NOT: maltreatment_reported, abandonment_reported, symptom_observed, custody_dispute_*
+    )
+    and exists (
+      select 1
+      from ownerships o
+      inner join adoption_applications app on app.applicant_user_id = o.owner_user_id
+      inner join cases c on c.adoption_application_id = app.id
+      inner join organization_memberships m on m.organization_id = c.opened_by_organization_id
+      where o.pet_id = pet_events.pet_id
+        and o.role = 'owner'
+        and o.ended_at is null
+        and app.profile_sharing_consent_at is not null
+        and c.status in ('open', 'escalated')
+        and m.user_id = auth.uid()
+        and m.left_at is null
+    )
+  );
+```
+
+**Reverse**: cuando `cases.status` se flippea a `closed`/`merged` (resolved, cancelled, cascade rejected), la sub-query interna devuelve false → acceso revoca automáticamente sin necesidad de cleanup explícito. Mismo patrón scope-bound que welfare denuncias.
+
+### 12.5.6 Tests (extender la batería del plan de listing-public)
+
+```ts
+// __tests__/adoption-application-consent.test.ts
+it('form sin consent → submit rechazado con error claro');
+it('form con consent → INSERT exitoso, profile_sharing_consent_at populated');
+
+// __tests__/adoption-application-history-rls.test.ts
+it('org members ven historial del applicant mientras app open');
+it('org members PIERDEN visibilidad cuando app cierra (resolved)');
+it('org members PIERDEN visibilidad cuando app cierra (cascade rejected)');
+it('org members NO ven welfare denuncias del applicant ni en app abierta');
+it('user que NO es org member NO ve historial');
+it('applicant NO ve "el refugio te está mirando" — no signal del access');
+```
+
+### 12.5.7 Dependencias
+
+Esta v1.4 requiere el **sistema de casos implementado** (`plans/2026-05-19-cases-system.md`) porque las RLS extensions del §12.5.5 chainean por `cases.adoption_application_id` y `cases.status`. Orden:
+
+1. Implementar listing-public Fase 1-2 (schema base).
+2. Implementar sistema de casos (Fases A-F).
+3. Implementar listing-public Fase 3+ + agregar el v1.4 addendum (form field + RLS + view org-side).
+
+Si urge shipear listing-public ANTES del sistema de casos, el v1.4 addendum se pospone — listing-public v1.3 sigue siendo functional sin consent + history (decisión del Producto: hay valor en shipear v1.3 sin v1.4).
+
 ## 13. Lo que NO está en este diseño
 
 - **Recommendations / matching algorítmico.** Listing es plano + filtros. Sin "mascotas para vos basadas en tu perfil". El refugio es el que matchea, no el sistema.
@@ -670,7 +900,7 @@ Decisiones cerradas en la review:
 - ✅ **Sin "reserva".** El botón es "Postularme para adoptar a {name}". La palabra "reservar" no aparece en copy de UI, label de botón, ni en notifications. Múltiples postulaciones simultáneas son normales — el refugio elige (D7 v1.1).
 - ✅ **Cinco buckets de edad granulares** (`puppy | junior | young | adult | senior`). Mapping a labels es-AR en §4.2.
 
-Preguntas abiertas que quedaron sin tocar y conviene cerrar antes de los planes:
+Open questions cerradas en v1.3:
 
-- **Pausa preserva listing copy** (D3) o pausa borra y al republicar el refugio tipea de nuevo. Mi voto: preserva (menos fricción para el refugio). Confirmá o cambialo.
-- **JWT del apply intent expira a 15 min** (D6). Razonable para signup flow rápido. Si pensás que un usuario podría tardar más legítimamente (verificar email, recuperar password, etc.), lo subimos a 30 o 60.
+- ✅ **Pausa preserva listing copy** (D3 confirmado). Menos fricción para el refugio: pausa = hide del listing, conserva story/requirements/buckets intactos. Unpause = poner `adoption_listing_paused_at = NULL` y el contenido sigue.
+- ✅ **JWT del apply intent expira a 15 min** (D6 confirmado). Razonable para signup flow rápido. Si emerge demanda de timeout más largo (verificar email, recuperar password, etc.) se sube en una iteración futura sin breaking change.

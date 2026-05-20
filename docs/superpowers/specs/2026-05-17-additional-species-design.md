@@ -46,6 +46,269 @@ Behavior:
 
 `lib/format.ts` `speciesLabel` adds three new cases (`rabbit → "Conejo"`, `guinea_pig → "Cobayo"`, `ferret → "Hurón"`) so every read site renders the right Spanish label without any other change.
 
+## Permanent conditions ("Condición permanente")
+
+Owners frequently identify their pet by a permanent condition before they identify it by breed: *"el gato ciego", "la perra de tres patas", "el conejo sordo"*. Today DIM has no first-class field for this; owners type it into `distinguishing_features` (free text) and the data is unsearchable. The conversational event agent has the same problem: when the user says "mi perra que no escucha bien", the agent can't match the pet by anything other than name + fuzzy text.
+
+This iteration adds a structured, multi-select list of permanent conditions to the pet record. The list is intentionally short, functional (what the animal *can't* do), and worded the way an owner would say it — not a clinical diagnosis.
+
+### Why "permanente" matters as a separate concept
+
+DIM already models three adjacent things that are NOT this:
+
+- **`pet_events` of type `disease_diagnosed`** — an acute or chronic clinical diagnosis with onset, treatment and remission. This is a *clinical* axis: who diagnosed it, when, what therapy. Many diseases resolve.
+- **`acceptsChronicConditions` (foster volunteers) / `hasChronic` (pets in foster-matching)** — opaque boolean used to gate matching. Says "this pet is high-maintenance" without saying what's wrong.
+- **`service_dog` block (Ley 26.858)** — describes the *human's* disability indirectly. The dog is healthy; the credential is the asset.
+
+The new field describes a **permanent functional state of the animal itself** (sensory loss, missing limb, paralysis, viral status that doesn't clear). It is durable — owners do not "cure" their pet's deafness — and it is exactly the axis the owner uses to describe the animal in conversation.
+
+### Legal framework — what regulates this in Argentina
+
+Short answer: **nothing directly**. Long answer, recorded here for the same reason the species section recorded its legal scaffolding:
+
+- **Ley 14.346 (1954) — malos tratos.** Protects the animal generically. Doesn't enumerate conditions, but reinforces that *abandoning a pet because it became disabled* is an actionable maltrato. The presence of the field in DIM is a quiet adoption-incentive lever (shelters can filter `permanent_conditions IS NOT NULL` and surface special-needs pets).
+- **Proyecto Ley de Bienestar Animal — Bs As Legislatura 210182** + national projects. Expand Ley 14.346 with the *cinco libertades* (FAWC 1979): libre de hambre y sed, de disconfort, de dolor/lesión/enfermedad, de miedo y angustia, libre para expresar comportamiento normal. None of the in-trámite drafts enumerates a disability taxonomy; if any are sanctioned, our list is the natural place to map their language. Not binding today.
+- **SENASA — Auto-Gestión Mascotas** (`mascotas.senasa.gob.ar`). Captures `Especie / Raza / Edad / Sexo / Condición: Entero-Castrado / Peso / Microchip`. The word "Condición" there is *reproductive* status — entero vs. castrado — **not** disability. No SENASA registry of permanent conditions exists today. If SENASA ever extends, our list will need to map onto theirs.
+- **Ley 25.326 — PDP, Art. 7 (datos sensibles).** Esto sí es vinculante. *Los datos de salud son sensibles.* La salud del animal no es dato sensible del animal (los animales no son sujetos de la ley) pero **revelar condiciones permanentes específicas en la credencial pública puede inferir información del titular** (un dueño de perro guía con CUD es lectura directa; un dueño que sólo adopta animales seropositivos también revela posicionamiento personal). Tratamiento: el campo es **Tier 1 por defecto** — visible al dueño y a profesionales autorizados, **NO** visible en `/p/[publicToken]` salvo opt-in explícito por condición. Mismo patrón que `service_dog.public_visibility`.
+- **Ley 26.858 + Decreto 792/2019.** Tangencial: la sección service-dog ya define un perfil con condiciones higiénico-sanitarias. La lista de "condición permanente" del animal NO se solapa con la discapacidad del titular — son ejes distintos. Documentado acá para que el día de mañana no se mezclen.
+
+No hay base de datos pública nacional ni provincial que enumere taxonomía de discapacidades animales. La elección de items abajo se basa en la práctica clínica veterinaria estándar y en los formularios de refugios (special-needs adoption forms).
+
+### The list (v1)
+
+Each item has a stable code (used in `permanent_conditions` array on `pets` and in `pet_registered` payload), an es-AR owner-facing label, and the species it can apply to. The form is multi-select; an animal can be `ciego` *and* `sordo` *and* `tres_patas` simultaneously — common combination after trauma.
+
+| Code | Label (es-AR) | Applies to | Notes |
+|---|---|---|---|
+| `ciego` | Ciego (no ve) | all | Bilateral total. Use `vision_reducida` for partial. |
+| `vision_reducida` | Visión reducida (ve poco) | all | Catarata, glaucoma, atrofia. |
+| `sordo` | Sordo (no oye) | all | Bilateral total. Use `audicion_reducida` for partial. |
+| `audicion_reducida` | Audición reducida | all | |
+| `tres_patas` | Le falta una pata | all | Amputación, generic. |
+| `miembro_no_funcional` | Tiene un miembro que no usa | all | Parálisis localizada, lesión nerviosa, malformación congénita — la pata está pero no la usa. |
+| `paralisis_posterior` | Parálisis del tren posterior | dog, cat, rabbit, guinea_pig, ferret | Megacolon felino, mielopatía, post-trauma. Suele acompañarse de carrito. |
+| `usa_carrito` | Usa silla / carrito | dog, cat, rabbit, ferret | UI hint — derivable de parálisis pero útil declararlo explícito. |
+| `incontinencia_urinaria` | Incontinencia urinaria | dog, cat, rabbit, ferret | |
+| `incontinencia_fecal` | Incontinencia fecal | dog, cat, rabbit, ferret | |
+| `epilepsia` | Epilepsia | dog, cat, ferret | Manejada con medicación de por vida — durable, no episódica. |
+| `diabetes` | Diabetes | dog, cat, ferret | Insulino-dependiente de por vida. |
+| `fiv_positivo` | FIV positivo | cat | "Sida felino". Vive bien con manejo. |
+| `felv_positivo` | FeLV positivo | cat | Leucemia felina. |
+| `cardiopatia` | Cardiopatía crónica | dog, cat, ferret | Cualquier patología cardíaca diagnosticada que requiera manejo de por vida. |
+| `cognitiva` | Deterioro cognitivo (CDS) | dog, cat | Disfunción cognitiva canina/felina senior. |
+| `otra` | Otra condición permanente | all | Free-text en `permanent_conditions_other`. |
+
+Picking `otra` reveals a free-text input — same pattern as `acquisition_method = "other"`.
+
+### Datamodel changes
+
+```ts
+// db/schema.ts → pets table, new columns
+permanentConditions: text("permanent_conditions").array().notNull().default(sql`'{}'::text[]`),
+permanentConditionsOther: text("permanent_conditions_other"),
+// Privacy posture for the public credential. Mirrors the "discloseXWhenLost"
+// pattern. Defaults to false — Tier 1 by default per PDP Art. 7 reasoning above.
+discloseConditionsPublicly: boolean("disclose_conditions_publicly").notNull().default(false),
+```
+
+No new event type. Updates to permanent conditions flow through the existing `pet_profile_updated` event (already a `changes[]` array — the field name appears as `permanent_conditions`).
+
+Adding to `pet_registered` payload (event-schemas.ts):
+
+```ts
+permanent_conditions: z.array(z.string()),
+permanent_conditions_other: z.string().nullable(),
+```
+
+Both are validated against the catalog at write time in the action, not at the schema layer — same posture as `species` (free-text in DB, catalog-validated in app).
+
+### Catalog file
+
+New file `lib/permanent-conditions.ts`:
+
+```ts
+export type PermanentConditionCode =
+  | "ciego" | "vision_reducida" | "sordo" | "audicion_reducida"
+  | "tres_patas" | "miembro_no_funcional"
+  | "paralisis_posterior" | "usa_carrito"
+  | "incontinencia_urinaria" | "incontinencia_fecal"
+  | "epilepsia" | "diabetes"
+  | "fiv_positivo" | "felv_positivo"
+  | "cardiopatia" | "cognitiva"
+  | "otra";
+
+export type PermanentConditionDef = {
+  code: PermanentConditionCode;
+  label: string;
+  species: ReadonlyArray<string>; // ["*"] = all
+};
+
+export const PERMANENT_CONDITIONS: ReadonlyArray<PermanentConditionDef> = [
+  // ...as in the table above
+];
+
+export function permanentConditionsForSpecies(species: string): ReadonlyArray<PermanentConditionDef>;
+export function permanentConditionLabel(code: string): string;
+```
+
+`speciesLabel` lives in `lib/format.ts`; `permanentConditionLabel` mirrors that pattern.
+
+### UI
+
+In `PetForm.tsx`, below the existing `distinguishingFeatures` textarea, add a new fieldset:
+
+```
+Condición permanente (opcional, podés elegir varias):
+  [ ] Ciego
+  [ ] Sordo
+  [ ] Le falta una pata
+  [ ] Tiene un miembro que no usa
+  ...
+  [ ] Otra → [ free text ]
+```
+
+Items are filtered by `permanentConditionsForSpecies(formData.species)` so a cobayo doesn't see `fiv_positivo`. If species changes mid-form to one where a checked condition doesn't apply (e.g. user picked `fiv_positivo`, then switched species from `cat` to `dog`), the form silently drops the now-invalid codes on submit — same posture as breed when switching species.
+
+Below the list, a single privacy toggle:
+
+```
+[ ] Mostrar esta información en mi credencial pública (/p/...)
+    Por defecto la condición sólo es visible para vos y profesionales autorizados.
+```
+
+Maps to `discloseConditionsPublicly`.
+
+### Public credential
+
+When `discloseConditionsPublicly = true` AND the array is non-empty, render under the photo:
+
+> **Condición permanente:** Ciego, le falta una pata.
+
+No banner styling — plain inline text. We're describing the animal, not making a claim about access rights.
+
+When false, nothing renders. The field is still visible to the owner on `/mis-mascotas/[publicToken]` and to authorized professionals via the org portal.
+
+## How the pet is registered and described in the datamodel — for the Conversational event agent
+
+This section is here because the conversational event agent (see `AGENTS.md → Open questions / future work → "Conversational event-capture agent"` and the operational registry in `lib/event-agent-registry.ts`) needs an unambiguous answer to two questions every time the user opens it:
+
+1. **"What pet are we talking about?"** — disambiguation when the owner has more than one.
+2. **"What does the agent know about this pet so it can prefill the right slots?"** — i.e. which fields on the pet row are part of the agent's working memory.
+
+Both answers depend on the *shape* of the pet record, not on the event being captured. This section freezes that shape so the agent has a stable contract regardless of which species + condition combination the owner registers.
+
+### Where the pet lives
+
+The pet is a row in the `pets` table (`db/schema.ts`, ≈ line 360). The canonical handle the agent uses is `publicToken` (the short URL-safe token like `DIM-3K4F-9P2X`), **not** the UUID `id` — every deeplink built by `buildAgentDeeplink(eventType, publicToken, slots)` interpolates `publicToken` into the route. The UUID is internal.
+
+The registration event itself is `pet_registered` in `pet_events`, whose payload is validated by `petRegistered` in `lib/event-schemas.ts`. The payload mirrors the pets-row shape at registration time; subsequent owner edits flow through `pet_profile_updated` events (`changes[]` array of `{field, old, new}` records). The pet row is the *projection* of these events for the agent's purposes.
+
+### The fields the agent sees
+
+The agent should treat the following columns as its working set when describing or disambiguating a pet. Grouped by purpose. Field names below are the **camelCase Drizzle names**; the DB columns are snake_case (`speciesLabel` ↔ `species`).
+
+**Identity (used to find the right pet in conversation):**
+
+- `publicToken` — primary handle. Always present.
+- `name` — what the owner calls the pet. Always present.
+- `species` — `dog | cat | rabbit | guinea_pig | ferret | other`. After this iteration, the agent must accept all six values. Render via `speciesLabel()` in `lib/format.ts`.
+- `breed` — free text, nullable. Optional disambiguator.
+- `sex` — `male | female | unknown`.
+- `color` — free text, nullable. Disambiguator.
+- `dateOfBirth` + `birthDateIsEstimated` — for age inference. Agent computes age relative to *today*, not registration day.
+- `microchipId` + `microchipCountryCode` — fully qualified chip number. ISO 11784/11785 (15 digits, `microchipCountryCode` typically `858` for AR). Useful for "el chip de Luna" intent matching.
+
+**Description (used to describe the pet back to the user, and as context for slot prefill):**
+
+- `distinguishingFeatures` — free text. Lives alongside `permanentConditions` but is *appearance*, not *function* (markings, scars, coat).
+- `permanentConditions` — `text[]`, values from `PERMANENT_CONDITIONS` in `lib/permanent-conditions.ts`. **NEW THIS SPEC.** Render via `permanentConditionLabel()`. The agent uses these to (a) recognize when the owner says "mi perra ciega", (b) avoid suggesting incompatible events (e.g. don't propose "agregar entrenamiento avanzado" to an animal with `paralisis_posterior`).
+- `permanentConditionsOther` — free-text complement when the array contains `"otra"`. **NEW THIS SPEC.**
+- `estimatedWeightKg` — last reported weight. Cached projection of `weight_recorded` events. The agent prefills the `kg` slot of the weight form with this value when the user says "registrar pesaje" without giving a number.
+- `trainingLevel` — `none | basic | intermediate | advanced | professional`.
+- `favouriteFoods` / `knownAllergies` — free-text arrays. Agent should NOT autocomplete these from the catalog; they're owner-known facts.
+
+**Status (used to gate which events make sense to propose):**
+
+- `status` — `active | lost | deceased | transferred | …`. If `deceased`, agent refuses every event except read-only history.
+- `deceasedAt` — timestamp when `status = deceased`.
+- `inCustodyDispute` — boolean. Agent should warn the user and not propose transfers/adoption when true.
+- `rabiesObservationStatus` — non-null when a 10-day rabies observation is active. Agent surfaces this prominently.
+
+**Compliance flags (used for warnings, never for hiding):**
+
+- `potentiallyDangerousBreed` — boolean (PPP, Ley CABA 4078 / Bs As 14.107). Agent should remind on relevant events (microchip implant, insurance update) but never refuse.
+- `adoptionEligible` / `adoptionIneligibleReason` — for adoption-flow disambiguation. Out of scope for owner agent, in scope for org agent.
+
+**Privacy preferences (read-only for the agent; never a slot it prefills):**
+
+- `emergencyInfoVisible`
+- `discloseFirstNameWhenLost` / `disclosePhoneWhenLost` / `discloseEmailWhenLost` / `discloseLastLocationWhenLost` / `allowFinderFormWhenLost`
+- `discloseConditionsPublicly` — **NEW THIS SPEC.** Set via the owner-facing toggle in PetForm, never via the agent.
+
+The agent **must not** propose events that would flip privacy flags. Those are UI preferences, not events.
+
+### What the agent receives at conversation boot
+
+When the owner opens the agent on their pet (entry from `/mis-mascotas/[publicToken]/agente`, future surface), the server passes a `PetAgentContext` shaped exactly like the field list above. Concretely:
+
+```ts
+// lib/event-agent-registry.ts (extension this spec implies)
+export type PetAgentContext = {
+  // Identity
+  publicToken: string;
+  name: string;
+  species: "dog" | "cat" | "rabbit" | "guinea_pig" | "ferret" | "other";
+  speciesLabel: string;             // pre-resolved via lib/format.ts
+  breed: string | null;
+  sex: "male" | "female" | "unknown";
+  color: string | null;
+  ageYears: number | null;          // computed from dateOfBirth
+  birthDateIsEstimated: boolean;
+  microchipId: string | null;
+  microchipCountryCode: string | null;
+
+  // Description
+  distinguishingFeatures: string | null;
+  permanentConditions: ReadonlyArray<PermanentConditionCode>;
+  permanentConditionsOther: string | null;
+  permanentConditionsLabel: string; // pre-rendered "Ciego, le falta una pata"
+  estimatedWeightKg: string | null;
+  trainingLevel: string | null;
+  favouriteFoods: ReadonlyArray<string>;
+  knownAllergies: ReadonlyArray<string>;
+
+  // Status
+  status: string;
+  isDeceased: boolean;
+  inCustodyDispute: boolean;
+  rabiesObservationActive: boolean;
+
+  // Flags (warnings only)
+  potentiallyDangerousBreed: boolean;
+};
+```
+
+This shape is **not** a new event type. It is a server-rendered context object passed alongside the registry from a new helper (`buildPetAgentContext(petId)`). The registry stays the same; the context is what tells the agent *which pet* it is reasoning about so `buildAgentDeeplink` can be called with the right `publicToken`.
+
+Adding `permanentConditions` to the context is the deliverable that ties this spec to the agent's contract.
+
+### Disambiguation rule
+
+If the owner has more than one pet and refers to one ambiguously ("mi perra"), the agent disambiguates in this order, stopping at the first unique match:
+
+1. `name` (case-insensitive, normalized).
+2. `species`.
+3. `permanentConditions` (e.g. "mi gata ciega" → unique if only one cat has `"ciego"`).
+4. `breed`.
+5. `color`.
+6. Microchip last 4 digits if the user volunteered them.
+
+If still ambiguous, the agent asks. It does **not** guess.
+
+### Forward-compat note
+
+Two predictable next species (`ave_jaula`, `pez_ornamental`, `tortuga`) and any future condition (`obesidad_morbida`, `hipotiroidismo_cronico`) will plug into this shape without breaking the agent contract. The contract is the *names of the fields*, not their value sets. Add new species/condition codes to the catalogs; the agent inherits them for free.
+
 ## Out of scope (explicitly deferred)
 
 - **Breed catalogs** for the new species. Rabbits and cobayos do have breeds (Belier, Toy, Peruano, Abisinio…), but the breed field stays free-text for now. Hurones effectively have no breed.
@@ -64,10 +327,14 @@ Behavior:
 
 | File | Status | Role |
 |---|---|---|
-| `components/PetForm.tsx` | modified | Adds local state for sub-species. Renders the conditional second `<select>`. Resolves the final value passed in `formData.species`. |
-| `lib/format.ts` | modified | Adds three new cases to `speciesLabel`. |
+| `components/PetForm.tsx` | modified | Adds local state for sub-species. Renders the conditional second `<select>`. Resolves the final value passed in `formData.species`. Renders the new `permanent_conditions` multi-select fieldset below `distinguishing_features`. |
+| `lib/format.ts` | modified | Adds three new cases to `speciesLabel`. Adds `permanentConditionLabel`. |
+| `lib/permanent-conditions.ts` | new | Catalog + `permanentConditionsForSpecies(species)` helper. See "Permanent conditions" section above. |
+| `db/schema.ts` | modified | Adds `permanentConditions`, `permanentConditionsOther`, `discloseConditionsPublicly` to `pets`. Generates a new Drizzle migration. |
+| `lib/event-schemas.ts` | modified | Extends `petRegistered` payload with `permanent_conditions[]` + `permanent_conditions_other`. Extends `petProfileUpdated.changes` to allow `"permanent_conditions"` field name (the schema already accepts any `field: string`, no change there — only the writer needs to populate it). |
+| `lib/event-agent-registry.ts` | modified | Exports `PetAgentContext` type and `buildPetAgentContext(petId)` helper as defined in the agent-contract section above. Existing `EVENT_AGENT_REGISTRY` table is untouched. |
 
-No DB migration. No new files. No new tests are required beyond the existing PetForm coverage, but the field-resolution branch should get one unit test asserting that selecting `Otra → Conejo` submits `species = "rabbit"`.
+The DB migration is the one new file under `db/migrations/`. No new tests are required beyond the existing PetForm coverage, but four targeted unit tests are added: (1) field-resolution: selecting `Otra → Conejo` submits `species = "rabbit"`; (2) `permanentConditionsForSpecies("cat")` includes `fiv_positivo` and excludes nothing dog-specific; (3) `permanentConditionsForSpecies("guinea_pig")` excludes `fiv_positivo`; (4) `buildPetAgentContext` returns the agent-context shape with `permanentConditionsLabel` correctly pre-rendered.
 
 ### Stored value mapping
 
