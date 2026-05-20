@@ -200,6 +200,9 @@ export async function revokeLibretaShareAction(
   return result;
 }
 
+// @no-auth-required: viewer telemetry from a public share link. The token
+// itself is the credential; auth lives in `logLibretaShareViewForToken`,
+// which validates the token before writing.
 export async function logLibretaShareViewAction(input: {
   shareToken: string;
   userAgent: string | null;

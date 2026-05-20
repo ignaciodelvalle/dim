@@ -18,6 +18,7 @@ export type AuthFormState = {
   ok?: boolean;
 };
 
+// @no-auth-required: signup is by definition pre-authentication.
 export async function signupAction(
   _previous: AuthFormState,
   formData: FormData,
@@ -58,6 +59,7 @@ export async function signupAction(
   return { error: null, ok: true };
 }
 
+// @no-auth-required: login is by definition pre-authentication.
 export async function loginAction(
   _previous: AuthFormState,
   formData: FormData,
@@ -115,6 +117,7 @@ export async function loginAction(
   redirect(pathForRole(role, hasOrgAdminMembership));
 }
 
+// @no-auth-required: logout invalidates whatever session exists (or none).
 export async function logoutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();

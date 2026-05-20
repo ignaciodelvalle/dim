@@ -23,6 +23,8 @@ export type PublicActionState = { ok: boolean; error: string | null };
 // process. The 5-minute window matches the spec (§7.5).
 const foundPetNotifyLimiter = makeMemoryRateLimiter(5 * 60 * 1000);
 
+// @no-auth-required: anonymous finder submits the form via the public-finder
+// page. Rate-limited by (IP + publicToken) per 5 minutes to mitigate abuse.
 export async function notifyOwnerOfFoundPetAction(
   publicToken: string,
   _previous: PublicActionState,

@@ -39,6 +39,8 @@ function rollingWindow(): { windowStart: Date; windowEnd: Date } {
  * Safe to call in a cron — idempotent via onConflictDoNothing on the
  * (service_offering_id, starts_at) unique index.
  */
+// @no-auth-required: cron-driven materialization, no caller identity.
+// Idempotent via onConflictDoNothing on (service_offering_id, starts_at).
 export async function materializeAllActiveSlots(): Promise<{
   rulesProcessed: number;
   slotsInserted: number;
@@ -77,6 +79,8 @@ export async function materializeAllActiveSlots(): Promise<{
   return { rulesProcessed: rows.length, slotsInserted };
 }
 
+// @no-auth-required: pure inner writer; the "Materializar ahora" button
+// calls this from a vet-portal action that already auth-gates the caller.
 /**
  * Same as materializeAllActiveSlots but scoped to one offering by DB id.
  * Used by the "Materializar ahora" button for immediate preview.

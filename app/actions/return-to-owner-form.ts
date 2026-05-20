@@ -17,6 +17,8 @@ import {
 // proposeReturnToOwnerFormAction — for refugio's ProposeReturnForm
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: thin wrapper to adapt the signature for useActionState.
+// Auth runs inside `proposeReturnToOwnerAction`, which this delegates to.
 export async function proposeReturnToOwnerFormAction(
   orgToken: string,
   petPublicToken: string,
@@ -46,6 +48,8 @@ export type AcceptReturnFormState = {
   autoCancelReason?: string;
 };
 
+// @no-auth-required: thin wrapper to adapt the signature for useActionState.
+// Auth runs inside `ownerAcceptReturnAction`, which this delegates to.
 export async function ownerAcceptReturnFormAction(
   petPublicToken: string,
   _prev: AcceptReturnFormState,
@@ -69,6 +73,8 @@ export type RejectReturnFormState = {
   success?: boolean;
 };
 
+// @no-auth-required: thin wrapper to adapt the signature for useActionState.
+// Auth runs inside `ownerRejectReturnAction`, which this delegates to.
 export async function ownerRejectReturnFormAction(
   petPublicToken: string,
   _prev: RejectReturnFormState,
@@ -92,6 +98,8 @@ export type CancelProposalFormState = {
   success?: boolean;
 };
 
+// @no-auth-required: thin wrapper to adapt the signature for useActionState.
+// Auth runs inside `actorCancelProposalAction`, which this delegates to.
 export async function actorCancelProposalFormAction(
   petPublicToken: string,
   orgToken: string | undefined,

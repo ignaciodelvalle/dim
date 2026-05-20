@@ -29,6 +29,11 @@ export type UploadEvidenceResult = { attachmentId: string } | { error: string };
 // (which redirects) — it returns a typed error so the caller can handle it
 // without a page redirect (the upload is triggered from a form, not a page
 // navigation).
+//
+// @no-auth-required: caller passes `actorUserId`; the role check below
+// (admin | govt) IS the auth gate. Matches the inner-writer contract but
+// the name doesn't end in `ForUser`/`ForAuthority` — renaming is a
+// follow-up. The role check stays inline for the typed-error return shape.
 export async function uploadRevocationEvidence(
   actorUserId: string,
   input: UploadEvidenceInput,
