@@ -1486,6 +1486,9 @@ export async function createDeathRecordAction(
   // a rabies observation was auto-closed by this death.
   let rabiesObservationClosed = false;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Detect active rabies observation BEFORE inserting the death event so
@@ -1592,7 +1595,7 @@ export async function createDeathRecordAction(
           payload: endedPayload,
           caseId: fosterCaseForDeath?.id ?? null,
         });
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: f.ownerUserId,
           notificationType: "foster_ended_by_death",
           severity: "info",
@@ -1676,6 +1679,14 @@ export async function createDeathRecordAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   if (reportable && diseaseCode && insertedEvent) {
@@ -2021,6 +2032,9 @@ export async function createSymptomObservedAction(
 
   const now = new Date();
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // 4. Insert symptom_observed event.
@@ -2094,18 +2108,17 @@ export async function createSymptomObservedAction(
 
         // 6. Route notification to authority targets — severity bumped to
         // 'urgent' when this signal is an active-observation rabies escalation.
-        await routeOutbreakSignalNotification(tx, {
-          signalEvent,
-          pet,
-          disease: d,
-          escalation: isRabiesEscalation,
-        });
+        await routeOutbreakSignalNotifications(
+          tx,
+          { signalEvent, pet, disease: d, escalation: isRabiesEscalation },
+          pendingNotifications,
+        );
 
         // 7. Owner-side urgent nudge during an active rabies observation. Spec
         // D5: explicit exception to "owner sees no diagnoses" — the bite
         // window + PEP timing make this a legitimate public-health prompt.
         if (isRabiesEscalation) {
-          await tx.insert(notifications).values({
+          pendingNotifications.push({
             userId: user.id,
             notificationType: "rabies_observation_escalation_owner",
             severity: "urgent",
@@ -2136,6 +2149,14 @@ export async function createSymptomObservedAction(
     return {
       error: `No se pudo registrar el síntoma: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
@@ -2206,6 +2227,8 @@ export async function recordDiseaseDiagnosisWriter(
   let diagnosisEventId = "";
   let signalEventId: string | null = null;
   let ownerNotificationsDelivered = 0;
+
+  const pendingNotifications: (typeof notifications.$inferInsert)[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -2281,17 +2304,21 @@ export async function recordDiseaseDiagnosisWriter(
           jurisdictionLocality: params.petJurisdictionLocality,
           species: params.petSpecies,
         } as typeof pets.$inferSelect;
-        await routeOutbreakSignalNotification(tx, {
-          signalEvent,
-          pet: fakePet,
-          disease: {
-            disease_code: params.diseaseCode,
-            disease_label: disease.label,
-            high_count: 0,
-            medium_count: 0,
+        await routeOutbreakSignalNotifications(
+          tx,
+          {
+            signalEvent,
+            pet: fakePet,
+            disease: {
+              disease_code: params.diseaseCode,
+              disease_label: disease.label,
+              high_count: 0,
+              medium_count: 0,
+            },
+            escalation: false,
           },
-          escalation: false,
-        });
+          pendingNotifications,
+        );
 
         const alertResult = await maybeNotifyOwnersOfPublicAlert(
           {
@@ -2306,6 +2333,14 @@ export async function recordDiseaseDiagnosisWriter(
     });
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "unknown error" };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true, diagnosisEventId, signalEventId, ownerNotificationsDelivered };
@@ -2375,8 +2410,12 @@ export async function recordDiseaseDiagnosisAction(
  * v2: Uses findAuthoritiesForJurisdiction — routes to govts in scope first,
  * falls back to active institutional admins when no govt covers the locality.
  * CTA is per-recipient: govt → /gob/cola, admin → /admin/cola.
+ *
+ * Notifications are pushed onto the caller's pendingNotifications array instead
+ * of being inserted inside the transaction. This prevents notification-insert
+ * failures from rolling back the business write.
  */
-async function routeOutbreakSignalNotification(
+async function routeOutbreakSignalNotifications(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   args: {
     signalEvent: typeof petEvents.$inferSelect;
@@ -2392,6 +2431,7 @@ async function routeOutbreakSignalNotification(
     // line marking the overlap.
     escalation?: boolean;
   },
+  pendingNotifications: (typeof notifications.$inferInsert)[],
 ): Promise<void> {
   const { signalEvent, pet, disease, escalation } = args;
 
@@ -2440,7 +2480,7 @@ async function routeOutbreakSignalNotification(
 
   for (const authority of authorityProfiles) {
     const ctaUrl = authority.role === "govt" ? "/gob/cola" : "/admin/cola";
-    await tx.insert(notifications).values({
+    pendingNotifications.push({
       userId: authority.id,
       notificationType: "outbreak_signal_detected",
       title,
@@ -2515,6 +2555,7 @@ export async function createSymptomObservedWriter(
 
   let symptomEventId = "";
   const signalEventIds: string[] = [];
+  const pendingNotifications: (typeof notifications.$inferInsert)[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -2587,12 +2628,24 @@ export async function createSymptomObservedWriter(
           species: petSpecies,
         } as typeof petEvents.$inferSelect & typeof pets.$inferSelect;
 
-        // biome-ignore lint/suspicious/noExplicitAny: composite row shape from manual select narrows below routeOutbreakSignalNotification expectations.
-        await routeOutbreakSignalNotification(tx, { signalEvent, pet: pet as any, disease: d });
+        await routeOutbreakSignalNotifications(
+          tx,
+          // biome-ignore lint/suspicious/noExplicitAny: composite row shape from manual select narrows below routeOutbreakSignalNotifications expectations.
+          { signalEvent, pet: pet as any, disease: d },
+          pendingNotifications,
+        );
       }
     });
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "unknown error" };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true, symptomEventId, signalEventIds };
