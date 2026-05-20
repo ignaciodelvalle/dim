@@ -153,6 +153,9 @@ export async function confirmChipMatchAsRefugioWriter({
 
   let custodyEventId: string | undefined;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   await db.transaction(async (tx) => {
     // 1. Insert shelter_custody ownership for the refugio (parallel to owner's).
     await tx.insert(ownerships).values({
@@ -186,7 +189,7 @@ export async function confirmChipMatchAsRefugioWriter({
 
     // 3. Notify the original owner if we have a userId.
     if (ownerOwnership?.ownerUserId) {
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: ownerOwnership.ownerUserId,
         notificationType: "chip_match_notification_owner",
         severity: "urgent",
@@ -199,6 +202,14 @@ export async function confirmChipMatchAsRefugioWriter({
       });
     }
   });
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
 
   return { ok: true, custodyEventId };
 }
@@ -267,6 +278,9 @@ export async function confirmChipMatchAsVecinoWriter({
 
   let custodyEventId: string | undefined;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   await db.transaction(async (tx) => {
     // 1. Insert shelter_custody for the vecino.
     await tx.insert(ownerships).values({
@@ -298,7 +312,7 @@ export async function confirmChipMatchAsVecinoWriter({
 
     // 3. Notify the original owner.
     if (ownerOwnership?.ownerUserId) {
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: ownerOwnership.ownerUserId,
         notificationType: "chip_match_notification_owner",
         severity: "urgent",
@@ -311,6 +325,14 @@ export async function confirmChipMatchAsVecinoWriter({
       });
     }
   });
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
 
   return { ok: true, custodyEventId };
 }

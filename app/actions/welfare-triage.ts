@@ -32,6 +32,8 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { closeCase } from "@/lib/case-helpers";
 import type { WelfareReportStatus } from "@/lib/welfare";
 
+type PendingNotification = typeof notifications.$inferInsert;
+
 const MIN_NOTES_LEN = 10;
 
 export type TriageResult = { ok: true } | { error: string };
@@ -80,15 +82,14 @@ function statusTransitionAllowed(from: WelfareReportStatus, to: WelfareReportSta
   }
 }
 
-async function notifyReporter(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+function buildReporterNotification(
   reporterUserId: string | null,
   referenceCode: string,
   title: string,
   body: string,
-): Promise<void> {
-  if (!reporterUserId) return;
-  await tx.insert(notifications).values({
+): PendingNotification | null {
+  if (!reporterUserId) return null;
+  return {
     userId: reporterUserId,
     notificationType: "welfare_report_status_changed",
     title,
@@ -96,7 +97,7 @@ async function notifyReporter(
     severity: "info",
     ctaLabel: "Ver mi denuncia",
     ctaUrl: `/denuncias/codigo/${referenceCode}`,
-  });
+  };
 }
 
 // triageWelfareReportAction ----------------------------------------------
@@ -128,6 +129,8 @@ export async function triageWelfareReportAction(input: {
   const now = new Date();
   const notes = input.notes.trim();
 
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -152,25 +155,23 @@ export async function triageWelfareReportAction(input: {
         },
       });
 
-      if (input.decision === "triaged") {
-        await notifyReporter(
-          tx,
-          report.reporterUserId,
-          report.referenceCode,
-          "Tu denuncia fue revisada",
-          "Una autoridad revisó tu denuncia y la marcó para seguimiento. Vas a recibir un aviso cuando avance.",
-        );
-      } else {
-        await notifyReporter(
-          tx,
-          report.reporterUserId,
-          report.referenceCode,
-          "Tu denuncia fue cerrada",
-          input.decision === "duplicate"
-            ? "Tu denuncia se marcó como duplicada de otra ya en seguimiento."
-            : "Tu denuncia se cerró por falta de elementos para avanzar.",
-        );
-      }
+      const reporterNotif =
+        input.decision === "triaged"
+          ? buildReporterNotification(
+              report.reporterUserId,
+              report.referenceCode,
+              "Tu denuncia fue revisada",
+              "Una autoridad revisó tu denuncia y la marcó para seguimiento. Vas a recibir un aviso cuando avance.",
+            )
+          : buildReporterNotification(
+              report.reporterUserId,
+              report.referenceCode,
+              "Tu denuncia fue cerrada",
+              input.decision === "duplicate"
+                ? "Tu denuncia se marcó como duplicada de otra ya en seguimiento."
+                : "Tu denuncia se cerró por falta de elementos para avanzar.",
+            );
+      if (reporterNotif) pendingNotifications.push(reporterNotif);
 
       // Cases system (Fase D1): mirror terminal triage decisions to the
       // linked case. The closed_reason enum is `resolved|cancelled|
@@ -192,6 +193,14 @@ export async function triageWelfareReportAction(input: {
     return {
       error: `No se pudo actualizar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath("/gob/maltrato");
@@ -224,6 +233,8 @@ export async function startWelfareReportAction(input: {
   const now = new Date();
   const notes = input.notes.trim();
 
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -249,18 +260,26 @@ export async function startWelfareReportAction(input: {
         },
       });
 
-      await notifyReporter(
-        tx,
+      const reporterNotif = buildReporterNotification(
         report.reporterUserId,
         report.referenceCode,
         "Tu denuncia avanzó",
         "Tu denuncia pasó a seguimiento activo. Vas a recibir un aviso cuando se cierre.",
       );
+      if (reporterNotif) pendingNotifications.push(reporterNotif);
     });
   } catch (err) {
     return {
       error: `No se pudo iniciar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath("/gob/maltrato");
@@ -293,6 +312,8 @@ export async function closeWelfareReportAction(input: {
   const now = new Date();
   const resolutionNotes = input.resolutionNotes.trim();
 
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -318,13 +339,13 @@ export async function closeWelfareReportAction(input: {
         },
       });
 
-      await notifyReporter(
-        tx,
+      const reporterNotif = buildReporterNotification(
         report.reporterUserId,
         report.referenceCode,
         "Tu denuncia fue cerrada",
         "La autoridad cerró tu denuncia con una resolución. Podés ver el detalle desde el panel.",
       );
+      if (reporterNotif) pendingNotifications.push(reporterNotif);
 
       // Cases system (Fase D1): mirror the close to the linked case.
       // closed_reason='resolved' — the report ran its course and reached
@@ -344,6 +365,14 @@ export async function closeWelfareReportAction(input: {
     return {
       error: `No se pudo cerrar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   revalidatePath("/gob/maltrato");

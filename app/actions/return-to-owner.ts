@@ -178,6 +178,9 @@ export async function proposeReturnAsRefugioWriter({
     )
     .limit(1);
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Fetch actor's display name for the notification body.
@@ -217,7 +220,7 @@ export async function proposeReturnAsRefugioWriter({
       eventId = proposalEvent.id;
 
       // Notify the original owner.
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: ownerUserIdRefugio,
         notificationType: "custody_transfer_proposal_owner",
         severity: "urgent",
@@ -234,6 +237,14 @@ export async function proposeReturnAsRefugioWriter({
     return {
       error: `No se pudo proponer la devolución: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true, eventId };
@@ -317,6 +328,9 @@ export async function proposeReturnAsVecinoWriter({
     )
     .limit(1);
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const [actorProfile] = await tx
@@ -353,7 +367,7 @@ export async function proposeReturnAsVecinoWriter({
 
       eventId = proposalEvent.id;
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: ownerUserIdVecino,
         notificationType: "custody_transfer_proposal_owner",
         severity: "urgent",
@@ -370,6 +384,14 @@ export async function proposeReturnAsVecinoWriter({
     return {
       error: `No se pudo proponer la devolución: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true, eventId };
@@ -501,6 +523,8 @@ export async function ownerAcceptReturnWriter({
     // AUTO-CANCEL: emit cancellation note + notify actor.
     const reason = failures[0];
     const now = new Date();
+    type PendingNotification = typeof notifications.$inferInsert;
+    const cancelPendingNotifications: PendingNotification[] = [];
     try {
       await db.transaction(async (tx) => {
         const cancelPayload = validateEventPayload("note_added", {
@@ -521,7 +545,7 @@ export async function ownerAcceptReturnWriter({
         // if available; otherwise skip (org notifications are out of scope for v1).
         const notifyUserId = fromUserId;
         if (notifyUserId) {
-          await tx.insert(notifications).values({
+          cancelPendingNotifications.push({
             userId: notifyUserId,
             notificationType: "custody_transfer_auto_cancelled",
             severity: "info",
@@ -534,6 +558,14 @@ export async function ownerAcceptReturnWriter({
     } catch (cancelErr) {
       // Auto-cancel best-effort — we still return the autoCancelled response.
       console.error("auto-cancel notification failed:", cancelErr);
+    }
+
+    if (cancelPendingNotifications.length > 0) {
+      try {
+        await db.insert(notifications).values(cancelPendingNotifications);
+      } catch (e) {
+        console.error("notifications insert failed (action did succeed)", e);
+      }
     }
 
     return {
@@ -562,6 +594,9 @@ export async function ownerAcceptReturnWriter({
       ),
     )
     .limit(1);
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -628,7 +663,7 @@ export async function ownerAcceptReturnWriter({
       // 4. Notify the actor.
       const notifyUserId = fromUserId;
       if (notifyUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: notifyUserId,
           notificationType: "custody_transfer_accepted_owner_side",
           severity: "info",
@@ -641,7 +676,7 @@ export async function ownerAcceptReturnWriter({
         // For org actors, try to notify the member who submitted the proposal.
         const proposalAuthorId = latestProposal.recordedByUserId;
         if (proposalAuthorId) {
-          await tx.insert(notifications).values({
+          pendingNotifications.push({
             userId: proposalAuthorId,
             notificationType: "custody_transfer_accepted_owner_side",
             severity: "info",
@@ -657,6 +692,14 @@ export async function ownerAcceptReturnWriter({
     return {
       error: `No se pudo completar la devolución: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
@@ -727,6 +770,9 @@ export async function ownerRejectReturnWriter({
   const fromOrgId = (proposalPayload.from_organization_id as string | null) ?? null;
 
   const now = new Date();
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Emit note_added with rejection reason.
@@ -747,7 +793,7 @@ export async function ownerRejectReturnWriter({
       // Notify the actor.
       const notifyUserId = fromUserId;
       if (notifyUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: notifyUserId,
           notificationType: "custody_transfer_auto_cancelled",
           severity: "info",
@@ -758,7 +804,7 @@ export async function ownerRejectReturnWriter({
       } else if (fromOrgId) {
         const proposalAuthorId = latestProposal.recordedByUserId;
         if (proposalAuthorId) {
-          await tx.insert(notifications).values({
+          pendingNotifications.push({
             userId: proposalAuthorId,
             notificationType: "custody_transfer_auto_cancelled",
             severity: "info",
@@ -773,6 +819,14 @@ export async function ownerRejectReturnWriter({
     return {
       error: `No se pudo registrar el rechazo: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
@@ -854,6 +908,9 @@ export async function actorCancelProposalWriter({
   }
 
   const now = new Date();
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const cancelPayload = validateEventPayload("note_added", {
@@ -873,7 +930,7 @@ export async function actorCancelProposalWriter({
 
       // Notify the original owner.
       if (toUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: toUserId,
           notificationType: "custody_transfer_auto_cancelled",
           severity: "info",
@@ -887,6 +944,14 @@ export async function actorCancelProposalWriter({
     return {
       error: `No se pudo cancelar la propuesta: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };

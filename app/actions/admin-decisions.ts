@@ -45,6 +45,9 @@ export async function approveRequestForAuthority(
     return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
   }
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const mutationSummary = await applyApprovalMutation(tx, request, actorUserId);
@@ -73,7 +76,7 @@ export async function approveRequestForAuthority(
         },
       });
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: request.applicantUserId,
         notificationType: "approval_request_approved",
         title: titleForApproval(request.type),
@@ -87,6 +90,14 @@ export async function approveRequestForAuthority(
     return {
       error: `No se pudo aprobar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
@@ -119,6 +130,9 @@ export async function rejectRequestForAuthority(
     return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
   }
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -144,7 +158,7 @@ export async function rejectRequestForAuthority(
         },
       });
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: request.applicantUserId,
         notificationType: "approval_request_rejected",
         title: titleForRejection(request.type),
@@ -158,6 +172,14 @@ export async function rejectRequestForAuthority(
     return {
       error: `No se pudo rechazar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };

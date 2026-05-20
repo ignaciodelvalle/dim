@@ -159,6 +159,9 @@ export async function revokeVetRoleForAuthority(
     return { error: "CAPABILITY_DENIED" };
   }
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // a. Mutate target with anti-race WHERE clause
@@ -191,7 +194,7 @@ export async function revokeVetRoleForAuthority(
       await claimAttachmentsForAudit(tx, logRow.id, input.attachmentIds, actorUserId);
 
       // d. Notification to target
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: input.targetUserId,
         notificationType: "revocation_executed_vet",
         title: "Tu rol veterinario fue revocado",
@@ -208,6 +211,14 @@ export async function revokeVetRoleForAuthority(
     return {
       error: err instanceof Error ? err.message : "Error desconocido al revocar.",
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
@@ -262,6 +273,9 @@ export async function revokeOrgVerificationForAuthority(
     return { error: "CAPABILITY_DENIED" };
   }
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // a. Mutate target — do NOT clear verified_at / verified_by_user_id (historical record)
@@ -294,7 +308,7 @@ export async function revokeOrgVerificationForAuthority(
 
       // d. Notification to org owner — skip if createdByUserId is null
       if (org.createdByUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: org.createdByUserId,
           notificationType: "revocation_executed_org",
           title: "La verificación de tu organización fue revocada",
@@ -312,6 +326,14 @@ export async function revokeOrgVerificationForAuthority(
     return {
       error: err instanceof Error ? err.message : "Error desconocido al revocar.",
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
@@ -378,6 +400,9 @@ export async function revokeGovtLocalityForAuthority(
     .where(and(eq(govtAssignments.userId, assignment.userId), isNull(govtAssignments.revokedAt)));
   const isLastLocality = (activeCount?.count ?? 0) <= 1;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // a. Mutate target — anti-race WHERE revoked_at IS NULL
@@ -421,7 +446,7 @@ export async function revokeGovtLocalityForAuthority(
       const lastLocalityWarning = isLastLocality
         ? " Perdiste tu última localidad activa — ya no tenés jurisdicción asignada."
         : "";
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: assignment.userId,
         notificationType: "govt_locality_revoked",
         title: `Localidad revocada: ${assignment.jurisdictionLocality}`,
@@ -438,6 +463,14 @@ export async function revokeGovtLocalityForAuthority(
     return {
       error: err instanceof Error ? err.message : "Error desconocido al revocar.",
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };

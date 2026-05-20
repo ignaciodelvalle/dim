@@ -660,7 +660,9 @@ export async function createOrgWelfareReportAction(
   if (uploadResult.error) return { error: uploadResult.error };
 
   // Atomic: attachments + open case + bridge events + welfare_reports.case_id +
-  // multi-source escalation + notifications + audit log.
+  // multi-source escalation + audit log.
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
   let createdCaseId: string | null = null;
   try {
     await db.transaction(async (tx) => {
@@ -850,8 +852,8 @@ export async function createOrgWelfareReportAction(
         ...adminRecipients.map((a) => a.id),
       ]);
       if (recipientSet.size > 0) {
-        await tx.insert(notifications).values(
-          Array.from(recipientSet).map((userId) => ({
+        for (const userId of recipientSet) {
+          pendingNotifications.push({
             userId,
             notificationType: "welfare_org_side_critical_received" as const,
             severity: "urgent" as const,
@@ -861,12 +863,12 @@ export async function createOrgWelfareReportAction(
             ctaUrl: `/casos/${caseRow.publicCode}`,
             relatedCaseId: caseRow.id,
             relatedPetId: subjectPetId,
-          })),
-        );
+          });
+        }
       }
 
       // Confirmation to the reporter.
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: user.id,
         notificationType: "welfare_org_side_confirmed_reporter" as const,
         severity: "info" as const,
@@ -899,6 +901,14 @@ export async function createOrgWelfareReportAction(
     return {
       error: `No se pudo registrar la denuncia: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   // Best-effort signal (legacy hook).

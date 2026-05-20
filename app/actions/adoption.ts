@@ -210,6 +210,9 @@ export async function finalizeAdoptionAction(
     }
   }
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Stub profile insert (no auth.users row). The adopter claims via DNI
@@ -335,7 +338,7 @@ export async function finalizeAdoptionAction(
           authorVerified,
           payload: rejectionPayload,
         });
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: app.applicant_user_id,
           notificationType: "adoption_application_closed",
           title: `${pet.name} encontró hogar`,
@@ -388,7 +391,7 @@ export async function finalizeAdoptionAction(
       // no auth.users row, so a notification row would be unreachable until
       // the claim flow lands.
       if (!isStubAdopter) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: adopterUserId,
           notificationType: "adoption_finalized",
           title: `Adoptaste a ${pet.name}`,
@@ -403,7 +406,7 @@ export async function finalizeAdoptionAction(
       // Notify ex-foster (if different from adopter) — heads-up that their
       // foster row closed because the animal was adopted.
       if (fosterUserId && fosterUserId !== adopterUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: fosterUserId,
           notificationType: "foster_ended_by_adoption",
           title: `${pet.name} fue adoptado/a`,
@@ -422,6 +425,14 @@ export async function finalizeAdoptionAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (finalizeAdoptionAction did succeed)", e);
+    }
   }
 
   redirect(`/org/${orgToken}/mascotas?adopcion=${publicToken}`);

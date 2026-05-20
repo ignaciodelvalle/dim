@@ -118,6 +118,9 @@ export async function transferCustodyAction(
   const authorVerified = organization.verified;
   const fosterEndedEventId = fosterRow ? randomUUID() : null;
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // Close source ownership.
@@ -201,27 +204,25 @@ export async function transferCustodyAction(
             isNull(organizationMemberships.leftAt),
           ),
         );
-      if (admins.length > 0) {
-        await tx.insert(notifications).values(
-          admins.map((a) => ({
-            userId: a.userId,
-            notificationType: "custody_received",
-            title: `Recibiste a ${pet.name}`,
-            body: `${organization.displayName} transfirió a ${pet.name} a tu organización (${
-              newRole === "shelter_custody" ? "custodia temporal" : "dueño permanente"
-            }).`,
-            severity: "info" as const,
-            ctaLabel: "Ver mascota",
-            ctaUrl: `/org/${orgToken}/mascotas`,
-            relatedPetId: pet.id,
-          })),
-        );
+      for (const a of admins) {
+        pendingNotifications.push({
+          userId: a.userId,
+          notificationType: "custody_received",
+          title: `Recibiste a ${pet.name}`,
+          body: `${organization.displayName} transfirió a ${pet.name} a tu organización (${
+            newRole === "shelter_custody" ? "custodia temporal" : "dueño permanente"
+          }).`,
+          severity: "info" as const,
+          ctaLabel: "Ver mascota",
+          ctaUrl: `/org/${orgToken}/mascotas`,
+          relatedPetId: pet.id,
+        });
       }
 
       // Notify the foster (if any) — heads up that their foster ended
       // because the animal moved orgs.
       if (fosterRow?.ownerUserId) {
-        await tx.insert(notifications).values({
+        pendingNotifications.push({
           userId: fosterRow.ownerUserId,
           notificationType: "foster_ended_by_transfer",
           title: `${pet.name} cambió de refugio`,
@@ -237,6 +238,14 @@ export async function transferCustodyAction(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (transferCustodyAction did succeed)", e);
+    }
   }
 
   redirect(`/org/${orgToken}/mascotas?transferido=${publicToken}`);

@@ -187,6 +187,9 @@ export async function createInstitutionalAccountForAuthority(
   // 5. DB transaction: update profile + insert assignments + audit_log + notification
   // Note: handle_new_user trigger already created a profile row — we UPDATE it here
   // to set account_type='institutional' and the correct role.
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // a. Update the auto-created profile to institutional
@@ -231,8 +234,8 @@ export async function createInstitutionalAccountForAuthority(
         },
       });
 
-      // d. Insert welcome notification to the new operator
-      await tx.insert(notifications).values({
+      // d. Welcome notification to the new operator
+      pendingNotifications.push({
         userId: authUserId,
         notificationType: "institutional_account_created",
         title: "Tu cuenta institucional fue creada",
@@ -266,6 +269,14 @@ export async function createInstitutionalAccountForAuthority(
     return {
       error: `DB_TX_FAILED: ${txErr instanceof Error ? txErr.message : String(txErr)}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   // 6. Generate magic link
@@ -347,6 +358,9 @@ export async function deactivateAdminForAuthority(
   if (!canCreateInstitutional(actorProfile)) return { error: "CAPABILITY_DENIED" };
 
   // 4. Transaction with SELECT FOR UPDATE on active admin set (last-admin guard + deactivation)
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotificationsAdmin: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // SELECT FOR UPDATE — locks ALL active admin rows to prevent concurrent last-admin races.
@@ -405,7 +419,7 @@ export async function deactivateAdminForAuthority(
       await claimAttachmentsForAudit(tx, logRow.id, input.attachmentIds, actorUserId);
 
       // d. Notification to deactivated admin
-      await tx.insert(notifications).values({
+      pendingNotificationsAdmin.push({
         userId: input.targetAdminUserId,
         notificationType: "admin_deactivated",
         title: "Tu cuenta de administrador fue desactivada",
@@ -426,6 +440,14 @@ export async function deactivateAdminForAuthority(
     return {
       error: err instanceof Error ? err.message : "Error desconocido al desactivar admin.",
     };
+  }
+
+  if (pendingNotificationsAdmin.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotificationsAdmin);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
@@ -479,6 +501,9 @@ export async function deactivateGovtForAuthority(
   }
 
   // 4. Transaction: revoke localities, deactivate, audit, notify
+  type PendingNotificationGovt = typeof notifications.$inferInsert;
+  const pendingNotificationsGovt: PendingNotificationGovt[] = [];
+
   try {
     await db.transaction(async (tx) => {
       // a. Revoke all active govt_assignments for target
@@ -529,7 +554,7 @@ export async function deactivateGovtForAuthority(
       await claimAttachmentsForAudit(tx, logRow.id, input.attachmentIds, actorUserId);
 
       // e. Notification to deactivated govt operator
-      await tx.insert(notifications).values({
+      pendingNotificationsGovt.push({
         userId: input.targetGovtUserId,
         notificationType: "govt_deactivated",
         title: "Tu cuenta de operador fue desactivada",
@@ -546,6 +571,14 @@ export async function deactivateGovtForAuthority(
     return {
       error: err instanceof Error ? err.message : "Error desconocido al desactivar govt.",
     };
+  }
+
+  if (pendingNotificationsGovt.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotificationsGovt);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
   }
 
   return { ok: true };
