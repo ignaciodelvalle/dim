@@ -158,6 +158,51 @@ if (!LOCAL_HOSTS.has(pg.host) && ALLOW_REMOTE) {
 }
 
 // ---------------------------------------------------------------------------
+// Env alignment — keep the seed step on the SAME stack as DATABASE_URL
+// ---------------------------------------------------------------------------
+//
+// Step 4 (scripts/seed-test-users.ts) uses the supabase admin SDK, which
+// reads NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY. If those env
+// vars point at a remote project while DATABASE_URL is local (a real shape
+// in this repo's .env.local), the seed creates auth.users on the remote
+// project and the local DB ends up half-bootstrapped with no test users.
+// The seed script's own `isLocalUrl` guard then aborts the run.
+//
+// When DATABASE_URL is local, force the supabase env back to local too.
+// The new-style sb_secret_* key from `supabase status` is universal across
+// local stacks; a legacy JWT (eyJ…) is the smell of a remote-project key
+// that snuck into .env.local. We don't touch anything when --allow-remote
+// is in effect — that mode trusts the user.
+
+const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
+const LOCAL_SERVICE_KEY = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+
+function isLocalUrl(u: string | undefined): boolean {
+  return !!u && (u.includes("127.0.0.1") || u.includes("localhost"));
+}
+
+if (LOCAL_HOSTS.has(pg.host)) {
+  if (!isLocalUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)) {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      console.warn(
+        `NOTICE: NEXT_PUBLIC_SUPABASE_URL=${process.env.NEXT_PUBLIC_SUPABASE_URL} is not local — forcing to ${LOCAL_SUPABASE_URL} for this run.`,
+      );
+    }
+    process.env.NEXT_PUBLIC_SUPABASE_URL = LOCAL_SUPABASE_URL;
+  }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey || serviceKey.startsWith("eyJ")) {
+    if (serviceKey) {
+      console.warn(
+        "NOTICE: SUPABASE_SERVICE_ROLE_KEY looks like a remote-project JWT — overriding to local sb_secret_* for this run.",
+      );
+    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY = LOCAL_SERVICE_KEY;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
