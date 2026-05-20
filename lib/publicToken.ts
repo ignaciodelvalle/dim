@@ -6,6 +6,14 @@
 // Collision probability is negligible until we have a *lot* of records; add
 // a uniqueness check + retry per table when adoption justifies it.
 //
+// Uniformity: bytes are drawn from `crypto.randomBytes`, then mapped to
+// alphabet indices via rejection sampling. Naïve `byte % 31` would bias the
+// distribution because 256 is not divisible by 31 (the first 256 % 31 = 8
+// alphabet values would be ~0.4% more likely than the last 23). Rejection
+// sampling discards bytes in `[248, 255]` (the 8 trailing values) and
+// re-rolls, leaving a uniform draw over `[0, 247]` that maps cleanly to
+// 31 values × 8 buckets.
+//
 // Known prefixes:
 //   DIM  — pet credential public token (pets.public_token)
 //   LBR  — libreta share token (libreta_share_tokens.share_token)
@@ -16,12 +24,27 @@
 import { randomBytes } from "node:crypto";
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 chars
+// Largest multiple of ALPHABET.length that fits in a single byte (0..255).
+// Bytes >= REJECTION_THRESHOLD are rejected and re-rolled to keep the draw
+// uniform.
+const REJECTION_THRESHOLD = 256 - (256 % ALPHABET.length); // 248
 
 function randomChunk(len: number): string {
-  const random = randomBytes(len);
   let out = "";
-  for (let i = 0; i < len; i++) {
-    out += ALPHABET[random[i] % ALPHABET.length];
+  // Over-allocate the pool to amortize re-rolls; each requested character
+  // needs ~1.032 bytes on average (256 / 248). The inner loop drains the
+  // pool first; if exhausted, we refill. With len <= 4 the refill almost
+  // never fires.
+  let pool = randomBytes(Math.max(len * 2, 32));
+  let cursor = 0;
+  while (out.length < len) {
+    if (cursor >= pool.length) {
+      pool = randomBytes(pool.length);
+      cursor = 0;
+    }
+    const byte = pool[cursor++];
+    if (byte >= REJECTION_THRESHOLD) continue; // bias guard
+    out += ALPHABET[byte % ALPHABET.length];
   }
   return out;
 }
