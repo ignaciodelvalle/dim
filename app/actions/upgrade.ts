@@ -480,3 +480,42 @@ export async function createOrganizationAction(
   revalidatePath("/cuenta/upgrade");
   redirect("/org");
 }
+
+// Clinic-only wrapper used by /cuenta/crear-consultorio.
+// Forces orgType='clinic' and redirects to the new org's panel instead of /org.
+export async function createClinicAction(
+  _prev: UpgradeFormState,
+  formData: FormData,
+): Promise<UpgradeFormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+
+  const input: CreateOrganizationInput = {
+    name: String(formData.get("name") ?? "").trim(),
+    legalName: String(formData.get("legalName") ?? "").trim(),
+    orgType: "clinic",
+    cuit: String(formData.get("cuit") ?? "").trim() || null,
+    email: String(formData.get("email") ?? "").trim(),
+    phone: String(formData.get("phone") ?? "").trim() || null,
+    jurisdictionProvince: String(formData.get("jurisdictionProvince") ?? "").trim(),
+    jurisdictionLocality: String(formData.get("jurisdictionLocality") ?? "").trim(),
+    personeriaJuridicaNumber: String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
+  };
+
+  const result = await createOrganizationForUser(user.id, input);
+  if (result.error || !result.organizationId)
+    return result.error ? result : { error: "No se pudo obtener el ID de la organización." };
+
+  const [org] = await db
+    .select({ publicToken: organizations.publicToken })
+    .from(organizations)
+    .where(eq(organizations.id, result.organizationId))
+    .limit(1);
+
+  revalidatePath("/cuenta/crear-consultorio");
+  revalidatePath("/cuenta");
+  redirect(org ? `/org/${org.publicToken}` : "/org");
+}
