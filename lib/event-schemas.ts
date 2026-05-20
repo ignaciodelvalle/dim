@@ -5,12 +5,12 @@
 // are STRICT by default — extra keys throw — so writer drift is caught at
 // validate() time, before the row hits the immutable event log.
 //
-// Why payload_version: foundation for the future upcaster registry (item 3
-// from the event-sourcing hardening doc). Every schema includes
-// `payload_version: z.literal(1).default(1)`. New writes get version 1
-// automatically (default fills in on parse). When a payload shape evolves
-// in a future PR, that schema's literal moves to 2 and an upcaster maps
-// v1 → v2 in the read path.
+// Why payload_version: foundation for the upcaster registry. Every schema
+// includes `payload_version: z.literal(1).default(1)`. New writes get version
+// 1 automatically (default fills in on parse). When a payload shape evolves
+// in a future PR, that schema's literal moves to 2 and an upcaster in
+// `lib/event-upcasters.ts` maps v1 → v2 in the read path. See
+// `docs/superpowers/event-versioning.md` for the full step-by-step contract.
 //
 // Why one big record: validateEventPayload is called from every insert site,
 // so a single import + a single switch on eventType is simpler than 20
