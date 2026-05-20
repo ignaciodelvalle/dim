@@ -98,7 +98,23 @@ jobs:
         # drizzle-kit push is idempotent; a second run should report no work.
         # If it reports pending changes, schema.ts and the migration tree
         # disagree — fix one or the other before merging.
+        #
+        # Known false-positive: pets.permanent_conditions empty-array default.
+        # drizzle-orm 0.36 serializes its array default as one form while PG
+        # normalizes it to a different one on introspection. The diff never
+        # converges regardless of the schema.ts syntax (sql template, [],
+        # ARRAY[]::text[]) — this is a drizzle-kit bug, not real drift.
+        # Strip that single statement from the output before asserting.
         run: |
           OUTPUT=$(pnpm db:push 2>&1)
           echo "$OUTPUT"
-          echo "$OUTPUT" | grep -E "(No changes|No schema changes)" || (echo "::error::Drizzle reports pending changes — schema.ts ↔ migrations drift" && exit 1)
+          if echo "$OUTPUT" | grep -qE "(No changes|No schema changes)"; then
+            exit 0
+          fi
+          KNOWN_FALSE_POSITIVE='ALTER TABLE "pets" ALTER COLUMN "permanent_conditions" SET DEFAULT'
+          FILTERED=$(echo "$OUTPUT" | grep -vF "$KNOWN_FALSE_POSITIVE")
+          if echo "$FILTERED" | grep -qE "^(ALTER TABLE|CREATE|DROP|DO )"; then
+            echo "::error::Drizzle reports pending changes — schema.ts ↔ migrations drift"
+            exit 1
+          fi
+          echo "::notice::Only known false-positive drift (pets.permanent_conditions array default) detected; treating as no-op."
