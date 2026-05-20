@@ -13,7 +13,7 @@ import {
   logLibretaShareViewForToken,
   revokeLibretaShareForUser,
 } from "@/app/actions/libreta-share";
-import { db, libretaShareTokens, ownerships, pets, shareTelemetry } from "@/db";
+import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/publicToken";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -235,7 +235,13 @@ describe("revokeLibretaShareForUser", () => {
     expect(updated.revokedByUserId).toBe(userId);
   });
 
-  it("D6 fallback: current owner of the pet can revoke a share they didn't create", async () => {
+  it("§2.3 scope: a current pet-owner who didn't create the share CANNOT revoke it", async () => {
+    // Review 2026-05-19 §2.3 closed the D6 fallback because it let a new
+    // owner (post-transfer, or a co-caretaker) silently break a previous
+    // owner's share — destroying the medical-history continuity that
+    // libreta shares depend on. Only the creator can revoke; admins are
+    // covered by the separate admin-bypass test below.
+
     await revokeAllShares();
 
     // Temporarily give userId2 an ownership so it counts as current owner.
@@ -252,7 +258,7 @@ describe("revokeLibretaShareForUser", () => {
     const created = await createLibretaShareForUser(userId, {
       petPublicToken: PET_TOKEN,
       expiresInDays: 30,
-      label: "Fallback test",
+      label: "§2.3 scope test",
     });
     expect(created).toHaveProperty("shareToken");
     if (!("shareToken" in created)) return;
@@ -264,11 +270,68 @@ describe("revokeLibretaShareForUser", () => {
       .limit(1);
 
     // userId2 is NOT the creator but IS a current owner-role user.
+    // Old behavior: allowed. New behavior (§2.3): rejected.
     const result = await revokeLibretaShareForUser(userId2, row.id);
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ error: "Sin permisos para revocar este compartido." });
+
+    // The share is still active.
+    const [unchanged] = await db
+      .select({ revokedAt: libretaShareTokens.revokedAt })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.id, row.id))
+      .limit(1);
+    expect(unchanged.revokedAt).toBeNull();
 
     // Cleanup the temp ownership.
     await db.delete(ownerships).where(eq(ownerships.id, tempOwnership.id));
+  });
+
+  it("§2.3 admin bypass: a platform admin who didn't create the share CAN revoke it", async () => {
+    await revokeAllShares();
+
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "§2.3 admin bypass test",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+
+    const [row] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, created.shareToken))
+      .limit(1);
+
+    // Promote userId2 to admin for the duration of this test.
+    const [originalRole] = await db
+      .select({ role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, userId2))
+      .limit(1);
+    await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, userId2));
+
+    try {
+      const result = await revokeLibretaShareForUser(userId2, row.id);
+      expect(result).toEqual({ ok: true });
+
+      const [updated] = await db
+        .select({
+          revokedAt: libretaShareTokens.revokedAt,
+          revokedByUserId: libretaShareTokens.revokedByUserId,
+        })
+        .from(libretaShareTokens)
+        .where(eq(libretaShareTokens.id, row.id))
+        .limit(1);
+      expect(updated.revokedAt).not.toBeNull();
+      expect(updated.revokedByUserId).toBe(userId2);
+    } finally {
+      // Restore original role to avoid cross-test pollution.
+      await db
+        .update(profiles)
+        .set({ role: originalRole?.role ?? "owner" })
+        .where(eq(profiles.id, userId2));
+    }
   });
 });
 
