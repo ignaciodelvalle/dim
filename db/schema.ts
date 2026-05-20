@@ -13,6 +13,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -501,7 +502,14 @@ export const pets = pgTable(
     // Permanent conditions (migration 0031). text[] holds catalog codes
     // from lib/permanent-conditions.ts; `permanent_conditions_other` is
     // free text only meaningful when 'otra' is in the array.
-    permanentConditions: text("permanent_conditions").array().notNull().default(sql`'{}'::text[]`),
+    // ARRAY[]::text[] is the canonical form PG normalizes empty-array defaults
+    // to on introspection; using it as the schema default avoids perpetual
+    // drift from drizzle-kit comparing '{}' (its own array serialization) to
+    // PG's introspected '{}'::text[]/ARRAY[]::text[] form.
+    permanentConditions: text("permanent_conditions")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     permanentConditionsOther: text("permanent_conditions_other"),
     discloseConditionsPublicly: boolean("disclose_conditions_publicly").notNull().default(false),
 
@@ -657,23 +665,35 @@ export const organizationCapabilityGrants = pgTable(
   "organization_capability_grants",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    membershipId: uuid("membership_id")
-      .notNull()
-      .references(() => organizationMemberships.id, { onDelete: "cascade" }),
-    organizationId: uuid("organization_id")
-      .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
+    membershipId: uuid("membership_id").notNull(),
+    organizationId: uuid("organization_id").notNull(),
     capability: text("capability").notNull(),
     status: organizationCapabilityStatusEnum("status").notNull().default("pending"),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
     requestedReason: text("requested_reason"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
-    decidedByUserId: uuid("decided_by_user_id").references(() => profiles.id, {
-      onDelete: "set null",
-    }),
+    decidedByUserId: uuid("decided_by_user_id"),
     decisionReason: text("decision_reason"),
   },
   (table) => ({
+    // Auto-generated FK names exceed Postgres's 63-char identifier limit (NAMEDATALEN-1)
+    // and get silently truncated, producing perpetual schema/migration drift. Declare
+    // explicit names matching the truncated form already stored in PG.
+    membershipFk: foreignKey({
+      name: "organization_capability_grants_membership_id_organization_membe",
+      columns: [table.membershipId],
+      foreignColumns: [organizationMemberships.id],
+    }).onDelete("cascade"),
+    organizationFk: foreignKey({
+      name: "organization_capability_grants_organization_id_organizations_id",
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete("cascade"),
+    decidedByUserFk: foreignKey({
+      name: "organization_capability_grants_decided_by_user_id_profiles_id_f",
+      columns: [table.decidedByUserId],
+      foreignColumns: [profiles.id],
+    }).onDelete("set null"),
     membershipCapabilityIdx: index("org_capability_grants_membership_capability_idx").on(
       table.membershipId,
       table.capability,
@@ -973,7 +993,9 @@ export const welfareReports = pgTable(
     // Short reference code for tracking — lets anonymous reporters retrieve
     // their own denuncia later without logging in. Format: DEN-XXXX-XXXX.
     // Generated at insert time with retry-on-collision (see lib/welfare-codes.ts).
-    referenceCode: text("reference_code").notNull().unique(),
+    // Uniqueness is enforced by the `referenceCodeIdx` unique index below; declaring
+    // `.unique()` here too would create a duplicate constraint with a conflicting name.
+    referenceCode: text("reference_code").notNull(),
 
     // Reporter (null when anonymous)
     reporterUserId: uuid("reporter_user_id").references(() => profiles.id, {
@@ -1063,9 +1085,7 @@ export const welfareReportAttachments = pgTable(
   "welfare_report_attachments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    welfareReportId: uuid("welfare_report_id")
-      .notNull()
-      .references(() => welfareReports.id, { onDelete: "cascade" }),
+    welfareReportId: uuid("welfare_report_id").notNull(),
     // Uploaded-by is nullable for anonymous denuncia uploads.
     uploadedByUserId: uuid("uploaded_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
@@ -1077,6 +1097,12 @@ export const welfareReportAttachments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    // FK name exceeds 63 chars when drizzle auto-generates; declare it explicitly.
+    welfareReportFk: foreignKey({
+      name: "welfare_report_attachments_welfare_report_id_welfare_reports_id",
+      columns: [table.welfareReportId],
+      foreignColumns: [welfareReports.id],
+    }).onDelete("cascade"),
     reportIdx: index("welfare_report_attachments_report_idx").on(table.welfareReportId),
   }),
 );
@@ -1551,9 +1577,7 @@ export const serviceScheduleRules = pgTable(
   "service_schedule_rules",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    serviceOfferingId: uuid("service_offering_id")
-      .notNull()
-      .references(() => serviceOfferings.id, { onDelete: "cascade" }),
+    serviceOfferingId: uuid("service_offering_id").notNull(),
     daysOfWeek: smallint("days_of_week").array().notNull(), // ISO 8601: 1=Mon..7=Sun
     startTimeLocal: time("start_time_local").notNull(),
     endTimeLocal: time("end_time_local").notNull(),
@@ -1565,6 +1589,12 @@ export const serviceScheduleRules = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    // FK name exceeds 63 chars when drizzle auto-generates; declare it explicitly.
+    serviceOfferingFk: foreignKey({
+      name: "service_schedule_rules_service_offering_id_service_offerings_id",
+      columns: [table.serviceOfferingId],
+      foreignColumns: [serviceOfferings.id],
+    }).onDelete("cascade"),
     offeringActiveIdx: index("schedule_rules_offering_active_idx")
       .on(table.serviceOfferingId)
       .where(sql`${table.status} = 'active'`),
@@ -2000,22 +2030,31 @@ export const custodyDisputes = pgTable("custody_disputes", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const custodyDisputeParties = pgTable("custody_dispute_parties", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  disputeId: uuid("dispute_id")
-    .notNull()
-    .references(() => custodyDisputes.id, { onDelete: "cascade" }),
-  partyUserId: uuid("party_user_id").references(() => profiles.id, { onDelete: "set null" }),
-  partyOrganizationId: uuid("party_organization_id").references(() => organizations.id, {
-    onDelete: "set null",
+export const custodyDisputeParties = pgTable(
+  "custody_dispute_parties",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    disputeId: uuid("dispute_id")
+      .notNull()
+      .references(() => custodyDisputes.id, { onDelete: "cascade" }),
+    partyUserId: uuid("party_user_id").references(() => profiles.id, { onDelete: "set null" }),
+    partyOrganizationId: uuid("party_organization_id"),
+    partyRole: text("party_role").notNull().$type<DisputePartyRole>(),
+    partyPositionSummary: text("party_position_summary"),
+    addedByUserId: uuid("added_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // FK name exceeds 63 chars when drizzle auto-generates; declare it explicitly.
+    partyOrganizationFk: foreignKey({
+      name: "custody_dispute_parties_party_organization_id_organizations_id_",
+      columns: [table.partyOrganizationId],
+      foreignColumns: [organizations.id],
+    }).onDelete("set null"),
   }),
-  partyRole: text("party_role").notNull().$type<DisputePartyRole>(),
-  partyPositionSummary: text("party_position_summary"),
-  addedByUserId: uuid("added_by_user_id").references(() => profiles.id, {
-    onDelete: "set null",
-  }),
-  addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
-});
+);
 
 export type CustodyDispute = typeof custodyDisputes.$inferSelect;
 export type CustodyDisputeParty = typeof custodyDisputeParties.$inferSelect;
@@ -2147,7 +2186,10 @@ export const cases = pgTable(
   "cases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    publicCode: text("public_code").notNull().unique(),
+    // Uniqueness is enforced by the `publicCodeIdx` unique index in the table
+    // options below; declaring `.unique()` here too would create a duplicate
+    // constraint with a conflicting name.
+    publicCode: text("public_code").notNull(),
     caseKind: text("case_kind").notNull(),
 
     status: text("status").notNull().default("open").$type<CaseStatus>(),
