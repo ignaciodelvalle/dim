@@ -48,7 +48,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import { config as loadEnv } from "dotenv";
@@ -103,22 +103,62 @@ function header(title: string): void {
   console.log(`\n${line}\n  ${title}\n${line}`);
 }
 
+// Supabase ships Postgres inside its `supabase_db_<project_id>` container;
+// host machines often don't have `psql` installed (notably Windows). Going
+// through `docker exec` keeps the script portable — no client-side install,
+// no PATH wrangling, no Docker-vs-WSL ambiguity. Falls back to host psql if
+// docker isn't available (e.g. CI service-container setups).
+function findPostgresContainer(): string | null {
+  const result = spawnSync(
+    "docker",
+    ["ps", "--filter", "name=supabase_db_", "--format", "{{.Names}}"],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) return null;
+  return result.stdout?.trim().split("\n")[0] || null;
+}
+
+const POSTGRES_CONTAINER = findPostgresContainer();
+
 function psql(file: string, opts: { strict: boolean }): boolean {
-  const baseArgs = ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db];
-  const args = opts.strict
-    ? [...baseArgs, "-v", "ON_ERROR_STOP=1", "-f", file]
-    : [...baseArgs, "-f", file];
-  const result = spawnSync("psql", args, {
-    stdio: "inherit",
-    env: { ...process.env, PGPASSWORD: pg.password },
-  });
+  const onErrorStop = opts.strict ? ["-v", "ON_ERROR_STOP=1"] : [];
+  const sql = readFileSync(file, "utf8");
+  if (POSTGRES_CONTAINER) {
+    const result = spawnSync(
+      "docker",
+      [
+        "exec",
+        "-i",
+        POSTGRES_CONTAINER,
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        "postgres",
+        ...onErrorStop,
+      ],
+      { input: sql, stdio: ["pipe", "inherit", "inherit"] },
+    );
+    return result.status === 0;
+  }
+  // Fallback: host psql via DATABASE_URL.
+  const result = spawnSync(
+    "psql",
+    ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorStop, "-f", file],
+    { stdio: "inherit", env: { ...process.env, PGPASSWORD: pg.password } },
+  );
   return result.status === 0;
 }
 
-function pnpmRun(command: string, scriptArgs: string[] = []): boolean {
+function pnpmRun(
+  command: string,
+  scriptArgs: string[] = [],
+  extraEnv: Record<string, string | undefined> = {},
+): boolean {
   const result = spawnSync("pnpm", [command, ...scriptArgs], {
     stdio: "inherit",
     shell: process.platform === "win32",
+    env: { ...process.env, ...extraEnv },
   });
   return result.status === 0;
 }
@@ -136,7 +176,10 @@ function tsxRun(scriptPath: string): boolean {
 // ---------------------------------------------------------------------------
 
 header("Step 1/4 — drizzle-kit push (schema.ts → DB)");
-if (!pnpmRun("db:push")) {
+// drizzle.config.ts opts into strict (interactive) mode unless CI=true.
+// Bootstrap is automation by definition — force non-interactive so it
+// doesn't hang waiting on stdin.
+if (!pnpmRun("db:push", [], { CI: "true" })) {
   console.error("FATAL: db:push failed.");
   process.exit(1);
 }
