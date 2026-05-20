@@ -10,8 +10,8 @@ import {
   type AdoptionListingFilters,
   buildSearchParams,
   parseSearchParams,
-  queryAdoptionListing,
 } from "@/lib/adoption-listing";
+import { queryAdoptionListing } from "@/lib/adoption-listing-query";
 
 // Fixtures live under a single org so cleanup is easy.
 const ORG_TOKEN = "DIM-ADOPTLIST-TEST";

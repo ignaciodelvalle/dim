@@ -18,7 +18,7 @@
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds";
+import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { requireCapability } from "@/lib/capabilities";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
