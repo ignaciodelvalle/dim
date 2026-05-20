@@ -3,9 +3,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
+  type StaleWelfareCandidate,
   escalateStaleWelfareCase,
   findStaleWelfareCases,
-  type StaleWelfareCandidate,
 } from "@/lib/case-closers/escalate-stale-welfare-cases";
 import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
 

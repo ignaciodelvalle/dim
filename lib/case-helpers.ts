@@ -9,7 +9,7 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 
-import { cases, db, type Case, type NewCase } from "@/db";
+import { type Case, type NewCase, cases, db } from "@/db";
 import type { CaseKind } from "./case-kinds";
 import { generatePrefixedToken } from "./publicToken";
 

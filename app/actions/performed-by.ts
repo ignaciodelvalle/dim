@@ -6,12 +6,12 @@
 // otherwise a typed error so the combobox can render a hint instead
 // of throwing.
 
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   type PerformedBySuggestion,
   type SearchJurisdiction,
   searchVetsAndClinics,
 } from "@/lib/performed-by-search";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 60;
