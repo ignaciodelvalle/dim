@@ -67,6 +67,34 @@ describe("PayloadSchemas — coverage", () => {
   });
 });
 
+// §4.4 — convention enforcement. Every schema in the registry MUST include
+// `payload_version` in its top-level shape. This is the foundation the
+// (future) upcaster registry needs: a missing version field means we can't
+// tell which shape the row was written under, which defeats versioning.
+//
+// The pattern in lib/event-schemas.ts is `z.object(withVersion({...})).strict()`
+// where `withVersion` injects `payload_version: z.literal(1).default(1)` at
+// the head of the shape. This test catches a future contributor adding a
+// schema that forgets `withVersion(...)`.
+describe("PayloadSchemas — payload_version coverage", () => {
+  for (const [eventType, schema] of Object.entries(PayloadSchemas)) {
+    it(`${eventType} schema includes payload_version`, () => {
+      // All schemas in the registry are z.object(...).strict() today. If a
+      // future schema is intentionally a discriminated union or similar,
+      // update this test to walk into each variant.
+      const shape = (schema as { shape?: Record<string, unknown> }).shape;
+      expect(
+        shape,
+        `Schema for ${eventType} is not a ZodObject (no .shape getter). The convention is z.object(withVersion({...})).strict(); update this test if you intentionally introduced a different schema kind.`,
+      ).toBeDefined();
+      expect(
+        Object.keys(shape ?? {}),
+        `Schema for ${eventType} is missing payload_version. Wrap the shape with withVersion(...) — see lib/event-schemas.ts.`,
+      ).toContain("payload_version");
+    });
+  }
+});
+
 describe("PayloadSchemas — canonical writer payloads", () => {
   // For each event type, one example payload that mirrors what the real
   // writer in app/actions/* produces. If a writer changes shape, the
