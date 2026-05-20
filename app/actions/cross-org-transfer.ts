@@ -13,7 +13,7 @@
 // cover non-cross-org scenarios (org closing instant handoff, etc.).
 // The cross-org flow is opt-in via the dedicated /org/.../transferencias UI.
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -148,6 +148,8 @@ export async function proposeCrossOrgTransferAction(
   }
 
   let createdPublicCode = "";
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -200,23 +202,21 @@ export async function proposeCrossOrgTransferAction(
             isNull(organizationMemberships.leftAt),
           ),
         );
-      if (recipients.length > 0) {
-        await tx.insert(notifications).values(
-          recipients.map((r) => ({
-            userId: r.userId,
-            notificationType: "cross_org_transfer_proposed_receiver" as const,
-            severity: "info" as const,
-            title: `Propuesta de transferencia entrante para ${pet.name}`,
-            body: `${organization.displayName} propone transferirte la custodia de ${pet.name}. Tenés 30 días para aceptar o rechazar.`,
-            ctaLabel: "Ver propuesta",
-            ctaUrl: `/casos/${caseRow.publicCode}`,
-            relatedCaseId: caseRow.id,
-            relatedPetId: pet.id,
-          })),
-        );
+      for (const r of recipients) {
+        pendingNotifications.push({
+          userId: r.userId,
+          notificationType: "cross_org_transfer_proposed_receiver" as const,
+          severity: "info" as const,
+          title: `Propuesta de transferencia entrante para ${pet.name}`,
+          body: `${organization.displayName} propone transferirte la custodia de ${pet.name}. Tenés 30 días para aceptar o rechazar.`,
+          ctaLabel: "Ver propuesta",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
+          relatedPetId: pet.id,
+        });
       }
       // Confirmation to sender user.
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: user.id,
         notificationType: "cross_org_transfer_proposed_sender" as const,
         severity: "info" as const,
@@ -244,6 +244,14 @@ export async function proposeCrossOrgTransferAction(
     return {
       error: `No se pudo proponer la transferencia: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (proposeCrossOrgTransferAction did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${input.senderOrgToken}/transferencias`);
@@ -282,25 +290,66 @@ export async function acceptCrossOrgTransferAction(input: {
     return { error: "Caso sin mascota asociada." };
   }
 
-  // Resolve the proposal event to verify the receiver matches the caller's org.
-  const [proposalEvent] = await db
+  // Resolve the canonical proposal event for this case (review 2026-05-19
+  // §2.4). The handshake-uniqueness check at proposeCrossOrgTransferAction
+  // guarantees only one `open|escalated` `custody_transfer_handshake` case
+  // exists per pet at a time, and openCase emits exactly one
+  // `custody_transfer_proposed` event per case. We pick the LATEST proposal
+  // event for the case as a defense-in-depth measure (deterministic even if
+  // a future bug somehow emits two), and we fail loudly if more than one
+  // exists so the inconsistency surfaces instead of silently authorizing the
+  // wrong receiver.
+  const proposalEvents = await db
     .select()
     .from(petEvents)
     .where(
       and(eq(petEvents.caseId, caseRow.id), eq(petEvents.eventType, "custody_transfer_proposed")),
     )
-    .limit(1);
+    .orderBy(desc(petEvents.recordedAt))
+    .limit(2);
+  const [proposalEvent, shadowProposalEvent] = proposalEvents;
   if (!proposalEvent) return { error: "Propuesta original no encontrada." };
+  if (shadowProposalEvent) {
+    console.error(
+      `cross-org-transfer integrity: case ${caseRow.id} has multiple custody_transfer_proposed events; refusing to accept until reconciled`,
+    );
+    return {
+      error:
+        "El caso tiene propuestas duplicadas. Avisanos para reconciliarlo antes de aceptar la transferencia.",
+    };
+  }
   const proposalPayload = proposalEvent.payload as {
     from_organization_id?: string;
     to_organization_id?: string;
     reason?: string;
   };
+  // The case row's `openedByOrganizationId` is the canonical sender (set at
+  // openCase time, not from event payload). Cross-check it against the
+  // payload to catch any drift between case state and the event timeline.
+  const senderOrgId = caseRow.openedByOrganizationId ?? proposalPayload.from_organization_id;
+  if (!senderOrgId) return { error: "Propuesta sin organización emisora." };
+  if (
+    caseRow.openedByOrganizationId &&
+    proposalPayload.from_organization_id &&
+    caseRow.openedByOrganizationId !== proposalPayload.from_organization_id
+  ) {
+    console.error(
+      `cross-org-transfer integrity: case ${caseRow.id} openedByOrganizationId (${caseRow.openedByOrganizationId}) does not match proposal payload from_organization_id (${proposalPayload.from_organization_id})`,
+    );
+    return {
+      error:
+        "Inconsistencia entre el caso y la propuesta. Avisanos para reconciliarlo antes de aceptar la transferencia.",
+    };
+  }
+  // Receiver is still derived from the payload (no canonical column on
+  // `cases` yet — tracked as a follow-up). The single-proposal guard above
+  // makes this safe as long as the data-integrity invariant holds.
   if (proposalPayload.to_organization_id !== organization.id) {
     return { error: "La propuesta no fue dirigida a tu organización." };
   }
-  const senderOrgId = proposalPayload.from_organization_id;
-  if (!senderOrgId) return { error: "Propuesta sin organización emisora." };
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
 
   try {
     await db.transaction(async (tx) => {
@@ -366,23 +415,21 @@ export async function acceptCrossOrgTransferAction(input: {
             isNull(organizationMemberships.leftAt),
           ),
         );
-      if (senderCoords.length > 0) {
-        await tx.insert(notifications).values(
-          senderCoords.map((r) => ({
-            userId: r.userId,
-            notificationType: "cross_org_transfer_accepted_sender" as const,
-            severity: "success" as const,
-            title: "Tu transferencia fue aceptada",
-            body: `${organization.displayName} recibió la custodia. La transferencia está completa.`,
-            ctaLabel: "Ver caso",
-            ctaUrl: `/casos/${caseRow.publicCode}`,
-            relatedCaseId: caseRow.id,
-            relatedPetId: caseRow.primaryPetId,
-          })),
-        );
+      for (const r of senderCoords) {
+        pendingNotifications.push({
+          userId: r.userId,
+          notificationType: "cross_org_transfer_accepted_sender" as const,
+          severity: "success" as const,
+          title: "Tu transferencia fue aceptada",
+          body: `${organization.displayName} recibió la custodia. La transferencia está completa.`,
+          ctaLabel: "Ver caso",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
+          relatedPetId: caseRow.primaryPetId,
+        });
       }
 
-      await tx.insert(notifications).values({
+      pendingNotifications.push({
         userId: user.id,
         notificationType: "cross_org_transfer_accepted_receiver" as const,
         severity: "success" as const,
@@ -409,6 +456,14 @@ export async function acceptCrossOrgTransferAction(input: {
     return {
       error: `No se pudo aceptar la transferencia: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (acceptCrossOrgTransferAction did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
@@ -457,6 +512,9 @@ export async function rejectCrossOrgTransferAction(input: {
     [input.reason, input.message?.trim()].filter(Boolean).join(" — ") ||
     "Rechazada sin motivo especificado";
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const now = new Date();
@@ -489,20 +547,18 @@ export async function rejectCrossOrgTransferAction(input: {
             isNull(organizationMemberships.leftAt),
           ),
         );
-      if (senderCoords.length > 0) {
-        await tx.insert(notifications).values(
-          senderCoords.map((r) => ({
-            userId: r.userId,
-            notificationType: "cross_org_transfer_rejected_sender" as const,
-            severity: "info" as const,
-            title: "Tu propuesta de transferencia fue rechazada",
-            body: `${organization.displayName} rechazó la propuesta. Motivo: ${reasonNote}`,
-            ctaLabel: "Ver caso",
-            ctaUrl: `/casos/${caseRow.publicCode}`,
-            relatedCaseId: caseRow.id,
-            relatedPetId: caseRow.primaryPetId,
-          })),
-        );
+      for (const r of senderCoords) {
+        pendingNotifications.push({
+          userId: r.userId,
+          notificationType: "cross_org_transfer_rejected_sender" as const,
+          severity: "info" as const,
+          title: "Tu propuesta de transferencia fue rechazada",
+          body: `${organization.displayName} rechazó la propuesta. Motivo: ${reasonNote}`,
+          ctaLabel: "Ver caso",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
+          relatedPetId: caseRow.primaryPetId,
+        });
       }
 
       await tx.insert(auditLog).values({
@@ -521,6 +577,14 @@ export async function rejectCrossOrgTransferAction(input: {
     return {
       error: `No se pudo rechazar la transferencia: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (rejectCrossOrgTransferAction did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
@@ -570,6 +634,9 @@ export async function cancelCrossOrgTransferAction(input: {
     [input.reason, input.message?.trim()].filter(Boolean).join(" — ") ||
     "Cancelada por la organización emisora";
 
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
   try {
     await db.transaction(async (tx) => {
       const now = new Date();
@@ -603,18 +670,16 @@ export async function cancelCrossOrgTransferAction(input: {
               isNull(organizationMemberships.leftAt),
             ),
           );
-        if (receiverCoords.length > 0) {
-          await tx.insert(notifications).values(
-            receiverCoords.map((r) => ({
-              userId: r.userId,
-              notificationType: "cross_org_transfer_cancelled_receiver" as const,
-              severity: "info" as const,
-              title: "Propuesta de transferencia cancelada",
-              body: `${organization.displayName} canceló la propuesta. Motivo: ${reasonNote}`,
-              relatedCaseId: caseRow.id,
-              relatedPetId: caseRow.primaryPetId,
-            })),
-          );
+        for (const r of receiverCoords) {
+          pendingNotifications.push({
+            userId: r.userId,
+            notificationType: "cross_org_transfer_cancelled_receiver" as const,
+            severity: "info" as const,
+            title: "Propuesta de transferencia cancelada",
+            body: `${organization.displayName} canceló la propuesta. Motivo: ${reasonNote}`,
+            relatedCaseId: caseRow.id,
+            relatedPetId: caseRow.primaryPetId,
+          });
         }
       }
 
@@ -634,6 +699,14 @@ export async function cancelCrossOrgTransferAction(input: {
     return {
       error: `No se pudo cancelar la transferencia: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (cancelCrossOrgTransferAction did succeed)", e);
+    }
   }
 
   revalidatePath(`/org/${input.senderOrgToken}/transferencias`);
