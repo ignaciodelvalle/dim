@@ -8,6 +8,7 @@ import {
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
+import { labelClass } from "@/lib/form-classes";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -92,10 +93,7 @@ export function PppBreedListForm({
       </fieldset>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="customBreed"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="customBreed" className={labelClass}>
           Agregar raza no estándar
         </label>
         <div className="flex gap-2">
@@ -118,10 +116,7 @@ export function PppBreedListForm({
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           Notas internas (visible solo a admin/govt)
         </label>
         <textarea

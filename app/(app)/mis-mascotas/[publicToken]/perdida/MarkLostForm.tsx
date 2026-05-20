@@ -2,6 +2,7 @@
 
 import type { DisclosurePrefsInput, EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 
 const initialState: EventFormState = { error: null };
@@ -48,10 +49,6 @@ const DISCLOSURE_TOGGLES: Array<{
   },
 ];
 
-// Shared input class for the enriched section fields.
-const INPUT_CLASS =
-  "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent";
-
 export function MarkLostForm({
   action,
   disclosureDefaults,
@@ -89,10 +86,7 @@ export function MarkLostForm({
       />
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="reason"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="reason" className={labelClass}>
           Detalles
         </label>
         <textarea
@@ -100,7 +94,7 @@ export function MarkLostForm({
           name="reason"
           rows={3}
           placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
-          className={INPUT_CLASS}
+          className={inputClass}
         />
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           Opcional. Guardado en el historial para tu referencia.
@@ -129,10 +123,7 @@ export function MarkLostForm({
             </p>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="enriched_color"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="enriched_color" className={labelClass}>
                 Color y pelaje
               </label>
               <input
@@ -141,7 +132,7 @@ export function MarkLostForm({
                 type="text"
                 defaultValue={petColor ?? ""}
                 placeholder="Ej: marrón con manchas blancas en el pecho"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
               <p className="text-xs text-neutral-500 dark:text-neutral-500">
                 Actualiza el color guardado en su perfil.
@@ -149,10 +140,7 @@ export function MarkLostForm({
             </div>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="enriched_distinguishing_features"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="enriched_distinguishing_features" className={labelClass}>
                 Marcas o características distintivas
               </label>
               <textarea
@@ -161,7 +149,7 @@ export function MarkLostForm({
                 rows={2}
                 defaultValue={petDistinguishingFeatures ?? ""}
                 placeholder="Ej: mancha negra en la oreja derecha, cola corta, cicatriz en el lomo"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
               <p className="text-xs text-neutral-500 dark:text-neutral-500">
                 Se guarda en su perfil permanentemente.
@@ -176,10 +164,7 @@ export function MarkLostForm({
             </p>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="enriched_accessories_when_lost"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="enriched_accessories_when_lost" className={labelClass}>
                 Accesorios que llevaba
               </label>
               <input
@@ -187,7 +172,7 @@ export function MarkLostForm({
                 name="enriched_accessories_when_lost"
                 type="text"
                 placeholder="Ej: collar rojo con placa, campera azul"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
               <p className="text-xs text-neutral-500 dark:text-neutral-500">
                 Aparece en la credencial pública como ayuda para identificarla.
@@ -195,10 +180,7 @@ export function MarkLostForm({
             </div>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="enriched_behavior_notes"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="enriched_behavior_notes" className={labelClass}>
                 Comportamiento y temperamento
               </label>
               <textarea
@@ -206,15 +188,12 @@ export function MarkLostForm({
                 name="enriched_behavior_notes"
                 rows={2}
                 placeholder="Ej: se asusta de los autos, es cariñosa, responde a su nombre"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="enriched_last_seen_context"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="enriched_last_seen_context" className={labelClass}>
                 Contexto del último avistaje
               </label>
               <textarea
@@ -222,7 +201,7 @@ export function MarkLostForm({
                 name="enriched_last_seen_context"
                 rows={2}
                 placeholder="Ej: salió por la puerta cuando abrimos el portón, se asustó con los fuegos artificiales"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
             </div>
           </div>
@@ -233,10 +212,7 @@ export function MarkLostForm({
               Microchip (opcional)
             </p>
             <div className="space-y-1.5">
-              <label
-                htmlFor="enriched_microchip_id"
-                className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-              >
+              <label htmlFor="enriched_microchip_id" className={labelClass}>
                 Numero de microchip
               </label>
               <input
@@ -244,7 +220,7 @@ export function MarkLostForm({
                 name="enriched_microchip_id"
                 type="text"
                 placeholder="Ej: 982000411234567"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
               <p className="text-xs text-neutral-500 dark:text-neutral-500">
                 Si te acordás que tiene chip pero nunca lo cargaste, ingresalo acá. Si alguien la

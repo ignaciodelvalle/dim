@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
 import { useMemo, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -47,10 +48,7 @@ export function VaccinationForm({
       {sourceReminderId && <input type="hidden" name="sourceReminderId" value={sourceReminderId} />}
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="vaccineName"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="vaccineName" className={labelClass}>
           Vacuna<span className="text-red-500 ml-0.5">*</span>
         </label>
         <input
@@ -63,7 +61,7 @@ export function VaccinationForm({
           autoComplete="off"
           value={vaccineName}
           onChange={(e) => setVaccineName(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
         <datalist id="vaccine-options">
           {vaccines.map((v) => (
@@ -93,10 +91,7 @@ export function VaccinationForm({
       />
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="nextDueAt"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="nextDueAt" className={labelClass}>
           Próxima dosis (opcional — crea recordatorio)
         </label>
         <input
@@ -108,7 +103,7 @@ export function VaccinationForm({
             setNextDueOverridden(true);
             setNextDueAt(e.target.value);
           }}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
         {!nextDueOverridden && suggestedNextDue && (
           <p className="text-xs text-neutral-500 dark:text-neutral-500">
@@ -118,10 +113,7 @@ export function VaccinationForm({
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           Notas
         </label>
         <textarea
@@ -129,7 +121,7 @@ export function VaccinationForm({
           name="notes"
           rows={3}
           defaultValue={defaults?.notes ?? ""}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
@@ -169,10 +161,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor={id} className={labelClass}>
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
@@ -182,7 +171,7 @@ function Field({
         type={type}
         required={required}
         defaultValue={defaultValue}
-        className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        className={inputClass}
       />
     </div>
   );

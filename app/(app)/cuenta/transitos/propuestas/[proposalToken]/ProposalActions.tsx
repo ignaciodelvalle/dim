@@ -7,6 +7,7 @@ import {
   acceptFosterProposalAction,
   rejectFosterProposalAction,
 } from "@/app/actions/foster-proposals";
+import { labelClass } from "@/lib/form-classes";
 
 const REJECTION_REASONS = [
   { value: "capacity", label: "No tengo capacity ahora" },
@@ -141,10 +142,7 @@ export function ProposalActions({
       <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
         <h3 className="font-medium text-neutral-900 dark:text-neutral-50">Rechazar propuesta</h3>
         <div>
-          <label
-            htmlFor="reject-reason"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-          >
+          <label htmlFor="reject-reason" className={`${labelClass} mb-1`}>
             Motivo
           </label>
           <select

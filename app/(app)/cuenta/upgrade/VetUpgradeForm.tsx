@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { type UpgradeFormState, requestVetUpgradeAction } from "@/app/actions/upgrade";
+import { inputClass, labelClass } from "@/lib/form-classes";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -125,10 +126,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor={id} className={labelClass}>
         {label}
       </label>
       <input
@@ -137,7 +135,7 @@ function Field({
         type={type}
         required={required}
         inputMode={inputMode}
-        className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+        className={inputClass}
       />
       {hint && <p className="text-xs text-neutral-500 dark:text-neutral-500">{hint}</p>}
     </div>

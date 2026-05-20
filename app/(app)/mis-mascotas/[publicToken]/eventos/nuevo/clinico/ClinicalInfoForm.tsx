@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -30,10 +31,6 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [subKind, setSubKind] = useState<SubKind>("lab_work");
   const today = new Date().toISOString().slice(0, 10);
-
-  const inputClass =
-    "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent";
-  const labelClass = "block text-sm font-medium text-neutral-900 dark:text-neutral-50";
 
   return (
     <form action={formAction} className="space-y-5">

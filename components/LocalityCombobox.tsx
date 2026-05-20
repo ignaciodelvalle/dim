@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
 import type { LocalitySearchResult } from "@/lib/ar-localidades";
+import { inputClass } from "@/lib/form-classes";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
@@ -36,9 +37,6 @@ type Props = {
   /** Called whenever the user picks a result or clears the field. */
   onSelect?: (selected: LocalitySearchResult | null) => void;
 };
-
-const inputClass =
-  "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent disabled:opacity-50";
 
 export function LocalityCombobox({
   provinceCode,
@@ -139,7 +137,7 @@ export function LocalityCombobox({
         placeholder={disabled ? "Primero elegí provincia" : "Empezá a tipear..."}
         disabled={disabled}
         required={required}
-        className={inputClass}
+        className={`${inputClass} disabled:opacity-50`}
         aria-autocomplete="list"
         aria-expanded={open}
       />

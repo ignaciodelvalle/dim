@@ -2,17 +2,13 @@
 
 import type { EventFormState } from "@/app/actions/events";
 import { diseasesForSpecies, findDisease } from "@/lib/diseases";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
-
-const inputClass =
-  "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent";
-
-const labelClass = "block text-sm font-medium text-neutral-900 dark:text-neutral-50";
 
 const facilityHints: Record<string, { label: string; placeholder: string }> = {
   cremation_collective: { label: "Crematorio", placeholder: "Nombre del crematorio" },

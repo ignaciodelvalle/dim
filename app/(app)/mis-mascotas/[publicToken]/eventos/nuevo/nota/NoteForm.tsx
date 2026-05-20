@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -29,10 +30,7 @@ export function NoteForm({
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor="text"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="text" className={labelClass}>
           Nota<span className="text-red-500 ml-0.5">*</span>
         </label>
         <textarea
@@ -42,23 +40,15 @@ export function NoteForm({
           required
           defaultValue={defaults?.text ?? ""}
           placeholder="¿Qué observaste?"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="category"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="category" className={labelClass}>
           Categoría
         </label>
-        <select
-          id="category"
-          name="category"
-          defaultValue=""
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-        >
+        <select id="category" name="category" defaultValue="" className={inputClass}>
           <option value="">No especificar</option>
           {CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>
@@ -69,10 +59,7 @@ export function NoteForm({
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="occurredAt"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="occurredAt" className={labelClass}>
           Fecha<span className="text-red-500 ml-0.5">*</span>
         </label>
         <input
@@ -81,7 +68,7 @@ export function NoteForm({
           type="date"
           required
           defaultValue={defaults?.occurredAt ?? today}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 

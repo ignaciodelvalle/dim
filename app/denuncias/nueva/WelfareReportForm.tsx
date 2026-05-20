@@ -2,6 +2,7 @@
 
 import type { WelfareReportFormState } from "@/app/actions/welfare";
 import { LocationFields } from "@/components/LocationFields";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -20,9 +21,6 @@ type FormAction = (
   formData: FormData,
 ) => Promise<WelfareReportFormState>;
 
-const LABEL_CLASS = "block text-sm font-medium text-neutral-900 dark:text-neutral-50";
-const INPUT_CLASS =
-  "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent";
 const FIELD_CLASS = "space-y-1.5";
 
 const MAX_EVIDENCE_FILES = 5;
@@ -144,10 +142,10 @@ export function WelfareReportForm({
 
       {/* Kind */}
       <div className={FIELD_CLASS}>
-        <label htmlFor="kind" className={LABEL_CLASS}>
+        <label htmlFor="kind" className={labelClass}>
           Tipo de situación<span className="text-red-500 ml-0.5">*</span>
         </label>
-        <select id="kind" name="kind" required className={INPUT_CLASS}>
+        <select id="kind" name="kind" required className={inputClass}>
           <option value="">Seleccioná una opción</option>
           {WELFARE_REPORT_KINDS.map((k) => (
             <option key={k} value={k}>
@@ -159,10 +157,10 @@ export function WelfareReportForm({
 
       {/* Severity */}
       <div className={FIELD_CLASS}>
-        <label htmlFor="severity" className={LABEL_CLASS}>
+        <label htmlFor="severity" className={labelClass}>
           Gravedad<span className="text-red-500 ml-0.5">*</span>
         </label>
-        <select id="severity" name="severity" required className={INPUT_CLASS}>
+        <select id="severity" name="severity" required className={inputClass}>
           <option value="">Seleccioná una opción</option>
           {WELFARE_REPORT_SEVERITIES.map((s) => (
             <option key={s} value={s}>
@@ -174,7 +172,7 @@ export function WelfareReportForm({
 
       {/* Description */}
       <div className={FIELD_CLASS}>
-        <label htmlFor="description" className={LABEL_CLASS}>
+        <label htmlFor="description" className={labelClass}>
           ¿Qué pasó?<span className="text-red-500 ml-0.5">*</span>
         </label>
         <textarea
@@ -186,7 +184,7 @@ export function WelfareReportForm({
           placeholder="Contá lo que viste con detalle: cuándo, dónde, quiénes están involucrados, qué condición está el animal…"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className={INPUT_CLASS}
+          className={inputClass}
         />
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           {description.length} caracteres (mínimo 20)
@@ -195,7 +193,7 @@ export function WelfareReportForm({
 
       {/* Subject kind */}
       <fieldset className={FIELD_CLASS}>
-        <legend className={LABEL_CLASS}>
+        <legend className={labelClass}>
           ¿Sobre quién?<span className="text-red-500 ml-0.5">*</span>
         </legend>
         <div className="space-y-2 mt-1">
@@ -221,7 +219,7 @@ export function WelfareReportForm({
       {/* Conditional subject fields */}
       {subjectKind === "registered_pet" && (
         <div className={FIELD_CLASS}>
-          <label htmlFor="subjectPetToken" className={LABEL_CLASS}>
+          <label htmlFor="subjectPetToken" className={labelClass}>
             Código MiMAR de la mascota
           </label>
           <input
@@ -229,14 +227,14 @@ export function WelfareReportForm({
             name="subjectPetToken"
             type="text"
             placeholder="Ej: DIM-XXXX-XXXX"
-            className={INPUT_CLASS}
+            className={inputClass}
           />
         </div>
       )}
 
       {subjectKind !== "registered_pet" && (
         <div className={FIELD_CLASS}>
-          <label htmlFor="subjectDescription" className={LABEL_CLASS}>
+          <label htmlFor="subjectDescription" className={labelClass}>
             {subjectKind === "unowned_animal"
               ? "Descripción del animal"
               : subjectKind === "location"
@@ -256,14 +254,14 @@ export function WelfareReportForm({
                   ? "Describí el lugar: dirección, características…"
                   : "Describí la situación…"
             }
-            className={INPUT_CLASS}
+            className={inputClass}
           />
         </div>
       )}
 
       {/* Observed symptoms (optional — triggers symptom_observed pet event when subject is registered) */}
       <div className={FIELD_CLASS}>
-        <label htmlFor="observedSymptoms" className={LABEL_CLASS}>
+        <label htmlFor="observedSymptoms" className={labelClass}>
           ¿Notaste síntomas en el animal? (opcional)
         </label>
         <textarea
@@ -271,7 +269,7 @@ export function WelfareReportForm({
           name="observedSymptoms"
           rows={3}
           placeholder="Ej: baboso, agresivo, débil, cojeando, con heridas, etc."
-          className={INPUT_CLASS}
+          className={inputClass}
         />
       </div>
 
@@ -282,15 +280,15 @@ export function WelfareReportForm({
 
       {/* Occurred at */}
       <div className={FIELD_CLASS}>
-        <label htmlFor="occurredAt" className={LABEL_CLASS}>
+        <label htmlFor="occurredAt" className={labelClass}>
           ¿Cuándo pasó o desde cuándo viene pasando?
         </label>
-        <input id="occurredAt" name="occurredAt" type="date" className={INPUT_CLASS} />
+        <input id="occurredAt" name="occurredAt" type="date" className={inputClass} />
       </div>
 
       {/* Evidence (multimedia) */}
       <div className={FIELD_CLASS}>
-        <span className={LABEL_CLASS}>Evidencia (opcional)</span>
+        <span className={labelClass}>Evidencia (opcional)</span>
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF)
           y videos (MP4, WebM, MOV).
@@ -367,7 +365,7 @@ export function WelfareReportForm({
               denuncia.
             </p>
             <div className={FIELD_CLASS}>
-              <label htmlFor="reporterContactEmail" className={LABEL_CLASS}>
+              <label htmlFor="reporterContactEmail" className={labelClass}>
                 Email de contacto
               </label>
               <input
@@ -375,11 +373,11 @@ export function WelfareReportForm({
                 name="reporterContactEmail"
                 type="email"
                 placeholder="tu@email.com"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
             </div>
             <div className={FIELD_CLASS}>
-              <label htmlFor="reporterContactPhone" className={LABEL_CLASS}>
+              <label htmlFor="reporterContactPhone" className={labelClass}>
                 Teléfono de contacto
               </label>
               <input
@@ -387,7 +385,7 @@ export function WelfareReportForm({
                 name="reporterContactPhone"
                 type="tel"
                 placeholder="+54 11 1234-5678"
-                className={INPUT_CLASS}
+                className={inputClass}
               />
             </div>
           </div>

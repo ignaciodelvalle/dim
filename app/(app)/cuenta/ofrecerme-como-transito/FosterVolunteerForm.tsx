@@ -8,6 +8,7 @@ import {
   upsertFosterVolunteerAction,
   withdrawFosterVolunteerAction,
 } from "@/app/actions/foster-volunteers";
+import { labelClass } from "@/lib/form-classes";
 
 type InitialState = {
   status: "active" | "paused" | "withdrawn";
@@ -212,10 +213,7 @@ export function FosterVolunteerForm({ initial }: { initial: InitialState | null 
       </fieldset>
 
       <div className="space-y-2">
-        <label
-          htmlFor="fv-max-duration"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="fv-max-duration" className={labelClass}>
           Duración máxima (semanas)
         </label>
         <input
@@ -231,10 +229,7 @@ export function FosterVolunteerForm({ initial }: { initial: InitialState | null 
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label
-            htmlFor="fv-province"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-          >
+          <label htmlFor="fv-province" className={labelClass}>
             Provincia
           </label>
           <input
@@ -247,10 +242,7 @@ export function FosterVolunteerForm({ initial }: { initial: InitialState | null 
           />
         </div>
         <div>
-          <label
-            htmlFor="fv-locality"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-          >
+          <label htmlFor="fv-locality" className={labelClass}>
             Localidad
           </label>
           <input
@@ -281,10 +273,7 @@ export function FosterVolunteerForm({ initial }: { initial: InitialState | null 
       </fieldset>
 
       <div>
-        <label
-          htmlFor="fv-notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="fv-notes" className={labelClass}>
           Notas para el refugio
         </label>
         <textarea

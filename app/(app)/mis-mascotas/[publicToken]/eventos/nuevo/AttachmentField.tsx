@@ -1,10 +1,9 @@
+import { labelClass } from "@/lib/form-classes";
+
 export function AttachmentField() {
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor="attachment"
-        className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-      >
+      <label htmlFor="attachment" className={labelClass}>
         Foto adjunta (opcional)
       </label>
       <input

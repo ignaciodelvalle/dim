@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { labelClass } from "@/lib/form-classes";
+
 import { setAdoptionEligibilityAction } from "@/app/actions/adoption-eligibility";
 
 const REASONS = [
@@ -120,10 +122,7 @@ export function EligibilityForm({
       {decision === "not_eligible" && (
         <div className="space-y-3">
           <div>
-            <label
-              htmlFor="elig-reason"
-              className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-            >
+            <label htmlFor="elig-reason" className={`${labelClass} mb-1`}>
               Motivo
             </label>
             <select
@@ -140,10 +139,7 @@ export function EligibilityForm({
             </select>
           </div>
           <div>
-            <label
-              htmlFor="elig-notes"
-              className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-            >
+            <label htmlFor="elig-notes" className={`${labelClass} mb-1`}>
               Notas {reason === "other" && <span className="text-red-600">*</span>}
             </label>
             <textarea
@@ -156,10 +152,7 @@ export function EligibilityForm({
             />
           </div>
           <div>
-            <label
-              htmlFor="elig-until"
-              className="block text-sm font-medium text-neutral-900 dark:text-neutral-50 mb-1"
-            >
+            <label htmlFor="elig-until" className={`${labelClass} mb-1`}>
               Hasta (opcional)
             </label>
             <input

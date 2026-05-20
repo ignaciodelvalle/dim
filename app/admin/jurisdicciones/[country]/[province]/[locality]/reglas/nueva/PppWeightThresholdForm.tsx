@@ -7,6 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import { inputClass, labelClass } from "@/lib/form-classes";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -50,10 +51,7 @@ export function PppWeightThresholdForm({
       </p>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="kg"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="kg" className={labelClass}>
           Peso mínimo (kg)
         </label>
         <input
@@ -83,10 +81,7 @@ export function PppWeightThresholdForm({
       </label>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           Notas internas
         </label>
         <textarea

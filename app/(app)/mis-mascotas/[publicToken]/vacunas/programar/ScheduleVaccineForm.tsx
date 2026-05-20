@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReminderFormState } from "@/app/actions/reminders";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { vaccinesForSpecies } from "@/lib/lookups";
 import { useActionState } from "react";
 
@@ -21,10 +22,7 @@ export function ScheduleVaccineForm({
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor="vaccineName"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="vaccineName" className={labelClass}>
           Vacuna<span className="text-red-500 ml-0.5">*</span>
         </label>
         <input
@@ -35,7 +33,7 @@ export function ScheduleVaccineForm({
           list="schedule-vaccine-options"
           placeholder="Empezá a tipear o elegí…"
           autoComplete="off"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
         <datalist id="schedule-vaccine-options">
           {vaccines.map((v) => (
@@ -45,26 +43,14 @@ export function ScheduleVaccineForm({
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="dueAt"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="dueAt" className={labelClass}>
           Fecha estimada<span className="text-red-500 ml-0.5">*</span>
         </label>
-        <input
-          id="dueAt"
-          name="dueAt"
-          type="date"
-          required
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-        />
+        <input id="dueAt" name="dueAt" type="date" required className={inputClass} />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="description"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="description" className={labelClass}>
           Notas
         </label>
         <textarea
@@ -72,7 +58,7 @@ export function ScheduleVaccineForm({
           name="description"
           rows={3}
           placeholder="Cualquier detalle (clínica habitual, dosis, etc.)"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 

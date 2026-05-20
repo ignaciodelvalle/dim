@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import { type DniVerifyFormState, verifyDniAction } from "@/app/actions/dni-verification";
+import { inputClass, labelClass } from "@/lib/form-classes";
 
 const initialState: DniVerifyFormState = { error: null };
 
@@ -32,10 +33,7 @@ export function DniVerifyForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="dni"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="dni" className={labelClass}>
           Número de DNI
         </label>
         <input
@@ -45,7 +43,7 @@ export function DniVerifyForm({ next }: { next: string }) {
           inputMode="numeric"
           required
           placeholder="Ej: 34567890"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
         <p className="text-xs text-neutral-500 dark:text-neutral-500">
           7 u 8 dígitos sin puntos ni espacios.

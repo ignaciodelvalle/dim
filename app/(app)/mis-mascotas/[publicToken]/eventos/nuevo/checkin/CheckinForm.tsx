@@ -1,6 +1,7 @@
 "use client";
 
 import type { CheckinFormState } from "@/app/actions/checkin";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -20,10 +21,7 @@ export function CheckinForm({
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="notes" className={labelClass}>
           ¿Cómo está?
         </label>
         <textarea
@@ -32,7 +30,7 @@ export function CheckinForm({
           rows={5}
           defaultValue={defaults?.notes ?? ""}
           placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 

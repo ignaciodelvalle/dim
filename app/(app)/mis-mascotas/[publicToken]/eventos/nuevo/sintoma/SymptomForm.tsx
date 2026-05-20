@@ -1,6 +1,7 @@
 "use client";
 
 import type { SymptomFormState } from "@/app/actions/events";
+import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
 
 const initialState: SymptomFormState = { error: null };
@@ -20,10 +21,7 @@ export function SymptomForm({
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor="freeText"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="freeText" className={labelClass}>
           ¿Qué estás viendo?<span className="text-red-500 ml-0.5">*</span>
         </label>
         <textarea
@@ -32,23 +30,15 @@ export function SymptomForm({
           required
           rows={5}
           placeholder={`Ej: hace dos días que ${petName} vomita y está decaída. Hoy no quiso comer.`}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="severity"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="severity" className={labelClass}>
           ¿Cuán grave te parece?
         </label>
-        <select
-          id="severity"
-          name="severity"
-          defaultValue=""
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-        >
+        <select id="severity" name="severity" defaultValue="" className={inputClass}>
           <option value="">No sé / prefiero no decir</option>
           <option value="mild">Leve</option>
           <option value="moderate">Moderado</option>
@@ -57,19 +47,10 @@ export function SymptomForm({
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor="onsetAt"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
+        <label htmlFor="onsetAt" className={labelClass}>
           ¿Desde cuándo notás esto?
         </label>
-        <input
-          id="onsetAt"
-          name="onsetAt"
-          type="date"
-          max={today}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
-        />
+        <input id="onsetAt" name="onsetAt" type="date" max={today} className={inputClass} />
       </div>
 
       {state.error && (
