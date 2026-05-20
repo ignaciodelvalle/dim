@@ -18,7 +18,7 @@
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
-import { isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds";
 import { requireCapability } from "@/lib/capabilities";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -120,7 +120,7 @@ function parseIntakeForm(formData: FormData) {
       rescueJurisdiction: String(formData.get("rescueJurisdiction") ?? "").trim() || null,
       occurredAt: occurredAt as Date,
       custodyRole,
-      potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
+      // Flag is jurisdiction-resolved at action time — parse stays sync.
     },
     error: null,
   };
@@ -204,6 +204,17 @@ export async function createIntakeAction(
   const now = new Date();
   const authorVerified = organization.verified;
 
+  // Jurisdiction-aware PPP evaluation (spec govt-business-rules-poc §4).
+  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+    parsed.species,
+    parsed.breed,
+    {
+      country: "AR",
+      province: parsed.jurisdictionProvince,
+      locality: parsed.jurisdictionLocality,
+    },
+  );
+
   try {
     await db.transaction(async (tx) => {
       const [newPet] = await tx
@@ -222,7 +233,7 @@ export async function createIntakeAction(
           microchipCountryCode: parsed.microchipCountryCode,
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
-          potentiallyDangerousBreed: parsed.potentiallyDangerousBreed,
+          potentiallyDangerousBreed: potentiallyDangerousBreed,
         })
         .returning();
 
@@ -254,7 +265,7 @@ export async function createIntakeAction(
         insurance_policy_number: null,
         jurisdiction_province: parsed.jurisdictionProvince,
         jurisdiction_locality: parsed.jurisdictionLocality,
-        potentially_dangerous_breed: parsed.potentiallyDangerousBreed,
+        potentially_dangerous_breed: potentiallyDangerousBreed,
         acquisition_method: null,
         has_photo: false,
         has_microchip: parsed.microchipId !== null,

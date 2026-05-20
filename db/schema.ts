@@ -1336,6 +1336,11 @@ export const AUDIT_LOG_ACTIONS = [
   // cascade triggered by adoption_finalized also emits _rejected rows.
   "adoption_application_submitted",
   "adoption_application_resolved",
+  // Govt business rules CRUD (spec 2026-05-19-govt-business-rules-poc-design).
+  // Admin-only operations on the govt_business_rules table.
+  "govt_business_rule_created",
+  "govt_business_rule_updated",
+  "govt_business_rule_deleted",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -1364,6 +1369,53 @@ export const auditLog = pgTable(
 
 export type AuditLogRow = typeof auditLog.$inferSelect;
 export type NewAuditLogRow = typeof auditLog.$inferInsert;
+
+// ============================================================================
+// Govt business rules (POC) — spec 2026-05-19-govt-business-rules-poc-design.
+//
+// Per-jurisdiction overrides of system-wide business rules. POC scope:
+//   - ppp_breed_list                         (which dog breeds are PPP)
+//   - ppp_weight_threshold                   (size-based PPP cutoff)
+//   - ppp_attestation_required_registries    (where the owner must atestar)
+//
+// Cascade resolved at READ time by lib/business-rules-resolver.ts:
+//   locality > province > country > hardcoded defaults (lib/business-rules-defaults.ts).
+// ============================================================================
+
+export const GOVT_BUSINESS_RULE_TYPES = [
+  "ppp_breed_list",
+  "ppp_weight_threshold",
+  "ppp_attestation_required_registries",
+] as const;
+export type GovtBusinessRuleType = (typeof GOVT_BUSINESS_RULE_TYPES)[number];
+
+export const govtBusinessRules = pgTable(
+  "govt_business_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    ruleType: text("rule_type").notNull().$type<GovtBusinessRuleType>(),
+    rulePayload: jsonb("rule_payload").notNull(),
+    notes: text("notes"),
+    legalAnchorIds: text("legal_anchor_ids").array(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "restrict" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => profiles.id, {
+      onDelete: "restrict",
+    }),
+  },
+  (table) => ({
+    ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
+  }),
+);
+
+export type GovtBusinessRule = typeof govtBusinessRules.$inferSelect;
+export type NewGovtBusinessRule = typeof govtBusinessRules.$inferInsert;
 
 // ============================================================================
 // Scheduling system — Fase 0

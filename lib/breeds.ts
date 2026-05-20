@@ -101,6 +101,27 @@ export function isPotentiallyDangerousBreed(
   return POTENTIALLY_DANGEROUS_DOG_BREEDS.has(breed.trim());
 }
 
+/**
+ * Jurisdiction-aware variant that consults the govt_business_rules resolver
+ * (spec 2026-05-19-govt-business-rules-poc-design §4.3). Returns whether
+ * `breed` is in the *effective* PPP list for the given location. Defaults
+ * to the country-wide AR list when no override row exists.
+ *
+ * Use this in server actions that persist `pets.potentially_dangerous_breed`
+ * — the synchronous variant above is kept for client-side UX (warning the
+ * owner inline while typing).
+ */
+export async function isPotentiallyDangerousBreedForJurisdiction(
+  species: string | null | undefined,
+  breed: string | null | undefined,
+  jurisdiction: { country?: string; province?: string | null; locality?: string | null },
+): Promise<boolean> {
+  if (species !== "dog" || !breed) return false;
+  const { resolveBusinessRule } = await import("./business-rules-resolver");
+  const rule = await resolveBusinessRule("ppp_breed_list", jurisdiction);
+  return rule.payload.breeds.includes(breed.trim());
+}
+
 export function breedsForSpecies(species: string): string[] {
   const named = species === "cat" ? CAT_BREEDS : species === "dog" ? DOG_BREEDS : [];
   return [...SPECIAL_BREED_OPTIONS, ...named];

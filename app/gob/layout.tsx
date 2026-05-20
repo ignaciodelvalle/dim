@@ -100,6 +100,12 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
             >
               Historial
             </Link>
+            <Link
+              href="/gob/reglas"
+              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Reglas
+            </Link>
             {profile.role === "admin" && (
               <Link
                 href="/admin"

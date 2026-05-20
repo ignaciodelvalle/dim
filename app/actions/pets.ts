@@ -23,7 +23,7 @@
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
-import { isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
@@ -94,7 +94,6 @@ type ParsedPet = {
   insurancePolicyNumber: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
-  potentiallyDangerousBreed: boolean;
   acquisitionMethod: AcquisitionMethod | null;
   emergencyInfoVisible: boolean;
   permanentConditions: PermanentCondition[];
@@ -213,7 +212,7 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       jurisdictionProvince:
         provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null,
       jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
-      potentiallyDangerousBreed: isPotentiallyDangerousBreed(species, breed),
+      // Flag is jurisdiction-resolved at action time — parse stays sync.
       acquisitionMethod,
       emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
       permanentConditions: parsePermanentConditions(formData),
@@ -335,6 +334,19 @@ export async function createPetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
+  // Jurisdiction-aware PPP evaluation — consults govt_business_rules
+  // (spec 2026-05-19-govt-business-rules-poc-design) before falling back
+  // to the hardcoded breed list.
+  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+    parsed.species,
+    parsed.breed,
+    {
+      country: "AR",
+      province: parsed.jurisdictionProvince,
+      locality: parsed.jurisdictionLocality,
+    },
+  );
+
   const publicToken = generatePublicToken();
   const now = new Date();
 
@@ -360,7 +372,7 @@ export async function createPetAction(
           favouriteFoods: parsed.favouriteFoods.length > 0 ? parsed.favouriteFoods : null,
           knownAllergies: parsed.knownAllergies.length > 0 ? parsed.knownAllergies : null,
           trainingLevel: parsed.trainingLevel,
-          potentiallyDangerousBreed: parsed.potentiallyDangerousBreed,
+          potentiallyDangerousBreed: potentiallyDangerousBreed,
           insuranceCompany: parsed.insuranceCompany,
           insurancePolicyNumber: parsed.insurancePolicyNumber,
           jurisdictionProvince: parsed.jurisdictionProvince,
@@ -423,7 +435,7 @@ export async function createPetAction(
         insurance_policy_number: parsed.insurancePolicyNumber,
         jurisdiction_province: parsed.jurisdictionProvince,
         jurisdiction_locality: parsed.jurisdictionLocality,
-        potentially_dangerous_breed: parsed.potentiallyDangerousBreed,
+        potentially_dangerous_breed: potentiallyDangerousBreed,
         acquisition_method: parsed.acquisitionMethod,
         has_photo: upload.uploadedPath !== null,
         has_microchip: parsed.microchipId !== null,
@@ -466,7 +478,7 @@ export async function createPetAction(
       // Suppressed for foster_in_transit custodians — the legal obligation to
       // inscribe in the provincial PPP registry belongs to the legal owner,
       // not a transitional caretaker. Sending it to a vecino would be misleading.
-      if (parsed.potentiallyDangerousBreed && parsed.custodyKind !== "foster_in_transit") {
+      if (potentiallyDangerousBreed && parsed.custodyKind !== "foster_in_transit") {
         await tx.insert(notifications).values({
           userId: user.id,
           notificationType: "ppp_registration_reminder",
@@ -506,6 +518,7 @@ export async function createPetAction(
 function diffPet(
   existing: Pet,
   parsed: ParsedPet,
+  potentiallyDangerousBreed: boolean,
 ): Array<{
   field: string;
   old: unknown;
@@ -558,7 +571,7 @@ function diffPet(
     {
       field: "potentially_dangerous_breed",
       oldVal: existing.potentiallyDangerousBreed,
-      newVal: parsed.potentiallyDangerousBreed,
+      newVal: potentiallyDangerousBreed,
     },
     {
       field: "insurance_company",
@@ -617,11 +630,22 @@ export async function updatePetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
-  const changes = diffPet(existingPet, parsed);
+  // Jurisdiction-aware PPP evaluation — see createPetAction for context.
+  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+    parsed.species,
+    parsed.breed,
+    {
+      country: "AR",
+      province: parsed.jurisdictionProvince,
+      locality: parsed.jurisdictionLocality,
+    },
+  );
+
+  const changes = diffPet(existingPet, parsed, potentiallyDangerousBreed);
   const wasChipPresent = !!existingPet.microchipId;
   const isChipPresent = !!parsed.microchipId;
   const chipNewlyAdded = !wasChipPresent && isChipPresent;
-  const becamePPP = !existingPet.potentiallyDangerousBreed && parsed.potentiallyDangerousBreed;
+  const becamePPP = !existingPet.potentiallyDangerousBreed && potentiallyDangerousBreed;
   // emergencyInfoVisible is intentionally NOT in diffPet — it is a UI preference,
   // not a fact about the pet, so flipping it does not emit a pet_profile_updated
   // event. We still persist it on the row when it changes.
@@ -657,7 +681,7 @@ export async function updatePetAction(
           favouriteFoods: parsed.favouriteFoods.length > 0 ? parsed.favouriteFoods : null,
           knownAllergies: parsed.knownAllergies.length > 0 ? parsed.knownAllergies : null,
           trainingLevel: parsed.trainingLevel,
-          potentiallyDangerousBreed: parsed.potentiallyDangerousBreed,
+          potentiallyDangerousBreed: potentiallyDangerousBreed,
           insuranceCompany: parsed.insuranceCompany,
           insurancePolicyNumber: parsed.insurancePolicyNumber,
           jurisdictionProvince: parsed.jurisdictionProvince,
