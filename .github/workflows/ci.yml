@@ -160,24 +160,26 @@ jobs:
         # list if a future test needs it.
         run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
 
-      - name: Apply migrations in order
-        # The drizzle journal (db/migrations/meta/_journal.json) is empty, so
-        # `drizzle-kit migrate` is a no-op in this repo. Migrations are
-        # otherwise designed to be pasted into Supabase Studio in numeric
-        # order — see the header of db/migrations/0000_orgs_foundation.sql.
-        # They use IF NOT EXISTS / IF EXISTS guards so re-runs are safe.
-        #
-        # We skip `db:push` here on purpose: push only knows about schema.ts,
-        # but migrations carry the functions, triggers, and CHECK constraints
-        # schema.ts can't express (e.g. check_pet_event_case_id_immutable,
-        # the cases CHECK invariants, the enforce_admin_no_pets guard, etc.).
-        # The `db-check` job above still verifies schema.ts ↔ migrations drift
-        # independently via push.
+      - name: Apply schema (drizzle-kit push)
+        # Push creates everything modeled in schema.ts: enums, tables,
+        # columns, indexes, FKs. Migrations on their own can't bootstrap an
+        # empty DB — e.g. 0000_orgs_foundation.sql references
+        # public.ownership_role, an enum defined only in schema.ts.
+        run: pnpm db:push
+
+      - name: Replay migrations for custom SQL
+        # After db:push the schema matches schema.ts, but migrations carry
+        # extra SQL schema.ts can't express: CHECK constraints (e.g. the
+        # cases invariants), functions (check_pet_event_case_id_immutable,
+        # enforce_admin_no_pets, cases_set_updated_at, etc.) and triggers.
+        # Migrations use IF NOT EXISTS / IF EXISTS / DO $$ EXCEPTION guards
+        # throughout, so re-running them on top of the pushed schema is a
+        # no-op for the parts schema.ts already covered.
         env:
           PGPASSWORD: postgres
         run: |
           for f in $(ls db/migrations/*.sql | sort); do
-            echo "::group::Applying $f"
+            echo "::group::Replaying $f"
             psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
             echo "::endgroup::"
           done
