@@ -1,6 +1,6 @@
 // Case kinds catalog — single source of truth for which kinds the system
-// supports. The 7 V1 kinds have full lifecycle declarations in
-// `lib/case-lifecycles/<kind>.ts`; the 5 deferred kinds are accepted in
+// supports. The 9 V1 kinds have full lifecycle declarations in
+// `lib/case-lifecycles/<kind>.ts`; the 3 deferred kinds are accepted in
 // the schema (`case_kind` is text, not enum) and reserved here so the
 // const stays the place to look first.
 //
@@ -41,6 +41,9 @@ export const V1_CASE_KINDS: readonly CaseKind[] = [
   // Activated in spec 2026-05-19-cross-org-transfer-ux-design.
   // Previously deferred (per attachment spec §6).
   "custody_transfer_handshake",
+  // Activated in plan 2026-05-20-microchip-replaced-ui.md §3.1.
+  // Previously deferred (per attachment spec §6).
+  "microchip_remediation",
 ];
 
 export function isCaseKind(value: string): value is CaseKind {

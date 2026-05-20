@@ -106,13 +106,19 @@ describe("decideAttachment — branched events", () => {
     expect(decision.attachToCaseId).toBe("case-listing");
   });
 
-  it("microchip_replaced does not open a case by default", () => {
-    const decision = decideAttachment(
-      "microchip_replaced",
-      { new_chip_number: "111222333444555" },
-      [],
-    );
+  it("microchip_replaced with reason=damaged does not open a case", () => {
+    const decision = decideAttachment("microchip_replaced", { reason: "damaged" }, []);
     expect(decision.opensNewCase).toBeUndefined();
+  });
+
+  it("microchip_replaced with reason=fraud_detected opens microchip_remediation", () => {
+    const decision = decideAttachment("microchip_replaced", { reason: "fraud_detected" }, []);
+    expect(decision.opensNewCase?.kind).toBe("microchip_remediation");
+  });
+
+  it("microchip_replaced with reason=duplicate_detected opens microchip_remediation", () => {
+    const decision = decideAttachment("microchip_replaced", { reason: "duplicate_detected" }, []);
+    expect(decision.opensNewCase?.kind).toBe("microchip_remediation");
   });
 
   it("vaccination_administered is libreta-only (never)", () => {

@@ -13,6 +13,7 @@ import { custodyDisputeLifecycle } from "./custody-dispute";
 import { custodyTransferHandshakeLifecycle } from "./custody-transfer-handshake";
 import { fosterPlacementLifecycle } from "./foster-placement";
 import { lostPetEpisodeLifecycle } from "./lost-pet-episode";
+import { microchipRemediationLifecycle } from "./microchip-remediation";
 import type { CaseLifecycle } from "./types";
 import { welfareDenunciaLifecycle } from "./welfare-denuncia";
 
@@ -27,14 +28,14 @@ const LIFECYCLES: Partial<Record<CaseKind, CaseLifecycle>> = {
   custody_dispute: custodyDisputeLifecycle,
   foster_placement: fosterPlacementLifecycle,
   custody_transfer_handshake: custodyTransferHandshakeLifecycle,
+  microchip_remediation: microchipRemediationLifecycle,
   // Deferred kinds have no lifecycle declaration. getLifecycle returns null.
 };
 
 /**
  * Resolve the lifecycle for a kind. Returns null for deferred kinds
- * (custody_episode, custody_transfer_handshake, foster_proposal,
- * outbreak_investigation, microchip_remediation) — those are accepted
- * by the schema but their behaviour isn't formalized yet.
+ * (custody_episode, foster_proposal, outbreak_investigation) — those are
+ * accepted by the schema but their behaviour isn't formalized yet.
  */
 export function getLifecycle(kind: CaseKind): CaseLifecycle | null {
   return LIFECYCLES[kind] ?? null;

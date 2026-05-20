@@ -202,7 +202,19 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
   { kind: "custody_transfer_handshake", jurisdiction: { country: "AR" }, laws: [] },
   { kind: "foster_proposal", jurisdiction: { country: "AR" }, laws: [] },
   { kind: "outbreak_investigation", jurisdiction: { country: "AR" }, laws: [] },
-  { kind: "microchip_remediation", jurisdiction: { country: "AR" }, laws: [] },
+  {
+    kind: "microchip_remediation",
+    jurisdiction: { country: "AR" },
+    // Provisional — exact SENASA resolution TBD (see plan 2026-05-20-microchip-replaced-ui.md §3.1).
+    laws: [
+      {
+        id: "reglamentacion_local_identificacion_animal_ar",
+        label: "Reglamentación local de identificación animal",
+        scope:
+          "Marco normativo nacional para identificación electrónica obligatoria de mascotas (SENASA / jurisdicciones locales)",
+      },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
