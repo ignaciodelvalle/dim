@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import { db, profiles } from "@/db";
+import { db, organizationMemberships, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 // Role display labels — Argentine Spanish, gendered in context where possible.
 const ROLE_LABELS: Record<string, string> = {
@@ -31,6 +31,24 @@ export default async function CuentaPage() {
     email = data?.user?.email ?? "";
   } catch {
     // Non-critical — email display degrades gracefully
+  }
+
+  // Determine if this vet already has an admin/coordinator membership.
+  // Used to conditionally show the "Creá tu consultorio" banner.
+  let vetNeedsClinic = false;
+  if (profile?.role === "vet" && profile.matriculaVerified) {
+    const [adminRow] = await db
+      .select({ id: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.userId, user.id),
+          inArray(organizationMemberships.role, ["admin", "coordinator"]),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    vetNeedsClinic = !adminRow;
   }
 
   if (!profile) {
@@ -145,6 +163,27 @@ export default async function CuentaPage() {
             ) : null}
           </div>
         </section>
+
+        {/* Vet onboarding banner — shown only when the vet has no clinic yet */}
+        {vetNeedsClinic && (
+          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-5 flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+                ¿Vas a ofrecer servicios profesionales?
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                Creá tu consultorio para publicar servicios, gestionar turnos y emitir eventos en
+                libretas sanitarias.
+              </p>
+            </div>
+            <Link
+              href="/cuenta/crear-consultorio"
+              className="shrink-0 px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+            >
+              Crear consultorio →
+            </Link>
+          </section>
+        )}
 
         {/* Quick actions */}
         <section className="space-y-3">
