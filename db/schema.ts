@@ -502,9 +502,10 @@ export const pets = pgTable(
     // Permanent conditions (migration 0031). text[] holds catalog codes
     // from lib/permanent-conditions.ts; `permanent_conditions_other` is
     // free text only meaningful when 'otra' is in the array.
-    // Default matches migration 0031's literal `default '{}'` (without cast),
-    // so drizzle's diff doesn't perpetually try to re-apply a typed default.
-    permanentConditions: text("permanent_conditions").array().notNull().default(sql`'{}'`),
+    // Use the drizzle-native empty-array default so the serialized form matches
+    // what PG returns from introspection (raw `sql` templates produce a literal
+    // that drizzle's diff doesn't normalize, causing perpetual drift).
+    permanentConditions: text("permanent_conditions").array().notNull().default([]),
     permanentConditionsOther: text("permanent_conditions_other"),
     discloseConditionsPublicly: boolean("disclose_conditions_publicly").notNull().default(false),
 
