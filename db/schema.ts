@@ -1117,6 +1117,12 @@ export const welfareReports = pgTable(
     // Cases system (migration 0033). Linked to the welfare_denuncia case
     // opened atomically on submit. Nullable for historical rows.
     caseId: uuid("case_id"),
+
+    // Assignment (migration 0041). Welfare officer who has taken ownership of
+    // this report. Null = unassigned. Set via assignWelfareToMeAction.
+    assignedToUserId: uuid("assigned_to_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1128,6 +1134,7 @@ export const welfareReports = pgTable(
       table.jurisdictionLocality,
     ),
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
+    assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
   }),
 );
 

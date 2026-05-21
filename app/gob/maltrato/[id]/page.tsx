@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { db, profiles, welfareReportAttachments, welfareReports } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -16,6 +17,8 @@ import {
 } from "@/lib/welfare";
 import { eq } from "drizzle-orm";
 
+import { AssignmentActions } from "./AssignmentActions";
+import { Timeline } from "./Timeline";
 import { TriageActions } from "./TriageActions";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
@@ -39,7 +42,7 @@ export default async function GobMaltratoDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
 
   const [report] = await db.select().from(welfareReports).where(eq(welfareReports.id, id)).limit(1);
   if (!report) notFound();
@@ -69,7 +72,7 @@ export default async function GobMaltratoDetailPage({
   );
 
   // Resolve actors for transparency in the timeline at the bottom.
-  const actorIds = [report.triagedByUserId, report.reporterUserId].filter(
+  const actorIds = [report.triagedByUserId, report.reporterUserId, report.assignedToUserId].filter(
     (x): x is string => x !== null,
   );
   const actorNames = new Map<string, string>();
@@ -79,11 +82,11 @@ export default async function GobMaltratoDetailPage({
       .from(profiles)
       .where(eq(profiles.id, actorIds[0]));
     for (const r of rows) actorNames.set(r.id, r.displayName);
-    if (actorIds.length > 1) {
+    for (const actorId of actorIds.slice(1)) {
       const more = await db
         .select({ id: profiles.id, displayName: profiles.displayName })
         .from(profiles)
-        .where(eq(profiles.id, actorIds[1]));
+        .where(eq(profiles.id, actorId));
       for (const r of more) actorNames.set(r.id, r.displayName);
     }
   }
@@ -91,14 +94,29 @@ export default async function GobMaltratoDetailPage({
   const isTerminal =
     report.status === "closed" || report.status === "invalid" || report.status === "duplicate";
 
+  // Case age in days.
+  const ageInDays = Math.floor(
+    (Date.now() - new Date(report.createdAt).getTime()) / (24 * 60 * 60 * 1000),
+  );
+
+  // Timeline events.
+  const timelineEvents = await fetchWelfareTimeline(report.id);
+
+  // Assignment state.
+  const isAssignedToMe = report.assignedToUserId === user.id;
+  const assignedToName = report.assignedToUserId
+    ? (actorNames.get(report.assignedToUserId) ?? "un agente")
+    : null;
+
   return (
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-6">
+        {/* Breadcrumb */}
         <Link
           href="/gob/maltrato"
           className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
         >
-          ← Volver a la cola
+          ← Volver al listado
         </Link>
 
         <header className="space-y-2">
@@ -121,6 +139,44 @@ export default async function GobMaltratoDetailPage({
             {report.referenceCode} · creada {formatDateTime(report.createdAt)}
           </p>
         </header>
+
+        {/* Summary chips row — case metadata at a glance */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+            <p className="text-[10px] uppercase tracking-wider text-neutral-500">Edad del caso</p>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              {ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
+            </p>
+          </div>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+            <p className="text-[10px] uppercase tracking-wider text-neutral-500">Gravedad</p>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              {welfareReportSeverityLabel(report.severity)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+            <p className="text-[10px] uppercase tracking-wider text-neutral-500">Estado</p>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              {welfareReportStatusLabel(report.status)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+            <p className="text-[10px] uppercase tracking-wider text-neutral-500">Asignado a</p>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50 truncate">
+              {assignedToName ?? "Sin asignar"}
+            </p>
+          </div>
+        </div>
+
+        {/* Assignment actions */}
+        {!isTerminal && (
+          <AssignmentActions
+            reportId={report.id}
+            assignedToUserId={report.assignedToUserId}
+            currentUserId={user.id}
+            isAdmin={profile.role === "admin"}
+          />
+        )}
 
         <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
           <h2 className="text-xs uppercase tracking-wider text-neutral-500">¿Qué pasó?</h2>
@@ -252,6 +308,36 @@ export default async function GobMaltratoDetailPage({
             <TriageActions welfareReportId={report.id} currentStatus={report.status} />
           </section>
         )}
+
+        {/* Timeline — chronological event log */}
+        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
+          <h2 className="text-xs uppercase tracking-wider text-neutral-500">Línea de tiempo</h2>
+          <Timeline events={timelineEvents} />
+        </section>
+
+        {/* Normativa aplicable — static references, v1 */}
+        {/* TODO(E4-followup): source normativa from a real catalog instead of hardcoded list */}
+        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+          <h2 className="text-xs uppercase tracking-wider text-neutral-500">Normativa aplicable</h2>
+          <ul className="space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
+            <li>
+              <span className="font-medium">Ley Nacional 14.346</span> — Protección de los animales
+              contra actos de crueldad.
+            </li>
+            <li>
+              <span className="font-medium">Ley Nacional 27.330</span> — Tenencia responsable y
+              bienestar de los animales de compañía.
+            </li>
+            <li>
+              <span className="font-medium">Código Civil y Comercial, Art. 240</span> — Los animales
+              son seres sintientes protegidos por la ley.
+            </li>
+            <li>
+              <span className="font-medium">Resolución SENASA 862/2009</span> — Bienestar animal en
+              el transporte y establecimientos.
+            </li>
+          </ul>
+        </section>
       </div>
     </main>
   );

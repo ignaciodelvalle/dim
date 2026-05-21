@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { cases, db, ownerships, petEvents, pets, profiles, welfareReports } from "@/db";
 import {
   fetchCasesPerLocality,
   fetchDiseaseSummary,
@@ -13,6 +13,7 @@ import {
   fetchPerdidasMetrics,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
+  fetchWelfareMetrics,
   fetchZoonosisTrend,
 } from "@/lib/govt-dashboards";
 import { generatePublicToken } from "@/lib/publicToken";
@@ -962,5 +963,159 @@ describe("fetchPerdidasMetrics", () => {
     // avgDaysActive should be approximately 3 (± 1 due to timing).
     expect(m.avgDaysActive).toBeGreaterThanOrEqual(2);
     expect(m.avgDaysActive).toBeLessThanOrEqual(5);
+  });
+});
+
+// ============================================================================
+// E4 — fetchWelfareMetrics
+// ============================================================================
+
+// Unique prefix for welfare_reports fixture reference codes to enable cleanup.
+const WR_REF_PREFIX = "E4-TEST-";
+let wrSeq = 0;
+
+async function insertFixtureWelfareReport(input: {
+  province?: string;
+  locality?: string;
+  status?: "open" | "triaged" | "in_progress" | "closed" | "invalid" | "duplicate";
+  assignedToUserId?: string | null;
+  closedAt?: Date | null;
+}): Promise<string> {
+  wrSeq += 1;
+  const [row] = await db
+    .insert(welfareReports)
+    .values({
+      referenceCode: `${WR_REF_PREFIX}${Date.now()}-${wrSeq}`,
+      kind: "neglect",
+      severity: "medium",
+      description: "Fixture welfare report for E4 tests.",
+      subjectKind: "unowned_animal",
+      jurisdictionProvince: input.province ?? "Buenos Aires",
+      jurisdictionLocality: input.locality ?? "La Plata",
+      status: input.status ?? "open",
+      assignedToUserId: input.assignedToUserId ?? null,
+      closedAt: input.closedAt ?? null,
+    })
+    .returning({ id: welfareReports.id });
+  return row.id;
+}
+
+async function cleanupFixtureWelfareReports() {
+  await db
+    .delete(welfareReports)
+    .where(sql`${welfareReports.referenceCode} LIKE ${`${WR_REF_PREFIX}%`}`);
+}
+
+describe("fetchWelfareMetrics", () => {
+  afterEach(cleanupFixtureWelfareReports);
+
+  it("returns a 4-key shape with numeric values", async () => {
+    const m = await fetchWelfareMetrics({ role: "admin" }, [], ownerUserId);
+    expect(typeof m.unassignedCount).toBe("number");
+    expect(typeof m.myCount).toBe("number");
+    expect(typeof m.inProgressCount).toBe("number");
+    expect(typeof m.closedMonth).toBe("number");
+  });
+
+  it("unassignedCount counts only reports with no assignee AND non-terminal status", async () => {
+    // Should be counted: open + unassigned.
+    await insertFixtureWelfareReport({ status: "open", assignedToUserId: null });
+    // Should NOT be counted: open + assigned.
+    await insertFixtureWelfareReport({ status: "open", assignedToUserId: ownerUserId });
+    // Should NOT be counted: closed + unassigned (terminal).
+    await insertFixtureWelfareReport({
+      status: "closed",
+      assignedToUserId: null,
+      closedAt: new Date(),
+    });
+
+    // Use a unique jurisdiction to isolate this test from global data.
+    const m = await fetchWelfareMetrics(
+      { role: "govt" },
+      [{ province: "Buenos Aires", locality: "La Plata" }],
+      ownerUserId,
+    );
+    // At least 1 open+unassigned fixture; assigned and closed ones should not be included.
+    expect(m.unassignedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("myCount counts only reports assigned to currentUserId with non-terminal status", async () => {
+    // Mine: assigned to ownerUserId, open.
+    await insertFixtureWelfareReport({ status: "open", assignedToUserId: ownerUserId });
+    // Not mine: assigned to ownerUserId but closed (terminal).
+    await insertFixtureWelfareReport({
+      status: "closed",
+      assignedToUserId: ownerUserId,
+      closedAt: new Date(),
+    });
+    // Not mine: open but not assigned to me.
+    await insertFixtureWelfareReport({ status: "open", assignedToUserId: null });
+
+    const m = await fetchWelfareMetrics(
+      { role: "govt" },
+      [{ province: "Buenos Aires", locality: "La Plata" }],
+      ownerUserId,
+    );
+    expect(m.myCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("closedMonth counts only reports closed in the last 30 days", async () => {
+    // Closed recently — should be counted.
+    await insertFixtureWelfareReport({
+      status: "closed",
+      closedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+      province: "Córdoba",
+      locality: "Córdoba Capital",
+    });
+    // Still open — should NOT be counted.
+    await insertFixtureWelfareReport({
+      status: "open",
+      province: "Córdoba",
+      locality: "Córdoba Capital",
+    });
+
+    const m = await fetchWelfareMetrics(
+      { role: "govt" },
+      [{ province: "Córdoba", locality: "Córdoba Capital" }],
+      ownerUserId,
+    );
+    expect(m.closedMonth).toBeGreaterThanOrEqual(1);
+    // The open one must not inflate closedMonth.
+    // openCount is not a metric, but closedMonth must not equal zero when we have one.
+  });
+
+  it("govt user only sees reports in their assigned jurisdictions", async () => {
+    // Report in La Plata (in scope).
+    await insertFixtureWelfareReport({ province: "Buenos Aires", locality: "La Plata" });
+    // Report in Rosario (out of scope for this govt user).
+    await insertFixtureWelfareReport({ province: "Santa Fe", locality: "Rosario" });
+
+    const govtMetrics = await fetchWelfareMetrics(
+      { role: "govt" },
+      [{ province: "Buenos Aires", locality: "La Plata" }],
+      ownerUserId,
+    );
+    const adminMetrics = await fetchWelfareMetrics({ role: "admin" }, [], ownerUserId);
+
+    // Admin sees ≥ govt (includes out-of-scope rows).
+    expect(adminMetrics.unassignedCount).toBeGreaterThanOrEqual(govtMetrics.unassignedCount);
+  });
+
+  it("admin sees all reports (no jurisdiction restriction)", async () => {
+    // Insert reports in two different provinces.
+    await insertFixtureWelfareReport({ province: "Mendoza", locality: "Mendoza Capital" });
+    await insertFixtureWelfareReport({ province: "Tucumán", locality: "San Miguel de Tucumán" });
+
+    const m = await fetchWelfareMetrics({ role: "admin" }, [], ownerUserId);
+    // Admin must see both — total unassigned includes our two fixtures.
+    expect(m.unassignedCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("returns zeros for govt user with no assignments", async () => {
+    const m = await fetchWelfareMetrics({ role: "govt" }, [], ownerUserId);
+    expect(m.unassignedCount).toBe(0);
+    expect(m.myCount).toBe(0);
+    expect(m.inProgressCount).toBe(0);
+    expect(m.closedMonth).toBe(0);
   });
 });

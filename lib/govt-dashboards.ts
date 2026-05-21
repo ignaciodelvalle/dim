@@ -9,9 +9,22 @@
 // is empty by contract for admin), govt sees only rows matching one of their
 // active assignments.
 
-import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  not,
+  or,
+  sql,
+} from "drizzle-orm";
 
-import { cases, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { cases, db, ownerships, petEvents, pets, profiles, welfareReports } from "@/db";
 import { findDisease } from "@/lib/diseases";
 
 export type DashboardActor = { role: "admin" | "govt" };
@@ -616,4 +629,264 @@ export async function fetchZoonosisTrend(
       periodStart: d.toISOString(),
     };
   });
+}
+
+// ============================================================================
+// Maltrato (welfare_reports) metrics — E4
+// ============================================================================
+
+// Build a scope clause for the `welfare_reports` table.
+// Admin: null (no restriction). Govt: OR of jurisdiction pair matches.
+function welfareReportsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+  if (actor.role === "admin") return null;
+  if (jurisdictions.length === 0) return sql`false`;
+  const pairs = jurisdictions.map(
+    (j) =>
+      sql`(${welfareReports.jurisdictionProvince} = ${j.province} AND ${welfareReports.jurisdictionLocality} = ${j.locality})`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
+
+const TERMINAL_STATUSES = ["closed", "invalid", "duplicate"] as const;
+
+export type WelfareMetrics = {
+  /** Welfare reports in scope with assigned_to_user_id IS NULL AND status NOT in closed/invalid/duplicate. */
+  unassignedCount: number;
+  /** Welfare reports in scope assigned to currentUserId, status open|triaged|in_progress. */
+  myCount: number;
+  /** Welfare reports in scope with status='in_progress'. */
+  inProgressCount: number;
+  /** Welfare reports in scope closed in the last 30 days. */
+  closedMonth: number;
+};
+
+export async function fetchWelfareMetrics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  currentUserId: string,
+): Promise<WelfareMetrics> {
+  const scope = welfareReportsScopeClause(actor, jurisdictions);
+
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    return { unassignedCount: 0, myCount: 0, inProgressCount: 0, closedMonth: 0 };
+  }
+
+  const since30d = new Date(Date.now() - 30 * DAY_MS);
+
+  // 1. Unassigned: assigned_to_user_id IS NULL AND status NOT IN terminal.
+  const unassignedConditions = [
+    isNull(welfareReports.assignedToUserId),
+    not(inArray(welfareReports.status, [...TERMINAL_STATUSES])),
+  ];
+  if (scope) unassignedConditions.push(sql`(${scope})`);
+
+  // 2. Mine: assigned to currentUserId, status in non-terminal active states.
+  const myConditions = [
+    eq(welfareReports.assignedToUserId, currentUserId),
+    not(inArray(welfareReports.status, [...TERMINAL_STATUSES])),
+  ];
+  if (scope) myConditions.push(sql`(${scope})`);
+
+  // 3. In-progress: status='in_progress'.
+  const inProgressConditions = [eq(welfareReports.status, "in_progress")];
+  if (scope) inProgressConditions.push(sql`(${scope})`);
+
+  // 4. Closed in last 30 days: status='closed' AND closed_at >= 30d ago.
+  const closedMonthConditions = [
+    eq(welfareReports.status, "closed"),
+    gte(welfareReports.closedAt, since30d),
+  ];
+  if (scope) closedMonthConditions.push(sql`(${scope})`);
+
+  const [unassignedRows, myRows, inProgressRows, closedMonthRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...unassignedConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...myConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...inProgressConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...closedMonthConditions)),
+  ]);
+
+  return {
+    unassignedCount: unassignedRows[0]?.n ?? 0,
+    myCount: myRows[0]?.n ?? 0,
+    inProgressCount: inProgressRows[0]?.n ?? 0,
+    closedMonth: closedMonthRows[0]?.n ?? 0,
+  };
+}
+
+// ============================================================================
+// Welfare timeline — E4
+// ============================================================================
+
+export type TimelineEvent = {
+  id: string;
+  occurredAt: Date;
+  /** e.g. 'created', 'triaged', 'assigned', 'in_progress', 'closed', 'invalid', 'duplicate', 'pet_event' */
+  kind: string;
+  actorName?: string;
+  summary: string;
+};
+
+/**
+ * Derives a chronological list of timeline events for a welfare report.
+ *
+ * Sources:
+ *  1. Synthetic 'created' event from welfare_reports.created_at.
+ *  2. Synthetic 'triaged' event from welfare_reports.triaged_at (if present).
+ *  3. Synthetic 'closed' / status event from welfare_reports.closed_at + status.
+ *  4. Synthetic 'assigned' event from welfare_reports.assigned_to_user_id (if set).
+ *  5. pet_events linked via welfare_reports.case_id → cases → pet_events (optional enrichment).
+ *
+ * Actor names resolved from profiles in a single batch query.
+ */
+export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEvent[]> {
+  const [report] = await db
+    .select()
+    .from(welfareReports)
+    .where(eq(welfareReports.id, reportId))
+    .limit(1);
+
+  if (!report) return [];
+
+  const events: TimelineEvent[] = [];
+
+  // Collect actor IDs to batch-resolve display names.
+  const actorIdSet = new Set<string>();
+  if (report.reporterUserId) actorIdSet.add(report.reporterUserId);
+  if (report.triagedByUserId) actorIdSet.add(report.triagedByUserId);
+  if (report.assignedToUserId) actorIdSet.add(report.assignedToUserId);
+
+  // Pull pet_events linked via the case if available.
+  let linkedPetEvents: Array<{
+    id: string;
+    eventType: string;
+    occurredAt: Date;
+    recordedByUserId: string | null;
+  }> = [];
+  if (report.caseId) {
+    const [linkedCase] = await db
+      .select({ primaryPetId: cases.primaryPetId })
+      .from(cases)
+      .where(eq(cases.id, report.caseId))
+      .limit(1);
+
+    if (linkedCase?.primaryPetId) {
+      linkedPetEvents = await db
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          recordedByUserId: petEvents.recordedByUserId,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, linkedCase.primaryPetId),
+            gte(petEvents.occurredAt, report.createdAt),
+          ),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(20);
+
+      for (const e of linkedPetEvents) {
+        if (e.recordedByUserId) actorIdSet.add(e.recordedByUserId);
+      }
+    }
+  }
+
+  // Batch-resolve actor names.
+  const actorIds = [...actorIdSet];
+  const actorNames = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const nameRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, actorIds));
+    for (const r of nameRows) actorNames.set(r.id, r.displayName);
+  }
+
+  // 1. Created event.
+  events.push({
+    id: `created-${report.id}`,
+    occurredAt: report.createdAt,
+    kind: "created",
+    actorName: report.reporterUserId
+      ? (actorNames.get(report.reporterUserId) ?? undefined)
+      : undefined,
+    summary: "Denuncia registrada en el sistema.",
+  });
+
+  // 2. Triaged event.
+  if (report.triagedAt) {
+    events.push({
+      id: `triaged-${report.id}`,
+      occurredAt: report.triagedAt,
+      kind: "triaged",
+      actorName: report.triagedByUserId
+        ? (actorNames.get(report.triagedByUserId) ?? undefined)
+        : undefined,
+      summary: "Denuncia revisada por la autoridad.",
+    });
+  }
+
+  // 3. Assigned event (synthetic — we know it's assigned but not when; use triagedAt or now).
+  if (report.assignedToUserId) {
+    const assignedName = actorNames.get(report.assignedToUserId) ?? "un agente";
+    events.push({
+      id: `assigned-${report.id}`,
+      occurredAt: report.triagedAt ?? report.createdAt,
+      kind: "assigned",
+      actorName: assignedName,
+      summary: `Caso asignado a ${assignedName}.`,
+    });
+  }
+
+  // 4. In-progress / closed / terminal status events.
+  if (report.status === "in_progress" && report.triagedAt) {
+    events.push({
+      id: `in_progress-${report.id}`,
+      occurredAt: report.triagedAt,
+      kind: "in_progress",
+      summary: "Seguimiento activo iniciado.",
+    });
+  }
+  if (report.closedAt) {
+    const closedKindLabel =
+      report.status === "invalid"
+        ? "Cerrada por falta de sustento."
+        : report.status === "duplicate"
+          ? "Marcada como duplicada."
+          : "Denuncia cerrada con resolución.";
+    events.push({
+      id: `closed-${report.id}`,
+      occurredAt: report.closedAt,
+      kind: report.status,
+      summary: closedKindLabel,
+    });
+  }
+
+  // 5. Pet events linked via case.
+  for (const e of linkedPetEvents) {
+    events.push({
+      id: `pet-event-${e.id}`,
+      occurredAt: e.occurredAt,
+      kind: "pet_event",
+      actorName: e.recordedByUserId ? (actorNames.get(e.recordedByUserId) ?? undefined) : undefined,
+      summary: `Evento de mascota: ${e.eventType.replace(/_/g, " ")}.`,
+    });
+  }
+
+  // Sort chronologically.
+  return events.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 }
