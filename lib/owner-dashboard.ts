@@ -773,6 +773,121 @@ export async function fetchActiveRemindersForPet(
 }
 
 // ---------------------------------------------------------------------------
+// Vaccination history
+// ---------------------------------------------------------------------------
+
+export type VaccinationHistoryRow = {
+  eventId: string;
+  recordedAt: Date;
+  vaccineName: string;
+  brand?: string | null;
+  batch?: string | null;
+  administeredBy?: string | null;
+  nextDueAt?: Date | null;
+  attachmentId?: string | null;
+};
+
+/**
+ * Historical vaccination events for a pet, newest first.
+ * Returns ALL vacunaciones recorded across the pet's lifetime (no time window).
+ * Event type: 'vaccination_administered'.
+ * Payload fields: vaccine_name, brand, batch, administered_by, next_due_at.
+ */
+export async function fetchVaccinationHistory(petId: string): Promise<VaccinationHistoryRow[]> {
+  const rows = await db.execute<{
+    event_id: string;
+    recorded_at: string;
+    vaccine_name: string;
+    brand: string | null;
+    batch: string | null;
+    administered_by: string | null;
+    next_due_at: string | null;
+    attachment_id: string | null;
+  }>(sql`
+    SELECT
+      e.id::text           AS event_id,
+      e.recorded_at::text  AS recorded_at,
+      e.payload->>'vaccine_name'     AS vaccine_name,
+      e.payload->>'brand'            AS brand,
+      e.payload->>'batch'            AS batch,
+      e.payload->>'administered_by'  AS administered_by,
+      e.payload->>'next_due_at'      AS next_due_at,
+      a.id::text           AS attachment_id
+    FROM pet_events e
+    LEFT JOIN attachments a ON a.event_id = e.id
+    WHERE e.pet_id = ${petId}
+      AND e.event_type = 'vaccination_administered'
+    ORDER BY e.recorded_at DESC
+  `);
+
+  return rows.map((r) => ({
+    eventId: r.event_id,
+    recordedAt: new Date(r.recorded_at),
+    vaccineName: r.vaccine_name ?? "Vacuna",
+    brand: r.brand,
+    batch: r.batch,
+    administeredBy: r.administered_by,
+    nextDueAt: r.next_due_at ? new Date(r.next_due_at) : null,
+    attachmentId: r.attachment_id,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Notifications by category (for /notificaciones tab filtering — C4)
+// ---------------------------------------------------------------------------
+
+export type NotificationCategoryCounts = {
+  all: number;
+  health: number;
+  custody: number;
+  adoption: number;
+  welfare: number;
+  admin: number;
+};
+
+/**
+ * Returns per-category counts for non-archived notifications scoped to a user.
+ * Notifications without a category are counted in 'all' only.
+ */
+export async function fetchNotificationCategoryCounts(
+  userId: string,
+): Promise<NotificationCategoryCounts> {
+  const rows = await db.execute<{
+    category: string | null;
+    n: string;
+  }>(sql`
+    SELECT category, COUNT(*)::text AS n
+    FROM notifications
+    WHERE user_id = ${userId}
+      AND archived_at IS NULL
+    GROUP BY category
+  `);
+
+  const counts: NotificationCategoryCounts = {
+    all: 0,
+    health: 0,
+    custody: 0,
+    adoption: 0,
+    welfare: 0,
+    admin: 0,
+  };
+
+  for (const r of rows) {
+    const n = Number(r.n);
+    counts.all += n;
+    const cat = r.category;
+    if (cat === "health") counts.health += n;
+    else if (cat === "custody") counts.custody += n;
+    else if (cat === "adoption") counts.adoption += n;
+    else if (cat === "welfare") counts.welfare += n;
+    else if (cat === "admin") counts.admin += n;
+    // null category → counted in 'all' only (already added above)
+  }
+
+  return counts;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
