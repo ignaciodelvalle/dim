@@ -9,7 +9,7 @@ For details, see CONTRIBUTING.md.
 
 ## Which event types, cases, or tables does it touch?
 
-<!-- If none, write "none". If it touches an event type, name it. -->
+<!-- If none, write "none". If you added or significantly changed an event type, name it AND confirm you walked through docs/event-design-checklist.md. -->
 
 ## New or modified RLS policies
 

@@ -70,17 +70,7 @@ If a step fails on your branch but passes on `develop`, your branch is the sourc
 
 ## Writing a new event type
 
-Event-sourced state changes (anything that mutates `pet_events`, opens a `case`, or emits a `notification`) are the hot path. Pattern checklist before you write any code:
-
-- Which cross-cutting pattern? (started/ended pair, signal, proposed/executed, umbrella with outcome discriminator)
-- Which entity carries the status column it changes?
-- Auto-close cron + idempotency strategy?
-- Payload Zod schema, with `schemaVersion`?
-- Libreta or non-libreta?
-- Which projections / dashboards consume it?
-- Tests for: write happy path, rejection paths, projection drift detection
-
-A formal event-design checklist lands in `docs/event-design-checklist.md` (tracked separately as Phase 4.3 of `docs/action-plan-2026-05-20.md`). Until then, copy the questions above into the spec.
+Event-sourced state changes (anything that mutates `pet_events`, opens a `case`, or emits a `notification`) are the hot path. Walk through **[docs/event-design-checklist.md](./docs/event-design-checklist.md)** before writing any code — it covers cross-cutting pattern selection, projection target, auto-close cron + idempotency, payload Zod schema with `schemaVersion`, libreta vs non-libreta, dashboard consumers, and the required test surface. If you can't answer one of those questions, the design isn't ready — write the spec first.
 
 ## Spec-first culture
 
