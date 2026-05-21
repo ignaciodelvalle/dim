@@ -10,10 +10,13 @@ import { CaptureBox } from "./CaptureBox";
 
 export default async function CapturePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ text?: string; kind?: string }>;
 }) {
   const { publicToken } = await params;
+  const { text, kind } = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
 
@@ -37,7 +40,12 @@ export default async function CapturePage({
           </p>
         </header>
 
-        <CaptureBox petPublicToken={pet.publicToken} petName={pet.name} />
+        <CaptureBox
+          petPublicToken={pet.publicToken}
+          petName={pet.name}
+          initialText={text}
+          initialKind={kind}
+        />
       </div>
     </main>
   );
