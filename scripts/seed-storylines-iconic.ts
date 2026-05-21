@@ -381,7 +381,7 @@ const laika: Storyline = {
         category: "posthumous_intercalated",
         text: "Pedí perdón. Le pedí perdón. — V. Yazdovsky",
       },
-      author_role: "admin",
+      author_role: "system",
       uncommon: true,
     },
     {
@@ -493,7 +493,7 @@ const laika: Storyline = {
         text: "Cuanto más tiempo pasa, más lo lamento. — Oleg Gazenko, científico",
         author: "O. Gazenko",
       },
-      author_role: "admin",
+      author_role: "system",
       uncommon: true,
     },
     {
@@ -501,7 +501,7 @@ const laika: Storyline = {
       event_type: "note_added",
       location: { locality: "Falda del Carmen", province: "Córdoba" },
       payload: { category: "posthumous_event", text: "Monumento develado en Centro Tabanera." },
-      author_role: "admin",
+      author_role: "system",
       uncommon: true,
     },
     {
@@ -518,7 +518,7 @@ const laika: Storyline = {
       date: "2017-11-03",
       event_type: "note_added",
       payload: { category: "aniversario", text: "60° aniversario del lanzamiento." },
-      author_role: "admin",
+      author_role: "system",
     },
     {
       date: "2022-05-15",
@@ -547,7 +547,7 @@ const laika: Storyline = {
       date: "2023-11-03",
       event_type: "note_added",
       payload: { category: "aniversario", text: "66° aniversario." },
-      author_role: "admin",
+      author_role: "system",
     },
   ],
 };

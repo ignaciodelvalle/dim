@@ -1028,7 +1028,7 @@ const coco: Storyline = {
     {
       date: "2025-03-22",
       event_type: "microchip_replaced",
-      author_role: "admin",
+      author_role: "system",
       payload: {
         previous_chip_number: "858011000000011",
         new_chip_number: null,

@@ -765,7 +765,7 @@ const tom: Storyline = {
     {
       date: "2017-03-22",
       event_type: "microchip_replaced",
-      author_role: "admin",
+      author_role: "system",
       payload: {
         previous_chip_number: "858500700700700",
         new_chip_number: "858500700700701",
