@@ -1,8 +1,7 @@
 // /gob home — v2 layout (Chunk L swap).
 //
-// KPI tiles are HARDCODED placeholders per owner directive.
-// Real per-jurisdiction queries for coverage, sterilizations, bite rate, and
-// zoonosis counts do NOT exist yet.  All four are TODO(L-followup).
+// KPI tiles are live data queries scoped to the viewer's jurisdiction.
+// Fetchers live in lib/govt-home-kpis.ts (L-followup sprint).
 //
 // Preserved from old /gob/page.tsx:
 //   - fetchVisiblePendingRequests → cola count + preview cards
@@ -18,6 +17,12 @@ import { KpiTile, KpiTileGrid } from "@/components/KpiTile";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import {
+  fetchActiveZoonosis,
+  fetchBitesPer10k,
+  fetchRabiesCoverage,
+  fetchSterilizationMetrics,
+} from "@/lib/govt-home-kpis";
 
 const ACTION_LABELS: Record<string, string> = {
   request_viewed: "Vio una solicitud",
@@ -65,27 +70,15 @@ export default async function GobiernoDashboardPage({
           ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
           : `${jurisdictions.length} localidades`;
 
-  // --- KPI placeholders (HARDCODED) — TODO(L-followup) -------------------
-  //
-  // These values are static sample data.  Computing real numbers requires
-  // per-jurisdiction queries that don't exist yet:
-  //   - rabiesCoverage:   vaccination coverage view (not built)
-  //   - sterilizations:   sterilization event aggregates (not built)
-  //   - bitesPer10k:      bite-report rate per 10k population (not built)
-  //   - activeZoonosis:   case count scoped to jurisdiction (not built)
-  //
-  // Replace each SAMPLE_KPIS field with a real query in the L-followup sprint.
+  // --- KPI live queries (L-followup) -------------------------------------
 
-  const SAMPLE_KPIS = {
-    // TODO(L-followup): replace with vaccination coverage query
-    rabiesCoverage: { current: 68, target: 80, partidos: 23 },
-    // TODO(L-followup): replace with sterilization aggregate query
-    sterilizations: { count: 1247, deltaPct: 12, orgs: 31 },
-    // TODO(L-followup): replace with bite-rate query (reports / population)
-    bitesPer10k: { rate: 4.2, delta: 0.3, reports: 182 },
-    // TODO(L-followup): replace with active zoonosis case count query
-    activeZoonosis: { count: 8, rabies: 2, lepto: 4, hidat: 1, deltaWeek: 1 },
-  };
+  const actor = { role: profile.role } as const;
+  const [rabiesCoverage, sterilizations, bitesPer10k, activeZoonosis] = await Promise.all([
+    fetchRabiesCoverage(actor, jurisdictions),
+    fetchSterilizationMetrics(actor, jurisdictions),
+    fetchBitesPer10k(actor, jurisdictions),
+    fetchActiveZoonosis(actor, jurisdictions),
+  ]);
 
   return (
     <GobDashboardShell
@@ -137,39 +130,46 @@ export default async function GobiernoDashboardPage({
       }
       kpiStrip={
         <KpiTileGrid>
-          {/* TODO(L-followup): all four tiles use hardcoded SAMPLE_KPIS */}
           <KpiTile
             variant="target"
             label="Cobertura antirrábica"
-            value={`${SAMPLE_KPIS.rabiesCoverage.current}%`}
-            current={SAMPLE_KPIS.rabiesCoverage.current}
-            target={SAMPLE_KPIS.rabiesCoverage.target}
-            subline={`meta ${SAMPLE_KPIS.rabiesCoverage.target}% · ${SAMPLE_KPIS.rabiesCoverage.partidos} partidos`}
+            value={`${rabiesCoverage.current}%`}
+            current={rabiesCoverage.current}
+            target={rabiesCoverage.target}
+            subline={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
             href="/gob/indicadores?metric=rabies"
           />
           <KpiTile
             variant="delta"
             label="Esterilizaciones / mes"
-            value={SAMPLE_KPIS.sterilizations.count.toLocaleString("es-AR")}
-            deltaLabel={`↑ ${SAMPLE_KPIS.sterilizations.deltaPct}% vs abril`}
-            direction="up"
-            subline={`${SAMPLE_KPIS.sterilizations.orgs} organizaciones`}
+            value={sterilizations.count.toLocaleString("es-AR")}
+            deltaLabel={
+              sterilizations.deltaPct >= 0
+                ? `↑ ${sterilizations.deltaPct}% vs mes ant.`
+                : `↓ ${Math.abs(sterilizations.deltaPct)}% vs mes ant.`
+            }
+            direction={sterilizations.deltaPct >= 0 ? "up" : "down"}
+            subline={`${sterilizations.orgs} organizaciones`}
             href="/gob/indicadores?metric=sterilizations"
           />
           <KpiTile
             variant="delta"
             label="Mordeduras / 10k hab."
-            value={SAMPLE_KPIS.bitesPer10k.rate.toString().replace(".", ",")}
-            deltaLabel={`↑ ${SAMPLE_KPIS.bitesPer10k.delta.toString().replace(".", ",")} vs abril`}
+            value={bitesPer10k.rate.toString().replace(".", ",")}
+            deltaLabel={
+              bitesPer10k.delta >= 0
+                ? `↑ ${bitesPer10k.delta.toString().replace(".", ",")} vs año ant.`
+                : `↓ ${Math.abs(bitesPer10k.delta).toString().replace(".", ",")} vs año ant.`
+            }
             direction="down"
-            subline={`${SAMPLE_KPIS.bitesPer10k.reports} reportes`}
+            subline={`${bitesPer10k.reports} reportes`}
             href="/gob/indicadores?metric=bites"
           />
           <KpiTile
             tone="danger"
             label="Casos zoonosis activos"
-            value={SAMPLE_KPIS.activeZoonosis.count}
-            subline={`${SAMPLE_KPIS.activeZoonosis.rabies} rabia · ${SAMPLE_KPIS.activeZoonosis.lepto} lepto · ${SAMPLE_KPIS.activeZoonosis.hidat} hidat.`}
+            value={activeZoonosis.count}
+            subline={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
             href="/gob/vigilancia"
           />
         </KpiTileGrid>
