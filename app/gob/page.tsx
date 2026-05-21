@@ -1,14 +1,21 @@
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+// /gob home — v2 layout (Chunk L swap).
+//
+// KPI tiles are HARDCODED placeholders per owner directive.
+// Real per-jurisdiction queries for coverage, sterilizations, bite rate, and
+// zoonosis counts do NOT exist yet.  All four are TODO(L-followup).
+//
+// Preserved from old /gob/page.tsx:
+//   - fetchVisiblePendingRequests → cola count + preview cards
+//   - auditLog query → "Actividad reciente" aside card
+//   - requireAdminOrGovtOrRedirect → capability guard
+
+import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
-import {
-  APPROVAL_REQUEST_TYPES,
-  type ApprovalRequest,
-  type ApprovalRequestType,
-  auditLog,
-  db,
-  profiles,
-} from "@/db";
+import { DashboardCard, GobDashboardShell } from "@/components/GobDashboardShell";
+import { JurisdictionFilterBar, readFilterParams } from "@/components/JurisdictionFilterBar";
+import { KpiTile, KpiTileGrid } from "@/components/KpiTile";
+import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
@@ -21,274 +28,294 @@ const ACTION_LABELS: Record<string, string> = {
   admin_seeded: "Admin inicializado",
 };
 
-// Human-readable labels per approval type (Spanish, Rioplatense).
-const TYPE_LABELS: Record<ApprovalRequestType, string> = {
-  role_upgrade_vet: "Matrículas veterinarias",
-  organization_verification: "Verificación de organizaciones",
-  service_dog_credential_verification: "Credenciales de perro de asistencia (RUPGA)",
-};
-
-export default async function GobiernoDashboardPage() {
+export default async function GobiernoDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+
+  const sp = await searchParams;
+  const params = readFilterParams(toURLSearchParams(sp));
+
+  // --- Live queries (preserved from old /gob/page.tsx) -------------------
 
   const pending = await fetchVisiblePendingRequests(profile, jurisdictions);
 
-  // Resolve applicant display names for the per-type preview cards (one
-  // batched query matching the pattern in cola/page.tsx).
-  const applicantIds = Array.from(new Set(pending.map((r) => r.applicantUserId)));
-  const resolvedNames = new Map<string, string>();
-  if (applicantIds.length > 0) {
-    const rows = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(inArray(profiles.id, applicantIds));
-    for (const r of rows) resolvedNames.set(r.id, r.displayName);
-  }
-
-  // Decisions visible to this authority in the last 7 days.
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const recentDecisions = await db
     .select({
       id: auditLog.id,
       action: auditLog.action,
       performedAt: auditLog.performedAt,
-      approvalRequestId: auditLog.approvalRequestId,
-      payload: auditLog.payload,
     })
     .from(auditLog)
     .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
     .orderBy(desc(auditLog.performedAt))
     .limit(10);
 
+  // --- Scope label --------------------------------------------------------
+
   const scopeLabel =
     profile.role === "admin"
-      ? "universal"
+      ? "Universal"
       : jurisdictions.length === 0
-        ? "sin localidades asignadas"
-        : jurisdictions.map((j) => `${j.locality}, ${j.province}`).join(" · ");
+        ? "Sin localidades asignadas"
+        : jurisdictions.length === 1
+          ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
+          : `${jurisdictions.length} localidades`;
 
-  // Group pending items by type for the per-type grid.
-  const pendingByType = new Map<ApprovalRequestType, ApprovalRequest[]>();
-  for (const type of APPROVAL_REQUEST_TYPES) pendingByType.set(type, []);
-  for (const req of pending) {
-    pendingByType.get(req.type)?.push(req);
-  }
+  // --- KPI placeholders (HARDCODED) — TODO(L-followup) -------------------
+  //
+  // These values are static sample data.  Computing real numbers requires
+  // per-jurisdiction queries that don't exist yet:
+  //   - rabiesCoverage:   vaccination coverage view (not built)
+  //   - sterilizations:   sterilization event aggregates (not built)
+  //   - bitesPer10k:      bite-report rate per 10k population (not built)
+  //   - activeZoonosis:   case count scoped to jurisdiction (not built)
+  //
+  // Replace each SAMPLE_KPIS field with a real query in the L-followup sprint.
+
+  const SAMPLE_KPIS = {
+    // TODO(L-followup): replace with vaccination coverage query
+    rabiesCoverage: { current: 68, target: 80, partidos: 23 },
+    // TODO(L-followup): replace with sterilization aggregate query
+    sterilizations: { count: 1247, deltaPct: 12, orgs: 31 },
+    // TODO(L-followup): replace with bite-rate query (reports / population)
+    bitesPer10k: { rate: 4.2, delta: 0.3, reports: 182 },
+    // TODO(L-followup): replace with active zoonosis case count query
+    activeZoonosis: { count: 8, rabies: 2, lepto: 4, hidat: 1, deltaWeek: 1 },
+  };
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Panel de gobierno
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Aprobá y rechazá solicitudes de verificación. Tu scope:{" "}
-            <span className="font-mono text-xs">{scopeLabel}</span>.
-          </p>
-        </header>
-
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Card
-            label="Solicitudes pendientes"
-            value={String(pending.length)}
-            cta={pending.length > 0 ? { href: "/gob/cola", label: "Ir a la cola" } : null}
+    <GobDashboardShell
+      eyebrow={`MiMAR Gobierno · ${profile.role} · ${scopeLabel}`}
+      title="Panel de jurisdicción"
+      actions={
+        <>
+          <Link
+            href="/gob/cola"
+            className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800"
+          >
+            Cola de aprobaciones
+          </Link>
+          <Link
+            href="/gob/organizaciones"
+            className="rounded-md border border-blue-700 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+          >
+            Habilitación
+          </Link>
+          <Link
+            href="/gob/maltrato"
+            className="rounded-md border border-red-700 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
+          >
+            Acta de infracción
+          </Link>
+        </>
+      }
+      filters={
+        <JurisdictionFilterBar
+          range={params.range}
+          province={params.province}
+          locality={params.locality}
+          orgType={params.orgType}
+          provinces={[
+            { value: "buenos-aires", label: "Pcia. Buenos Aires" },
+            { value: "caba", label: "CABA" },
+          ]}
+          localities={[
+            { value: "la-plata", label: "La Plata" },
+            { value: "berisso", label: "Berisso" },
+            { value: "ensenada", label: "Ensenada" },
+          ]}
+          orgTypes={[
+            { value: "shelter", label: "Refugio" },
+            { value: "clinic", label: "Clínica" },
+            { value: "rescue", label: "Rescate" },
+          ]}
+        />
+      }
+      kpiStrip={
+        <KpiTileGrid>
+          {/* TODO(L-followup): all four tiles use hardcoded SAMPLE_KPIS */}
+          <KpiTile
+            variant="target"
+            label="Cobertura antirrábica"
+            value={`${SAMPLE_KPIS.rabiesCoverage.current}%`}
+            current={SAMPLE_KPIS.rabiesCoverage.current}
+            target={SAMPLE_KPIS.rabiesCoverage.target}
+            subline={`meta ${SAMPLE_KPIS.rabiesCoverage.target}% · ${SAMPLE_KPIS.rabiesCoverage.partidos} partidos`}
+            href="/gob/indicadores?metric=rabies"
           />
-          <Card label="Decisiones (últimos 7 días)" value={String(recentDecisions.length)} />
-          <Card
-            label="Mi rol"
-            value={profile.role}
-            sublabel={
-              profile.role === "admin"
-                ? "Acceso universal"
-                : `${jurisdictions.length} localidad${jurisdictions.length === 1 ? "" : "es"}`
+          <KpiTile
+            variant="delta"
+            label="Esterilizaciones / mes"
+            value={SAMPLE_KPIS.sterilizations.count.toLocaleString("es-AR")}
+            deltaLabel={`↑ ${SAMPLE_KPIS.sterilizations.deltaPct}% vs abril`}
+            direction="up"
+            subline={`${SAMPLE_KPIS.sterilizations.orgs} organizaciones`}
+            href="/gob/indicadores?metric=sterilizations"
+          />
+          <KpiTile
+            variant="delta"
+            label="Mordeduras / 10k hab."
+            value={SAMPLE_KPIS.bitesPer10k.rate.toString().replace(".", ",")}
+            deltaLabel={`↑ ${SAMPLE_KPIS.bitesPer10k.delta.toString().replace(".", ",")} vs abril`}
+            direction="down"
+            subline={`${SAMPLE_KPIS.bitesPer10k.reports} reportes`}
+            href="/gob/indicadores?metric=bites"
+          />
+          <KpiTile
+            tone="danger"
+            label="Casos zoonosis activos"
+            value={SAMPLE_KPIS.activeZoonosis.count}
+            subline={`${SAMPLE_KPIS.activeZoonosis.rabies} rabia · ${SAMPLE_KPIS.activeZoonosis.lepto} lepto · ${SAMPLE_KPIS.activeZoonosis.hidat} hidat.`}
+            href="/gob/vigilancia"
+          />
+        </KpiTileGrid>
+      }
+      main={
+        <>
+          <DashboardCard
+            title="Cola de aprobaciones"
+            action={
+              <Link href="/gob/cola" className="text-blue-700 hover:underline dark:text-blue-400">
+                Ver cola →
+              </Link>
             }
-          />
-        </section>
+          >
+            {pending.length === 0 ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                No hay solicitudes pendientes.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-3xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-50">
+                  {pending.length}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  solicitudes esperando revisión
+                </p>
+              </div>
+            )}
+          </DashboardCard>
 
-        {/* Regional surfaces — Fase 11 */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Card
-            label="Vigilancia"
-            value="Señales de zoonosis"
-            sublabel="Outbreak signals filtrados a tu cobertura"
-            cta={{ href: "/gob/vigilancia", label: "Ver vigilancia" }}
-          />
-          <Card
-            label="Pérdidas"
-            value="Mascotas perdidas"
-            sublabel="Pets en status='lost' en tu cobertura"
-            cta={{ href: "/gob/perdidas", label: "Ver pérdidas" }}
-          />
-        </section>
-
-        {/* Per-type breakdown grid */}
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            Solicitudes por tipo
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {APPROVAL_REQUEST_TYPES.map((type) => {
-              const items = pendingByType.get(type) ?? [];
-              return (
-                <TypeCard
-                  key={type}
-                  type={type}
-                  label={TYPE_LABELS[type]}
-                  items={items}
-                  namesById={resolvedNames}
-                />
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            Actividad reciente
-          </h2>
-          {recentDecisions.length === 0 ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
-              No tenés acciones registradas en los últimos 7 días.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {recentDecisions.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-2"
-                >
-                  <div className="min-w-0">
+          <DashboardCard
+            title="Actividad reciente"
+            action={
+              recentDecisions.length > 0 ? (
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                  últimos 7 días
+                </span>
+              ) : null
+            }
+          >
+            {recentDecisions.length === 0 ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                No tenés acciones registradas en los últimos 7 días.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {recentDecisions.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 odd:bg-neutral-50 dark:odd:bg-neutral-900/40"
+                  >
                     <p className="text-sm text-neutral-900 dark:text-neutral-50">
                       {ACTION_LABELS[entry.action] ?? entry.action}
                     </p>
-                  </div>
-                  <time className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums whitespace-nowrap">
-                    {new Date(entry.performedAt).toLocaleString("es-AR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-    </main>
-  );
-}
+                    <time className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums whitespace-nowrap">
+                      {new Date(entry.performedAt).toLocaleString("es-AR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DashboardCard>
 
-// Single per-type card: shows pending count, up to 3 preview items, and a
-// "Ver todos" link that pre-filters the cola page.
-function TypeCard({
-  type,
-  label,
-  items,
-  namesById,
-}: {
-  type: ApprovalRequestType;
-  label: string;
-  items: ApprovalRequest[];
-  namesById: Map<string, string>;
-}) {
-  const isEmpty = items.length === 0;
-  const preview = items.slice(0, 3);
-
-  return (
-    <div
-      className={`rounded-lg border p-4 space-y-3 flex flex-col ${
-        isEmpty
-          ? "border-neutral-100 dark:border-neutral-800/50 bg-neutral-50 dark:bg-neutral-900/30"
-          : "border-neutral-200 dark:border-neutral-800"
-      }`}
-    >
-      {/* Header */}
-      <div className="space-y-1">
-        <p
-          className={`text-xs uppercase tracking-wider ${
-            isEmpty
-              ? "text-neutral-400 dark:text-neutral-600"
-              : "text-neutral-500 dark:text-neutral-500"
-          }`}
-        >
-          {label}
-        </p>
-        <p
-          className={`text-2xl font-semibold ${
-            isEmpty
-              ? "text-neutral-300 dark:text-neutral-700"
-              : "text-neutral-900 dark:text-neutral-50"
-          }`}
-        >
-          {items.length}
-        </p>
-      </div>
-
-      {/* Preview items or empty state */}
-      {isEmpty ? (
-        <p className="text-xs text-neutral-400 dark:text-neutral-600 flex-1">
-          Sin solicitudes pendientes
-        </p>
-      ) : (
-        <ul className="space-y-1 flex-1">
-          {preview.map((req) => (
-            <li key={req.id}>
-              <Link
-                href={`/gob/cola/${req.publicToken}`}
-                className="block rounded px-2 py-1.5 -mx-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 group"
-              >
-                <p className="text-xs font-medium text-neutral-800 dark:text-neutral-200 truncate group-hover:text-neutral-900 dark:group-hover:text-neutral-50">
-                  {namesById.get(req.applicantUserId) ?? "Usuario"}
-                </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-500 truncate">
-                  {req.jurisdictionLocality}, {req.jurisdictionProvince} ·{" "}
-                  {new Date(req.createdAt).toLocaleDateString("es-AR")}
-                </p>
+          <DashboardCard
+            title="Casos regulatorios"
+            action={
+              <Link href="/gob/casos" className="text-blue-700 hover:underline dark:text-blue-400">
+                Ver todos →
               </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+            }
+          >
+            {/* TODO(L-followup): wire to listCasesForGovt() once cases table is in schema */}
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Kanban cross-org pendiente — conectar a{" "}
+              <code className="text-xs">listCasesForGovt()</code> cuando la tabla{" "}
+              <code className="text-xs">cases</code> esté en el schema.
+            </p>
+          </DashboardCard>
+        </>
+      }
+      aside={
+        <>
+          <DashboardCard
+            title="Vigilancia"
+            action={
+              <Link
+                href="/gob/vigilancia"
+                className="text-blue-700 hover:underline dark:text-blue-400"
+              >
+                Ver →
+              </Link>
+            }
+          >
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Señales de zoonosis filtradas a tu cobertura.
+            </p>
+          </DashboardCard>
 
-      {/* Footer link */}
-      {!isEmpty && (
-        <Link
-          href={`/gob/cola?type=${type}`}
-          className="text-xs text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
-          Ver todos ({items.length}) →
-        </Link>
-      )}
-    </div>
+          <DashboardCard
+            title="Denuncias ciudadanas"
+            action={
+              <Link
+                href="/gob/maltrato"
+                className="text-blue-700 hover:underline dark:text-blue-400"
+              >
+                Ver bandeja →
+              </Link>
+            }
+          >
+            {/* TODO(L-followup): connect to welfareReports count */}
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Conectar a <code className="text-xs">welfareReports</code>.
+            </p>
+          </DashboardCard>
+
+          <DashboardCard
+            title="Pérdidas"
+            action={
+              <Link
+                href="/gob/perdidas"
+                className="text-blue-700 hover:underline dark:text-blue-400"
+              >
+                Ver →
+              </Link>
+            }
+          >
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Mascotas en status <code className="text-xs">lost</code> en tu cobertura.
+            </p>
+          </DashboardCard>
+        </>
+      }
+    />
   );
 }
 
-function Card({
-  label,
-  value,
-  sublabel,
-  cta,
-}: {
-  label: string;
-  value: string;
-  sublabel?: string;
-  cta?: { href: string; label: string } | null;
-}) {
-  return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
-        {label}
-      </p>
-      <p className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">{value}</p>
-      {sublabel && <p className="text-xs text-neutral-500 dark:text-neutral-500">{sublabel}</p>}
-      {cta && (
-        <Link
-          href={cta.href}
-          className="inline-block text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
-          {cta.label} →
-        </Link>
-      )}
-    </div>
-  );
+// Converts Next.js searchParams (Record) to URLSearchParams so readFilterParams
+// (which expects URLSearchParams) can parse it on the server.
+function toURLSearchParams(sp: Record<string, string | string[] | undefined>): URLSearchParams {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === "string") p.set(k, v);
+    else if (Array.isArray(v) && v.length > 0) p.set(k, v[0]);
+  }
+  return p;
 }
