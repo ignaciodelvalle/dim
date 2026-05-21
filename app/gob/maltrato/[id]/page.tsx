@@ -18,6 +18,7 @@ import {
 import { eq } from "drizzle-orm";
 
 import { AssignmentActions } from "./AssignmentActions";
+import { MpfExportButton } from "./MpfExportButton";
 import { Timeline } from "./Timeline";
 import { TriageActions } from "./TriageActions";
 
@@ -308,6 +309,12 @@ export default async function GobMaltratoDetailPage({
             <TriageActions welfareReportId={report.id} currentStatus={report.status} />
           </section>
         )}
+
+        {/* MPF export — available regardless of triage status */}
+        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+          <h2 className="text-xs uppercase tracking-wider text-neutral-500">Export fiscal</h2>
+          <MpfExportButton welfareReportId={report.id} />
+        </section>
 
         {/* Timeline — chronological event log */}
         <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">

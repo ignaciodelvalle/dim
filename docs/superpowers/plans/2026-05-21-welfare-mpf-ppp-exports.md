@@ -1,6 +1,6 @@
 # Welfare fiscalía MPF + PPP exports — plan ejecutable (Chunk F)
 
-> **Status (2026-05-21):** ⏸️ **Implementación DIFERIDA por owner.** F-D1, F-D2 y F-D3/F-D4 quedaron como `diferí` cuando se preguntaron — Chunk F no entra al pipeline de CC. El plan queda como referencia para cuando se reactive. Para retomar: resolver F-D1..F-D6 (sección §Decisiones a tomar) y eliminar este aviso.
+> **Status (2026-05-21):** ✅ **SHIPPED.** F-D1=A (PDF libre), F-D2=A (sin firma PKI), F-D3+F-D4=C (solo CABA v1, Prov BA v2), F-D5+F-D6=A+A (snake_case + 2 buckets). F1 (MPF CABA) + F2 (PPP CABA) entregados en un mismo PR. PPP Prov BA queda como `TODO(F2-prov-ba-v2)`. Plan archivado abajo como referencia histórica.
 >
 > **Fecha:** 2026-05-21
 > **Owner:** Ignacio Del Valle

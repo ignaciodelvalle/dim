@@ -49,6 +49,7 @@ import { AchievementsSection } from "@/components/AchievementsSection";
 import type { PetState } from "@/components/EventCatcher";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PpPCard } from "@/components/PpPCard";
+import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
 import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
@@ -622,12 +623,19 @@ export default async function PetDetailPage({
         )}
 
         {pet.potentiallyDangerousBreed && (
-          <PpPCard
-            petPublicToken={pet.publicToken}
-            breed={pet.breed}
-            events={eventsWithAttachments}
-            isTransit={isTransit}
-          />
+          <>
+            <PpPCard
+              petPublicToken={pet.publicToken}
+              breed={pet.breed}
+              events={eventsWithAttachments}
+              isTransit={isTransit}
+            />
+            {/* PPP CABA export CTA — only for CABA pets, owner-path only (F-D3+D4). */}
+            {accessPath === "owner" &&
+              pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
+                <PppExportCabaButton petPublicToken={pet.publicToken} />
+              )}
+          </>
         )}
 
         {serviceDogRow &&
