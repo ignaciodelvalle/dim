@@ -154,6 +154,15 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
         onLongPress={onLongPress}
       />
 
+      {/* Active-pet line (Chunk H PR2). Persistent signal — the placeholder
+          disappears as soon as the user starts typing. */}
+      {active && (
+        <p className="mb-2 text-xs text-neutral-500 dark:text-neutral-400">
+          Anotando para{" "}
+          <span className="font-medium text-neutral-900 dark:text-neutral-100">{active.name}</span>
+        </p>
+      )}
+
       <textarea
         ref={taRef}
         value={text}
@@ -168,13 +177,17 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {/* Quick-action chips — square corners (Chunk H PR2) to differentiate
+            from the round pet chips (radio semantic). Bigger touch target
+            (Chunk H PR3): py-2 + text-sm clears 38px. Disabled style uses
+            neutral background instead of opacity to maintain WCAG AA contrast. */}
         {(Object.keys(QUICK_LABELS) as QuickKind[]).map((k) => (
           <button
             key={k}
             type="button"
             onClick={() => onQuick(k)}
             disabled={!active || submitting}
-            className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500"
           >
             {QUICK_LABELS[k]}
           </button>
@@ -182,7 +195,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
         <div className="ml-auto" />
         <Button
           variant="success"
-          size="sm"
+          size="md"
           onClick={onSubmit}
           disabled={!active || text.trim().length < 3 || submitting}
         >
@@ -190,7 +203,10 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
         </Button>
       </div>
 
-      <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-500">
+      {/* Mobile-aware tip (Chunk H PR3): hidden on touch-only devices that
+          have no Ctrl key. The @media(hover:hover) query matches devices
+          with a precise pointer (mouse / trackpad). */}
+      <p className="mt-2 hidden text-[11px] text-neutral-500 dark:text-neutral-500 [@media(hover:hover)]:block">
         Tap dos veces en una mascota para abrir su perfil · Ctrl + Enter para anotar.
       </p>
     </section>
@@ -208,10 +224,27 @@ function PetChipRow({
   onSelect: (id: string) => void;
   onLongPress: (id: string) => void;
 }) {
+  // PR3: ref map for roving tabindex — focus the newly-active chip after
+  // arrow-key navigation. Each chip registers its button via ref.
+  const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  function onChipRowKey(e: React.KeyboardEvent) {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const idx = pets.findIndex((p) => p.id === activeId);
+    if (idx === -1 || pets.length === 0) return;
+    const next =
+      e.key === "ArrowRight" ? (idx + 1) % pets.length : (idx - 1 + pets.length) % pets.length;
+    const nextPet = pets[next];
+    onSelect(nextPet.id);
+    chipRefs.current.get(nextPet.id)?.focus();
+  }
+
   return (
     <ul
       role="radiogroup"
       aria-label="Mascota"
+      onKeyDown={onChipRowKey}
       className="mb-4 flex gap-3 overflow-x-auto pb-2 pt-1"
       style={{ scrollSnapType: "x mandatory" }}
     >
@@ -222,6 +255,10 @@ function PetChipRow({
           active={p.id === activeId}
           onSelect={() => onSelect(p.id)}
           onLongPress={() => onLongPress(p.id)}
+          buttonRef={(el) => {
+            if (el) chipRefs.current.set(p.id, el);
+            else chipRefs.current.delete(p.id);
+          }}
         />
       ))}
     </ul>
@@ -233,11 +270,13 @@ function PetChip({
   active,
   onSelect,
   onLongPress,
+  buttonRef,
 }: {
   pet: EventCatcherPet;
   active: boolean;
   onSelect: () => void;
   onLongPress: () => void;
+  buttonRef?: (el: HTMLButtonElement | null) => void;
 }) {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -254,8 +293,10 @@ function PetChip({
   return (
     <li className="shrink-0" style={{ scrollSnapAlign: "start" }}>
       <button
+        ref={buttonRef}
         type="button"
         aria-pressed={active}
+        tabIndex={active ? 0 : -1}
         onClick={onSelect}
         onPointerDown={startPress}
         onPointerUp={cancelPress}
