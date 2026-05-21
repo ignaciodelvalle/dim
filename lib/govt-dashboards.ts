@@ -1,17 +1,17 @@
 // Read helpers for the /gob regional dashboards (Fase 11).
 //
-// Two surfaces:
+// Surfaces:
 //   - Vigilancia: outbreak_signal events filtered to the govt's scope.
 //   - Pérdidas:  pets in status='lost' filtered to the govt's scope.
 //
-// Both helpers accept the actor + jurisdictions tuple already produced by
+// All helpers accept the actor + jurisdictions tuple already produced by
 // requireAdminOrGovtOrRedirect — admin sees universal scope (jurisdictions
 // is empty by contract for admin), govt sees only rows matching one of their
 // active assignments.
 
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { cases, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { findDisease } from "@/lib/diseases";
 
 export type DashboardActor = { role: "admin" | "govt" };
@@ -265,4 +265,253 @@ export async function fetchLostPets(
     })
     .filter((r) => (sinceFloor === null ? true : (r.markedLostAt?.getTime() ?? 0) >= sinceFloor))
     .sort((a, b) => (b.markedLostAt?.getTime() ?? 0) - (a.markedLostAt?.getTime() ?? 0));
+}
+
+// ============================================================================
+// Vigilancia metrics — E2
+// ============================================================================
+
+export type VigilanciaMetrics = {
+  /** outbreak_signal events in scope with status='open', last 30 days. */
+  outbreakActiveCount: number;
+  /** cases where caseKind='rabies_observation' AND status='open'. */
+  rabiesActiveCount: number;
+  /** pets in scope created today (since midnight local time). */
+  petsRegisteredToday: number;
+  /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
+  vaccinationsThisWeek: number;
+};
+
+// Hardcoded province-name → ISO 3166-2:AR code map.
+// The cases table stores free-text province names; the GeoJSON uses ISO codes.
+// Limitation: only common Argentine provinces are mapped here. Unknown provinces
+// return code: "". Extend this map as new jurisdictions are onboarded.
+export const PROVINCE_ISO_MAP: Record<string, string> = {
+  "Ciudad Autónoma de Buenos Aires": "AR-C",
+  "Buenos Aires": "AR-B",
+  Córdoba: "AR-X",
+  "Santa Fe": "AR-S",
+  Mendoza: "AR-M",
+  Tucumán: "AR-T",
+  "Entre Ríos": "AR-E",
+  Salta: "AR-A",
+  Misiones: "AR-N",
+  Chaco: "AR-H",
+  Corrientes: "AR-W",
+  Santiago: "AR-G",
+  "San Juan": "AR-J",
+  "Río Negro": "AR-R",
+  Neuquén: "AR-Q",
+  Jujuy: "AR-Y",
+  Formosa: "AR-P",
+  "San Luis": "AR-D",
+  Catamarca: "AR-K",
+  "La Rioja": "AR-F",
+  Chubut: "AR-U",
+  "Santa Cruz": "AR-Z",
+  "Tierra del Fuego": "AR-V",
+  "La Pampa": "AR-L",
+};
+
+// Build a scope clause for the `cases` table. Admin: null (no restriction).
+// Govt: OR of (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs.
+function casesScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+  if (actor.role === "admin") return null;
+  if (jurisdictions.length === 0) return sql`false`;
+  const pairs = jurisdictions.map(
+    (j) =>
+      sql`(${cases.jurisdictionProvince} = ${j.province} AND ${cases.jurisdictionLocality} = ${j.locality})`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
+
+// Build a scope clause for `pets` based on jurisdiction columns.
+function petsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+  if (actor.role === "admin") return null;
+  if (jurisdictions.length === 0) return sql`false`;
+  const pairs = jurisdictions.map(
+    (j) =>
+      sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
+
+// Build a scope clause for `pet_events` using the JSONB payload province/locality fields.
+function petEventsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+  if (actor.role === "admin") return null;
+  if (jurisdictions.length === 0) return sql`false`;
+  const pairs = jurisdictions.map(
+    (j) => sql`(
+      (${petEvents.payload}->>'pet_jurisdiction_province') = ${j.province}
+      AND (${petEvents.payload}->>'pet_jurisdiction_locality') = ${j.locality}
+    )`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
+
+export async function fetchVigilanciaMetrics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<VigilanciaMetrics> {
+  const now = Date.now();
+  const since30d = new Date(now - 30 * DAY_MS);
+  const since7d = new Date(now - 7 * DAY_MS);
+  // "Today" starts at midnight UTC to match server-side time. If the project
+  // later moves to AR timezone, change this to use startOf('day', 'America/Argentina/Buenos_Aires').
+  const todayStart = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+
+  // 1. Count open outbreak_signal events from the last 30 days scoped to user.
+  const outbreakConditions = [
+    eq(petEvents.eventType, "outbreak_signal"),
+    gte(petEvents.occurredAt, since30d),
+  ];
+  const outbreakScope = outbreakSignalScopeClause(actor, jurisdictions);
+  if (outbreakScope) outbreakConditions.push(sql`(${outbreakScope})`);
+
+  // 2. Count open cases with caseKind='rabies_observation'.
+  const rabiesConditions = [eq(cases.caseKind, "rabies_observation"), eq(cases.status, "open")];
+  const casesScope = casesScopeClause(actor, jurisdictions);
+  if (casesScope) rabiesConditions.push(sql`(${casesScope})`);
+
+  // 3. Count pets created today.
+  const petsConditions = [gte(pets.createdAt, todayStart)];
+  const petsScope = petsScopeClause(actor, jurisdictions);
+  if (petsScope) petsConditions.push(sql`(${petsScope})`);
+
+  // 4. Count vaccination_administered events in the last 7 days.
+  const vaccConditions = [
+    eq(petEvents.eventType, "vaccination_administered"),
+    gte(petEvents.occurredAt, since7d),
+  ];
+  // Vaccination events store jurisdiction in JSONB payload (same shape as outbreak_signal).
+  const vaccScope = petEventsScopeClause(actor, jurisdictions);
+  if (vaccScope) vaccConditions.push(sql`(${vaccScope})`);
+
+  const [outbreakRows, rabiesRows, petsRows, vaccRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...outbreakConditions)),
+    db
+      .select({ n: count() })
+      .from(cases)
+      .where(and(...rabiesConditions)),
+    db
+      .select({ n: count() })
+      .from(pets)
+      .where(and(...petsConditions)),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...vaccConditions)),
+  ]);
+
+  return {
+    outbreakActiveCount: outbreakRows[0]?.n ?? 0,
+    rabiesActiveCount: rabiesRows[0]?.n ?? 0,
+    petsRegisteredToday: petsRows[0]?.n ?? 0,
+    vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
+  };
+}
+
+// ============================================================================
+
+export type LocalityCaseCount = {
+  province: string;
+  locality: string;
+  /**
+   * ISO 3166-2:AR code matching the GeoJSON `code` property if known.
+   * Empty string if the province is not in PROVINCE_ISO_MAP.
+   */
+  code: string;
+  count: number;
+};
+
+/**
+ * Counts of open cases grouped by (province, locality). Used for the
+ * <MapChoropleth metric="cases_open"> on /gob/vigilancia.
+ *
+ * Province code mapping: uses PROVINCE_ISO_MAP (hardcoded). The cases table
+ * stores jurisdictionProvince as free-text; the GeoJSON uses ISO 3166-2:AR codes.
+ * Cases in provinces not present in the map return code: "".
+ */
+export async function fetchCasesPerLocality(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<LocalityCaseCount[]> {
+  const conditions = [eq(cases.status, "open")];
+  const scope = casesScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      province: cases.jurisdictionProvince,
+      locality: cases.jurisdictionLocality,
+      n: count(),
+    })
+    .from(cases)
+    .where(and(...conditions))
+    .groupBy(cases.jurisdictionProvince, cases.jurisdictionLocality);
+
+  return rows
+    .filter((r) => r.province !== null)
+    .map((r) => ({
+      province: r.province as string,
+      locality: r.locality ?? "",
+      code: PROVINCE_ISO_MAP[r.province as string] ?? "",
+      count: r.n,
+    }));
+}
+
+// ============================================================================
+
+export type ZoonosisTrendPoint = {
+  /** Pre-formatted x-axis label, e.g. "ene.", "feb.". Month abbreviation in es-AR locale. */
+  x: string;
+  /** Count of outbreak_signal events in that month. */
+  y: number;
+  /** ISO date of the period start (month start), for upstream sorting. */
+  periodStart: string;
+};
+
+/**
+ * Outbreak signal counts grouped by month, last 12 months, within the user's
+ * scope. Used for <TimeSeriesChart> on /gob/vigilancia.
+ *
+ * We use date_trunc('month', occurred_at) to group by calendar month. The
+ * pet_events table lacks a dedicated "event_category" column — we match on
+ * eventType LIKE 'outbreak_%' by listing all known outbreak_* event types.
+ * Currently only 'outbreak_signal' exists; this pattern extends naturally.
+ */
+export async function fetchZoonosisTrend(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ZoonosisTrendPoint[]> {
+  const since12m = new Date(Date.now() - 365 * DAY_MS);
+
+  const conditions = [
+    sql`${petEvents.eventType} LIKE ${"outbreak_%"}`,
+    gte(petEvents.occurredAt, since12m),
+  ];
+  const scope = outbreakSignalScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
+      n: count(),
+    })
+    .from(petEvents)
+    .where(and(...conditions))
+    .groupBy(sql`date_trunc('month', ${petEvents.occurredAt})`)
+    .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`);
+
+  return rows.map((r) => {
+    const d = new Date(r.month);
+    return {
+      x: d.toLocaleString("es-AR", { month: "short" }),
+      y: r.n,
+      periodStart: d.toISOString(),
+    };
+  });
 }
