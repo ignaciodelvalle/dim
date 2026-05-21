@@ -92,6 +92,16 @@ import { PetReminders } from "./_components/PetReminders";
 // MedicationDosesSection (which needs medication_started payloads to group doses).
 // The historial route fetches its own copy independently.
 
+// TODO(K-followup): When pet.status === 'lost', this page should show the
+// lost-mode cockpit (LostModeBanner, LostShareCard, LostLastSeenCard,
+// LostDisclosureCard, LostScanFeed) instead of the regular sections.
+// The cockpit components already exist in components/pet-profile/.
+// This requires: fetchLostEpisodeForPet (open lost_pet_episode case),
+// fetchScanEvents (credential_scanned events for this pet), and
+// fetchFinderMessages (finder contact messages — table TBD).
+// Fold into a conditional branch at the top of PetDetailPage once those
+// query helpers are in place.
+
 // ---------------------------------------------------------------------------
 // Pet state derivation — maps pets fields to the visual state ring convention.
 // The same mapping lives in EventCatcher.tsx; when lib/pet-state.ts is
@@ -199,6 +209,8 @@ function mapEventsToTimeline(
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
+// Returns a human-readable proximity hint for an upcoming medication dose.
+// Examples: "Atrasada por 2h", "En 30 min", "Mañana 08:00", "Hoy 14:30".
 function formatDoseProximity(dueAt: Date | string): string {
   const due = dueAt instanceof Date ? dueAt : new Date(dueAt);
   const now = new Date();
