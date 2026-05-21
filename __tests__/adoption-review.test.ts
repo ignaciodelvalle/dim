@@ -226,6 +226,7 @@ describe("approve/reject adoption application actions", () => {
       otherPets: "Un gato senior",
       dailyRoutine: "Trabajo en casa.",
       notes: null,
+      profileSharingConsent: true,
     });
     if (!("ok" in r)) throw new Error(r.error);
     applicationEventId = r.applicationEventId;
@@ -285,6 +286,7 @@ describe("approve/reject adoption application actions", () => {
       otherPets: null,
       dailyRoutine: null,
       notes: null,
+      profileSharingConsent: true,
     });
     if (!("ok" in submission)) throw new Error(submission.error);
     const secondAppId = submission.applicationEventId;

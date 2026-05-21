@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import Script from "next/script";
 
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
@@ -13,6 +14,8 @@ import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { ApplyButton } from "./ApplyButton";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
 
 // Individual adoption ficha — mirrors the listing-visibility guards so a
 // pet that's gone unlisted, paused, fell into a custody dispute, etc.,
@@ -158,8 +161,29 @@ export default async function AdoptarFichaPage({
     { label: "Necesita patio", value: pet.adoptionNeedsYard },
   ];
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Animal",
+    name: pet.name,
+    description:
+      pet.adoptionStory ??
+      `Conocé a ${pet.name}, ${speciesLabel(pet.species).toLowerCase()} en adopción${
+        pet.jurisdictionLocality ? ` en ${pet.jurisdictionLocality}` : ""
+      }.`,
+    image: petPhotoUrl(row.primaryPhotoStoragePath) ?? undefined,
+    additionalType: speciesLabel(pet.species),
+    gender: sexLabel(pet.sex),
+    url: `${SITE_URL}/adoptar/${petToken}`,
+  };
+
   return (
     <main className="min-h-screen bg-white dark:bg-neutral-950">
+      <Script
+        id="adoptar-jsonld"
+        type="application/ld+json"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: SEO JSON-LD needs raw <script> content. The input is JSON.stringify of a controlled object, not user data.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
         <Link
           href="/adoptar"

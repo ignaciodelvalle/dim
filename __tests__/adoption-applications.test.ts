@@ -240,6 +240,7 @@ describe("submitAdoptionApplicationAction", () => {
       otherPets: "Un gato adulto",
       dailyRoutine: "Trabajo en casa 3 días por semana.",
       notes: null,
+      profileSharingConsent: true,
     });
     expect("ok" in result && result.ok).toBe(true);
     if (!("ok" in result)) throw new Error(result.error);
@@ -269,6 +270,7 @@ describe("submitAdoptionApplicationAction", () => {
       otherPets: null,
       dailyRoutine: null,
       notes: null,
+      profileSharingConsent: true,
     });
     expect("error" in result).toBe(true);
 
@@ -292,6 +294,7 @@ describe("submitAdoptionApplicationAction", () => {
       otherPets: null,
       dailyRoutine: null,
       notes: null,
+      profileSharingConsent: true,
     });
     expect("error" in result).toBe(true);
     if ("error" in result) {
@@ -316,6 +319,7 @@ describe("submitAdoptionApplicationAction", () => {
       otherPets: null,
       dailyRoutine: null,
       notes: null,
+      profileSharingConsent: true,
     });
     expect("error" in result).toBe(true);
 
@@ -337,8 +341,55 @@ describe("submitAdoptionApplicationAction", () => {
       otherPets: null,
       dailyRoutine: null,
       notes: null,
+      profileSharingConsent: true,
     });
     expect("error" in result).toBe(true);
+  });
+
+  it("missing consent returns error containing 'consentimiento'", async () => {
+    mockSessionAs(adminUserId);
+    const result = await submitAdoptionApplicationAction({
+      petPublicToken: petToken,
+      housingType: "casa_con_patio",
+      otherPets: null,
+      dailyRoutine: null,
+      notes: null,
+      profileSharingConsent: false,
+    });
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.toLowerCase()).toContain("consentimiento");
+    }
+  });
+
+  it("with consent: emitted event payload contains profile_sharing_consent_at", async () => {
+    // Use adminUserId — no prior pending application for this user.
+    mockSessionAs(adminUserId);
+
+    // Temporarily set adminUserId profile to personal so it passes the institutional check.
+    await db
+      .update(profiles)
+      .set({ accountType: "personal", role: "owner" })
+      .where(eq(profiles.id, adminUserId));
+
+    const result = await submitAdoptionApplicationAction({
+      petPublicToken: petToken,
+      housingType: "departamento",
+      otherPets: null,
+      dailyRoutine: null,
+      notes: null,
+      profileSharingConsent: true,
+    });
+    expect("ok" in result && result.ok).toBe(true);
+    if (!("ok" in result)) throw new Error("error" in result ? result.error : "unknown");
+
+    const [event] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, result.applicationEventId));
+    const consentAt = (event?.payload as Record<string, unknown>)?.profile_sharing_consent_at;
+    expect(typeof consentAt).toBe("string");
+    expect(consentAt as string).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 

@@ -36,6 +36,7 @@ export type SubmitAdoptionApplicationInput = {
   otherPets: string | null;
   dailyRoutine: string | null;
   notes: string | null;
+  profileSharingConsent: boolean;
 };
 
 export type SubmitAdoptionApplicationResult =
@@ -120,7 +121,14 @@ export async function submitAdoptionApplicationAction(
     };
   }
 
-  // 4) Field-level validation. The Zod schema also enforces enum + UUID
+  // 4) Consent gate (spec §12.5.3). Must be set before writing anything.
+  if (input.profileSharingConsent !== true) {
+    return {
+      error: "Tu consentimiento para compartir el perfil es obligatorio para postularte.",
+    };
+  }
+
+  // 5) Field-level validation. The Zod schema also enforces enum + UUID
   // shape; this block returns friendlier errors for length issues.
   const trim = (s: string | null) => (s ? s.trim() || null : null);
   const otherPets = trim(input.otherPets);
@@ -136,7 +144,7 @@ export async function submitAdoptionApplicationAction(
     }
   }
 
-  // 5) Insert event + fan-out notifications atomically.
+  // 6) Insert event + fan-out notifications atomically.
   const payload = validateEventPayload("adoption_application_submitted", {
     applicant_user_id: user.id,
     related_organization_id: org.id,
@@ -144,6 +152,7 @@ export async function submitAdoptionApplicationAction(
     other_pets: otherPets,
     daily_routine: dailyRoutine,
     notes,
+    profile_sharing_consent_at: new Date().toISOString(),
   });
 
   const now = new Date();
