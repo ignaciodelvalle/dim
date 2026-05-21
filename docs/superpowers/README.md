@@ -185,7 +185,7 @@ Conviene saberlas porque cruzan varios specs:
 **Archivados** (`docs/archive/`) — prompts históricos y material 2021. Ver `docs/archive/README.md` para inventario:
 
 - Prompts del rebuild 2026 ya implementados: `event-sourcing-hardening-prompt.md`, `org-portal-prompt.md` (se mantienen como referencia histórica del proceso; el feature está vivo en código).
-- Material del proyecto universitario 2021: Carpeta Final, paper CONAIISI, Business Model Canvas, Event Sourcing notes.
+- Material del proyecto universitario 2021: paper CONAIISI, Business Model Canvas, Event Sourcing notes.
 
 Los archivados NO se mantienen activamente. Si algún detalle se vuelve relevante para una decisión nueva, migrarlo a `AGENTS.md` o un spec nuevo en lugar de editar el archivo en `archive/`.
 

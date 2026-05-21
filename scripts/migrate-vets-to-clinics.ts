@@ -1,4 +1,9 @@
 /**
+ * STATUS: applied 2026-05-20 in the /pro → clinic org deprecation. Kept in
+ * the tree because __tests__/migrate-vets-to-clinics.test.ts asserts the
+ * idempotency contract — re-running this in any env (or against a fresh
+ * seed) must be a no-op for vets that already have their clinic.
+ *
  * Backfill: every matricula-verified vet with at least one orphan service
  * offering (providerUserId set, organizationId null) gets a clinic org
  * auto-created and their offerings re-anchored to it.
