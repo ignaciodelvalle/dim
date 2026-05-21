@@ -56,7 +56,10 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
       className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-share-h" className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
+        <h2
+          id="lp-share-h"
+          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
+        >
           Compartir alerta
         </h2>
         <button

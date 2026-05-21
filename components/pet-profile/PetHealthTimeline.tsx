@@ -38,12 +38,27 @@ const FILTERS: Array<{ value: TimelineFilter; label: string }> = [
 type TimelineFilter = "todo" | "vacuna" | "vet" | "peso" | "medicacion";
 
 const KIND_ICON: Record<TimelineEvent["kind"], { icon: string; classes: string }> = {
-  vacuna: { icon: "💉", classes: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" },
+  vacuna: {
+    icon: "💉",
+    classes: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200",
+  },
   vet: { icon: "🏥", classes: "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200" },
-  peso: { icon: "⚖", classes: "bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-200" },
-  medicacion: { icon: "💊", classes: "bg-pink-50 text-pink-800 dark:bg-pink-950/40 dark:text-pink-200" },
-  incidente: { icon: "🩹", classes: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" },
-  otro: { icon: "•", classes: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200" },
+  peso: {
+    icon: "⚖",
+    classes: "bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-200",
+  },
+  medicacion: {
+    icon: "💊",
+    classes: "bg-pink-50 text-pink-800 dark:bg-pink-950/40 dark:text-pink-200",
+  },
+  incidente: {
+    icon: "🩹",
+    classes: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
+  },
+  otro: {
+    icon: "•",
+    classes: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
+  },
 };
 
 export function PetHealthTimeline({
@@ -82,7 +97,7 @@ export function PetHealthTimeline({
         </Link>
       </div>
 
-      <ul role="group" aria-label="Filtros" className="mb-3 flex flex-wrap gap-1.5">
+      <ul aria-label="Filtros" className="mb-3 flex flex-wrap gap-1.5">
         {FILTERS.map((f) => {
           const active = f.value === filter;
           return (
@@ -91,12 +106,11 @@ export function PetHealthTimeline({
                 type="button"
                 onClick={() => setFilter(f.value)}
                 aria-pressed={active}
-                className={
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
-                  (active
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  active
                     ? "bg-gob-primary text-white"
-                    : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800")
-                }
+                    : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                }`}
               >
                 {f.label}
               </button>

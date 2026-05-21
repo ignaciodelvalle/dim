@@ -41,17 +41,13 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
         >
           Documentos de viaje
         </h2>
-        <Link
-          href={uploadHref}
-          className="text-xs font-medium text-gob-azul-link hover:underline"
-        >
+        <Link href={uploadHref} className="text-xs font-medium text-gob-azul-link hover:underline">
           Subir →
         </Link>
       </div>
       {docs.length === 0 ? (
         <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
-          Sin documentos cargados. Si viajás, subí pasaporte sanitario o
-          certificado internacional.
+          Sin documentos cargados. Si viajás, subí pasaporte sanitario o certificado internacional.
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">

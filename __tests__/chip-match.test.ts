@@ -495,8 +495,7 @@ describe("confirmChipMatchAction", () => {
     // Test the public action boundary: invalid actorMode short-circuits before auth.
     const result = await confirmChipMatchAction({
       matchedPetToken: "any-token",
-      // biome-ignore lint/suspicious/noExplicitAny: intentional bad input test
-      actorMode: "invalid" as any,
+      actorMode: "invalid" as never,
       decision: "same",
     });
     expect("error" in result).toBe(true);

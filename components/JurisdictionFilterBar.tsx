@@ -79,9 +79,8 @@ export function JurisdictionFilterBar({
   }
 
   return (
-    <div
-      className={`flex flex-wrap items-center gap-2 ${pending ? "opacity-70" : ""}`}
-      role="group"
+    <fieldset
+      className={`flex flex-wrap items-center gap-2 border-0 p-0 m-0 min-w-0 ${pending ? "opacity-70" : ""}`}
       aria-label="Filtros de jurisdicción y tiempo"
     >
       {/* Time-range chips */}
@@ -133,7 +132,7 @@ export function JurisdictionFilterBar({
           onChange={(v) => navigate({ orgType: v })}
         />
       )}
-    </div>
+    </fieldset>
   );
 }
 

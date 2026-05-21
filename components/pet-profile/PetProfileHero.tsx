@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { Button } from "@/components/poncho";
 import type { PetState } from "@/components/EventCatcher";
+import { Button } from "@/components/poncho";
 
 // PetProfileHero — top of the owner pet-profile page.
 //
@@ -82,9 +82,7 @@ export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
         {pet.name}
       </h1>
       <p className="relative mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-        {[pet.species, pet.breed, pet.ageLabel, pet.weightLabel]
-          .filter(Boolean)
-          .join(" · ")}
+        {[pet.species, pet.breed, pet.ageLabel, pet.weightLabel].filter(Boolean).join(" · ")}
       </p>
 
       <div className="relative mt-4 flex flex-wrap justify-center gap-2">

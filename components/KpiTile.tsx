@@ -95,9 +95,7 @@ export function KpiTile(props: KpiTileProps) {
         <p className={`text-xs font-medium ${DELTA_COLOR[props.direction]}`}>{props.deltaLabel}</p>
       )}
 
-      {props.subline && (
-        <p className={`text-xs ${labelColor} mt-auto`}>{props.subline}</p>
-      )}
+      {props.subline && <p className={`text-xs ${labelColor} mt-auto`}>{props.subline}</p>}
     </div>
   );
 
@@ -114,9 +112,14 @@ export function KpiTile(props: KpiTileProps) {
   return inner;
 }
 
-function TargetBar({ current, target, tone }: { current: number; target: number; tone: KpiTileTone }) {
+function TargetBar({
+  current,
+  target,
+  tone,
+}: { current: number; target: number; tone: KpiTileTone }) {
   const pct = Math.max(0, Math.min(100, target === 0 ? 0 : (current / target) * 100));
-  const trackBg = tone === "neutral" ? "bg-neutral-200 dark:bg-neutral-800" : "bg-white/30 dark:bg-black/20";
+  const trackBg =
+    tone === "neutral" ? "bg-neutral-200 dark:bg-neutral-800" : "bg-white/30 dark:bg-black/20";
   const fillBg =
     tone === "danger"
       ? "bg-red-600 dark:bg-red-400"
@@ -130,6 +133,7 @@ function TargetBar({ current, target, tone }: { current: number; target: number;
       <div
         className={`h-1.5 w-full rounded-full overflow-hidden ${trackBg}`}
         role="progressbar"
+        tabIndex={0}
         aria-valuemin={0}
         aria-valuemax={target}
         aria-valuenow={current}
@@ -143,10 +147,7 @@ function TargetBar({ current, target, tone }: { current: number; target: number;
 
 // Convenience grid container — drop KpiTiles inside.
 // Auto-fits columns at 200px min, so 2 fit on mobile, 4 on desktop.
-export function KpiTileGrid({
-  className = "",
-  ...rest
-}: ComponentPropsWithoutRef<"div">) {
+export function KpiTileGrid({ className = "", ...rest }: ComponentPropsWithoutRef<"div">) {
   return (
     <div
       {...rest}

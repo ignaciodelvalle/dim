@@ -62,10 +62,7 @@ export function LostModeBanner({
           </h2>
           <p className="mt-0.5 text-xs opacity-95">
             hace {relativeLostFor(lostSince)} ·{" "}
-            <Link
-              href={`/casos/${casePublicCode}`}
-              className="underline-offset-2 hover:underline"
-            >
+            <Link href={`/casos/${casePublicCode}`} className="underline-offset-2 hover:underline">
               {casePublicCode}
             </Link>{" "}
             · {jurisdictionLabel}

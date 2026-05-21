@@ -65,8 +65,7 @@ function mockSessionAs(userId: string) {
         error: null,
       }),
     },
-    // biome-ignore lint/suspicious/noExplicitAny: minimal stub
-  } as any);
+  } as never);
 }
 
 async function purgeUserByEmail(email: string) {

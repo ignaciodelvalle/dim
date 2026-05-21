@@ -62,8 +62,7 @@ function mockSessionAs(userId: string) {
         error: null,
       }),
     },
-    // biome-ignore lint/suspicious/noExplicitAny: minimal stub
-  } as any);
+  } as never);
 }
 
 async function purgeUserByEmail(email: string) {
@@ -331,8 +330,7 @@ describe("submitAdoptionApplicationAction", () => {
       auth: {
         getUser: async () => ({ data: { user: null }, error: null }),
       },
-      // biome-ignore lint/suspicious/noExplicitAny: minimal stub
-    } as any);
+    } as never);
     const result = await submitAdoptionApplicationAction({
       petPublicToken: petToken,
       housingType: "casa_con_patio",
