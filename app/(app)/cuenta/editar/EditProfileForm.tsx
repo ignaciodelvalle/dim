@@ -14,6 +14,10 @@ type InitialProfile = {
   displayName: string;
   phone: string;
   avatarUrl: string;
+  preferredVetName: string;
+  preferredVetPhone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
 };
 
 type FieldErrors = {
@@ -25,6 +29,14 @@ type FieldErrors = {
 export function EditProfileForm({ initialProfile }: { initialProfile: InitialProfile }) {
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [phone, setPhone] = useState(initialProfile.phone);
+  const [preferredVetName, setPreferredVetName] = useState(initialProfile.preferredVetName);
+  const [preferredVetPhone, setPreferredVetPhone] = useState(initialProfile.preferredVetPhone);
+  const [emergencyContactName, setEmergencyContactName] = useState(
+    initialProfile.emergencyContactName,
+  );
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(
+    initialProfile.emergencyContactPhone,
+  );
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     initialProfile.avatarUrl || null,
   );
@@ -82,6 +94,10 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
       const textResult = await updateProfileAction({
         displayName,
         phone: phone,
+        preferredVetName,
+        preferredVetPhone,
+        emergencyContactName,
+        emergencyContactPhone,
       });
 
       if ("error" in textResult) {
@@ -251,6 +267,87 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           </p>
         )}
       </div>
+
+      {/* Emergency / vet contact group — appears on <PetEmergencyCard>
+          of every pet detail. Tap-to-call linkable. */}
+      <fieldset className="space-y-3 rounded-md border border-neutral-200 dark:border-neutral-800 p-4">
+        <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+          Contactos para emergencias
+        </legend>
+        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          Aparecen en la credencial de cada mascota. Si una mascota está perdida y un finder escanea
+          el QR, podemos mostrarle estos contactos (según tus preferencias de privacidad).
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label
+              htmlFor="preferredVetName"
+              className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            >
+              Veterinario/a de cabecera
+            </label>
+            <input
+              id="preferredVetName"
+              type="text"
+              value={preferredVetName}
+              onChange={(e) => setPreferredVetName(e.target.value)}
+              maxLength={80}
+              placeholder="Dra. Pérez"
+              className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="preferredVetPhone"
+              className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            >
+              Teléfono del vet
+            </label>
+            <input
+              id="preferredVetPhone"
+              type="tel"
+              value={preferredVetPhone}
+              onChange={(e) => setPreferredVetPhone(e.target.value)}
+              placeholder="+54 9 11 1234-5678"
+              className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="emergencyContactName"
+              className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            >
+              Contacto de emergencia
+            </label>
+            <input
+              id="emergencyContactName"
+              type="text"
+              value={emergencyContactName}
+              onChange={(e) => setEmergencyContactName(e.target.value)}
+              maxLength={80}
+              placeholder="Lucía F."
+              className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="emergencyContactPhone"
+              className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            >
+              Teléfono del contacto
+            </label>
+            <input
+              id="emergencyContactPhone"
+              type="tel"
+              value={emergencyContactPhone}
+              onChange={(e) => setEmergencyContactPhone(e.target.value)}
+              placeholder="+54 9 11 1234-5678"
+              className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            />
+          </div>
+        </div>
+      </fieldset>
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">

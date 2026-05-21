@@ -342,6 +342,13 @@ export const profiles = pgTable(
     matriculaNumber: text("matricula_number"),
     matriculaJurisdiccion: text("matricula_jurisdiccion"),
     matriculaVerified: boolean("matricula_verified").notNull().default(false),
+    // Emergency contact + preferred vet — surfaced on <PetEmergencyCard> in
+    // the v2 pet detail (Chunk J) and in the lost-mode public credential.
+    // Added by migration 0042.
+    preferredVetName: text("preferred_vet_name"),
+    preferredVetPhone: text("preferred_vet_phone"),
+    emergencyContactName: text("emergency_contact_name"),
+    emergencyContactPhone: text("emergency_contact_phone"),
     // Distinguishes self-serve (owner/vet) accounts from institutional (admin/govt)
     // accounts. Stored as text+CHECK to avoid enum migration cost when adding
     // new values in future Fases (e.g. 'service_provider' in Fase 8).

@@ -39,6 +39,18 @@ export type UploadAvatarResult = { error: string } | { ok: true; avatarUrl: stri
 const AR_PHONE_RE =
   /^(\+?54\s?9?\s?\d{2,4}[\s-]?\d{4}[\s-]?\d{4}|0\d{2,4}\s?(?:15[\s-]?)?\d{4}[\s-]?\d{4}|\d{2,4}[\s-]?\d{4}[\s-]?\d{4})$/;
 
+// Emergency / vet contact fields share the same nullable-string-with-optional-AR-phone
+// semantics as the main phone field. Names are free-form (1-80 chars) and clear
+// to null when sent as empty string.
+const emergencyTextField = z.string().max(80, "Máximo 80 caracteres").optional();
+
+const emergencyPhoneField = z
+  .string()
+  .optional()
+  .refine((v) => v === undefined || v === "" || AR_PHONE_RE.test(v.replace(/\s/g, " ").trim()), {
+    message: "El teléfono no tiene un formato argentino válido",
+  });
+
 const updateProfileSchema = z.object({
   displayName: z
     .string()
@@ -55,6 +67,12 @@ const updateProfileSchema = z.object({
     .refine((v) => v === undefined || v === "" || AR_PHONE_RE.test(v.replace(/\s/g, " ").trim()), {
       message: "El teléfono no tiene un formato argentino válido",
     }),
+  // Emergency contact + preferred vet — surfaced on <PetEmergencyCard>. Same
+  // undefined / "" / string semantics as `phone`. Added by migration 0042.
+  preferredVetName: emergencyTextField,
+  preferredVetPhone: emergencyPhoneField,
+  emergencyContactName: emergencyTextField,
+  emergencyContactPhone: emergencyPhoneField,
 });
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -116,7 +134,14 @@ async function defaultStorageUpload({
 
 export async function updateProfileForUser(
   userId: string,
-  input: { displayName: string; phone?: string },
+  input: {
+    displayName: string;
+    phone?: string;
+    preferredVetName?: string;
+    preferredVetPhone?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+  },
 ): Promise<UpdateProfileResult> {
   // 1. Validate
   const parsed = updateProfileSchema.safeParse(input);
@@ -124,11 +149,25 @@ export async function updateProfileForUser(
     const firstError = parsed.error.issues[0];
     return { error: `VALIDATION_ERROR: ${firstError.message}` };
   }
-  const { displayName, phone } = parsed.data;
+  const {
+    displayName,
+    phone,
+    preferredVetName,
+    preferredVetPhone,
+    emergencyContactName,
+    emergencyContactPhone,
+  } = parsed.data;
 
   // 2. Load current profile for before-values + existence check
   const [current] = await db
-    .select({ displayName: profiles.displayName, phone: profiles.phone })
+    .select({
+      displayName: profiles.displayName,
+      phone: profiles.phone,
+      preferredVetName: profiles.preferredVetName,
+      preferredVetPhone: profiles.preferredVetPhone,
+      emergencyContactName: profiles.emergencyContactName,
+      emergencyContactPhone: profiles.emergencyContactPhone,
+    })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
@@ -154,6 +193,31 @@ export async function updateProfileForUser(
     beforeValues.phone = current.phone;
   }
 
+  // Same semantics for the 4 emergency / vet fields.
+  type EmergencyKey =
+    | "preferredVetName"
+    | "preferredVetPhone"
+    | "emergencyContactName"
+    | "emergencyContactPhone";
+  const emergencyInputs: Record<EmergencyKey, string | undefined> = {
+    preferredVetName,
+    preferredVetPhone,
+    emergencyContactName,
+    emergencyContactPhone,
+  };
+  const emergencyUpdates: Partial<Record<EmergencyKey, string | null>> = {};
+  for (const [key, value] of Object.entries(emergencyInputs) as Array<
+    [EmergencyKey, string | undefined]
+  >) {
+    if (value === undefined) continue;
+    const next = value === "" ? null : value;
+    if (next !== current[key]) {
+      changedFields.push(key);
+      beforeValues[key] = current[key];
+      emergencyUpdates[key] = next;
+    }
+  }
+
   // 4. Update profiles
   const updateSet: Record<string, unknown> = {
     displayName,
@@ -162,6 +226,7 @@ export async function updateProfileForUser(
   if (phoneIsProvided) {
     updateSet.phone = phone === "" ? null : phone;
   }
+  Object.assign(updateSet, emergencyUpdates);
 
   await db.update(profiles).set(updateSet).where(eq(profiles.id, userId));
 
@@ -186,6 +251,10 @@ export async function updateProfileForUser(
 export async function updateProfileAction(input: {
   displayName: string;
   phone?: string;
+  preferredVetName?: string;
+  preferredVetPhone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }): Promise<UpdateProfileResult> {
   const { user } = await requireUserOrRedirect();
   const result = await updateProfileForUser(user.id, input);
