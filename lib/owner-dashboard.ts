@@ -888,6 +888,47 @@ export async function fetchNotificationCategoryCounts(
 }
 
 // ---------------------------------------------------------------------------
+// Pet weight history (Chunk J — PetWeightChart data source)
+// ---------------------------------------------------------------------------
+
+export type PetWeightSample = {
+  date: Date;
+  kg: number;
+};
+
+/**
+ * Latest weight_recorded events for a pet within the last 12 months,
+ * ordered ascending by occurredAt. Payload kg is stored as either a string
+ * or a number depending on recording path — normalised to number here.
+ *
+ * Returns an empty array (never throws) when there are no qualifying events
+ * or the pet has no weight history.
+ */
+export async function fetchPetWeightHistory(petId: string): Promise<PetWeightSample[]> {
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+
+  const rows = await db.execute<{ occurred_at: string; kg: string | number }>(sql`
+    SELECT e.occurred_at::text AS occurred_at,
+           e.payload->>'kg'   AS kg
+    FROM pet_events e
+    WHERE e.pet_id    = ${petId}
+      AND e.event_type = 'weight_recorded'
+      AND e.occurred_at >= ${twelveMonthsAgo.toISOString()}
+    ORDER BY e.occurred_at ASC
+  `);
+
+  const samples: PetWeightSample[] = [];
+  for (const r of rows) {
+    const raw = r.kg;
+    const kg = typeof raw === "number" ? raw : Number.parseFloat(String(raw));
+    if (!Number.isFinite(kg)) continue;
+    samples.push({ date: new Date(r.occurred_at), kg });
+  }
+  return samples;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
