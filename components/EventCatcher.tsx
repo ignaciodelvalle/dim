@@ -22,6 +22,7 @@ import { useRef, useState } from "react";
 // the URL so the matcher pre-fills on landing.
 
 import { Button } from "@/components/poncho";
+import type { EventType } from "@/db/schema";
 
 /**
  * Pet state used to drive the avatar frame color in the chip row.
@@ -69,15 +70,20 @@ const PET_STATE_LABEL: Record<PetState, string> = {
   urgent: "text-red-700 dark:text-red-300",
 };
 
-type QuickKind = "vacuna" | "peso" | "vet" | "medicacion" | "nota";
-
-const QUICK_LABELS: Record<QuickKind, string> = {
-  vacuna: "Vacuna",
-  peso: "Peso",
-  vet: "Vet",
-  medicacion: "Medicación",
-  nota: "Nota",
+const QUICK_LABELS: Partial<Record<EventType, string>> = {
+  vaccination_administered: "Vacuna",
+  weight_recorded: "Peso",
+  vet_visit_logged: "Vet",
+  medication_started: "Medicación",
+  note_added: "Nota",
 };
+
+const QUICK_KINDS = Object.keys(QUICK_LABELS) as EventType[];
+
+// Re-export so existing callers (tests, etc.) keep working. Definition lives
+// in app/(app)/mis-mascotas/[publicToken]/anotar/handoff.ts (JSX-free).
+import { buildAnotarUrl } from "@/app/(app)/mis-mascotas/[publicToken]/anotar/handoff";
+export { buildAnotarUrl };
 
 const DOUBLE_TAP_MS = 600;
 const LONG_PRESS_MS = 550;
@@ -138,9 +144,9 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
     go(url);
   }
 
-  function onQuick(kind: QuickKind) {
+  function onQuick(kind: EventType) {
     if (!active) return;
-    go(`/mis-mascotas/${active.publicToken}/anotar?kind=${kind}`);
+    go(buildAnotarUrl(active.publicToken, { kind, text: text.trim() || undefined }));
   }
 
   return (
@@ -181,7 +187,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
             from the round pet chips (radio semantic). Bigger touch target
             (Chunk H PR3): py-2 + text-sm clears 38px. Disabled style uses
             neutral background instead of opacity to maintain WCAG AA contrast. */}
-        {(Object.keys(QUICK_LABELS) as QuickKind[]).map((k) => (
+        {QUICK_KINDS.map((k) => (
           <button
             key={k}
             type="button"

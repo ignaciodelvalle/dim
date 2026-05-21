@@ -45,9 +45,8 @@ describe("EVENT_CAPTURE_REGISTRY", () => {
     }
   });
 
-  it("complex forms (incident, symptom, clinical, medication) have empty prefillSlots", () => {
+  it("complex forms (incident, symptom, clinical) have empty prefillSlots", () => {
     const expectedEmpty: EventType[] = [
-      "medication_started",
       "medication_stopped",
       "incident_reported",
       "symptom_observed",
@@ -57,6 +56,14 @@ describe("EVENT_CAPTURE_REGISTRY", () => {
       const entry = EVENT_CAPTURE_REGISTRY[t];
       expect(entry?.prefillSlots, `prefillSlots for ${t}`).toEqual([]);
     }
+  });
+
+  it("medication_started forwards typed text via the EventCatcher chip handoff", () => {
+    // medication_started carries notes + occurredAt so the medicacion chip
+    // can preserve typed text from the home EventCatcher into the form.
+    // See docs/eventcatcher-fixes-plan-2026-05-20.md PR 1.
+    const entry = EVENT_CAPTURE_REGISTRY.medication_started;
+    expect(entry?.prefillSlots).toEqual(["notes", "occurredAt"]);
   });
 });
 

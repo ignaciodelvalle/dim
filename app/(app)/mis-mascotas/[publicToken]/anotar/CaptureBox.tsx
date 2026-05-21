@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import type { EventType } from "@/db/schema";
 import { matchCaptureIntent } from "@/lib/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/event-capture-registry";
+import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
+
+// Re-exports keep existing callers (tests, EventCatcher) working without churn.
+export { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey };
+export type { QuickAction } from "./handoff";
 
 const PLACEHOLDER_EXAMPLES = [
   'ej: "le di la antirrábica hoy"',
@@ -16,31 +21,68 @@ const PLACEHOLDER_EXAMPLES = [
   'ej: "tiene vómitos hace 2 días"',
 ];
 
-// Quick-action cards. Each links to a form prefilled with `occurredAt=today`
-// where applicable. Order is roughly by frequency of use.
-const QUICK_ACTIONS: Array<{ eventType: EventType; label: string }> = [
-  { eventType: "vaccination_administered", label: "Vacuna" },
-  { eventType: "deworming_administered", label: "Antiparasit." },
-  { eventType: "weight_recorded", label: "Peso" },
-  { eventType: "vet_visit_logged", label: "Visita al vet" },
-  { eventType: "sterilization_performed", label: "Castración" },
-  { eventType: "microchip_implanted", label: "Microchip" },
-  { eventType: "note_added", label: "Nota" },
-  { eventType: "symptom_observed", label: "Síntoma" },
-];
-
 export function CaptureBox({
   petPublicToken,
   petName,
+  initialText,
+  initialKind,
 }: {
   petPublicToken: string;
   petName: string;
+  initialText?: string;
+  initialKind?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText ?? "");
   const [unmatched, setUnmatched] = useState(false);
   const [placeholderIdx] = useState(() => Math.floor(Math.random() * PLACEHOLDER_EXAMPLES.length));
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect — initialText/initialKind drive a one-shot router.replace, not reactive updates.
+  useEffect(() => {
+    if (initialKind) {
+      const url = buildKindDeeplink(
+        initialKind as EventType,
+        petPublicToken,
+        initialText?.trim() || undefined,
+      );
+      if (url) {
+        router.replace(url);
+        return;
+      }
+    }
+    if (initialText) {
+      const trimmed = initialText.trim();
+      if (!trimmed) return;
+      setUnmatched(false);
+      const match = matchCaptureIntent(trimmed);
+      if (!match) {
+        setUnmatched(true);
+        return;
+      }
+      let url: string | null;
+      if (match.routeOverride) {
+        const base = `/mis-mascotas/${petPublicToken}${match.routeOverride}`;
+        const sep = match.routeOverride.includes("?") ? "&" : "?";
+        const slotParams = new URLSearchParams();
+        for (const [k, v] of Object.entries(match.slots)) {
+          if (v !== "" && v !== undefined) slotParams.set(k, v);
+        }
+        const qs = slotParams.toString();
+        url = qs ? `${base}${sep}${qs}` : base;
+      } else {
+        url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
+      }
+      if (url) {
+        startTransition(() => {
+          router.push(url);
+        });
+      } else {
+        setUnmatched(true);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function identify(e: React.FormEvent) {
     e.preventDefault();

@@ -16,9 +16,13 @@ const hintClass = "text-xs text-neutral-500 dark:text-neutral-500";
 export function MedicationStartForm({
   action,
   species,
+  defaultNotes,
+  defaultOccurredAt,
 }: {
   action: FormAction;
   species: string | null | undefined;
+  defaultNotes?: string;
+  defaultOccurredAt?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -207,7 +211,7 @@ export function MedicationStartForm({
           name="occurredAt"
           type="date"
           required
-          defaultValue={today}
+          defaultValue={defaultOccurredAt ?? today}
           className={inputClass}
         />
         <p className={hintClass}>
@@ -219,7 +223,13 @@ export function MedicationStartForm({
         <label htmlFor="notes" className={labelClass}>
           Notas
         </label>
-        <textarea id="notes" name="notes" rows={3} className={inputClass} />
+        <textarea
+          id="notes"
+          name="notes"
+          rows={3}
+          defaultValue={defaultNotes ?? ""}
+          className={inputClass}
+        />
       </div>
 
       <AttachmentField />

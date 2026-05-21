@@ -5,10 +5,13 @@ import { MedicationStartForm } from "./MedicationStartForm";
 
 export default async function NewMedicationStartPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ notes?: string; occurredAt?: string }>;
 }) {
   const { publicToken } = await params;
+  const { notes, occurredAt } = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
 
@@ -31,7 +34,12 @@ export default async function NewMedicationStartPage({
             Registrá un tratamiento nuevo para {pet.name}.
           </p>
         </div>
-        <MedicationStartForm action={boundAction} species={pet.species} />
+        <MedicationStartForm
+          action={boundAction}
+          species={pet.species}
+          defaultNotes={notes}
+          defaultOccurredAt={occurredAt}
+        />
       </div>
     </main>
   );

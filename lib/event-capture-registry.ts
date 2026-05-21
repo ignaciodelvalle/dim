@@ -94,12 +94,12 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
     // server-side. Only `notes` is prefillable.
     prefillSlots: ["notes"],
   },
-  // ---- Forms reachable, slots not pre-filled (parsing needs LLM) ----
   medication_started: {
     route: "/eventos/nuevo/medicacion-inicio",
     description: "El usuario empezó a darle una medicación a su mascota",
-    prefillSlots: [],
+    prefillSlots: ["notes", "occurredAt"],
   },
+  // ---- Forms reachable, slots not pre-filled (parsing needs LLM) ----
   medication_stopped: {
     route: "/eventos/nuevo/medicacion-fin",
     description: "El usuario terminó una medicación de su mascota",
