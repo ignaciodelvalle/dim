@@ -8,6 +8,7 @@ import { db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   countUnreadNotifications,
+  fetchActiveReminders,
   fetchLivingPetLocalities,
   fetchOngoingMedications,
   fetchOpenWorkflows,
@@ -26,6 +27,7 @@ import { PetsGridWidget } from "./_components/PetsGridWidget";
 import { PreviousWorkflowsWidget } from "./_components/PreviousWorkflowsWidget";
 import { QuickCaptureWidget } from "./_components/QuickCaptureWidget";
 import { RegulationsPlaceholder } from "./_components/RegulationsPlaceholder";
+import { RemindersSection } from "./_components/RemindersSection";
 
 export const dynamic = "force-dynamic";
 
@@ -33,22 +35,33 @@ export default async function InicioPage() {
   const { user } = await requireUserOrRedirect();
 
   // Everything loads in parallel — one round-trip for the full dashboard.
-  const [profile, pets, appointments, notifications, unreadCount, meds, openWf, prevWf, locs] =
-    await Promise.all([
-      db
-        .select({ displayName: profiles.displayName })
-        .from(profiles)
-        .where(and(eq(profiles.id, user.id), isNull(profiles.deactivatedAt)))
-        .limit(1),
-      fetchPetsForOwner(user.id),
-      fetchUpcomingAppointments(user.id, 5),
-      fetchUnreadNotifications(user.id, 5),
-      countUnreadNotifications(user.id),
-      fetchOngoingMedications(user.id),
-      fetchOpenWorkflows(user.id),
-      fetchPreviousWorkflows(user.id, 10),
-      fetchLivingPetLocalities(user.id),
-    ]);
+  const [
+    profile,
+    pets,
+    appointments,
+    notifications,
+    unreadCount,
+    meds,
+    openWf,
+    prevWf,
+    locs,
+    reminders,
+  ] = await Promise.all([
+    db
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(and(eq(profiles.id, user.id), isNull(profiles.deactivatedAt)))
+      .limit(1),
+    fetchPetsForOwner(user.id),
+    fetchUpcomingAppointments(user.id, 5),
+    fetchUnreadNotifications(user.id, 5),
+    countUnreadNotifications(user.id),
+    fetchOngoingMedications(user.id),
+    fetchOpenWorkflows(user.id),
+    fetchPreviousWorkflows(user.id, 10),
+    fetchLivingPetLocalities(user.id),
+    fetchActiveReminders(user.id),
+  ]);
 
   const firstName = (profile[0]?.displayName ?? "").trim().split(/\s+/)[0] || "Hola";
 
@@ -63,6 +76,8 @@ export default async function InicioPage() {
             Esto es lo que pasa con tus mascotas hoy.
           </p>
         </header>
+
+        <RemindersSection reminders={reminders} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <QuickCaptureWidget pets={pets} />
