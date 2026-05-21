@@ -31,10 +31,10 @@
 //                               lacks the Registrar/Eliminar server-action wiring.
 //                               <PetReminders> (C3) is the canonical surface.
 //
-// TODO(J-followup): Emergency contacts — `profiles` has no preferredVetContact*
-//   or emergencyContact* columns yet (Open Decision #1 from the source plan).
-//   <PetEmergencyCard> renders with null contacts and the edit link points to
-//   /cuenta/editar until schema columns are added (V2-D-J1).
+// Emergency contacts: <PetEmergencyCard> reads from profiles.preferred_vet_*
+//   and profiles.emergency_contact_* (migration 0042). Edited at /cuenta/editar
+//   under "Contactos para emergencias". One set of contacts per owner, shared
+//   across all their pets (consistent with how an owner thinks about it).
 //
 // TODO(J-followup): Travel docs — no pet_attachments table yet. <PetTravelDocs>
 //   renders an empty state until the table / attachment kind is added.
@@ -68,6 +68,7 @@ import {
   petEvents,
   petServiceDog,
   pets,
+  profiles,
   reminders,
   serviceOfferings,
   timeSlots,
@@ -406,6 +407,30 @@ export default async function PetDetailPage({
     ownershipRole = ownerRow?.role ?? null;
   }
 
+  // Emergency / vet contacts from the viewer's profile — only meaningful for
+  // accessPath==="owner". Org-side access keeps the card empty (the org
+  // viewer is not the pet's owner). J-followup wires these to the columns
+  // added in migration 0042.
+  let viewerContacts: {
+    preferredVetName: string | null;
+    preferredVetPhone: string | null;
+    emergencyContactName: string | null;
+    emergencyContactPhone: string | null;
+  } | null = null;
+  if (accessPath === "owner") {
+    const [profileRow] = await db
+      .select({
+        preferredVetName: profiles.preferredVetName,
+        preferredVetPhone: profiles.preferredVetPhone,
+        emergencyContactName: profiles.emergencyContactName,
+        emergencyContactPhone: profiles.emergencyContactPhone,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+    viewerContacts = profileRow ?? null;
+  }
+
   // Event timeline, newest first.
   const events = await db
     .select()
@@ -717,12 +742,29 @@ export default async function PetDetailPage({
           )}
         </section>
 
-        {/* v2 Emergency card — TODO(J-followup): wire real vet/emergency contacts
-            from profile once Open Decision #1 columns are added to schema. */}
+        {/* v2 Emergency card — J-followup wires real contacts from the
+            owner profile (migration 0042). Edit link points to /cuenta/editar
+            where the same fields live (one source of truth across all pets). */}
         <PetEmergencyCard
-          editHref={`/mis-mascotas/${pet.publicToken}/editar`}
-          vet={null}
-          emergencyContact={null}
+          editHref="/cuenta/editar"
+          vet={
+            viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
+              ? {
+                  name: viewerContacts.preferredVetName,
+                  role: "Vet de cabecera",
+                  phone: viewerContacts.preferredVetPhone,
+                }
+              : null
+          }
+          emergencyContact={
+            viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
+              ? {
+                  name: viewerContacts.emergencyContactName,
+                  role: "Contacto emergencia",
+                  phone: viewerContacts.emergencyContactPhone,
+                }
+              : null
+          }
           alerts={[]}
         />
 

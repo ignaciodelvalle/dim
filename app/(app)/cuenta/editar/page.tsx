@@ -13,6 +13,10 @@ export default async function EditarCuentaPage() {
       displayName: profiles.displayName,
       phone: profiles.phone,
       avatarUrl: profiles.avatarUrl,
+      preferredVetName: profiles.preferredVetName,
+      preferredVetPhone: profiles.preferredVetPhone,
+      emergencyContactName: profiles.emergencyContactName,
+      emergencyContactPhone: profiles.emergencyContactPhone,
     })
     .from(profiles)
     .where(eq(profiles.id, user.id))
@@ -26,7 +30,7 @@ export default async function EditarCuentaPage() {
             Editar mi información
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Actualizá tu nombre, teléfono y foto de perfil.
+            Actualizá tu nombre, teléfono, contactos de emergencia y foto de perfil.
           </p>
         </header>
 
@@ -35,6 +39,10 @@ export default async function EditarCuentaPage() {
             displayName: profile?.displayName ?? "",
             phone: profile?.phone ?? "",
             avatarUrl: profile?.avatarUrl ?? "",
+            preferredVetName: profile?.preferredVetName ?? "",
+            preferredVetPhone: profile?.preferredVetPhone ?? "",
+            emergencyContactName: profile?.emergencyContactName ?? "",
+            emergencyContactPhone: profile?.emergencyContactPhone ?? "",
           }}
         />
       </div>
