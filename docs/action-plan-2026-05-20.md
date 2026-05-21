@@ -345,3 +345,142 @@ Open Claude Code, point it at `C:\dev\dim` after Phase 0. The first prompt is li
 > Read AGENTS.md, then docs/project-review-2026-05-19.md, then docs/action-plan-2026-05-20.md. We're starting at Phase 1. Open a PR for it against develop. Commit messages should follow conventional-commits like the existing history.
 
 After Phase 1 merges, the next prompt is the same template with `Phase 2.1` (then `2.2`, etc.). One phase, one PR, one review cycle, repeat.
+
+---
+
+## Addendum — 2026-05-20 afternoon session
+
+> **Update 2026-05-21:** Findings 1 and 2 below are RESOLVED. `C:\dev\dim/db/schema.ts` is now fully restored (2505 lines; `cases` table defined at L2398-2502, exports `Case` and `NewCase` at L2504-2505). The "stricter Phase 0 acceptance" checklist no longer applies — the tree migration completed cleanly. Treat this addendum as historical context, not active direction. The component-level notes (EventCatcher, CasesWidget, lost-mode cockpit, denuncia wizard) ARE still relevant — those landed as preview routes and are tracked in `docs/superpowers/plans/2026-05-21-consolidated-cc-plan.md`.
+
+Notes from a follow-up Cowork session that drilled into the `/gob` portal redesign. Two findings + three new component files. Read this before starting Phase 0 because it changes Phase 0's acceptance criteria.
+
+### Finding 1 — `C:\dev\dim` is damaged too, not only `C:\Users\ignac\DIM\DIM`
+
+The Phase 0 premise was "the working tree at `C:\Users\ignac\DIM\DIM` is corrupted; the clean tree lives at `C:\dev\dim`." That premise is **partially wrong**. Spot-checks on `C:\dev\dim` find:
+
+- `db/schema.ts` ends mid-statement at line 2220, last visible token `partyOrganizationI` (no closing quote, paren, or brace). Anything past `custodyDisputeParties` is missing — including the `cases` table definition that Drizzle should expose.
+- `lib/case-kinds.ts` ends mid-string at `case "ou` — the `outbreak_investigation` label is cut.
+- `.git/packed-refs` ends mid-line at `refs/remotes/or` — `git log`, `git status`, `git fetch` all fail with `fatal: unterminated line in .git/packed-refs`.
+- A coarse heuristic scan flags dozens of `app/actions/*.ts`, `app/(app)/*.tsx`, and `app/(auth)/*.tsx` files as not ending in a valid TS closing token. Null bytes are present in some TS sources.
+
+Conclusion: the corruption pattern (mid-line truncation, null bytes, packed-refs damage) is the same one diagnosed in the original `DIM\DIM` tree. Either the clone-to-`C:\dev\dim` step was never completed cleanly, or the sync issue followed to `C:\dev`.
+
+**Action**: re-do Phase 0 with stricter acceptance, ideally onto a path that no cloud service touches. Updated checklist for Phase 0:
+
+1. Disable any sync agent (OneDrive, Dropbox, iCloud, GoodSync, etc.) **process-level**, not folder-exclude.
+2. Pick a clearly unsynced root. `C:\src\` is conventional; `C:\dev` may also be fine if no agent watches it. Confirm with `Get-Process onedrive` / your sync agent's tray.
+3. `git clone https://github.com/ignaciodelvalle/dim.git` fresh into the chosen root.
+4. Run the integrity check before declaring Phase 0 done:
+   ```powershell
+   # No truncation: schema.ts should end with `}));` or similar
+   Get-Content db\schema.ts -Tail 3
+   # Cases table must be Drizzle-exposed (a non-empty line is enough)
+   Select-String "export const cases" db\schema.ts
+   # Git must work
+   git log --oneline -5
+   git fsck
+   # No null bytes anywhere in source
+   Get-ChildItem -Recurse -Include *.ts,*.tsx -Path .\app,.\lib,.\components,.\db |
+     ForEach-Object { if ((Get-Content $_ -Raw -Encoding Byte) -contains 0) { $_.FullName } }
+   ```
+   That last command should print nothing.
+
+### Finding 2 — the `cases` table mystery is resolved
+
+The mystery: `lib/case-queries.ts` and `lib/case-helpers.ts` import `{ cases, type Case, type NewCase }` from `@/db`, but those names do not appear in the current `db/schema.ts`.
+
+Resolution: the table is real and lives in the database — created by `db/migrations/0033_cases.sql` (with RLS expansion in `0034_cases_rls_expanded.sql`). The Drizzle TS definition for it was once present in `db/schema.ts` but is gone now, because `schema.ts` is one of the files truncated by the issue in Finding 1.
+
+**Action**: after Phase 0 produces a clean tree, verify `db/schema.ts` contains an `export const cases = pgTable("cases", …)` block after `custodyDisputeParties`. If `git checkout develop` doesn't restore it, regenerate from the live DB with `pnpm drizzle-kit pull`. Either way, this is **not new schema work** — it's purely restoring what was lost.
+
+### `/inicio` owner home plan + EventCatcher
+
+Companion plan: [`docs/owner-home-plan-2026-05-20.md`](./owner-home-plan-2026-05-20.md). It reverses the old "punt the textarea to /anotar" call and pulls the event catcher onto the home itself. Two new files in this pass:
+
+| File | Role | Imports `@/db`? |
+|---|---|---|
+| `components/EventCatcher.tsx` | Client component. Pet chip row (72px avatars) + textarea + quick-action chips + Poncho `success` submit. Tap-once selects, tap-twice (or long-press) opens pet profile. Ctrl/⌘ + Enter shortcut. Routes to `/mis-mascotas/{token}/anotar?text=…` or `?kind=…`. | No |
+| `components/CasesWidget.tsx` | Server component. Owner-visible "Mis casos" list — maps from the existing `WorkflowItem[]` shape, no new query. | No |
+| `app/(app)/inicio-v2/page.tsx` | Preview route. Header → EventCatcher → CasesWidget → próximos turnos. Hardcoded sample data. | No |
+
+Migration once Phase 0 is clean: swap the body of `app/(app)/inicio/page.tsx` for the v2 structure, wire to `fetchPetsForOwner`, retire `QuickCaptureWidget`, and move displaced widgets (notifications → top-bar bell, workflows → `/cuenta/workflows`, medications → per-pet profile). The `/anotar` matcher needs to read `?text=` and `?kind=` query params on landing — that's the only thing that changes outside `/inicio` itself.
+
+### Denuncia anónima — public intake redesign (plan only)
+
+Companion plan: [`docs/denuncia-anonima-plan-2026-05-20.md`](./denuncia-anonima-plan-2026-05-20.md). **Plan only — no components yet**. The redesign converts the current single-page `WelfareReportForm.tsx` into a seven-step mobile-first wizard whose payload still hits the existing `createWelfareReportAction` server action and the existing `welfareReports` table. No schema change.
+
+Key shape: steps 1–5 collect kind / severity / dónde-y-cuándo / subject / evidence; step 6 is the close screen with the explicit choice between **anónima** and **anónima + contacto** (the midway path that converts more denuncias into actionable cases); step 7 is the reference-code receipt. `/denuncias/codigo/[code]` follow-up is refreshed alongside.
+
+Why anónima first, vinculante later: anónima is the volume path, the moderation queue exists to handle its spam risk, and it has zero dependency on the security work in Phase 2.1 (`claimStubProfileAction` gating). Vinculante extends the same wizard with an identity step after Phase 2 lands. Detailed in the plan.
+
+Components proposed (build follows in the next session): `DenunciaWizardShell` + 7 step components + `DenunciaFollowUpStatus`, all under `components/denuncia/`.
+
+### Modo perdido — owner cockpit + public lost view
+
+Companion plan: [`docs/lost-mode-plan-2026-05-20.md`](./lost-mode-plan-2026-05-20.md). The activation form, server actions, case lifecycle, public credential, and scan logger all already ship; this pass adds the **active-state owner cockpit** and the **lost-mode public layout**, both presentation-only.
+
+Six new components under `components/pet-profile/`, two preview routes:
+
+| File | Role |
+|---|---|
+| `LostModeBanner.tsx` | Red top-of-page strip with photo, "Roma está perdida — hace 3 h 42 min", case ref, "Marcar encontrada" button. |
+| `LostShareCard.tsx` | Client. WhatsApp / Twitter / Facebook / Afiche + copy-link. `navigator.share` fallback. |
+| `LostLastSeenCard.tsx` | Static map preview + place + locality + owner note + edit + add-sighting. |
+| `LostDisclosureCard.tsx` | Five toggle rows mapped 1:1 to `pets.disclose_*_when_lost`. Server-action forms. |
+| `LostScanFeed.tsx` | Counts + unified scan-and-finder-message feed. |
+| `LostPublicCredential.tsx` | The view a stranger sees at `/p/{token}` when the pet is lost. |
+| `app/(app)/mis-mascotas/[publicToken]/perdida-v2/page.tsx` | Owner cockpit preview. |
+| `app/p/[publicToken]/v2/page.tsx` | Public lost view preview. |
+
+State-color alignment carries through: `state: "urgent"` + `stateLabel: "Perdida"` in the chip row on the home, red ring + bottom badge on the hero, red banner at the top of the cockpit. One coordinated signal across three surfaces.
+
+Open decisions captured in the plan: where finder messages live (event type vs. sibling table), append-only sightings vs. pin updates, day-150 confirmation before cron auto-close, poster generator choice, phone format, and the activation-form rule that at least one contact channel must stay on.
+
+### Pet profile (owner view) plan + components
+
+Companion plan: [`docs/pet-profile-owner-plan-2026-05-20.md`](./pet-profile-owner-plan-2026-05-20.md). Same pattern as `/inicio` and `/gob`: a tidy redesign of the most-used view, additive only, behind a preview route while Phase 0 is pending.
+
+Eight new files added under `components/pet-profile/`, none import `@/db`:
+
+| File | Role |
+|---|---|
+| `PetProfileHero.tsx` | Hero with 148px photo ring (state color), name/meta line, primary actions row. |
+| `PetEmergencyCard.tsx` | Vet + emergency contact (tel: links) + medical alerts. |
+| `PetHealthTimeline.tsx` | Client component. Filter chips + recent events. |
+| `PetWeightChart.tsx` | SVG sparkline from `WeightSample[]`. No chart lib. |
+| `PetVaccineReminders.tsx` | Overdue + upcoming vaccines with "Agendar". |
+| `PetTrackingPlaceholder.tsx` | "Conectar dispositivo" CTA. |
+| `PetCredentialCard.tsx` | QR + token + link to `/p/{token}`. |
+| `PetTravelDocs.tsx` | Pasaporte + certificado internacional. |
+
+Preview route: `app/(app)/mis-mascotas/[publicToken]/v2/page.tsx`. Same `requirePetAccess` guard as the live profile, all sample data inline. Once Phase 0 is clean, swap sample blocks for the live queries section-by-section (most already exist in `lib/owner-dashboard.ts` and the live profile page).
+
+The role-split intent is explicit: hero stays invariant across owner / vet / shelter / govt; sections below the hero change. Owner is shipped here; vet, shelter, govt follow as their own plans.
+
+### `/gob` dashboard plan + Phase 1 starter components
+
+Companion plan: [`docs/gob-dashboard-plan-2026-05-20.md`](./gob-dashboard-plan-2026-05-20.md). It maps the desktop-mockup vision for the government portal to what already ships, names gaps, and sequences six phases. It sits at Tier 5+ in the unapplied-specs audit — nothing in it is durable until at least Tiers 0–2 (Phase 0 here, security batch, DB hygiene) land.
+
+Three new component files were added in the follow-up session. They are **additive only** — no edits to existing files, no imports from `@/db`, so they compile regardless of the schema truncation in Finding 1.
+
+| File | Role | Imports `@/db`? |
+|---|---|---|
+| `components/KpiTile.tsx` | Metric tile + `KpiTileGrid` container. Variants: plain, target bar, delta arrow. Tones: neutral / info / success / warning / danger. | No |
+| `components/JurisdictionFilterBar.tsx` | Client component. Time-range chips + provincia / localidad / tipo dropdowns. URL search params as state (matches `/gob/vigilancia` pattern). Exports `readFilterParams()` server helper. | No |
+| `components/GobDashboardShell.tsx` | Three-zone layout (header + filters + kpi strip + main/aside). Pure prop-driven. Exports a small `DashboardCard` companion. | No |
+
+A preview page is wired up at `app/gob/dashboard-v2/page.tsx`. It uses the same `requireAdminOrGovtOrRedirect` guard as `/gob`, composes the three new components with **hardcoded sample data**, and links out to existing routes (`/gob/cola`, `/gob/maltrato`, etc.). The map zone is a placeholder until Phase 2 (MapLibre), and the casos kanban references `listCasesForGovt()` but is stubbed because of the schema gap in Finding 2.
+
+Once Phase 0 is re-done and Finding 2's restoration confirmed, the wiring is straightforward:
+
+1. Replace `SAMPLE_KPIS` in `app/gob/dashboard-v2/page.tsx` with real queries — most are already in `lib/govt-dashboards.ts` (`fetchSurveillanceSignals`, `fetchDiseaseSummary`). Population-rate KPIs (vaccination coverage %, bites / 10k hab.) wait for Phase 3 of the gob-dashboard plan.
+2. Replace the map placeholder with the `ChoroplethMap` component (Phase 2 of the gob-dashboard plan).
+3. Replace the casos card stub with a kanban driven by `listCasesForGovt()`.
+4. When the preview reaches parity, retire `app/gob/dashboard-v2/page.tsx` by moving its body into `app/gob/page.tsx`.
+
+### Order of operations for the next Claude Code session
+
+1. **Phase 0 redux** with the stricter checklist above. Acceptance: `db/schema.ts` ends cleanly + `cases` table is exported + `git log` works + zero null bytes in `app/`, `lib/`, `components/`, `db/`.
+2. **Finding 2 confirmation**: verify `cases` table is back in `schema.ts`. If not, `pnpm drizzle-kit pull`.
+3. **Sanity build**: `pnpm typecheck && pnpm test`. The three new components must compile clean. The dashboard-v2 preview route must serve.
+4. From here, the existing action plan resumes at Phase 1 (Convention scaffolding). The `/gob` dashboard plan slots in as a parallel track once Tier 2 security work lands.
