@@ -7,6 +7,31 @@ export default defineConfig({
     // is idempotent enough that the dedupe test does its own teardown.
     fileParallelism: false,
     setupFiles: ["./__tests__/setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json"],
+      include: ["lib/**", "app/**"],
+      exclude: [
+        "components/**",
+        "__tests__/**",
+        "node_modules/**",
+        ".next/**",
+        "db/migrations/**",
+        "**/*.d.ts",
+      ],
+      // Branch-coverage targets per docs/testing/PLAN.md D2. The 75%
+      // target on app/actions is also enforced socially in review:
+      // each server action must ship with at least one happy-path and
+      // two negative tests.
+      thresholds: {
+        "lib/business-rules-**": { branches: 90 },
+        "lib/**-rules/**": { branches: 90 },
+        "lib/case-lifecycles/**": { branches: 90 },
+        "lib/**": { branches: 70 },
+        "app/actions/**": { branches: 75 },
+        "app/api/**": { branches: 60 },
+      },
+    },
   },
   resolve: {
     alias: {
