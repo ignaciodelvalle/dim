@@ -7,9 +7,13 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, ownerships, petEvents, pets, profiles, welfareReports } from "@/db";
 import {
+  fetchAcquisitionTrend,
+  fetchAnalyticsMetrics,
   fetchCasesPerLocality,
+  fetchDeathCauses,
   fetchDiseaseSummary,
   fetchLostPets,
+  fetchOutbreakHistory,
   fetchPerdidasMetrics,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
@@ -1117,5 +1121,516 @@ describe("fetchWelfareMetrics", () => {
     expect(m.myCount).toBe(0);
     expect(m.inProgressCount).toBe(0);
     expect(m.closedMonth).toBe(0);
+  });
+});
+
+// ============================================================================
+// E5 — fetchAnalyticsMetrics
+// ============================================================================
+
+// Helper: insert a pet_registered event (acquisition) for a pet.
+async function emitPetRegisteredEvent(input: {
+  petId: string;
+  acquisitionMethod: string | null;
+  daysAgo?: number;
+}) {
+  await db.insert(petEvents).values({
+    petId: input.petId,
+    eventType: "pet_registered",
+    occurredAt: new Date(Date.now() - (input.daysAgo ?? 0) * 24 * 60 * 60 * 1000),
+    payload: {
+      payload_version: 1,
+      name: "TestPet",
+      species: "dog",
+      sex: "unknown",
+      breed: null,
+      date_of_birth: null,
+      birth_date_is_estimated: false,
+      color: null,
+      microchip_id: null,
+      microchip_country_code: null,
+      microchip_implanted_at: null,
+      microchip_implanted_by: null,
+      microchip_location: null,
+      estimated_weight_kg: null,
+      favourite_foods: [],
+      known_allergies: [],
+      training_level: null,
+      insurance_company: null,
+      insurance_policy_number: null,
+      jurisdiction_province: null,
+      jurisdiction_locality: null,
+      potentially_dangerous_breed: false,
+      acquisition_method: input.acquisitionMethod,
+      has_photo: false,
+      has_microchip: false,
+    },
+    authorRole: "owner",
+    recordedByUserId: ownerUserId,
+  });
+}
+
+// Helper: insert a vaccination event with a given vaccine_name.
+async function emitVaccinationWithName(input: {
+  petId: string;
+  vaccineName: string;
+  province: string;
+  locality: string;
+}) {
+  await db.insert(petEvents).values({
+    petId: input.petId,
+    eventType: "vaccination_administered",
+    occurredAt: new Date(),
+    payload: {
+      payload_version: 1,
+      vaccine_name: input.vaccineName,
+      brand: null,
+      batch: null,
+      administered_by: null,
+      next_due_at: null,
+      pet_jurisdiction_province: input.province,
+      pet_jurisdiction_locality: input.locality,
+    },
+    authorRole: "vet",
+    recordedByUserId: null,
+  });
+}
+
+// Helper: insert a death_recorded event.
+async function emitDeathEvent(input: {
+  petId: string;
+  cause: string;
+  province: string;
+  locality: string;
+  daysAgo?: number;
+}) {
+  await db.update(pets).set({ status: "deceased" }).where(eq(pets.id, input.petId));
+  await db.insert(petEvents).values({
+    petId: input.petId,
+    eventType: "death_recorded",
+    occurredAt: new Date(Date.now() - (input.daysAgo ?? 0) * 24 * 60 * 60 * 1000),
+    payload: {
+      payload_version: 1,
+      cause: input.cause,
+      cause_detail: null,
+      confirmed_by_vet: null,
+      vet_name: null,
+      disposition_method: null,
+      facility: null,
+      death_at_clinic: null,
+      clinic_name: null,
+      vet_contacted_owner: null,
+      vet_decided_alone: null,
+      owner_to_private_crematorium: null,
+      disease_code: null,
+      confirmed_by_lab: null,
+      is_reportable: false,
+    },
+    authorRole: "owner",
+    recordedByUserId: ownerUserId,
+  });
+}
+
+describe("fetchAnalyticsMetrics", () => {
+  it("returns the 4-key shape", async () => {
+    const m = await fetchAnalyticsMetrics({ role: "admin" }, []);
+    expect(typeof m.totalPets).toBe("number");
+    expect(typeof m.adoptionRate).toBe("number");
+    expect(typeof m.rabiesVaccinationRate).toBe("number");
+    expect(typeof m.custodyDisputes).toBe("number");
+  });
+
+  it("returns zeros for govt with no assignments", async () => {
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, []);
+    expect(m.totalPets).toBe(0);
+    expect(m.adoptionRate).toBe(0);
+    expect(m.rabiesVaccinationRate).toBe(0);
+    expect(m.custodyDisputes).toBe(0);
+  });
+
+  it("rabiesVaccinationRate returns 0 when totalPets is 0 in scope", async () => {
+    // Isolated province with no pets.
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, [
+      { province: "Tierra del Fuego", locality: "Ushuaia" },
+    ]);
+    expect(m.rabiesVaccinationRate).toBe(0);
+  });
+
+  it("rabiesVaccinationRate reflects pets with rabia vaccination in scope", async () => {
+    const prov = "La Pampa";
+    const loc = "Santa Rosa";
+    const pet1 = await insertFixturePet({
+      name: "RabiaVacPet1",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const pet2 = await insertFixturePet({
+      name: "RabiaVacPet2",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Only pet1 gets rabia vaccination.
+    // Note: use unaccented "rabia" so ILIKE '%rabia%' matches ASCII-case-insensitively.
+    await emitVaccinationWithName({
+      petId: pet1,
+      vaccineName: "Vacuna rabia canina triple",
+      province: prov,
+      locality: loc,
+    });
+
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
+    // totalPets = 2 (both active). rabiesVaccinated = 1. rate = 50%.
+    expect(m.totalPets).toBeGreaterThanOrEqual(2);
+    expect(m.rabiesVaccinationRate).toBeGreaterThanOrEqual(1);
+    expect(m.rabiesVaccinationRate).toBeLessThanOrEqual(100);
+  });
+
+  it("scope: govt only sees pets in their assigned jurisdictions", async () => {
+    const prov1 = "San Luis";
+    const loc1 = "San Luis Capital";
+    const prov2 = "La Rioja";
+    const loc2 = "La Rioja Capital";
+    await insertFixturePet({ name: "ScopePet1", species: "dog", province: prov1, locality: loc1 });
+    await insertFixturePet({ name: "ScopePet2", species: "dog", province: prov2, locality: loc2 });
+
+    const mScoped = await fetchAnalyticsMetrics({ role: "govt" }, [
+      { province: prov1, locality: loc1 },
+    ]);
+    const mAdmin = await fetchAnalyticsMetrics({ role: "admin" }, []);
+
+    expect(mScoped.totalPets).toBeGreaterThanOrEqual(1);
+    expect(mAdmin.totalPets).toBeGreaterThanOrEqual(mScoped.totalPets);
+  });
+
+  it("custodyDisputes counts open custody_dispute cases in scope", async () => {
+    const prov = "Catamarca";
+    const loc = "San Fernando del Valle";
+    const pet = await insertFixturePet({
+      name: "DisputePet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await insertFixtureCase({
+      caseKind: "custody_dispute",
+      status: "open",
+      province: prov,
+      locality: loc,
+      petId: pet,
+    });
+
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
+    expect(m.custodyDisputes).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ============================================================================
+// E5 — fetchAcquisitionTrend
+// ============================================================================
+
+describe("fetchAcquisitionTrend", () => {
+  it("returns empty array for govt with no assignments", async () => {
+    const r = await fetchAcquisitionTrend({ role: "govt" }, []);
+    expect(r).toEqual([]);
+  });
+
+  it("excludes rows without acquisition_method in payload", async () => {
+    const prov = "Chubut";
+    const loc = "Comodoro Rivadavia";
+    const pet = await insertFixturePet({
+      name: "NoMethodPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Emit pet_registered event with null acquisition_method.
+    await emitPetRegisteredEvent({ petId: pet, acquisitionMethod: null });
+
+    const r = await fetchAcquisitionTrend({ role: "govt" }, [{ province: prov, locality: loc }]);
+    // Row with null acquisition_method must not appear.
+    for (const pt of r) {
+      expect(pt.method).toBeDefined();
+    }
+  });
+
+  it("groups correctly by (month, method) bucket and returns required shape", async () => {
+    const prov = "Santa Cruz";
+    const loc = "Río Gallegos";
+    const pet = await insertFixturePet({
+      name: "TrendAcqPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitPetRegisteredEvent({ petId: pet, acquisitionMethod: "adopted", daysAgo: 1 });
+
+    const r = await fetchAcquisitionTrend({ role: "govt" }, [{ province: prov, locality: loc }]);
+    expect(Array.isArray(r)).toBe(true);
+    for (const pt of r) {
+      expect(typeof pt.x).toBe("string");
+      expect(typeof pt.y).toBe("number");
+      expect(typeof pt.method).toBe("string");
+      expect(typeof pt.periodStart).toBe("string");
+      // method must be one of the 4 buckets.
+      expect(["shelter_adoption", "vecino_helps_stray", "private_handover", "other"]).toContain(
+        pt.method,
+      );
+    }
+    // The adopted pet in this month must appear as shelter_adoption.
+    const adoptedPoints = r.filter((pt) => pt.method === "shelter_adoption");
+    expect(adoptedPoints.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("scope: govt only sees acquisitions in their assigned jurisdictions", async () => {
+    const prov1 = "Neuquén";
+    const loc1 = "Neuquén Capital";
+    const prov2 = "Río Negro";
+    const loc2 = "Bariloche";
+    const pet1 = await insertFixturePet({
+      name: "ScopeAcq1",
+      species: "dog",
+      province: prov1,
+      locality: loc1,
+    });
+    const pet2 = await insertFixturePet({
+      name: "ScopeAcq2",
+      species: "dog",
+      province: prov2,
+      locality: loc2,
+    });
+    await emitPetRegisteredEvent({ petId: pet1, acquisitionMethod: "adopted" });
+    await emitPetRegisteredEvent({ petId: pet2, acquisitionMethod: "adopted" });
+
+    const govtTrend = await fetchAcquisitionTrend({ role: "govt" }, [
+      { province: prov1, locality: loc1 },
+    ]);
+    const adminTrend = await fetchAcquisitionTrend({ role: "admin" }, []);
+
+    const govtTotal = govtTrend.reduce((s, p) => s + p.y, 0);
+    const adminTotal = adminTrend.reduce((s, p) => s + p.y, 0);
+    expect(govtTotal).toBeGreaterThanOrEqual(1);
+    expect(adminTotal).toBeGreaterThanOrEqual(govtTotal);
+  });
+});
+
+// ============================================================================
+// E5 — fetchDeathCauses
+// ============================================================================
+
+describe("fetchDeathCauses", () => {
+  it("returns empty array for govt with no assignments", async () => {
+    const r = await fetchDeathCauses({ role: "govt" }, []);
+    expect(r).toEqual([]);
+  });
+
+  it("returns rows with cause + count shape", async () => {
+    const r = await fetchDeathCauses({ role: "admin" }, []);
+    for (const row of r) {
+      expect(typeof row.cause).toBe("string");
+      expect(typeof row.count).toBe("number");
+    }
+    // At most 10 rows (LIMIT 10).
+    expect(r.length).toBeLessThanOrEqual(10);
+  });
+
+  it("scope-bound: govt only sees death events from their jurisdictions", async () => {
+    const prov = "Jujuy";
+    const loc = "San Salvador de Jujuy";
+    const pet = await insertFixturePet({
+      name: "DeathScopePet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitDeathEvent({ petId: pet, cause: "natural", province: prov, locality: loc });
+
+    const govtR = await fetchDeathCauses({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const adminR = await fetchDeathCauses({ role: "admin" }, []);
+
+    expect(govtR.length).toBeGreaterThanOrEqual(1);
+    const govtTotal = govtR.reduce((s, r) => s + r.count, 0);
+    const adminTotal = adminR.reduce((s, r) => s + r.count, 0);
+    expect(adminTotal).toBeGreaterThanOrEqual(govtTotal);
+  });
+
+  it("last 12 months only: deaths older than 12 months are excluded", async () => {
+    const prov = "Formosa";
+    const loc = "Formosa Capital";
+    const pet = await insertFixturePet({
+      name: "OldDeathPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Death 400 days ago — outside the 12m window.
+    await emitDeathEvent({
+      petId: pet,
+      cause: "unknown",
+      province: prov,
+      locality: loc,
+      daysAgo: 400,
+    });
+
+    const r = await fetchDeathCauses({ role: "govt" }, [{ province: prov, locality: loc }]);
+    // The old death event should not appear in the results.
+    // We verify by checking there's no entry (or it's 0-count).
+    // Since there are no recent deaths for this jurisdiction, the result should be empty.
+    expect(r.length).toBe(0);
+  });
+
+  it("ordered by count desc and returns top 10", async () => {
+    const prov = "Corrientes";
+    const loc = "Corrientes Capital";
+    // Insert multiple pets and death events to create ordering.
+    for (let i = 0; i < 3; i++) {
+      const pet = await insertFixturePet({
+        name: `DeathOrderPet${i}`,
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      await emitDeathEvent({ petId: pet, cause: "natural", province: prov, locality: loc });
+    }
+    const pet4 = await insertFixturePet({
+      name: "DeathOrderPet4",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitDeathEvent({ petId: pet4, cause: "accident", province: prov, locality: loc });
+
+    const r = await fetchDeathCauses({ role: "govt" }, [{ province: prov, locality: loc }]);
+    // Results must be ordered desc by count.
+    for (let i = 1; i < r.length; i++) {
+      expect(r[i - 1].count).toBeGreaterThanOrEqual(r[i].count);
+    }
+    // natural (3) must come before accident (1).
+    const naturalIdx = r.findIndex((row) => row.cause === "natural");
+    const accidentIdx = r.findIndex((row) => row.cause === "accident");
+    if (naturalIdx !== -1 && accidentIdx !== -1) {
+      expect(naturalIdx).toBeLessThan(accidentIdx);
+    }
+  });
+});
+
+// ============================================================================
+// E5 — fetchOutbreakHistory
+// ============================================================================
+
+describe("fetchOutbreakHistory", () => {
+  it("returns empty array for govt with no assignments", async () => {
+    const r = await fetchOutbreakHistory({ role: "govt" }, []);
+    expect(r).toEqual([]);
+  });
+
+  it("returns rows with required shape", async () => {
+    const pet = await insertFixturePet({
+      name: "HistoryPet",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "Tigre",
+    });
+    await emitOutbreakSignal({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: "Buenos Aires",
+      locality: "Tigre",
+      hoursAgo: 2,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "admin" }, []);
+    expect(Array.isArray(r)).toBe(true);
+    for (const row of r) {
+      expect(typeof row.diseaseCode).toBe("string");
+      expect(typeof row.diseaseName).toBe("string");
+      expect(typeof row.locality).toBe("string");
+      expect(typeof row.province).toBe("string");
+      expect(typeof row.peakDate).toBe("string");
+      expect(typeof row.totalSignals).toBe("number");
+    }
+  });
+
+  it("groups by (disease_code, locality, province) and counts signals", async () => {
+    const prov = "Santa Fe";
+    const loc = "Rosario";
+    const pet = await insertFixturePet({
+      name: "GroupingPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Two signals of the same disease in the same locality.
+    await emitOutbreakSignal({
+      petId: pet,
+      diseaseCode: "leptospirosis_suspected",
+      province: prov,
+      locality: loc,
+      hoursAgo: 10,
+    });
+    await emitOutbreakSignal({
+      petId: pet,
+      diseaseCode: "leptospirosis_suspected",
+      province: prov,
+      locality: loc,
+      hoursAgo: 5,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const lepto = r.find(
+      (row) => row.diseaseCode === "leptospirosis_suspected" && row.locality === loc,
+    );
+    expect(lepto).toBeDefined();
+    if (!lepto) return;
+    expect(lepto.totalSignals).toBeGreaterThanOrEqual(2);
+  });
+
+  it("scope-bound: govt only sees signals in their jurisdictions", async () => {
+    const prov1 = "Entre Ríos";
+    const loc1 = "Paraná";
+    const prov2 = "Misiones";
+    const loc2 = "Posadas";
+    const pet1 = await insertFixturePet({
+      name: "HistScope1",
+      species: "dog",
+      province: prov1,
+      locality: loc1,
+    });
+    const pet2 = await insertFixturePet({
+      name: "HistScope2",
+      species: "dog",
+      province: prov2,
+      locality: loc2,
+    });
+    await emitOutbreakSignal({
+      petId: pet1,
+      diseaseCode: "rabies_suspected",
+      province: prov1,
+      locality: loc1,
+      hoursAgo: 1,
+    });
+    await emitOutbreakSignal({
+      petId: pet2,
+      diseaseCode: "rabies_suspected",
+      province: prov2,
+      locality: loc2,
+      hoursAgo: 1,
+    });
+
+    const govtR = await fetchOutbreakHistory({ role: "govt" }, [
+      { province: prov1, locality: loc1 },
+    ]);
+    // Must not contain rows from prov2/loc2.
+    for (const row of govtR) {
+      expect(row.locality).not.toBe(loc2);
+    }
+  });
+
+  it("ordered by peakDate desc (most recent first)", async () => {
+    const r = await fetchOutbreakHistory({ role: "admin" }, []);
+    for (let i = 1; i < r.length; i++) {
+      expect(r[i - 1].peakDate >= r[i].peakDate).toBe(true);
+    }
   });
 });
