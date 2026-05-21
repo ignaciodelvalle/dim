@@ -1,0 +1,68 @@
+{
+  "_comment": "TODO(E2-E5): This is a MINIMAL placeholder GeoJSON with 3 provinces and coarse boundaries (~5-10 vertices each). Replace with the full 24-province + CABA dataset from IGN (Instituto Geográfico Nacional) when a real dashboard in chunks E2-E5 consumes this component. Codes follow ISO 3166-2:AR.",
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "AR-C",
+        "name": "Ciudad Autónoma de Buenos Aires"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-58.5315, -34.7057],
+            [-58.3699, -34.7057],
+            [-58.3315, -34.5407],
+            [-58.4499, -34.5270],
+            [-58.5315, -34.6200],
+            [-58.5315, -34.7057]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "AR-B",
+        "name": "Buenos Aires"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-63.3900, -33.2700],
+            [-56.6700, -33.2700],
+            [-56.6700, -41.0500],
+            [-65.1800, -41.0500],
+            [-65.1800, -38.0000],
+            [-62.5000, -36.5000],
+            [-63.3900, -33.2700]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "AR-X",
+        "name": "Córdoba"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-65.7500, -29.5000],
+            [-62.0000, -29.5000],
+            [-62.0000, -34.9000],
+            [-64.0000, -35.6000],
+            [-66.8000, -34.8000],
+            [-66.8000, -31.0000],
+            [-65.7500, -29.5000]
+          ]
+        ]
+      }
+    }
+  ]
+}
