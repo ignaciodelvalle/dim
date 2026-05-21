@@ -12,6 +12,7 @@
 import {
   and,
   count,
+  countDistinct,
   desc,
   eq,
   gte,
@@ -889,4 +890,409 @@ export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEv
 
   // Sort chronologically.
   return events.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+}
+
+// ============================================================================
+// Analytics metrics — E5
+// ============================================================================
+
+// NOTE(E5): The spec references "shelter_adoption" as an acquisition method,
+// but the canonical `pet_registered` payload enum is:
+//   adopted | purchased | found_stray | gift | born_in_litter | other
+// "shelter_adoption" does not exist. The closest is "adopted" (standard shelter
+// adoption). `fetchAcquisitionTrend` uses "adopted" as the primary positive bucket.
+//
+// The `pet_acquired` event type listed in the spec does not exist in this codebase.
+// Acquisitions are captured via `pet_registered` events whose payload includes
+// `acquisition_method`. All four fetchers below use `pet_registered` for acquisition
+// data. TODO(E5-followup): revisit if a distinct `pet_acquired` event type lands.
+
+export type AnalyticsMetrics = {
+  /** Total pets in scope with status 'active' or 'lost' (excludes deceased). */
+  totalPets: number;
+  /**
+   * % of pets in scope registered with acquisition_method='adopted' in the last 12 months.
+   * Computed as (adopted / total registrations in window) * 100, rounded to integer.
+   *
+   * NOTE(E5-followup): spec referenced "shelter_adoption"; canonical enum value is "adopted".
+   * Using "adopted" as proxy. If a more granular custody_kind='shelter_custody_by_org'
+   * distinction is needed, cross-join with the petRegistered payload's custody_kind field.
+   */
+  adoptionRate: number;
+  /**
+   * % of pets in scope with at least one vaccination_administered event where
+   * vaccine_name ILIKE '%rabi%' (catches rabia, rabies; ASCII-only ILIKE).
+   * Computed as (pets with ≥1 rabia event / totalPets) * 100, rounded to integer.
+   * Returns 0 when totalPets = 0.
+   * TODO(E5-followup): use unaccent() to also catch 'antirrábica' etc. if extension is available.
+   */
+  rabiesVaccinationRate: number;
+  /** Open cases in scope where case_kind='custody_dispute'. */
+  custodyDisputes: number;
+};
+
+export async function fetchAnalyticsMetrics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<AnalyticsMetrics> {
+  // Early-return for govt with no assignments.
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    return { totalPets: 0, adoptionRate: 0, rabiesVaccinationRate: 0, custodyDisputes: 0 };
+  }
+
+  const since12m = new Date(Date.now() - 365 * DAY_MS);
+
+  const petsScope = petsScopeClause(actor, jurisdictions);
+  const casesScope = casesScopeClause(actor, jurisdictions);
+
+  // 1. totalPets: active or lost in scope.
+  const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];
+  if (petsScope) totalConditions.push(sql`(${petsScope})`);
+
+  // 2. adoptionRate: pet_registered events with acquisition_method='adopted', last 12m.
+  //    Scope via inner join to pets.jurisdictionProvince/Locality.
+  //    NOTE(E5-followup): acquisition method is in pet_registered payload, not a separate event.
+  const acquisitionConditions = [
+    eq(petEvents.eventType, "pet_registered"),
+    gte(petEvents.occurredAt, since12m),
+  ];
+  if (actor.role === "govt") {
+    const pairs = jurisdictions.map(
+      (j) =>
+        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    );
+    acquisitionConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+
+  // 3. rabiesVaccinationRate: distinct petIds with ≥1 vaccination_administered where
+  //    vaccine_name matches rabia/rabies/rábica/antirrábica (ASCII: %rabi%).
+  //    Using %rabi% (without accent) catches all common variants:
+  //      - "rabia"           — direct match
+  //      - "rabies"          — English/lab names
+  //      - PostgreSQL ILIKE is ASCII-case-insensitive but not accent-insensitive,
+  //        so "antirrábica" (with accent) does NOT match %rabia%. Use %rabi% instead.
+  //    TODO(E5-followup): use unaccent() if the unaccent extension is available.
+  const rabiesConditions = [
+    eq(petEvents.eventType, "vaccination_administered"),
+    sql`(${petEvents.payload}->>'vaccine_name') ILIKE ${"%rabi%"}`,
+  ];
+  if (actor.role === "govt") {
+    const pairs = jurisdictions.map(
+      (j) =>
+        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    );
+    rabiesConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+
+  // 4. custodyDisputes: open cases with case_kind='custody_dispute'.
+  const disputeConditions = [eq(cases.caseKind, "custody_dispute"), eq(cases.status, "open")];
+  if (casesScope) disputeConditions.push(sql`(${casesScope})`);
+
+  const [totalRows, acquisitionRows, adoptedRows, rabiesRows, disputeRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(pets)
+      .where(and(...totalConditions)),
+
+    // Total registrations in last 12m for adoption-rate denominator.
+    actor.role === "govt"
+      ? db
+          .select({ n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          .where(and(...acquisitionConditions))
+      : db
+          .select({ n: count() })
+          .from(petEvents)
+          .where(and(...acquisitionConditions)),
+
+    // Adopted registrations in last 12m.
+    actor.role === "govt"
+      ? db
+          .select({ n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          .where(
+            and(
+              ...acquisitionConditions,
+              sql`(${petEvents.payload}->>'acquisition_method') = ${"adopted"}`,
+            ),
+          )
+      : db
+          .select({ n: count() })
+          .from(petEvents)
+          .where(
+            and(
+              ...acquisitionConditions,
+              sql`(${petEvents.payload}->>'acquisition_method') = ${"adopted"}`,
+            ),
+          ),
+
+    // Distinct pet IDs with ≥1 rabia vaccination.
+    actor.role === "govt"
+      ? db
+          .select({ n: countDistinct(petEvents.petId) })
+          .from(petEvents)
+          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          .where(and(...rabiesConditions))
+      : db
+          .select({ n: countDistinct(petEvents.petId) })
+          .from(petEvents)
+          .where(and(...rabiesConditions)),
+
+    db
+      .select({ n: count() })
+      .from(cases)
+      .where(and(...disputeConditions)),
+  ]);
+
+  const totalPets = totalRows[0]?.n ?? 0;
+  const totalAcquisitions = acquisitionRows[0]?.n ?? 0;
+  const adopted = adoptedRows[0]?.n ?? 0;
+  const rabiesVaccinated = rabiesRows[0]?.n ?? 0;
+  const custodyDisputes = disputeRows[0]?.n ?? 0;
+
+  const adoptionRate =
+    totalAcquisitions === 0 ? 0 : Math.round((adopted / totalAcquisitions) * 100);
+  const rabiesVaccinationRate =
+    totalPets === 0 ? 0 : Math.round((rabiesVaccinated / totalPets) * 100);
+
+  return { totalPets, adoptionRate, rabiesVaccinationRate, custodyDisputes };
+}
+
+// ============================================================================
+
+// Acquisition method buckets per E5 spec.
+// NOTE(E5): canonical enum in pet_registered payload is:
+//   adopted | purchased | found_stray | gift | born_in_litter | other
+// Spec-requested "shelter_adoption" maps to "adopted".
+// Spec-requested "vecino_helps_stray" maps to "found_stray".
+// Spec-requested "private_handover" maps to "purchased" (closest proxy).
+// TODO(E5-followup): refine mapping once a `pet_acquired` event with explicit
+// method fields is introduced.
+const ACQUISITION_METHOD_BUCKET: Record<string, string> = {
+  adopted: "shelter_adoption",
+  found_stray: "vecino_helps_stray",
+  purchased: "private_handover",
+  gift: "private_handover",
+};
+
+function bucketAcquisitionMethod(raw: string | null): string {
+  if (!raw) return "other";
+  return ACQUISITION_METHOD_BUCKET[raw] ?? "other";
+}
+
+export type AcquisitionTrendPoint = {
+  /** Pre-formatted x-axis label, e.g. "Ene 2026". */
+  x: string;
+  /** Pets acquired in this month + method bucket. */
+  y: number;
+  /** Method bucket: "shelter_adoption" | "vecino_helps_stray" | "private_handover" | "other". */
+  method: string;
+  /** ISO date of month start, for sorting. */
+  periodStart: string;
+};
+
+/**
+ * Acquisition trend — 12 months rolling, grouped by (month, acquisition_method_bucket).
+ * Source: pet_registered events with acquisition_method in payload.
+ * Rows without acquisition_method in the payload are excluded (null method).
+ *
+ * NOTE(E5): uses pet_registered events, not a separate pet_acquired event (which
+ * does not exist in this codebase). Scope is via pets.jurisdictionProvince/Locality.
+ */
+export async function fetchAcquisitionTrend(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<AcquisitionTrendPoint[]> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+
+  const since12m = new Date(Date.now() - 365 * DAY_MS);
+
+  const conditions = [
+    eq(petEvents.eventType, "pet_registered"),
+    gte(petEvents.occurredAt, since12m),
+    // Exclude rows with null acquisition_method.
+    sql`(${petEvents.payload}->>'acquisition_method') IS NOT NULL`,
+  ];
+
+  if (actor.role === "govt") {
+    const pairs = jurisdictions.map(
+      (j) =>
+        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    );
+    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+
+  const baseQuery =
+    actor.role === "govt"
+      ? db
+          .select({
+            month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
+            method: sql<string>`(${petEvents.payload}->>'acquisition_method')`,
+            n: count(),
+          })
+          .from(petEvents)
+          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          .where(and(...conditions))
+          .groupBy(
+            sql`date_trunc('month', ${petEvents.occurredAt})`,
+            sql`(${petEvents.payload}->>'acquisition_method')`,
+          )
+          .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`)
+      : db
+          .select({
+            month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
+            method: sql<string>`(${petEvents.payload}->>'acquisition_method')`,
+            n: count(),
+          })
+          .from(petEvents)
+          .where(and(...conditions))
+          .groupBy(
+            sql`date_trunc('month', ${petEvents.occurredAt})`,
+            sql`(${petEvents.payload}->>'acquisition_method')`,
+          )
+          .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`);
+
+  const rows = await baseQuery;
+
+  return rows.map((r) => {
+    const d = new Date(r.month);
+    const monthLabel = d.toLocaleString("es-AR", { month: "short", year: "numeric" });
+    return {
+      x: monthLabel,
+      y: r.n,
+      method: bucketAcquisitionMethod(r.method),
+      periodStart: d.toISOString(),
+    };
+  });
+}
+
+// ============================================================================
+
+export type DeathCauseRow = {
+  /** Cause label from deathRecorded payload, e.g. "natural", "disease", "accident". */
+  cause: string;
+  /** Count of death_recorded events with this cause in the last 12 months. */
+  count: number;
+};
+
+/**
+ * Top 10 death causes ordered by count desc, last 12 months.
+ * Source: death_recorded events, payload field `cause`.
+ * Scope via inner join to pets.jurisdictionProvince/Locality.
+ *
+ * NOTE(E5): `cause` enum in deathRecorded schema:
+ *   known | unknown | natural | disease | accident | euthanasia | sudden | violent | other
+ */
+export async function fetchDeathCauses(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<DeathCauseRow[]> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+
+  const since12m = new Date(Date.now() - 365 * DAY_MS);
+
+  const conditions = [
+    eq(petEvents.eventType, "death_recorded"),
+    gte(petEvents.occurredAt, since12m),
+  ];
+
+  if (actor.role === "govt") {
+    const pairs = jurisdictions.map(
+      (j) =>
+        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    );
+    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+
+  const rows = await (actor.role === "govt"
+    ? db
+        .select({
+          cause: sql<string>`COALESCE((${petEvents.payload}->>'cause'), 'unknown')`,
+          n: count(),
+        })
+        .from(petEvents)
+        .innerJoin(pets, eq(pets.id, petEvents.petId))
+        .where(and(...conditions))
+        .groupBy(sql`COALESCE((${petEvents.payload}->>'cause'), 'unknown')`)
+        .orderBy(desc(count()))
+        .limit(10)
+    : db
+        .select({
+          cause: sql<string>`COALESCE((${petEvents.payload}->>'cause'), 'unknown')`,
+          n: count(),
+        })
+        .from(petEvents)
+        .where(and(...conditions))
+        .groupBy(sql`COALESCE((${petEvents.payload}->>'cause'), 'unknown')`)
+        .orderBy(desc(count()))
+        .limit(10));
+
+  return rows.map((r) => ({ cause: r.cause, count: r.n }));
+}
+
+// ============================================================================
+
+export type OutbreakHistoryRow = {
+  diseaseCode: string;
+  diseaseName: string;
+  locality: string;
+  province: string;
+  /**
+   * ISO date of the most recent outbreak_signal for this (disease_code, locality) group.
+   * v1 simplification: uses MAX(occurred_at) as peak date rather than computing
+   * the per-day peak (day with most signals). TODO(E5-followup): replace with
+   * a window-function subquery once query complexity is justified.
+   */
+  peakDate: string;
+  /** Total outbreak_signal events from this disease in this locality, full history. */
+  totalSignals: number;
+};
+
+/**
+ * Historical outbreaks grouped by (disease_code, locality, province),
+ * most recent first (by MAX(occurred_at)).
+ *
+ * Scope via outbreak_signal payload fields pet_jurisdiction_province/locality
+ * (same as fetchSurveillanceSignals). No time restriction — full history.
+ */
+export async function fetchOutbreakHistory(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<OutbreakHistoryRow[]> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+
+  const conditions = [eq(petEvents.eventType, "outbreak_signal")];
+  const scope = outbreakSignalScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      diseaseCode: sql<string>`(${petEvents.payload}->>'disease_code')`,
+      diseaseLabel: sql<string | null>`(${petEvents.payload}->>'disease_label')`,
+      province: sql<string>`COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')`,
+      locality: sql<string>`COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')`,
+      peakDate: sql<string>`MAX(${petEvents.occurredAt})`,
+      n: count(),
+    })
+    .from(petEvents)
+    .where(and(...conditions))
+    .groupBy(
+      sql`(${petEvents.payload}->>'disease_code')`,
+      sql`(${petEvents.payload}->>'disease_label')`,
+      sql`COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')`,
+      sql`COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')`,
+    )
+    .orderBy(sql`MAX(${petEvents.occurredAt}) DESC`)
+    .limit(100);
+
+  return rows.map((r) => ({
+    diseaseCode: r.diseaseCode,
+    diseaseName: findDisease(r.diseaseCode)?.label ?? r.diseaseLabel ?? r.diseaseCode,
+    locality: r.locality,
+    province: r.province,
+    peakDate: new Date(r.peakDate).toISOString(),
+    totalSignals: r.n,
+  }));
 }
