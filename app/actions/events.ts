@@ -13,6 +13,7 @@
 
 import {
   attachments,
+  auditLog,
   cases,
   db,
   notifications,
@@ -2340,6 +2341,45 @@ export async function recordDiseaseDiagnosisWriter(
       await db.insert(notifications).values(pendingNotifications);
     } catch (e) {
       console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
+
+  // ENO pipeline — processEnoEventTrigger fires AFTER the transaction commits.
+  // Failure must NEVER block or roll back the diagnosis insert (defensive wrap).
+  // The trigger only acts when disease_code is in the ENO catalog (isEnoCode guard
+  // inside the trigger); non-ENO diagnoses are silent no-ops.
+  if (diagnosisEventId) {
+    try {
+      const { processEnoEventTrigger } = await import("@/lib/eno-trigger");
+      await processEnoEventTrigger({
+        id: diagnosisEventId,
+        petId: params.petId,
+        authorRole: "vet",
+        recordedByUserId: params.vetUserId,
+        authorOrganizationId: null,
+        payload: {
+          sub_kind: "disease_diagnosis",
+          disease_code: params.diseaseCode,
+          diagnosis_date: params.diagnosisDate.toISOString(),
+        },
+      });
+    } catch (err) {
+      console.error("[recordDiseaseDiagnosisWriter] ENO trigger failed (non-fatal):", err);
+      // Audit the failure so ops can investigate without a bug report.
+      try {
+        await db.insert(auditLog).values({
+          actorUserId: params.vetUserId,
+          action: "eno_notification_emitted",
+          payload: {
+            disease_code: params.diseaseCode,
+            pet_id: params.petId,
+            error: err instanceof Error ? err.message : "unknown",
+            trigger_failed: true,
+          },
+        });
+      } catch {
+        // Swallow — audit insert failure is non-fatal.
+      }
     }
   }
 

@@ -50,13 +50,23 @@ async function purgeUserByEmail(email: string) {
   // Deleting profiles cascades to pet_events.recorded_by_user_id (ON DELETE
   // SET NULL), which triggers the append-only protection. Wrap so the
   // cascading UPDATE is allowed.
-  await withMutationOverride(async (tx) => {
-    for (const uid of ids) {
-      await tx.delete(notifications).where(eq(notifications.userId, uid));
+  // NOTE: profile deletion may also fail if audit_log references the profile
+  // (ON DELETE RESTRICT). This can happen when ENO or other triggers write
+  // audit_log entries referencing this vet. Swallow to avoid cascading
+  // teardown failures — the orphan profile is harmless.
+  for (const uid of ids) {
+    await db.delete(notifications).where(eq(notifications.userId, uid));
+    await withMutationOverride(async (tx) => {
       await tx.delete(profiles).where(eq(profiles.id, uid));
-    }
-  });
-  if (found) await supabase.auth.admin.deleteUser(found.id);
+    }).catch(() => {
+      // Intentionally swallow FK violations from audit_log → profiles (ON DELETE RESTRICT).
+    });
+  }
+  if (found) {
+    await supabase.auth.admin.deleteUser(found.id).catch(() => {
+      // Swallow if auth user deletion fails due to lingering FK.
+    });
+  }
 }
 
 async function insertTestPet(ownerUid: string, tokenSuffix: string) {
