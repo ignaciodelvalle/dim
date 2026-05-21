@@ -39,6 +39,7 @@
 // 1. Env bootstrap + safety guards (must run before db/index.ts imports)
 // ---------------------------------------------------------------------------
 
+import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
@@ -282,7 +283,35 @@ const GOVT_ASSIGNMENTS = [
   { province: "Ciudad Autónoma de Buenos Aires", locality: "Palermo" },
 ];
 
-const PHOTO_DIR_ABS = "/sessions/stoic-wizardly-lovelace/mnt/DIM/docs/archive/Fotos";
+const PHOTO_DIR_ABS = path.join(process.cwd(), "docs", "archive", "Fotos");
+
+// Map storyline acquisition_method strings (rescued, bred, unknown, etc.) to
+// the canonical DB enum values (adopted, purchased, found_stray, gift,
+// born_in_litter, other). Storylines were authored before the enum was
+// finalised; this adapter keeps the storyline data readable while satisfying
+// the DB constraint.
+function toDbAcquisition(
+  raw: string | undefined,
+): "adopted" | "purchased" | "found_stray" | "gift" | "born_in_litter" | "other" | null {
+  if (!raw) return null;
+  switch (raw) {
+    case "adopted":
+    case "purchased":
+    case "found_stray":
+    case "gift":
+    case "born_in_litter":
+    case "other":
+      return raw;
+    case "rescued":
+      return "found_stray";
+    case "bred":
+      return "born_in_litter";
+    case "unknown":
+      return "other";
+    default:
+      return "other";
+  }
+}
 const SEED_STORAGE_BUCKET = "seed-photos";
 
 // ---------------------------------------------------------------------------
@@ -520,7 +549,7 @@ async function provisionOrgs(deps: DbDeps, alejoId: string): Promise<Record<OrgK
         .insert(schemas.organizations)
         .values({
           publicToken: token,
-          name: org.name,
+          displayName: org.name,
           legalName: org.legalName,
           orgType: org.orgType,
           cuit: org.cuit,
@@ -615,14 +644,14 @@ async function provisionMemberships(
     {
       org: "patitas-del-norte",
       user: "noeli",
-      role: "foster_volunteer",
+      role: "foster",
       title: "Voluntaria de tránsito",
       canWritePetEvents: true,
     },
     {
       org: "patitas-del-norte",
       user: "graciela",
-      role: "foster_volunteer",
+      role: "foster",
       title: "Voluntaria de tránsito",
       canWritePetEvents: true,
     },
@@ -815,7 +844,7 @@ async function loadStoryline(
       jurisdictionCountry: story.pet.jurisdiction_country ?? "AR",
       jurisdictionProvince: story.pet.jurisdiction_province ?? null,
       jurisdictionLocality: story.pet.jurisdiction_locality ?? null,
-      acquisitionMethod: story.pet.acquisition_method ?? null,
+      acquisitionMethod: toDbAcquisition(story.pet.acquisition_method),
       emergencyInfoVisible: story.pet.emergency_info_visible ?? false,
       status: story.pet.status,
       deceasedAt,
@@ -852,7 +881,7 @@ async function loadStoryline(
       eventType: e.event_type,
       occurredAt: dateAtNoonUtc(e.date),
       recordedByUserId: author,
-      authorRole: e.author_role ?? null,
+      authorRole: e.author_role ?? "system",
       authorOrganizationId: authorOrgId,
       authorVerified: true,
       payload: e.payload ?? {},
@@ -932,14 +961,14 @@ async function main(): Promise<void> {
   console.log("  /mis-mascotas    — Ignacio / Noelí (owners)");
 }
 
-const isMain =
-  typeof require !== "undefined" && typeof module !== "undefined" && require.main === module;
-if (isMain) {
-  main()
-    .then(() => process.exit(0))
-    .catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error("\n[FATAL]", err);
-      process.exit(1);
-    });
-}
+// ESM-safe entrypoint detection. tsx + Node 24 default to ESM, where
+// CommonJS `require.main === module` would always be falsy. The script
+// is always run directly via `pnpm tsx scripts/seed-demo.ts`, so we just
+// call main() unconditionally.
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("\n[FATAL]", err);
+    process.exit(1);
+  });
