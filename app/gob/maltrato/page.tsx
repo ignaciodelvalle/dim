@@ -1,7 +1,19 @@
-import Link from "next/link";
+import { Suspense } from "react";
 
+import {
+  EmptyState,
+  JurisdictionSwitcher,
+  MetricCard,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PeriodPicker,
+  Tabs,
+  TabsContent,
+} from "@/components/poncho";
 import { db, welfareReports } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { PROVINCE_ISO_MAP, fetchWelfareMetrics } from "@/lib/govt-dashboards";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -9,27 +21,34 @@ import {
   type WelfareReportKind,
   type WelfareReportSeverity,
   type WelfareReportStatus,
-  welfareReportKindLabel,
-  welfareReportSeverityLabel,
-  welfareReportStatusLabel,
 } from "@/lib/welfare";
-import { and, desc, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { and, desc, isNotNull, isNull, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
-const STATUS_TONE: Record<string, string> = {
-  open: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200",
-  triaged: "bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200",
-  in_progress: "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200",
-  closed: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200",
-  invalid: "bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400",
-  duplicate: "bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400",
-};
+import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 
-const SEVERITY_TONE: Record<string, string> = {
-  critical: "text-red-700 dark:text-red-300",
-  high: "text-orange-700 dark:text-orange-300",
-  medium: "text-amber-700 dark:text-amber-300",
-  low: "text-neutral-600 dark:text-neutral-400",
-};
+// All Argentine provinces list for <JurisdictionSwitcher>.
+const ALL_PROVINCES: Array<{ code: string; name: string }> = [
+  { code: "AR-C", name: "Ciudad Autónoma de Buenos Aires" },
+  { code: "AR-B", name: "Buenos Aires" },
+  { code: "AR-X", name: "Córdoba" },
+  { code: "AR-S", name: "Santa Fe" },
+  { code: "AR-M", name: "Mendoza" },
+  { code: "AR-T", name: "Tucumán" },
+  { code: "AR-E", name: "Entre Ríos" },
+  { code: "AR-A", name: "Salta" },
+  { code: "AR-N", name: "Misiones" },
+  { code: "AR-H", name: "Chaco" },
+  { code: "AR-W", name: "Corrientes" },
+];
+
+type WelfareQueue = "urgent" | "mine" | "all" | "overdue";
+const VALID_QUEUES: WelfareQueue[] = ["urgent", "mine", "all", "overdue"];
+
+function parseQueue(raw: string | undefined): WelfareQueue {
+  if (!raw) return "all";
+  return (VALID_QUEUES as string[]).includes(raw) ? (raw as WelfareQueue) : "all";
+}
 
 function parseStatus(raw: string | undefined): WelfareReportStatus | null {
   if (!raw) return null;
@@ -50,41 +69,90 @@ function parseSeverity(raw: string | undefined): WelfareReportSeverity | null {
     : null;
 }
 
+// Queue filter applied in JS post-fetch (v1 simplicity — bounded result set).
+// TODO(E4-followup): move queue filtering to the SQL query for scale.
+function filterByQueue(
+  reports: Array<typeof welfareReports.$inferSelect>,
+  queue: WelfareQueue,
+  currentUserId: string,
+): Array<typeof welfareReports.$inferSelect> {
+  switch (queue) {
+    case "urgent":
+      return reports.filter(
+        (r) =>
+          (r.severity === "critical" || r.severity === "high") &&
+          r.status !== "closed" &&
+          r.status !== "invalid" &&
+          r.status !== "duplicate",
+      );
+    case "mine":
+      return reports.filter((r) => r.assignedToUserId === currentUserId);
+    case "overdue":
+      // Overdue: open for more than 7 days without triage.
+      return reports.filter((r) => {
+        if (r.status !== "open") return false;
+        const ageMs = Date.now() - new Date(r.createdAt).getTime();
+        return ageMs > 7 * 24 * 60 * 60 * 1000;
+      });
+    default:
+      return reports;
+  }
+}
+
 export default async function GobMaltratoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; kind?: string; severity?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    queue?: string;
+    kind?: string;
+    severity?: string;
+    status?: string;
+  }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const filters = await searchParams;
-  const activeStatus = parseStatus(filters.status);
-  const activeKind = parseKind(filters.kind);
-  const activeSeverity = parseSeverity(filters.severity);
+  const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
+  const actor = { role: profile.role };
+  const sp = await searchParams;
 
-  // No (province, locality) ANY shortcut in Drizzle for tuples, so we
-  // filter client-side after the status pre-filter (default to "active"
-  // means anything that's not terminal). Volume is bounded — admin sees
-  // everything; govt sees only their scope.
-  // Exclude rows that are flagged AND not yet resolved by a moderator —
-  // those live in /admin/moderacion and shouldn't pollute the triage queue.
-  // Resolved-flagged rows DO appear here (moderator already cleared them
-  // and passed them down).
+  const activeQueue = parseQueue(sp.queue);
+  const activeStatus = parseStatus(sp.status);
+  const activeKind = parseKind(sp.kind);
+  const activeSeverity = parseSeverity(sp.severity);
+
+  const noScope = profile.role === "govt" && jurisdictions.length === 0;
+
+  // Build allowedProvinces for <JurisdictionSwitcher>.
+  const allowedProvinces =
+    profile.role === "admin"
+      ? ALL_PROVINCES
+      : Array.from(new Set(jurisdictions.map((j) => j.province)))
+          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+          .filter((p) => p.code !== "");
+
+  // Exclude rows under active moderation (flagged but not resolved by moderator).
   const notUnderModeration = or(
     isNull(welfareReports.flaggedAt),
     isNotNull(welfareReports.moderationResolvedAt),
   );
 
-  let rows = await db
-    .select()
-    .from(welfareReports)
-    .where(
-      activeStatus
-        ? and(eq(welfareReports.status, activeStatus), notUnderModeration)
-        : notUnderModeration,
-    )
-    .orderBy(desc(welfareReports.createdAt))
-    .limit(500);
+  // Fetch metrics and report list in parallel.
+  let [metrics, rows] = await Promise.all([
+    fetchWelfareMetrics(actor, jurisdictions, user.id),
+    db
+      .select()
+      .from(welfareReports)
+      .where(
+        activeStatus
+          ? and(eq(welfareReports.status, activeStatus), notUnderModeration)
+          : notUnderModeration,
+      )
+      .orderBy(desc(welfareReports.createdAt))
+      .limit(500),
+  ]);
 
+  // Scope filtering for govt role (can't do tuple match in SQL with Drizzle).
   if (profile.role === "govt") {
     rows = rows.filter((r) =>
       jurisdictions.some(
@@ -95,47 +163,27 @@ export default async function GobMaltratoPage({
   if (activeKind) rows = rows.filter((r) => r.kind === activeKind);
   if (activeSeverity) rows = rows.filter((r) => r.severity === activeSeverity);
 
-  // Counts per status for the header. Computed off the scoped+filtered set
-  // before the status filter was applied — that means the count chips
-  // always show "how many are there at each step" within the user's
-  // scope. We pull a separate query for that to avoid weird interplay.
-  let countingRows = await db
-    .select({ status: welfareReports.status })
-    .from(welfareReports)
-    .limit(2000);
-  if (profile.role === "govt") {
-    // Cannot pre-filter at SQL level (tuple match), so a second fetch
-    // with province+locality columns is cheaper than re-loading the
-    // full rows.
-    countingRows = await db
-      .select({
-        status: welfareReports.status,
-        province: welfareReports.jurisdictionProvince,
-        locality: welfareReports.jurisdictionLocality,
-      })
-      .from(welfareReports)
-      .limit(2000)
-      .then((rs) =>
-        rs
-          .filter((r) =>
-            jurisdictions.some((j) => j.province === r.province && j.locality === r.locality),
-          )
-          .map((r) => ({ status: r.status })),
-      );
-  }
-  const statusCounts = new Map<string, number>();
-  for (const r of countingRows) {
-    statusCounts.set(r.status, (statusCounts.get(r.status) ?? 0) + 1);
-  }
+  // Apply queue tab filter.
+  const visibleRows = filterByQueue(rows, activeQueue, user.id);
+
+  const panelListId = "panel-maltrato-lista-titulo";
+
+  const TABS = [
+    { value: "urgent" as const, label: "Urgentes" },
+    { value: "mine" as const, label: "Mías" },
+    { value: "all" as const, label: "Todas" },
+    { value: "overdue" as const, label: "Atrasadas" },
+  ];
 
   return (
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
+        {/* Page header */}
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
             Denuncias de maltrato
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Cola de triage bajo Ley Nacional 14.346.{" "}
             {profile.role === "admin"
               ? "Vista universal — todas las jurisdicciones."
@@ -143,143 +191,72 @@ export default async function GobMaltratoPage({
           </p>
         </header>
 
-        <div className="flex flex-wrap gap-2 text-sm">
-          <StatusChip
-            label={`Todas (${countingRows.length})`}
-            href="/gob/maltrato"
-            active={!activeStatus}
-          />
-          {(WELFARE_REPORT_STATUSES as readonly WelfareReportStatus[]).map((s) => (
-            <StatusChip
-              key={s}
-              label={`${welfareReportStatusLabel(s)} (${statusCounts.get(s) ?? 0})`}
-              href={`/gob/maltrato?status=${s}`}
-              active={activeStatus === s}
-            />
-          ))}
+        {/* No-scope warning */}
+        {noScope && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+            Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
+            una.
+          </div>
+        )}
+
+        {/* Filters row */}
+        <div className="grid md:grid-cols-2 gap-3">
+          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+          <PeriodPicker defaultPreset="30d" />
         </div>
 
-        <form action="/gob/maltrato" method="GET" className="flex flex-wrap gap-3 items-end">
-          {activeStatus && <input type="hidden" name="status" value={activeStatus} />}
-          <div>
-            <label htmlFor="kind" className="block text-xs text-neutral-500 mb-1">
-              Tipo
-            </label>
-            <select
-              id="kind"
-              name="kind"
-              defaultValue={activeKind ?? ""}
-              className="px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-            >
-              <option value="">Todos</option>
-              {WELFARE_REPORT_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {welfareReportKindLabel(k)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="severity" className="block text-xs text-neutral-500 mb-1">
-              Gravedad
-            </label>
-            <select
-              id="severity"
-              name="severity"
-              defaultValue={activeSeverity ?? ""}
-              className="px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-            >
-              <option value="">Todas</option>
-              {WELFARE_REPORT_SEVERITIES.map((s) => (
-                <option key={s} value={s}>
-                  {welfareReportSeverityLabel(s)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="px-3 py-2 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
-          >
-            Filtrar
-          </button>
-        </form>
+        {/* 4 metric cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard
+            label="Sin asignar"
+            value={String(metrics.unassignedCount)}
+            tone={metrics.unassignedCount > 0 ? "warning" : "neutral"}
+            href="/gob/maltrato?queue=urgent"
+          />
+          <MetricCard
+            label="Mías"
+            value={String(metrics.myCount)}
+            tone="info"
+            href="/gob/maltrato?queue=mine"
+          />
+          <MetricCard
+            label="En investigación"
+            value={String(metrics.inProgressCount)}
+            tone="neutral"
+          />
+          <MetricCard label="Cerradas (30d)" value={String(metrics.closedMonth)} tone="success" />
+        </div>
 
-        {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-8 text-center">
-            No hay denuncias en estos filtros.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {rows.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800"
-              >
-                <Link
-                  href={`/gob/maltrato/${r.id}`}
-                  className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                        {welfareReportKindLabel(r.kind)}{" "}
-                        <span className={`text-xs font-medium ${SEVERITY_TONE[r.severity] ?? ""}`}>
-                          · {welfareReportSeverityLabel(r.severity)}
-                        </span>
-                      </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                        {r.jurisdictionLocality && r.jurisdictionProvince
-                          ? `${r.jurisdictionLocality}, ${r.jurisdictionProvince}`
-                          : "Sin jurisdicción declarada"}
-                        {" · "}
-                        {new Date(r.createdAt).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </p>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
-                        {r.referenceCode}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        STATUS_TONE[r.status] ?? ""
-                      } shrink-0`}
-                    >
-                      {welfareReportStatusLabel(r.status)}
-                    </span>
-                  </div>
-                </Link>
-              </li>
+        {/* Queue tabs + list panel */}
+        <Suspense>
+          <Tabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
+            {TABS.map((tab) => (
+              <TabsContent key={tab.value} value={tab.value}>
+                <Panel aria-labelledby={panelListId} className="mt-4">
+                  <PanelHeader
+                    title={<span id={panelListId}>Denuncias ({visibleRows.length})</span>}
+                  />
+                  <PanelBody>
+                    {visibleRows.length === 0 ? (
+                      <EmptyState
+                        icon="file-text"
+                        title="Sin denuncias en esta cola"
+                        description="No hay denuncias que coincidan con los filtros seleccionados."
+                      />
+                    ) : (
+                      <ul className="space-y-2">
+                        {visibleRows.map((r) => (
+                          <WelfareDenunciaRow key={r.id} report={r} />
+                        ))}
+                      </ul>
+                    )}
+                  </PanelBody>
+                </Panel>
+              </TabsContent>
             ))}
-          </ul>
-        )}
+          </Tabs>
+        </Suspense>
       </div>
     </main>
-  );
-}
-
-function StatusChip({
-  label,
-  href,
-  active,
-}: {
-  label: string;
-  href: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`px-3 py-1 rounded-full border text-xs ${
-        active
-          ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
-          : "border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
