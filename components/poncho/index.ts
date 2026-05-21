@@ -13,3 +13,4 @@ export {
 export { Tabs, TabsContent, type TabsProps, type TabsContentProps, type TabItem } from "./Tabs";
 export { Alert, type AlertProps } from "./Alert";
 export { DateRangePicker, type DateRangePickerProps, type DateRange } from "./DateRangePicker";
+export { ReminderCard, type ReminderCardProps } from "./ReminderCard";
