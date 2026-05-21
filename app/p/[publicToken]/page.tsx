@@ -6,6 +6,7 @@
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
 
+import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
 import { attachments, db, ownerships, petEvents, petServiceDog, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
@@ -115,6 +116,7 @@ export default async function PublicCredentialPage({
       behaviorNotes: string | null;
       lastSeenContext: string | null;
     } | null;
+    lostSince: Date | null;
   } | null = null;
 
   if (isLost) {
@@ -133,6 +135,7 @@ export default async function PublicCredentialPage({
         payload: petEvents.payload,
         locationLat: petEvents.locationLat,
         locationLng: petEvents.locationLng,
+        occurredAt: petEvents.occurredAt,
       })
       .from(petEvents)
       .where(
@@ -210,27 +213,43 @@ export default async function PublicCredentialPage({
       email: ownerEmail,
       locationText: textLocation ?? geoLocation,
       lostDescription,
+      lostSince: latestLostEvent?.occurredAt ?? null,
     };
+  }
+
+  // Lost branch — v2 public credential. ScanLogger still fires so scan
+  // analytics are captured even in lost mode. lostSince falls back to now()
+  // when the lost event row is missing (shouldn't happen, but defensive).
+  if (isLost && lostContext) {
+    const identityLine = [speciesLabel(pet.species), pet.color, pet.distinguishingFeatures]
+      .filter(Boolean)
+      .join(" · ");
+
+    return (
+      <>
+        <ScanLogger publicToken={publicToken} />
+        <LostPublicCredential
+          petName={pet.name}
+          petPhotoUrl={photoUrl}
+          identityLine={identityLine}
+          ownerFirstName={pet.discloseFirstNameWhenLost ? lostContext.ownerFirstName : null}
+          ownerPhoneE164={pet.disclosePhoneWhenLost ? lostContext.phone : null}
+          lastSeenPlaceName={pet.discloseLastLocationWhenLost ? lostContext.locationText : null}
+          lastSeenLocality={
+            pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
+          }
+          distinguishingFeatures={pet.distinguishingFeatures}
+          finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
+          lostSince={lostContext.lostSince ?? new Date()}
+        />
+      </>
+    );
   }
 
   return (
     <main className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950">
       <ScanLogger publicToken={publicToken} />
       <div className="max-w-md mx-auto pt-8 space-y-6">
-        {/* Calm lost banner — only when pet.status === 'lost'. Sits above the
-            credential card. Intentionally low-saturation; the contact info
-            below carries the urgency. */}
-        {isLost && (
-          <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-center">
-            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-              Esta mascota está perdida
-            </p>
-            <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
-              Si la encontraste, contactá al dueño cuanto antes.
-            </p>
-          </div>
-        )}
-
         {/* Tier 0+ emergency-info banner — owner-toggled. No PII beyond the
             banner text itself. No drug names, no owner name, no contact. */}
         {pet.emergencyInfoVisible && (
@@ -335,94 +354,29 @@ export default async function PublicCredentialPage({
           <Badge label="Estado" value={statusLabel(pet.status)} />
         </div>
 
-        {/* Found / lost actions — each section gated by owner disclosure prefs */}
-        {isLost && lostContext ? (
-          <div className="border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-5 space-y-4">
-            {pet.discloseFirstNameWhenLost && lostContext.ownerFirstName && (
-              <p className="text-sm text-amber-900 dark:text-amber-200">
-                <span className="font-medium">Dueño:</span> {lostContext.ownerFirstName}
+        {/* Active pet — the "found" form sits behind a disclosure so a casual
+            scan doesn't land on an open form. */}
+        <details className="group border border-neutral-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-neutral-950">
+          <summary className="cursor-pointer select-none px-5 py-4 flex items-center justify-between gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-xl transition-colors">
+            <div className="text-left space-y-0.5 min-w-0">
+              <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                ¿Encontraste a esta mascota?
               </p>
-            )}
-            {pet.disclosePhoneWhenLost && lostContext.phone && (
-              <a
-                href={`tel:${lostContext.phone}`}
-                className="block w-full text-center px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
-              >
-                Llamar al dueño · {lostContext.phone}
-              </a>
-            )}
-            {pet.discloseEmailWhenLost && lostContext.email && (
-              <a
-                href={`mailto:${lostContext.email}`}
-                className="block w-full text-center px-4 py-2 rounded-lg border border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 text-sm font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
-              >
-                Escribir por email · {lostContext.email}
-              </a>
-            )}
-            {pet.discloseLastLocationWhenLost && lostContext.locationText && (
-              <p className="text-xs text-amber-800 dark:text-amber-300">
-                <span className="font-medium">Última ubicación conocida:</span>{" "}
-                {lostContext.locationText}
+              <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                Tocá acá para avisarle al dueño.
               </p>
-            )}
-
-            {/* Detalles para identificar — always visible when present.
-                These describe the animal, not the owner, so no disclosure
-                pref gates them (spec §8.4 / §10). */}
-            {lostContext.lostDescription && (
-              <div className="border-t border-amber-200 dark:border-amber-800 pt-3 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-400">
-                  Detalles para identificar
-                </p>
-                {lostContext.lostDescription.accessoriesWhenLost && (
-                  <p className="text-xs text-amber-800 dark:text-amber-300">
-                    <span className="font-medium">Cuando se perdio, llevaba:</span>{" "}
-                    {lostContext.lostDescription.accessoriesWhenLost}
-                  </p>
-                )}
-                {lostContext.lostDescription.behaviorNotes && (
-                  <p className="text-xs text-amber-800 dark:text-amber-300">
-                    <span className="font-medium">Como es:</span>{" "}
-                    {lostContext.lostDescription.behaviorNotes}
-                  </p>
-                )}
-                {lostContext.lostDescription.lastSeenContext && (
-                  <p className="text-xs text-amber-800 dark:text-amber-300">
-                    <span className="font-medium">Ultima vez vista:</span>{" "}
-                    {lostContext.lostDescription.lastSeenContext}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {pet.allowFinderFormWhenLost && <FoundPetForm publicToken={publicToken} />}
-          </div>
-        ) : (
-          // Active pet — the "found" form sits behind a disclosure so a casual
-          // scan doesn't land on an open form. Only on lost pets (above) does
-          // the form render directly, where it is the primary contact channel.
-          <details className="group border border-neutral-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-neutral-950">
-            <summary className="cursor-pointer select-none px-5 py-4 flex items-center justify-between gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-xl transition-colors">
-              <div className="text-left space-y-0.5 min-w-0">
-                <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                  ¿Encontraste a esta mascota?
-                </p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                  Tocá acá para avisarle al dueño.
-                </p>
-              </div>
-              <span
-                className="text-neutral-400 dark:text-neutral-600 group-open:rotate-90 transition-transform shrink-0"
-                aria-hidden
-              >
-                ›
-              </span>
-            </summary>
-            <div className="px-5 pb-5 pt-1 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
-              <FoundPetForm publicToken={publicToken} />
             </div>
-          </details>
-        )}
+            <span
+              className="text-neutral-400 dark:text-neutral-600 group-open:rotate-90 transition-transform shrink-0"
+              aria-hidden
+            >
+              ›
+            </span>
+          </summary>
+          <div className="px-5 pb-5 pt-1 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+            <FoundPetForm publicToken={publicToken} />
+          </div>
+        </details>
 
         {/* Footer */}
         <p className="text-center text-[10px] uppercase tracking-[0.3em] text-neutral-400 dark:text-neutral-600">
