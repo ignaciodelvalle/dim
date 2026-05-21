@@ -103,28 +103,18 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
                 <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
                   {row.label}
                 </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {row.description}
-                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">{row.description}</p>
               </div>
               <button
                 type="submit"
                 role="switch"
                 aria-checked={prefs[row.key]}
                 aria-label={`Mostrar ${row.label.toLowerCase()}`}
-                className={
-                  "relative h-5 w-9 shrink-0 rounded-full transition-colors " +
-                  (prefs[row.key]
-                    ? "bg-emerald-600"
-                    : "bg-neutral-300 dark:bg-neutral-700")
-                }
+                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${prefs[row.key] ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-700"}`}
               >
                 <span
                   aria-hidden
-                  className={
-                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform " +
-                    (prefs[row.key] ? "translate-x-[18px]" : "translate-x-0.5")
-                  }
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${prefs[row.key] ? "translate-x-[18px]" : "translate-x-0.5"}`}
                 />
               </button>
             </form>

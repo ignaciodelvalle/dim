@@ -57,8 +57,7 @@ describe("ar_localities schema", () => {
         provinceCode: "AR-C",
         localityName: "Test",
         localitySlug: `${TEST_SLUG_PREFIX}bad-cat-${Date.now()}`,
-        // biome-ignore lint/suspicious/noExplicitAny: intentional schema violation
-        category: "invalid_cat" as any,
+        category: "invalid_cat" as never,
         source: "manual",
       }),
     ).rejects.toThrow(/ar_localities_category_valid/);
@@ -71,8 +70,7 @@ describe("ar_localities schema", () => {
         localityName: "Test",
         localitySlug: `${TEST_SLUG_PREFIX}bad-source-${Date.now()}`,
         category: "localidad",
-        // biome-ignore lint/suspicious/noExplicitAny: intentional schema violation
-        source: "wikipedia" as any,
+        source: "wikipedia" as never,
       }),
     ).rejects.toThrow(/ar_localities_source_valid/);
   });

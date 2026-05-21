@@ -52,21 +52,14 @@ export function PetEmergencyCard({ vet, emergencyContact, alerts, editHref }: Pr
         >
           Emergencias
         </h2>
-        <Link
-          href={editHref}
-          className="text-xs font-medium text-gob-azul-link hover:underline"
-        >
+        <Link href={editHref} className="text-xs font-medium text-gob-azul-link hover:underline">
           Editar contactos →
         </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <ContactCard contact={vet} icon="🏥" emptyLabel="Sin vet de cabecera" />
-        <ContactCard
-          contact={emergencyContact}
-          icon="📞"
-          emptyLabel="Sin contacto de emergencia"
-        />
+        <ContactCard contact={emergencyContact} icon="📞" emptyLabel="Sin contacto de emergencia" />
       </div>
 
       {alerts.length > 0 && (

@@ -75,9 +75,7 @@ export function LostLastSeenCard({
         </Link>
         <div className="absolute inset-x-2 bottom-2 rounded-lg bg-white/95 px-3 py-2 text-xs text-neutral-700 shadow-sm dark:bg-neutral-900/95 dark:text-neutral-300">
           <p>
-            <span className="font-semibold text-neutral-900 dark:text-neutral-50">
-              {placeName}
-            </span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-50">{placeName}</span>
             <span className="text-neutral-500 dark:text-neutral-400"> · {localityLabel}</span>
             <span className="text-neutral-500 dark:text-neutral-400"> · {formatWhen(at)}</span>
           </p>

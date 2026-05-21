@@ -135,17 +135,13 @@ export default async function InicioV2Page() {
                 <p className="font-medium text-neutral-900 dark:text-neutral-50">
                   Vacuna antirrábica · Roma
                 </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  10:30 · Dra. Pérez
-                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">10:30 · Dra. Pérez</p>
               </div>
             </li>
             <li className="flex items-center gap-3 py-2">
               <DateChip day="27" month="MAY" />
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                  Control · Mishi
-                </p>
+                <p className="font-medium text-neutral-900 dark:text-neutral-50">Control · Mishi</p>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   16:00 · Veterinaria Norte
                 </p>
@@ -155,8 +151,7 @@ export default async function InicioV2Page() {
         </section>
 
         <p className="text-center text-xs text-neutral-400 dark:text-neutral-600">
-          Notificaciones, medicaciones y workflows se mantienen accesibles
-          desde el menú.
+          Notificaciones, medicaciones y workflows se mantienen accesibles desde el menú.
         </p>
       </div>
     </main>

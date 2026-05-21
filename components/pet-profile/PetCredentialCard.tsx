@@ -33,10 +33,7 @@ export function PetCredentialCard({ publicToken, qrUrl, publicHref }: Props) {
         >
           Identificación digital
         </h2>
-        <Link
-          href={publicHref}
-          className="text-xs font-medium text-gob-azul-link hover:underline"
-        >
+        <Link href={publicHref} className="text-xs font-medium text-gob-azul-link hover:underline">
           Ver libreta pública →
         </Link>
       </div>

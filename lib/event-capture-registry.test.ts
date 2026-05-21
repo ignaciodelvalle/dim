@@ -92,16 +92,14 @@ describe("buildCaptureDeeplink", () => {
   it("ignores slot keys not declared in prefillSlots", () => {
     const url = buildCaptureDeeplink("weight_recorded" as EventType, "DIM-XXXX-YY", {
       kg: "12.5",
-      // biome-ignore lint/suspicious/noExplicitAny: testing the slot ignore path
-      ...({ randomKey: "should not appear" } as any),
+      ...({ randomKey: "should not appear" } as Record<string, string>),
     });
     expect(url).not.toContain("randomKey");
   });
 
   it("empty-prefillSlots event types still produce a bare URL", () => {
     const url = buildCaptureDeeplink("incident_reported" as EventType, "DIM-XXXX-YY", {
-      // biome-ignore lint/suspicious/noExplicitAny: empty-prefillSlots path
-      ...({ anything: "ignored" } as any),
+      ...({ anything: "ignored" } as Record<string, string>),
     });
     expect(url).toBe("/mis-mascotas/DIM-XXXX-YY/eventos/nuevo/mordedura");
   });

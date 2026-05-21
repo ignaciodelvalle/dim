@@ -18,10 +18,7 @@
 import { LostDisclosureCard } from "@/components/pet-profile/LostDisclosureCard";
 import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
 import { LostModeBanner } from "@/components/pet-profile/LostModeBanner";
-import {
-  LostScanFeed,
-  type ScanFeedItem,
-} from "@/components/pet-profile/LostScanFeed";
+import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
 import { requirePetAccess } from "@/lib/pet-access";
 
@@ -139,8 +136,8 @@ export default async function PerdidaV2Page({
         />
 
         <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
-          Cuando vuelva a casa, tocá <strong>Marcar encontrada</strong> arriba.
-          El QR vuelve a la vista normal y se cierra el caso.
+          Cuando vuelva a casa, tocá <strong>Marcar encontrada</strong> arriba. El QR vuelve a la
+          vista normal y se cierra el caso.
         </p>
       </div>
     </main>

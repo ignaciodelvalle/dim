@@ -12,11 +12,8 @@
 
 import Link from "next/link";
 
-import { GobDashboardShell, DashboardCard } from "@/components/GobDashboardShell";
-import {
-  JurisdictionFilterBar,
-  readFilterParams,
-} from "@/components/JurisdictionFilterBar";
+import { DashboardCard, GobDashboardShell } from "@/components/GobDashboardShell";
+import { JurisdictionFilterBar, readFilterParams } from "@/components/JurisdictionFilterBar";
 import { KpiTile, KpiTileGrid } from "@/components/KpiTile";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
@@ -159,8 +156,8 @@ export default async function GobDashboardV2Page({
             }
           >
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Kanban cross-org pendiente — conectar a <code>listCasesForGovt()</code>{" "}
-              cuando la tabla <code>cases</code> esté en el schema.
+              Kanban cross-org pendiente — conectar a <code>listCasesForGovt()</code> cuando la
+              tabla <code>cases</code> esté en el schema.
             </p>
           </DashboardCard>
         </>
@@ -199,7 +196,10 @@ export default async function GobDashboardV2Page({
           <DashboardCard
             title="Denuncias ciudadanas"
             action={
-              <Link href="/gob/maltrato" className="text-blue-700 hover:underline dark:text-blue-400">
+              <Link
+                href="/gob/maltrato"
+                className="text-blue-700 hover:underline dark:text-blue-400"
+              >
                 Ver bandeja →
               </Link>
             }
@@ -255,9 +255,7 @@ function Stat({
   );
 }
 
-function toURLSearchParams(
-  sp: Record<string, string | string[] | undefined>,
-): URLSearchParams {
+function toURLSearchParams(sp: Record<string, string | string[] | undefined>): URLSearchParams {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) {
     if (typeof v === "string") p.set(k, v);

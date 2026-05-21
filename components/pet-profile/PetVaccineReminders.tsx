@@ -37,10 +37,7 @@ export function PetVaccineReminders({ reminders, vaccinesHref, scheduleHref }: P
       className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="pp-vac-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="pp-vac-h" className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
           Próximas vacunas
         </h2>
         <Link
@@ -95,21 +92,18 @@ function ReminderRow({ reminder, href }: { reminder: VaccineReminder; href: stri
         <span>{pillText}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          {reminder.name}
-        </p>
+        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">{reminder.name}</p>
         {reminder.subtitle && (
           <p className="text-xs text-neutral-500 dark:text-neutral-400">{reminder.subtitle}</p>
         )}
       </div>
       <Link
         href={href}
-        className={
-          "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold " +
-          (overdue
+        className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${
+          overdue
             ? "bg-gob-primary text-white hover:bg-gob-primary-hover"
-            : "text-gob-azul-link hover:underline")
-        }
+            : "text-gob-azul-link hover:underline"
+        }`}
       >
         Agendar
       </Link>

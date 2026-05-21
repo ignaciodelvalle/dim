@@ -12,10 +12,8 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 const mockAs = (userId: string) =>
   vi.mocked(requireUserOrRedirect).mockResolvedValue({
-    // biome-ignore lint/suspicious/noExplicitAny: minimal stub for the parts we touch
-    user: { id: userId } as any,
-    // biome-ignore lint/suspicious/noExplicitAny: minimal stub for the parts we touch
-  } as any);
+    user: { id: userId } as never,
+  } as never);
 
 beforeEach(async () => {
   await __resetRateLimitForTests();

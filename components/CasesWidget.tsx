@@ -77,8 +77,8 @@ export function CasesWidget({
 
       {visible.length === 0 ? (
         <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
-          Sin casos abiertos. Cualquier denuncia, postulación o pérdida que
-          empieces va a aparecer acá.
+          Sin casos abiertos. Cualquier denuncia, postulación o pérdida que empieces va a aparecer
+          acá.
         </p>
       ) : (
         <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">

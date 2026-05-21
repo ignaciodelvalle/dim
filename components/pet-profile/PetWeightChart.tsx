@@ -25,11 +25,7 @@ interface Props {
   height?: number;
 }
 
-export function PetWeightChart({
-  samples,
-  title = "Peso · últimos 12 meses",
-  height = 70,
-}: Props) {
+export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", height = 70 }: Props) {
   if (samples.length < 2) {
     return (
       <section className="rounded-xl border border-dashed border-neutral-300 p-4 text-center text-sm text-neutral-500 dark:border-neutral-700">
@@ -68,10 +64,7 @@ export function PetWeightChart({
         : "text-amber-700 dark:text-amber-300";
 
   return (
-    <section
-      aria-label={title}
-      className="rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900"
-    >
+    <section aria-label={title} className="rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900">
       <header className="mb-1 flex items-baseline justify-between text-xs">
         <span className="text-neutral-500 dark:text-neutral-400">{title}</span>
         <span className="font-semibold text-neutral-900 dark:text-neutral-50">
@@ -87,6 +80,7 @@ export function PetWeightChart({
         className="block"
         preserveAspectRatio="none"
       >
+        <title>Tendencia de peso</title>
         <polyline
           points={points}
           fill="none"

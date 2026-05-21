@@ -134,8 +134,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
   function onSubmit() {
     if (!active || text.trim().length < 3) return;
     const url =
-      `/mis-mascotas/${active.publicToken}/anotar` +
-      `?text=${encodeURIComponent(text.trim())}`;
+      `/mis-mascotas/${active.publicToken}/anotar` + `?text=${encodeURIComponent(text.trim())}`;
     go(url);
   }
 
@@ -256,8 +255,7 @@ function PetChip({
     <li className="shrink-0" style={{ scrollSnapAlign: "start" }}>
       <button
         type="button"
-        role="radio"
-        aria-checked={active}
+        aria-pressed={active}
         onClick={onSelect}
         onPointerDown={startPress}
         onPointerUp={cancelPress}
@@ -267,21 +265,15 @@ function PetChip({
           e.preventDefault();
           onLongPress();
         }}
-        aria-label={
-          pet.stateLabel ? `${pet.name}, ${pet.stateLabel}` : pet.name
-        }
-        className={
-          "flex w-24 flex-col items-center gap-1.5 rounded-2xl p-2 transition-colors active:scale-[0.97] " +
-          (active
+        aria-label={pet.stateLabel ? `${pet.name}, ${pet.stateLabel}` : pet.name}
+        className={`flex w-24 flex-col items-center gap-1.5 rounded-2xl p-2 transition-colors active:scale-[0.97] ${
+          active
             ? "bg-blue-50 dark:bg-blue-950/30"
-            : "bg-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900")
-        }
+            : "bg-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900"
+        }`}
       >
         <span
-          className={
-            "relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full ring-[3px] transition-shadow " +
-            PET_STATE_RING[pet.state ?? "ok"]
-          }
+          className={`relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full ring-[3px] transition-shadow ${PET_STATE_RING[pet.state ?? "ok"]}`}
         >
           {pet.photoUrl ? (
             <img src={pet.photoUrl} alt="" className="h-full w-full object-cover" />
@@ -296,20 +288,14 @@ function PetChip({
         </span>
         {pet.stateLabel ? (
           <span
-            className={
-              "text-[10px] font-medium leading-tight " +
-              PET_STATE_LABEL[pet.state ?? "ok"]
-            }
+            className={`text-[10px] font-medium leading-tight ${PET_STATE_LABEL[pet.state ?? "ok"]}`}
           >
             {pet.stateLabel}
           </span>
         ) : (
           <span
             aria-hidden
-            className={
-              "text-[10px] font-medium leading-tight text-blue-700 transition-opacity dark:text-blue-300 " +
-              (active ? "opacity-100" : "opacity-0")
-            }
+            className={`text-[10px] font-medium leading-tight text-blue-700 transition-opacity dark:text-blue-300 ${active ? "opacity-100" : "opacity-0"}`}
           >
             ↗ Abrir perfil
           </span>

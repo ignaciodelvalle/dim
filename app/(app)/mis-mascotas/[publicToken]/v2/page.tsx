@@ -17,7 +17,7 @@
 import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
 import { PetEmergencyCard } from "@/components/pet-profile/PetEmergencyCard";
 import { PetHealthTimeline } from "@/components/pet-profile/PetHealthTimeline";
-import { PetProfileHero, type PetHeroPet } from "@/components/pet-profile/PetProfileHero";
+import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetProfileHero";
 import { PetTrackingPlaceholder } from "@/components/pet-profile/PetTrackingPlaceholder";
 import { PetTravelDocs } from "@/components/pet-profile/PetTravelDocs";
 import { PetVaccineReminders } from "@/components/pet-profile/PetVaccineReminders";
@@ -127,9 +127,7 @@ export default async function PetProfileV2Page({
 
         <PetVaccineReminders
           vaccinesHref={`/mis-mascotas/${publicToken}/vacunas`}
-          scheduleHref={(r) =>
-            `/turnos/nuevo?pet=${publicToken}&service=vaccine&reminder=${r.id}`
-          }
+          scheduleHref={(r) => `/turnos/nuevo?pet=${publicToken}&service=vaccine&reminder=${r.id}`}
           reminders={[
             {
               id: "r1",
