@@ -420,7 +420,8 @@ Estado oficial AGENTS.md: 🟡 "admin page completo (4 roles, account_type insti
 | 11.10 | Servicios | `/gob/servicios` + `/[offeringToken]` | — | ✅ |
 | 11.11 | Reglas locales | `/gob/reglas` | — | ✅ |
 | 11.12 | Historial | `/gob/historial` | — | ✅ |
-| 11.13 | Dashboards govt (sanitary / analyst / welfare officer) — proyecciones sobre event log | — | — | ⚪ planeado |
+| 11.13 | Dashboards govt enriquecidos (vigilancia / perdidas / maltrato / analytics) — MetricCards + MapChoropleth + TimeSeriesChart + JurisdictionSwitcher + PeriodPicker | — | — | ✅ (Chunk E E2-E5) |
+| 11.14 | Async export endpoint `/gob/analytics/export` — CSV/JSON anonimizado via Zod-per-slice, Storage signed URL 24h, Resend email, audit_log | — | — | ✅ (Chunk E E6) |
 
 ---
 
@@ -471,11 +472,11 @@ Estado oficial AGENTS.md: 🟡 "admin page completo (4 roles, account_type insti
 
 | Estado | Áreas |
 |---|---|
-| ✅ Shipped | Auth/cuenta · Mis mascotas + 41 eventos · Libreta + tier-2 share · Credential pública Tier 0/0+/1 · Turnos owner-side · Org portal completo (intake/custody/foster member-based/adopciones member-based/checkins/agenda) · 8 lifecycles V1 de casos · Welfare denuncias + bridge + queue gob · Surveillance + observación rábica · Custody disputes · Admin/gob sustancialmente implementados · 11/12 crones · Postulación adopción 4-campos (wizard 28-q diferido) |
+| ✅ Shipped | Auth/cuenta · Mis mascotas + 41 eventos · Libreta + tier-2 share · Credential pública Tier 0/0+/1 · Turnos owner-side · Org portal completo (intake/custody/foster member-based/adopciones member-based/checkins/agenda) · 8 lifecycles V1 de casos · Welfare denuncias + bridge + queue gob · Surveillance + observación rábica · Custody disputes · Admin/gob sustancialmente implementados · 11/12 crones · Postulación adopción 4-campos (wizard 28-q diferido) · **Vaccine-due UX completo** (Chunk C) · **Govt dashboards enriquecidos + async export** (Chunk E) · **Poncho design-system primitives** (Badge/Panel/EmptyState/Tabs/Alert/DateRangePicker/ReminderCard/MetricCard/MapChoropleth/TimeSeriesChart/JurisdictionSwitcher/PeriodPicker — Chunks A.5 + E1) |
 | 🟢 spec'd + plan listo | Adoption listing público `/adoptar` · Foster volunteers pool · Surface unificado `/org/.../transitos` · Listado no-aptas · **`microchip_replaced` UI** (`docs/superpowers/plans/2026-05-20-microchip-replaced-ui.md`) · **Deprecación `/pro` → clinic org** (`docs/superpowers/plans/2026-05-20-deprecate-pro-portal.md`) |
-| 🟡 partial | PPP export provincial · Admin page final (4 roles) · Govt dashboards (vigilancia/perdidas/maltrato/analytics shippeados Chunk E E2-E5; falta E6 async export) |
+| 🟡 partial | PPP export provincial · Admin page final (4 roles) |
 | 🔴 deprecado | `/pro` portal (2026-05-20) — los vets profesionales ahora operan vía clinic org de 1 miembro |
-| ⚪ planeado | Mi Argentina OAuth · DNI verification real · Welfare export fiscalía MPF · Govt dashboards async export (Chunk E E6 pendiente) · Bulk ops · 3 case_kinds deferidos restantes (`custody_episode`, `foster_proposal`, `outbreak_investigation`) — `microchip_remediation` se activa con el plan de §3.3.21 |
+| ⚪ planeado | Mi Argentina OAuth · DNI verification real · Welfare export fiscalía MPF (Chunk F1) · PPP export provincial (Chunk F2) · Bulk ops (Chunk G) · 3 case_kinds deferidos restantes (`custody_episode`, `foster_proposal`, `outbreak_investigation`) — `microchip_remediation` se activa con el plan de §3.3.21 · UI v2 design-refresh (Chunks H-N parkeado en `ec91354`) |
 | ❎ diferido | Wizard adopción 28-preguntas (`docs/superpowers/plans/2026-05-20-adoption-handshake-unified.md` queda en backlog hasta nueva demanda) |
 
 ---
