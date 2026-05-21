@@ -968,6 +968,10 @@ const adoptionReversed = z
 // from the current shelter_custody ownership so the reader can audit which
 // refugio received the application without re-joining ownerships at read
 // time. housing_type is the only structured field.
+// profile_sharing_consent_at captures when the applicant ticked the consent
+// checkbox (spec §12.5 addendum v1.4). Stored in the event payload rather
+// than a separate table — the table was never created; event-sourced log is
+// the single source of truth.
 const adoptionApplicationSubmitted = z
   .object(
     withVersion({
@@ -977,6 +981,7 @@ const adoptionApplicationSubmitted = z
       other_pets: z.string().nullable(),
       daily_routine: z.string().nullable(),
       notes: z.string().nullable(),
+      profile_sharing_consent_at: z.string().datetime(),
     }),
   )
   .strict();

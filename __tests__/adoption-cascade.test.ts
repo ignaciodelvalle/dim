@@ -252,6 +252,7 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
         otherPets: null,
         dailyRoutine: null,
         notes: null,
+        profileSharingConsent: true,
       });
       expect("ok" in r && r.ok).toBe(true);
     }

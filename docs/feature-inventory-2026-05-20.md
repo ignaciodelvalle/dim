@@ -180,8 +180,8 @@ System-emitted (sin UI owner):
 
 | # | Feature | Ruta | Actores | ¿Crea caso? | Estado |
 |---|---|---|---|---|---|
-| 3.7.1 | Listing público con filtros (especie, edad, locality, energy, size) — SSR para SEO | `/adoptar` | público | — | 🟢 (código presente; AGENTS.md marca "plan pendiente" — el plan grande es el unificado de 2026-05-20) |
-| 3.7.2 | Detail de mascota adoptable | `/adoptar/[petToken]` | público | — | 🟢 |
+| 3.7.1 | Listing público con filtros (especie, edad, locality, energy, size) — SSR para SEO | `/adoptar` | público | — | ✅ shipped through D-PR |
+| 3.7.2 | Detail de mascota adoptable | `/adoptar/[petToken]` | público | — | ✅ shipped through D-PR |
 | 3.7.3 | Postular (form actual: 4 campos — housing, other_pets, daily_routine, notes) | `/adoptar/[petToken]/postular` | autenticado | **`adoption_application`** | ✅ shipped — el wizard 28-q queda diferido. 4 campos cubren el caso actual. Re-evaluar cuando aparezca demanda concreta. |
 
 ### 3.8 Adopciones — handshake unificado (❎ DIFERIDO)

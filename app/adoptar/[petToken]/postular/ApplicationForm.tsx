@@ -31,6 +31,8 @@ export function ApplicationForm({
   const [otherPets, setOtherPets] = useState("");
   const [dailyRoutine, setDailyRoutine] = useState("");
   const [notes, setNotes] = useState("");
+  const [profileSharingConsent, setProfileSharingConsent] = useState(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +48,7 @@ export function ApplicationForm({
         otherPets: otherPets.trim() || null,
         dailyRoutine: dailyRoutine.trim() || null,
         notes: notes.trim() || null,
+        profileSharingConsent,
       });
       if ("error" in result) {
         setError(result.error);
@@ -132,11 +135,81 @@ export function ApplicationForm({
         />
       </div>
 
+      {/* Consent checkbox — required before submit (spec §12.5.2) */}
+      <div className="space-y-2">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={profileSharingConsent}
+            onChange={(e) => setProfileSharingConsent(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 text-emerald-600 focus:ring-emerald-600"
+          />
+          <span className="text-sm text-neutral-700 dark:text-neutral-300">
+            Acepto compartir con el refugio mi historial de adopciones, fosters y mascotas en MiMAR
+            para que tomen una mejor decisión.{" "}
+            <button
+              type="button"
+              onClick={() => setPrivacyModalOpen(true)}
+              className="underline text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200"
+            >
+              Más info sobre tu privacidad
+            </button>
+          </span>
+        </label>
+      </div>
+
+      {/* Privacy modal — native <dialog>, no portal library needed */}
+      {privacyModalOpen && (
+        <dialog
+          open
+          className="fixed inset-0 z-50 m-auto max-w-lg w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl"
+          aria-labelledby="privacy-modal-title"
+        >
+          <h2
+            id="privacy-modal-title"
+            className="text-base font-semibold text-neutral-900 dark:text-neutral-50 mb-4"
+          >
+            Información sobre privacidad — Ley 25.326
+          </h2>
+          <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-3">
+            <p>
+              Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden compartirse
+              con consentimiento informado y para un propósito específico.
+            </p>
+            <p>
+              <strong>Qué compartirías:</strong> la lista de tus adopciones previas en MiMAR (con
+              outcome — exitosa, revertida, etc.), tus fosters previos, tus mascotas registradas
+              actualmente (species, sex, año aproximado de nacimiento, no nombre completo del
+              veterinario ni medical detail). NO compartirías: tus notificaciones, otras
+              postulaciones a OTRAS mascotas, denuncias de bienestar que hayas hecho, dirección
+              exacta.
+            </p>
+            <p>
+              <strong>Por cuánto tiempo:</strong> solo mientras tu postulación a {petName} esté
+              abierta. Al cerrarse, el refugio pierde acceso inmediatamente.
+            </p>
+            <p>
+              <strong>Por qué te pedimos esto:</strong> el refugio toma mejor decisión con contexto.
+              Una persona con buena trayectoria de adopciones previas (checkins regulares, sin
+              reversiones) tiene más probabilidad de ser elegida. Sin el consent, el refugio decide
+              solo con lo que escribís acá.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPrivacyModalOpen(false)}
+            className="mt-5 w-full px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90"
+          >
+            Entendido
+          </button>
+        </dialog>
+      )}
+
       {error && <output className="block text-sm text-red-700 dark:text-red-300">{error}</output>}
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || !profileSharingConsent}
         className="w-full px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 disabled:opacity-60"
       >
         {pending ? "Enviando postulación..." : "Enviar postulación"}
