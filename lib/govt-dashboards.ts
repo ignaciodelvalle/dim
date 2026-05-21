@@ -268,6 +268,108 @@ export async function fetchLostPets(
 }
 
 // ============================================================================
+// Pérdidas metrics — E3
+// ============================================================================
+
+export type PerdidasMetrics = {
+  /** Pets in scope currently in status='lost'. */
+  activeCount: number;
+  /**
+   * Pets in scope that transitioned from 'lost' to any other status in the last
+   * 30 days. Detected via `status_changed` events where payload `from_status =
+   * 'lost'` and `to_status != 'lost'` and the event was recorded within 30d.
+   *
+   * Payload convention: `{ from_status: string, to_status: string, ... }`
+   * Canonical source: lib/event-schemas.ts `statusChanged` + AGENTS.md §Events table.
+   */
+  recoveredMonth: number;
+  /**
+   * Average number of days currently-lost pets have been lost (now -
+   * markedLostAt). Derived from the occurredAt of the pet's most recent
+   * `status_changed` event where `to_status = 'lost'`. Returns 0 if there are
+   * no active lost pets in scope.
+   */
+  avgDaysActive: number;
+};
+
+export async function fetchPerdidasMetrics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<PerdidasMetrics> {
+  const now = Date.now();
+  const since30d = new Date(now - 30 * DAY_MS);
+
+  // 1. Count active lost pets in scope.
+  const activeConditions = [eq(pets.status, "lost")];
+  const petsScope = petsScopeClause(actor, jurisdictions);
+  if (petsScope) activeConditions.push(sql`(${petsScope})`);
+
+  // 2. Count `status_changed` events where `from_status = 'lost'` within 30d in scope.
+  // These events represent pets that were recovered (or had their status changed)
+  // away from 'lost'. We scope-match on the pet's own jurisdiction columns, not
+  // the event payload, because status_changed events may not carry jurisdiction
+  // in their payload (it is present in outbreak_signal but not status_changed).
+  const recoveredConditions = [
+    eq(petEvents.eventType, "status_changed"),
+    sql`(${petEvents.payload}->>'from_status') = 'lost'`,
+    sql`(${petEvents.payload}->>'to_status') != 'lost'`,
+    gte(petEvents.occurredAt, since30d),
+  ];
+  // Apply scope by joining to pets.
+  if (actor.role === "govt") {
+    if (jurisdictions.length === 0) {
+      // No assignments — return zeros immediately.
+      return { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
+    }
+    const pairs = jurisdictions.map(
+      (j) =>
+        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    );
+    recoveredConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+
+  // 3. Average days active: average of (now - occurredAt) for the most recent
+  // `status_changed → lost` event per pet, for pets currently in status='lost'.
+  // We compute this in JS after fetching the per-pet markedLostAt timestamps via
+  // fetchLostPets so we reuse the already-correct scoping logic.
+
+  const [activeRows, recoveredRows, lostPets] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(pets)
+      .where(and(...activeConditions)),
+    actor.role === "govt"
+      ? db
+          .select({ n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          .where(and(...recoveredConditions))
+      : db
+          .select({ n: count() })
+          .from(petEvents)
+          .where(and(...recoveredConditions)),
+    fetchLostPets(actor, jurisdictions),
+  ]);
+
+  const activeCount = activeRows[0]?.n ?? 0;
+  const recoveredMonth = recoveredRows[0]?.n ?? 0;
+
+  // Compute average days from markedLostAt for currently-lost pets.
+  const withDate = lostPets.filter((p) => p.markedLostAt !== null);
+  const avgDaysActive =
+    withDate.length === 0
+      ? 0
+      : Math.round(
+          withDate.reduce(
+            (sum, p) => sum + (now - (p.markedLostAt?.getTime() ?? now)) / DAY_MS,
+            0,
+          ) / withDate.length,
+        );
+
+  return { activeCount, recoveredMonth, avgDaysActive };
+}
+
+// ============================================================================
 // Vigilancia metrics — E2
 // ============================================================================
 

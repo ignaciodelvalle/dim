@@ -1,55 +1,111 @@
-import Link from "next/link";
-
+import {
+  EmptyState,
+  JurisdictionSwitcher,
+  MapChoropleth,
+  MetricCard,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PeriodPicker,
+} from "@/components/poncho";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { fetchLostPets } from "@/lib/govt-dashboards";
+import {
+  type LostPetRow,
+  PROVINCE_ISO_MAP,
+  fetchLostPets,
+  fetchPerdidasMetrics,
+} from "@/lib/govt-dashboards";
+import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
-import { LostFiltersBar } from "./_components/LostFiltersBar";
+// All Argentine provinces for admin users. Govt users get a derived subset.
+const ALL_PROVINCES: Array<{ code: string; name: string }> = [
+  { code: "AR-C", name: "Ciudad Autónoma de Buenos Aires" },
+  { code: "AR-B", name: "Buenos Aires" },
+  { code: "AR-X", name: "Córdoba" },
+  { code: "AR-S", name: "Santa Fe" },
+  { code: "AR-M", name: "Mendoza" },
+  { code: "AR-T", name: "Tucumán" },
+  { code: "AR-E", name: "Entre Ríos" },
+  { code: "AR-A", name: "Salta" },
+  { code: "AR-N", name: "Misiones" },
+  { code: "AR-H", name: "Chaco" },
+  { code: "AR-W", name: "Corrientes" },
+];
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function formatRelative(date: Date | null): string {
-  if (!date) return "—";
-  const diffMs = Date.now() - date.getTime();
-  const days = Math.floor(diffMs / DAY_MS);
-  if (days <= 0) {
-    const hours = Math.floor(diffMs / (60 * 60 * 1000));
-    return hours <= 0 ? "hace minutos" : `hace ${hours} h`;
+/**
+ * Aggregate lost pets by province for the choropleth map.
+ * Groups LostPetRow[] by province → ISO code via PROVINCE_ISO_MAP.
+ */
+function aggregateLostByProvince(
+  lost: LostPetRow[],
+): Array<{ code: string; value: number; label: string }> {
+  const codeToCount = new Map<string, number>();
+  for (const p of lost) {
+    if (!p.province) continue;
+    const code = PROVINCE_ISO_MAP[p.province];
+    if (!code) continue;
+    codeToCount.set(code, (codeToCount.get(code) ?? 0) + 1);
   }
-  if (days < 30) return `hace ${days} días`;
-  const months = Math.floor(days / 30);
-  return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
+  return Array.from(codeToCount.entries()).map(([code, value]) => ({
+    code,
+    value,
+    label: `${value} mascota${value !== 1 ? "s" : ""} perdida${value !== 1 ? "s" : ""}`,
+  }));
 }
 
 export default async function GobPerdidasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; species?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    species?: string;
+    // TODO(E3-followup): status filter (active/recovered/all chips) and search
+    // are not yet forwarded to fetchLostPets — the fetcher always returns
+    // status='lost' pets. Extend fetchLostPets when the follow-up lands.
+  }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const sp = await searchParams;
-  const days = Math.max(1, Math.min(365, Number(sp.days ?? 30) || 30));
-  const since = new Date(Date.now() - days * DAY_MS);
-  const species = sp.species ? sp.species : null;
+  const actor = { role: profile.role };
 
-  const lost = await fetchLostPets({ role: profile.role }, jurisdictions, {
-    since,
-    species: species ?? undefined,
-  });
+  const sp = await searchParams;
+  const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const species = sp.species || undefined;
+
+  const [metrics, lostPets] = await Promise.all([
+    fetchPerdidasMetrics(actor, jurisdictions),
+    fetchLostPets(actor, jurisdictions, { since, species }),
+  ]);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
+  // Build allowedProvinces for <JurisdictionSwitcher>.
+  const allowedProvinces =
+    profile.role === "admin"
+      ? ALL_PROVINCES
+      : Array.from(new Set(jurisdictions.map((j) => j.province)))
+          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+          .filter((p) => p.code !== "");
+
+  const choroplethData = aggregateLostByProvince(lostPets);
+
+  const panelMapId = "panel-perdidas-mapa-titulo";
+  const panelListId = "panel-perdidas-lista-titulo";
+
   return (
     <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Page header */}
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Pérdidas
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">Pérdidas</h1>
+          <p className="text-sm text-gob-text-gray">
             Mascotas marcadas como perdidas dentro de tu cobertura.
           </p>
         </header>
 
+        {/* No-scope warning */}
         {noScope && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
             Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
@@ -57,70 +113,61 @@ export default async function GobPerdidasPage({
           </div>
         )}
 
-        <LostFiltersBar days={days} species={species} />
+        {/* Filters row */}
+        <div className="grid md:grid-cols-2 gap-3">
+          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+          <PeriodPicker defaultPreset="30d" />
+        </div>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            Resultados ({lost.length})
-          </h2>
-          {lost.length === 0 ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              No hay mascotas perdidas en este período.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {lost.map((p) => (
-                <li
-                  key={p.petId}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                        {p.petName}{" "}
-                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                          · {p.species}
-                        </span>
-                      </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {p.locality ?? "—"}, {p.province ?? "—"}
-                      </p>
-                      {p.ownerDisplayName && (
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                          Dueño/a: {p.ownerDisplayName}
-                        </p>
-                      )}
-                      {p.lastSeenLat != null && p.lastSeenLng != null && (
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                          Última ubicación:{" "}
-                          <a
-                            href={`https://www.openstreetmap.org/?mlat=${p.lastSeenLat}&mlon=${p.lastSeenLng}#map=16/${p.lastSeenLat}/${p.lastSeenLng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
-                          >
-                            {p.lastSeenLat.toFixed(4)}, {p.lastSeenLng.toFixed(4)}
-                          </a>
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right space-y-1 whitespace-nowrap">
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
-                        {formatRelative(p.markedLostAt)}
-                      </p>
-                      <Link
-                        href={`/p/${p.petPublicToken}`}
-                        className="inline-block text-xs underline underline-offset-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-                      >
-                        Ver credencial
-                      </Link>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* 3 metric cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <MetricCard
+            label="Activas"
+            value={String(metrics.activeCount)}
+            tone={metrics.activeCount > 0 ? "warning" : "neutral"}
+          />
+          <MetricCard
+            label="Recuperados (30d)"
+            value={String(metrics.recoveredMonth)}
+            tone="success"
+          />
+          <MetricCard
+            label="Antigüedad media en días"
+            value={String(metrics.avgDaysActive)}
+            tone="neutral"
+          />
+        </div>
+
+        {/* Map + list panels */}
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Panel aria-labelledby={panelMapId}>
+            <PanelHeader title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
+            <PanelBody>
+              <MapChoropleth data={choroplethData} />
+            </PanelBody>
+          </Panel>
+
+          <Panel aria-labelledby={panelListId}>
+            <PanelHeader
+              title={<span id={panelListId}>Mascotas perdidas ({lostPets.length})</span>}
+            />
+            <PanelBody>
+              {lostPets.length === 0 ? (
+                <EmptyState
+                  icon="search"
+                  title="No hay episodios activos"
+                  description="No hay mascotas perdidas en este período para tu cobertura."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {lostPets.map((p) => (
+                    <LostPetRowComponent key={p.petId} pet={p} />
+                  ))}
+                </ul>
+              )}
+            </PanelBody>
+          </Panel>
+        </div>
       </div>
     </main>
   );
