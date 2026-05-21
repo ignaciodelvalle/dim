@@ -1,5 +1,15 @@
 "use client";
 
+// WelfareReportForm — legacy form used by the org-side welfare denuncia page
+// at /org/[orgToken]/maltrato/nuevo.
+//
+// The PUBLIC /denuncias/nueva route now uses DenunciaWizard instead of this form.
+// This component is kept alive for the org flow (createOrgWelfareReportAction)
+// which has different UX requirements (min 100-char description, mandatory evidence,
+// severity auto-overridden to critical) that don't fit the public wizard.
+//
+// TODO(M-followup): build a dedicated org-side wizard and retire this form.
+
 import type { WelfareReportFormState } from "@/app/actions/welfare";
 import { LocationFields } from "@/components/LocationFields";
 import { inputClass, labelClass } from "@/lib/form-classes";
@@ -259,7 +269,7 @@ export function WelfareReportForm({
         </div>
       )}
 
-      {/* Observed symptoms (optional — triggers symptom_observed pet event when subject is registered) */}
+      {/* Observed symptoms (optional) */}
       <div className={FIELD_CLASS}>
         <label htmlFor="observedSymptoms" className={labelClass}>
           ¿Notaste síntomas en el animal? (opcional)
@@ -273,9 +283,7 @@ export function WelfareReportForm({
         />
       </div>
 
-      {/* Location — address, jurisdiction, map picker — all via the shared
-          LocationFields. Form wire names: locationAddress, provinceCode,
-          localityName, locationLat, locationLng. */}
+      {/* Location */}
       <LocationFields mode="full" />
 
       {/* Occurred at */}
@@ -294,7 +302,6 @@ export function WelfareReportForm({
           y videos (MP4, WebM, MOV).
         </p>
 
-        {/* File input — cleared after each selection to allow incremental adds */}
         <input
           ref={fileInputRef}
           type="file"
