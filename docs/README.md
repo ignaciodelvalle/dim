@@ -8,7 +8,6 @@ Historical project artifacts from the 2021 university iteration of DIM. Kept in 
 
 | File                                | What it is                                                                                       |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `Carpeta Final-DIM 2021.docx`       | The full project carpeta from 2021 — charter, scope, role matrix, casos de uso, architecture, feasibility, ER diagram, costs. ~80 pages. |
 | `CONAIISI DIM (Camera-Ready).docx`  | The team's 2021 paper for CONAIISI (Congreso Nacional de Ingeniería Informática), with the CABA stats and Argentine legal framework that grounds today's `AGENTS.md` "Project context" and "Legal framework" sections. |
 | `Business Model Canvas.jpg`         | The 2021 BMC — keep partners / activities / value props / channels / segments overview.          |
 

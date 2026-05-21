@@ -2,11 +2,12 @@
 
 Material histórico del proyecto. Se conserva para auditoría, referencia institucional, y para entender decisiones pasadas — **no se mantiene activamente**.
 
+> 2026-05-21: `Carpeta Final-DIM 2021.docx` (9.3 MB) was removed from this folder per the iconic-dataset cleanup plan Phase 9.3. Still in git history if needed (`git log --diff-filter=D -- "docs/archive/Carpeta Final-DIM 2021.docx"`).
+
 ## Qué hay acá
 
 ### Documentos del proyecto original (2021)
 
-- **`Carpeta Final-DIM 2021.docx`** — entrega original del proyecto universitario (UTN, 2021).
 - **`CONAIISI DIM (Camera-Ready).docx`** — paper publicado en el congreso CONAIISI 2021 por el equipo original.
 - **`Business Model Canvas.jpg`** — canvas del modelo de negocio de la versión 2021.
 - **`Event Sourcing.docx`** — notas internas del equipo original sobre event sourcing como modelo.
