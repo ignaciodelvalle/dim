@@ -2,8 +2,10 @@ import { logoutAction } from "@/app/actions/auth";
 import { PetCard } from "@/components/PetCard";
 import { attachments, db, notifications, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { fetchActiveReminders } from "@/lib/owner-dashboard";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
+import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -27,24 +29,36 @@ export default async function MisMascotasPage({
 
   // Pets where this user is the *current* custodian (any role), with the
   // primary photo and the ownership role for the "En tránsito" badge.
-  const ownedPets = await db
-    .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)));
-
-  // Unread notification count — drives the bell badge.
-  const [{ unreadCount }] = await db
-    .select({ unreadCount: count() })
-    .from(notifications)
-    .where(
-      and(
-        eq(notifications.userId, user.id),
-        isNull(notifications.readAt),
-        isNull(notifications.archivedAt),
+  const [ownedPets, activeReminders, [{ unreadCount }]] = await Promise.all([
+    db
+      .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
+    fetchActiveReminders(user.id),
+    // Unread notification count — drives the bell badge.
+    db
+      .select({ unreadCount: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, user.id),
+          isNull(notifications.readAt),
+          isNull(notifications.archivedAt),
+        ),
       ),
-    );
+  ]);
+
+  // Build a map from petId → highest-priority reminder variant for the pet badge.
+  // activeReminders is already sorted by priority (overdue_critical first), so
+  // the first entry per pet is the highest-priority variant.
+  const reminderStateByPet = new Map<string, { variant: ReminderVariant }>();
+  for (const r of activeReminders) {
+    if (!reminderStateByPet.has(r.petId)) {
+      reminderStateByPet.set(r.petId, { variant: r.variant });
+    }
+  }
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
@@ -107,6 +121,7 @@ export default async function MisMascotasPage({
                 pet={pet}
                 photoUrl={petPhotoUrl(photo?.storagePath)}
                 ownershipRole={ownershipRole}
+                vaccineReminderState={reminderStateByPet.get(pet.id)}
               />
             ))}
           </ul>

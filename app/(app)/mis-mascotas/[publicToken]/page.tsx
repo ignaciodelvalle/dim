@@ -1,5 +1,4 @@
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
-import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PpPCard } from "@/components/PpPCard";
@@ -23,6 +22,7 @@ import { getEarnedAchievements } from "@/lib/achievements/catalog";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
+import { fetchActiveRemindersForPet } from "@/lib/owner-dashboard";
 import { requirePetAccess } from "@/lib/pet-access";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
@@ -30,6 +30,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
 import { MarkFoundButton } from "./MarkFoundButton";
+import { PetReminders } from "./_components/PetReminders";
 
 // NOTE: eventsWithAttachments is still fetched on this page because it is
 // needed by the DeceasedView (which renders the timeline inline) and by
@@ -337,18 +338,14 @@ export default async function PetDetailPage({
     );
   }
 
-  // Pending vaccine reminders, soonest first.
-  const pendingVaccineReminders = await db
-    .select()
-    .from(reminders)
-    .where(
-      and(
-        eq(reminders.petId, pet.id),
-        eq(reminders.reminderType, "vaccine"),
-        isNull(reminders.completedAt),
-      ),
-    )
-    .orderBy(asc(reminders.dueAt));
+  // Active vaccine reminders for the PetReminders panel (C3 surface).
+  // Only fetched for owner access path — org vets see a read-only view.
+  // Replaces the older `pendingVaccineReminders` query (C3): the variant-rich
+  // helper applies the same active-reminder filter plus the cron's 14-day
+  // window, and feeds <PetReminders> as the canonical vaccine surface for
+  // this page. Older reminders (>14d future) only appear in the libreta.
+  const petActiveReminders =
+    accessPath === "owner" ? await fetchActiveRemindersForPet(user.id, pet.id) : [];
 
   // Pending medication dose reminders, soonest first.
   const pendingMedicationReminders = await db
@@ -592,12 +589,13 @@ export default async function PetDetailPage({
           )}
         </section>
 
-        {/* Unified "Próximas citas y recordatorios" — mixes active appointments + vaccine reminders */}
-        <UpcomingAppointmentsAndReminders
-          pet={pet}
-          upcomingAppointments={upcomingAppointments}
-          pendingVaccineReminders={pendingVaccineReminders}
-        />
+        {/* Vaccine reminder surface (C3) — variant-rich panel scoped to this pet.
+            Returns null when there are no active reminders. */}
+        <PetReminders reminders={petActiveReminders} petToken={pet.publicToken} />
+
+        {/* Próximos turnos — only vet appointments now; vaccine reminders moved
+            to <PetReminders> above so the same row isn't shown twice. */}
+        <UpcomingAppointments pet={pet} upcomingAppointments={upcomingAppointments} />
 
         {/* Upcoming medication dose reminders */}
         <MedicationDosesSection
@@ -857,142 +855,57 @@ type UpcomingAppointmentRow = {
   slotStartsAt: Date;
 };
 
-function UpcomingAppointmentsAndReminders({
+function UpcomingAppointments({
   pet,
   upcomingAppointments,
-  pendingVaccineReminders,
 }: {
   pet: Pet;
   upcomingAppointments: UpcomingAppointmentRow[];
-  pendingVaccineReminders: Reminder[];
 }) {
-  type MergedRow =
-    | { kind: "appointment"; date: Date; apt: UpcomingAppointmentRow }
-    | { kind: "reminder"; date: Date; reminder: Reminder };
-
-  const merged: MergedRow[] = [
-    ...upcomingAppointments.map(
-      (apt): MergedRow => ({ kind: "appointment", date: new Date(apt.slotStartsAt), apt }),
-    ),
-    ...pendingVaccineReminders.map(
-      (r): MergedRow => ({ kind: "reminder", date: new Date(r.dueAt), reminder: r }),
-    ),
-  ].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const sorted = [...upcomingAppointments].sort(
+    (a, b) => new Date(a.slotStartsAt).getTime() - new Date(b.slotStartsAt).getTime(),
+  );
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          Próximas citas y recordatorios
-        </h2>
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}/vacunas/programar`}
-          className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
-          + Programar
-        </Link>
-      </div>
-      {merged.length === 0 ? (
+      <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+        Próximos turnos
+      </h2>
+      {sorted.length === 0 ? (
         <p className="text-sm text-neutral-500 dark:text-neutral-500">
-          No hay citas ni recordatorios próximos para {pet.name}.
+          No hay turnos próximos para {pet.name}.
         </p>
       ) : (
         <ul className="space-y-3">
-          {merged.map((row) => {
-            if (row.kind === "appointment") {
-              const { apt } = row;
-              return (
-                <li
-                  key={`apt-${apt.publicToken}`}
-                  className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                        {apt.offeringDisplayName}
-                      </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                        {row.date.toLocaleString("es-AR", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                      turno
-                    </span>
-                  </div>
-                  <Link
-                    href={`/mis-turnos/${apt.publicToken}`}
-                    className="inline-block text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-                  >
-                    Ver detalle →
-                  </Link>
-                </li>
-              );
-            }
-
-            // reminder row
-            const { reminder } = row;
-            const diffDays = Math.floor((row.date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-            const isSoon = diffDays >= 0 && diffDays <= 30;
-            const isOverdue = diffDays < 0;
-            return (
-              <li
-                key={`rem-${reminder.id}`}
-                className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-3"
+          {sorted.map((apt) => (
+            <li
+              key={`apt-${apt.publicToken}`}
+              className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                    {apt.offeringDisplayName}
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    {new Date(apt.slotStartsAt).toLocaleString("es-AR", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                  turno
+                </span>
+              </div>
+              <Link
+                href={`/mis-turnos/${apt.publicToken}`}
+                className="inline-block text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                      {reminder.title}
-                    </p>
-                    {reminder.description && (
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                        {reminder.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400">
-                      recordatorio
-                    </span>
-                    <p className="text-xs text-neutral-700 dark:text-neutral-300">
-                      {formatDate(reminder.dueAt)}
-                    </p>
-                    {isOverdue && (
-                      <p className="text-xs text-red-600 dark:text-red-400 font-medium">
-                        Atrasada {Math.abs(diffDays)} día{Math.abs(diffDays) === 1 ? "" : "s"}
-                      </p>
-                    )}
-                    {isSoon && !isOverdue && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                        En {diffDays} día{diffDays === 1 ? "" : "s"}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/vacuna?reminderId=${reminder.id}`}
-                    className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-                  >
-                    Registrar aplicación
-                  </Link>
-                  <form
-                    action={deleteVaccineReminderAction.bind(null, pet.publicToken, reminder.id)}
-                  >
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-                    >
-                      Eliminar
-                    </button>
-                  </form>
-                </div>
-              </li>
-            );
-          })}
+                Ver detalle →
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
     </section>

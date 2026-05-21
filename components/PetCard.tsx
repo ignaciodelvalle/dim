@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { Badge } from "@/components/poncho/Badge";
 import type { Pet } from "@/db";
 import { speciesLabel } from "@/lib/format";
+import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 
 // Shared pet card. Used by /mis-mascotas (full grid), /inicio (top 6
 // snippet), and future surfaces. Self-contained — only depends on the
@@ -10,15 +12,60 @@ import { speciesLabel } from "@/lib/format";
 // "En tránsito" badge fires when the owner's ownership is a
 // shelter_custody row (vecino-en-tránsito helping a stray, not a real
 // owner). Keeps the visual contract identical to the inline original.
+//
+// vaccineReminderState: optional — when set, renders a small badge showing
+// the highest-priority vaccine reminder state for this pet. Pulse animation
+// is applied by this component for overdue_critical (per design spec E-D4:
+// the consumer applies pulse, not Badge itself).
+
+type VaccineReminderState = {
+  variant: ReminderVariant;
+};
+
+function VaccineBadge({ variant }: { variant: ReminderVariant }) {
+  switch (variant) {
+    case "upcoming":
+      return (
+        <Badge variant="info" aria-label="Tiene vacunas a programar en próximos 14 días">
+          Vacunas próximas
+        </Badge>
+      );
+    case "due_soon":
+      return (
+        <Badge variant="warning" aria-label="Tiene una vacuna que vence pronto">
+          Vacuna pronto
+        </Badge>
+      );
+    case "overdue":
+      return (
+        <Badge variant="danger" aria-label="Tiene una vacuna vencida">
+          Vacuna vencida
+        </Badge>
+      );
+    case "overdue_critical":
+      return (
+        <span className="animate-pulse motion-reduce:animate-none">
+          <Badge variant="danger" aria-label="Tiene una vacuna obligatoria vencida">
+            URGENTE
+          </Badge>
+        </span>
+      );
+    default:
+      // success or any unrecognized variant: no badge
+      return null;
+  }
+}
 
 export function PetCard({
   pet,
   photoUrl,
   ownershipRole,
+  vaccineReminderState,
 }: {
   pet: Pet;
   photoUrl: string | null;
   ownershipRole: string;
+  vaccineReminderState?: VaccineReminderState;
 }) {
   const initial = pet.name.charAt(0).toUpperCase();
   const isTransit = ownershipRole === "shelter_custody";
@@ -54,6 +101,11 @@ export function PetCard({
             {pet.color && ` · ${pet.color}`}
           </p>
         </div>
+        {vaccineReminderState && (
+          <div className="shrink-0">
+            <VaccineBadge variant={vaccineReminderState.variant} />
+          </div>
+        )}
         <span className="text-neutral-400 dark:text-neutral-600 shrink-0" aria-hidden>
           ›
         </span>

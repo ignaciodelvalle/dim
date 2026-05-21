@@ -8,7 +8,20 @@
 // Helpers in here MUST NOT throw — return empty arrays on no-data so the
 // widgets can render the empty state uniformly.
 
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   appointments,
@@ -24,10 +37,16 @@ import {
   petEvents,
   pets,
   profiles,
+  reminders,
   serviceOfferings,
   timeSlots,
   welfareReports,
 } from "@/db";
+import {
+  type ReminderVariant,
+  getReminderVariant,
+  isVaccineReportable,
+} from "@/lib/vaccine-reminder-state";
 
 // ---------------------------------------------------------------------------
 // Pets
@@ -644,6 +663,113 @@ export async function fetchLivingPetLocalities(
   return rows
     .filter((r): r is { province: string; locality: string | null } => r.province !== null)
     .map((r) => ({ province: r.province, locality: r.locality }));
+}
+
+// ---------------------------------------------------------------------------
+// Active vaccine reminders
+// ---------------------------------------------------------------------------
+
+export type ActiveReminderRow = {
+  reminderId: string;
+  petId: string;
+  petName: string;
+  petToken: string;
+  petSpecies: string;
+  title: string;
+  dueAt: Date;
+  daysUntilDue: number;
+  variant: ReminderVariant;
+  isReportable: boolean;
+};
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Variant priority for sorting: lowest number = highest priority.
+const VARIANT_ORDER: Record<ReminderVariant, number> = {
+  overdue_critical: 0,
+  overdue: 1,
+  due_soon: 2,
+  upcoming: 3,
+  success: 4,
+};
+
+async function fetchActiveRemindersBase(
+  userId: string,
+  petIdFilter?: string,
+): Promise<ActiveReminderRow[]> {
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + 14 * MS_PER_DAY);
+
+  const rows = await db
+    .select({
+      reminderId: reminders.id,
+      petId: pets.id,
+      petName: pets.name,
+      petToken: pets.publicToken,
+      petSpecies: pets.species,
+      petLocality: pets.jurisdictionLocality,
+      title: reminders.title,
+      dueAt: reminders.dueAt,
+    })
+    .from(reminders)
+    .innerJoin(pets, eq(pets.id, reminders.petId))
+    .where(
+      and(
+        eq(reminders.userId, userId),
+        eq(reminders.reminderType, "vaccine"),
+        isNull(reminders.completedAt),
+        or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, now)),
+        lte(reminders.dueAt, windowEnd),
+        ...(petIdFilter ? [eq(reminders.petId, petIdFilter)] : []),
+      ),
+    );
+
+  return rows
+    .map((r) => {
+      const daysUntilDue = Math.round((r.dueAt.getTime() - now.getTime()) / MS_PER_DAY);
+      const reportable = isVaccineReportable(r.title, r.petSpecies, r.petLocality ?? "");
+      const variant = getReminderVariant(daysUntilDue, reportable);
+      return {
+        reminderId: r.reminderId,
+        petId: r.petId,
+        petName: r.petName,
+        petToken: r.petToken,
+        petSpecies: r.petSpecies,
+        title: r.title,
+        dueAt: r.dueAt,
+        daysUntilDue,
+        variant,
+        isReportable: reportable,
+      };
+    })
+    .sort((a, b) => {
+      const orderDiff = VARIANT_ORDER[a.variant] - VARIANT_ORDER[b.variant];
+      if (orderDiff !== 0) return orderDiff;
+      return a.dueAt.getTime() - b.dueAt.getTime();
+    });
+}
+
+/**
+ * Active vaccine reminders for an owner. Excludes:
+ *  - reminders with completedAt set,
+ *  - reminders with snoozedUntil > now,
+ *  - reminders whose dueAt is more than 14 days in the future (matches cron window).
+ *
+ * Ordered by variant priority: overdue_critical → overdue → due_soon → upcoming.
+ * Within a variant, oldest dueAt first.
+ */
+export async function fetchActiveReminders(userId: string): Promise<ActiveReminderRow[]> {
+  return fetchActiveRemindersBase(userId);
+}
+
+/**
+ * Same as fetchActiveReminders but scoped to a single pet. Used by PetReminders.
+ */
+export async function fetchActiveRemindersForPet(
+  userId: string,
+  petId: string,
+): Promise<ActiveReminderRow[]> {
+  return fetchActiveRemindersBase(userId, petId);
 }
 
 // ---------------------------------------------------------------------------
