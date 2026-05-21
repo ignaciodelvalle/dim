@@ -352,36 +352,8 @@ export async function setCoFosterAllowedAction(
         caseId: fosterCase?.id ?? null,
       });
 
-      // Optional: notify orgs holding shelter_custody on this pet so they can
-      // re-evaluate their search for a second co-foster. v1 keeps it simple
-      // — the org will see the toggle from their portal anyway.
-      const orgCustodies = await tx
-        .select({ orgId: ownerships.ownerOrganizationId })
-        .from(ownerships)
-        .where(
-          and(
-            eq(ownerships.petId, ownership.petId),
-            eq(ownerships.role, "shelter_custody"),
-            isNull(ownerships.endedAt),
-          ),
-        );
-      for (const oc of orgCustodies) {
-        if (!oc.orgId) continue;
-        await tx.insert(notifications).values({
-          userId: user.id,
-          notificationType: input.allowCoFoster
-            ? "foster_co_foster_enabled"
-            : "foster_co_foster_disabled",
-          severity: "info",
-          title: input.allowCoFoster
-            ? "Tu tránsito ahora admite co-foster"
-            : "Tu tránsito ya no admite co-foster",
-          body: input.allowCoFoster
-            ? "Los refugios con custodia podrán proponer un segundo voluntario."
-            : "Quedaste como único tránsito por ahora.",
-          relatedPetId: ownership.petId,
-        });
-      }
+      // v1 intentionally does not notify orgs of the co-foster toggle —
+      // orgs holding shelter_custody see the flag from their portal.
     });
   } catch (err) {
     return {
