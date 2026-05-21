@@ -14,6 +14,7 @@ import {
   pets,
   reminders,
 } from "@/db";
+import { getReminderVariant, isVaccineReportable } from "@/lib/vaccine-reminder-state";
 import { and, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;
@@ -24,38 +25,45 @@ export type VaccineDueScanResult = {
   insertedNotificationIds: string[];
 };
 
-const DAYS_AHEAD = 7;
-const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Days ahead window: include all reminders due within 14 days (upcoming
+// variant). There is no backward limit — indefinitely overdue reminders are
+// included (overdue / overdue_critical variants).
+const WINDOW_AHEAD_DAYS = 14;
 
 /**
- * Scan for vaccine reminders coming due in the next {@link DAYS_AHEAD} days
- * and emit one `vaccine_due` notification per reminder that does not already
- * have an unarchived notification linked to the same source event.
+ * Scan for vaccine reminders and emit per-variant throttled `vaccine_due`
+ * notifications. Replaces the old single-dedup approach with per-variant
+ * cadence rules (Chunk C C2).
  *
- * Dedupe key: `notifications.relatedEventId = reminders.sourceEventId` AND
- * `notifications.notificationType = 'vaccine_due'` AND
- * `notifications.archivedAt IS NULL`. Reminders without a `sourceEventId`
- * are skipped — they cannot be deduplicated reliably (NULL = NULL is NULL
- * in SQL, so each tick would create a fresh notification). In practice
- * vaccine reminders always carry a `source_event_id` because they are
- * created by `createVaccinationAction` from the originating `vaccination_administered`
- * event.
+ * Throttle rules per variant:
+ *   upcoming        — once every 7 days.
+ *   due_soon        — daily for the first 3 days since first notif, then every 3 days.
+ *   overdue         — daily for the first 14 days since first notif, then weekly.
+ *   overdue_critical — daily indefinitely.
  *
- * Completed reminders (`completedAt IS NOT NULL`) are excluded — once the
- * owner records the actual application the loop stops.
+ * Dedupe key: `notifications.relatedReminderId = reminders.id` AND
+ * `notifications.notificationType LIKE 'vaccine_%'` AND
+ * `notifications.archivedAt IS NULL`.
+ *
+ * Backward compat: pre-C2 notifications only have relatedEventId, so the new
+ * throttle query (by relatedReminderId) sees notif_count=0 for existing
+ * reminders on the first post-C2 run. This produces one extra notification
+ * per active reminder — a one-time acceptable cost.
+ *
+ * Snoozed reminders (snoozedUntil > now) are excluded for the whole run.
+ * Completed reminders (completedAt IS NOT NULL) are excluded.
  */
 export async function runVaccineDueScan(
   dbInstance: DB = defaultDb,
   options?: { now?: Date },
 ): Promise<VaccineDueScanResult> {
   const now = options?.now ?? new Date();
-  const windowEnd = new Date(now.getTime() + DAYS_AHEAD * MILLIS_PER_DAY);
-  // Include a 1-day backward grace so a single missed cron tick does not
-  // permanently silence a reminder that came due yesterday. Anything older
-  // than 1 day overdue is treated as the owner's responsibility to resolve
-  // manually (e.g. they vaccinated and forgot to mark `completed_at`).
-  const windowStart = new Date(now.getTime() - MILLIS_PER_DAY);
+  const windowEnd = new Date(now.getTime() + WINDOW_AHEAD_DAYS * MS_PER_DAY);
 
+  // Fetch all active, non-snoozed vaccine reminders within the window.
+  // No backward limit — overdue reminders are included indefinitely.
   const candidates = await dbInstance
     .select({
       reminderId: reminders.id,
@@ -66,6 +74,8 @@ export async function runVaccineDueScan(
       title: reminders.title,
       description: reminders.description,
       petName: pets.name,
+      petSpecies: pets.species,
+      petJurisdictionLocality: pets.jurisdictionLocality,
       publicToken: pets.publicToken,
     })
     .from(reminders)
@@ -74,44 +84,76 @@ export async function runVaccineDueScan(
       and(
         eq(reminders.reminderType, "vaccine"),
         isNull(reminders.completedAt),
-        isNotNull(reminders.sourceEventId),
-        gte(reminders.dueAt, windowStart),
+        // snoozed_until IS NULL OR snoozed_until <= now
+        sql`(${reminders.snoozedUntil} IS NULL OR ${reminders.snoozedUntil} <= ${sql.param(now.toISOString())}::timestamptz)`,
         lte(reminders.dueAt, windowEnd),
-        sql`NOT EXISTS (
-          SELECT 1 FROM ${notifications} n
-          WHERE n.related_event_id = ${reminders.sourceEventId}
-            AND n.notification_type = 'vaccine_due'
-            AND n.archived_at IS NULL
-        )`,
       ),
     );
 
   const insertedNotificationIds: string[] = [];
+
   for (const row of candidates) {
     const dueMs = new Date(row.dueAt).getTime() - now.getTime();
-    const daysAhead = Math.round(dueMs / MILLIS_PER_DAY);
-    // Build a time-aware body. This is the actionable message the owner sees
-    // in the notifications list — it must reflect the moment of the scan, not
-    // the moment the reminder was created. The reminder's stored description
-    // (e.g. "Próxima dosis programada para Lila.") is the generic fallback
-    // for when we can't compute the day delta.
-    const body =
-      daysAhead <= 0
-        ? `${row.petName} tiene una vacuna programada para hoy.`
-        : daysAhead === 1
-          ? `${row.petName} tiene una vacuna programada para mañana.`
-          : `${row.petName} tiene una vacuna programada en ${daysAhead} días.`;
+    // daysUntilDue: positive = future, negative = past
+    const daysUntilDue = Math.round(dueMs / MS_PER_DAY);
+
+    const isReportable = isVaccineReportable(
+      row.title,
+      row.petSpecies ?? "",
+      row.petJurisdictionLocality ?? "",
+    );
+    const variant = getReminderVariant(daysUntilDue, isReportable);
+
+    // Query the notification history for this reminder to determine throttle.
+    const historyRows = await dbInstance.execute<{
+      first_at: Date | null;
+      last_at: Date | null;
+      notif_count: string;
+    }>(sql`
+      SELECT
+        MIN(created_at) AS first_at,
+        MAX(created_at) AS last_at,
+        COUNT(*)::text  AS notif_count
+      FROM ${notifications}
+      WHERE related_reminder_id = ${row.reminderId}
+        AND notification_type LIKE 'vaccine_%'
+        AND archived_at IS NULL
+    `);
+
+    const history = historyRows[0] ?? { first_at: null, last_at: null, notif_count: "0" };
+    const notifCount = Number.parseInt(history.notif_count ?? "0", 10);
+    const firstAt = history.first_at ? new Date(history.first_at) : null;
+    const lastAt = history.last_at ? new Date(history.last_at) : null;
+
+    // Evaluate per-variant throttle gate.
+    const shouldEmit = checkThrottle({ variant, notifCount, firstAt, lastAt, now });
+    if (!shouldEmit) continue;
+
+    // Build notification body per variant.
+    const body = buildBody(variant, row.petName, Math.abs(daysUntilDue), daysUntilDue);
+
+    // Severity per variant.
+    const severity =
+      variant === "upcoming"
+        ? ("info" as const)
+        : variant === "due_soon"
+          ? ("warning" as const)
+          : ("urgent" as const); // overdue + overdue_critical
 
     const [inserted] = await dbInstance
       .insert(notifications)
       .values({
         userId: row.userId,
         notificationType: "vaccine_due",
+        category: "health",
         title: row.title,
-        body: body || row.description || null,
-        severity: "warning",
+        body,
+        severity,
         relatedPetId: row.petId,
-        relatedEventId: row.sourceEventId,
+        // Both fields set: relatedReminderId drives throttle; relatedEventId
+        // preserves backward compat with pre-C2 queries that filter by event.
+        relatedReminderId: row.reminderId,
+        relatedEventId: row.sourceEventId ?? undefined,
         ctaLabel: "Ver mascota",
         ctaUrl: `/mis-mascotas/${row.publicToken}`,
       })
@@ -124,6 +166,87 @@ export async function runVaccineDueScan(
     insertedCount: insertedNotificationIds.length,
     insertedNotificationIds,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Throttle helpers
+// ---------------------------------------------------------------------------
+
+type ThrottleInput = {
+  variant: ReturnType<typeof getReminderVariant>;
+  notifCount: number;
+  firstAt: Date | null;
+  lastAt: Date | null;
+  now: Date;
+};
+
+/**
+ * Returns true when the throttle gate allows a new notification.
+ *
+ * Per-variant rules:
+ *   upcoming        — emit if notifCount=0 OR lastAt < now - 7d.
+ *   due_soon        — emit if notifCount=0.
+ *                     Else if first notif < 3d ago  → require lastAt < now - 1d.
+ *                     Else                          → require lastAt < now - 3d.
+ *   overdue         — emit if notifCount=0.
+ *                     Else if first notif < 14d ago → require lastAt < now - 1d.
+ *                     Else                          → require lastAt < now - 7d.
+ *   overdue_critical — emit if notifCount=0 OR lastAt < now - 1d.
+ */
+function checkThrottle({ variant, notifCount, firstAt, lastAt, now }: ThrottleInput): boolean {
+  if (notifCount === 0) return true; // always emit on first notification
+
+  // lastAt must be non-null when notifCount > 0, but guard defensively.
+  if (!lastAt) return true;
+
+  const msSinceLast = now.getTime() - lastAt.getTime();
+
+  if (variant === "upcoming") {
+    return msSinceLast >= 7 * MS_PER_DAY;
+  }
+
+  if (variant === "overdue_critical") {
+    return msSinceLast >= MS_PER_DAY;
+  }
+
+  if (variant === "due_soon") {
+    const msSinceFirst = firstAt ? now.getTime() - firstAt.getTime() : Number.POSITIVE_INFINITY;
+    const minInterval = msSinceFirst < 3 * MS_PER_DAY ? MS_PER_DAY : 3 * MS_PER_DAY;
+    return msSinceLast >= minInterval;
+  }
+
+  if (variant === "overdue") {
+    const msSinceFirst = firstAt ? now.getTime() - firstAt.getTime() : Number.POSITIVE_INFINITY;
+    const minInterval = msSinceFirst < 14 * MS_PER_DAY ? MS_PER_DAY : 7 * MS_PER_DAY;
+    return msSinceLast >= minInterval;
+  }
+
+  // success variant — should never reach here (completedAt filters them out)
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Body copy per variant
+// ---------------------------------------------------------------------------
+
+function buildBody(
+  variant: ReturnType<typeof getReminderVariant>,
+  petName: string,
+  absDays: number,
+  daysUntilDue: number,
+): string {
+  if (variant === "upcoming" || variant === "due_soon") {
+    if (daysUntilDue <= 0) return `${petName} tiene una vacuna programada para hoy.`;
+    if (daysUntilDue === 1) return `${petName} tiene una vacuna programada para mañana.`;
+    return `${petName} tiene una vacuna programada en ${daysUntilDue} días.`;
+  }
+  if (variant === "overdue_critical") {
+    if (absDays === 0) return `${petName} tiene una vacuna obligatoria programada para hoy.`;
+    return `${petName} tiene una vacuna obligatoria vencida hace ${absDays} días.`;
+  }
+  // overdue
+  if (absDays === 0) return `${petName} tiene una vacuna programada para hoy.`;
+  return `${petName} tiene una vacuna vencida hace ${absDays} días.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,11 +286,9 @@ export async function runPostAdoptionCheckinScan(
   options?: { now?: Date },
 ): Promise<PostAdoptionCheckinScanResult> {
   const now = options?.now ?? new Date();
-  const proactiveWindowEnd = new Date(now.getTime() + DAYS_AHEAD * MILLIS_PER_DAY);
-  const proactiveWindowStart = new Date(now.getTime() - MILLIS_PER_DAY);
-  const missedThreshold = new Date(
-    now.getTime() - POST_ADOPTION_MISSED_GRACE_DAYS * MILLIS_PER_DAY,
-  );
+  const proactiveWindowEnd = new Date(now.getTime() + 7 * MS_PER_DAY);
+  const proactiveWindowStart = new Date(now.getTime() - MS_PER_DAY);
+  const missedThreshold = new Date(now.getTime() - POST_ADOPTION_MISSED_GRACE_DAYS * MS_PER_DAY);
 
   // --- Phase 1: proactive reminders to adopters ---
   const proactiveCandidates = await dbInstance
@@ -199,7 +320,7 @@ export async function runPostAdoptionCheckinScan(
   const proactiveInsertedIds: string[] = [];
   for (const row of proactiveCandidates) {
     const dueMs = new Date(row.dueAt).getTime() - now.getTime();
-    const daysAhead = Math.round(dueMs / MILLIS_PER_DAY);
+    const daysAhead = Math.round(dueMs / MS_PER_DAY);
     const body =
       daysAhead <= 0
         ? `Toca registrar el check-in post-adopción de ${row.petName}.`

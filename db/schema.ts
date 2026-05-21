@@ -880,6 +880,10 @@ export const reminders = pgTable(
     // circular FKs (reminders → appointments → reminders) via references() without
     // an implicit-any error; the plain uuid column is the standard workaround.
     appointmentId: uuid("appointment_id"),
+    // Snooze support (C2, migration 0040). Cap: 3×7d, then 30d cooldown.
+    // When snoozed_until > now the cron skips this reminder.
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+    snoozeCount: integer("snooze_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -1003,6 +1007,10 @@ export const notifications = pgTable(
     // case-derived notifications into one "Caso X" entry. Nullable —
     // free-standing notifications never set this.
     relatedCaseId: uuid("related_case_id"),
+    // Category for /notificaciones tab filtering (C2, migration 0040).
+    // Values: 'health', 'custody', 'adoption', 'welfare', 'admin'. Nullable
+    // for pre-C2 rows that were inserted without a category.
+    category: text("category"),
     // State.
     readAt: timestamp("read_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -1014,6 +1022,14 @@ export const notifications = pgTable(
       .on(table.userId)
       .where(sql`${table.readAt} IS NULL AND ${table.archivedAt} IS NULL`),
     userCreatedIdx: index("notifications_user_created_idx").on(table.userId, table.createdAt),
+    // Tab filter index: WHERE archived_at IS NULL (only active notifications)
+    userCategoryIdx: index("notifications_user_category_idx")
+      .on(table.userId, table.category)
+      .where(sql`${table.archivedAt} IS NULL`),
+    // Per-reminder throttle check index for runVaccineDueScan()
+    reminderRecentIdx: index("notifications_reminder_recent_idx")
+      .on(table.relatedReminderId, table.createdAt)
+      .where(sql`${table.relatedReminderId} IS NOT NULL`),
   }),
 );
 
