@@ -350,7 +350,7 @@ Capabilities-driven, gated por `lib/org-permissions.ts` matrix.
 | 7.1 | Symptom-disease surveillance (matcher fuzzy → reportable diseases → outbreak_signal silencioso a govt) | server-side; sin UI directa al owner | system | (puede abrir `outbreak_investigation` cuando active) | ✅ |
 | 7.2 | Bite-rabies observation 10-day (Ley CABA + Decreto PBA) con auto-close + escalation hooks | `/admin/observaciones/[publicToken]` + `/admin/observaciones` | admin/govt | `bite_incident` con phase de observación | ✅ |
 | 7.3 | Cron cierre observaciones rábicas (12h cadence) | `/api/cron/close-rabies-observations` | system | cierra `bite_incident` con resolved | ✅ |
-| 7.4 | Vaccination-due warning al owner | `/api/cron/vaccine-due` | system | — | ⚪ (cron route existe pero spec dice UX feature pendiente) |
+| 7.4 | Vaccination-due UX al owner | `/api/cron/vaccine-due` + `<ReminderCard>` + libreta + `/notificaciones` tabs | owner/system | — | ✅ (Chunk C, ver `docs/superpowers/plans/archive/2026-05-21-vaccine-due-ux.md`) |
 | 7.5 | Vigilancia (vista govt) | `/gob/vigilancia` | govt | — | ✅ |
 
 ---
@@ -439,7 +439,7 @@ Estado oficial AGENTS.md: 🟡 "admin page completo (4 roles, account_type insti
 | 12.9 | `expire-foster-proposals` | Cancela propuestas >7d | cierra `foster_proposal` (deferred) | 🟢 |
 | 12.10 | `materialize-slots` | Materializa slots desde schedule rules | — | ✅ |
 | 12.11 | `post-adoption-checkin` | Recordatorios de check-ins programados | — | ✅ |
-| 12.12 | `vaccine-due` | Recordatorios de vacunas próximas a vencer | — | ⚪ (route existe; UX owner-side pendiente) |
+| 12.12 | `vaccine-due` | Recordatorios de vacunas próximas a vencer, throttle por variante (Chunk C C2) | — | ✅ |
 
 ---
 
@@ -473,9 +473,9 @@ Estado oficial AGENTS.md: 🟡 "admin page completo (4 roles, account_type insti
 |---|---|
 | ✅ Shipped | Auth/cuenta · Mis mascotas + 41 eventos · Libreta + tier-2 share · Credential pública Tier 0/0+/1 · Turnos owner-side · Org portal completo (intake/custody/foster member-based/adopciones member-based/checkins/agenda) · 8 lifecycles V1 de casos · Welfare denuncias + bridge + queue gob · Surveillance + observación rábica · Custody disputes · Admin/gob sustancialmente implementados · 11/12 crones · Postulación adopción 4-campos (wizard 28-q diferido) |
 | 🟢 spec'd + plan listo | Adoption listing público `/adoptar` · Foster volunteers pool · Surface unificado `/org/.../transitos` · Listado no-aptas · **`microchip_replaced` UI** (`docs/superpowers/plans/2026-05-20-microchip-replaced-ui.md`) · **Deprecación `/pro` → clinic org** (`docs/superpowers/plans/2026-05-20-deprecate-pro-portal.md`) |
-| 🟡 partial | PPP export provincial · Admin page final (4 roles) |
+| 🟡 partial | PPP export provincial · Admin page final (4 roles) · Govt dashboards (vigilancia/perdidas/maltrato/analytics shippeados Chunk E E2-E5; falta E6 async export) |
 | 🔴 deprecado | `/pro` portal (2026-05-20) — los vets profesionales ahora operan vía clinic org de 1 miembro |
-| ⚪ planeado | Mi Argentina OAuth · DNI verification real · Welfare export fiscalía MPF · Govt dashboards (sanitary/analyst/welfare officer) · Vaccine-due UX · Bulk ops · 3 case_kinds deferidos restantes (`custody_episode`, `foster_proposal`, `outbreak_investigation`) — `microchip_remediation` se activa con el plan de §3.3.21 |
+| ⚪ planeado | Mi Argentina OAuth · DNI verification real · Welfare export fiscalía MPF · Govt dashboards async export (Chunk E E6 pendiente) · Bulk ops · 3 case_kinds deferidos restantes (`custody_episode`, `foster_proposal`, `outbreak_investigation`) — `microchip_remediation` se activa con el plan de §3.3.21 |
 | ❎ diferido | Wizard adopción 28-preguntas (`docs/superpowers/plans/2026-05-20-adoption-handshake-unified.md` queda en backlog hasta nueva demanda) |
 
 ---
