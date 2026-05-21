@@ -1508,6 +1508,11 @@ export const AUDIT_LOG_ACTIONS = [
   // PPP export — RUPPPA CABA registration PDF for potentially dangerous breed owners.
   // Payload: { petId, petPublicToken, targetJurisdiction, breed, schemaVersion }.
   "ppp_export_generated",
+  // ENO (Enfermedades de Notificación Obligatoria) — govt notification fanout.
+  // Spec: 2026-05-21-eno-pipeline-design.md (ENO-D2, ENO-D3, ENO-D4, ENO-D5).
+  // Payload: { disease_code, disease_severity, pet_id, targets_count,
+  //            owner_was_notified, legal_anchor }.
+  "eno_notification_emitted",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
