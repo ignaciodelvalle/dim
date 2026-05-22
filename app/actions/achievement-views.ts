@@ -26,7 +26,7 @@ const ACHIEVEMENT_IDS = ACHIEVEMENTS_CATALOG.map((a) => a.id) as [string, ...str
 const InputSchema = z.object({
   petPublicToken: z.string().min(1, "petPublicToken is required"),
   achievementId: z.enum(ACHIEVEMENT_IDS, {
-    errorMap: () => ({ message: "Unknown achievementId" }),
+    error: "Unknown achievementId",
   }),
 });
 
