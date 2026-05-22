@@ -2,7 +2,7 @@
 
 import { type PetDraft, clearPetDraft, readPetDraft } from "@/app/_components/PetDraftForm";
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
-import { createPetAction } from "@/app/actions/pets";
+import { type NewPetFormState, createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import Link from "next/link";
@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 
 const initialAuthState: AuthFormState = { error: null };
+const initialPetCreateState: NewPetFormState = { error: null };
 
 // es-AR species labels for the "Vamos a guardar a {nombre}, tu {especie}" banner.
 const SPECIES_LABELS: Record<string, string> = {
@@ -45,6 +46,10 @@ export function SignupForm({
   const router = useRouter();
   const [step, setStep] = useState<"account" | "pet">("account");
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
+  const [petCreateState, petCreateFormAction, petCreatePending] = useActionState(
+    createPetAction,
+    initialPetCreateState,
+  );
   // Landing-page pet draft, if any. Read once on mount so the step-1 banner
   // and the step-2 PetForm pre-fill see the same snapshot. Cleared on entry
   // to step 2 — by then the data is in component state and a fresh draft
@@ -53,6 +58,9 @@ export function SignupForm({
   // Captured once at mount — true if the user came from the landing draft.
   // Using a ref so it doesn't change when the draft is cleared in step 2.
   const hasDraftAtMount = useRef(false);
+  // Tracks whether we fired the auto-create path so the error effect knows
+  // whether to fall back to step 2 or ignore (manual PetForm error handling).
+  const autoCreateAttempted = useRef(false);
 
   useEffect(() => {
     const draft = readPetDraft();
@@ -62,12 +70,42 @@ export function SignupForm({
 
   useEffect(() => {
     if (!authState.ok) return;
+
+    // Apply-flow: no pet step, just navigate to the return target.
     if (intent === "apply" && returnTo) {
       router.replace(returnTo);
       return;
     }
+
+    // Phase 2.1 — Option A: auto-create from draft when species is concrete.
+    // If the draft has a name + dog/cat species, programmatically submit
+    // createPetAction so the user lands directly on /mis-mascotas with their
+    // pet already created. Falls back to step 2 (Option B) when species is
+    // "" or "other", or when createPetAction returns an error (see below).
+    const draft = petDraft;
+    if (draft?.name.trim() && (draft.species === "dog" || draft.species === "cat")) {
+      autoCreateAttempted.current = true;
+      clearPetDraft();
+      const fd = new FormData();
+      fd.set("name", draft.name.trim());
+      fd.set("species", draft.species);
+      if (draft.breed) fd.set("breed", draft.breed);
+      petCreateFormAction(fd);
+      return;
+    }
+
+    // Fallback: go to manual step 2 (pre-filled via draftValues).
     setStep("pet");
-  }, [authState.ok, intent, returnTo, router]);
+  }, [authState.ok, intent, returnTo, router, petDraft, petCreateFormAction]);
+
+  // If auto-create errored, fall back to step 2 so the user can submit manually.
+  // The PetForm will still have draftValues pre-filled (petDraft is still in state
+  // because we only clearPetDraft() on the auto-create path, not on error).
+  useEffect(() => {
+    if (autoCreateAttempted.current && petCreateState.error) {
+      setStep("pet");
+    }
+  }, [petCreateState.error]);
 
   // Once we've transitioned to step 2, the draft has been threaded into
   // PetForm props — drop it from localStorage so a future revisit doesn't
@@ -77,6 +115,24 @@ export function SignupForm({
       clearPetDraft();
     }
   }, [step, petDraft]);
+
+  // While auto-create is in flight, show a brief status rather than a blank
+  // screen. The redirect from createPetAction unmounts this component before
+  // the next state update, so this only stays visible for the round-trip.
+  if (
+    petCreatePending ||
+    (autoCreateAttempted.current && !petCreateState.error && step !== "pet")
+  ) {
+    return (
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+        Creando la credencial de{" "}
+        <span className="font-semibold text-neutral-900 dark:text-neutral-50">
+          {petDraft?.name}
+        </span>
+        …
+      </div>
+    );
+  }
 
   if (step === "pet") {
     const hasDraft = !!petDraft?.name.trim();
@@ -100,6 +156,14 @@ export function SignupForm({
               : "Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto después."}
           </p>
         </div>
+
+        {/* Auto-create fallback error: surface it above the form so the user
+            knows why they're seeing step 2 instead of landing on /mis-mascotas. */}
+        {autoCreateAttempted.current && petCreateState.error && (
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+            Tu cuenta ya está creada. Revisá los datos y guardá tu mascota.
+          </div>
+        )}
 
         <PetForm
           action={createPetAction}

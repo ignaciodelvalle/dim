@@ -31,13 +31,15 @@ export default async function Home() {
   // For authenticated visitors we resolve their portal path so the CTA can
   // link straight to it. No redirect — they get to see the landing too.
   let portalPath: string | null = null;
+  let firstName: string | null = null;
   if (user) {
     const [profile] = await db
-      .select({ role: profiles.role })
+      .select({ role: profiles.role, displayName: profiles.displayName })
       .from(profiles)
       .where(eq(profiles.id, user.id))
       .limit(1);
 
+    firstName = profile?.displayName?.split(" ")[0] ?? null;
     const role = profile?.role ?? "owner";
     if (role === "vet") {
       portalPath = await resolveVetLanding(user.id);
@@ -64,125 +66,170 @@ export default async function Home() {
   const isAuthenticated = !!user;
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
-      <div className="mx-auto max-w-5xl px-6 py-12 md:py-20">
-        {/* Hero */}
-        <header className="text-center space-y-4 mb-12 md:mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-            MiMAR
-          </h1>
-          <p className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300">
-            La credencial digital de tu mascota
-          </p>
-          <p className="text-base text-neutral-600 dark:text-neutral-400 max-w-xl mx-auto leading-relaxed">
-            Si se pierde, cualquiera con un celular puede escanear su QR y avisarte al instante.
-          </p>
-        </header>
-
-        {/* Action panel — centered single card for both auth states */}
-        {isAuthenticated ? (
-          <section className="max-w-md mx-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm mb-12 md:mb-16">
-            <div className="space-y-4 text-center">
-              <p className="text-sm uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">
-                Ya tenés cuenta
-              </p>
-              <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-                Continuá donde quedaste
-              </h2>
-              <Link
-                href={portalPath ?? "/mis-mascotas"}
-                className="inline-block w-full px-5 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-              >
-                Ir a mi portal
-              </Link>
+    <>
+      {/* Phase 2.2 — auth header band. Visible only when logged in; sits above
+          the hero so authenticated users immediately see context without losing
+          the marketing content below. */}
+      {isAuthenticated && (
+        <div className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 py-2 px-6">
+          <div className="flex items-center justify-between max-w-5xl mx-auto">
+            <div className="flex items-center gap-2.5">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-neutral-900 dark:bg-neutral-50 flex items-center justify-center">
+                <span className="text-sm font-medium text-white dark:text-neutral-900">
+                  {(firstName ?? "U")[0].toUpperCase()}
+                </span>
+              </div>
+              <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                Hola,{" "}
+                <span className="font-medium text-neutral-900 dark:text-neutral-50">
+                  {firstName ?? "vos"}
+                </span>{" "}
+                — ya tenés sesión iniciada
+              </span>
             </div>
-          </section>
-        ) : (
-          <section className="max-w-md mx-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm mb-12 md:mb-16">
-            <div className="space-y-5">
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
-                  Empezá ahora
-                </p>
-                <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-                  Creá la credencial de tu mascota
-                </h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  Es gratis y tarda un minuto. Empezá por los datos básicos.
+            <Link
+              href={portalPath ?? "/mis-mascotas"}
+              className="text-sm font-medium text-gob-azul-link hover:underline underline-offset-4 whitespace-nowrap"
+            >
+              Ir a mi portal →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <main className="min-h-screen bg-white dark:bg-neutral-950">
+        <div className="mx-auto max-w-5xl px-6 py-12 md:py-20">
+          {/* Hero */}
+          <header className="text-center space-y-4 mb-12 md:mb-16">
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+              MiMAR
+            </h1>
+            <p className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300">
+              La credencial digital de tu mascota
+            </p>
+            <p className="text-base text-neutral-600 dark:text-neutral-400 max-w-xl mx-auto leading-relaxed">
+              Si se pierde, cualquiera con un celular puede escanear su QR y avisarte al instante.
+            </p>
+          </header>
+
+          {/* Action panel — form slot for unauth; soft "sumar otra" panel for auth */}
+          {isAuthenticated ? (
+            <section className="max-w-md mx-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm mb-12 md:mb-16">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
+                    Ya tenés una mascota cargada
+                  </p>
+                  <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+                    ¿Querés sumar otra?
+                  </h2>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Podés cargar quien quieras desde Mis mascotas.
+                  </p>
+                </div>
+                <Link
+                  href="/mis-mascotas/nueva"
+                  className="inline-block w-full px-5 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors text-center"
+                >
+                  Crear otra mascota →
+                </Link>
+                <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
+                  <Link
+                    href={portalPath ?? "/mis-mascotas"}
+                    className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
+                  >
+                    Ver todas mis mascotas
+                  </Link>
                 </p>
               </div>
-              <PetDraftForm />
-              <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
-                ¿Ya tenés cuenta?{" "}
-                <Link
-                  href="/login"
-                  className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
-                >
-                  Iniciar sesión
-                </Link>
-              </p>
+            </section>
+          ) : (
+            <section className="max-w-md mx-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm mb-12 md:mb-16">
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
+                    Empezá ahora
+                  </p>
+                  <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+                    Creá la credencial de tu mascota
+                  </h2>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Es gratis y tarda un minuto. Empezá por los datos básicos.
+                  </p>
+                </div>
+                <PetDraftForm />
+                <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
+                  ¿Ya tenés cuenta?{" "}
+                  <Link
+                    href="/login"
+                    className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
+                  >
+                    Iniciar sesión
+                  </Link>
+                </p>
+              </div>
+            </section>
+          )}
+
+          {/* Benefits grid — asymmetric: lead (2 cols) + two supporting (3 cols split 50/50) */}
+          <section className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-6 mb-12 md:mb-16">
+            <div className="md:col-span-2">
+              <LeadBenefit
+                label="Si se pierde"
+                title="Cualquiera puede ayudarte a encontrarla"
+                body="Su credencial pública tiene un QR. Quien lo escanee ve tu contacto y te avisa al instante — sin instalar nada."
+              />
+            </div>
+            <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              <SupportingBenefit
+                icon={<SyringeIcon />}
+                title="Libreta digital"
+                body="Vacunas, visitas al vet y medicaciones en un solo lugar, siempre con vos."
+              />
+              <SupportingBenefit
+                icon={<ShieldCheckIcon />}
+                title="Vos decidís qué se ve"
+                body="Tu mascota tiene una credencial pública; vos elegís qué datos compartir."
+              />
             </div>
           </section>
-        )}
 
-        {/* Benefits grid — asymmetric: lead (2 cols) + two supporting (3 cols split 50/50) */}
-        <section className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-6 mb-12 md:mb-16">
-          <div className="md:col-span-2">
-            <LeadBenefit
-              label="Si se pierde"
-              title="Cualquiera puede ayudarte a encontrarla"
-              body="Su credencial pública tiene un QR. Quien lo escanee ve tu contacto y te avisa al instante — sin instalar nada."
-            />
-          </div>
-          <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-            <SupportingBenefit
-              icon={<SyringeIcon />}
-              title="Libreta digital"
-              body="Vacunas, visitas al vet y medicaciones en un solo lugar, siempre con vos."
-            />
-            <SupportingBenefit
-              icon={<ShieldCheckIcon />}
-              title="Vos decidís qué se ve"
-              body="Tu mascota tiene una credencial pública; vos elegís qué datos compartir."
-            />
-          </div>
-        </section>
-
-        {/* Casos urgentes — danger-tinted block, below benefits, outside conversion path */}
-        <section className="mt-12 rounded-2xl bg-gob-danger/10 p-4 md:p-5">
-          <div className="flex gap-3 md:gap-4">
-            <div className="shrink-0 mt-0.5 text-gob-danger">
-              <AlertTriangleIcon />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-gob-danger">Casos urgentes</p>
-              <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300">
-                No necesitás cuenta para denunciar maltrato animal o buscar el estado de una
-                denuncia ya hecha.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                <Link
-                  href="/denuncias/nueva"
-                  className="text-sm underline underline-offset-4 text-gob-danger"
-                >
-                  Denunciar maltrato →
-                </Link>
-                <Link
-                  href="/denuncias/buscar"
-                  className="text-sm underline underline-offset-4 text-gob-danger"
-                >
-                  Buscar con código →
-                </Link>
+          {/* Casos urgentes — danger-tinted block, below benefits, outside conversion path */}
+          <section className="mt-12 rounded-2xl bg-gob-danger/10 p-4 md:p-5">
+            <div className="flex gap-3 md:gap-4">
+              <div className="shrink-0 mt-0.5 text-gob-danger">
+                <AlertTriangleIcon />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-gob-danger">Casos urgentes</p>
+                <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300">
+                  No necesitás cuenta para denunciar maltrato animal o buscar el estado de una
+                  denuncia ya hecha.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  <Link
+                    href="/denuncias/nueva"
+                    className="text-sm underline underline-offset-4 text-gob-danger"
+                  >
+                    Denunciar maltrato →
+                  </Link>
+                  <Link
+                    href="/denuncias/buscar"
+                    className="text-sm underline underline-offset-4 text-gob-danger"
+                  >
+                    Buscar con código →
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <p className="text-center text-xs text-neutral-500 dark:text-neutral-400 mt-12 tracking-widest uppercase">
-          v0.1.0 · scaffolding · más por venir
-        </p>
-      </div>
-    </main>
+          <p className="text-center text-xs text-neutral-500 dark:text-neutral-400 mt-12 tracking-widest uppercase">
+            v0.1.0 · scaffolding · más por venir
+          </p>
+        </div>
+      </main>
+    </>
   );
 }
 
