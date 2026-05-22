@@ -5,8 +5,18 @@
 > **Fecha:** 2026-05-22
 > **Owner:** Ignacio Del Valle
 > **Estado:** 🟠 Low priority — design captured, no plan, no schedule
-> **Versión:** 1.0
-> **Depende de:** Tier 1 implementado (especialmente §1 — la mayoría de los items de este spec asumen `computeConfidence()` ya existente). Sin Tier 1 algunos items no son construibles correctamente.
+> **Versión:** 1.1
+> **Depende de:** Tier 1 implementado.
+>
+> **v1.1 (2026-05-22):** Tier 1 está en flight — 5 PRs abiertos contra `develop` que entre todos completan el plan:
+>
+> - **Fase A** (confidence tier `computeConfidence()`) — PR #129
+> - **Fase B** (idempotency keys + 14-form retrofit) — PR #133
+> - **Fase C.1** (`event_notification_outbox` + drainer cron) — PR #135
+> - **Fase C.2** (`/admin/outbox` UI) — PR #139 (stacked sobre #135)
+> - **Bug fix descubierto durante C.1** (eno-trigger disease-code bridge) — PR #137
+>
+> Hasta que estos PRs mergen, los items de este spec que dependen de "Tier 1 §A" (T2.1, T3.1, T3.3) están bloqueados implementacionalmente. Una vez en develop, los triggers de §1 pueden empezar a fire.
 
 ---
 
