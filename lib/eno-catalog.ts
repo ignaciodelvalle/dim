@@ -92,3 +92,35 @@ export function getEnoDisease(code: string): EnoDisease | null {
 export function isEnoCode(code: string): boolean {
   return _indexByCode.has(code);
 }
+
+// ---------------------------------------------------------------------------
+// Bridge — diagnosis-form codes → ENO catalog codes
+// ---------------------------------------------------------------------------
+//
+// The diagnosis form emits codes from `lib/diseases.ts` (granular: e.g.
+// `rabies_confirmed` vs `rabies_suspected`). The ENO catalog above uses
+// coarser locked-by-spec codes (e.g. `rabies`). Calling `isEnoCode` on a
+// form-emitted code returns false even when the underlying disease IS an
+// ENO. This bridge maps known form codes to their ENO equivalents so the
+// trigger fires correctly. Codes not in the map pass through unchanged.
+
+const DISEASE_TO_ENO_CODE: Readonly<Record<string, string>> = {
+  rabies_confirmed: "rabies",
+  rabies_suspected: "rabies",
+  canine_brucellosis: "brucelosis_canina",
+  visceral_leishmaniasis: "leishmaniasis",
+  hydatidosis: "hidatidosis",
+};
+
+/**
+ * Normalizes a diagnosis-form `disease_code` to the matching ENO catalog
+ * code, or returns the input unchanged when no mapping exists.
+ *
+ * Every caller that wants to ask "is this an ENO disease?" or "what are
+ * the SLA / severity / legal anchor?" MUST route the form code through
+ * this function first. Otherwise `rabies_confirmed` and friends silently
+ * miss the ENO catalog.
+ */
+export function diseaseCodeToEnoCode(code: string): string {
+  return DISEASE_TO_ENO_CODE[code] ?? code;
+}
