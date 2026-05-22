@@ -1,4 +1,4 @@
-// RLS matrix harness — drives `matrix.spec.ts` against the live Supabase
+// RLS matrix harness — drives `matrix.data.ts` against the live Supabase
 // local stack via PostgREST (supabase-js), which IS subject to RLS.
 //
 // **MVP scope (this commit):** only SELECT is exercised end-to-end. The

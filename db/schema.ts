@@ -253,6 +253,8 @@ export const EVENT_TYPES = [
   // (catalog cleanup 2026-05-19). new_chip_number === null distinguishes
   // a revocation (no replacement chip) from a normal replacement.
   "microchip_replaced",
+  "tattoo_recorded",
+  "tattoo_updated",
   "dangerous_breed_attested",
   // Free-form
   "note_added",
@@ -420,6 +422,19 @@ export const pets = pgTable(
     microchipImplantedAt: date("microchip_implanted_at"),
     microchipImplantedBy: text("microchip_implanted_by"),
     microchipLocation: text("microchip_location"), // e.g. "interscapular_left"
+    // Tattoo — secondary identifier. Free-form code (no uniqueness, codes collide
+    // across registries). Location is a closed lookup; description is free-form
+    // for the origin (FCA, campaign, kennel, etc.). Photo is required at create
+    // time (enforced in app code, not DB) because tattoos need visual verification.
+    // Normalization (uppercase + strip whitespace) lives in createTattooForUser
+    // and lookupByTattoo, not in DB constraint.
+    tattooCode: text("tattoo_code"),
+    tattooLocation: text("tattoo_location"),
+    tattooDescription: text("tattoo_description"),
+    tattooRecordedAt: date("tattoo_recorded_at"),
+    tattooRecordedBy: text("tattoo_recorded_by"),
+    // FK-by-convention to attachments.id, same loose-FK pattern as primaryPhotoId.
+    tattooPhotoId: uuid("tattoo_photo_id"),
     // FK to attachments.id. NOT a hard FK at the DB level — circular reference
     // with attachments.pet_id. Application code keeps these in sync.
     primaryPhotoId: uuid("primary_photo_id"),
@@ -600,6 +615,13 @@ export const pets = pgTable(
       "pets_pregnancy_status_valid",
       sql`${table.pregnancyStatus} is null or ${table.pregnancyStatus} in ('in_progress', 'completed_live_birth', 'completed_stillbirth', 'completed_miscarriage', 'completed_termination')`,
     ),
+    petsTattooLocationValid: check(
+      "pets_tattoo_location_valid",
+      sql`${table.tattooLocation} is null or ${table.tattooLocation} in ('inner_ear_left','inner_ear_right','inner_thigh','belly','other')`,
+    ),
+    tattooCodeIdx: index("pets_tattoo_code_idx")
+      .on(table.tattooCode)
+      .where(sql`${table.tattooCode} IS NOT NULL`),
   }),
 );
 
