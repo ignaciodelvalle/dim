@@ -7,16 +7,14 @@
 
 /**
  * Subset of the Pet record needed by PetCurrentStateSection.
- * tattooCode / tattooLocation are optional because they may not exist on
- * branches that predate the tattoo-identifier migration.
+ * tattooCode / tattooLocation are required as of #125 (tattoo-identifier merged
+ * to develop 2026-05-22) — both columns exist on every pet row.
  */
 export interface CurrentStatePet {
   microchipId: string | null;
   microchipImplantedAt: string | null;
-  /** Added by tattoo-identifier — absent on older branches. */
-  tattooCode?: string | null;
-  /** Added by tattoo-identifier — absent on older branches. */
-  tattooLocation?: string | null;
+  tattooCode: string | null;
+  tattooLocation: string | null;
   estimatedWeightKg: string | null;
   knownAllergies: string[] | null;
   trainingLevel: string | null;
