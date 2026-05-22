@@ -785,6 +785,10 @@ export type VaccinationHistoryRow = {
   administeredBy?: string | null;
   nextDueAt?: Date | null;
   attachmentId?: string | null;
+  // Provenance for confidence tier display in the dashboard widget (plan §A.6, 2026-05-22).
+  authorRole: string;
+  authorVerified: boolean;
+  authorOrganizationId: string | null;
 };
 
 /**
@@ -803,6 +807,9 @@ export async function fetchVaccinationHistory(petId: string): Promise<Vaccinatio
     administered_by: string | null;
     next_due_at: string | null;
     attachment_id: string | null;
+    author_role: string;
+    author_verified: boolean;
+    author_organization_id: string | null;
   }>(sql`
     SELECT
       e.id::text           AS event_id,
@@ -812,7 +819,10 @@ export async function fetchVaccinationHistory(petId: string): Promise<Vaccinatio
       e.payload->>'batch'            AS batch,
       e.payload->>'administered_by'  AS administered_by,
       e.payload->>'next_due_at'      AS next_due_at,
-      a.id::text           AS attachment_id
+      a.id::text           AS attachment_id,
+      e.author_role        AS author_role,
+      e.author_verified    AS author_verified,
+      e.author_organization_id::text AS author_organization_id
     FROM pet_events e
     LEFT JOIN attachments a ON a.event_id = e.id
     WHERE e.pet_id = ${petId}
@@ -829,6 +839,9 @@ export async function fetchVaccinationHistory(petId: string): Promise<Vaccinatio
     administeredBy: r.administered_by,
     nextDueAt: r.next_due_at ? new Date(r.next_due_at) : null,
     attachmentId: r.attachment_id,
+    authorRole: r.author_role ?? "owner",
+    authorVerified: r.author_verified ?? false,
+    authorOrganizationId: r.author_organization_id,
   }));
 }
 
