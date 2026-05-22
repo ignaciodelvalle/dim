@@ -7,6 +7,7 @@ import {
   PeriodPicker,
 } from "@/components/poncho";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import { PROVINCE_ISO_MAP, fetchSurveillanceSignals } from "@/lib/govt-dashboards";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 
@@ -28,7 +29,13 @@ const ALL_PROVINCES: Array<{ code: string; name: string }> = [
 export default async function GobVigilanciaBrotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; signalId?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    signalId?: string;
+    soloVerificados?: string;
+  }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
@@ -37,7 +44,24 @@ export default async function GobVigilanciaBrotesPage({
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
+  const allSignals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
+
+  // A.5: tier-based filter — "Solo verificados institucionalmente"
+  // When the checkbox is active, filter to signals where tier >= professional_verified.
+  const soloVerificados = sp.soloVerificados === "1";
+  const signals = soloVerificados
+    ? allSignals.filter((s) =>
+        isAtLeast(
+          computeConfidence({
+            authorRole: s.authorRole,
+            authorVerified: s.authorVerified,
+            authorOrganizationId: s.authorOrganizationId,
+            payload: s.payload,
+          }),
+          "professional_verified",
+        ),
+      )
+    : allSignals;
 
   const allowedProvinces =
     profile.role === "admin"
@@ -66,6 +90,37 @@ export default async function GobVigilanciaBrotesPage({
           {/* localities empty v1 — TODO(E2-followup): fetch localities for selected province */}
           <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
           <PeriodPicker defaultPreset="30d" />
+        </div>
+
+        {/* A.5: confidence tier filter */}
+        <div className="flex items-center gap-2">
+          <form method="GET" className="flex items-center gap-2">
+            {/* Preserve existing params */}
+            {sp.period && <input type="hidden" name="period" value={sp.period} />}
+            {sp.signalId && <input type="hidden" name="signalId" value={sp.signalId} />}
+            <label className="flex items-center gap-2 text-sm text-gob-text cursor-pointer select-none">
+              <input
+                type="checkbox"
+                name="soloVerificados"
+                value="1"
+                defaultChecked={soloVerificados}
+                onChange={(e) => {
+                  // Progressive enhancement: submit form on change
+                  e.currentTarget.form?.submit();
+                }}
+                className="accent-gob-primary"
+              />
+              Solo verificados institucionalmente
+            </label>
+            {soloVerificados && (
+              <a
+                href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}
+                className="text-xs text-gob-text-gray underline"
+              >
+                Quitar filtro
+              </a>
+            )}
+          </form>
         </div>
 
         <Panel aria-labelledby={panelId}>
