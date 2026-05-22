@@ -1,0 +1,265 @@
+// Integration tests for createTattooForUser (app/actions/tattoo.ts).
+//
+// Fixture pattern mirrors microchip-replaced.test.ts: admin-SDK user creation,
+// pets + ownerships inserted directly. Photo upload is bypassed — the inner
+// writer takes an already-uploaded attachment metadata object, so tests pass
+// a synthetic { path, mimeType, size } without touching Supabase storage.
+
+import { createClient } from "@supabase/supabase-js";
+import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { createTattooForUser, normalizeTattooCode } from "@/app/actions/tattoo";
+import { attachments, db, ownerships, petEvents, pets } from "@/db";
+import { withMutationOverride } from "../_helpers/db-overrides";
+
+const SUPABASE_URL = "http://127.0.0.1:54321";
+const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+
+const admin = createClient(SUPABASE_URL, SECRET, {
+  auth: { persistSession: false },
+});
+
+const OWNER_EMAIL = "tattoo-owner@dim-test.local";
+const PASS = "TattooTest_2026!";
+
+let ownerUserId: string;
+let petId: string;
+
+const OWNER_AUTHORSHIP = {
+  authorRole: "owner" as const,
+  authorOrganizationId: null,
+  authorVerified: false,
+};
+
+const FAKE_UPLOAD = {
+  path: "tattoo-test-fixture.jpg",
+  mimeType: "image/jpeg",
+  size: 12345,
+};
+
+async function purgeUser(email: string) {
+  const { data: list } = await admin.auth.admin.listUsers({ perPage: 200 });
+  const found = list?.users.find((u) => u.email === email);
+  if (!found) return;
+  const owned = await db
+    .select({ petId: ownerships.petId })
+    .from(ownerships)
+    .where(eq(ownerships.ownerUserId, found.id));
+  await withMutationOverride(async (tx) => {
+    for (const { petId: ownedPetId } of owned) {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${ownedPetId}::uuid`);
+      await tx.execute(sql`DELETE FROM attachments WHERE pet_id = ${ownedPetId}::uuid`);
+      await tx.delete(ownerships).where(eq(ownerships.petId, ownedPetId));
+      await tx.delete(pets).where(eq(pets.id, ownedPetId));
+    }
+  });
+  await admin.auth.admin.deleteUser(found.id);
+}
+
+beforeAll(async () => {
+  await purgeUser(OWNER_EMAIL);
+
+  const { data: ownerData, error: ownerErr } = await admin.auth.admin.createUser({
+    email: OWNER_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (ownerErr || !ownerData.user) throw new Error(`createUser owner: ${ownerErr?.message}`);
+  ownerUserId = ownerData.user.id;
+
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: `TAT-${Date.now()}`,
+      name: "Tattoo Test Pet",
+      species: "dog",
+      sex: "male",
+      status: "active",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    })
+    .returning();
+  petId = pet.id;
+
+  await db.insert(ownerships).values({
+    petId,
+    ownerUserId,
+    role: "owner",
+  });
+});
+
+afterAll(async () => {
+  if (petId) {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}::uuid`);
+      await tx.execute(sql`DELETE FROM attachments WHERE pet_id = ${petId}::uuid`);
+      await tx.delete(ownerships).where(eq(ownerships.petId, petId));
+      await tx.delete(pets).where(eq(pets.id, petId));
+    });
+  }
+  if (ownerUserId) await admin.auth.admin.deleteUser(ownerUserId);
+});
+
+async function resetPetTattoo() {
+  await withMutationOverride(async (tx) => {
+    await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}::uuid`);
+    await tx.execute(sql`DELETE FROM attachments WHERE pet_id = ${petId}::uuid`);
+    await tx
+      .update(pets)
+      .set({
+        tattooCode: null,
+        tattooLocation: null,
+        tattooDescription: null,
+        tattooRecordedAt: null,
+        tattooRecordedBy: null,
+        tattooPhotoId: null,
+      })
+      .where(eq(pets.id, petId));
+  });
+}
+
+describe("normalizeTattooCode", () => {
+  it("uppercases and strips whitespace", () => {
+    expect(normalizeTattooCode("  k9-2014  ")).toBe("K9-2014");
+    expect(normalizeTattooCode("abc 123")).toBe("ABC123");
+    expect(normalizeTattooCode("X")).toBe("X");
+    expect(normalizeTattooCode("")).toBe("");
+    expect(normalizeTattooCode("   ")).toBe("");
+  });
+});
+
+describe("createTattooForUser", () => {
+  it("creates event + attachment + updates pets cache", async () => {
+    await resetPetTattoo();
+
+    const result = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "K9-2014-A",
+      location: "inner_ear_left",
+      description: "Criadero FCA",
+      recordedAt: new Date("2014-03-15"),
+      recordedBy: "Vet Dra. López",
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+
+    expect("ok" in result && result.ok).toBe(true);
+    if (!("ok" in result)) throw new Error("expected ok");
+
+    const events = await db.select().from(petEvents).where(eq(petEvents.id, result.eventId));
+    expect(events).toHaveLength(1);
+    expect(events[0].eventType).toBe("tattoo_recorded");
+    const payload = events[0].payload as Record<string, unknown>;
+    expect(payload.tattoo_code).toBe("K9-2014-A");
+    expect(payload.location_on_body).toBe("inner_ear_left");
+    expect(payload.description).toBe("Criadero FCA");
+    expect(payload.tattoo_date_known).toBe(true);
+
+    const attachmentRows = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.eventId, result.eventId));
+    expect(attachmentRows).toHaveLength(1);
+    expect(attachmentRows[0].storagePath).toBe(FAKE_UPLOAD.path);
+
+    const [petRow] = await db.select().from(pets).where(eq(pets.id, petId));
+    expect(petRow.tattooCode).toBe("K9-2014-A");
+    expect(petRow.tattooLocation).toBe("inner_ear_left");
+    expect(petRow.tattooDescription).toBe("Criadero FCA");
+    expect(petRow.tattooPhotoId).toBe(attachmentRows[0].id);
+  });
+
+  it("normalizes the code before persisting (trim + uppercase + collapse whitespace)", async () => {
+    await resetPetTattoo();
+
+    const result = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "  k9 2014  ",
+      location: null,
+      description: null,
+      recordedAt: null,
+      recordedBy: null,
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+
+    expect("ok" in result && result.ok).toBe(true);
+    if (!("ok" in result)) throw new Error("expected ok");
+
+    const [petRow] = await db.select().from(pets).where(eq(pets.id, petId));
+    expect(petRow.tattooCode).toBe("K92014");
+
+    const events = await db.select().from(petEvents).where(eq(petEvents.id, result.eventId));
+    const payload = events[0].payload as Record<string, unknown>;
+    expect(payload.tattoo_code).toBe("K92014");
+    expect(payload.tattoo_date_known).toBe(false);
+  });
+
+  it("rejects empty / whitespace-only codes", async () => {
+    const emptyResult = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "",
+      location: null,
+      description: null,
+      recordedAt: null,
+      recordedBy: null,
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+    expect("error" in emptyResult).toBe(true);
+
+    const wsResult = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "   ",
+      location: null,
+      description: null,
+      recordedAt: null,
+      recordedBy: null,
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+    expect("error" in wsResult).toBe(true);
+  });
+
+  it("rejects invalid location strings", async () => {
+    const result = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "ABC-123",
+      // Cast to bypass the TS enum so we can exercise the runtime guard.
+      location: "left_arm" as unknown as "other",
+      description: null,
+      recordedAt: null,
+      recordedBy: null,
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error).toMatch(/Ubicación/);
+    }
+  });
+
+  it("re-registration overwrites the cache but keeps both events in the append-only log", async () => {
+    await resetPetTattoo();
+
+    const first = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "FIRST-CODE",
+      location: "inner_ear_left",
+      description: null,
+      recordedAt: null,
+      recordedBy: null,
+      uploadedAttachment: FAKE_UPLOAD,
+    });
+    expect("ok" in first && first.ok).toBe(true);
+
+    const second = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
+      code: "SECOND-CODE",
+      location: "belly",
+      description: "re-recorded with better photo",
+      recordedAt: null,
+      recordedBy: null,
+      uploadedAttachment: { ...FAKE_UPLOAD, path: "second-photo.jpg" },
+    });
+    expect("ok" in second && second.ok).toBe(true);
+
+    const allEvents = await db.select().from(petEvents).where(eq(petEvents.petId, petId));
+    expect(allEvents).toHaveLength(2);
+    expect(allEvents.every((e) => e.eventType === "tattoo_recorded")).toBe(true);
+
+    const [petRow] = await db.select().from(pets).where(eq(pets.id, petId));
+    expect(petRow.tattooCode).toBe("SECOND-CODE");
+    expect(petRow.tattooLocation).toBe("belly");
+    expect(petRow.tattooDescription).toBe("re-recorded with better photo");
+  });
+});
