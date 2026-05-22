@@ -12,6 +12,7 @@ import {
   getEarnedAchievements,
   getNotYetComputableAchievements,
 } from "@/lib/achievements/catalog";
+import type { EarnedAchievement } from "@/lib/achievements/types";
 
 function makePet(overrides: Partial<Pet> = {}): Pet {
   // Minimal pet stub — the catalog only reads a handful of fields. Cast
@@ -214,6 +215,67 @@ describe("globetrotter (A5) — not_yet_computable", () => {
       expect(typeof a.missing).toBe("string");
       expect(a.missing.length).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-3: pulse_until field on EarnedAchievement
+// ---------------------------------------------------------------------------
+
+describe("pulse_until on EarnedAchievement (B-3)", () => {
+  const baseInput = {
+    pet: makePet(),
+    events: [makeEvent("adoption_finalized", {}, "2025-01-15")],
+    serviceDog: null,
+    cases: EMPTY_CASES,
+  };
+
+  it("AC-B8: existing tests still pass — earned achievements return correctly shaped objects", () => {
+    const earned = getEarnedAchievements(baseInput);
+    const a = earned.find((x) => x.id === "i_was_adopted");
+    expect(a).toBeDefined();
+    expect(a?.earnedAt).toBeInstanceOf(Date);
+    // pulse_until may be present or absent — type allows undefined
+    if (a && "pulseUntil" in a) {
+      const pu = (a as EarnedAchievement).pulseUntil;
+      expect(pu === null || pu === undefined || pu instanceof Date).toBe(true);
+    }
+  });
+
+  it("pulse_until populated from viewsMap when entry exists", () => {
+    const knownPulseUntil = new Date("2026-06-01T00:00:00Z");
+    const viewsMap = new Map<string, Date | null>([["i_was_adopted", knownPulseUntil]]);
+    const earned = getEarnedAchievements(baseInput, viewsMap);
+    const a = earned.find((x) => x.id === "i_was_adopted");
+    expect(a?.pulseUntil).toEqual(knownPulseUntil);
+  });
+
+  it("pulse_until defaults to ~7 days in the future when no viewsMap entry", () => {
+    const viewsMap = new Map<string, Date | null>(); // empty — no entry for i_was_adopted
+    const before = Date.now();
+    const earned = getEarnedAchievements(baseInput, viewsMap);
+    const after = Date.now();
+    const a = earned.find((x) => x.id === "i_was_adopted");
+    expect(a?.pulseUntil).toBeInstanceOf(Date);
+    const pu = a?.pulseUntil as Date;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    expect(pu.getTime()).toBeGreaterThanOrEqual(before + sevenDaysMs - 100); // -100ms tolerance
+    expect(pu.getTime()).toBeLessThanOrEqual(after + sevenDaysMs + 100);
+  });
+
+  it("pulse_until is undefined when viewsMap is not passed (backward compat)", () => {
+    const earned = getEarnedAchievements(baseInput); // no viewsMap
+    const a = earned.find((x) => x.id === "i_was_adopted");
+    expect(a).toBeDefined();
+    // Without viewsMap, pulseUntil may be undefined
+    expect(a?.pulseUntil).toBeUndefined();
+  });
+
+  it("pulse_until is null when viewsMap entry explicitly has null", () => {
+    const viewsMap = new Map<string, Date | null>([["i_was_adopted", null]]);
+    const earned = getEarnedAchievements(baseInput, viewsMap);
+    const a = earned.find((x) => x.id === "i_was_adopted");
+    expect(a?.pulseUntil).toBeNull();
   });
 });
 

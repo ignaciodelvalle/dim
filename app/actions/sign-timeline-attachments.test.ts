@@ -1,0 +1,247 @@
+// Unit tests for signTimelineAttachments server action.
+//
+// Uses vi.hoisted + vi.mock to isolate DB queries, requirePetAccess, and
+// Supabase storage signing. No live DB or storage required.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// Hoisted mocks
+// ---------------------------------------------------------------------------
+
+const { mockSelect, mockRequirePetAccess, mockCreateClient, mockCreateSignedUrl } = vi.hoisted(
+  () => ({
+    mockSelect: vi.fn(),
+    mockRequirePetAccess: vi.fn(),
+    mockCreateClient: vi.fn(),
+    mockCreateSignedUrl: vi.fn(),
+  }),
+);
+
+vi.mock("@/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/db")>();
+  return {
+    ...actual,
+    db: {
+      select: mockSelect,
+    },
+  };
+});
+
+vi.mock("@/lib/pet-access", () => ({
+  requirePetAccess: mockRequirePetAccess,
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: mockCreateClient,
+}));
+
+// Import AFTER mocks.
+import {
+  signTimelineAttachments,
+  signTimelineAttachmentsForPet,
+} from "./sign-timeline-attachments";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeOwnerAccess(userId = "user-1", petId = "pet-1") {
+  return {
+    ok: true as const,
+    accessPath: "owner" as const,
+    user: { id: userId },
+    pet: { id: petId, publicToken: "token-abc" },
+  };
+}
+
+function makeOrgAccess(userId = "user-1", petId = "pet-1") {
+  return {
+    ok: true as const,
+    accessPath: "org" as const,
+    user: { id: userId },
+    pet: { id: petId, publicToken: "token-abc" },
+    organization: { id: "org-1", publicToken: "org-token" },
+    ownershipRole: "foster" as const,
+    organizationRole: "coordinator" as const,
+    eventAuthorship: {},
+  };
+}
+
+function makeAttachment(eventId: string, storagePath: string) {
+  return { eventId, storagePath };
+}
+
+// Chain helper: mocks the drizzle select().from().where() chain.
+function chainReturning(rows: unknown[]) {
+  const chain: Record<string, unknown> = {};
+  chain.from = vi.fn().mockReturnValue(chain);
+  chain.where = vi.fn().mockReturnValue(chain);
+  // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mimics drizzle chain that resolves on await
+  chain.then = (resolve: (v: unknown) => void) => resolve(rows);
+  return chain;
+}
+
+// ---------------------------------------------------------------------------
+// Setup / teardown
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: null }, error: null });
+  mockCreateClient.mockResolvedValue({
+    storage: {
+      from: () => ({
+        createSignedUrl: mockCreateSignedUrl,
+      }),
+    },
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("signTimelineAttachments", () => {
+  describe("authorization", () => {
+    it("returns error when pet access check fails", async () => {
+      mockRequirePetAccess.mockResolvedValue({ ok: false });
+
+      const result = await signTimelineAttachments("bad-token", ["event-1"]);
+
+      expect(result).toEqual({ error: "Pet not found or access denied" });
+    });
+
+    it("allows owner access", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+      mockSelect.mockReturnValue(chainReturning([]));
+
+      const result = await signTimelineAttachments("token-abc", ["event-1"]);
+
+      expect(result).not.toHaveProperty("error");
+    });
+
+    it("allows org (non-owner) access — timeline is viewable by custody holders", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOrgAccess());
+      mockSelect.mockReturnValue(chainReturning([]));
+
+      const result = await signTimelineAttachments("token-abc", ["event-1"]);
+
+      expect(result).not.toHaveProperty("error");
+    });
+  });
+
+  describe("input validation", () => {
+    it("returns error when petPublicToken is empty string", async () => {
+      const result = await signTimelineAttachments("", ["event-1"]);
+      expect(result).toEqual({ error: "Invalid input" });
+    });
+
+    it("returns empty map for empty eventIds array", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+
+      const result = await signTimelineAttachments("token-abc", []);
+
+      expect(result).toEqual({});
+    });
+
+    it("returns error when eventIds is not an array", async () => {
+      // @ts-expect-error — intentional runtime type violation test
+      const result = await signTimelineAttachments("token-abc", null);
+      expect(result).toEqual({ error: "Invalid input" });
+    });
+  });
+
+  describe("signing", () => {
+    it("returns empty map when no attachments found for the given event ids", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+      mockSelect.mockReturnValue(chainReturning([]));
+
+      const result = await signTimelineAttachments("token-abc", ["event-1", "event-2"]);
+
+      expect(result).toEqual({});
+    });
+
+    it("signs URLs and returns map keyed by eventId", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+      mockSelect.mockReturnValue(
+        chainReturning([
+          makeAttachment("event-1", "pet-1/event-1/photo.jpg"),
+          makeAttachment("event-2", "pet-1/event-2/doc.pdf"),
+        ]),
+      );
+      mockCreateSignedUrl
+        .mockResolvedValueOnce({ data: { signedUrl: "https://signed.url/photo.jpg" }, error: null })
+        .mockResolvedValueOnce({ data: { signedUrl: "https://signed.url/doc.pdf" }, error: null });
+
+      const result = await signTimelineAttachments("token-abc", ["event-1", "event-2"]);
+
+      expect(result).toEqual({
+        "event-1": "https://signed.url/photo.jpg",
+        "event-2": "https://signed.url/doc.pdf",
+      });
+    });
+
+    it("skips attachments where signing returns null (storage error)", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+      mockSelect.mockReturnValue(
+        chainReturning([makeAttachment("event-1", "pet-1/event-1/photo.jpg")]),
+      );
+      // Simulates a storage error — createSignedUrl returns null signedUrl.
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: null },
+        error: { message: "not found" },
+      });
+
+      const result = await signTimelineAttachments("token-abc", ["event-1"]);
+
+      expect(result).toEqual({});
+    });
+
+    it("uses the event-attachments bucket (NOT pet-photos — known gotcha from tattoo work)", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+      const fromSpy = vi.fn().mockReturnValue({ createSignedUrl: mockCreateSignedUrl });
+      mockCreateClient.mockResolvedValue({ storage: { from: fromSpy } });
+      mockSelect.mockReturnValue(
+        chainReturning([makeAttachment("event-1", "pet-1/event-1/photo.jpg")]),
+      );
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: "https://signed.url/x" },
+        error: null,
+      });
+
+      await signTimelineAttachments("token-abc", ["event-1"]);
+
+      expect(fromSpy).toHaveBeenCalledWith("event-attachments");
+    });
+  });
+
+  describe("signTimelineAttachmentsForPet (page.tsx bound wrapper)", () => {
+    it("returns an empty map when inner action returns an error (graceful degradation)", async () => {
+      mockRequirePetAccess.mockResolvedValue({ ok: false });
+
+      const result = await signTimelineAttachmentsForPet("bad-token", ["event-1"]);
+
+      expect(result).toEqual({});
+    });
+
+    it("passes through signed urls from inner action", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeOwnerAccess());
+      mockSelect.mockReturnValue(
+        chainReturning([makeAttachment("event-1", "pet-1/event-1/photo.jpg")]),
+      );
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: "https://signed.url/photo.jpg" },
+        error: null,
+      });
+
+      const result = await signTimelineAttachmentsForPet("token-abc", ["event-1"]);
+
+      expect(result).toEqual({ "event-1": "https://signed.url/photo.jpg" });
+    });
+  });
+});

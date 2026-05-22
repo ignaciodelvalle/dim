@@ -42,6 +42,10 @@ export type EarnedAchievement = AchievementDef & {
   earnedAt: Date;
   count?: number;
   detail?: string;
+  /** Badge-pulse window end. Populated from `pet_achievement_views.pulse_until`
+   *  when a `viewsMap` is passed to `getEarnedAchievements`. Absent when no
+   *  map is provided (backward-compatible). */
+  pulseUntil?: Date | null;
 };
 
 export type NotYetComputableAchievement = AchievementDef & {

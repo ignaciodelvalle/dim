@@ -10,6 +10,7 @@
 
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -926,6 +927,130 @@ export async function fetchPetWeightHistory(petId: string): Promise<PetWeightSam
     samples.push({ date: new Date(r.occurred_at), kg });
   }
   return samples;
+}
+
+// ---------------------------------------------------------------------------
+// Pet profile v2 — targeted event queries
+// ---------------------------------------------------------------------------
+
+/**
+ * Whitelisted event types for the pet profile v2 page.
+ *
+ * These are the only event types fetched for state-computing components
+ * (PetCurrentStateSection, AchievementsSection) and for the collapsed
+ * PetHealthTimeline preview (recentFive — all types).
+ *
+ * Guard rule: every event_type consumed by ACHIEVEMENTS_CATALOG computeStatus
+ * functions AND by state-computing components MUST be listed here. The test
+ * in __tests__/pet-profile-v2-events.test.ts asserts this invariant.
+ */
+export const PROFILE_V2_TYPED_EVENT_TYPES = [
+  // Medication lifecycle — Cuidados próximos state + A4 / estado actual
+  "medication_started",
+  "medication_stopped",
+  // Pregnancy — A4 achievement (live birth): the actual event type is
+  // clinical_info_logged with sub_kind='pregnancy'; there are no standalone
+  // pregnancy_started / pregnancy_ended event types in the DB.
+  "clinical_info_logged",
+  // Vaccination — rabies observation label + A-future vaccine state
+  "vaccination_administered",
+  // Adoption — A2 achievement
+  "adoption_finalized",
+  // Lost-and-found — A3 achievement
+  "status_changed",
+  // Weight — Estado actual weight + "hace X" suffix
+  "weight_recorded",
+  // Sterilization — Estado actual sterilized flag
+  "sterilization_performed",
+  // Tattoo — Estado actual (R5, fold from tattoo-identifier)
+  "tattoo_recorded",
+  // Microchip — Estado actual chip line
+  "microchip_recorded",
+  "microchip_implanted",
+] as const;
+
+export type ProfileV2TypedEventType = (typeof PROFILE_V2_TYPED_EVENT_TYPES)[number];
+
+/**
+ * Metadata-only projection of a pet event — used by the collapsed
+ * PetHealthTimeline header preview. No attachment URLs, no full payload.
+ */
+export interface PetEventMetadata {
+  id: string;
+  eventType: string;
+  occurredAt: Date;
+  /** payload->>'summary' or a short derived label. May be null. */
+  summary: string | null;
+}
+
+/**
+ * Return shape of fetchPetEventsForProfileV2.
+ */
+export interface PetProfileV2Events {
+  /**
+   * Whitelisted event types used by state-computing components
+   * (achievements, PetCurrentStateSection, PetHealthTimeline state).
+   * Ordered ASC by occurred_at.
+   */
+  typedEvents: (typeof petEvents.$inferSelect)[];
+  /**
+   * Last 5 events overall, metadata only — no attachment URL signing.
+   * Used by the collapsed PetHealthTimeline header preview.
+   */
+  recentFive: PetEventMetadata[];
+}
+
+/**
+ * Targeted pet event queries for the v2 pet profile page.
+ *
+ * Runs two parallel Drizzle queries:
+ *   - Query A: whitelisted event types for state computation (no signing)
+ *   - Query B: last 5 events, metadata only (no signing)
+ *
+ * This replaces the legacy "fetch everything + sign all attachments" pattern
+ * and reduces profile load from O(N) to O(1) queries.
+ */
+export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProfileV2Events> {
+  const [typedRows, recentRows] = await Promise.all([
+    // Query A — whitelisted events for state computation, oldest first.
+    db
+      .select()
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          inArray(petEvents.eventType, [...PROFILE_V2_TYPED_EVENT_TYPES]),
+        ),
+      )
+      .orderBy(asc(petEvents.occurredAt)),
+    // Query B — last 5 events, metadata only.
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(eq(petEvents.petId, petId))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(5),
+  ]);
+
+  const recentFive: PetEventMetadata[] = recentRows.map(
+    (r: { id: string; eventType: string; occurredAt: Date; payload: unknown }) => {
+      const payload = (r.payload ?? {}) as Record<string, unknown>;
+      const summary = typeof payload.summary === "string" ? payload.summary : null;
+      return {
+        id: r.id,
+        eventType: r.eventType,
+        occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(r.occurredAt as string),
+        summary,
+      };
+    },
+  );
+
+  return { typedEvents: typedRows, recentFive };
 }
 
 // ---------------------------------------------------------------------------
