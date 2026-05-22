@@ -2,11 +2,13 @@
 // (grouped by clinical purpose) or as a flat chronological list. Grouping
 // happens in lib/libreta-sanitaria.ts; this component is render-only.
 
+import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { eventPayloadSummary } from "@/lib/events";
 import { formatDate } from "@/lib/format";
 import {
   LIBRETA_GROUPS,
   LIBRETA_GROUP_LABELS,
+  libretaConfidenceTier,
   type LibretaGroupKey,
 } from "@/lib/libreta-sanitaria";
 
@@ -16,6 +18,10 @@ type Event = {
   payload: unknown;
   occurredAt: Date | string;
   notes: string | null;
+  // Provenance fields — used to derive confidence tier (A3/plan 2026-05-22).
+  authorRole: string;
+  authorVerified: boolean;
+  authorOrganizationId: string | null;
 };
 
 type Props = {
@@ -74,12 +80,21 @@ function LibretaEntry({ event, publicToken: _publicToken }: { event: Event; publ
   const summary = eventPayloadSummary(event.eventType, event.payload);
   const occurredIso =
     typeof event.occurredAt === "string" ? event.occurredAt : event.occurredAt.toISOString();
+  const confidenceTier = libretaConfidenceTier({
+    authorRole: event.authorRole,
+    authorVerified: event.authorVerified,
+    authorOrganizationId: event.authorOrganizationId,
+    payload: (event.payload ?? {}) as Record<string, unknown>,
+  });
   return (
     <li className="flex items-baseline justify-between gap-3 py-2 border-b border-neutral-100 dark:border-neutral-900 last:border-b-0">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          {summary.primary ?? event.eventType}
-        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            {summary.primary ?? event.eventType}
+          </p>
+          <ConfidenceBadge tier={confidenceTier} />
+        </div>
         {summary.secondary && (
           <p className="text-xs text-neutral-600 dark:text-neutral-400">{summary.secondary}</p>
         )}
