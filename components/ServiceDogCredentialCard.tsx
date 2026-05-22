@@ -14,14 +14,7 @@ import Link from "next/link";
 
 import type { PetServiceDog } from "@/db";
 import { formatDate } from "@/lib/format";
-
-const SERVICE_TYPE_LABELS: Record<string, string> = {
-  guia: "Perro guía",
-  asistencia: "Perro de asistencia",
-  alerta_medica: "Perro de alerta médica",
-  emocional_terapia: "Perro de apoyo emocional / terapia",
-  otro: "Otro tipo de perro de servicio",
-};
+import { SERVICE_TYPE_LABELS } from "@/lib/service-dog-labels";
 
 interface Props {
   petPublicToken: string;
