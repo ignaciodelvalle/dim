@@ -6,6 +6,7 @@
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
 
+import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
 import { attachments, db, ownerships, petEvents, petServiceDog, pets, profiles } from "@/db";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
@@ -302,6 +303,14 @@ export default async function PublicCredentialPage({
             {pet.publicToken}
           </p>
         </div>
+
+        {/* PPP badge — Ley CABA 4078 / Ley Prov 14.107. Renders when the pet is
+            subject to the PPP regime. Disclosure is required by law (the public
+            has a right to know). Only shown on the active-credential branch —
+            lost pets surface this context via LostPublicCredential. */}
+        {pet.potentiallyDangerousBreed && (
+          <PppPublicBadge petName={pet.name} breed={pet.breed ?? null} />
+        )}
 
         {/* Service dog banner — Ley 26.858. Renders only when the owner opted in
             AND the credential is vigente AND the type is ANDIS-recognized. */}

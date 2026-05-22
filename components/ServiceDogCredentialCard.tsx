@@ -14,14 +14,7 @@ import Link from "next/link";
 
 import type { PetServiceDog } from "@/db";
 import { formatDate } from "@/lib/format";
-
-const SERVICE_TYPE_LABELS: Record<string, string> = {
-  guia: "Perro guía",
-  asistencia: "Perro de asistencia",
-  alerta_medica: "Perro de alerta médica",
-  emocional_terapia: "Perro de apoyo emocional / terapia",
-  otro: "Otro tipo de perro de servicio",
-};
+import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/service-dog-labels";
 
 interface Props {
   petPublicToken: string;
@@ -122,6 +115,15 @@ export function ServiceDogCredentialCard({
           className="text-xs font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
         >
           Gestionar credencial →
+        </Link>
+      </div>
+
+      <div className="border-t border-emerald-100 px-4 py-2 dark:border-emerald-900">
+        <Link
+          href={buildPresentarHref(petPublicToken)}
+          className="text-xs font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
+        >
+          Presentar credencial →
         </Link>
       </div>
     </section>
