@@ -79,7 +79,7 @@ export default async function Home() {
           </p>
         </header>
 
-        {/* Action panel — asymmetric grid: form left, credential preview right */}
+        {/* Action panel — centered single card for both auth states */}
         {isAuthenticated ? (
           <section className="max-w-md mx-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm mb-12 md:mb-16">
             <div className="space-y-4 text-center">
@@ -98,37 +98,29 @@ export default async function Home() {
             </div>
           </section>
         ) : (
-          <section className="md:grid md:grid-cols-5 md:gap-6 mb-12 md:mb-16">
-            {/* Form panel */}
-            <div className="md:col-span-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm">
-              <div className="space-y-5">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
-                    Empezá ahora
-                  </p>
-                  <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-                    Creá la credencial de tu mascota
-                  </h2>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Es gratis y tarda un minuto. Empezá por los datos básicos.
-                  </p>
-                </div>
-                <PetDraftForm />
-                <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
-                  ¿Ya tenés cuenta?{" "}
-                  <Link
-                    href="/login"
-                    className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
-                  >
-                    Iniciar sesión
-                  </Link>
+          <section className="max-w-md mx-auto rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-6 md:p-8 shadow-sm mb-12 md:mb-16">
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
+                  Empezá ahora
+                </p>
+                <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+                  Creá la credencial de tu mascota
+                </h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  Es gratis y tarda un minuto. Empezá por los datos básicos.
                 </p>
               </div>
-            </div>
-
-            {/* Credential preview — on mobile renders below the form */}
-            <div className="md:col-span-2 mt-4 md:mt-0">
-              <CredentialPreviewCard />
+              <PetDraftForm />
+              <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
+                ¿Ya tenés cuenta?{" "}
+                <Link
+                  href="/login"
+                  className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
+                >
+                  Iniciar sesión
+                </Link>
+              </p>
             </div>
           </section>
         )}
@@ -234,40 +226,6 @@ function SupportingBenefit({
 }
 
 // ---------------------------------------------------------------------------
-// Credential preview card
-// ---------------------------------------------------------------------------
-
-function CredentialPreviewCard() {
-  return (
-    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-5 flex flex-col gap-4">
-      <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
-        Así se va a ver
-      </p>
-
-      <div className="flex items-center gap-3">
-        {/* Dog silhouette avatar */}
-        <div className="h-12 w-12 shrink-0 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-          <DogSilhouetteIcon />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">Firulais</p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">Perro · Labrador</p>
-        </div>
-      </div>
-
-      {/* Static decorative QR pattern */}
-      <div className="flex justify-center">
-        <StaticQRPattern />
-      </div>
-
-      <p className="text-center font-mono text-xs text-neutral-500 dark:text-neutral-400 tracking-widest">
-        DIM-A47K-9P2X
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Inline SVG icons (20×20, stroke 1.5, currentColor, aria-hidden)
 // ---------------------------------------------------------------------------
 
@@ -347,86 +305,6 @@ function AlertTriangleIcon() {
         strokeLinejoin="round"
         d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
       />
-    </svg>
-  );
-}
-
-function DogSilhouetteIcon() {
-  return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-      />
-    </svg>
-  );
-}
-
-// Static 7×7 decorative QR pattern (no real encoding, purely visual).
-function StaticQRPattern() {
-  // Each cell is 6px; the 7×7 grid is 42px × 42px with a 4px quiet zone.
-  const CELL = 6;
-  const QUIET = 4;
-  const SIZE = 7 * CELL + QUIET * 2;
-
-  // Finder pattern (top-left, top-right, bottom-left) + sample data modules.
-  const filled: [number, number][] = [
-    // Top-left finder
-    ...[0, 1, 2, 3, 4, 5, 6].map((x): [number, number] => [x, 0]),
-    ...[0, 1, 2, 3, 4, 5, 6].map((x): [number, number] => [x, 6]),
-    ...[0, 1, 2, 3, 4, 5, 6].map((y): [number, number] => [0, y]),
-    ...[0, 1, 2, 3, 4, 5, 6].map((y): [number, number] => [6, y]),
-    [2, 2],
-    [3, 2],
-    [4, 2],
-    [2, 3],
-    [3, 3],
-    [4, 3],
-    [2, 4],
-    [3, 4],
-    [4, 4],
-    // Sparse data modules
-    [1, 3],
-    [5, 1],
-    [5, 4],
-    [3, 5],
-    [1, 5],
-    [5, 5],
-  ];
-
-  const cells = Array.from(new Set(filled.map(([x, y]) => `${x},${y}`))).map((s) => {
-    const [x, y] = s.split(",").map(Number);
-    return { x, y };
-  });
-
-  return (
-    <svg
-      width={SIZE}
-      height={SIZE}
-      viewBox={`0 0 ${SIZE} ${SIZE}`}
-      aria-hidden="true"
-      className="text-neutral-900 dark:text-neutral-50"
-    >
-      <rect width={SIZE} height={SIZE} fill="transparent" />
-      {cells.map(({ x, y }) => (
-        <rect
-          key={`${x}-${y}`}
-          x={QUIET + x * CELL}
-          y={QUIET + y * CELL}
-          width={CELL - 1}
-          height={CELL - 1}
-          fill="currentColor"
-        />
-      ))}
     </svg>
   );
 }
