@@ -141,13 +141,16 @@ describe("insertEventIdempotent", () => {
   // B6 test 3 (B8 decision): same key + different payload → returns ORIGINAL (last-stable-wins)
   it("same key + different payload → returns ORIGINAL event, wasNoop=true (B8 last-stable-wins)", async () => {
     const existing = makeEvent({ payload: { kg: "8.00" } as Record<string, unknown> });
-    const differentPayloadValues: NewPetEvent = { ...baseValues, payload: { kg: "15.00" } as Record<string, unknown> };
+    const differentPayloadValues: NewPetEvent = {
+      ...baseValues,
+      payload: { kg: "15.00" } as Record<string, unknown>,
+    };
     // INSERT returns empty (conflict), SELECT returns the ORIGINAL row.
     const executor = makeInsertExecutor([], [existing]);
     const result = await insertEventIdempotent(differentPayloadValues, executor as never);
     expect(result.wasNoop).toBe(true);
     // Must return the ORIGINAL row, not the one with kg=15.00.
-    expect((result.event.payload as Record<string, unknown>)["kg"]).toBe("8.00");
+    expect((result.event.payload as Record<string, unknown>).kg).toBe("8.00");
   });
 
   // B6 test 4: different key → new row, wasNoop=false

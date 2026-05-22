@@ -95,10 +95,7 @@ export async function insertEventIdempotent(
 
   // No key → plain insert (no conflict-resolution path).
   if (!key) {
-    const [event] = await executor
-      .insert(petEvents)
-      .values(values)
-      .returning();
+    const [event] = await executor.insert(petEvents).values(values).returning();
 
     if (!event) throw new Error("insertEventIdempotent: insert returned no rows");
     return { event, wasNoop: false };
@@ -119,17 +116,11 @@ export async function insertEventIdempotent(
   }
 
   // Conflict fired → fetch the original row (last-stable-wins, B8).
-  const existing = await findExistingByKey(
-    values.petId,
-    values.eventType,
-    key,
-    executor,
-  );
+  const existing = await findExistingByKey(values.petId, values.eventType, key, executor);
 
   if (!existing) {
     throw new Error(
-      `insertEventIdempotent: conflict detected but original row not found ` +
-        `(petId=${values.petId}, eventType=${values.eventType}, key=${key})`,
+      `insertEventIdempotent: conflict detected but original row not found (petId=${values.petId}, eventType=${values.eventType}, key=${key})`,
     );
   }
 
