@@ -6,6 +6,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 
+import { _createPetFromDraft } from "@/app/actions/pets";
 import { db, organizationMemberships, profiles } from "@/db";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
@@ -13,9 +14,6 @@ import { redirect } from "next/navigation";
 
 export type AuthFormState = {
   error: string | null;
-  // Set by signupAction so the multi-step signup form knows to advance to
-  // the first-pet step. loginAction never sets it.
-  ok?: boolean;
 };
 
 // @no-auth-required: signup is by definition pre-authentication.
@@ -34,8 +32,13 @@ export async function signupAction(
     return { error: "La contraseña debe tener al menos 8 caracteres." };
   }
 
+  // Read hidden draft fields submitted by SignupForm.
+  const draftName = String(formData.get("draftName") ?? "").trim();
+  const draftSpecies = String(formData.get("draftSpecies") ?? "").trim();
+  const draftBreed = String(formData.get("draftBreed") ?? "").trim() || null;
+
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -53,10 +56,30 @@ export async function signupAction(
     return { error: `No se pudo crear la cuenta: ${error.message}` };
   }
 
-  // Do NOT redirect. The inline signup flow uses this success signal to
-  // transition the same page to the first-pet step (AGENTS.md → v1 screens
-  // §Signup: "*immediately* collects first pet profile in same flow").
-  return { error: null, ok: true };
+  // apply-intent: skip pet creation, redirect back to the adoption flow.
+  const intent = String(formData.get("intent") ?? "").trim();
+  const returnTo = safeReturnTo(String(formData.get("returnTo") ?? ""));
+  if (intent === "apply" && returnTo) {
+    redirect(returnTo);
+  }
+
+  // Auto-create pet from draft when the user filled one in on the landing page.
+  // Use data.user directly — getUser() cannot read the just-set session within
+  // the same server action request (cookies are on the response, not yet readable).
+  if (draftName && signUpData.user) {
+    const species = draftSpecies === "dog" || draftSpecies === "cat" ? draftSpecies : "other";
+    const result = await _createPetFromDraft(signUpData.user, {
+      name: draftName,
+      species,
+      breed: draftBreed,
+    });
+    if ("error" in result) {
+      // Auto-create is best-effort: the user is signed up. Log and move on.
+      console.error("[signupAction] _createPetFromDraft failed:", result.error);
+    }
+  }
+
+  redirect("/mis-mascotas");
 }
 
 // @no-auth-required: login is by definition pre-authentication.

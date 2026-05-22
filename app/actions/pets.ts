@@ -253,6 +253,92 @@ function normalizeConditionsOther(parsed: ParsedPet): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// INTERNAL HELPER — auto-create from landing draft
+// ---------------------------------------------------------------------------
+
+// Minimal pet insert for the landing → signup auto-create path. Called from
+// signupAction (server-side) to avoid the client useEffect race where
+// page.tsx redirects before the effect can fire createPetAction.
+//
+// Intentionally omits PPP evaluation, microchip logic, photo upload, and
+// jurisdiction resolution — the user can fill those in on first edit.
+export async function _createPetFromDraft(
+  user: { id: string },
+  draft: { name: string; species: string; breed?: string | null },
+): Promise<{ publicToken: string } | { error: string }> {
+  const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
+  const now = new Date();
+
+  const petRegisteredPayload = validateEventPayload("pet_registered", {
+    name: draft.name,
+    species: draft.species,
+    sex: "unknown",
+    breed: draft.breed ?? null,
+    date_of_birth: null,
+    birth_date_is_estimated: false,
+    color: null,
+    microchip_id: null,
+    microchip_country_code: null,
+    microchip_implanted_at: null,
+    microchip_implanted_by: null,
+    microchip_location: null,
+    estimated_weight_kg: null,
+    favourite_foods: [],
+    known_allergies: [],
+    training_level: null,
+    insurance_company: null,
+    insurance_policy_number: null,
+    jurisdiction_province: null,
+    jurisdiction_locality: null,
+    potentially_dangerous_breed: false,
+    acquisition_method: null,
+    has_photo: false,
+    has_microchip: false,
+    custody_kind: "owner",
+  });
+
+  try {
+    await db.transaction(async (tx) => {
+      const [newPet] = await tx
+        .insert(pets)
+        .values({
+          publicToken,
+          name: draft.name,
+          species: draft.species,
+          sex: "unknown",
+          breed: draft.breed || null,
+          birthDateIsEstimated: false,
+          emergencyInfoVisible: false,
+          permanentConditions: [],
+          discloseConditionsPublicly: false,
+        })
+        .returning();
+
+      await tx.insert(ownerships).values({
+        petId: newPet.id,
+        ownerUserId: user.id,
+        role: "owner",
+        startedAt: now,
+      });
+
+      await tx.insert(petEvents).values({
+        petId: newPet.id,
+        eventType: "pet_registered",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "owner",
+        payload: petRegisteredPayload,
+      });
+    });
+
+    return { publicToken };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "error desconocido" };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CREATE
 // ---------------------------------------------------------------------------
 
