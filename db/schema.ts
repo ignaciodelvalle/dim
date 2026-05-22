@@ -2660,3 +2660,78 @@ export const petAchievementViews = pgTable(
 
 export type PetAchievementView = typeof petAchievementViews.$inferSelect;
 export type NewPetAchievementView = typeof petAchievementViews.$inferInsert;
+
+// ============================================================================
+// Event notification outbox — ENO Event-Trust Tier 1, Fase C.1
+// ============================================================================
+// Durable delivery queue for regulated event notifications (ENO and future
+// targets). One row per (source_event, target_kind). Inserted in the SAME
+// transaction as the source event for atomicity. Drained every 5 minutes by
+// /api/cron/drain-outbox.
+//
+// Spec: docs/superpowers/plans/2026-05-22-event-trust-tier-1.md §4 C.1
+// Decisions C1-C9 closed 2026-05-22.
+//
+// No RLS: system-only table. Admin access goes through service-role Drizzle.
+// ============================================================================
+
+export const outboxTargetKindEnum = pgEnum("outbox_target_kind", [
+  "govt_webhook",
+  "eno_authority",
+  "audit_export",
+  "internal_dashboard",
+]);
+
+export const outboxStatusEnum = pgEnum("outbox_status", ["pending", "delivered", "failed"]);
+
+export type OutboxTargetKind = (typeof outboxTargetKindEnum.enumValues)[number];
+export type OutboxStatus = (typeof outboxStatusEnum.enumValues)[number];
+
+export const eventNotificationOutbox = pgTable(
+  "event_notification_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    // Source event FK. ON DELETE CASCADE so test teardown cascades naturally.
+    sourceEventId: uuid("source_event_id")
+      .notNull()
+      .references(() => petEvents.id, { onDelete: "cascade" }),
+
+    targetKind: outboxTargetKindEnum("target_kind").notNull(),
+
+    // Jurisdiction snapshot at enqueue time — used for webhook routing in v2.
+    targetJurisdictionProvince: text("target_jurisdiction_province"),
+    targetJurisdictionLocality: text("target_jurisdiction_locality"),
+
+    // Snapshot of the source event payload at enqueue time — decoupled from
+    // the live event row so the drainer never needs to re-join pet_events.
+    payloadSnapshot: jsonb("payload_snapshot").notNull().default(sql`'{}'::jsonb`),
+
+    // Legal SLA deadline. Computed as now() + slaHours at enqueue time.
+    slaDueAt: timestamp("sla_due_at", { withTimezone: true }).notNull(),
+
+    // Delivery lifecycle.
+    status: outboxStatusEnum("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    // Initial value is now() so the drainer picks up the row immediately.
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // Drainer: pending rows due for processing.
+    drainableIdx: index("outbox_drainable_idx")
+      .on(table.nextRetryAt)
+      .where(sql`${table.status} = 'pending'`),
+    // SLA monitoring: rows approaching or past their legal deadline.
+    slaDueIdx: index("outbox_sla_due_idx").on(table.slaDueAt, table.status),
+    // Admin UI reverse-lookup from source event.
+    sourceEventIdx: index("outbox_source_event_idx").on(table.sourceEventId),
+  }),
+);
+
+export type EventNotificationOutbox = typeof eventNotificationOutbox.$inferSelect;
+export type NewEventNotificationOutbox = typeof eventNotificationOutbox.$inferInsert;
