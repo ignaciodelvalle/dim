@@ -201,6 +201,12 @@ export async function createIntakeAction(
     }
   }
 
+  // TODO(tattoo-match-intake-field): tatuaje cross-check (D2 closed 2026-05-22).
+  // lib/tattoo-lookup.ts exports lookupByTattoo, mirroring the chip check above.
+  // Wire it here when the intake form surfaces a `tattooCode` field. Surface
+  // must be "posible coincidencia, verificá con foto" — never auto-merge, since
+  // tattoo codes collide across registries. See plan Chunk B.5.
+
   const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
   const now = new Date();
   const authorVerified = organization.verified;

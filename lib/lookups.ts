@@ -46,6 +46,22 @@ export const MICROCHIP_LOCATIONS = [
   { value: "other", label: "Otra ubicación" },
 ];
 
+// Tattoo body location — closed lookup mirroring the chip pattern. Free-text
+// origin/registry lives in pets.tattoo_description (D1 closed 2026-05-22 — no
+// registry enum; the owner writes the origin in description).
+export const TATTOO_LOCATIONS = [
+  { value: "inner_ear_left", label: "Oreja interna izquierda" },
+  { value: "inner_ear_right", label: "Oreja interna derecha" },
+  { value: "inner_thigh", label: "Muslo interno" },
+  { value: "belly", label: "Panza" },
+  { value: "other", label: "Otra ubicación" },
+] as const;
+
+export function tattooLocationLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return TATTOO_LOCATIONS.find((l) => l.value === value)?.label ?? value;
+}
+
 // Some pet insurance companies operating in Argentina (2025-26). Free text
 // allowed too; this is just for autocomplete.
 export const INSURANCE_COMPANIES = [

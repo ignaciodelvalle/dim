@@ -540,6 +540,42 @@ const microchipReplaced = z
   )
   .strict();
 
+// Tattoo as secondary identifier. Spec §4.3 + decisions D1-D4 closed 2026-05-22.
+// No `registry` enum (D1 — origin lives in free-form `description`).
+// `tattoo_code` is normalized (uppercase + strip whitespace) in createTattooForUser
+// and lookupByTattoo, NOT in the schema — the schema accepts whatever the writer
+// emits so legacy/test payloads with un-normalized codes still validate.
+const tattooRecorded = z
+  .object(
+    withVersion({
+      tattoo_code: z.string().min(1),
+      location_on_body: z
+        .enum(["inner_ear_left", "inner_ear_right", "inner_thigh", "belly", "other"])
+        .nullable(),
+      description: z.string().nullable(),
+      recorded_by: z.string().nullable(),
+      recorded_by_organization_id: z.string().uuid().nullable().optional(),
+      recorded_by_user_id: z.string().uuid().nullable().optional(),
+      // ISO date of the tattoo itself (not the registration in DIM).
+      recorded_at: z.string().nullable(),
+      // Whether the date is the actual tattoo date (true) or just the
+      // registration moment in DIM (false). Defaults to false to be honest
+      // about uncertainty for retroactive captures.
+      tattoo_date_known: z.boolean().optional(),
+    }),
+  )
+  .strict();
+
+const tattooUpdated = z
+  .object(
+    withVersion({
+      previous_tattoo_code: z.string().nullable(),
+      new_tattoo_code: z.string(),
+      reason: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // ---------------------------------------------------------------------------
 // Free-form & system
 // ---------------------------------------------------------------------------
@@ -1223,6 +1259,8 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   clinical_info_logged: clinicalInfoLogged,
   microchip_implanted: microchipImplanted,
   microchip_replaced: microchipReplaced,
+  tattoo_recorded: tattooRecorded,
+  tattoo_updated: tattooUpdated,
   dangerous_breed_attested: dangerousBreedAttested,
   note_added: noteAdded,
   credential_scanned: credentialScanned,

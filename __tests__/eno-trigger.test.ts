@@ -328,6 +328,67 @@ describe("processEnoEventTrigger", () => {
     expect(auditRows[0].payload.disease_code).toBe("rabies");
   });
 
+  // Regression: before the diseaseCodeToEnoCode bridge, the trigger silently
+  // no-op'd on every rabies diagnosis because the form emits `rabies_confirmed`
+  // and `isEnoCode("rabies_confirmed")` returned false. This test pins that
+  // bug closed — input is the form code, fanout must still happen.
+  it("rabies_confirmed (form code) → bridged to rabies → full fanout fires", async () => {
+    const pet = await insertTestPet(ownerUserId, "RABIESC");
+
+    const [clinicEvent] = await db
+      .insert(petEvents)
+      .values({
+        petId: pet.id,
+        eventType: "clinical_info_logged",
+        occurredAt: new Date(),
+        recordedByUserId: vetUserId,
+        authorRole: "vet",
+        payload: {
+          sub_kind: "disease_diagnosis",
+          disease_code: "rabies_confirmed",
+          diagnosis_date: new Date().toISOString(),
+        },
+      })
+      .returning();
+
+    await processEnoEventTrigger(makeDiagnosisEvent(clinicEvent.id, pet.id, "rabies_confirmed"));
+
+    const govtNotifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.notificationType, "eno_disease_diagnosis"),
+          eq(notifications.relatedPetId, pet.id),
+        ),
+      );
+    expect(govtNotifs.length).toBe(2);
+
+    const ownerNotifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, ownerUserId),
+          eq(notifications.notificationType, "eno_pet_disease_diagnosis"),
+          eq(notifications.relatedPetId, pet.id),
+        ),
+      );
+    expect(ownerNotifs.length).toBe(1);
+
+    const auditRows = (await db.execute(
+      sql`SELECT action, payload FROM audit_log
+          WHERE actor_user_id = ${vetUserId}
+            AND action = 'eno_notification_emitted'
+            AND payload->>'pet_id' = ${pet.id}
+          ORDER BY performed_at DESC
+          LIMIT 1`,
+    )) as Array<{ action: string; payload: Record<string, unknown> }>;
+    expect(auditRows.length).toBe(1);
+    // disease_code in the audit reflects the bridged ENO code, not the raw form code.
+    expect(auditRows[0].payload.disease_code).toBe("rabies");
+  });
+
   it("leishmaniasis (stigmaSensitive=true) → govts notified, owner NOT notified", async () => {
     const pet = await insertTestPet(ownerUserId, "LEISH");
 

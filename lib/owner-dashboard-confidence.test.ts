@@ -4,8 +4,8 @@
 // This test verifies that the confidence tier is correctly derived from
 // the vaccination event's provenance fields.
 
+import { type ConfidenceTier, computeConfidence } from "@/lib/event-confidence";
 import { describe, expect, it } from "vitest";
-import { computeConfidence, type ConfidenceTier } from "@/lib/event-confidence";
 
 // Mirrors the provenance shape added to VaccinationHistoryRow in owner-dashboard.ts
 type VaccinationProvenanceInput = {

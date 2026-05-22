@@ -8,8 +8,8 @@ import { formatDate } from "@/lib/format";
 import {
   LIBRETA_GROUPS,
   LIBRETA_GROUP_LABELS,
-  libretaConfidenceTier,
   type LibretaGroupKey,
+  libretaConfidenceTier,
 } from "@/lib/libreta-sanitaria";
 
 type Event = {

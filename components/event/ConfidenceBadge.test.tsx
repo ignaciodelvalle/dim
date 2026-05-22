@@ -7,8 +7,8 @@
 // and TIER_STYLES[tier]. The substantive logic lives in event-confidence.ts
 // which is fully covered in event-confidence.test.ts.
 
+import { type ConfidenceTier, confidenceLabel, isAtLeast } from "@/lib/event-confidence";
 import { describe, expect, it } from "vitest";
-import { confidenceLabel, isAtLeast, type ConfidenceTier } from "@/lib/event-confidence";
 
 // Mirrors TIER_STYLES in ConfidenceBadge.tsx. If styles drift, this test
 // catches it by asserting the mapping is exhaustive.
@@ -41,9 +41,7 @@ describe("ConfidenceBadge label contract", () => {
   it("labels are descriptive es-AR (A7: not judgmental)", () => {
     for (const tier of ALL_TIERS) {
       const label = confidenceLabel(tier).toLowerCase();
-      expect(label, `tier ${tier} must not say 'high confidence'`).not.toContain(
-        "high confidence",
-      );
+      expect(label, `tier ${tier} must not say 'high confidence'`).not.toContain("high confidence");
       expect(label, `tier ${tier} must not say 'low confidence'`).not.toContain("low confidence");
       expect(label, `tier ${tier} must not say 'alta confianza'`).not.toContain("alta confianza");
       expect(label, `tier ${tier} must not say 'baja confianza'`).not.toContain("baja confianza");
@@ -55,9 +53,7 @@ describe("ConfidenceBadge label contract", () => {
   });
 
   it("professional_verified badge shows vet label", () => {
-    expect(confidenceLabel("professional_verified")).toBe(
-      "Verificado por veterinario matriculado",
-    );
+    expect(confidenceLabel("professional_verified")).toBe("Verificado por veterinario matriculado");
   });
 
   it("self_reported badge shows owner label (not shaming)", () => {
@@ -72,10 +68,7 @@ describe("ConfidenceBadge label contract", () => {
 describe("ConfidenceBadge style contract", () => {
   it("every tier has a non-empty style class", () => {
     for (const tier of ALL_TIERS) {
-      expect(
-        TIER_STYLES[tier].length,
-        `style for ${tier} must not be empty`,
-      ).toBeGreaterThan(0);
+      expect(TIER_STYLES[tier].length, `style for ${tier} must not be empty`).toBeGreaterThan(0);
     }
   });
 

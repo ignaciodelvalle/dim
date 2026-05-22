@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CONFIDENCE_ORDER,
+  type ConfidenceTier,
   computeConfidence,
   confidenceLabel,
   isAtLeast,
-  type ConfidenceTier,
 } from "./event-confidence";
 
 // ---------------------------------------------------------------------------
@@ -43,9 +43,9 @@ describe("computeConfidence", () => {
 
   it("shelter verified WITHOUT org → self_reported (no org = can't claim institutional)", () => {
     // Without an org ID the shelter verification is incomplete — treated as self_reported
-    expect(
-      computeConfidence(input({ authorRole: "shelter", authorVerified: true })),
-    ).toBe("self_reported");
+    expect(computeConfidence(input({ authorRole: "shelter", authorVerified: true }))).toBe(
+      "self_reported",
+    );
   });
 
   it("shelter unverified with org → self_reported", () => {
@@ -85,9 +85,7 @@ describe("computeConfidence", () => {
   // --- owner ---
   it("owner with evidence_hash → corroborated", () => {
     expect(
-      computeConfidence(
-        input({ authorRole: "owner", payload: { evidence_hash: "sha256-abc" } }),
-      ),
+      computeConfidence(input({ authorRole: "owner", payload: { evidence_hash: "sha256-abc" } })),
     ).toBe("corroborated");
   });
 
@@ -101,9 +99,7 @@ describe("computeConfidence", () => {
 
   it("owner with microchip_confirmed=true → corroborated", () => {
     expect(
-      computeConfidence(
-        input({ authorRole: "owner", payload: { microchip_confirmed: true } }),
-      ),
+      computeConfidence(input({ authorRole: "owner", payload: { microchip_confirmed: true } })),
     ).toBe("corroborated");
   });
 
@@ -139,25 +135,19 @@ describe("computeConfidence", () => {
 
   it("owner with confirmed_by_lab=true → institutional_verified (A4 bumper)", () => {
     expect(
-      computeConfidence(
-        input({ authorRole: "owner", payload: { confirmed_by_lab: true } }),
-      ),
+      computeConfidence(input({ authorRole: "owner", payload: { confirmed_by_lab: true } })),
     ).toBe("institutional_verified");
   });
 
   it("scanner with confirmed_by_lab=true → institutional_verified (A4 bumper)", () => {
     expect(
-      computeConfidence(
-        input({ authorRole: "scanner", payload: { confirmed_by_lab: true } }),
-      ),
+      computeConfidence(input({ authorRole: "scanner", payload: { confirmed_by_lab: true } })),
     ).toBe("institutional_verified");
   });
 
   it("confirmed_by_lab=false does NOT trigger bumper", () => {
     expect(
-      computeConfidence(
-        input({ authorRole: "owner", payload: { confirmed_by_lab: false } }),
-      ),
+      computeConfidence(input({ authorRole: "owner", payload: { confirmed_by_lab: false } })),
     ).toBe("self_reported");
   });
 });
@@ -220,9 +210,7 @@ describe("confidenceLabel", () => {
   });
 
   it("professional_verified → es-AR label about veterinarian", () => {
-    expect(confidenceLabel("professional_verified")).toBe(
-      "Verificado por veterinario matriculado",
-    );
+    expect(confidenceLabel("professional_verified")).toBe("Verificado por veterinario matriculado");
   });
 
   it("corroborated → es-AR label about evidence", () => {

@@ -2,6 +2,7 @@
 // (Tier-2 shareable) will reuse this with share-token-resolved data.
 
 import { sexLabel, speciesLabel } from "@/lib/format";
+import { tattooLocationLabel } from "@/lib/lookups";
 
 type Props = {
   pet: {
@@ -10,6 +11,8 @@ type Props = {
     breed: string | null;
     sex: string;
     microchipId: string | null;
+    tattooCode: string | null;
+    tattooLocation: string | null;
     publicToken: string;
   };
   photoUrl: string | null;
@@ -17,6 +20,7 @@ type Props = {
 };
 
 export function LibretaIdentityHeader({ pet, photoUrl, ownerFirstName }: Props) {
+  const tattooLocLabel = tattooLocationLabel(pet.tattooLocation);
   return (
     <header className="flex items-start gap-5 pb-5 border-b border-neutral-200 dark:border-neutral-800">
       {photoUrl ? (
@@ -44,7 +48,15 @@ export function LibretaIdentityHeader({ pet, photoUrl, ownerFirstName }: Props) 
         </p>
         {pet.microchipId && (
           <p className="text-xs font-mono text-neutral-500 dark:text-neutral-500">
+            <span className="sr-only">Microchip: </span>
             Microchip {pet.microchipId}
+          </p>
+        )}
+        {pet.tattooCode && (
+          <p className="text-xs font-mono text-neutral-500 dark:text-neutral-500">
+            <span className="sr-only">Código de tatuaje: </span>
+            Tatuaje {pet.tattooCode}
+            {tattooLocLabel && ` · ${tattooLocLabel}`}
           </p>
         )}
         {ownerFirstName && (

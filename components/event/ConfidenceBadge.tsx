@@ -6,7 +6,7 @@
 //
 // Styling follows poncho/Badge patterns (inline-flex pill, semantic colors).
 
-import { confidenceLabel, type ConfidenceTier } from "@/lib/event-confidence";
+import { type ConfidenceTier, confidenceLabel } from "@/lib/event-confidence";
 
 interface Props {
   tier: ConfidenceTier;
@@ -18,10 +18,8 @@ const TIER_STYLES: Record<ConfidenceTier, string> = {
     "bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
   professional_verified: "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100",
   corroborated: "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100",
-  self_reported:
-    "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
-  unverified:
-    "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500",
+  self_reported: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+  unverified: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500",
 };
 
 export function ConfidenceBadge({ tier, className = "" }: Props) {

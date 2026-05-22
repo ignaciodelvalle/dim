@@ -5,8 +5,8 @@
 // corroborated, and unverified are intentionally silent ("no shame on
 // the public credential").
 
+import { type ConfidenceTier, isAtLeast } from "@/lib/event-confidence";
 import { describe, expect, it } from "vitest";
-import { isAtLeast, type ConfidenceTier } from "@/lib/event-confidence";
 
 // The gate function used in the public credential page.
 // isAtLeast(tier, "professional_verified") → show badge.
@@ -41,16 +41,12 @@ describe("public credential confidence gate (A.4)", () => {
     const lowerTiers: ConfidenceTier[] = ["corroborated", "self_reported", "unverified"];
 
     for (const tier of verifiedTiers) {
-      expect(
-        isAtLeast(tier, "professional_verified"),
-        `${tier} should pass the gate`,
-      ).toBe(true);
+      expect(isAtLeast(tier, "professional_verified"), `${tier} should pass the gate`).toBe(true);
     }
     for (const tier of lowerTiers) {
-      expect(
-        isAtLeast(tier, "professional_verified"),
-        `${tier} should NOT pass the gate`,
-      ).toBe(false);
+      expect(isAtLeast(tier, "professional_verified"), `${tier} should NOT pass the gate`).toBe(
+        false,
+      );
     }
   });
 });
