@@ -2560,3 +2560,41 @@ export const cases = pgTable(
 
 export type Case = typeof cases.$inferSelect;
 export type NewCase = typeof cases.$inferInsert;
+
+// ============================================================================
+// Physical tag interest — §4.20 placeholder for the future physical-QR-tag
+// product. Captures demand signal without building manufacturer / serial /
+// `/t/[serial]` chain. One row per (pet, user), toggled by the owner.
+// ============================================================================
+
+export const physicalTagInterest = pgTable(
+  "physical_tag_interest",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    notes: text("notes"),
+  },
+  (table) => ({
+    petUserUnique: uniqueIndex("physical_tag_interest_pet_user_unique").on(
+      table.petId,
+      table.userId,
+    ),
+    petActiveIdx: index("physical_tag_interest_pet_active_idx")
+      .on(table.petId)
+      .where(sql`${table.cancelledAt} IS NULL`),
+    activeCreatedIdx: index("physical_tag_interest_active_created_idx")
+      .on(table.createdAt)
+      .where(sql`${table.cancelledAt} IS NULL`),
+  }),
+);
+
+export type PhysicalTagInterest = typeof physicalTagInterest.$inferSelect;
+export type NewPhysicalTagInterest = typeof physicalTagInterest.$inferInsert;
