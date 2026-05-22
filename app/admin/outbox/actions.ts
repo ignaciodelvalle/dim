@@ -15,21 +15,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-
-// ---------------------------------------------------------------------------
-// Pure helper — exported for testing
-// ---------------------------------------------------------------------------
-
-/**
- * Builds the DB update payload for the retry-now action.
- * Pure function: takes no arguments, returns a consistent shape.
- */
-export function buildRetryPayload(): { nextRetryAt: Date; status: "pending" } {
-  return {
-    nextRetryAt: new Date(),
-    status: "pending",
-  };
-}
+import { buildRetryPayload } from "@/lib/outbox-list";
 
 // ---------------------------------------------------------------------------
 // Server action

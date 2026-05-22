@@ -19,6 +19,18 @@ export interface OutboxListFilters {
   province?: string;
 }
 
+/**
+ * Builds the DB update payload for the retry-now admin action.
+ * Pure helper — lives here (not in `app/admin/outbox/actions.ts`) because
+ * the actions file is `"use server"` and can only export async functions.
+ */
+export function buildRetryPayload(): { nextRetryAt: Date; status: "pending" } {
+  return {
+    nextRetryAt: new Date(),
+    status: "pending",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pure predicates
 // ---------------------------------------------------------------------------

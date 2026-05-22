@@ -22,7 +22,7 @@ vi.mock("next/cache", () => ({
 // Import the action AFTER mocks are set up
 // ---------------------------------------------------------------------------
 
-import { buildRetryPayload } from "../outbox/actions";
+import { buildRetryPayload } from "@/lib/outbox-list";
 
 // ---------------------------------------------------------------------------
 // buildRetryPayload — pure helper that computes the DB update payload
