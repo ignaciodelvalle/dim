@@ -2,6 +2,7 @@
 
 import type { EventFormState } from "@/app/actions/events";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -23,10 +24,12 @@ export function MedicationEndForm({
   openMedications: OpenMedication[];
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <label htmlFor="medicationStartedEventId" className={labelClass}>
           Medicación a cerrar<span className="text-red-500 ml-0.5">*</span>

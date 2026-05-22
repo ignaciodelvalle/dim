@@ -1184,6 +1184,7 @@ export async function createMedicationStartAction(
   const prescribedBy = String(formData.get("prescribedBy") ?? "").trim() || null;
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!drugName) return { error: "Falta el nombre del medicamento." };
   if (!dose) return { error: "Falta la dosis." };
@@ -1244,9 +1245,8 @@ export async function createMedicationStartAction(
         custom_hours: frequency === "custom" ? customHours : null,
         schedule_count: schedule.length,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: medicationStartNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "medication_started",
           occurredAt,
@@ -1255,8 +1255,11 @@ export async function createMedicationStartAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (medicationStartNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -1313,6 +1316,7 @@ export async function createMedicationEndAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!medicationStartedEventId) return { error: "Falta seleccionar la medicación." };
   if (!occurredAtRaw) return { error: "Falta la fecha de fin." };
@@ -1347,9 +1351,8 @@ export async function createMedicationEndAction(
         medication_started_event_id: medicationStartedEventId,
         reason,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: medicationEndNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "medication_stopped",
           occurredAt,
@@ -1358,8 +1361,11 @@ export async function createMedicationEndAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (medicationEndNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -1861,6 +1867,7 @@ export async function createClinicalInfoAction(
   const performedBy = String(formData.get("performedBy") ?? "").trim() || null;
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
     return { error: "Tipo de información clínica inválido." };
@@ -1884,9 +1891,8 @@ export async function createClinicalInfoAction(
         details,
         performed_by: performedBy,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: clinicalNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "clinical_info_logged",
           occurredAt,
@@ -1895,8 +1901,11 @@ export async function createClinicalInfoAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (clinicalNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -2114,6 +2123,7 @@ export async function createSymptomObservedAction(
 
   const onsetRaw = String(formData.get("onsetAt") ?? "").trim();
   const onsetAt = onsetRaw.length > 0 ? onsetRaw : null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // 3. Run matcher (defensive — matcher failure must never block the insert).
   let alertableDiseases: import("@/lib/symptom-matcher").DiseaseMatch[] = [];
@@ -2149,9 +2159,8 @@ export async function createSymptomObservedAction(
         onset_at: onsetAt,
       });
 
-      const [symptomEvent] = await tx
-        .insert(petEvents)
-        .values({
+      const { event: symptomEvent, wasNoop: symptomNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "symptom_observed",
           occurredAt: onsetAt ? new Date(onsetAt) : now,
@@ -2159,8 +2168,11 @@ export async function createSymptomObservedAction(
           recordedByUserId: user.id,
           ...eventAuthorship,
           payload: symptomPayload,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (symptomNoop) return;
 
       // 5. For each alertable reportable disease: emit outbreak_signal + Notification.
       // If the pet is in an active rabies observation AND the matcher returned

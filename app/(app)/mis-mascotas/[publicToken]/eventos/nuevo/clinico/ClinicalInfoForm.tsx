@@ -2,6 +2,7 @@
 
 import type { EventFormState } from "@/app/actions/events";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -29,11 +30,13 @@ const TITLE_PLACEHOLDERS: Record<SubKind, string> = {
 
 export function ClinicalInfoForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const [subKind, setSubKind] = useState<SubKind>("lab_work");
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Sub-kind */}
       <div className="space-y-1.5">
         <label htmlFor="subKind" className={labelClass}>
