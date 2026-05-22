@@ -39,6 +39,7 @@ export function PetForm({
   submitLabel,
   pendingLabel,
   hiddenFields,
+  draftValues,
 }: {
   action: FormAction;
   existingPet?: Pet;
@@ -56,6 +57,11 @@ export function PetForm({
   // action when the same action is reused across flows). Rendered as
   // <input type="hidden"> inside the <form>.
   hiddenFields?: Record<string, string>;
+  // Pre-fill values from the landing-page draft (app/_components/PetDraftForm.tsx).
+  // Only consulted in create mode (no existingPet). In compact mode, breed
+  // is not visible — when a draft breed is present we keep it in state and
+  // emit it as a hidden field so the user doesn't lose what they typed.
+  draftValues?: { name?: string; species?: string; breed?: string };
 }) {
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -66,8 +72,10 @@ export function PetForm({
   // companion-animal options. Storing the resolved value keeps every
   // species-aware helper (breedsForSpecies, isPotentiallyDangerousBreed)
   // working without a separate translation layer.
-  const [species, setSpecies] = useState<string>(existingPet?.species ?? "");
-  const [breed, setBreed] = useState<string>(existingPet?.breed ?? "");
+  const [species, setSpecies] = useState<string>(
+    existingPet?.species ?? draftValues?.species ?? "",
+  );
+  const [breed, setBreed] = useState<string>(existingPet?.breed ?? draftValues?.breed ?? "");
 
   const OTHER_SPECIES_VALUES = ["rabbit", "guinea_pig", "ferret"] as const;
   type OtherSpeciesValue = (typeof OTHER_SPECIES_VALUES)[number];
@@ -149,8 +157,13 @@ export function PetForm({
           label="Nombre"
           required
           autoComplete="off"
-          defaultValue={existingPet?.name}
+          defaultValue={existingPet?.name ?? draftValues?.name}
         />
+
+        {/* Compact create flow doesn't render the breed input, but if the
+            visitor typed a breed on the landing draft we still want it
+            persisted on submit so they don't lose what they typed. */}
+        {compact && !isEdit && breed && <input type="hidden" name="breed" value={breed} />}
 
         {/* The persisted species value travels as a hidden input. The visible
             top select drives the speciesGroup state; if the group is "other",

@@ -1,14 +1,22 @@
 "use client";
 
+import { type PetDraft, clearPetDraft, readPetDraft } from "@/app/_components/PetDraftForm";
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
 import { createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 const initialAuthState: AuthFormState = { error: null };
+
+// es-AR species labels for the "Vamos a guardar a {nombre}, tu {especie}" banner.
+const SPECIES_LABELS: Record<string, string> = {
+  dog: "perro",
+  cat: "gato",
+  other: "mascota",
+};
 
 // Two-step inline signup per AGENTS.md → v1 screens §Signup. Step 1 creates
 // the auth user (signupAction returns { ok: true } instead of redirecting so
@@ -37,6 +45,20 @@ export function SignupForm({
   const router = useRouter();
   const [step, setStep] = useState<"account" | "pet">("account");
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
+  // Landing-page pet draft, if any. Read once on mount so the step-1 banner
+  // and the step-2 PetForm pre-fill see the same snapshot. Cleared on entry
+  // to step 2 — by then the data is in component state and a fresh draft
+  // would just collide with what the user is about to submit.
+  const [petDraft, setPetDraft] = useState<PetDraft | null>(null);
+  // Captured once at mount — true if the user came from the landing draft.
+  // Using a ref so it doesn't change when the draft is cleared in step 2.
+  const hasDraftAtMount = useRef(false);
+
+  useEffect(() => {
+    const draft = readPetDraft();
+    setPetDraft(draft);
+    hasDraftAtMount.current = !!draft?.name.trim();
+  }, []);
 
   useEffect(() => {
     if (!authState.ok) return;
@@ -47,19 +69,35 @@ export function SignupForm({
     setStep("pet");
   }, [authState.ok, intent, returnTo, router]);
 
+  // Once we've transitioned to step 2, the draft has been threaded into
+  // PetForm props — drop it from localStorage so a future revisit doesn't
+  // resurrect stale data.
+  useEffect(() => {
+    if (step === "pet" && petDraft) {
+      clearPetDraft();
+    }
+  }, [step, petDraft]);
+
   if (step === "pet") {
+    const hasDraft = !!petDraft?.name.trim();
+    // When the user came from a landing draft, the pet info was their step 1.
+    const totalSteps = hasDraftAtMount.current ? 3 : 2;
+    const petStepNumber = hasDraftAtMount.current ? 3 : 2;
     return (
       <div className="space-y-6">
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
-            Paso 2 de 2
+            Paso {petStepNumber} de {totalSteps}
           </p>
           <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Cargá tu primera mascota
+            {hasDraft
+              ? `Terminemos la credencial de ${petDraft?.name}`
+              : "Cargá tu primera mascota"}
           </h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto
-            después.
+            {hasDraft
+              ? "Ya tomamos los datos que cargaste. Sumá una foto y revisá lo demás — podés completar el resto después."
+              : "Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto después."}
           </p>
         </div>
 
@@ -68,6 +106,20 @@ export function SignupForm({
           compact
           submitLabel="Crear mascota y entrar"
           pendingLabel="Creando…"
+          draftValues={
+            petDraft
+              ? {
+                  name: petDraft.name,
+                  // Empty / "other" stays empty so the user picks a concrete
+                  // species (or sub-species) themselves.
+                  species:
+                    petDraft.species === "dog" || petDraft.species === "cat"
+                      ? petDraft.species
+                      : undefined,
+                  breed: petDraft.breed || undefined,
+                }
+              : undefined
+          }
         />
 
         <p className="text-center text-xs text-neutral-500 dark:text-neutral-500">
@@ -84,11 +136,28 @@ export function SignupForm({
     );
   }
 
+  const draftHasContent = !!petDraft?.name.trim();
+  const draftSpeciesLabel = petDraft ? (SPECIES_LABELS[petDraft.species] ?? "mascota") : null;
+
   return (
     <div className="space-y-5">
       <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500 text-center">
-        {intent === "apply" ? "Paso 1 de 1" : "Paso 1 de 2"}
+        {intent === "apply"
+          ? "Paso 1 de 1"
+          : hasDraftAtMount.current
+            ? "Paso 2 de 3"
+            : "Paso 1 de 2"}
       </p>
+
+      {draftHasContent && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+          Vamos a guardar la credencial de{" "}
+          <span className="font-semibold text-neutral-900 dark:text-neutral-50">
+            {petDraft?.name}
+          </span>
+          {draftSpeciesLabel ? `, tu ${draftSpeciesLabel}` : ""}. Creá tu cuenta para terminar.
+        </div>
+      )}
 
       <button
         type="button"

@@ -9,7 +9,7 @@
 // admin-tier muted labels), keep local strings — see project review §4.1.
 
 export const inputClass =
-  "w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 " +
+  "w-full px-3 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 " +
   "bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 " +
   "focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent";
 
