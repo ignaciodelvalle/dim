@@ -481,7 +481,7 @@ export default async function PetDetailPage({
     void Promise.all(
       unseenIds.map((id) =>
         markAchievementSeenAction(pet.publicToken, id).catch((err) =>
-          console.log("[markAchievementSeenAction]", err),
+          console.warn("[markAchievementSeenAction]", err),
         ),
       ),
     );
