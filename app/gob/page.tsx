@@ -11,12 +11,15 @@
 import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
+import { CaseBadge } from "@/components/CaseBadge";
 import { DashboardCard, GobDashboardShell } from "@/components/GobDashboardShell";
 import { JurisdictionFilterBar, readFilterParams } from "@/components/JurisdictionFilterBar";
 import { KpiTile, KpiTileGrid } from "@/components/KpiTile";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listCasesForAdmin, listCasesForGovt } from "@/lib/case-queries";
+import { formatDate } from "@/lib/format";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
@@ -79,6 +82,19 @@ export default async function GobiernoDashboardPage({
     fetchBitesPer10k(actor, jurisdictions),
     fetchActiveZoonosis(actor, jurisdictions),
   ]);
+
+  // --- Casos regulatorios (open/escalated, top 5) -------------------------
+  // Admin sees universal scope via listCasesForAdmin; govt is jurisdiction-scoped.
+
+  const allCases =
+    profile.role === "admin"
+      ? await listCasesForAdmin()
+      : jurisdictions.length === 0
+        ? []
+        : await listCasesForGovt(jurisdictions);
+  const openCasesAll = allCases.filter((c) => c.status === "open" || c.status === "escalated");
+  const openCases = openCasesAll.slice(0, 5);
+  const openCasesTotal = openCasesAll.length;
 
   return (
     <GobDashboardShell
@@ -240,16 +256,51 @@ export default async function GobiernoDashboardPage({
             title="Casos regulatorios"
             action={
               <Link href="/gob/casos" className="text-blue-700 hover:underline dark:text-blue-400">
-                Ver todos →
+                {openCasesTotal > openCases.length
+                  ? `Ver todos (${openCasesTotal}) →`
+                  : "Ver todos →"}
               </Link>
             }
           >
-            {/* TODO(L-followup): wire to listCasesForGovt() once cases table is in schema */}
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Kanban cross-org pendiente — conectar a{" "}
-              <code className="text-xs">listCasesForGovt()</code> cuando la tabla{" "}
-              <code className="text-xs">cases</code> esté en el schema.
-            </p>
+            {profile.role !== "admin" && jurisdictions.length === 0 ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Sin jurisdicciones asignadas todavía.
+              </p>
+            ) : openCases.length === 0 ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Sin casos abiertos{" "}
+                {profile.role === "admin" ? "en el sistema" : "en tu jurisdicción"}.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {openCases.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex flex-col gap-1 rounded-md px-2 py-1.5 odd:bg-neutral-50 dark:odd:bg-neutral-900/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <CaseBadge
+                        publicCode={c.publicCode}
+                        caseKind={c.caseKind}
+                        status={c.status}
+                        size="sm"
+                      />
+                      <time className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums whitespace-nowrap">
+                        {formatDate(c.openedAt)}
+                      </time>
+                    </div>
+                    {c.primaryPetPublicToken && c.primaryPetName ? (
+                      <Link
+                        href={`/mis-mascotas/${c.primaryPetPublicToken}`}
+                        className="text-xs text-neutral-600 hover:underline dark:text-neutral-400"
+                      >
+                        🐾 {c.primaryPetName}
+                      </Link>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
           </DashboardCard>
         </>
       }
