@@ -51,14 +51,22 @@ export default async function AdminOutboxDetailPage({
 
   if (!row) notFound();
 
-  // Load source event for context — non-blocking if missing (FK cascade may
-  // have removed it in test teardown, but production should always have it).
+  // Load source event with full context — payload + provenance fields so an
+  // operator triaging a delivery breach can see the underlying event without
+  // a separate SQL trip. Non-blocking if missing (FK cascade may remove the
+  // event in test teardown, but production should always have it).
   const [sourceEvent] = await db
     .select({
       id: petEvents.id,
       eventType: petEvents.eventType,
       occurredAt: petEvents.occurredAt,
+      recordedAt: petEvents.recordedAt,
       petId: petEvents.petId,
+      payload: petEvents.payload,
+      authorRole: petEvents.authorRole,
+      authorVerified: petEvents.authorVerified,
+      authorOrganizationId: petEvents.authorOrganizationId,
+      recordedByUserId: petEvents.recordedByUserId,
     })
     .from(petEvents)
     .where(eq(petEvents.id, row.sourceEventId))
@@ -150,26 +158,67 @@ export default async function AdminOutboxDetailPage({
           </pre>
         </section>
 
-        {/* Source event */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+        {/* Source event — type, timestamps, author provenance, full payload */}
+        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
             Evento origen
           </h2>
           {sourceEvent ? (
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <dt className="text-neutral-500">Tipo</dt>
-              <dd className="font-mono text-xs text-neutral-900 dark:text-neutral-100">
-                {sourceEvent.eventType}
-              </dd>
-              <dt className="text-neutral-500">Ocurrido</dt>
-              <dd className="text-neutral-900 dark:text-neutral-100">
-                {fmt(sourceEvent.occurredAt)}
-              </dd>
-              <dt className="text-neutral-500">Pet ID</dt>
-              <dd className="font-mono text-xs text-neutral-500">{sourceEvent.petId}</dd>
-              <dt className="text-neutral-500">Event ID</dt>
-              <dd className="font-mono text-xs text-neutral-500">{sourceEvent.id}</dd>
-            </dl>
+            <>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <dt className="text-neutral-500">Tipo</dt>
+                <dd className="font-mono text-xs text-neutral-900 dark:text-neutral-100">
+                  {sourceEvent.eventType}
+                </dd>
+                <dt className="text-neutral-500">Ocurrido</dt>
+                <dd className="text-neutral-900 dark:text-neutral-100">
+                  {fmt(sourceEvent.occurredAt)}
+                </dd>
+                <dt className="text-neutral-500">Registrado</dt>
+                <dd className="text-neutral-900 dark:text-neutral-100">
+                  {fmt(sourceEvent.recordedAt)}
+                </dd>
+                <dt className="text-neutral-500">Rol del autor</dt>
+                <dd className="text-neutral-900 dark:text-neutral-100">
+                  {sourceEvent.authorRole}
+                  {sourceEvent.authorVerified && (
+                    <span className="ml-1.5 text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">
+                      verificado
+                    </span>
+                  )}
+                </dd>
+                {sourceEvent.authorOrganizationId && (
+                  <>
+                    <dt className="text-neutral-500">Organización</dt>
+                    <dd className="font-mono text-xs text-neutral-500">
+                      {sourceEvent.authorOrganizationId}
+                    </dd>
+                  </>
+                )}
+                {sourceEvent.recordedByUserId && (
+                  <>
+                    <dt className="text-neutral-500">Usuario</dt>
+                    <dd className="font-mono text-xs text-neutral-500">
+                      {sourceEvent.recordedByUserId}
+                    </dd>
+                  </>
+                )}
+                <dt className="text-neutral-500">Pet ID</dt>
+                <dd className="font-mono text-xs text-neutral-500">{sourceEvent.petId}</dd>
+                <dt className="text-neutral-500">Event ID</dt>
+                <dd className="font-mono text-xs text-neutral-500">{sourceEvent.id}</dd>
+              </dl>
+
+              {/* Event payload — the canonical record of what actually happened */}
+              <div className="space-y-1 pt-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                  Payload del evento
+                </p>
+                <pre className="rounded bg-neutral-50 dark:bg-neutral-900 p-3 text-xs text-neutral-700 dark:text-neutral-300 overflow-auto whitespace-pre-wrap break-words">
+                  {JSON.stringify(sourceEvent.payload, null, 2)}
+                </pre>
+              </div>
+            </>
           ) : (
             <p className="text-sm text-neutral-500">
               Evento origen no encontrado (puede haber sido eliminado).
