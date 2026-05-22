@@ -13,6 +13,7 @@ import {
   NON_LIBRETA_EVENT_TYPES,
   groupLibretaEvents,
   isLibretaSanitariaEvent,
+  libretaConfidenceTier,
   libretaGroupForEvent,
 } from "@/lib/libreta-sanitaria";
 
@@ -147,5 +148,66 @@ describe("groupLibretaEvents", () => {
     ];
     const grouped = groupLibretaEvents(events);
     expect(grouped.peso.map((e) => e.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// libretaConfidenceTier — confidence tier helper for libreta entries
+// ---------------------------------------------------------------------------
+
+describe("libretaConfidenceTier", () => {
+  it("vet verified → professional_verified", () => {
+    expect(
+      libretaConfidenceTier({
+        authorRole: "vet",
+        authorVerified: true,
+        authorOrganizationId: null,
+        payload: {},
+      }),
+    ).toBe("professional_verified");
+  });
+
+  it("shelter verified with org → institutional_verified", () => {
+    expect(
+      libretaConfidenceTier({
+        authorRole: "shelter",
+        authorVerified: true,
+        authorOrganizationId: "org-abc",
+        payload: {},
+      }),
+    ).toBe("institutional_verified");
+  });
+
+  it("owner alone → self_reported", () => {
+    expect(
+      libretaConfidenceTier({
+        authorRole: "owner",
+        authorVerified: false,
+        authorOrganizationId: null,
+        payload: {},
+      }),
+    ).toBe("self_reported");
+  });
+
+  it("any role with confirmed_by_lab=true → institutional_verified (A4 bumper)", () => {
+    expect(
+      libretaConfidenceTier({
+        authorRole: "vet",
+        authorVerified: false,
+        authorOrganizationId: null,
+        payload: { confirmed_by_lab: true },
+      }),
+    ).toBe("institutional_verified");
+  });
+
+  it("scanner → unverified", () => {
+    expect(
+      libretaConfidenceTier({
+        authorRole: "scanner",
+        authorVerified: false,
+        authorOrganizationId: null,
+        payload: {},
+      }),
+    ).toBe("unverified");
   });
 });

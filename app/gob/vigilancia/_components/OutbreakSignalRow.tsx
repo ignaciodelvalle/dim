@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { Badge } from "@/components/poncho";
+import { computeConfidence } from "@/lib/event-confidence";
 import type { SurveillanceSignal } from "@/lib/govt-dashboards";
 
 type OutbreakSignalRowProps = {
@@ -21,9 +23,16 @@ function timeAgo(date: Date): string {
 /**
  * Compact card-style row for a single outbreak signal.
  * Clicking navigates to the brotes drill-down pre-filtered by signalId.
+ * Shows a confidence badge derived from the event's provenance (plan §A.5).
  */
 export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
   const href = `/gob/vigilancia/brotes?signalId=${signal.signalEventId}`;
+  const confidenceTier = computeConfidence({
+    authorRole: signal.authorRole,
+    authorVerified: signal.authorVerified,
+    authorOrganizationId: signal.authorOrganizationId,
+    payload: signal.payload,
+  });
 
   return (
     <li className="border-b border-gob-border last:border-b-0">
@@ -37,6 +46,7 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
               {signal.diseaseName}
             </span>
             <Badge variant="warning">{signal.diseaseCode}</Badge>
+            <ConfidenceBadge tier={confidenceTier} />
           </div>
           <p className="text-xs text-gob-text-gray truncate">
             {signal.petName} · {signal.petSpecies}

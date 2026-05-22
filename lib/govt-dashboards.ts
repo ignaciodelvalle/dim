@@ -59,6 +59,12 @@ export type SurveillanceSignal = {
   province: string | null;
   locality: string | null;
   detectedAt: Date;
+  // Provenance for confidence tier computation (plan §A.5, 2026-05-22).
+  // Stored here so consumers can call computeConfidence() without a second DB query.
+  authorRole: string;
+  authorVerified: boolean;
+  authorOrganizationId: string | null;
+  payload: Record<string, unknown>;
 };
 
 export type DiseaseSummary = {
@@ -116,6 +122,11 @@ export async function fetchSurveillanceSignals(
       province: sql<string | null>`(${petEvents.payload}->>'pet_jurisdiction_province')`,
       locality: sql<string | null>`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
       detectedAt: petEvents.occurredAt,
+      // Provenance for confidence tier computation (plan §A.5).
+      authorRole: petEvents.authorRole,
+      authorVerified: petEvents.authorVerified,
+      authorOrganizationId: petEvents.authorOrganizationId,
+      payload: petEvents.payload,
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))
@@ -134,6 +145,10 @@ export async function fetchSurveillanceSignals(
     province: r.province,
     locality: r.locality,
     detectedAt: r.detectedAt,
+    authorRole: r.authorRole,
+    authorVerified: r.authorVerified,
+    authorOrganizationId: r.authorOrganizationId,
+    payload: (r.payload ?? {}) as Record<string, unknown>,
   }));
 }
 
