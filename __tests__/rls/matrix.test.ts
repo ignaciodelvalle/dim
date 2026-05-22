@@ -21,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/case-helpers";
-import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.spec";
+import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
 // ---------------------------------------------------------------------------
 // Config
