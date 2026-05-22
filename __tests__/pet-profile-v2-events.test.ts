@@ -1,4 +1,4 @@
-// Unit tests for fetchPetEventsForProfileV2 and EVENT_TYPES_FOR_PROFILE_V2.
+// Unit tests for fetchPetEventsForProfileV2 and PROFILE_V2_TYPED_EVENT_TYPES.
 //
 // These are pure unit tests — the DB is mocked via vitest.mock so no local
 // Postgres instance is required. Tests assert the return shape, filtering
@@ -26,7 +26,7 @@ vi.mock("@/db", async (importOriginal) => {
 
 // Import the module under test AFTER the mock is registered.
 import {
-  EVENT_TYPES_FOR_PROFILE_V2,
+  PROFILE_V2_TYPED_EVENT_TYPES,
   type PetEventMetadata,
   type PetProfileV2Events,
   fetchPetEventsForProfileV2,
@@ -82,54 +82,54 @@ function chainReturning(rows: unknown[]) {
 // A-1 tests
 // ---------------------------------------------------------------------------
 
-describe("EVENT_TYPES_FOR_PROFILE_V2 constant", () => {
+describe("PROFILE_V2_TYPED_EVENT_TYPES constant", () => {
   it("is a non-empty readonly array of strings", () => {
-    expect(Array.isArray(EVENT_TYPES_FOR_PROFILE_V2)).toBe(true);
-    expect(EVENT_TYPES_FOR_PROFILE_V2.length).toBeGreaterThan(0);
-    for (const t of EVENT_TYPES_FOR_PROFILE_V2) {
+    expect(Array.isArray(PROFILE_V2_TYPED_EVENT_TYPES)).toBe(true);
+    expect(PROFILE_V2_TYPED_EVENT_TYPES.length).toBeGreaterThan(0);
+    for (const t of PROFILE_V2_TYPED_EVENT_TYPES) {
       expect(typeof t).toBe("string");
     }
   });
 
   it("includes tattoo_recorded (R5 — fold tattoo into Estado actual)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("tattoo_recorded");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("tattoo_recorded");
   });
 
   it("includes weight_recorded (Estado actual weight + hace-X suffix)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("weight_recorded");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("weight_recorded");
   });
 
   it("includes sterilization_performed (Estado actual)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("sterilization_performed");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("sterilization_performed");
   });
 
   it("includes adoption_finalized (A2 achievement)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("adoption_finalized");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("adoption_finalized");
   });
 
   it("includes status_changed (A3 lost-and-found achievement)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("status_changed");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("status_changed");
   });
 
   it("does NOT include note_logged (excluded by design — not state-relevant)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).not.toContain("note_logged");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).not.toContain("note_logged");
   });
 
   it("does NOT include pregnancy_started (not a real event_type — sub_kind of clinical_info_logged)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).not.toContain("pregnancy_started");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).not.toContain("pregnancy_started");
   });
 
   it("does NOT include pregnancy_ended (not a real event_type — sub_kind of clinical_info_logged)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).not.toContain("pregnancy_ended");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).not.toContain("pregnancy_ended");
   });
 
   it("includes clinical_info_logged (covers pregnancy sub_kind for A4 achievement)", () => {
-    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("clinical_info_logged");
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("clinical_info_logged");
   });
 });
 
 describe("whitelist drift guard — catalog event types", () => {
-  it("every event_type read by ACHIEVEMENTS_CATALOG computeStatus is in EVENT_TYPES_FOR_PROFILE_V2", () => {
+  it("every event_type read by ACHIEVEMENTS_CATALOG computeStatus is in PROFILE_V2_TYPED_EVENT_TYPES", () => {
     // The known event types consumed by catalog computeStatus functions:
     const knownCatalogTypes = [
       "adoption_finalized", // A2 — i_was_adopted
@@ -137,7 +137,7 @@ describe("whitelist drift guard — catalog event types", () => {
       "clinical_info_logged", // A4 — i_had_litter (pregnancy sub_kind)
     ];
     for (const eventType of knownCatalogTypes) {
-      expect(EVENT_TYPES_FOR_PROFILE_V2).toContain(eventType);
+      expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain(eventType);
     }
   });
 });
@@ -154,7 +154,7 @@ describe("fetchPetEventsForProfileV2", () => {
   });
 
   it("returns the { typedEvents, recentFive } shape", async () => {
-    const whitelistedEvent = makeEvent(EVENT_TYPES_FOR_PROFILE_V2[0], new Date("2024-01-15"));
+    const whitelistedEvent = makeEvent(PROFILE_V2_TYPED_EVENT_TYPES[0], new Date("2024-01-15"));
     const recentEvent = makeEvent("weight_recorded", new Date("2024-06-01"));
 
     mockSelect
@@ -168,7 +168,7 @@ describe("fetchPetEventsForProfileV2", () => {
   });
 
   it("typedEvents contains only whitelisted event types from DB result", async () => {
-    const good = makeEvent(EVENT_TYPES_FOR_PROFILE_V2[0], new Date("2024-01-01"));
+    const good = makeEvent(PROFILE_V2_TYPED_EVENT_TYPES[0], new Date("2024-01-01"));
 
     mockSelect
       .mockReturnValueOnce(chainReturning([good]))
@@ -176,7 +176,7 @@ describe("fetchPetEventsForProfileV2", () => {
 
     const result = await fetchPetEventsForProfileV2(PET_ID);
     expect(result.typedEvents.length).toBe(1);
-    expect(result.typedEvents[0].eventType).toBe(EVENT_TYPES_FOR_PROFILE_V2[0]);
+    expect(result.typedEvents[0].eventType).toBe(PROFILE_V2_TYPED_EVENT_TYPES[0]);
   });
 
   it("recentFive contains at most 5 rows", async () => {

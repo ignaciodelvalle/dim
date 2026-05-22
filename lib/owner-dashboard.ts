@@ -944,7 +944,7 @@ export async function fetchPetWeightHistory(petId: string): Promise<PetWeightSam
  * functions AND by state-computing components MUST be listed here. The test
  * in __tests__/pet-profile-v2-events.test.ts asserts this invariant.
  */
-export const EVENT_TYPES_FOR_PROFILE_V2 = [
+export const PROFILE_V2_TYPED_EVENT_TYPES = [
   // Medication lifecycle — Cuidados próximos state + A4 / estado actual
   "medication_started",
   "medication_stopped",
@@ -969,7 +969,7 @@ export const EVENT_TYPES_FOR_PROFILE_V2 = [
   "microchip_implanted",
 ] as const;
 
-export type ProfileV2EventType = (typeof EVENT_TYPES_FOR_PROFILE_V2)[number];
+export type ProfileV2TypedEventType = (typeof PROFILE_V2_TYPED_EVENT_TYPES)[number];
 
 /**
  * Metadata-only projection of a pet event — used by the collapsed
@@ -1019,7 +1019,7 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
       .where(
         and(
           eq(petEvents.petId, petId),
-          inArray(petEvents.eventType, [...EVENT_TYPES_FOR_PROFILE_V2]),
+          inArray(petEvents.eventType, [...PROFILE_V2_TYPED_EVENT_TYPES]),
         ),
       )
       .orderBy(asc(petEvents.occurredAt)),
