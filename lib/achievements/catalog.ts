@@ -156,17 +156,41 @@ export const ACHIEVEMENTS_CATALOG: readonly AchievementDef[] = [
   globetrotterAchievement,
 ];
 
-export function getEarnedAchievements(input: AchievementInput): EarnedAchievement[] {
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Returns earned achievements for the given pet snapshot.
+ *
+ * @param viewsMap Optional map of `achievementId → pulse_until Date | null`
+ *   loaded from `pet_achievement_views` for the current session. When present,
+ *   each returned `EarnedAchievement` will have a `pulseUntil` field:
+ *   - Map entry exists: uses stored value (may be `null` if explicitly set)
+ *   - Map entry absent but map was passed: defaults to `now + 7 days`
+ *   - Map not passed at all: `pulseUntil` is omitted (undefined) — backward compat
+ */
+export function getEarnedAchievements(
+  input: AchievementInput,
+  viewsMap?: Map<string, Date | null>,
+): EarnedAchievement[] {
   const out: EarnedAchievement[] = [];
   for (const def of ACHIEVEMENTS_CATALOG) {
     const status = def.computeStatus(input);
     if (status.kind === "earned") {
-      out.push({
+      const achievement: EarnedAchievement = {
         ...def,
         earnedAt: status.earnedAt,
         count: status.count,
         detail: status.detail,
-      });
+      };
+      if (viewsMap !== undefined) {
+        if (viewsMap.has(def.id)) {
+          achievement.pulseUntil = viewsMap.get(def.id) ?? null;
+        } else {
+          // No DB row yet — default to 7 days from now (mirrors table column default).
+          achievement.pulseUntil = new Date(Date.now() + SEVEN_DAYS_MS);
+        }
+      }
+      out.push(achievement);
     }
   }
   return out;
