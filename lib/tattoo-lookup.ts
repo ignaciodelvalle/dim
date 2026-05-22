@@ -27,10 +27,10 @@ export type TattooLookupResult = {
   ownerFirstName: string | null;
 } | null;
 
-// Mirror of normalizeTattooCode in app/actions/tattoo.ts. We don't import from
-// there to keep this file free of server-action concerns (createTattooAction
-// uses "use server"). Both writers and readers must agree on the same canonical
-// form — keep these two in sync.
+// Single source of truth — app/actions/tattoo.ts imports from here. Lives in
+// lib/ because the action file is "use server" and can only export async
+// functions; the pure sync normalizer must live outside that constraint.
+// Writers and readers converge on the same canonical form via this one export.
 export function normalizeTattooCode(raw: string): string {
   return raw.trim().toUpperCase().replace(/\s+/g, "");
 }

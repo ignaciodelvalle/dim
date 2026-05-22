@@ -11,6 +11,7 @@ import {
   type SupabaseServerClient,
   requireAlivePetAccess,
 } from "@/lib/pet-access";
+import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 
 export type EventFormState = { error: string | null };
@@ -40,15 +41,6 @@ export type TattooInput = {
 };
 
 export type CreateTattooResult = { ok: true; eventId: string } | { error: string };
-
-// Normalize a tattoo code for storage and lookup. Mirror this exact transform
-// in lib/tattoo-lookup.ts (Chunk B.5) so writes and reads converge on the same
-// canonical form. Tatuajes son free-form y colisionan entre registros, pero
-// dentro de un mismo registry el código suele ser case-insensitive y la
-// whitespace es ruido — normalizamos para que el lookup sea predecible.
-export function normalizeTattooCode(raw: string): string {
-  return raw.trim().toUpperCase().replace(/\s+/g, "");
-}
 
 // Inner writer — testable without Next.js request context. The outer action
 // resolves access + uploads the photo + delegates here. Photo upload happens
