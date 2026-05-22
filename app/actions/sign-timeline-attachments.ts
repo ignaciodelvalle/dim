@@ -43,6 +43,9 @@ export type SignTimelineAttachmentsResult =
 // timeline degrades gracefully (no thumbnails) rather than crashing.
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: delegates entirely to signTimelineAttachments which calls
+// requirePetAccess before touching the DB. This wrapper exists only to adapt
+// the return type (Record<string,string> vs Record|{error}) for page.tsx binding.
 export async function signTimelineAttachmentsForPet(
   petPublicToken: string,
   eventIds: string[],
