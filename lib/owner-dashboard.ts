@@ -948,9 +948,9 @@ export const EVENT_TYPES_FOR_PROFILE_V2 = [
   // Medication lifecycle — Cuidados próximos state + A4 / estado actual
   "medication_started",
   "medication_stopped",
-  // Pregnancy — Estado actual pregnancyStatus + A4 achievement
-  "pregnancy_started",
-  "pregnancy_ended",
+  // Pregnancy — A4 achievement (live birth): the actual event type is
+  // clinical_info_logged with sub_kind='pregnancy'; there are no standalone
+  // pregnancy_started / pregnancy_ended event types in the DB.
   "clinical_info_logged",
   // Vaccination — rabies observation label + A-future vaccine state
   "vaccination_administered",

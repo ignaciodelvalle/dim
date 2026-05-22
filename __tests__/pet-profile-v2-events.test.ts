@@ -114,6 +114,18 @@ describe("EVENT_TYPES_FOR_PROFILE_V2 constant", () => {
   it("does NOT include note_logged (excluded by design — not state-relevant)", () => {
     expect(EVENT_TYPES_FOR_PROFILE_V2).not.toContain("note_logged");
   });
+
+  it("does NOT include pregnancy_started (not a real event_type — sub_kind of clinical_info_logged)", () => {
+    expect(EVENT_TYPES_FOR_PROFILE_V2).not.toContain("pregnancy_started");
+  });
+
+  it("does NOT include pregnancy_ended (not a real event_type — sub_kind of clinical_info_logged)", () => {
+    expect(EVENT_TYPES_FOR_PROFILE_V2).not.toContain("pregnancy_ended");
+  });
+
+  it("includes clinical_info_logged (covers pregnancy sub_kind for A4 achievement)", () => {
+    expect(EVENT_TYPES_FOR_PROFILE_V2).toContain("clinical_info_logged");
+  });
 });
 
 describe("whitelist drift guard — catalog event types", () => {
