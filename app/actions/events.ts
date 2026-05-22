@@ -29,6 +29,7 @@ import { signalAuthorityReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
+import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
@@ -47,7 +48,6 @@ import {
   requirePetAccess,
 } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
-import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";

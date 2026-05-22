@@ -13,7 +13,15 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recordDiseaseDiagnosisWriter } from "@/app/actions/events";
-import { db, eventNotificationOutbox, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  db,
+  eventNotificationOutbox,
+  notifications,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+} from "@/db";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

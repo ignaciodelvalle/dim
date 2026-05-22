@@ -13,7 +13,7 @@
 //
 // Spec: docs/superpowers/plans/2026-05-22-event-trust-tier-1.md §4 C.3
 
-import { type EventType } from "@/db/schema";
+import type { EventType } from "@/db/schema";
 import { getEnoDisease } from "./eno-catalog";
 
 // ---------------------------------------------------------------------------

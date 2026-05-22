@@ -8,7 +8,7 @@
 //
 // Spec: docs/superpowers/plans/2026-05-22-event-trust-tier-1.md §4 C.4, C.6, C.7
 
-import { auditLog, db, type EventNotificationOutbox } from "@/db";
+import { type EventNotificationOutbox, auditLog, db } from "@/db";
 
 // ---------------------------------------------------------------------------
 // Constants
