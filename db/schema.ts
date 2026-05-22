@@ -2632,3 +2632,43 @@ export const physicalTagInterest = pgTable(
 
 export type PhysicalTagInterest = typeof physicalTagInterest.$inferSelect;
 export type NewPhysicalTagInterest = typeof physicalTagInterest.$inferInsert;
+
+// ============================================================================
+// Pet achievement views — pulse UX (pet-profile-v2 §3 / B-1)
+//
+// Tracks when an owner first sees an earned achievement badge. The
+// `pulse_until` column provides a 7-day window during which the chip
+// animates on the profile. Write-once history (no DELETE policy) via
+// markAchievementSeenAction.
+// ============================================================================
+
+export const petAchievementViews = pgTable(
+  "pet_achievement_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    /** Stable slug from ACHIEVEMENTS_CATALOG. */
+    achievementId: text("achievement_id").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Badge-pulse window — defaults to 7 days from first observation. */
+    pulseUntil: timestamp("pulse_until", { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '7 days'`),
+  },
+  (table) => ({
+    ownerPetAchUnique: uniqueIndex("pet_achievement_views_owner_pet_ach_unique").on(
+      table.userId,
+      table.petId,
+      table.achievementId,
+    ),
+    userPetIdx: index("pet_achievement_views_user_pet_idx").on(table.userId, table.petId),
+  }),
+);
+
+export type PetAchievementView = typeof petAchievementViews.$inferSelect;
+export type NewPetAchievementView = typeof petAchievementViews.$inferInsert;
