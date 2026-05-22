@@ -25,6 +25,7 @@ import { redirect } from "next/navigation";
 import { appointments, db, notifications, ownerships, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { generateAppointmentToken } from "@/lib/publicToken";
+import { generateUniqueToken } from "@/lib/unique-token";
 
 // ============================================================================
 // Types
@@ -65,7 +66,11 @@ export async function bookSlotWriter(
   petId: string,
   ownerUserId: string,
 ): Promise<BookSlotResult> {
-  const publicToken = generateAppointmentToken();
+  const publicToken = await generateUniqueToken(
+    appointments,
+    appointments.publicToken,
+    generateAppointmentToken,
+  );
 
   try {
     await db.transaction(async (tx) => {

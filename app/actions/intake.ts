@@ -27,6 +27,7 @@ import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
+import { generateUniqueToken } from "@/lib/unique-token";
 import { redirect } from "next/navigation";
 
 export type IntakeFormState = {
@@ -200,7 +201,7 @@ export async function createIntakeAction(
     }
   }
 
-  const publicToken = generatePublicToken();
+  const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
   const now = new Date();
   const authorVerified = organization.verified;
 

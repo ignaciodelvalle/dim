@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
+import { generateUniqueToken } from "@/lib/unique-token";
 
 const MAX_ACTIVE_SHARES_PER_PET = 5;
 
@@ -53,7 +54,11 @@ export async function createLibretaShareForUser(
     };
   }
 
-  const shareToken = generateLibretaShareToken();
+  const shareToken = await generateUniqueToken(
+    libretaShareTokens,
+    libretaShareTokens.shareToken,
+    generateLibretaShareToken,
+  );
   const expiresAt =
     input.expiresInDays === null
       ? null

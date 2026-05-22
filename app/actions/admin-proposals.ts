@@ -7,6 +7,7 @@ import { approvalRequests, auditLog, db, notifications, organizations, profiles 
 import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
+import { generateUniqueToken } from "@/lib/unique-token";
 
 // All proposal actions follow the same shape: validate caller authority,
 // validate payload, refuse on existing pending request (avoid duplicates),
@@ -125,7 +126,11 @@ export async function proposeVetUpgradeForUser(
     return { error: err instanceof Error ? err.message : "Payload inválido." };
   }
 
-  const publicToken = generateApprovalRequestToken();
+  const publicToken = await generateUniqueToken(
+    approvalRequests,
+    approvalRequests.publicToken,
+    generateApprovalRequestToken,
+  );
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
@@ -220,7 +225,11 @@ export async function proposeOrgVerificationForOrg(
 
   // applicant_user_id: the org's creator if known, fallback to the actor.
   const applicantUserId = org.createdByUserId ?? actorUserId;
-  const publicToken = generateApprovalRequestToken();
+  const publicToken = await generateUniqueToken(
+    approvalRequests,
+    approvalRequests.publicToken,
+    generateApprovalRequestToken,
+  );
   // The earlier guard rejects null jurisdiction values, but TS doesn't
   // propagate the narrowing through the transaction closure. Pin the
   // values into a const so the insert sees `string`, not `string | null`.

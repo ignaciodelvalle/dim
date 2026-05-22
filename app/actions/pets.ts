@@ -38,6 +38,7 @@ import {
 import { requirePetAccess } from "@/lib/pet-access";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
+import { generateUniqueToken } from "@/lib/unique-token";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -343,7 +344,7 @@ export async function createPetAction(
     },
   );
 
-  const publicToken = generatePublicToken();
+  const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
   const now = new Date();
 
   type PendingNotification = typeof notifications.$inferInsert;
