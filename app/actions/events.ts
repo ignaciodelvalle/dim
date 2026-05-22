@@ -47,6 +47,7 @@ import {
   requirePetAccess,
 } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -425,6 +426,14 @@ export type EnrichedLostDescriptionInput = {
   // Retroactive microchip capture (optional — writes microchip_implanted event
   // + updates pets.microchipId if the pet had no chip before)
   microchipId: string | null;
+  // Retroactive tattoo capture (optional — writes tattoo_recorded event +
+  // updates pets.tattoo_* if the pet had no tattoo before). Text-only in this
+  // flow; the photo upload would inflate the panic-time form too much. Owner
+  // can complete the photo later via /eventos/nuevo/tatuaje.
+  // Optional in the type so callers from earlier fases don't need updating.
+  tattooCode?: string | null;
+  tattooLocation?: string | null;
+  tattooDescription?: string | null;
 };
 
 // Inner writer — testable without Next.js runtime or FormData.
@@ -454,6 +463,7 @@ export async function setPetLostWriter(params: {
   petName?: string;
   petStatus: string;
   petMicrochipId?: string | null;
+  petTattooCode?: string | null;
   petSpecies?: string | null;
   petBreed?: string | null;
   petColor?: string | null;
@@ -478,6 +488,7 @@ export async function setPetLostWriter(params: {
     petName = "",
     petStatus,
     petMicrochipId = null,
+    petTattooCode = null,
     petSpecies = null,
     petBreed = null,
     petColor = null,
@@ -643,6 +654,65 @@ export async function setPetLostWriter(params: {
           .set({ microchipId: newChipId, updatedAt: now })
           .where(eq(pets.id, petId));
       }
+
+      // Retroactive tattoo capture — only when:
+      //   a. The owner provided a tattoo code in the enriched section.
+      //   b. The pet had no tattoo before (petTattooCode is null).
+      // Text-only in this flow (no photo); spec says photo is required for the
+      // main tattoo event form, but the panic-time lost form deliberately
+      // skips the file upload step. Owner can complete the photo later via
+      // /eventos/nuevo/tatuaje.
+      const rawRetroTattooCode = enrichedDescription?.tattooCode?.trim() || null;
+      if (rawRetroTattooCode && !petTattooCode) {
+        const normalizedTattoo = normalizeTattooCode(rawRetroTattooCode);
+        if (normalizedTattoo) {
+          const rawLoc = enrichedDescription?.tattooLocation ?? null;
+          const validLocations: readonly string[] = [
+            "inner_ear_left",
+            "inner_ear_right",
+            "inner_thigh",
+            "belly",
+            "other",
+          ];
+          const tattooLoc = rawLoc && validLocations.includes(rawLoc) ? rawLoc : null;
+          const tattooDesc = enrichedDescription?.tattooDescription?.trim() || null;
+
+          const tattooPayload = validateEventPayload("tattoo_recorded", {
+            tattoo_code: normalizedTattoo,
+            location_on_body: tattooLoc as
+              | "inner_ear_left"
+              | "inner_ear_right"
+              | "inner_thigh"
+              | "belly"
+              | "other"
+              | null,
+            description: tattooDesc,
+            recorded_by: null,
+            recorded_at: null,
+            tattoo_date_known: false,
+          });
+
+          await tx.insert(petEvents).values({
+            petId,
+            eventType: "tattoo_recorded",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId,
+            ...(eventAuthorship as object),
+            payload: tattooPayload,
+          });
+
+          await tx
+            .update(pets)
+            .set({
+              tattooCode: normalizedTattoo,
+              tattooLocation: tattooLoc,
+              tattooDescription: tattooDesc,
+              updatedAt: now,
+            })
+            .where(eq(pets.id, petId));
+        }
+      }
     });
   } catch (err) {
     return {
@@ -728,6 +798,9 @@ function parseEnrichedDescriptionFromForm(formData: FormData): EnrichedLostDescr
     "enriched_behavior_notes",
     "enriched_last_seen_context",
     "enriched_microchip_id",
+    "enriched_tattoo_code",
+    "enriched_tattoo_location",
+    "enriched_tattoo_description",
   ];
 
   const hasSection = enrichedKeys.some((k) => formData.has(k));
@@ -742,6 +815,9 @@ function parseEnrichedDescriptionFromForm(formData: FormData): EnrichedLostDescr
     behaviorNotes: str("enriched_behavior_notes"),
     lastSeenContext: str("enriched_last_seen_context"),
     microchipId: str("enriched_microchip_id"),
+    tattooCode: str("enriched_tattoo_code"),
+    tattooLocation: str("enriched_tattoo_location"),
+    tattooDescription: str("enriched_tattoo_description"),
   };
 }
 
@@ -787,6 +863,7 @@ export async function setPetLostAction(
     petName: pet.name,
     petStatus: pet.status,
     petMicrochipId: pet.microchipId,
+    petTattooCode: pet.tattooCode,
     petSpecies: pet.species,
     petBreed: pet.breed,
     petColor: pet.color,

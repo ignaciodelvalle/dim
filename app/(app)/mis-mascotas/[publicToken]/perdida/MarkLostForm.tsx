@@ -3,6 +3,7 @@
 import type { DisclosurePrefsInput, EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { TATTOO_LOCATIONS } from "@/lib/lookups";
 import { useActionState } from "react";
 
 const initialState: EventFormState = { error: null };
@@ -53,6 +54,7 @@ export function MarkLostForm({
   action,
   disclosureDefaults,
   petHasMicrochip,
+  petHasTattoo,
   petColor,
   petDistinguishingFeatures,
   petJurisdictionProvince,
@@ -60,8 +62,10 @@ export function MarkLostForm({
 }: {
   action: FormAction;
   disclosureDefaults: DisclosurePrefsInput;
-  /** When true, the enriched-description section is hidden (chip = already identifiable). */
+  /** When true (or petHasTattoo), the enriched-description section is hidden. */
   petHasMicrochip: boolean;
+  /** When true (or petHasMicrochip), the enriched-description section is hidden. */
+  petHasTattoo: boolean;
   /** Pre-fill value for the color field. */
   petColor: string | null;
   /** Pre-fill value for the distinguishing features field. */
@@ -101,18 +105,19 @@ export function MarkLostForm({
         </p>
       </div>
 
-      {/* Enriched description section — only shown when pet has no microchip.
-          Three sub-groups: identity fields (update pets row), incident snapshot
-          (event payload), and optional retroactive chip capture. */}
-      {!petHasMicrochip && (
+      {/* Enriched description section — only shown when pet has no microchip
+          AND no tattoo. Four sub-groups: identity fields (update pets row),
+          incident snapshot (event payload), optional retroactive chip capture,
+          and optional retroactive tattoo capture. */}
+      {!petHasMicrochip && !petHasTattoo && (
         <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 p-4 space-y-5">
           <div className="space-y-0.5">
             <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
               Informacion adicional para ayudar a identificar a tu mascota
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400">
-              Sin microchip, estos detalles son clave para que alguien pueda reconocerla. Completá
-              todo lo que puedas.
+              Sin microchip ni tatuaje, estos detalles son clave para que alguien pueda reconocerla.
+              Completá todo lo que puedas.
             </p>
           </div>
 
@@ -227,6 +232,61 @@ export function MarkLostForm({
                 lleva a un refugio con ese chip, te vamos a contactar.
               </p>
             </div>
+          </div>
+
+          {/* Group D: Optional retroactive tattoo capture (D2 closed 2026-05-22).
+              Text-only here — photo upload would inflate the panic-time form.
+              Owner can complete the photo later via /eventos/nuevo/tatuaje. */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+              Tatuaje (opcional)
+            </p>
+            <div className="space-y-1.5">
+              <label htmlFor="enriched_tattoo_code" className={labelClass}>
+                Código del tatuaje
+              </label>
+              <input
+                id="enriched_tattoo_code"
+                name="enriched_tattoo_code"
+                type="text"
+                placeholder="Ej: K9-2014-A"
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="enriched_tattoo_location" className={labelClass}>
+                Ubicación
+              </label>
+              <select
+                id="enriched_tattoo_location"
+                name="enriched_tattoo_location"
+                className={inputClass}
+                defaultValue=""
+              >
+                <option value="">Seleccionar</option>
+                {TATTOO_LOCATIONS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="enriched_tattoo_description" className={labelClass}>
+                Descripción (opcional)
+              </label>
+              <textarea
+                id="enriched_tattoo_description"
+                name="enriched_tattoo_description"
+                rows={2}
+                placeholder="Ej: campaña de castración 2018, criadero FCA…"
+                className={inputClass}
+              />
+            </div>
+            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+              Si tu mascota tiene tatuaje pero nunca lo cargaste, esto ayuda mucho a quien la
+              encuentre. Cuando puedas, subí también una foto desde su libreta.
+            </p>
           </div>
         </div>
       )}

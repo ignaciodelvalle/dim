@@ -135,7 +135,7 @@ afterAll(async () => {
 
 async function insertActivePet(
   suffix: string,
-  overrides: { microchipId?: string } = {},
+  overrides: { microchipId?: string; tattooCode?: string } = {},
 ): Promise<{ petId: string; publicToken: string }> {
   const token = generatePublicToken();
   const now = new Date();
@@ -150,6 +150,7 @@ async function insertActivePet(
       status: "active",
       potentiallyDangerousBreed: false,
       ...(overrides.microchipId ? { microchipId: overrides.microchipId } : {}),
+      ...(overrides.tattooCode ? { tattooCode: overrides.tattooCode } : {}),
     })
     .returning();
 
@@ -538,5 +539,154 @@ describe("setPetLostWriter — retroactive microchip uniqueness", () => {
         ),
       );
     expect(lostEvents).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Retroactive tattoo capture — D2 closed 2026-05-22
+// ---------------------------------------------------------------------------
+
+describe("setPetLostWriter — retroactive tattoo capture", () => {
+  it("updates pets.tattoo* and inserts tattoo_recorded event when pet had no tattoo", async () => {
+    const { petId } = await insertActivePet("retro-tattoo");
+
+    const enriched: EnrichedLostDescriptionInput = {
+      color: null,
+      distinguishingFeatures: null,
+      accessoriesWhenLost: null,
+      behaviorNotes: null,
+      lastSeenContext: null,
+      microchipId: null,
+      tattooCode: "  k9-2014  ",
+      tattooLocation: "inner_ear_left",
+      tattooDescription: "Criadero FCA",
+    };
+
+    const result = await setPetLostWriter({
+      petId,
+      petStatus: "active",
+      petMicrochipId: null,
+      petTattooCode: null,
+      fromStatus: "active",
+      recordedByUserId: ownerUserId,
+      eventAuthorship: { authorRole: "owner" },
+      locationDescription: null,
+      locationLat: null,
+      locationLng: null,
+      reason: null,
+      disclosurePrefs: defaultPrefs,
+      enrichedDescription: enriched,
+    });
+
+    expect(result.error).toBeNull();
+
+    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
+    expect(updated.status).toBe("lost");
+    // Code is normalized on write (uppercase + strip whitespace).
+    expect(updated.tattooCode).toBe("K9-2014");
+    expect(updated.tattooLocation).toBe("inner_ear_left");
+    expect(updated.tattooDescription).toBe("Criadero FCA");
+
+    const [tattooEvent] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "tattoo_recorded")))
+      .limit(1);
+
+    expect(tattooEvent).toBeDefined();
+    const payload = tattooEvent.payload as Record<string, unknown>;
+    expect(payload.tattoo_code).toBe("K9-2014");
+    expect(payload.location_on_body).toBe("inner_ear_left");
+    expect(payload.description).toBe("Criadero FCA");
+    expect(payload.tattoo_date_known).toBe(false);
+  });
+
+  it("does NOT insert tattoo_recorded when pet already has a tattoo", async () => {
+    const { petId } = await insertActivePet("retro-tattoo-already-has-tattoo", {
+      tattooCode: "EXISTING-TATTOO",
+    });
+
+    const enriched: EnrichedLostDescriptionInput = {
+      color: null,
+      distinguishingFeatures: null,
+      accessoriesWhenLost: null,
+      behaviorNotes: null,
+      lastSeenContext: null,
+      microchipId: null,
+      tattooCode: "NEW-VALUE-IGNORED",
+      tattooLocation: "belly",
+      tattooDescription: null,
+    };
+
+    const result = await setPetLostWriter({
+      petId,
+      petStatus: "active",
+      petMicrochipId: null,
+      petTattooCode: "EXISTING-TATTOO",
+      fromStatus: "active",
+      recordedByUserId: ownerUserId,
+      eventAuthorship: { authorRole: "owner" },
+      locationDescription: null,
+      locationLat: null,
+      locationLng: null,
+      reason: null,
+      disclosurePrefs: defaultPrefs,
+      enrichedDescription: enriched,
+    });
+
+    expect(result.error).toBeNull();
+
+    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
+    // Existing tattoo is preserved — the new value is ignored.
+    expect(updated.tattooCode).toBe("EXISTING-TATTOO");
+
+    const tattooEvents = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "tattoo_recorded")));
+    expect(tattooEvents).toHaveLength(0);
+  });
+
+  it("skips tattoo capture when no code is provided", async () => {
+    const { petId } = await insertActivePet("retro-tattoo-skip");
+
+    const enriched: EnrichedLostDescriptionInput = {
+      color: "gris",
+      distinguishingFeatures: null,
+      accessoriesWhenLost: null,
+      behaviorNotes: null,
+      lastSeenContext: null,
+      microchipId: null,
+      tattooCode: null,
+      tattooLocation: null,
+      tattooDescription: null,
+    };
+
+    const result = await setPetLostWriter({
+      petId,
+      petStatus: "active",
+      petMicrochipId: null,
+      petTattooCode: null,
+      fromStatus: "active",
+      recordedByUserId: ownerUserId,
+      eventAuthorship: { authorRole: "owner" },
+      locationDescription: null,
+      locationLat: null,
+      locationLng: null,
+      reason: null,
+      disclosurePrefs: defaultPrefs,
+      enrichedDescription: enriched,
+    });
+
+    expect(result.error).toBeNull();
+
+    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
+    expect(updated.tattooCode).toBeNull();
+
+    const tattooEvents = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "tattoo_recorded")));
+    expect(tattooEvents).toHaveLength(0);
   });
 });
