@@ -13,7 +13,15 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recordDiseaseDiagnosisWriter } from "@/app/actions/events";
-import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  db,
+  eventNotificationOutbox,
+  notifications,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+} from "@/db";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -204,6 +212,15 @@ describe("recordDiseaseDiagnosisWriter", () => {
       );
     expect(ownerAlerts.length).toBe(1);
     expect(ownerAlerts[0].severity).toBe("urgent");
+
+    // Outbox: one row for the diagnosis event + one for the signal event.
+    const outboxRows = await db
+      .select()
+      .from(eventNotificationOutbox)
+      .where(eq(eventNotificationOutbox.sourceEventId, diagnosisRows[0].id));
+    expect(outboxRows.length).toBe(1);
+    expect(outboxRows[0].targetKind).toBe("govt_webhook");
+    expect(outboxRows[0].status).toBe("pending");
   });
 
   it("non-reportable disease (parvovirus) → only diagnosis row, no signal", async () => {
