@@ -6,7 +6,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 
-import { _createPetFromDraft } from "@/app/actions/pets";
+import { _createPetFromDraftForUser } from "@/app/actions/pets";
 import { db, organizationMemberships, profiles } from "@/db";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
@@ -68,14 +68,14 @@ export async function signupAction(
   // the same server action request (cookies are on the response, not yet readable).
   if (draftName && signUpData.user) {
     const species = draftSpecies === "dog" || draftSpecies === "cat" ? draftSpecies : "other";
-    const result = await _createPetFromDraft(signUpData.user, {
+    const result = await _createPetFromDraftForUser(signUpData.user, {
       name: draftName,
       species,
       breed: draftBreed,
     });
     if ("error" in result) {
       // Auto-create is best-effort: the user is signed up. Log and move on.
-      console.error("[signupAction] _createPetFromDraft failed:", result.error);
+      console.error("[signupAction] _createPetFromDraftForUser failed:", result.error);
     }
   }
 

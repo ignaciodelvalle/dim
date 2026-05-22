@@ -262,7 +262,7 @@ function normalizeConditionsOther(parsed: ParsedPet): string | null {
 //
 // Intentionally omits PPP evaluation, microchip logic, photo upload, and
 // jurisdiction resolution — the user can fill those in on first edit.
-export async function _createPetFromDraft(
+export async function _createPetFromDraftForUser(
   user: { id: string },
   draft: { name: string; species: string; breed?: string | null },
 ): Promise<{ publicToken: string } | { error: string }> {
