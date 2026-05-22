@@ -4,6 +4,7 @@ import type { EventFormState } from "@/app/actions/events";
 import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/drugs";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { FREQUENCY_LABELS } from "@/lib/medication-schedule";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -25,6 +26,7 @@ export function MedicationStartForm({
   defaultOccurredAt?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
 
   const now = new Date();
   // Default firstDoseAt to current local datetime rounded down to the minute.
@@ -56,6 +58,7 @@ export function MedicationStartForm({
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Drug name with datalist */}
       <div className="space-y-1.5">
         <label htmlFor="drugName" className={labelClass}>

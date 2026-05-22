@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 
 import type { BiteFormState } from "@/app/actions/bite";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
 const initialState: BiteFormState = { error: null };
 
@@ -17,11 +18,13 @@ export function BiteForm({
   petName: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const [victimKind, setVictimKind] = useState<"human" | "animal" | "unknown">("human");
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <label htmlFor="occurredAt" className={labelClass}>
           Fecha del incidente<span className="text-red-500 ml-0.5">*</span>

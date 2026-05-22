@@ -20,6 +20,7 @@ import {
   petEvents,
   reminders,
 } from "@/db";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { requirePetAccess } from "@/lib/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -56,6 +57,7 @@ export async function recordPostAdoptionCheckinAction(
 
   const notesRaw = String(formData.get("notes") ?? "").trim();
   const notes = notesRaw || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // Look up the most recent adoption_finalized event for this pet. The
   // related organization is denormalized from that payload so the check-in
@@ -97,9 +99,8 @@ export async function recordPostAdoptionCheckinAction(
         notes,
       });
       const now = new Date();
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: checkinNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "post_adoption_checkin",
           occurredAt: now,
@@ -107,8 +108,11 @@ export async function recordPostAdoptionCheckinAction(
           recordedByUserId: user.id,
           authorRole: "owner",
           payload,
-        })
-        .returning({ id: petEvents.id });
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (checkinNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({

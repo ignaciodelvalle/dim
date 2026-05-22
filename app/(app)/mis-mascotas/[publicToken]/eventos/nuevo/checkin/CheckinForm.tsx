@@ -2,6 +2,7 @@
 
 import type { CheckinFormState } from "@/app/actions/checkin";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -17,9 +18,11 @@ export function CheckinForm({
   defaults?: { notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <label htmlFor="notes" className={labelClass}>
           ¿Cómo está?
