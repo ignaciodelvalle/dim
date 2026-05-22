@@ -1,5 +1,7 @@
+import { and, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
@@ -7,6 +9,19 @@ import { requireAdminOrRedirect } from "@/lib/auth-guards";
 // deactivated admins (Fase 5 invariant).
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await requireAdminOrRedirect();
+
+  // Cheap breach count: pending rows past their SLA deadline.
+  // Uses the outbox_sla_due_idx(sla_due_at, status) index — no seq scan.
+  const [breachCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(eventNotificationOutbox)
+    .where(
+      and(
+        eq(eventNotificationOutbox.status, "pending"),
+        lt(eventNotificationOutbox.slaDueAt, new Date()),
+      ),
+    );
+  const breachCount = breachCountRow?.count ?? 0;
 
   return (
     <div className="min-h-screen bg-white dark:bg-neutral-950">
@@ -59,6 +74,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
             >
               Auditoría
+            </Link>
+            <Link
+              href="/admin/outbox"
+              className="relative text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              Outbox
+              {breachCount > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                  {breachCount}
+                </span>
+              )}
             </Link>
             <Link
               href="/admin/sistema"
