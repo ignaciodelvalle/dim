@@ -31,6 +31,10 @@ export const LIBRETA_SANITARIA_EVENT_TYPES = [
   // (and revocation, via new_chip_number=null) is identificatoria
   // info the vet/owner care about.
   "microchip_replaced",
+  // Tattoo lifecycle — secondary identifier (D1-D4 closed 2026-05-22).
+  // Same rationale as microchip: identificatoria info the vet/owner track.
+  "tattoo_recorded",
+  "tattoo_updated",
   "incident_reported",
   // Rabies observation lifecycle — clinical record (the vet of the future
   // wants to see "this dog bit someone in 2026 and completed observation
@@ -132,6 +136,7 @@ export const LIBRETA_GROUPS = [
   "peso",
   "alergias",
   "microchip",
+  "tatuaje",
   "sintomas",
   "incidentes",
   "fallecimiento",
@@ -150,6 +155,7 @@ export const LIBRETA_GROUP_LABELS: Record<LibretaGroupKey, string> = {
   peso: "Peso",
   alergias: "Alergias y condiciones",
   microchip: "Microchip",
+  tatuaje: "Tatuaje",
   sintomas: "Síntomas",
   incidentes: "Incidentes",
   fallecimiento: "Fallecimiento",
@@ -180,6 +186,9 @@ export function libretaGroupForEvent(event: {
     case "microchip_implanted":
     case "microchip_replaced":
       return "microchip";
+    case "tattoo_recorded":
+    case "tattoo_updated":
+      return "tatuaje";
     case "symptom_observed":
       return "sintomas";
     case "incident_reported":
