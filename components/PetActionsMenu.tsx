@@ -5,7 +5,7 @@
 // section (Ley 26.858 only for dog + owner, mark-lost only when active, etc.).
 
 import Link from "next/link";
-import { deriveActionItems, type PetActionsMenuInput } from "./PetActionsMenu.helpers";
+import { type PetActionsMenuInput, deriveActionItems } from "./PetActionsMenu.helpers";
 
 export type { PetActionsMenuInput };
 
@@ -14,8 +14,7 @@ const VARIANT_CLASSES: Record<"primary" | "default" | "danger", string> = {
     "bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600",
   default:
     "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-900",
-  danger:
-    "bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
+  danger: "bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
 };
 
 export function PetActionsMenu(props: PetActionsMenuInput) {

@@ -33,9 +33,7 @@ import {
 
 // The action lives in the actions layer. We accept it as a prop so this
 // component stays decoupled from server-only imports.
-type SignerFn = (
-  eventIds: string[],
-) => Promise<Record<string, string>>;
+type SignerFn = (eventIds: string[]) => Promise<Record<string, string>>;
 
 // ---------------------------------------------------------------------------
 // Props
@@ -155,10 +153,7 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
                 {formatTimelineDate(latest.occurredAt)}
               </span>
             )}
-            <span
-              aria-hidden
-              className="text-xs text-neutral-400 dark:text-neutral-600"
-            >
+            <span aria-hidden className="text-xs text-neutral-400 dark:text-neutral-600">
               ▸
             </span>
           </div>

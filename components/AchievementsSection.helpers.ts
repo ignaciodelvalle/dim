@@ -20,9 +20,6 @@ export function shouldPulse(pulseUntil: Date | null | undefined): boolean {
  * Returns true when the section should be rendered at all.
  * Omits the row when both credentials and earned achievements are empty.
  */
-export function shouldRenderSection(
-  credentials: CredentialChip[],
-  earnedCount: number,
-): boolean {
+export function shouldRenderSection(credentials: CredentialChip[], earnedCount: number): boolean {
   return credentials.length > 0 || earnedCount > 0;
 }

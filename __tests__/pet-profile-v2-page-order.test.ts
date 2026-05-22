@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 
 // Authoritative §4.9 section order — matches design §5.
 // Each entry is the value of a data-section="…" attribute in page.tsx.
-export const SECTION_ORDER_V2 = [
+const SECTION_ORDER_V2 = [
   "back-link",
   "cases",
   "ppp-card",
@@ -38,12 +38,7 @@ export const SECTION_ORDER_V2 = [
 function extractDataSectionsFromSource(filePath: string): string[] {
   const src = readFileSync(filePath, "utf-8");
   const regex = /data-section="([^"]+)"/g;
-  const results: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(src)) !== null) {
-    results.push(match[1]);
-  }
-  return results;
+  return Array.from(src.matchAll(regex), (m) => m[1]);
 }
 
 // ---------------------------------------------------------------------------
@@ -91,10 +86,7 @@ describe("§4.9 section order — constant guard (R-NEW-8)", () => {
 // ---------------------------------------------------------------------------
 
 describe("§4.9 section order — source DOM guard (R-NEW-8 AC-A11)", () => {
-  const PAGE_TSX = resolve(
-    __dirname,
-    "../app/(app)/mis-mascotas/[publicToken]/page.tsx",
-  );
+  const PAGE_TSX = resolve(__dirname, "../app/(app)/mis-mascotas/[publicToken]/page.tsx");
 
   it("page.tsx contains all §4.9 data-section attributes", () => {
     const found = extractDataSectionsFromSource(PAGE_TSX);
@@ -112,11 +104,9 @@ describe("§4.9 section order — source DOM guard (R-NEW-8 AC-A11)", () => {
     const specSections = new Set(SECTION_ORDER_V2 as readonly string[]);
     const filtered = found.filter((s) => specSections.has(s));
 
-    expect(filtered).toEqual(
-      [...SECTION_ORDER_V2],
-      "data-section attributes in page.tsx are not in the §4.9 spec order. " +
-        "Either reorder the JSX or update SECTION_ORDER_V2 if the spec changed.",
-    );
+    // Failure message is in the test description — biome/vitest types only
+    // accept 1 arg to toEqual.
+    expect(filtered).toEqual([...SECTION_ORDER_V2]);
   });
 
   it("no §4.9 section appears more than once in page.tsx", () => {

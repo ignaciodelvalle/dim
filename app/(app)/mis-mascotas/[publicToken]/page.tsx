@@ -44,16 +44,16 @@
 //   a server-side branch here. <PetProfileHero> already sets lostMode=true.
 // ---------------------------------------------------------------------------
 
-import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
+import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { signTimelineAttachmentsForPet } from "@/app/actions/sign-timeline-attachments";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import type { CredentialChip } from "@/components/AchievementsSection";
+import type { PetState } from "@/components/EventCatcher";
 import { PetActionsMenu } from "@/components/PetActionsMenu";
 import { PetCurrentStateSection } from "@/components/PetCurrentStateSection";
-import { PetUpcomingCareSection } from "@/components/PetUpcomingCareSection";
-import type { PetState } from "@/components/EventCatcher";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
+import { PetUpcomingCareSection } from "@/components/PetUpcomingCareSection";
 import { PpPCard } from "@/components/PpPCard";
 import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
@@ -452,7 +452,10 @@ export default async function PetDetailPage({
   let viewsMap: Map<string, Date | null> | undefined;
   if (accessPath === "owner") {
     const viewRows = await db
-      .select({ achievementId: petAchievementViews.achievementId, pulseUntil: petAchievementViews.pulseUntil })
+      .select({
+        achievementId: petAchievementViews.achievementId,
+        pulseUntil: petAchievementViews.pulseUntil,
+      })
       .from(petAchievementViews)
       .where(and(eq(petAchievementViews.userId, user.id), eq(petAchievementViews.petId, pet.id)));
     viewsMap = new Map(viewRows.map((r) => [r.achievementId, r.pulseUntil]));
@@ -474,9 +477,7 @@ export default async function PetDetailPage({
   // no view row yet (viewsMap missing the key). Swallow errors — this is a
   // best-effort UX pulse, not load-bearing.
   if (accessPath === "owner" && viewsMap !== undefined) {
-    const unseenIds = earnedAchievements
-      .map((a) => a.id)
-      .filter((id) => !viewsMap!.has(id));
+    const unseenIds = earnedAchievements.map((a) => a.id).filter((id) => !viewsMap?.has(id));
     // Fire-and-forget in background — page render must not block on this.
     void Promise.all(
       unseenIds.map((id) =>
@@ -492,11 +493,7 @@ export default async function PetDetailPage({
   if (pet.potentiallyDangerousBreed) {
     credentialChips.push({ kind: "ppp", label: "PPP", icon: "⚠️" });
   }
-  if (
-    serviceDogRow &&
-    serviceDogRow.credentialStatus === "vigente" &&
-    serviceDogRow.inService
-  ) {
+  if (serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService) {
     credentialChips.push({ kind: "service_dog", label: "Perro de servicio", icon: "🦮" });
   }
 

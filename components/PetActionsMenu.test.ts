@@ -1,7 +1,7 @@
 // Unit tests for PetActionsMenu conditional rendering logic.
 
 import { describe, expect, it } from "vitest";
-import { deriveActionItems, type PetActionsMenuInput } from "./PetActionsMenu.helpers";
+import { type PetActionsMenuInput, deriveActionItems } from "./PetActionsMenu.helpers";
 
 function makeInput(overrides: Partial<PetActionsMenuInput> = {}): PetActionsMenuInput {
   return {
@@ -19,17 +19,36 @@ function makeInput(overrides: Partial<PetActionsMenuInput> = {}): PetActionsMenu
 
 describe("deriveActionItems — conditional rules", () => {
   it("'Marcar como perdida' only rendered when pet.status === 'active' (R-NEW-7)", () => {
-    const activePet = deriveActionItems(makeInput({ pet: { species: "dog", status: "active", publicToken: "TK" } }));
-    const lostPet = deriveActionItems(makeInput({ pet: { species: "dog", status: "lost", publicToken: "TK" } }));
+    const activePet = deriveActionItems(
+      makeInput({ pet: { species: "dog", status: "active", publicToken: "TK" } }),
+    );
+    const lostPet = deriveActionItems(
+      makeInput({ pet: { species: "dog", status: "lost", publicToken: "TK" } }),
+    );
 
     expect(activePet.map((a) => a.id)).toContain("mark-lost");
     expect(lostPet.map((a) => a.id)).not.toContain("mark-lost");
   });
 
   it("Ley 26.858 action only rendered for dog + owner role", () => {
-    const dogOwner = deriveActionItems(makeInput({ pet: { species: "dog", status: "active", publicToken: "TK" }, ownershipRole: "owner" }));
-    const catOwner = deriveActionItems(makeInput({ pet: { species: "cat", status: "active", publicToken: "TK" }, ownershipRole: "owner" }));
-    const dogTransit = deriveActionItems(makeInput({ pet: { species: "dog", status: "active", publicToken: "TK" }, ownershipRole: "shelter_custody" }));
+    const dogOwner = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "active", publicToken: "TK" },
+        ownershipRole: "owner",
+      }),
+    );
+    const catOwner = deriveActionItems(
+      makeInput({
+        pet: { species: "cat", status: "active", publicToken: "TK" },
+        ownershipRole: "owner",
+      }),
+    );
+    const dogTransit = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "active", publicToken: "TK" },
+        ownershipRole: "shelter_custody",
+      }),
+    );
 
     expect(dogOwner.map((a) => a.id)).toContain("service-dog");
     expect(catOwner.map((a) => a.id)).not.toContain("service-dog");
@@ -45,9 +64,7 @@ describe("deriveActionItems — conditional rules", () => {
   });
 
   it("no extra service-dog action rendered for accessPath === 'org'", () => {
-    const orgAccess = deriveActionItems(
-      makeInput({ accessPath: "org", ownershipRole: null }),
-    );
+    const orgAccess = deriveActionItems(makeInput({ accessPath: "org", ownershipRole: null }));
     expect(orgAccess.map((a) => a.id)).not.toContain("service-dog");
   });
 

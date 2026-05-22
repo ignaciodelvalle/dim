@@ -66,6 +66,7 @@ function chainReturning(rows: unknown[]) {
   const resolved = Promise.resolve(rows);
   const chain: Record<string, unknown> = {
     // Promise interface — makes `await chain` work.
+    // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mimics drizzle chain that resolves on await
     then: resolved.then.bind(resolved),
     catch: resolved.catch.bind(resolved),
     finally: resolved.finally.bind(resolved),
@@ -133,7 +134,7 @@ describe("whitelist drift guard — catalog event types", () => {
     // The known event types consumed by catalog computeStatus functions:
     const knownCatalogTypes = [
       "adoption_finalized", // A2 — i_was_adopted
-      "status_changed",     // A3 — lost_and_found
+      "status_changed", // A3 — lost_and_found
       "clinical_info_logged", // A4 — i_had_litter (pregnancy sub_kind)
     ];
     for (const eventType of knownCatalogTypes) {
@@ -170,9 +171,7 @@ describe("fetchPetEventsForProfileV2", () => {
   it("typedEvents contains only whitelisted event types from DB result", async () => {
     const good = makeEvent(PROFILE_V2_TYPED_EVENT_TYPES[0], new Date("2024-01-01"));
 
-    mockSelect
-      .mockReturnValueOnce(chainReturning([good]))
-      .mockReturnValueOnce(chainReturning([]));
+    mockSelect.mockReturnValueOnce(chainReturning([good])).mockReturnValueOnce(chainReturning([]));
 
     const result = await fetchPetEventsForProfileV2(PET_ID);
     expect(result.typedEvents.length).toBe(1);
@@ -184,9 +183,7 @@ describe("fetchPetEventsForProfileV2", () => {
       makeEvent("weight_recorded", new Date(`2024-0${i + 1}-01`)),
     );
 
-    mockSelect
-      .mockReturnValueOnce(chainReturning([]))
-      .mockReturnValueOnce(chainReturning(events));
+    mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning(events));
 
     const result = await fetchPetEventsForProfileV2(PET_ID);
     expect(result.recentFive.length).toBeLessThanOrEqual(5);
@@ -196,9 +193,7 @@ describe("fetchPetEventsForProfileV2", () => {
   it("recentFive rows have the PetEventMetadata shape", async () => {
     const event = makeEvent("weight_recorded", new Date("2024-06-01"), "evt-specific");
 
-    mockSelect
-      .mockReturnValueOnce(chainReturning([]))
-      .mockReturnValueOnce(chainReturning([event]));
+    mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning([event]));
 
     const result = await fetchPetEventsForProfileV2(PET_ID);
     const meta: PetEventMetadata = result.recentFive[0];
@@ -210,9 +205,7 @@ describe("fetchPetEventsForProfileV2", () => {
   });
 
   it("does NOT call any URL-signing function — mockSelect called exactly twice (AC-A3)", async () => {
-    mockSelect
-      .mockReturnValueOnce(chainReturning([]))
-      .mockReturnValueOnce(chainReturning([]));
+    mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning([]));
 
     await fetchPetEventsForProfileV2(PET_ID);
 
@@ -223,9 +216,7 @@ describe("fetchPetEventsForProfileV2", () => {
   });
 
   it("runs both queries in a single invocation (Promise.all pattern)", async () => {
-    mockSelect
-      .mockReturnValueOnce(chainReturning([]))
-      .mockReturnValueOnce(chainReturning([]));
+    mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning([]));
 
     await fetchPetEventsForProfileV2(PET_ID);
     expect(mockSelect).toHaveBeenCalledTimes(2);

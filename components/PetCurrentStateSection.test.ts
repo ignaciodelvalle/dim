@@ -5,10 +5,7 @@
 // The component itself delegates all conditional logic to this helper.
 
 import { describe, expect, it } from "vitest";
-import {
-  deriveCurrentStateFields,
-  type CurrentStatePet,
-} from "./PetCurrentStateSection.helpers";
+import { type CurrentStatePet, deriveCurrentStateFields } from "./PetCurrentStateSection.helpers";
 
 function makePet(overrides: Partial<CurrentStatePet> = {}): CurrentStatePet {
   return {

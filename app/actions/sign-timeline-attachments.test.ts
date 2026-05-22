@@ -37,7 +37,10 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 // Import AFTER mocks.
-import { signTimelineAttachments, signTimelineAttachmentsForPet } from "./sign-timeline-attachments";
+import {
+  signTimelineAttachments,
+  signTimelineAttachmentsForPet,
+} from "./sign-timeline-attachments";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,6 +77,7 @@ function chainReturning(rows: unknown[]) {
   const chain: Record<string, unknown> = {};
   chain.from = vi.fn().mockReturnValue(chain);
   chain.where = vi.fn().mockReturnValue(chain);
+  // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mimics drizzle chain that resolves on await
   chain.then = (resolve: (v: unknown) => void) => resolve(rows);
   return chain;
 }
@@ -188,7 +192,10 @@ describe("signTimelineAttachments", () => {
         chainReturning([makeAttachment("event-1", "pet-1/event-1/photo.jpg")]),
       );
       // Simulates a storage error — createSignedUrl returns null signedUrl.
-      mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: null }, error: { message: "not found" } });
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: null },
+        error: { message: "not found" },
+      });
 
       const result = await signTimelineAttachments("token-abc", ["event-1"]);
 
@@ -202,7 +209,10 @@ describe("signTimelineAttachments", () => {
       mockSelect.mockReturnValue(
         chainReturning([makeAttachment("event-1", "pet-1/event-1/photo.jpg")]),
       );
-      mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: "https://signed.url/x" }, error: null });
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: "https://signed.url/x" },
+        error: null,
+      });
 
       await signTimelineAttachments("token-abc", ["event-1"]);
 

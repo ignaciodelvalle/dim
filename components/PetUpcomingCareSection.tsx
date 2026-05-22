@@ -5,9 +5,9 @@
 // heading. Items sorted by dueAt ASC. Shows at most 5 items; a "Ver todos →"
 // link renders when more exist.
 
-import Link from "next/link";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
-import { mergeUpcomingItems, type UpcomingCareItem } from "./PetUpcomingCareSection.helpers";
+import Link from "next/link";
+import { type UpcomingCareItem, mergeUpcomingItems } from "./PetUpcomingCareSection.helpers";
 
 // Re-export for callers that need the type.
 export type { UpcomingCareItem };
@@ -60,24 +60,30 @@ export function PetUpcomingCareSection({
 }: Props) {
   // Build unified item list.
   const allItems: UpcomingCareItem[] = [
-    ...reminders.map((r): UpcomingCareItem => ({
-      id: `reminder-${r.reminderId}`,
-      kind: "reminder",
-      label: r.title,
-      dueAt: r.dueAt instanceof Date ? r.dueAt : new Date(r.dueAt),
-    })),
-    ...appointments.map((a): UpcomingCareItem => ({
-      id: `appt-${a.publicToken}`,
-      kind: "appointment",
-      label: a.offeringDisplayName,
-      dueAt: a.slotStartsAt instanceof Date ? a.slotStartsAt : new Date(a.slotStartsAt),
-    })),
-    ...medicationDoses.map((d): UpcomingCareItem => ({
-      id: `med-${d.reminderId}`,
-      kind: "medication",
-      label: d.drugName,
-      dueAt: d.dueAt instanceof Date ? d.dueAt : new Date(d.dueAt),
-    })),
+    ...reminders.map(
+      (r): UpcomingCareItem => ({
+        id: `reminder-${r.reminderId}`,
+        kind: "reminder",
+        label: r.title,
+        dueAt: r.dueAt instanceof Date ? r.dueAt : new Date(r.dueAt),
+      }),
+    ),
+    ...appointments.map(
+      (a): UpcomingCareItem => ({
+        id: `appt-${a.publicToken}`,
+        kind: "appointment",
+        label: a.offeringDisplayName,
+        dueAt: a.slotStartsAt instanceof Date ? a.slotStartsAt : new Date(a.slotStartsAt),
+      }),
+    ),
+    ...medicationDoses.map(
+      (d): UpcomingCareItem => ({
+        id: `med-${d.reminderId}`,
+        kind: "medication",
+        label: d.drugName,
+        dueAt: d.dueAt instanceof Date ? d.dueAt : new Date(d.dueAt),
+      }),
+    ),
   ];
 
   const { visible, hasMore } = mergeUpcomingItems(allItems);

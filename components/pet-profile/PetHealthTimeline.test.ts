@@ -4,8 +4,8 @@
 // and latest-event detection. DOM/render behaviour (details element, signing
 // transitions) is validated by the acceptance criteria in the spec.
 
-import { describe, expect, it } from "vitest";
 import type { PetEventMetadata } from "@/lib/owner-dashboard";
+import { describe, expect, it } from "vitest";
 import {
   MAX_TIMELINE_EVENTS,
   capRecentFive,

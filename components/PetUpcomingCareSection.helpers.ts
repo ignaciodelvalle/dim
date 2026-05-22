@@ -16,9 +16,10 @@ export interface UpcomingCareItem {
  * sorted list, capped at MAX_UPCOMING_ITEMS. Returns the sorted slice plus
  * whether more items exist beyond the cap.
  */
-export function mergeUpcomingItems(
-  items: UpcomingCareItem[],
-): { visible: UpcomingCareItem[]; hasMore: boolean } {
+export function mergeUpcomingItems(items: UpcomingCareItem[]): {
+  visible: UpcomingCareItem[];
+  hasMore: boolean;
+} {
   const sorted = [...items].sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
   const visible = sorted.slice(0, MAX_UPCOMING_ITEMS);
   return { visible, hasMore: sorted.length > MAX_UPCOMING_ITEMS };

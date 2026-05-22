@@ -92,9 +92,7 @@ describe("markAchievementSeenAction", () => {
 
     expect(result).toEqual({ ok: true });
     expect(mockInsert).toHaveBeenCalledTimes(1);
-    expect(mockRevalidatePath).toHaveBeenCalledWith(
-      expect.stringContaining("tok-abc"),
-    );
+    expect(mockRevalidatePath).toHaveBeenCalledWith(expect.stringContaining("tok-abc"));
   });
 
   it("idempotency: second call with same args returns ok (onConflictDoNothing absorbs duplicate)", async () => {

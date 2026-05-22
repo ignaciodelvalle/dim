@@ -30,9 +30,7 @@ const InputSchema = z.object({
 // Action
 // ---------------------------------------------------------------------------
 
-export type SignTimelineAttachmentsResult =
-  | Record<string, string>
-  | { error: string };
+export type SignTimelineAttachmentsResult = Record<string, string> | { error: string };
 
 // ---------------------------------------------------------------------------
 // Bound-action factory — returns a server action already bound to a petPublicToken.
@@ -86,12 +84,7 @@ export async function signTimelineAttachments(
       storagePath: attachments.storagePath,
     })
     .from(attachments)
-    .where(
-      and(
-        isNotNull(attachments.eventId),
-        inArray(attachments.eventId, parsed.data.eventIds),
-      ),
-    );
+    .where(and(isNotNull(attachments.eventId), inArray(attachments.eventId, parsed.data.eventIds)));
 
   if (rows.length === 0) {
     return {};

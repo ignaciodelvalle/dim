@@ -59,13 +59,9 @@ export function deriveCurrentStateFields(
     .filter((e) => e.eventType === "weight_recorded")
     .sort((a, b) => {
       const aTime =
-        a.occurredAt instanceof Date
-          ? a.occurredAt.getTime()
-          : new Date(a.occurredAt).getTime();
+        a.occurredAt instanceof Date ? a.occurredAt.getTime() : new Date(a.occurredAt).getTime();
       const bTime =
-        b.occurredAt instanceof Date
-          ? b.occurredAt.getTime()
-          : new Date(b.occurredAt).getTime();
+        b.occurredAt instanceof Date ? b.occurredAt.getTime() : new Date(b.occurredAt).getTime();
       return bTime - aTime;
     });
   const lastWeightEvent = weightEvents[0] ?? null;
@@ -91,9 +87,7 @@ export function deriveCurrentStateFields(
     trainingLevel: pet.trainingLevel ?? null,
     favouriteFoods: pet.favouriteFoods?.length ? pet.favouriteFoods : null,
     pregnancy: pet.pregnancyStatus ? { status: pet.pregnancyStatus } : null,
-    rabiesObservation: pet.rabiesObservationStatus
-      ? { status: pet.rabiesObservationStatus }
-      : null,
+    rabiesObservation: pet.rabiesObservationStatus ? { status: pet.rabiesObservationStatus } : null,
   };
 }
 
