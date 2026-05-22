@@ -1,9 +1,13 @@
 // VacunaTimelineDot — single vertical timeline item for the vaccine history.
+// Shows a ConfidenceBadge per entry (plan §A.6, 2026-05-22).
 //
 // Layout:
 //   [vertical line]
 //   [dot 16×16 — green if recorded < 1y ago, gray otherwise]
 //   [card: date | vaccine name, brand, batch, administered_by, next_due_at]
+
+import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
+import type { ConfidenceTier } from "@/lib/event-confidence";
 
 const MONTH_NAMES_ES = [
   "enero",
@@ -35,6 +39,7 @@ type Props = {
   nextDueAt?: Date | null;
   isFirst?: boolean;
   isLast?: boolean;
+  confidenceTier?: ConfidenceTier | null;
 };
 
 export function VacunaTimelineDot({
@@ -46,6 +51,7 @@ export function VacunaTimelineDot({
   nextDueAt,
   isFirst = false,
   isLast = false,
+  confidenceTier = null,
 }: Props) {
   const isFresh = Date.now() - recordedAt.getTime() < MS_PER_YEAR;
   const dotColor = isFresh
@@ -80,10 +86,13 @@ export function VacunaTimelineDot({
 
           {/* Detail block */}
           <div className="min-w-0 space-y-0.5">
-            <p className="text-sm font-medium text-gob-text">
-              {vaccineName}
-              {brand ? ` · ${brand}` : ""}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-medium text-gob-text">
+                {vaccineName}
+                {brand ? ` · ${brand}` : ""}
+              </p>
+              {confidenceTier && <ConfidenceBadge tier={confidenceTier} />}
+            </div>
             <p className="text-xs text-gob-text-muted">
               {administeredBy
                 ? `Administrada por ${administeredBy}`

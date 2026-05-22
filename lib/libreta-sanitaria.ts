@@ -1,5 +1,9 @@
 // Libreta sanitaria — projection over pet_events filtered to medical entries.
 //
+// Confidence tier integration (2026-05-22):
+// libretaConfidenceTier() derives the trustworthiness of an event from its
+// provenance fields. Pure function — no DB calls, computed on read.
+//
 // Canonical source of truth: AGENTS.md → "Libreta sanitaria".
 //
 // Every new EventType added to db/schema.ts → EVENT_TYPES must explicitly
@@ -11,6 +15,7 @@
 import { sql } from "drizzle-orm";
 
 import { EVENT_TYPES, type EventType } from "@/db/schema";
+import { type ConfidenceTier, computeConfidence } from "@/lib/event-confidence";
 
 // Event types that are part of the dueño's libreta sanitaria — the medical
 // record the vet writes and the dueño carries. Surfaces: pet profile section,
@@ -241,3 +246,25 @@ export function groupLibretaEvents<E extends { eventType: string; payload: unkno
   }
   return groups;
 }
+
+// ---------------------------------------------------------------------------
+// Confidence tier helper for libreta entries
+// ---------------------------------------------------------------------------
+
+/**
+ * Derives the confidence tier for a single libreta event row.
+ * Thin wrapper over computeConfidence() that accepts the raw event
+ * provenance fields — callers don't need to import event-confidence directly.
+ */
+export function libretaConfidenceTier(event: {
+  authorRole: string;
+  authorVerified: boolean;
+  authorOrganizationId: string | null;
+  payload: Record<string, unknown>;
+}): ConfidenceTier {
+  return computeConfidence(event);
+}
+
+// Re-export ConfidenceTier so consumers of libreta-sanitaria don't need to
+// import from event-confidence separately.
+export type { ConfidenceTier };

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/poncho/EmptyState";
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
 import { ReminderCard } from "@/components/poncho/ReminderCard";
+import { computeConfidence } from "@/lib/event-confidence";
 import type { ActiveReminderRow, VaccinationHistoryRow } from "@/lib/owner-dashboard";
 import { VacunaTimelineDot } from "./VacunaTimelineDot";
 
@@ -123,6 +124,12 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
                   nextDueAt={v.nextDueAt}
                   isFirst={i === 0}
                   isLast={i === history.length - 1}
+                  confidenceTier={computeConfidence({
+                    authorRole: v.authorRole,
+                    authorVerified: v.authorVerified,
+                    authorOrganizationId: v.authorOrganizationId,
+                    payload: {},
+                  })}
                 />
               ))}
             </ol>

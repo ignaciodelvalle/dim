@@ -7,8 +7,10 @@
 // details, NO scan history.
 
 import { PppPublicBadge } from "@/components/PppPublicBadge";
+import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
 import { attachments, db, ownerships, petEvents, petServiceDog, pets, profiles } from "@/db";
+import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import {
@@ -49,6 +51,34 @@ export default async function PublicCredentialPage({
   const hasVaccinations = vaccinations.length > 0;
   const hasMicrochip = !!pet.microchipId;
   const hasTattoo = !!pet.tattooCode;
+
+  // A.4: Confidence badge on public credential — only for institutional_verified
+  // or professional_verified (no shame on self_reported). Fetch the most recent
+  // vaccination's provenance to compute the tier.
+  const [latestVaccination] = await db
+    .select({
+      authorRole: petEvents.authorRole,
+      authorVerified: petEvents.authorVerified,
+      authorOrganizationId: petEvents.authorOrganizationId,
+      payload: petEvents.payload,
+    })
+    .from(petEvents)
+    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+
+  const latestVaccinationTier = latestVaccination
+    ? computeConfidence({
+        authorRole: latestVaccination.authorRole,
+        authorVerified: latestVaccination.authorVerified,
+        authorOrganizationId: latestVaccination.authorOrganizationId,
+        payload: (latestVaccination.payload ?? {}) as Record<string, unknown>,
+      })
+    : null;
+
+  // Gate: only institutional_verified or professional_verified (plan §A.4)
+  const showVaccinationConfidence =
+    latestVaccinationTier !== null && isAtLeast(latestVaccinationTier, "professional_verified");
 
   // Approximate age — year only (Tier 0 doesn't expose exact DOB).
   const ageYears = pet.dateOfBirth
@@ -382,6 +412,15 @@ export default async function PublicCredentialPage({
           <Badge label="Tatuaje" value={hasTattoo ? "Sí" : "No"} />
           <Badge label="Estado" value={statusLabel(pet.status)} />
         </div>
+
+        {/* A.4: Vaccination confidence badge — only shown for institutional or
+            professional verified tier. Intentionally silent for self_reported. */}
+        {showVaccinationConfidence && latestVaccinationTier && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">Vacunación:</span>
+            <ConfidenceBadge tier={latestVaccinationTier} />
+          </div>
+        )}
 
         {/* Active pet — the "found" form sits behind a disclosure so a casual
             scan doesn't land on an open form. */}
