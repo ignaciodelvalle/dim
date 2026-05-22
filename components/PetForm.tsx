@@ -35,20 +35,13 @@ export function PetForm({
   action,
   existingPet,
   existingPhotoUrl,
-  compact,
   submitLabel,
   pendingLabel,
   hiddenFields,
-  draftValues,
 }: {
   action: FormAction;
   existingPet?: Pet;
   existingPhotoUrl?: string | null;
-  // `compact` collapses the form to just the "Lo básico" section. Used by
-  // the inline first-pet capture at signup (AGENTS.md → v1 screens §Signup):
-  // ask only for photo + name + species + base info, owner fills the rest
-  // later via /mis-mascotas/{token}/editar.
-  compact?: boolean;
   // Optional overrides for the submit button copy. Defaults remain
   // "Crear mascota" / "Guardar cambios" / "Guardando…".
   submitLabel?: string;
@@ -57,11 +50,6 @@ export function PetForm({
   // action when the same action is reused across flows). Rendered as
   // <input type="hidden"> inside the <form>.
   hiddenFields?: Record<string, string>;
-  // Pre-fill values from the landing-page draft (app/_components/PetDraftForm.tsx).
-  // Only consulted in create mode (no existingPet). In compact mode, breed
-  // is not visible — when a draft breed is present we keep it in state and
-  // emit it as a hidden field so the user doesn't lose what they typed.
-  draftValues?: { name?: string; species?: string; breed?: string };
 }) {
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -72,10 +60,8 @@ export function PetForm({
   // companion-animal options. Storing the resolved value keeps every
   // species-aware helper (breedsForSpecies, isPotentiallyDangerousBreed)
   // working without a separate translation layer.
-  const [species, setSpecies] = useState<string>(
-    existingPet?.species ?? draftValues?.species ?? "",
-  );
-  const [breed, setBreed] = useState<string>(existingPet?.breed ?? draftValues?.breed ?? "");
+  const [species, setSpecies] = useState<string>(existingPet?.species ?? "");
+  const [breed, setBreed] = useState<string>(existingPet?.breed ?? "");
 
   const OTHER_SPECIES_VALUES = ["rabbit", "guinea_pig", "ferret"] as const;
   type OtherSpeciesValue = (typeof OTHER_SPECIES_VALUES)[number];
@@ -143,9 +129,9 @@ export function PetForm({
           <input key={name} type="hidden" name={name} value={value} />
         ))}
       {/* SECTION: ¿Es tu mascota o la estás cuidando?
-          Hidden in compact mode (signup) and in edit mode — changing custody
-          is a separate flow, not a form edit. Defaults to 'owner'. */}
-      {!compact && !isEdit && <CustodyKindToggle value={custodyKind} onChange={setCustodyKind} />}
+          Hidden in edit mode — changing custody is a separate flow, not a
+          form edit. Defaults to 'owner'. */}
+      {!isEdit && <CustodyKindToggle value={custodyKind} onChange={setCustodyKind} />}
       {/* SECTION: Lo básico */}
       <Section title="Lo básico" defaultOpen>
         <PhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
@@ -157,13 +143,8 @@ export function PetForm({
           label="Nombre"
           required
           autoComplete="off"
-          defaultValue={existingPet?.name ?? draftValues?.name}
+          defaultValue={existingPet?.name}
         />
-
-        {/* Compact create flow doesn't render the breed input, but if the
-            visitor typed a breed on the landing draft we still want it
-            persisted on submit so they don't lose what they typed. */}
-        {compact && !isEdit && breed && <input type="hidden" name="breed" value={breed} />}
 
         {/* The persisted species value travels as a hidden input. The visible
             top select drives the speciesGroup state; if the group is "other",
@@ -239,290 +220,279 @@ export function PetForm({
         />
       </Section>
 
-      {!compact && (
-        <>
-          {/* SECTION: Identificación y raza */}
-          <Section title="Identificación y raza" defaultOpen={isEdit && !!existingPet?.breed}>
-            <div className="space-y-1.5">
-              <label htmlFor="breed" className={labelClass}>
-                Raza
-              </label>
-              <input
-                id="breed"
-                name="breed"
-                type="text"
-                list="breed-options"
-                value={breed}
-                onChange={(e) => setBreed(e.target.value)}
-                placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
-                disabled={!species}
-                className={`${inputClass} disabled:opacity-50`}
-              />
-              <datalist id="breed-options">
-                {breedOptions.map((b) => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
-              {breedIsDangerous && (
-                <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
-                  Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
-                  Ley Provincial 14.107). Vas a tener que registrarte en el registro provincial
-                  correspondiente. MiMAR marcará tu mascota con la flag oficial y te avisará en
-                  notificaciones.
+      {/* SECTION: Identificación y raza */}
+      <Section title="Identificación y raza" defaultOpen={isEdit && !!existingPet?.breed}>
+        <div className="space-y-1.5">
+          <label htmlFor="breed" className={labelClass}>
+            Raza
+          </label>
+          <input
+            id="breed"
+            name="breed"
+            type="text"
+            list="breed-options"
+            value={breed}
+            onChange={(e) => setBreed(e.target.value)}
+            placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
+            disabled={!species}
+            className={`${inputClass} disabled:opacity-50`}
+          />
+          <datalist id="breed-options">
+            {breedOptions.map((b) => (
+              <option key={b} value={b} />
+            ))}
+          </datalist>
+          {breedIsDangerous && (
+            <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
+              Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078, Ley
+              Provincial 14.107). Vas a tener que registrarte en el registro provincial
+              correspondiente. MiMAR marcará tu mascota con la flag oficial y te avisará en
+              notificaciones.
+            </div>
+          )}
+        </div>
+
+        <SelectField
+          id="acquisitionMethod"
+          name="acquisitionMethod"
+          label={
+            isEdit
+              ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
+              : "¿Cómo te encontraste con esta mascota?"
+          }
+          defaultValue={existingPet?.acquisitionMethod ?? ""}
+        >
+          <option value="">No especificar</option>
+          <option value="adopted">Adoptado/a</option>
+          <option value="purchased">Comprado/a</option>
+          <option value="found_stray">Encontrado/a en la calle</option>
+          <option value="gift">Regalado/a</option>
+          <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
+          <option value="other">Otro</option>
+        </SelectField>
+
+        <MicrochipBlock existingPet={existingPet} />
+      </Section>
+
+      {/* SECTION: Salud y vida diaria */}
+      <Section title="Salud y vida diaria">
+        <Field
+          id="estimatedWeightKg"
+          name="estimatedWeightKg"
+          type="number"
+          label="Peso estimado (kg)"
+          step="0.1"
+          min="0"
+          defaultValue={existingPet?.estimatedWeightKg ?? undefined}
+        />
+
+        <CheckboxGroup
+          name="favouriteFoods"
+          label="Comidas favoritas"
+          options={COMMON_FOODS}
+          otherFieldName="favouriteFoodsOther"
+          defaultValues={existingPet?.favouriteFoods ?? []}
+        />
+
+        <CheckboxGroup
+          name="knownAllergies"
+          label="Alergias conocidas"
+          options={COMMON_ALLERGIES}
+          otherFieldName="knownAllergiesOther"
+          defaultValues={existingPet?.knownAllergies ?? []}
+        />
+
+        <SelectField
+          id="trainingLevel"
+          name="trainingLevel"
+          label="Nivel de entrenamiento"
+          defaultValue={existingPet?.trainingLevel ?? ""}
+        >
+          <option value="">No especificar</option>
+          {TRAINING_LEVELS.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </SelectField>
+      </Section>
+
+      {/* SECTION: Seguro */}
+      <Section title="Seguro de mascota">
+        <div className="space-y-1.5">
+          <label htmlFor="insuranceCompany" className={labelClass}>
+            Compañía
+          </label>
+          <input
+            id="insuranceCompany"
+            name="insuranceCompany"
+            type="text"
+            list="insurance-companies"
+            placeholder="Buscar o tipear…"
+            defaultValue={existingPet?.insuranceCompany ?? undefined}
+            className={inputClass}
+          />
+          <datalist id="insurance-companies">
+            {INSURANCE_COMPANIES.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </div>
+        <Field
+          id="insurancePolicyNumber"
+          name="insurancePolicyNumber"
+          type="text"
+          label="Número de póliza"
+          defaultValue={existingPet?.insurancePolicyNumber ?? undefined}
+        />
+      </Section>
+
+      {/* SECTION: Documentos (placeholder) */}
+      <Section title="Documentos y certificaciones">
+        <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center text-sm text-neutral-500 dark:text-neutral-500">
+          Pasaporte de viaje, certificado de perro de servicio, otros.
+          <br />
+          <span className="text-xs">Próximamente</span>
+        </div>
+      </Section>
+
+      {/* SECTION: Smart devices */}
+      <Section title="Dispositivos conectados">
+        <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center space-y-3">
+          <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            Cámaras, comederos automáticos, collares GPS, sensores.
+          </p>
+          <button
+            type="button"
+            disabled
+            className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 disabled:cursor-not-allowed"
+          >
+            Conectar dispositivo (próximamente)
+          </button>
+        </div>
+      </Section>
+
+      {/* SECTION: Ubicación */}
+      <Section
+        title="Ubicación (ayuda a las campañas de salud animal)"
+        defaultOpen={isEdit && !!existingPet?.jurisdictionProvince}
+      >
+        <LocationFields
+          mode="jurisdiction"
+          defaultValue={{
+            // Existing rows store the display name in jurisdiction_province;
+            // resolve to the ISO code for the select. Once the canonical-
+            // codes migration lands (deferred until gov dashboards) this
+            // lookup becomes a pass-through.
+            provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
+            localityName: existingPet?.jurisdictionLocality ?? null,
+          }}
+        />
+      </Section>
+
+      {/* SECTION: Credencial pública */}
+      <Section
+        title="Credencial pública"
+        defaultOpen={isEdit && !!existingPet?.emergencyInfoVisible}
+      >
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="emergencyInfoVisible"
+            value="true"
+            defaultChecked={!!existingPet?.emergencyInfoVisible}
+            className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+              Mostrar aviso de emergencia médica en la credencial pública
+            </span>
+            <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+              Aparece en la página pública sin revelar tu nombre ni datos sensibles.
+            </span>
+          </span>
+        </label>
+      </Section>
+
+      {/* SECTION: Condiciones permanentes */}
+      <Section title="Condiciones permanentes" defaultOpen={isEdit && conditions.size > 0}>
+        <input type="hidden" name="permanentConditions" value={Array.from(conditions).join(",")} />
+        <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
+          Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora, médica).
+          Esto ayuda a otros veterinarios y, si decidís compartirla, a personas que quieran
+          adoptarla.
+        </p>
+        <div className="space-y-3">
+          {PERMANENT_CONDITION_GROUPS.map((group) => {
+            const codes = PERMANENT_CONDITIONS.filter(
+              (c) => permanentConditionGroup(c) === group.id,
+            );
+            if (codes.length === 0) return null;
+            return (
+              <fieldset key={group.id} className="space-y-1">
+                <legend className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  {group.label}
+                </legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  {codes.map((code) => (
+                    <label key={code} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={conditions.has(code)}
+                        onChange={() => toggleCondition(code)}
+                        className="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+                      />
+                      <span className="text-neutral-800 dark:text-neutral-200">
+                        {permanentConditionLabel(code)}
+                      </span>
+                    </label>
+                  ))}
                 </div>
-              )}
-            </div>
-
-            <SelectField
-              id="acquisitionMethod"
-              name="acquisitionMethod"
-              label={
-                isEdit
-                  ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
-                  : "¿Cómo te encontraste con esta mascota?"
-              }
-              defaultValue={existingPet?.acquisitionMethod ?? ""}
-            >
-              <option value="">No especificar</option>
-              <option value="adopted">Adoptado/a</option>
-              <option value="purchased">Comprado/a</option>
-              <option value="found_stray">Encontrado/a en la calle</option>
-              <option value="gift">Regalado/a</option>
-              <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
-              <option value="other">Otro</option>
-            </SelectField>
-
-            <MicrochipBlock existingPet={existingPet} />
-          </Section>
-
-          {/* SECTION: Salud y vida diaria */}
-          <Section title="Salud y vida diaria">
-            <Field
-              id="estimatedWeightKg"
-              name="estimatedWeightKg"
-              type="number"
-              label="Peso estimado (kg)"
-              step="0.1"
-              min="0"
-              defaultValue={existingPet?.estimatedWeightKg ?? undefined}
-            />
-
-            <CheckboxGroup
-              name="favouriteFoods"
-              label="Comidas favoritas"
-              options={COMMON_FOODS}
-              otherFieldName="favouriteFoodsOther"
-              defaultValues={existingPet?.favouriteFoods ?? []}
-            />
-
-            <CheckboxGroup
-              name="knownAllergies"
-              label="Alergias conocidas"
-              options={COMMON_ALLERGIES}
-              otherFieldName="knownAllergiesOther"
-              defaultValues={existingPet?.knownAllergies ?? []}
-            />
-
-            <SelectField
-              id="trainingLevel"
-              name="trainingLevel"
-              label="Nivel de entrenamiento"
-              defaultValue={existingPet?.trainingLevel ?? ""}
-            >
-              <option value="">No especificar</option>
-              {TRAINING_LEVELS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </SelectField>
-          </Section>
-
-          {/* SECTION: Seguro */}
-          <Section title="Seguro de mascota">
-            <div className="space-y-1.5">
-              <label htmlFor="insuranceCompany" className={labelClass}>
-                Compañía
-              </label>
-              <input
-                id="insuranceCompany"
-                name="insuranceCompany"
-                type="text"
-                list="insurance-companies"
-                placeholder="Buscar o tipear…"
-                defaultValue={existingPet?.insuranceCompany ?? undefined}
-                className={inputClass}
-              />
-              <datalist id="insurance-companies">
-                {INSURANCE_COMPANIES.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <Field
-              id="insurancePolicyNumber"
-              name="insurancePolicyNumber"
-              type="text"
-              label="Número de póliza"
-              defaultValue={existingPet?.insurancePolicyNumber ?? undefined}
-            />
-          </Section>
-
-          {/* SECTION: Documentos (placeholder) */}
-          <Section title="Documentos y certificaciones">
-            <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center text-sm text-neutral-500 dark:text-neutral-500">
-              Pasaporte de viaje, certificado de perro de servicio, otros.
-              <br />
-              <span className="text-xs">Próximamente</span>
-            </div>
-          </Section>
-
-          {/* SECTION: Smart devices */}
-          <Section title="Dispositivos conectados">
-            <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center space-y-3">
-              <p className="text-sm text-neutral-700 dark:text-neutral-300">
-                Cámaras, comederos automáticos, collares GPS, sensores.
-              </p>
-              <button
-                type="button"
-                disabled
-                className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 disabled:cursor-not-allowed"
-              >
-                Conectar dispositivo (próximamente)
-              </button>
-            </div>
-          </Section>
-
-          {/* SECTION: Ubicación */}
-          <Section
-            title="Ubicación (ayuda a las campañas de salud animal)"
-            defaultOpen={isEdit && !!existingPet?.jurisdictionProvince}
-          >
-            <LocationFields
-              mode="jurisdiction"
-              defaultValue={{
-                // Existing rows store the display name in jurisdiction_province;
-                // resolve to the ISO code for the select. Once the canonical-
-                // codes migration lands (deferred until gov dashboards) this
-                // lookup becomes a pass-through.
-                provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
-                localityName: existingPet?.jurisdictionLocality ?? null,
-              }}
-            />
-          </Section>
-
-          {/* SECTION: Credencial pública */}
-          <Section
-            title="Credencial pública"
-            defaultOpen={isEdit && !!existingPet?.emergencyInfoVisible}
-          >
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                name="emergencyInfoVisible"
-                value="true"
-                defaultChecked={!!existingPet?.emergencyInfoVisible}
-                className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
-              />
-              <span className="space-y-0.5">
-                <span className="block text-sm text-neutral-900 dark:text-neutral-50">
-                  Mostrar aviso de emergencia médica en la credencial pública
-                </span>
-                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
-                  Aparece en la página pública sin revelar tu nombre ni datos sensibles.
-                </span>
-              </span>
+              </fieldset>
+            );
+          })}
+        </div>
+        {conditions.has("otra") && (
+          <div className="mt-3 space-y-1">
+            <label htmlFor="permanentConditionsOther" className={labelClass}>
+              Especificá la condición
             </label>
-          </Section>
-
-          {/* SECTION: Condiciones permanentes */}
-          <Section title="Condiciones permanentes" defaultOpen={isEdit && conditions.size > 0}>
             <input
-              type="hidden"
-              name="permanentConditions"
-              value={Array.from(conditions).join(",")}
+              id="permanentConditionsOther"
+              name="permanentConditionsOther"
+              type="text"
+              required={conditions.has("otra")}
+              maxLength={120}
+              value={conditionsOther}
+              onChange={(e) => setConditionsOther(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
             />
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
-              Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora,
-              médica). Esto ayuda a otros veterinarios y, si decidís compartirla, a personas que
-              quieran adoptarla.
-            </p>
-            <div className="space-y-3">
-              {PERMANENT_CONDITION_GROUPS.map((group) => {
-                const codes = PERMANENT_CONDITIONS.filter(
-                  (c) => permanentConditionGroup(c) === group.id,
-                );
-                if (codes.length === 0) return null;
-                return (
-                  <fieldset key={group.id} className="space-y-1">
-                    <legend className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                      {group.label}
-                    </legend>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                      {codes.map((code) => (
-                        <label
-                          key={code}
-                          className="flex items-center gap-2 text-sm cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={conditions.has(code)}
-                            onChange={() => toggleCondition(code)}
-                            className="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
-                          />
-                          <span className="text-neutral-800 dark:text-neutral-200">
-                            {permanentConditionLabel(code)}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                );
-              })}
-            </div>
-            {conditions.has("otra") && (
-              <div className="mt-3 space-y-1">
-                <label htmlFor="permanentConditionsOther" className={labelClass}>
-                  Especificá la condición
-                </label>
-                <input
-                  id="permanentConditionsOther"
-                  name="permanentConditionsOther"
-                  type="text"
-                  required={conditions.has("otra")}
-                  maxLength={120}
-                  value={conditionsOther}
-                  onChange={(e) => setConditionsOther(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-                />
-              </div>
-            )}
-            {!conditions.has("otra") && (
-              <input type="hidden" name="permanentConditionsOther" value="" />
-            )}
-            <label className="mt-4 flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                name="discloseConditionsPublicly"
-                value="true"
-                checked={discloseConditions}
-                onChange={(e) => setDiscloseConditions(e.target.checked)}
-                disabled={conditions.size === 0}
-                className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50 disabled:opacity-50"
-              />
-              <span className="space-y-0.5">
-                <span className="block text-sm text-neutral-900 dark:text-neutral-50">
-                  Compartir estas condiciones en superficies públicas
-                </span>
-                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
-                  Cuando está marcado, las condiciones se muestran en la credencial pública y en{" "}
-                  /adoptar si el refugio publica al pet en adopción. Sin esto quedan privadas.
-                </span>
-              </span>
-            </label>
-          </Section>
-        </>
-      )}
+          </div>
+        )}
+        {!conditions.has("otra") && (
+          <input type="hidden" name="permanentConditionsOther" value="" />
+        )}
+        <label className="mt-4 flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="discloseConditionsPublicly"
+            value="true"
+            checked={discloseConditions}
+            onChange={(e) => setDiscloseConditions(e.target.checked)}
+            disabled={conditions.size === 0}
+            className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50 disabled:opacity-50"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+              Compartir estas condiciones en superficies públicas
+            </span>
+            <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+              Cuando está marcado, las condiciones se muestran en la credencial pública y en{" "}
+              /adoptar si el refugio publica al pet en adopción. Sin esto quedan privadas.
+            </span>
+          </span>
+        </label>
+      </Section>
 
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">
