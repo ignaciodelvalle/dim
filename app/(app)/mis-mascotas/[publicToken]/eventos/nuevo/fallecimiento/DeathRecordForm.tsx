@@ -3,6 +3,7 @@
 import type { EventFormState } from "@/app/actions/events";
 import { diseasesForSpecies, findDisease } from "@/lib/diseases";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -32,6 +33,7 @@ export function DeathRecordForm({
   defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const [cause, setCause] = useState("");
   const [selectedDiseaseCode, setSelectedDiseaseCode] = useState("");
@@ -49,6 +51,7 @@ export function DeathRecordForm({
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <label htmlFor="cause" className={labelClass}>
           Causa<span className="text-red-500 ml-0.5">*</span>
