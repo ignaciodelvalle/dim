@@ -7,15 +7,15 @@
 // Auth: owner-only via requirePetAccess (same pattern as vacunas page).
 // A non-owner visitor gets notFound() — the page is private by design.
 //
-// QR toggle: the QR feature requires a lightweight QR library that is NOT
-// yet installed. The toggle UI is present but the QR panel renders a
-// placeholder with the public URL text. Add a QR library (e.g. `qrcode`)
-// and swap the placeholder for a real <QRCode> component once approved.
+// QR toggle: hidden by default behind a <details> disclosure. SVG is
+// rendered server-side via the `qrcode` library so the page works without
+// client-side JS once the SVG is in the DOM.
 //
 // Spec §4.8 — "Modo presentación". Pet profile v2 Slice C, Commit 4.
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import QRCode from "qrcode";
 
 import { attachments, db, petServiceDog } from "@/db";
 import { formatDate } from "@/lib/format";
@@ -65,6 +65,12 @@ export default async function AsistenciaPresentarPage({
   const serviceTypeLabel = SERVICE_TYPE_LABELS[serviceDog.serviceType] ?? serviceDog.serviceType;
 
   const publicVerifyUrl = buildPublicVerifyUrl(publicToken);
+  const qrSvg = await QRCode.toString(publicVerifyUrl, {
+    type: "svg",
+    margin: 1,
+    width: 180,
+    errorCorrectionLevel: "M",
+  });
 
   return (
     <main className="min-h-screen bg-white text-neutral-900 flex flex-col">
@@ -148,27 +154,33 @@ export default async function AsistenciaPresentarPage({
           espacios públicos y privados de uso público (Arts. 1 y 7, Ley 26.858).
         </p>
 
-        {/* QR toggle — QR library not yet installed; shows URL text as stub */}
-        <QrToggle publicVerifyUrl={publicVerifyUrl} />
+        {/* QR toggle — server-rendered SVG, native <details> disclosure (no JS needed) */}
+        <QrToggle publicVerifyUrl={publicVerifyUrl} qrSvg={qrSvg} />
       </div>
     </main>
   );
 }
 
 // QR toggle uses <details>/<summary> — native HTML disclosure widget that works
-// without JS. When a QR library is approved and installed, replace the URL text
-// stub with a real <QRCode value={publicVerifyUrl} /> component.
-function QrToggle({ publicVerifyUrl }: { publicVerifyUrl: string }) {
+// without JS. The SVG is rendered server-side and injected with
+// dangerouslySetInnerHTML; the URL appears underneath as a fallback for users
+// who can't scan.
+function QrToggle({ publicVerifyUrl, qrSvg }: { publicVerifyUrl: string; qrSvg: string }) {
   return (
     <details className="w-full text-center">
       <summary className="cursor-pointer text-xs text-emerald-600 hover:text-emerald-800 select-none">
         Mostrar QR de verificación
       </summary>
       <div className="mt-3 flex flex-col items-center gap-2">
-        <p className="text-[10px] text-neutral-400">
-          QR no disponible — se requiere aprobación de dependencia.
+        <div
+          className="rounded-md bg-white p-2 shadow-sm"
+          aria-label={`QR de verificación para ${publicVerifyUrl}`}
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated SVG from the qrcode library
+          dangerouslySetInnerHTML={{ __html: qrSvg }}
+        />
+        <p className="font-mono text-[10px] text-neutral-500 break-all max-w-xs">
+          {publicVerifyUrl}
         </p>
-        <p className="font-mono text-xs text-neutral-600 break-all max-w-xs">{publicVerifyUrl}</p>
       </div>
     </details>
   );
