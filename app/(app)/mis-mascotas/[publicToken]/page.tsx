@@ -45,7 +45,9 @@
 // ---------------------------------------------------------------------------
 
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
+import { markAchievementSeenAction } from "@/app/actions/achievement-views";
 import { AchievementsSection } from "@/components/AchievementsSection";
+import type { CredentialChip } from "@/components/AchievementsSection";
 import { PetActionsMenu } from "@/components/PetActionsMenu";
 import { PetCurrentStateSection } from "@/components/PetCurrentStateSection";
 import { PetUpcomingCareSection } from "@/components/PetUpcomingCareSection";
@@ -69,6 +71,7 @@ import {
   cases,
   db,
   ownerships,
+  petAchievementViews,
   petEvents,
   petServiceDog,
   pets,
@@ -443,13 +446,58 @@ export default async function PetDetailPage({
     }
   }
 
+  // Achievement views — load pulse_until rows for the current owner session.
+  // Only meaningful for the owner path; org-path viewers don't see pulse UX.
+  let viewsMap: Map<string, Date | null> | undefined;
+  if (accessPath === "owner") {
+    const viewRows = await db
+      .select({ achievementId: petAchievementViews.achievementId, pulseUntil: petAchievementViews.pulseUntil })
+      .from(petAchievementViews)
+      .where(and(eq(petAchievementViews.userId, user.id), eq(petAchievementViews.petId, pet.id)));
+    viewsMap = new Map(viewRows.map((r) => [r.achievementId, r.pulseUntil]));
+  }
+
   // Achievements — typedEvents ordered ASC from the helper.
-  const earnedAchievements = getEarnedAchievements({
-    pet,
-    events: typedEvents,
-    serviceDog: serviceDogRow ?? null,
-    cases: allCases,
-  });
+  // Pass viewsMap so pulse_until is populated (or defaulted to +7d for new achievements).
+  const earnedAchievements = getEarnedAchievements(
+    {
+      pet,
+      events: typedEvents,
+      serviceDog: serviceDogRow ?? null,
+      cases: allCases,
+    },
+    viewsMap,
+  );
+
+  // Fire markAchievementSeenAction for each newly-earned achievement that has
+  // no view row yet (viewsMap missing the key). Swallow errors — this is a
+  // best-effort UX pulse, not load-bearing.
+  if (accessPath === "owner" && viewsMap !== undefined) {
+    const unseenIds = earnedAchievements
+      .map((a) => a.id)
+      .filter((id) => !viewsMap!.has(id));
+    // Fire-and-forget in background — page render must not block on this.
+    void Promise.all(
+      unseenIds.map((id) =>
+        markAchievementSeenAction(pet.publicToken, id).catch((err) =>
+          console.log("[markAchievementSeenAction]", err),
+        ),
+      ),
+    );
+  }
+
+  // Credential chips — rendered leftmost in AchievementsSection.
+  const credentialChips: CredentialChip[] = [];
+  if (pet.potentiallyDangerousBreed) {
+    credentialChips.push({ kind: "ppp", label: "PPP", icon: "⚠️" });
+  }
+  if (
+    serviceDogRow &&
+    serviceDogRow.credentialStatus === "vigente" &&
+    serviceDogRow.inService
+  ) {
+    credentialChips.push({ kind: "service_dog", label: "Perro de servicio", icon: "🦮" });
+  }
 
   // Parallel data fetching — all remaining queries.
   const [petActiveReminders, pendingMedicationReminders, upcomingAppointments, weightHistory] =
@@ -594,8 +642,8 @@ export default async function PetDetailPage({
         {/* §4.9 (5) Hero — identity header */}
         <PetProfileHero pet={heroData} />
 
-        {/* §4.9 (6) Achievements row */}
-        <AchievementsSection earned={earnedAchievements} />
+        {/* §4.9 (6) Achievements row + credentials */}
+        <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
 
         {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
         <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
