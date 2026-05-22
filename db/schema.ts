@@ -867,6 +867,13 @@ export const petEvents = pgTable(
     // Cases system (migration 0033). Nullable — at most one case per event.
     // The case_id is append-only at the DB level (enforced by trigger).
     caseId: uuid("case_id"),
+    // ENO Event-Trust Tier 1 Fase B (migration 0047). UUID v4 generated
+    // client-side before form submission. NULL for admin writes and any
+    // path that does not supply a key. The partial unique index
+    // `pet_events_idempotency_idx` on (pet_id, event_type, key) WHERE
+    // key IS NOT NULL enforces last-stable-wins idempotency: ON CONFLICT
+    // DO NOTHING + fetch-existing returns the original row silently.
+    clientIdempotencyKey: uuid("client_idempotency_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -874,6 +881,11 @@ export const petEvents = pgTable(
     eventTypeIdx: index("pet_events_event_type_idx").on(table.eventType),
     authorRoleIdx: index("pet_events_author_role_idx").on(table.authorRole),
     locationIdx: index("pet_events_location_idx").on(table.locationLat, table.locationLng),
+    // Partial unique index for client-side idempotency keys (migration 0047).
+    // Only rows with a non-null key participate — see comment on column above.
+    idempotencyIdx: uniqueIndex("pet_events_idempotency_idx")
+      .on(table.petId, table.eventType, table.clientIdempotencyKey)
+      .where(sql`client_idempotency_key is not null`),
   }),
 );
 
