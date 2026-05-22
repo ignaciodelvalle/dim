@@ -194,6 +194,35 @@ export const RLS_MATRIX: RlsMatrix = {
     },
   },
 
+  event_notification_outbox: {
+    anon: {
+      select: deny("outbox is system-only — no anon access"),
+      insert: deny("outbox rows are inserted by server actions via service role"),
+      update: deny("outbox mutations are drainer-only via service role"),
+      delete: deny("outbox rows are retained for audit"),
+    },
+    owner: {
+      select: deny("outbox is admin/system-only, not owner-accessible"),
+      insert: deny("owners never insert outbox rows directly"),
+      update: deny("owners never update outbox rows"),
+      delete: deny("owners never delete outbox rows"),
+    },
+    other_user: {
+      select: deny("outbox is not accessible to general users"),
+      insert: deny("general users cannot insert outbox rows"),
+      update: deny("general users cannot update outbox rows"),
+      delete: deny("general users cannot delete outbox rows"),
+    },
+    admin: {
+      // Admin reads outbox via service-role Drizzle (C.2 admin UI).
+      // No PostgREST RLS policy grants admin access in v1.
+      select: deny("admin reads outbox via service role, not PostgREST"),
+      insert: deny("admin uses server actions"),
+      update: deny("admin uses server actions"),
+      delete: deny("admin uses server actions"),
+    },
+  },
+
   cases: {
     anon: {
       select: deny("cases are private"),
