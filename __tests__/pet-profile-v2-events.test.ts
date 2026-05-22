@@ -55,12 +55,23 @@ function makeEvent(
   };
 }
 
-/** Chain builder for Drizzle-style fluent select mock. Returns rows on `.all()`. */
+/** Chain builder for Drizzle-style fluent select mock.
+ *
+ * The chain is both a fluent builder (from/where/orderBy/limit return `chain`)
+ * AND a Promise (has `then`/`catch`/`finally`) so that `await chain` resolves
+ * with the fixture rows. This mirrors how Drizzle queries work when awaited
+ * directly (no `.all()` call needed).
+ */
 function chainReturning(rows: unknown[]) {
-  // Build a self-referential chain where every method returns the same chain
-  // object (including itself). The `all` method resolves with the fixture rows.
-  const chain: Record<string, unknown> = {};
-  chain.all = vi.fn().mockResolvedValue(rows);
+  const resolved = Promise.resolve(rows);
+  const chain: Record<string, unknown> = {
+    // Promise interface — makes `await chain` work.
+    then: resolved.then.bind(resolved),
+    catch: resolved.catch.bind(resolved),
+    finally: resolved.finally.bind(resolved),
+    // Legacy `.all()` for older call-sites.
+    all: vi.fn().mockResolvedValue(rows),
+  };
   for (const method of ["from", "where", "orderBy", "limit"]) {
     chain[method] = vi.fn().mockReturnValue(chain);
   }

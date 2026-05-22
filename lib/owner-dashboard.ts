@@ -992,7 +992,7 @@ export interface PetProfileV2Events {
    * (achievements, PetCurrentStateSection, PetHealthTimeline state).
    * Ordered ASC by occurred_at.
    */
-  typedEvents: ReturnType<typeof petEvents.$inferSelect>[];
+  typedEvents: (typeof petEvents.$inferSelect)[];
   /**
    * Last 5 events overall, metadata only — no attachment URL signing.
    * Used by the collapsed PetHealthTimeline header preview.
@@ -1022,8 +1022,7 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
           inArray(petEvents.eventType, [...EVENT_TYPES_FOR_PROFILE_V2]),
         ),
       )
-      .orderBy(asc(petEvents.occurredAt))
-      .all(),
+      .orderBy(asc(petEvents.occurredAt)),
     // Query B — last 5 events, metadata only.
     db
       .select({
@@ -1035,20 +1034,21 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
       .from(petEvents)
       .where(eq(petEvents.petId, petId))
       .orderBy(desc(petEvents.occurredAt))
-      .limit(5)
-      .all(),
+      .limit(5),
   ]);
 
-  const recentFive: PetEventMetadata[] = recentRows.map((r) => {
-    const payload = (r.payload ?? {}) as Record<string, unknown>;
-    const summary = typeof payload.summary === "string" ? payload.summary : null;
-    return {
-      id: r.id,
-      eventType: r.eventType,
-      occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(r.occurredAt as string),
-      summary,
-    };
-  });
+  const recentFive: PetEventMetadata[] = recentRows.map(
+    (r: { id: string; eventType: string; occurredAt: Date; payload: unknown }) => {
+      const payload = (r.payload ?? {}) as Record<string, unknown>;
+      const summary = typeof payload.summary === "string" ? payload.summary : null;
+      return {
+        id: r.id,
+        eventType: r.eventType,
+        occurredAt: r.occurredAt instanceof Date ? r.occurredAt : new Date(r.occurredAt as string),
+        summary,
+      };
+    },
+  );
 
   return { typedEvents: typedRows, recentFive };
 }
