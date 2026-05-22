@@ -66,6 +66,12 @@ const LIBRETA_OPTIONS: EventOption[] = [
     enabled: true,
   },
   {
+    slug: "tatuaje",
+    label: "Tatuaje registrado",
+    description: "Código del tatuaje y foto. Identificador secundario al microchip.",
+    enabled: true,
+  },
+  {
     slug: "clinico",
     label: "Información clínica",
     description: "Análisis, imágenes, cirugías, alergias",
