@@ -1,4 +1,4 @@
-// RLS matrix harness — drives `matrix.spec.ts` against the live Supabase
+// RLS matrix harness — drives `matrix.data.ts` against the live Supabase
 // local stack via PostgREST (supabase-js), which IS subject to RLS.
 //
 // **MVP scope (this commit):** only SELECT is exercised end-to-end. The
@@ -21,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/case-helpers";
-import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.spec";
+import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
 // ---------------------------------------------------------------------------
 // Config
