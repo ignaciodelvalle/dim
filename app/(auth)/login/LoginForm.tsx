@@ -30,7 +30,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
         {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
         <div className="space-y-1.5">
           <label htmlFor="email" className={labelClass}>
-            Correo electrónico
+            Tu correo
           </label>
           <input
             id="email"
@@ -43,7 +43,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
         </div>
         <div className="space-y-1.5">
           <label htmlFor="password" className={labelClass}>
-            Contraseña
+            Tu contraseña
           </label>
           <input
             id="password"

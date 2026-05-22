@@ -110,7 +110,7 @@ export function SignupForm({
           id="displayName"
           name="displayName"
           type="text"
-          label="Nombre"
+          label="¿Cómo te llamás?"
           autoComplete="name"
           required
         />
@@ -118,7 +118,7 @@ export function SignupForm({
           id="email"
           name="email"
           type="email"
-          label="Correo electrónico"
+          label="Tu correo"
           autoComplete="email"
           required
         />
@@ -126,7 +126,7 @@ export function SignupForm({
           id="password"
           name="password"
           type="password"
-          label="Contraseña"
+          label="Elegí una contraseña"
           autoComplete="new-password"
           minLength={8}
           required
@@ -144,7 +144,7 @@ export function SignupForm({
           disabled={authPending}
           className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {authPending ? "Creando cuenta..." : "Continuar"}
+          {authPending ? "Creando cuenta..." : "Guardar y continuar"}
         </button>
       </form>
     </div>
