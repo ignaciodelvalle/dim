@@ -19,7 +19,7 @@ import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db } from "@/db";
+import { cases, db, petAchievementViews } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/case-helpers";
 import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
@@ -60,6 +60,7 @@ const contexts = new Map<RlsRole, RoleContext>();
 let ownerPetId: string | null = null;
 let setupError: string | null = null;
 let fixtureCaseId: string | null = null;
+let fixtureAchievementViewId: string | null = null;
 
 beforeAll(async () => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -120,6 +121,23 @@ beforeAll(async () => {
       .returning({ id: cases.id });
     fixtureCaseId = row.id;
   }
+
+  // Fixture pet_achievement_views row — needed so the SELECT probe can
+  // assert `allow` for the owner role (owner sees own pulse rows). Inserted
+  // via Drizzle (service role bypasses RLS); cleaned up in afterAll.
+  const ownerCtxForAv = contexts.get("owner");
+  if (ownerPetId && ownerCtxForAv?.userId) {
+    const [avRow] = await db
+      .insert(petAchievementViews)
+      .values({
+        userId: ownerCtxForAv.userId,
+        petId: ownerPetId,
+        achievementId: "rls-matrix-fixture",
+      })
+      .onConflictDoNothing()
+      .returning({ id: petAchievementViews.id });
+    fixtureAchievementViewId = avRow?.id ?? null;
+  }
 });
 
 afterAll(async () => {
@@ -130,6 +148,12 @@ afterAll(async () => {
     await db
       .delete(cases)
       .where(eq(cases.id, fixtureCaseId))
+      .catch(() => {});
+  }
+  if (fixtureAchievementViewId) {
+    await db
+      .delete(petAchievementViews)
+      .where(eq(petAchievementViews.id, fixtureAchievementViewId))
       .catch(() => {});
   }
 });
@@ -169,6 +193,9 @@ async function probeSelect(
     query = client.from(table).select("*").eq("id", ctx.ownerUserId).limit(1);
   } else if (table === "pets" && ctx.ownerPetId) {
     query = client.from(table).select("*").eq("id", ctx.ownerPetId).limit(1);
+  } else if (table === "pet_achievement_views" && ctx.ownerPetId) {
+    // Probe the fixture row inserted in beforeAll for the owner's first pet.
+    query = client.from(table).select("*").eq("pet_id", ctx.ownerPetId).limit(1);
   }
 
   const { data, error } = await query;
