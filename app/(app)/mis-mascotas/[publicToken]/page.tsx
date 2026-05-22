@@ -46,6 +46,7 @@
 
 import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
+import { signTimelineAttachmentsForPet } from "@/app/actions/sign-timeline-attachments";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import type { CredentialChip } from "@/components/AchievementsSection";
 import { PetActionsMenu } from "@/components/PetActionsMenu";
@@ -660,10 +661,14 @@ export default async function PetDetailPage({
           petToken={pet.publicToken}
         />
 
-        {/* §4.9 (9) Health timeline — collapsed by default, lazy signing */}
+        {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
+            signTimelineAttachmentsForPet is bound to the pet's publicToken so
+            the client component receives a (eventIds) => Promise<…> signer
+            that satisfies the SignerFn type without server-only imports. */}
         <PetHealthTimeline
           recentFive={recentFive}
           fullHistoryHref={`/mis-mascotas/${pet.publicToken}/historial`}
+          signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
         />
 
         {/* §4.9 (10) Actions menu — replaces inline action buttons */}
