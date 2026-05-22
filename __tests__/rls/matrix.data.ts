@@ -256,4 +256,33 @@ export const RLS_MATRIX: RlsMatrix = {
       delete: deny("cases are not deleted"),
     },
   },
+
+  pet_achievement_views: {
+    // Owner UX pulse rows. RLS: owner reads own rows; all writes go through
+    // markAchievementSeenAction via Drizzle (service role, bypasses RLS).
+    anon: {
+      select: deny("anon has no session — no read policy matches"),
+      insert: deny("anon cannot seed achievement views"),
+      update: deny("anon cannot mutate"),
+      delete: deny("no DELETE policy — write-once history"),
+    },
+    owner: {
+      select: allow("owner reads own pulse rows via user_id = auth.uid() + ownerships join"),
+      insert: deny("owner inserts via markAchievementSeenAction (Drizzle bypasses RLS)"),
+      update: deny("owner updates via markAchievementSeenAction (Drizzle bypasses RLS)"),
+      delete: deny("no DELETE policy — write-once history"),
+    },
+    other_user: {
+      select: deny("owner-only isolation guarantee — other_user sees zero rows"),
+      insert: deny("cannot seed another user's achievement views"),
+      update: deny("cannot mutate another user's views"),
+      delete: deny("no DELETE policy"),
+    },
+    admin: {
+      select: deny("admin universal scope is enforced in app code, not RLS"),
+      insert: deny("admin uses server actions"),
+      update: deny("admin uses server actions"),
+      delete: deny("no DELETE policy"),
+    },
+  },
 };

@@ -4,8 +4,8 @@
 >
 > **Fecha:** 2026-05-19
 > **Owner:** Ignacio Del Valle
-> **Estado:** ready for review, no code yet
-> **Versión:** 1.1 — agrega dos secciones nuevas de "credenciales y status legal destacado" en el profile: §4.7 PPP card (Animal Potencialmente Peligroso, Ley CABA 4078 / Prov 14.107) y §4.8 Service Dog Credential Card (Ley 26.858). Ambas son DISPLAY del status legal ya implementado en schema/event log — no agregan event types nuevos, solo refinan UX. Mueve la decisión "achievements los mostramos como chips horizontales" (PP7) a "achievements + credentials van en una sola fila visual; las credentials toman precedencia visual sobre achievements normales".
+> **Estado:** 🟢 Shipped 2026-05-22 ([PR #127](https://github.com/ignaciodelvalle/dim/pull/127) open vs develop)
+> **Versión:** 1.2 — SDD aplicado completamente. Slice A (foundational refactor + perf win + tattoo R5 gap) + Slice B (pet_achievement_views + actions + T7-B1/B2 row). Slice C (PPP on /p/, Modo presentación) deferred to follow-up SDD change.
 >
 > **Versiones previas:** 1.0 — diseño inicial con achievements POC.
 >
@@ -614,3 +614,44 @@ Total ~1 semana. Plan ejecutable separado (`plans/2026-05-19-pet-profile-v2.md` 
 - Compartir achievement individual a redes sociales (image gen + OG tags) — fuera de scope
 - Versionado de achievement defs ("este achievement existía en 2024 con condición distinta") — no relevante en v1
 - Custom achievements creados por usuarios o refugios — fuera de scope, defer indefinido
+
+---
+
+## Closed Delta — SDD applied 2026-05-22
+
+### Decisions closed during SDD cycle
+
+**R2 (inline timeline)**: Collapsed by default inside `<details>` showing last 5 events; attachments sign lazily on expand. Pragmatic compromise vs strict PP1 "no event list".
+
+**OD9 (fetchPetEventsForProfileV2)**: Two parallel queries — Query A typed events for state computation, Query B last 5 metadata-only rows. Single exported constant `PROFILE_V2_TYPED_EVENT_TYPES` as source of truth.
+
+**OD6 (pulse_until storage)**: New table `pet_achievement_views(user_id, pet_id, achievement_id, first_seen_at, pulse_until)` with composite uniqueness and owner-only RLS. Server action `markAchievementSeenAction` upserts rows; pulse_until defaults to now() + 7 days on insert.
+
+**R5 (tattoo gap)**: Folded into Slice A. `tattooCode` + `tattooLocation` displayed in "Estado actual" section alongside microchip.
+
+**Scope**: Slice A (foundation refactor + perf win + tattoo) + Slice B (achievements UX with credentials+achievements single row, pulse_until badge). Slice C (PPP on /p/, ServiceDogCredentialCard presentación mode) deferred to follow-up SDD change.
+
+### Deferred follow-ups (documented in PR #127)
+
+- **Tattoo field tightening**: Once PR #125 (tattoo-identifier) lands on develop, tighten `CurrentStatePet.tattooCode` from optional to required (`string | null`).
+- **Slice C**: Separate SDD for PPP card on `/p/[publicToken]` and ServiceDogCredentialCard "modo presentación" full-screen button (OD7, OD8, OD10).
+
+### Slice deliverables (v1.2)
+
+- **Slice A**: `fetchPetEventsForProfileV2` helper (Query A typed + Query B last-5), `PetCurrentStateSection` (Estado actual with tattoo R5), `PetUpcomingCareSection` (consolidated care), `PetActionsMenu` (vertical actions), `PetHealthTimeline` (collapsed with lazy signing), page.tsx section reorder to §4.9 spec.
+- **Slice B**: `pet_achievement_views` migration + RLS, `markAchievementSeenAction` server action, `pulse_until` field on `EarnedAchievement`, `AchievementsSection` single-row credentials+achievements redesign, page.tsx wiring for views load + action dispatch.
+
+### Results
+
+- 18 commits on `feat/pet-profile-v2` branch (10 original + 8 fix-batch after first verify)
+- ~585 prod LOC + ~420 test LOC
+- Test impact: +20 tests (1493 → 1513)
+- Verify status: 0 CRITICAL, 2 WARNING (both deferred tattoo-merge follow-ups), 2 SUGGESTION (non-blocking)
+- PR #127 open vs develop with `size:exception` label (owner-authorized per obs #347)
+
+### Key discoveries
+
+- **Strict TDD held throughout**: 17 work units in dependency order, tests-in-same-commit on every unit. First verify caught integration-level wiring gap (WARNING-1 / NFR-5); fix batch of 8 commits + bonus annotation closed all findings.
+- **drizzle-kit drift hazard**: When two parallel feature branches (tattoo-identifier #125, pet-profile-v2 this change) both add migrations against the same parent commit on develop, `pnpm db:bootstrap --no-seeds` detects data-loss risk and prompts. Safe workaround: apply migration SQL directly via postgres.js.
+- **RLS harness limitation**: Tables with no seed data (like `pet_achievement_views`) need a fixture row inserted in beforeAll for the RLS probe to infer `allow` from row count.
+- **Component-with-injection pattern**: If a component receives a server action or signer function prop (like `PetHealthTimeline` with `signAttachments`), add integration-level wiring tests at the page level — unit tests mocking the prop may pass while page wiring breaks.

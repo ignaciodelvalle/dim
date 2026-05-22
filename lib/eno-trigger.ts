@@ -16,7 +16,7 @@
 import { and, eq, isNull, or } from "drizzle-orm";
 
 import { auditLog, db, govtAssignments, notifications, ownerships, pets, profiles } from "@/db";
-import { getEnoDisease, isEnoCode } from "./eno-catalog";
+import { diseaseCodeToEnoCode, getEnoDisease, isEnoCode } from "./eno-catalog";
 
 // ---------------------------------------------------------------------------
 // Type
@@ -54,8 +54,14 @@ export async function processEnoEventTrigger(petEvent: PetEventRow): Promise<voi
   const payload = petEvent.payload;
   if (payload.sub_kind !== "disease_diagnosis") return;
 
-  const diseaseCode = typeof payload.disease_code === "string" ? payload.disease_code : null;
-  if (!diseaseCode || !isEnoCode(diseaseCode)) return;
+  const rawDiseaseCode = typeof payload.disease_code === "string" ? payload.disease_code : null;
+  if (!rawDiseaseCode) return;
+
+  // The diagnosis form emits granular codes (rabies_confirmed, rabies_suspected,
+  // canine_brucellosis, visceral_leishmaniasis, hydatidosis) that don't match the
+  // ENO catalog's locked names. Bridge to the catalog code before the gate.
+  const diseaseCode = diseaseCodeToEnoCode(rawDiseaseCode);
+  if (!isEnoCode(diseaseCode)) return;
 
   const disease = getEnoDisease(diseaseCode);
   if (!disease) return; // should be unreachable after isEnoCode, but belt-and-suspenders
