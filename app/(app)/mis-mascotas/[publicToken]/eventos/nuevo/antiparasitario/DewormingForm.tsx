@@ -2,6 +2,7 @@
 
 import type { EventFormState } from "@/app/actions/events";
 import { inputClass, labelClass } from "@/lib/form-classes";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -17,10 +18,12 @@ export function DewormingForm({
   defaults?: { product: string | null; occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <Field
         id="product"
         name="product"

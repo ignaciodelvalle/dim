@@ -3,6 +3,7 @@
 import type { EventFormState } from "@/app/actions/events";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useMemo, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -26,6 +27,7 @@ export function VaccinationForm({
   defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const vaccines = vaccinesForSpecies(species);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -45,6 +47,7 @@ export function VaccinationForm({
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {sourceReminderId && <input type="hidden" name="sourceReminderId" value={sourceReminderId} />}
 
       <div className="space-y-1.5">

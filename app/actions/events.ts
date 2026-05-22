@@ -23,6 +23,7 @@ import {
   profiles,
   reminders,
 } from "@/db";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { signalAuthorityReport } from "@/lib/authority";
@@ -87,6 +88,7 @@ export async function createVaccinationAction(
   const nextDueAtRaw = String(formData.get("nextDueAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const sourceReminderId = String(formData.get("sourceReminderId") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!vaccineName) return { error: "Falta el nombre de la vacuna." };
   if (!occurredAtRaw) return { error: "Falta la fecha de aplicación." };
@@ -114,9 +116,8 @@ export async function createVaccinationAction(
         administered_by: administeredBy,
         next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: vaccinationNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "vaccination_administered",
           occurredAt,
@@ -125,8 +126,11 @@ export async function createVaccinationAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (vaccinationNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -188,6 +192,7 @@ export async function createWeightAction(
   const kgRaw = String(formData.get("kg") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!kgRaw) return { error: "Falta el peso." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
@@ -208,9 +213,8 @@ export async function createWeightAction(
   try {
     await db.transaction(async (tx) => {
       const eventPayload = validateEventPayload("weight_recorded", { kg: kgStr });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: weightNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "weight_recorded",
           occurredAt,
@@ -219,8 +223,11 @@ export async function createWeightAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (weightNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -267,6 +274,7 @@ export async function createNoteAction(
   const text = String(formData.get("text") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const categoryRaw = String(formData.get("category") ?? "").trim();
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!text) return { error: "Falta el contenido de la nota." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
@@ -283,9 +291,8 @@ export async function createNoteAction(
   try {
     await db.transaction(async (tx) => {
       const eventPayload = validateEventPayload("note_added", { category, text });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: noteNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "note_added",
           occurredAt,
@@ -294,8 +301,11 @@ export async function createNoteAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes: null,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (noteNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -339,6 +349,7 @@ export async function createVetVisitAction(
   const vetName = String(formData.get("vetName") ?? "").trim() || null;
   const clinic = String(formData.get("clinic") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!reason) return { error: "Falta el motivo de la visita." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
@@ -358,9 +369,8 @@ export async function createVetVisitAction(
         vet_name: vetName,
         clinic,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: vetNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "vet_visit_logged",
           occurredAt,
@@ -369,8 +379,11 @@ export async function createVetVisitAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (vetNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -905,6 +918,7 @@ export async function createDewormingAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const nextDueAtRaw = String(formData.get("nextDueAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!product) return { error: "Falta el nombre del producto." };
   if (!["internal", "external", "both"].includes(type))
@@ -930,9 +944,8 @@ export async function createDewormingAction(
         type,
         next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: dewormingNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "deworming_administered",
           occurredAt,
@@ -941,8 +954,11 @@ export async function createDewormingAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (dewormingNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -998,6 +1014,7 @@ export async function createSterilizationAction(
   const clinic = String(formData.get("clinic") ?? "").trim() || null;
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!["castration", "spay"].includes(procedure)) return { error: "Procedimiento inválido." };
   if (!occurredAtRaw) return { error: "Falta la fecha de la cirugía." };
@@ -1016,9 +1033,8 @@ export async function createSterilizationAction(
         performed_by: performedBy,
         clinic,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: sterilizationNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "sterilization_performed",
           occurredAt,
@@ -1027,8 +1043,11 @@ export async function createSterilizationAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (sterilizationNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
@@ -1072,6 +1091,7 @@ export async function createMicrochipAction(
   const locationOnBody = String(formData.get("locationOnBody") ?? "").trim() || null;
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!chipNumber) return { error: "Falta el número de microchip." };
   if (!occurredAtRaw) return { error: "Falta la fecha de implantación." };
@@ -1091,9 +1111,8 @@ export async function createMicrochipAction(
         implanted_by: implantedBy,
         location_on_body: locationOnBody,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: microchipNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "microchip_implanted",
           occurredAt,
@@ -1102,8 +1121,11 @@ export async function createMicrochipAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (microchipNoop) return;
 
       if (upload.uploadedPath) {
         await tx.insert(attachments).values({
