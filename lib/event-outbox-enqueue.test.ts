@@ -72,9 +72,9 @@ const PET = {
 // ---------------------------------------------------------------------------
 
 describe("enqueueOutboxForEvent", () => {
-  it("rabies disease_diagnosis → inserts one outbox row with correct sla_due_at (24h)", async () => {
+  it("rabies_confirmed disease_diagnosis → inserts one outbox row with correct sla_due_at (24h)", async () => {
     const { tx, inserted } = makeMockTx();
-    const event = makeDiseaseDiagnosisEvent("rabies");
+    const event = makeDiseaseDiagnosisEvent("rabies_confirmed");
 
     await enqueueOutboxForEvent(tx as never, event, PET, NOW);
 
@@ -102,9 +102,9 @@ describe("enqueueOutboxForEvent", () => {
     expect(inserted[0].slaDueAt).toEqual(expectedSla);
   });
 
-  it("outbreak_signal for ENO disease → inserts one row with 24h SLA", async () => {
+  it("outbreak_signal for ENO disease (rabies_suspected) → inserts one row with 24h SLA", async () => {
     const { tx, inserted } = makeMockTx();
-    const event = makeOutbreakSignalEvent("rabies");
+    const event = makeOutbreakSignalEvent("rabies_suspected");
 
     await enqueueOutboxForEvent(tx as never, event, PET, NOW);
 
@@ -138,7 +138,7 @@ describe("enqueueOutboxForEvent", () => {
 
   it("payload snapshot contains the full event payload", async () => {
     const { tx, inserted } = makeMockTx();
-    const event = makeDiseaseDiagnosisEvent("rabies");
+    const event = makeDiseaseDiagnosisEvent("rabies_confirmed");
 
     await enqueueOutboxForEvent(tx as never, event, PET, NOW);
 

@@ -47,6 +47,7 @@ import {
   requirePetAccess,
 } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
+import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
@@ -2184,6 +2185,20 @@ export async function createSymptomObservedAction(
           })
           .returning();
 
+        // Enqueue outbox row for the outbreak_signal event (ENO SLA).
+        await enqueueOutboxForEvent(
+          tx,
+          {
+            id: signalEvent.id,
+            eventType: "outbreak_signal",
+            payload: signalPayload as Record<string, unknown>,
+          },
+          {
+            jurisdictionProvince: pet.jurisdictionProvince,
+            jurisdictionLocality: pet.jurisdictionLocality,
+          },
+        );
+
         // 6. Route notification to authority targets — severity bumped to
         // 'urgent' when this signal is an active-observation rabies escalation.
         await routeOutbreakSignalNotifications(
@@ -2340,6 +2355,20 @@ export async function recordDiseaseDiagnosisWriter(
         .returning();
       diagnosisEventId = diagnosisEvent.id;
 
+      // Enqueue outbox row for the disease_diagnosis event (ENO SLA notification).
+      await enqueueOutboxForEvent(
+        tx,
+        {
+          id: diagnosisEvent.id,
+          eventType: "clinical_info_logged",
+          payload: diagnosisPayload as Record<string, unknown>,
+        },
+        {
+          jurisdictionProvince: params.petJurisdictionProvince,
+          jurisdictionLocality: params.petJurisdictionLocality,
+        },
+      );
+
       if (isReportable(params.diseaseCode)) {
         const signalPayload = validateEventPayload("outbreak_signal", {
           triggered_by: "direct_diagnosis",
@@ -2374,6 +2403,20 @@ export async function recordDiseaseDiagnosisWriter(
           })
           .returning();
         signalEventId = signalEvent.id;
+
+        // Enqueue outbox row for the outbreak_signal event.
+        await enqueueOutboxForEvent(
+          tx,
+          {
+            id: signalEvent.id,
+            eventType: "outbreak_signal",
+            payload: signalPayload as Record<string, unknown>,
+          },
+          {
+            jurisdictionProvince: params.petJurisdictionProvince,
+            jurisdictionLocality: params.petJurisdictionLocality,
+          },
+        );
 
         const fakePet = {
           id: params.petId,
@@ -2747,6 +2790,20 @@ export async function createSymptomObservedWriter(
           .returning();
 
         signalEventIds.push(signalEvent.id);
+
+        // Enqueue outbox row for the outbreak_signal event (ENO SLA).
+        await enqueueOutboxForEvent(
+          tx,
+          {
+            id: signalEvent.id,
+            eventType: "outbreak_signal",
+            payload: signalPayload as Record<string, unknown>,
+          },
+          {
+            jurisdictionProvince: petJurisdictionProvince,
+            jurisdictionLocality: petJurisdictionLocality,
+          },
+        );
 
         // Route notifications (same logic as the server action).
         const pet = {

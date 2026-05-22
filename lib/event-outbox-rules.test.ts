@@ -19,16 +19,16 @@ describe("OUTBOX_RULES[clinical_info_logged]", () => {
     expect(rules[0].target_kind).toBe("govt_webhook");
   });
 
-  it("rabies diagnosis → returns notifyHours (24) from ENO catalog", () => {
+  it("rabies_confirmed diagnosis → returns notifyHours (24) via ENO catalog bridge", () => {
     const rule = rules[0];
     const slaHours = rule.slaHours({
       sub_kind: "disease_diagnosis",
-      disease_code: "rabies",
+      disease_code: "rabies_confirmed", // diseases.ts code → ENO 'rabies' (24h)
     });
     expect(slaHours).toBe(24);
   });
 
-  it("leptospirosis diagnosis → returns notifyHours (48) from ENO catalog", () => {
+  it("leptospirosis diagnosis → returns notifyHours (48) from ENO catalog (direct match)", () => {
     const rule = rules[0];
     const slaHours = rule.slaHours({
       sub_kind: "disease_diagnosis",
@@ -68,20 +68,18 @@ describe("OUTBOX_RULES[outbreak_signal]", () => {
     expect(rules[0].target_kind).toBe("govt_webhook");
   });
 
-  it("outbreak_signal with disease of severity 'critical' (rabies) → 24 hours", () => {
+  it("outbreak_signal with rabies_suspected (maps to ENO 'rabies', critical) → 24 hours", () => {
     const rule = rules[0];
     const slaHours = rule.slaHours({
-      disease_code: "rabies",
-      // rabies severity is 'critical' per ENO_DISEASES_AR
+      disease_code: "rabies_suspected", // diseases.ts code → ENO 'rabies'
     });
     expect(slaHours).toBe(24);
   });
 
-  it("outbreak_signal with disease of severity 'high' (leptospirosis) → 24 hours", () => {
+  it("outbreak_signal with leptospirosis (direct ENO match, high severity) → 24 hours", () => {
     const rule = rules[0];
     const slaHours = rule.slaHours({
       disease_code: "leptospirosis",
-      // leptospirosis severity is 'high' per ENO_DISEASES_AR
     });
     expect(slaHours).toBe(24);
   });

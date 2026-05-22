@@ -17,6 +17,37 @@ import { type EventType } from "@/db/schema";
 import { getEnoDisease } from "./eno-catalog";
 
 // ---------------------------------------------------------------------------
+// Disease code bridge
+// ---------------------------------------------------------------------------
+// lib/diseases.ts uses codes like 'rabies_confirmed', 'rabies_suspected',
+// 'canine_brucellosis', etc. lib/eno-catalog.ts uses a separate code space
+// ('rabies', 'brucelosis_canina', etc.). This map bridges the two so the
+// outbox rules can look up ENO SLA data for disease-diagnosis events.
+
+const DISEASE_TO_ENO_CODE: Record<string, string> = {
+  // Rabies variants → ENO 'rabies'
+  rabies_confirmed: "rabies",
+  rabies_suspected: "rabies",
+  // Leptospirosis codes align
+  leptospirosis: "leptospirosis",
+  // Brucellosis
+  canine_brucellosis: "brucelosis_canina",
+  // Leishmaniasis
+  visceral_leishmaniasis: "leishmaniasis",
+  // Hydatidosis
+  hydatidosis: "hidatidosis",
+};
+
+/**
+ * Returns the ENO catalog disease for a given diseases.ts disease_code, or
+ * null if the code is not in the ENO catalog (non-ENO disease or unknown code).
+ */
+function getEnoForDiseaseCode(diseaseCode: string) {
+  const enoCode = DISEASE_TO_ENO_CODE[diseaseCode] ?? diseaseCode;
+  return getEnoDisease(enoCode);
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -63,7 +94,7 @@ const clinicalInfoLoggedGovtWebhook: OutboxRule = {
     if (payload.sub_kind !== "disease_diagnosis") return null;
     const diseaseCode = typeof payload.disease_code === "string" ? payload.disease_code : null;
     if (!diseaseCode) return null;
-    const disease = getEnoDisease(diseaseCode);
+    const disease = getEnoForDiseaseCode(diseaseCode);
     if (!disease) return null;
     return disease.notifyHours;
   },
@@ -85,7 +116,7 @@ const outbreakSignalGovtWebhook: OutboxRule = {
   slaHours(payload) {
     const diseaseCode = typeof payload.disease_code === "string" ? payload.disease_code : null;
     if (!diseaseCode) return null;
-    const disease = getEnoDisease(diseaseCode);
+    const disease = getEnoForDiseaseCode(diseaseCode);
     if (!disease) return null;
     // Outbreak signals from ENO diseases always warrant 24h govt notification.
     return 24;
