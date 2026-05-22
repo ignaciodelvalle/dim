@@ -597,7 +597,9 @@ export default async function PetDetailPage({
         )}
 
         {/* §4.9 (2) Open cases section */}
-        <PetOpenCasesSection petId={pet.id} />
+        <div data-section="cases">
+          <PetOpenCasesSection petId={pet.id} />
+        </div>
 
         {/* Pregnancy card — conditional, above hero */}
         {pregnancyCardData && (
@@ -612,7 +614,7 @@ export default async function PetDetailPage({
 
         {/* §4.9 (3) PPP card — DEFERRED to Slice C */}
         {pet.potentiallyDangerousBreed && (
-          <>
+          <div data-section="ppp-card">
             <PpPCard
               petPublicToken={pet.publicToken}
               breed={pet.breed}
@@ -624,60 +626,74 @@ export default async function PetDetailPage({
               pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
                 <PppExportCabaButton petPublicToken={pet.publicToken} />
               )}
-          </>
+          </div>
         )}
 
         {/* §4.9 (4) Service Dog credential card — DEFERRED to Slice C */}
         {serviceDogRow &&
           serviceDogRow.credentialStatus === "vigente" &&
           serviceDogRow.inService && (
-            <ServiceDogCredentialCard
-              petPublicToken={pet.publicToken}
-              petName={pet.name}
-              microchipId={pet.microchipId}
-              serviceDog={serviceDogRow}
-              photoUrl={photoUrl}
-            />
+            <div data-section="service-dog-card">
+              <ServiceDogCredentialCard
+                petPublicToken={pet.publicToken}
+                petName={pet.name}
+                microchipId={pet.microchipId}
+                serviceDog={serviceDogRow}
+                photoUrl={photoUrl}
+              />
+            </div>
           )}
 
         {/* §4.9 (5) Hero — identity header */}
-        <PetProfileHero pet={heroData} />
+        <div data-section="hero">
+          <PetProfileHero pet={heroData} />
+        </div>
 
         {/* §4.9 (6) Achievements row + credentials */}
-        <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
+        <div data-section="achievements">
+          <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
+        </div>
 
         {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
-        <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+        <div data-section="current-state">
+          <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+        </div>
 
         {/* §4.9 (8) Cuidados próximos — consolidates reminders + appointments + meds */}
-        <PetUpcomingCareSection
-          reminders={petActiveReminders}
-          appointments={upcomingAppointments}
-          medicationDoses={pendingMedicationReminders.map((r) => ({
-            reminderId: r.id,
-            drugName: r.title,
-            dueAt: r.dueAt,
-          }))}
-          petToken={pet.publicToken}
-        />
+        <div data-section="upcoming-care">
+          <PetUpcomingCareSection
+            reminders={petActiveReminders}
+            appointments={upcomingAppointments}
+            medicationDoses={pendingMedicationReminders.map((r) => ({
+              reminderId: r.id,
+              drugName: r.title,
+              dueAt: r.dueAt,
+            }))}
+            petToken={pet.publicToken}
+          />
+        </div>
 
         {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
             signTimelineAttachmentsForPet is bound to the pet's publicToken so
             the client component receives a (eventIds) => Promise<…> signer
             that satisfies the SignerFn type without server-only imports. */}
-        <PetHealthTimeline
-          recentFive={recentFive}
-          fullHistoryHref={`/mis-mascotas/${pet.publicToken}/historial`}
-          signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
-        />
+        <div data-section="health-timeline">
+          <PetHealthTimeline
+            recentFive={recentFive}
+            fullHistoryHref={`/mis-mascotas/${pet.publicToken}/historial`}
+            signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
+          />
+        </div>
 
         {/* §4.9 (10) Actions menu — replaces inline action buttons */}
-        <PetActionsMenu
-          pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
-          accessPath={accessPath === "org" ? "org" : "owner"}
-          ownershipRole={ownershipRole}
-          hasPendingReturnProposal={false}
-        />
+        <div data-section="actions-menu">
+          <PetActionsMenu
+            pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
+            accessPath={accessPath === "org" ? "org" : "owner"}
+            ownershipRole={ownershipRole}
+            hasPendingReturnProposal={false}
+          />
+        </div>
 
         {/* Auxiliary cards — below PetActionsMenu per design §5 */}
 
