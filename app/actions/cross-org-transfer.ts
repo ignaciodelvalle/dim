@@ -162,6 +162,7 @@ export async function proposeCrossOrgTransferAction(
           jurisdictionLocality: pet.jurisdictionLocality,
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
+          receiverOrganizationId: receiver.id,
           openedReason: `auto: cross-org transfer proposed reason=${input.reason}`,
         },
         tx,
@@ -341,10 +342,30 @@ export async function acceptCrossOrgTransferAction(input: {
         "Inconsistencia entre el caso y la propuesta. Avisanos para reconciliarlo antes de aceptar la transferencia.",
     };
   }
-  // Receiver is still derived from the payload (no canonical column on
-  // `cases` yet — tracked as a follow-up). The single-proposal guard above
-  // makes this safe as long as the data-integrity invariant holds.
-  if (proposalPayload.to_organization_id !== organization.id) {
+  // Receiver authorization: prefer the canonical column on `cases`
+  // (migration 0043). Fall back to the proposal payload only when the
+  // column is null (legacy rows pre-backfill). When both are present we
+  // require them to agree — drift here means the case state and the
+  // event timeline disagree about who's allowed to accept.
+  const canonicalReceiverOrgId =
+    caseRow.receiverOrganizationId ?? proposalPayload.to_organization_id;
+  if (!canonicalReceiverOrgId) {
+    return { error: "Propuesta sin organización destinataria." };
+  }
+  if (
+    caseRow.receiverOrganizationId &&
+    proposalPayload.to_organization_id &&
+    caseRow.receiverOrganizationId !== proposalPayload.to_organization_id
+  ) {
+    console.error(
+      `cross-org-transfer integrity: case ${caseRow.id} receiverOrganizationId (${caseRow.receiverOrganizationId}) does not match proposal payload to_organization_id (${proposalPayload.to_organization_id})`,
+    );
+    return {
+      error:
+        "Inconsistencia entre el caso y la propuesta. Avisanos para reconciliarlo antes de aceptar la transferencia.",
+    };
+  }
+  if (canonicalReceiverOrgId !== organization.id) {
     return { error: "La propuesta no fue dirigida a tu organización." };
   }
 
@@ -496,6 +517,9 @@ export async function rejectCrossOrgTransferAction(input: {
   if (!caseRow) return { error: "Caso no encontrado." };
   if (caseRow.status !== "open") return { error: "Este caso ya no está abierto." };
 
+  // Authorization: only the canonical receiver org can reject. The
+  // column is the source of truth (migration 0043); when it's null
+  // (legacy row pre-backfill) we fall back to the payload.
   const [proposalEvent] = await db
     .select()
     .from(petEvents)
@@ -504,9 +528,17 @@ export async function rejectCrossOrgTransferAction(input: {
     )
     .limit(1);
   if (!proposalEvent) return { error: "Propuesta original no encontrada." };
-  const proposalPayload = proposalEvent.payload as { from_organization_id?: string };
-  const senderOrgId = proposalPayload.from_organization_id;
+  const proposalPayload = proposalEvent.payload as {
+    from_organization_id?: string;
+    to_organization_id?: string;
+  };
+  const senderOrgId = caseRow.openedByOrganizationId ?? proposalPayload.from_organization_id;
   if (!senderOrgId) return { error: "Propuesta sin organización emisora." };
+  const canonicalReceiverOrgId =
+    caseRow.receiverOrganizationId ?? proposalPayload.to_organization_id;
+  if (canonicalReceiverOrgId && canonicalReceiverOrgId !== organization.id) {
+    return { error: "La propuesta no fue dirigida a tu organización." };
+  }
 
   const reasonNote =
     [input.reason, input.message?.trim()].filter(Boolean).join(" — ") ||
@@ -620,15 +652,20 @@ export async function cancelCrossOrgTransferAction(input: {
     return { error: "Solo la organización que propuso puede cancelar." };
   }
 
-  const [proposalEvent] = await db
-    .select()
-    .from(petEvents)
-    .where(
-      and(eq(petEvents.caseId, caseRow.id), eq(petEvents.eventType, "custody_transfer_proposed")),
-    )
-    .limit(1);
-  const receiverOrgId =
-    proposalEvent && (proposalEvent.payload as { to_organization_id?: string }).to_organization_id;
+  // Receiver id for notification: prefer the canonical column.
+  let receiverOrgId: string | null | undefined = caseRow.receiverOrganizationId;
+  if (!receiverOrgId) {
+    const [proposalEvent] = await db
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.caseId, caseRow.id), eq(petEvents.eventType, "custody_transfer_proposed")),
+      )
+      .limit(1);
+    receiverOrgId =
+      proposalEvent &&
+      (proposalEvent.payload as { to_organization_id?: string }).to_organization_id;
+  }
 
   const reasonNote =
     [input.reason, input.message?.trim()].filter(Boolean).join(" — ") ||

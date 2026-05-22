@@ -120,7 +120,7 @@ describe("custody_transfer_handshake — V1 catalog", () => {
 });
 
 describe("cross-org transfer — propose + accept happy path", () => {
-  it("propose opens a case with the proposal event attached", async () => {
+  it("propose opens a case with the proposal event attached and receiver_org persisted", async () => {
     await db.transaction(async (tx) => {
       const c = await openCase(
         {
@@ -128,6 +128,7 @@ describe("cross-org transfer — propose + accept happy path", () => {
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
           openedByOrganizationId: senderId,
+          receiverOrganizationId: receiverId,
           openedReason: "auto: cross-org transfer proposed reason=space_constraint",
         },
         tx,
@@ -157,11 +158,19 @@ describe("cross-org transfer — propose + accept happy path", () => {
     });
 
     const [row] = await db
-      .select({ status: cases.status, caseKind: cases.caseKind })
+      .select({
+        status: cases.status,
+        caseKind: cases.caseKind,
+        openedByOrganizationId: cases.openedByOrganizationId,
+        receiverOrganizationId: cases.receiverOrganizationId,
+      })
       .from(cases)
       .where(eq(cases.id, caseId));
     expect(row.status).toBe("open");
     expect(row.caseKind).toBe("custody_transfer_handshake");
+    // §4.2 / migration 0043: canonical receiver column is populated at open time.
+    expect(row.openedByOrganizationId).toBe(senderId);
+    expect(row.receiverOrganizationId).toBe(receiverId);
   });
 
   it("accept emits custody_transferred + flips ownerships + closes the case", async () => {

@@ -2479,6 +2479,14 @@ export const cases = pgTable(
     }),
     openedReason: text("opened_reason"),
 
+    // For custody_transfer_handshake: canonical receiver org (mirrors the
+    // proposal payload's to_organization_id). The accept-path authorizes
+    // against this column; payload becomes a cross-check. Nullable so
+    // other case kinds (which have no receiver concept) leave it blank.
+    receiverOrganizationId: uuid("receiver_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+
     closedAt: timestamp("closed_at", { withTimezone: true }),
     closedByUserId: uuid("closed_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
@@ -2521,6 +2529,11 @@ export const cases = pgTable(
     openByOwnerPetIdx: index("cases_open_by_owner_pet_idx")
       .on(table.primaryPetId)
       .where(sql`${table.status} IN ('open', 'escalated')`),
+    receiverOrgOpenIdx: index("cases_receiver_org_open_idx")
+      .on(table.receiverOrganizationId, table.caseKind)
+      .where(
+        sql`${table.status} IN ('open', 'escalated') AND ${table.receiverOrganizationId} IS NOT NULL`,
+      ),
     // CHECK constraints also declared via ALTER in migration 0033.
     casesSubjectPetConsistency: check(
       "cases_subject_pet_consistency",
