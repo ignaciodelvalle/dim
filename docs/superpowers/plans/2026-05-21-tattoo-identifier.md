@@ -462,3 +462,11 @@ Agregar un valor al TS const `EVENT_TYPES` rompe `pnpm typecheck` porque `CASE_A
 ### 2026-05-22 — Path de attachment.storagePath es random UUID + ext
 
 El spec sugería `pets/${petId}/tattoo/${eventId}.${ext}` como path. **`uploadAttachmentIfPresent`** (lib/uploads.ts:40) ya define el path como `${randomUUID()}.${ext}` flat dentro del bucket. No hay subcarpetas por pet/evento. El `attachments.petId` + `attachments.eventId` columnas son los que mantienen la relación. Plan Chunk B corregido.
+
+### 2026-05-22 — Lost form retroactive tattoo es text-only (sin foto)
+
+Plan Chunk E mostraba un `<AttachmentField name="enriched_tattoo_photo" />` dentro de Group D del MarkLostForm. **Realidad**: `setPetLostAction` no maneja upload de archivos hoy (solo string fields), agregar upload + cleanup inflaría el panic-time form. Decisión: Group D captura solo code + location + description; copy explícita "Cuando puedas, subí también una foto desde su libreta". Owner completa la foto via `/eventos/nuevo/tatuaje` cuando esté más calmo. Documentado en MarkLostForm y en el writer comment de `setPetLostWriter`.
+
+### 2026-05-22 — Tests de componente requieren JSX config en vitest
+
+Chunk F intentó agregar `__tests__/lost-credential-tattoo-disclosure.test.ts` usando `renderToString` para verificar la gate de disclosure D3. Vite no parsea el `.tsx` importado porque `vitest.config.ts` no tiene JSX setup (no jsdom, no testing-library, no jsx override). El proyecto NO tiene tests de componente todavía. Decisión: el boundary de disclosure se enforça por construcción (page.tsx pasa boolean al badge en active, props completos al `<LostPublicCredential>` solo en `if (isLost && lostContext)`); cobertura visual queda para Chunk G via verify/smoke manual o defer hasta que se agregue infra de component testing (out of scope para tattoo-identifier).
