@@ -16,3 +16,11 @@ export const SERVICE_TYPE_LABELS: Record<ServiceDogType, string> = {
   asistencia_tea: "Perro de asistencia TEA",
   otro: "Otro tipo de perro de servicio",
 };
+
+/**
+ * Builds the href for the "Presentar credencial" footer link in
+ * ServiceDogCredentialCard. Extracted so it can be unit-tested without JSX.
+ */
+export function buildPresentarHref(petPublicToken: string): string {
+  return `/mis-mascotas/${petPublicToken}/asistencia/presentar`;
+}

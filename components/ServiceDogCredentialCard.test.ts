@@ -1,13 +1,14 @@
 // Guard test: SERVICE_TYPE_LABELS keys must match SERVICE_DOG_TYPES enum exactly.
+// Also covers the buildPresentarHref helper used by the footer link.
 //
-// Tests the pure-logic module `lib/service-dog-labels.ts` which holds the
-// label map (extracted from the component so it's testable without JSX).
-// Commit 1 of pet-profile-v2 Slice C.
+// Tests the pure-logic modules extracted from ServiceDogCredentialCard.tsx
+// so they can be tested without a JSX runtime.
+// Commits 1 + 3 of pet-profile-v2 Slice C.
 
 import { describe, expect, it } from "vitest";
 
 import { SERVICE_DOG_TYPES } from "@/db/schema";
-import { SERVICE_TYPE_LABELS } from "@/lib/service-dog-labels";
+import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/service-dog-labels";
 
 describe("SERVICE_TYPE_LABELS exhaustiveness guard", () => {
   it("covers every SERVICE_DOG_TYPES entry", () => {
@@ -35,5 +36,17 @@ describe("SERVICE_TYPE_LABELS exhaustiveness guard", () => {
       expect(label, `No label for service type: ${type}`).toBeTruthy();
       expect(typeof label).toBe("string");
     }
+  });
+});
+
+describe("buildPresentarHref", () => {
+  it("builds the correct path for a given petPublicToken", () => {
+    const href = buildPresentarHref("abc123");
+    expect(href).toBe("/mis-mascotas/abc123/asistencia/presentar");
+  });
+
+  it("handles tokens with hyphens and underscores", () => {
+    const href = buildPresentarHref("tok-abc_def");
+    expect(href).toBe("/mis-mascotas/tok-abc_def/asistencia/presentar");
   });
 });
