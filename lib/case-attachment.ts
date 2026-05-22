@@ -113,7 +113,7 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
   weight_recorded: { mode: "never", compatibleWith: [] },
 
   // ---------------------------------------------------------------------
-  // Identification & legal (3)
+  // Identification & legal (5)
   // ---------------------------------------------------------------------
   microchip_implanted: { mode: "never", compatibleWith: [] },
   microchip_replaced: {
@@ -129,6 +129,8 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
       return { mode: "never", compatibleWith: [] };
     },
   },
+  tattoo_recorded: { mode: "never", compatibleWith: [] },
+  tattoo_updated: { mode: "never", compatibleWith: [] },
   dangerous_breed_attested: { mode: "never", compatibleWith: [] },
 
   // ---------------------------------------------------------------------
