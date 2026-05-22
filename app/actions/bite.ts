@@ -22,6 +22,7 @@ import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { closeCase, openCase } from "@/lib/case-helpers";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import {
@@ -117,6 +118,7 @@ export async function reportBiteAction(
   const victimContactName = String(formData.get("victimContactName") ?? "").trim() || null;
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // 4. Snapshot rabies-vaccine status at the moment of the bite.
   const rabiesVaccineValid = await computeRabiesVaccineValidAtBite(pet.id, occurredAt);
@@ -162,9 +164,8 @@ export async function reportBiteAction(
         rabies_vaccine_valid_at_incident: rabiesVaccineValid,
         reporter_role: "owner",
       });
-      const [biteEvent] = await tx
-        .insert(petEvents)
-        .values({
+      const { event: biteEvent, wasNoop: biteNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "incident_reported",
           occurredAt,
@@ -173,8 +174,11 @@ export async function reportBiteAction(
           ...eventAuthorship,
           payload: incidentPayload,
           caseId: caseRow.id,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (biteNoop) return;
 
       const observationPayload = validateEventPayload("rabies_observation_started", {
         bite_event_id: biteEvent.id,

@@ -1574,6 +1574,7 @@ export async function createDeathRecordAction(
 
   const diseaseCodeRaw = String(formData.get("diseaseCode") ?? "").trim() || null;
   const confirmedByLab = formData.get("confirmedByLab") === "true";
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // Disease fields only valid when cause is "disease". Strip otherwise.
   const diseaseCode = cause === "disease" && diseaseCodeRaw ? diseaseCodeRaw : null;
@@ -1620,9 +1621,8 @@ export async function createDeathRecordAction(
         is_reportable: reportable,
         ...(wasInObservation ? { during_rabies_observation: true } : {}),
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      const { event, wasNoop: deathNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "death_recorded",
           occurredAt,
@@ -1631,8 +1631,11 @@ export async function createDeathRecordAction(
           ...eventAuthorship,
           payload: eventPayload,
           notes,
-        })
-        .returning();
+          clientIdempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+      if (deathNoop) return;
 
       insertedEvent = event;
 
