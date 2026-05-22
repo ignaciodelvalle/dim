@@ -15,6 +15,7 @@
 // `pets`. The component itself never decides what to show — the page
 // passes only what's actually disclosable.
 
+import { tattooLocationLabel } from "@/lib/lookups";
 import Link from "next/link";
 
 interface Props {
@@ -36,6 +37,14 @@ interface Props {
   finderFormHref: string | null;
   /** Date the pet was marked lost. */
   lostSince: Date;
+  /** Tattoo code — gated by lost status (D3). Null if pet has no tattoo. */
+  tattooCode?: string | null;
+  /** Tattoo body location enum value — used to look up the human label. */
+  tattooLocation?: string | null;
+  /** Free-form origin / description (FCA, criadero, campaign, etc.). */
+  tattooDescription?: string | null;
+  /** Resolved public URL of the tattoo photo, or null if unavailable. */
+  tattooPhotoUrl?: string | null;
 }
 
 export function LostPublicCredential({
@@ -49,7 +58,12 @@ export function LostPublicCredential({
   distinguishingFeatures,
   finderFormHref,
   lostSince,
+  tattooCode = null,
+  tattooLocation = null,
+  tattooDescription = null,
+  tattooPhotoUrl = null,
 }: Props) {
+  const tattooLocLabel = tattooLocationLabel(tattooLocation);
   return (
     <main className="min-h-screen bg-red-50 px-4 py-6 dark:bg-red-950/30">
       <div className="mx-auto max-w-md space-y-4">
@@ -119,6 +133,38 @@ export function LostPublicCredential({
             <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100 text-3xl dark:from-emerald-950/30 dark:to-blue-950/30">
               📍
             </div>
+          </section>
+        )}
+
+        {tattooCode && (
+          <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-neutral-900">
+            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              Tatuaje
+            </p>
+            <p className="mt-1 font-mono text-sm font-medium text-neutral-900 dark:text-neutral-50">
+              {tattooCode}
+              {tattooLocLabel && (
+                <span className="ml-2 font-sans text-xs text-neutral-500 dark:text-neutral-400">
+                  · {tattooLocLabel}
+                </span>
+              )}
+            </p>
+            {tattooDescription && (
+              <p className="mt-1 text-xs italic text-neutral-600 dark:text-neutral-400">
+                {tattooDescription}
+              </p>
+            )}
+            {tattooPhotoUrl && (
+              <img
+                src={tattooPhotoUrl}
+                alt={`Tatuaje de ${petName}`}
+                className="mt-3 w-full rounded-xl object-cover"
+              />
+            )}
+            <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+              Compará el código y la foto con el animal que tenés en frente antes de confirmar la
+              coincidencia.
+            </p>
           </section>
         )}
 

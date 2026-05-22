@@ -64,6 +64,8 @@ export interface OpenCaseInput {
   jurisdictionLocality?: string | null;
   openedByUserId?: string | null;
   openedByOrganizationId?: string | null;
+  /** custody_transfer_handshake only: canonical receiver org id. */
+  receiverOrganizationId?: string | null;
   /** Required ≥ 10 chars when manual; auto-open events pass an "auto: ..." string. */
   openedReason: string;
   welfareReportId?: string | null;
@@ -97,6 +99,7 @@ export async function openCase(input: OpenCaseInput, executor: CaseExecutor = db
     jurisdictionLocality: input.jurisdictionLocality ?? null,
     openedByUserId: input.openedByUserId ?? null,
     openedByOrganizationId: input.openedByOrganizationId ?? null,
+    receiverOrganizationId: input.receiverOrganizationId ?? null,
     openedReason: input.openedReason,
     welfareReportId: input.welfareReportId ?? null,
     adoptionApplicationId: input.adoptionApplicationId ?? null,

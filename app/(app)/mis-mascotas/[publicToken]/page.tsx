@@ -60,6 +60,7 @@ import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetPro
 import { PetTrackingPlaceholder } from "@/components/pet-profile/PetTrackingPlaceholder";
 import { PetTravelDocs } from "@/components/pet-profile/PetTravelDocs";
 import { PetWeightChart } from "@/components/pet-profile/PetWeightChart";
+import { PhysicalTagInterestCard } from "@/components/pet-profile/PhysicalTagInterestCard";
 import {
   appointments,
   attachments,
@@ -81,6 +82,7 @@ import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } f
 import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
 import { fetchActiveRemindersForPet, fetchPetWeightHistory } from "@/lib/owner-dashboard";
 import { requirePetAccess } from "@/lib/pet-access";
+import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -431,6 +433,11 @@ export default async function PetDetailPage({
       .limit(1);
     viewerContacts = profileRow ?? null;
   }
+
+  // §4.20 physical-tag-interest state — only meaningful for the legal owner
+  // path. Org-path viewers (foster, shelter custody) don't see the card.
+  const physicalTagInterest =
+    accessPath === "owner" ? await getPhysicalTagInterest(pet.id, user.id) : null;
 
   // Event timeline, newest first.
   const events = await db
@@ -825,6 +832,16 @@ export default async function PetDetailPage({
           qrUrl={`/p/${pet.publicToken}.png`}
           publicHref={`/p/${pet.publicToken}`}
         />
+
+        {/* §4.20 placeholder — owner-only, captures demand for physical QR tag */}
+        {physicalTagInterest ? (
+          <PhysicalTagInterestCard
+            petPublicToken={pet.publicToken}
+            petName={pet.name}
+            initialInterested={physicalTagInterest.interested}
+            initialRequestedAt={physicalTagInterest.requestedAt}
+          />
+        ) : null}
 
         {/* v2 Tracking placeholder */}
         <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />

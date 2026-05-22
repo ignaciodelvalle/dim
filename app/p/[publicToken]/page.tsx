@@ -47,6 +47,7 @@ export default async function PublicCredentialPage({
     .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")));
   const hasVaccinations = vaccinations.length > 0;
   const hasMicrochip = !!pet.microchipId;
+  const hasTattoo = !!pet.tattooCode;
 
   // Approximate age — year only (Tier 0 doesn't expose exact DOB).
   const ageYears = pet.dateOfBirth
@@ -225,6 +226,20 @@ export default async function PublicCredentialPage({
       .filter(Boolean)
       .join(" · ");
 
+    // Tattoo photo — only resolved here, inside the lost branch. Active
+    // credentials never query this attachment to keep the data surface
+    // minimal (D3 closed 2026-05-22 — code + location + photo are gated by
+    // lost status, mirroring how the chip number is gated).
+    let tattooPhotoUrl: string | null = null;
+    if (pet.tattooPhotoId) {
+      const [tattooPhoto] = await db
+        .select({ storagePath: attachments.storagePath })
+        .from(attachments)
+        .where(eq(attachments.id, pet.tattooPhotoId))
+        .limit(1);
+      tattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
+    }
+
     return (
       <>
         <ScanLogger publicToken={publicToken} />
@@ -241,6 +256,10 @@ export default async function PublicCredentialPage({
           distinguishingFeatures={pet.distinguishingFeatures}
           finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
           lostSince={lostContext.lostSince ?? new Date()}
+          tattooCode={pet.tattooCode}
+          tattooLocation={pet.tattooLocation}
+          tattooDescription={pet.tattooDescription}
+          tattooPhotoUrl={tattooPhotoUrl}
         />
       </>
     );
@@ -351,6 +370,7 @@ export default async function PublicCredentialPage({
             tone={hasVaccinations ? "good" : "warning"}
           />
           <Badge label="Microchip" value={hasMicrochip ? "Sí" : "No"} />
+          <Badge label="Tatuaje" value={hasTattoo ? "Sí" : "No"} />
           <Badge label="Estado" value={statusLabel(pet.status)} />
         </div>
 

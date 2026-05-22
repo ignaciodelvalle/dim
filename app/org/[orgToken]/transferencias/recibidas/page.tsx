@@ -1,8 +1,9 @@
 // Receiver inbox of incoming cross-org transfer proposals.
-// Each row is a handshake case where the receiver_organization_id (held
-// in the custody_transfer_proposed payload) matches this org.
+// Each row is a handshake case where the canonical receiver_organization_id
+// column (migration 0043) matches this org, with a payload fallback for
+// legacy rows that pre-date the backfill.
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { cases, db, organizations, petEvents, pets } from "@/db";
@@ -38,8 +39,9 @@ export default async function OrgTransferenciasEntrantesPage({
   const { orgToken } = await params;
   const { organization } = await requireOrgAccessByToken(orgToken);
 
-  // Find cases whose proposal payload.to_organization_id === this org.
-  // We join petEvents (the proposal event) and filter via jsonb path.
+  // Cases whose canonical receiver org is this org (column added in
+  // migration 0043). Fall back to the proposal payload for legacy rows
+  // that pre-date the backfill (receiverOrganizationId IS NULL).
   const rows = await db
     .select({
       caseId: cases.id,
@@ -63,7 +65,13 @@ export default async function OrgTransferenciasEntrantesPage({
     .where(
       and(
         eq(cases.caseKind, "custody_transfer_handshake"),
-        sql`${petEvents.payload}->>'to_organization_id' = ${organization.id}`,
+        or(
+          eq(cases.receiverOrganizationId, organization.id),
+          and(
+            isNull(cases.receiverOrganizationId),
+            sql`${petEvents.payload}->>'to_organization_id' = ${organization.id}`,
+          ),
+        ),
       ),
     )
     .orderBy(desc(cases.openedAt))

@@ -56,6 +56,7 @@ export default async function MarkPetLostPage({
           action={boundAction}
           disclosureDefaults={disclosureDefaults}
           petHasMicrochip={!!pet.microchipId}
+          petHasTattoo={!!pet.tattooCode}
           petColor={pet.color ?? null}
           petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
           petJurisdictionProvince={pet.jurisdictionProvince ?? null}

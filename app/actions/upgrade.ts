@@ -18,6 +18,7 @@ import { getActiveMemberships } from "@/lib/capabilities";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
+import { generateUniqueToken } from "@/lib/unique-token";
 
 // ============================================================================
 // Types
@@ -223,7 +224,11 @@ export async function requestVetUpgradeForUser(
     province: opProvince,
     locality: opLocality,
   });
-  const publicToken = generateApprovalRequestToken();
+  const publicToken = await generateUniqueToken(
+    approvalRequests,
+    approvalRequests.publicToken,
+    generateApprovalRequestToken,
+  );
 
   try {
     await db.transaction(async (tx) => {
@@ -320,8 +325,20 @@ export async function createOrganizationForUser(
     return { error: "Ya administrás una organización." };
   }
 
-  const publicToken = generatePublicToken();
-  const approvalPublicToken = generateApprovalRequestToken();
+  // NOTE: organizations.public_token historically uses the DIM-XXXX prefix
+  // even though it's an org, not a pet. Kept as-is for backward compat with
+  // existing org URLs. The retry wrapper still ensures uniqueness against
+  // the organizations table.
+  const publicToken = await generateUniqueToken(
+    organizations,
+    organizations.publicToken,
+    generatePublicToken,
+  );
+  const approvalPublicToken = await generateUniqueToken(
+    approvalRequests,
+    approvalRequests.publicToken,
+    generateApprovalRequestToken,
+  );
   const cuit = input.cuit ? input.cuit.replace(/-/g, "") : null;
   const orgJurisdiction = await tryResolveCanonicalJurisdiction({
     rawProvince: input.jurisdictionProvince,

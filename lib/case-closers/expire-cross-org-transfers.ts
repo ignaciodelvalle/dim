@@ -25,6 +25,7 @@ export interface ExpireCrossOrgCandidate {
   publicCode: string;
   primaryPetId: string | null;
   openedByOrganizationId: string | null;
+  receiverOrganizationId: string | null;
 }
 
 export async function findExpiredCrossOrgTransfers(
@@ -40,6 +41,7 @@ export async function findExpiredCrossOrgTransfers(
       publicCode: cases.publicCode,
       primaryPetId: cases.primaryPetId,
       openedByOrganizationId: cases.openedByOrganizationId,
+      receiverOrganizationId: cases.receiverOrganizationId,
     })
     .from(cases)
     .where(
@@ -68,22 +70,24 @@ export async function expireCrossOrgTransfer(
       .limit(1);
     if (!current || current.status !== "open") return;
 
-    // Resolve the receiver from the original proposal event so we can
-    // notify both sides of the expiry.
-    let receiverOrgId: string | null = null;
-    const [proposalEvent] = await tx
-      .select({ payload: petEvents.payload })
-      .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.caseId, candidate.id),
-          eq(petEvents.eventType, "custody_transfer_proposed"),
-        ),
-      )
-      .limit(1);
-    if (proposalEvent) {
-      const p = proposalEvent.payload as { to_organization_id?: string };
-      receiverOrgId = p.to_organization_id ?? null;
+    // Resolve the receiver: canonical column first (migration 0043),
+    // payload fallback for legacy rows pre-backfill.
+    let receiverOrgId: string | null = candidate.receiverOrganizationId;
+    if (!receiverOrgId) {
+      const [proposalEvent] = await tx
+        .select({ payload: petEvents.payload })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.caseId, candidate.id),
+            eq(petEvents.eventType, "custody_transfer_proposed"),
+          ),
+        )
+        .limit(1);
+      if (proposalEvent) {
+        const p = proposalEvent.payload as { to_organization_id?: string };
+        receiverOrgId = p.to_organization_id ?? null;
+      }
     }
 
     if (candidate.primaryPetId) {

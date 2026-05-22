@@ -28,6 +28,7 @@ import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
 import { createClient } from "@/lib/supabase/server";
+import { generateUniqueToken } from "@/lib/unique-token";
 
 // ============================================================================
 // Types
@@ -116,7 +117,11 @@ async function createServiceOfferingWriter(
   const canonicalProvince: string | null = canonical.province || null;
   const canonicalLocality: string | null = canonical.locality || null;
 
-  const publicToken = generateOfferingToken();
+  const publicToken = await generateUniqueToken(
+    serviceOfferings,
+    serviceOfferings.publicToken,
+    generateOfferingToken,
+  );
   const authorityIds = await findAuthoritiesForJurisdiction({
     province: canonicalProvince ?? "",
     locality: canonicalLocality ?? "",
