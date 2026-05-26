@@ -754,8 +754,8 @@ export default async function PetDetailPage({
           />
         ) : null}
 
-        {/* v2 Tracking placeholder */}
-        <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+        {/* v2 Tracking placeholder — display-only until the pairing flow ships. */}
+        <PetTrackingPlaceholder />
 
         {/* v2 Travel docs — TODO(J-followup): wire from pet_attachments or
             attachments with kind in ('passport','intl_cert') once table exists. */}
