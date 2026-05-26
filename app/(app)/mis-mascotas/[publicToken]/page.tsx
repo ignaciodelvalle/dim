@@ -797,7 +797,14 @@ export default async function PetDetailPage({
 
         {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
             Renders nothing when the param is absent or unknown. */}
-        <SheetMounter petToken={pet.publicToken} petName={pet.name} species={pet.species} />
+        <SheetMounter
+          petToken={pet.publicToken}
+          petName={pet.name}
+          species={pet.species}
+          tier2PublicEnabledUntil={
+            pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
+          }
+        />
       </div>
     </main>
   );
