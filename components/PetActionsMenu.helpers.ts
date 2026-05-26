@@ -68,7 +68,7 @@ export function deriveActionItems(input: PetActionsMenuInput): ActionItem[] {
     items.push({
       id: "mark-lost",
       label: "Marcar como perdida",
-      href: `/mis-mascotas/${pet.publicToken}/perdida`,
+      href: `/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`,
       variant: "danger",
     });
   }
