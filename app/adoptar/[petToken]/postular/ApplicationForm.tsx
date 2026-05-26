@@ -60,24 +60,22 @@ export function ApplicationForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <p className="text-sm text-neutral-700 dark:text-neutral-300">
+      <p className="text-sm text-gob-text-gray">
         Compartinos un poco sobre tu situación para que el refugio sepa si tu hogar encaja con lo
         que necesita {petName}. Te van a contactar a tu email{" "}
         <span className="font-medium">{applicantEmail}</span> para coordinar los próximos pasos.
       </p>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          ¿Cómo es tu vivienda?
-        </legend>
+        <legend className="text-sm font-medium text-gob-text">¿Cómo es tu vivienda?</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {HOUSING_OPTIONS.map((opt) => (
             <label
               key={opt.value}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm cursor-pointer ${
                 housingType === opt.value
-                  ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
-                  : "border-neutral-300 dark:border-neutral-700"
+                  ? "border-gob-success bg-gob-success/10"
+                  : "border-gob-border-strong"
               }`}
             >
               <input
@@ -96,7 +94,7 @@ export function ApplicationForm({
 
       <div>
         <label htmlFor="other-pets" className={`${labelClass} mb-1`}>
-          ¿Tenés otras mascotas? <span className="text-neutral-500">(opcional)</span>
+          ¿Tenés otras mascotas? <span className="text-gob-text-muted">(opcional)</span>
         </label>
         <textarea
           id="other-pets"
@@ -104,13 +102,13 @@ export function ApplicationForm({
           onChange={(e) => setOtherPets(e.target.value)}
           rows={2}
           placeholder='Ej: "un gato castrado adulto, sociable"'
-          className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
         />
       </div>
 
       <div>
         <label htmlFor="daily-routine" className={`${labelClass} mb-1`}>
-          Cómo es tu día a día <span className="text-neutral-500">(opcional)</span>
+          Cómo es tu día a día <span className="text-gob-text-muted">(opcional)</span>
         </label>
         <textarea
           id="daily-routine"
@@ -118,20 +116,20 @@ export function ApplicationForm({
           onChange={(e) => setDailyRoutine(e.target.value)}
           rows={3}
           placeholder="¿Quién está en casa durante el día? ¿Hay nenes? ¿Alguien la cuida si viajás?"
-          className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
         />
       </div>
 
       <div>
         <label htmlFor="notes" className={`${labelClass} mb-1`}>
-          Algo más que quieras contar <span className="text-neutral-500">(opcional)</span>
+          Algo más que quieras contar <span className="text-gob-text-muted">(opcional)</span>
         </label>
         <textarea
           id="notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
         />
       </div>
 
@@ -142,15 +140,15 @@ export function ApplicationForm({
             type="checkbox"
             checked={profileSharingConsent}
             onChange={(e) => setProfileSharingConsent(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 text-emerald-600 focus:ring-emerald-600"
+            className="mt-0.5 h-4 w-4 rounded border-gob-border-strong text-gob-success focus:ring-gob-success"
           />
-          <span className="text-sm text-neutral-700 dark:text-neutral-300">
+          <span className="text-sm text-gob-text-gray">
             Acepto compartir con el refugio mi historial de adopciones, fosters y mascotas en MiMAR
             para que tomen una mejor decisión.{" "}
             <button
               type="button"
               onClick={() => setPrivacyModalOpen(true)}
-              className="underline text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200"
+              className="underline text-gob-success hover:text-gob-success/80"
             >
               Más info sobre tu privacidad
             </button>
@@ -162,16 +160,13 @@ export function ApplicationForm({
       {privacyModalOpen && (
         <dialog
           open
-          className="fixed inset-0 z-50 m-auto max-w-lg w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl"
+          className="fixed inset-0 z-50 m-auto max-w-lg w-full rounded-xl border border-gob-border bg-white p-6 shadow-xl"
           aria-labelledby="privacy-modal-title"
         >
-          <h2
-            id="privacy-modal-title"
-            className="text-base font-semibold text-neutral-900 dark:text-neutral-50 mb-4"
-          >
+          <h2 id="privacy-modal-title" className="text-base font-semibold text-gob-text mb-4">
             Información sobre privacidad — Ley 25.326
           </h2>
-          <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-3">
+          <div className="text-sm text-gob-text-gray space-y-3">
             <p>
               Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden compartirse
               con consentimiento informado y para un propósito específico.
@@ -198,14 +193,14 @@ export function ApplicationForm({
           <button
             type="button"
             onClick={() => setPrivacyModalOpen(false)}
-            className="mt-5 w-full px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90"
+            className="mt-5 w-full px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90"
           >
             Entendido
           </button>
         </dialog>
       )}
 
-      {error && <output className="block text-sm text-red-700 dark:text-red-300">{error}</output>}
+      {error && <output className="block text-sm text-gob-danger">{error}</output>}
 
       <button
         type="submit"

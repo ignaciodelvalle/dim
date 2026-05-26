@@ -17,7 +17,7 @@ export function WizardShell({ currentStep, totalSteps, onBack, children }: Wizar
   const progressPct = Math.round(((currentStep - 1) / totalSteps) * 100);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950 flex flex-col">
+    <div className="bg-white flex flex-col">
       {/* Top bar: back + step counter */}
       <header className="flex items-center gap-3 px-4 pt-5 pb-3">
         {onBack && currentStep > 1 ? (
@@ -25,7 +25,7 @@ export function WizardShell({ currentStep, totalSteps, onBack, children }: Wizar
             type="button"
             onClick={onBack}
             aria-label="Paso anterior"
-            className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+            className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-gob-text-muted hover:bg-gob-surface-alt transition-colors"
           >
             ←
           </button>
@@ -34,19 +34,19 @@ export function WizardShell({ currentStep, totalSteps, onBack, children }: Wizar
         )}
 
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums">
+          <p className="text-xs text-gob-text-muted tabular-nums">
             Paso {currentStep} de {totalSteps}
           </p>
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50 truncate">
+          <p className="text-sm font-medium text-gob-text truncate">
             {STEP_LABELS[currentStep - 1] ?? ""}
           </p>
         </div>
       </header>
 
       {/* Progress bar */}
-      <div className="h-0.5 bg-neutral-100 dark:bg-neutral-800 mx-4 rounded-full overflow-hidden">
+      <div className="h-0.5 bg-gob-surface-alt mx-4 rounded-full overflow-hidden">
         <div
-          className="h-full bg-neutral-900 dark:bg-neutral-50 rounded-full transition-all duration-300"
+          className="h-full bg-gob-primary rounded-full transition-all duration-300"
           style={{ width: `${progressPct}%` }}
           role="progressbar"
           tabIndex={-1}

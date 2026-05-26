@@ -42,10 +42,8 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
   return (
     <section className="space-y-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          ¿Qué pasó?
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Qué pasó?</h1>
+        <p className="text-sm text-gob-text-muted">
           Elegí la situación que mejor describe lo que viste.
         </p>
       </div>
@@ -58,8 +56,8 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
               <label
                 className={`flex items-start gap-3 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors ${
                   isSelected
-                    ? "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900"
-                    : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-900/50"
+                    ? "border-gob-primary bg-gob-surface-alt"
+                    : "border-gob-border hover:border-gob-border-strong hover:bg-gob-surface-alt"
                 }`}
               >
                 {/* Visually hidden radio — semantics carried by the label */}
@@ -75,19 +73,19 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
                   {KIND_ICONS[kind]}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  <span className="block text-sm font-medium text-gob-text">
                     {welfareReportKindLabel(kind)}
                   </span>
-                  <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  <span className="block text-xs text-gob-text-muted mt-0.5">
                     {KIND_DESCRIPTIONS[kind]}
                   </span>
                 </span>
                 {isSelected && (
                   <span
-                    className="flex-shrink-0 w-5 h-5 rounded-full bg-neutral-900 dark:bg-neutral-50 flex items-center justify-center mt-0.5"
+                    className="flex-shrink-0 w-5 h-5 rounded-full bg-gob-primary flex items-center justify-center mt-0.5"
                     aria-hidden="true"
                   >
-                    <span className="w-2 h-2 rounded-full bg-white dark:bg-neutral-900" />
+                    <span className="w-2 h-2 rounded-full bg-white" />
                   </span>
                 )}
               </label>

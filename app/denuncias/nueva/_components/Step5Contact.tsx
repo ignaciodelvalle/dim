@@ -42,12 +42,10 @@ export function Step5Contact({
   return (
     <section className="space-y-5">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
           ¿Cómo querés enviarla?
         </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Podés enviar sin dar ningún dato personal.
-        </p>
+        <p className="text-sm text-gob-text-muted">Podés enviar sin dar ningún dato personal.</p>
       </div>
 
       {/* Mode cards */}
@@ -58,8 +56,8 @@ export function Step5Contact({
           onClick={() => onContactModeChange("anonymous")}
           className={`w-full text-left rounded-xl border-2 px-4 py-4 transition-colors ${
             contactMode === "anonymous"
-              ? "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900"
-              : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
+              ? "border-gob-primary bg-gob-surface-alt"
+              : "border-gob-border hover:border-gob-border-strong"
           }`}
         >
           <span className="flex items-center gap-3">
@@ -67,10 +65,8 @@ export function Step5Contact({
               🕵️
             </span>
             <span>
-              <span className="block text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-                Enviar anónima
-              </span>
-              <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              <span className="block text-sm font-semibold text-gob-text">Enviar anónima</span>
+              <span className="block text-xs text-gob-text-muted mt-0.5">
                 Sin datos de contacto. El código DEN-XXXX es tu única forma de seguimiento.
               </span>
             </span>
@@ -83,8 +79,8 @@ export function Step5Contact({
           onClick={() => onContactModeChange("with_contact")}
           className={`w-full text-left rounded-xl border-2 px-4 py-4 transition-colors ${
             contactMode === "with_contact"
-              ? "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900"
-              : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
+              ? "border-gob-primary bg-gob-surface-alt"
+              : "border-gob-border hover:border-gob-border-strong"
           }`}
         >
           <span className="flex items-center gap-3">
@@ -92,10 +88,10 @@ export function Step5Contact({
               📞
             </span>
             <span>
-              <span className="block text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              <span className="block text-sm font-semibold text-gob-text">
                 Sumar mi contacto (más útil)
               </span>
-              <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              <span className="block text-xs text-gob-text-muted mt-0.5">
                 Email o teléfono. Sin DNI. El equipo puede contactarte para más info.
               </span>
             </span>
@@ -105,8 +101,8 @@ export function Step5Contact({
 
       {/* Contact fields — shown when mode is with_contact */}
       {contactMode === "with_contact" && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
-          <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+        <div className="rounded-xl border border-gob-border p-4 space-y-4">
+          <p className="text-xs text-gob-text-gray leading-relaxed">
             Tu contacto es anónimo en el sentido de que no pedimos DNI ni nombre. Solo para que
             podamos avisarte si avanza la denuncia.
           </p>
@@ -143,7 +139,7 @@ export function Step5Contact({
           {contactMode === "with_contact" &&
             contactEmail.trim().length === 0 &&
             contactPhone.trim().length === 0 && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-gob-warning-text">
                 Completá al menos un dato de contacto, o cambiá a "Enviar anónima".
               </p>
             )}
@@ -156,7 +152,7 @@ export function Step5Contact({
 
       {error && (
         <p
-          className="text-sm text-red-600 dark:text-red-400 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2"
+          className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2"
           role="alert"
         >
           {error}
@@ -169,13 +165,13 @@ export function Step5Contact({
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit || isPending}
-          className="w-full px-4 py-4 rounded-xl bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-semibold text-sm hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-4 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Enviando denuncia…" : "Enviar denuncia →"}
         </button>
       )}
 
-      <p className="text-xs text-neutral-400 dark:text-neutral-600 text-center leading-relaxed">
+      <p className="text-xs text-gob-text-muted text-center leading-relaxed">
         Al enviar confirmás que lo que describiste es lo que viste. No se requiere certeza — solo
         buena fe.
       </p>

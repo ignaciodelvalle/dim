@@ -138,12 +138,9 @@ export function WelfareReportForm({
   return (
     <form action={formAction} className="space-y-6">
       {isAnonymous && (
-        <p className="text-sm text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900 rounded-lg px-4 py-3">
+        <p className="text-sm text-gob-text-gray bg-gob-surface-alt rounded-lg px-4 py-3">
           Estás denunciando de forma anónima. Si querés seguimiento, podés{" "}
-          <Link
-            href="/login"
-            className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
+          <Link href="/login" className="underline underline-offset-2 hover:text-gob-text">
             iniciar sesión
           </Link>{" "}
           o dejar un contacto opcional abajo.
@@ -196,9 +193,7 @@ export function WelfareReportForm({
           onChange={(e) => setDescription(e.target.value)}
           className={inputClass}
         />
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
-          {description.length} caracteres (mínimo 20)
-        </p>
+        <p className="text-xs text-gob-text-muted">{description.length} caracteres (mínimo 20)</p>
       </div>
 
       {/* Subject kind */}
@@ -210,7 +205,7 @@ export function WelfareReportForm({
           {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
             <label
               key={sk}
-              className="flex items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200 cursor-pointer"
+              className="flex items-center gap-2 text-sm text-gob-text cursor-pointer"
             >
               <input
                 type="radio"
@@ -218,7 +213,7 @@ export function WelfareReportForm({
                 value={sk}
                 checked={subjectKind === sk}
                 onChange={() => setSubjectKind(sk)}
-                className="accent-neutral-900 dark:accent-neutral-50"
+                className="accent-gob-primary"
               />
               {welfareReportSubjectKindLabel(sk)}
             </label>
@@ -297,7 +292,7 @@ export function WelfareReportForm({
       {/* Evidence (multimedia) */}
       <div className={FIELD_CLASS}>
         <span className={labelClass}>Evidencia (opcional)</span>
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted">
           Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF)
           y videos (MP4, WebM, MOV).
         </p>
@@ -308,18 +303,18 @@ export function WelfareReportForm({
           multiple
           accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
           onChange={(e) => handleFilesSelected(e.target.files)}
-          className="text-sm text-neutral-600 dark:text-neutral-400 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-neutral-300 dark:file:border-neutral-700 file:bg-white dark:file:bg-neutral-950 file:text-neutral-700 dark:file:text-neutral-300 file:text-sm file:cursor-pointer hover:file:bg-neutral-50 dark:hover:file:bg-neutral-900"
+          className="text-sm text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-gob-border-strong file:bg-white file:text-gob-text-gray file:text-sm file:cursor-pointer hover:file:bg-gob-surface-alt"
         />
 
         {evidenceError && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          <p className="text-sm text-gob-danger" role="alert">
             {evidenceError}
           </p>
         )}
 
         {evidenceFiles.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            <p className="text-xs text-gob-text-muted">
               {evidenceFiles.length} de {MAX_EVIDENCE_FILES} archivos seleccionados
             </p>
             <div className="grid grid-cols-3 gap-2">
@@ -330,12 +325,12 @@ export function WelfareReportForm({
                     <img
                       src={entry.objectUrl}
                       alt={entry.file.name}
-                      className="w-full aspect-square object-cover rounded-lg border border-neutral-200 dark:border-neutral-800"
+                      className="w-full aspect-square object-cover rounded-lg border border-gob-border"
                     />
                   ) : (
-                    <div className="w-full aspect-square rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 flex flex-col items-center justify-center gap-1 p-2">
+                    <div className="w-full aspect-square rounded-lg border border-gob-border bg-gob-surface-alt flex flex-col items-center justify-center gap-1 p-2">
                       <span className="text-2xl select-none">▶</span>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500 text-center truncate w-full">
+                      <p className="text-xs text-gob-text-muted text-center truncate w-full">
                         {entry.file.name}
                       </p>
                     </div>
@@ -344,7 +339,7 @@ export function WelfareReportForm({
                     type="button"
                     onClick={() => removeEvidence(i)}
                     aria-label={`Quitar ${entry.file.name}`}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gob-primary text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                   >
                     ×
                   </button>
@@ -356,18 +351,18 @@ export function WelfareReportForm({
       </div>
 
       {/* Optional contact (collapsible) */}
-      <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg">
+      <div className="border border-gob-border rounded-lg">
         <button
           type="button"
           onClick={() => setShowContact((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-lg transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gob-text-gray hover:bg-gob-surface-alt rounded-lg transition-colors"
         >
           <span>Contacto opcional</span>
-          <span className="text-neutral-400">{showContact ? "▲" : "▼"}</span>
+          <span className="text-gob-text-muted">{showContact ? "▲" : "▼"}</span>
         </button>
         {showContact && (
-          <div className="px-4 pb-4 space-y-4 border-t border-neutral-200 dark:border-neutral-800 pt-4">
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <div className="px-4 pb-4 space-y-4 border-t border-gob-border pt-4">
+            <p className="text-xs text-gob-text-muted">
               No es obligatorio. Dejás tus datos solo si querés que te contactemos sobre esta
               denuncia.
             </p>
@@ -400,7 +395,7 @@ export function WelfareReportForm({
       </div>
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -408,7 +403,7 @@ export function WelfareReportForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando..." : "Enviar denuncia"}
       </button>

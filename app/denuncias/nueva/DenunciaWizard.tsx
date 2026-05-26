@@ -258,7 +258,7 @@ export function DenunciaWizard() {
             }}
           />
           {stepError && (
-            <p className="mt-4 text-sm text-red-600 dark:text-red-400 text-center" role="alert">
+            <p className="mt-4 text-sm text-gob-danger text-center" role="alert">
               {stepError}
             </p>
           )}
@@ -275,7 +275,7 @@ export function DenunciaWizard() {
             }}
           />
           {stepError && (
-            <p className="mt-4 text-sm text-red-600 dark:text-red-400 text-center" role="alert">
+            <p className="mt-4 text-sm text-gob-danger text-center" role="alert">
               {stepError}
             </p>
           )}
@@ -313,7 +313,7 @@ export function DenunciaWizard() {
               <button
                 type="button"
                 onClick={validateAndAdvance}
-                className="w-full px-4 py-4 rounded-xl bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-semibold text-sm hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+                className="w-full px-4 py-4 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 transition-colors"
               >
                 Continuar →
               </button>
@@ -337,7 +337,7 @@ export function DenunciaWizard() {
             <button
               type="button"
               onClick={validateAndAdvance}
-              className="w-full px-4 py-4 rounded-xl bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-semibold text-sm hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+              className="w-full px-4 py-4 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 transition-colors"
             >
               Continuar →
             </button>
@@ -347,7 +347,7 @@ export function DenunciaWizard() {
                 updateState({ subjectKind: null, subjectPetToken: "", subjectDescription: "" });
                 goNext();
               }}
-              className="w-full px-4 py-3 text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+              className="w-full px-4 py-3 text-sm text-gob-text-muted hover:text-gob-text-gray transition-colors"
             >
               Saltear este paso
             </button>

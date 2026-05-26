@@ -67,12 +67,8 @@ export function Step3Where({
   return (
     <section className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          ¿Dónde y cuándo?
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Contanos lo que viste y dónde pasó.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Dónde y cuándo?</h1>
+        <p className="text-sm text-gob-text-muted">Contanos lo que viste y dónde pasó.</p>
       </div>
 
       {/* Description first — most important field */}
@@ -97,11 +93,11 @@ export function Step3Where({
         />
         <p
           id="description-hint"
-          className={`text-xs ${description.length >= DESCRIPTION_TARGET ? "text-neutral-400 dark:text-neutral-600" : "text-neutral-500 dark:text-neutral-500"}`}
+          className={`text-xs ${description.length >= DESCRIPTION_TARGET ? "text-gob-text-muted" : "text-gob-text-muted"}`}
         >
           {description.length} caracteres
           {description.length < 20 && description.length > 0 && (
-            <span className="text-amber-600 dark:text-amber-400"> (mínimo 20)</span>
+            <span className="text-gob-warning-text"> (mínimo 20)</span>
           )}
         </p>
       </div>
@@ -121,8 +117,8 @@ export function Step3Where({
               key={opt.value}
               className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
                 isSelected
-                  ? "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900"
-                  : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
+                  ? "border-gob-primary bg-gob-surface-alt"
+                  : "border-gob-border hover:border-gob-border-strong"
               }`}
             >
               <input
@@ -131,15 +127,11 @@ export function Step3Where({
                 value={opt.value}
                 checked={isSelected}
                 onChange={() => onWhenChange(opt.value)}
-                className="mt-0.5 flex-shrink-0 accent-neutral-900 dark:accent-neutral-50"
+                className="mt-0.5 flex-shrink-0 accent-gob-primary"
               />
               <span>
-                <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                  {opt.label}
-                </span>
-                <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  {opt.sublabel}
-                </span>
+                <span className="block text-sm font-medium text-gob-text">{opt.label}</span>
+                <span className="block text-xs text-gob-text-muted mt-0.5">{opt.sublabel}</span>
               </span>
             </label>
           );
@@ -155,7 +147,7 @@ export function Step3Where({
 
       {error && (
         <p
-          className="text-sm text-red-600 dark:text-red-400 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2"
+          className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2"
           role="alert"
         >
           {error}
