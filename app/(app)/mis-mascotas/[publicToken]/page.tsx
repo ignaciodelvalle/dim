@@ -97,7 +97,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
-import { MarkFoundButton } from "./MarkFoundButton";
 import { SheetMounter } from "./SheetMounter";
 import { PetReminders } from "./_components/PetReminders";
 
@@ -307,6 +306,12 @@ export default async function PetDetailPage({
     ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
     : [];
   const photoUrl = petPhotoUrl(photo?.storagePath);
+
+  // Edit photo — same query, reused for the editar-mascota sheet.
+  const [editPhotoRow] = pet.primaryPhotoId
+    ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
+    : [];
+  const editPhotoUrl = petPhotoUrl(editPhotoRow?.storagePath);
 
   let isTransit = false;
   let ownershipRole: string | null = null;
@@ -801,6 +806,7 @@ export default async function PetDetailPage({
           petToken={pet.publicToken}
           petName={pet.name}
           species={pet.species}
+          petStatus={pet.status as "active" | "lost" | "deceased"}
           tier2PublicEnabledUntil={
             pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
           }
@@ -821,6 +827,7 @@ export default async function PetDetailPage({
                 }
               : null
           }
+          editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
         />
       </div>
     </main>

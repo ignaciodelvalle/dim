@@ -20,7 +20,7 @@
  * is dropped for the "sintoma" sheet.
  */
 
-import { Sheet } from "@/components/poncho";
+import { Button, Sheet } from "@/components/poncho";
 import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
@@ -38,10 +38,14 @@ import {
   createSymptomObservedAction,
   createVaccinationAction,
   createWeightAction,
+  setPetFoundAction,
   setPetLostAction,
 } from "@/app/actions/events";
 import { createLibretaShareAction } from "@/app/actions/libreta-share";
+import { updatePetAction } from "@/app/actions/pets";
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
+import { PetForm } from "@/components/PetForm";
+import type { Pet } from "@/db";
 
 import { ShareLibretaSheet } from "./_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "./_tier2-public/Tier2PublicView";
@@ -68,6 +72,13 @@ type Props = {
   tier2PublicEnabledUntil: string | null;
   /** Data required by MarkLostForm. Null when pet is not active (already lost or deceased). */
   markLostData: MarkLostData | null;
+  /** Data required by the editar-mascota sheet. Always set. */
+  editPetData: {
+    existingPet: Pet;
+    existingPhotoUrl: string | null;
+  };
+  /** Pet status — needed to gate the marcar-encontrada sheet. */
+  petStatus: "active" | "lost" | "deceased";
 };
 
 export function SheetMounter({
@@ -76,6 +87,8 @@ export function SheetMounter({
   species,
   tier2PublicEnabledUntil,
   markLostData,
+  editPetData,
+  petStatus,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -222,8 +235,76 @@ export function SheetMounter({
     );
   }
 
+  if (sheet === "editar-mascota") {
+    const action = updatePetAction.bind(null, petToken);
+    return (
+      <Sheet
+        id="editar-mascota"
+        title={`Editar ${petName}`}
+        open
+        onClose={close}
+        side="right"
+        size="lg"
+      >
+        <PetForm
+          action={action}
+          existingPet={editPetData.existingPet}
+          existingPhotoUrl={editPetData.existingPhotoUrl}
+        />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "marcar-encontrada") {
+    if (petStatus !== "lost") return null; // flow only applies when pet is lost
+    const action = setPetFoundAction.bind(null, petToken);
+    return (
+      <Sheet
+        id="marcar-encontrada"
+        title="Marcar como encontrada"
+        open
+        onClose={close}
+        side="right"
+        size="md"
+      >
+        <MarkFoundConfirmation action={action} petName={petName} onCancel={close} />
+      </Sheet>
+    );
+  }
+
   // Unknown or absent sheet param — render nothing.
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// MarkFoundConfirmation — inline confirmation form for the marcar-encontrada sheet
+// ---------------------------------------------------------------------------
+
+function MarkFoundConfirmation({
+  action,
+  petName,
+  onCancel,
+}: {
+  action: () => Promise<void>;
+  petName: string;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        Vas a marcar a <strong>{petName}</strong> como encontrada. La credencial pública vuelve al
+        modo identidad básica (Tier 0). Podés volver a marcarla como perdida si hace falta.
+      </p>
+      <form action={action} className="flex gap-2">
+        <Button type="submit" variant="success">
+          Confirmar
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancelar
+        </Button>
+      </form>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
