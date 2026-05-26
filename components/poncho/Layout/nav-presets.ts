@@ -12,6 +12,8 @@ export const OWNER_NAV: NavItem[] = [
   { href: "/mis-mascotas", label: "Mis Mascotas", matchPrefix: "/mis-mascotas" },
   { href: "/mis-turnos", label: "Turnos", matchPrefix: "/mis-turnos" },
   { href: "/notificaciones", label: "Notificaciones", matchPrefix: "/notificaciones" },
+  { href: "/adoptar", label: "Adopciones", matchPrefix: "/adoptar" },
+  { href: "/denuncias/mias", label: "Denuncias", matchPrefix: "/denuncias" },
   { href: "/cuenta", label: "Tu cuenta", matchPrefix: "/cuenta" },
 ];
 

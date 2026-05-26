@@ -1,11 +1,11 @@
 import { PetCard } from "@/components/PetCard";
-import { attachments, db, notifications, ownerships, pets, profiles } from "@/db";
+import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { fetchActiveReminders } from "@/lib/owner-dashboard";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -28,7 +28,8 @@ export default async function MisMascotasPage({
 
   // Pets where this user is the *current* custodian (any role), with the
   // primary photo and the ownership role for the "En tránsito" badge.
-  const [ownedPets, activeReminders, [{ unreadCount }]] = await Promise.all([
+  // NotificationBell moved to /inicio (PR #208) so the unread query lives there now.
+  const [ownedPets, activeReminders] = await Promise.all([
     db
       .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
       .from(pets)
@@ -36,17 +37,6 @@ export default async function MisMascotasPage({
       .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
       .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
     fetchActiveReminders(user.id),
-    // Unread notification count — drives the bell badge.
-    db
-      .select({ unreadCount: count() })
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.userId, user.id),
-          isNull(notifications.readAt),
-          isNull(notifications.archivedAt),
-        ),
-      ),
   ]);
 
   // Build a map from petId → highest-priority reminder variant for the pet badge.
@@ -73,15 +63,12 @@ export default async function MisMascotasPage({
                 : `${ownedPets.length} mascota${ownedPets.length === 1 ? "" : "s"} en tu libreta.`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <NotificationBell unreadCount={unreadCount} />
-            <Link
-              href="/mis-mascotas/nueva"
-              className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-            >
-              + Agregar mascota
-            </Link>
-          </div>
+          <Link
+            href="/mis-mascotas/nueva"
+            className="shrink-0 rounded-lg bg-gob-primary px-4 py-2 text-sm font-medium text-white hover:bg-gob-primary-hover"
+          >
+            + Agregar mascota
+          </Link>
         </header>
 
         {claimedCount !== null && (
@@ -107,35 +94,6 @@ export default async function MisMascotasPage({
             ))}
           </ul>
         )}
-
-        <div className="flex gap-4 pt-2 text-sm flex-wrap">
-          <Link
-            href="/denuncias/nueva"
-            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
-            + Denunciar maltrato animal
-          </Link>
-          <Link
-            href="/denuncias/mias"
-            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
-            Mis denuncias
-          </Link>
-          {!profile?.dniNumber && (
-            <Link
-              href="/mis-mascotas/reclamar"
-              className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-            >
-              Reclamar adopción de refugio
-            </Link>
-          )}
-          <Link
-            href="/cuenta/upgrade"
-            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
-            Convertirme en profesional / organización →
-          </Link>
-        </div>
       </div>
     </main>
   );
@@ -157,34 +115,6 @@ function EmptyState() {
   );
 }
 
-function NotificationBell({ unreadCount }: { unreadCount: number }) {
-  return (
-    <Link
-      href="/notificaciones"
-      aria-label={unreadCount > 0 ? `Notificaciones (${unreadCount} sin leer)` : "Notificaciones"}
-      className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-5 h-5"
-      >
-        <title>Notificaciones</title>
-        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-      </svg>
-      {unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
-          {unreadCount > 9 ? "9+" : unreadCount}
-        </span>
-      )}
-    </Link>
-  );
-}
-
 // PetCard moved to components/PetCard.tsx — shared across /mis-mascotas,
 // /inicio, and future surfaces. Import re-exported below.
+// NotificationBell moved to components/NotificationBell.tsx — surfaces on /inicio header.

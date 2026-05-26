@@ -29,12 +29,24 @@ describe("buildOrgNav", () => {
 });
 
 describe("OWNER_NAV", () => {
-  it("has exactly 5 items", () => {
-    expect(OWNER_NAV).toHaveLength(5);
+  it("has exactly 7 items", () => {
+    expect(OWNER_NAV).toHaveLength(7);
   });
 
   it("contains /mis-mascotas", () => {
     expect(OWNER_NAV.map((i) => i.href)).toContain("/mis-mascotas");
+  });
+
+  it("contains Denuncias tab pointing to /denuncias/mias", () => {
+    const denuncias = OWNER_NAV.find((i) => i.label === "Denuncias");
+    expect(denuncias).toBeDefined();
+    expect(denuncias?.href).toBe("/denuncias/mias");
+  });
+
+  it("contains Adopciones tab pointing to /adoptar", () => {
+    const adopciones = OWNER_NAV.find((i) => i.label === "Adopciones");
+    expect(adopciones).toBeDefined();
+    expect(adopciones?.href).toBe("/adoptar");
   });
 });
 
