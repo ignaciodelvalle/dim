@@ -1,4 +1,3 @@
-import { logoutAction } from "@/app/actions/auth";
 import { PetCard } from "@/components/PetCard";
 import { attachments, db, notifications, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
@@ -61,7 +60,7 @@ export default async function MisMascotasPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="p-6">
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
         <header className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -76,24 +75,6 @@ export default async function MisMascotasPage({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <NotificationBell unreadCount={unreadCount} />
-            <Link
-              href="/cuenta"
-              aria-label="Mi cuenta"
-              className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors overflow-hidden"
-              title="Mi cuenta"
-            >
-              {profile?.avatarUrl ? (
-                <img
-                  src={profile.avatarUrl}
-                  alt={profile.displayName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-sm font-semibold">
-                  {(profile?.displayName ?? "?")[0]?.toUpperCase()}
-                </span>
-              )}
-            </Link>
             <Link
               href="/mis-mascotas/nueva"
               className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
@@ -156,14 +137,6 @@ export default async function MisMascotasPage({
           </Link>
         </div>
 
-        <form action={logoutAction} className="pt-12">
-          <button
-            type="submit"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
-            Cerrar sesión
-          </button>
-        </form>
       </div>
     </main>
   );
