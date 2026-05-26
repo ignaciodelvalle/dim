@@ -804,6 +804,23 @@ export default async function PetDetailPage({
           tier2PublicEnabledUntil={
             pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
           }
+          markLostData={
+            pet.status === "active"
+              ? {
+                  discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+                  disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+                  discloseEmailWhenLost: pet.discloseEmailWhenLost,
+                  discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+                  allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+                  petHasMicrochip: !!pet.microchipId,
+                  petHasTattoo: !!pet.tattooCode,
+                  petColor: pet.color ?? null,
+                  petDistinguishingFeatures: pet.distinguishingFeatures ?? null,
+                  petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+                  petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+                }
+              : null
+          }
         />
       </div>
     </main>
