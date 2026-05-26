@@ -57,17 +57,17 @@ export type EventCatcherPet = {
 };
 
 const PET_STATE_RING: Record<PetState, string> = {
-  ok: "ring-neutral-200 dark:ring-neutral-700",
-  info: "ring-blue-500 dark:ring-blue-400",
-  attention: "ring-amber-500 dark:ring-amber-400",
-  urgent: "ring-red-500 dark:ring-red-400",
+  ok: "ring-gob-border",
+  info: "ring-gob-info",
+  attention: "ring-gob-warning",
+  urgent: "ring-gob-danger",
 };
 
 const PET_STATE_LABEL: Record<PetState, string> = {
-  ok: "text-neutral-500 dark:text-neutral-400",
-  info: "text-blue-700 dark:text-blue-300",
-  attention: "text-amber-700 dark:text-amber-300",
-  urgent: "text-red-700 dark:text-red-300",
+  ok: "text-gob-text-muted",
+  info: "text-gob-info",
+  attention: "text-gob-warning-text",
+  urgent: "text-gob-danger",
 };
 
 const QUICK_LABELS: Partial<Record<EventType, string>> = {
@@ -101,7 +101,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
 
   if (visiblePets.length === 0) {
     return (
-      <section className="rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+      <section className="rounded-2xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted">
         <p className="mb-3">Todavía no cargaste ninguna mascota.</p>
         <a
           href="/mis-mascotas/nueva"
@@ -150,7 +150,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
   }
 
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
+    <section className="rounded-2xl border border-gob-border bg-white p-4">
       <h2 className="sr-only">Anotar un evento</h2>
 
       <PetChipRow
@@ -163,9 +163,8 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
       {/* Active-pet line (Chunk H PR2). Persistent signal — the placeholder
           disappears as soon as the user starts typing. */}
       {active && (
-        <p className="mb-2 text-xs text-neutral-500 dark:text-neutral-400">
-          Anotando para{" "}
-          <span className="font-medium text-neutral-900 dark:text-neutral-100">{active.name}</span>
+        <p className="mb-2 text-xs text-gob-text-muted">
+          Anotando para <span className="font-medium text-gob-text">{active.name}</span>
         </p>
       )}
 
@@ -178,7 +177,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
         }}
         placeholder={active ? `${active.name} — ¿qué pasó?` : "Describí el evento"}
         rows={3}
-        className="w-full resize-y rounded-xl border border-neutral-300 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-gob-primary focus:ring-2 focus:ring-gob-primary/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+        className="w-full resize-y rounded-xl border border-gob-border bg-white p-3 text-sm text-gob-text outline-none focus:border-gob-primary focus:ring-2 focus:ring-gob-primary/30"
         aria-label="Describí el evento"
       />
 
@@ -193,7 +192,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
             type="button"
             onClick={() => onQuick(k)}
             disabled={!active || submitting}
-            className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500"
+            className="rounded-md border border-gob-border bg-white px-3 py-2 text-sm font-medium text-gob-text-gray transition-colors hover:bg-gob-surface-alt disabled:bg-gob-surface-alt disabled:text-gob-text-muted"
           >
             {QUICK_LABELS[k]}
           </button>
@@ -212,7 +211,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
       {/* Mobile-aware tip (Chunk H PR3): hidden on touch-only devices that
           have no Ctrl key. The @media(hover:hover) query matches devices
           with a precise pointer (mouse / trackpad). */}
-      <p className="mt-2 hidden text-[11px] text-neutral-500 dark:text-neutral-500 [@media(hover:hover)]:block">
+      <p className="mt-2 hidden text-[11px] text-gob-text-muted [@media(hover:hover)]:block">
         Tap dos veces en una mascota para abrir su perfil · Ctrl + Enter para anotar.
       </p>
     </section>
@@ -314,9 +313,7 @@ function PetChip({
         }}
         aria-label={pet.stateLabel ? `${pet.name}, ${pet.stateLabel}` : pet.name}
         className={`flex w-24 flex-col items-center gap-1.5 rounded-2xl p-2 transition-colors active:scale-[0.97] ${
-          active
-            ? "bg-blue-50 dark:bg-blue-950/30"
-            : "bg-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900"
+          active ? "bg-gob-info/10" : "bg-transparent hover:bg-gob-surface-alt"
         }`}
       >
         <span
@@ -325,14 +322,12 @@ function PetChip({
           {pet.photoUrl ? (
             <img src={pet.photoUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center bg-neutral-100 text-2xl font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+            <span className="flex h-full w-full items-center justify-center bg-gob-surface-alt text-2xl font-semibold text-gob-text-gray">
               {pet.name.charAt(0).toUpperCase()}
             </span>
           )}
         </span>
-        <span className="text-[13px] font-medium leading-tight text-neutral-900 dark:text-neutral-50">
-          {pet.name}
-        </span>
+        <span className="text-[13px] font-medium leading-tight text-gob-text">{pet.name}</span>
         {pet.stateLabel ? (
           <span
             className={`text-[10px] font-medium leading-tight ${PET_STATE_LABEL[pet.state ?? "ok"]}`}
@@ -342,7 +337,7 @@ function PetChip({
         ) : (
           <span
             aria-hidden
-            className={`text-[10px] font-medium leading-tight text-blue-700 transition-opacity dark:text-blue-300 ${active ? "opacity-100" : "opacity-0"}`}
+            className={`text-[10px] font-medium leading-tight text-gob-info transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
           >
             ↗ Abrir perfil
           </span>
