@@ -41,11 +41,11 @@ import {
   setPetFoundAction,
   setPetLostAction,
 } from "@/app/actions/events";
-import { updatePetAction } from "@/app/actions/pets";
 import { createLibretaShareAction } from "@/app/actions/libreta-share";
+import { updatePetAction } from "@/app/actions/pets";
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
-import type { Pet } from "@/db";
 import { PetForm } from "@/components/PetForm";
+import type { Pet } from "@/db";
 
 import { ShareLibretaSheet } from "./_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "./_tier2-public/Tier2PublicView";
@@ -238,7 +238,14 @@ export function SheetMounter({
   if (sheet === "editar-mascota") {
     const action = updatePetAction.bind(null, petToken);
     return (
-      <Sheet id="editar-mascota" title={`Editar ${petName}`} open onClose={close} side="right" size="lg">
+      <Sheet
+        id="editar-mascota"
+        title={`Editar ${petName}`}
+        open
+        onClose={close}
+        side="right"
+        size="lg"
+      >
         <PetForm
           action={action}
           existingPet={editPetData.existingPet}
@@ -252,7 +259,14 @@ export function SheetMounter({
     if (petStatus !== "lost") return null; // flow only applies when pet is lost
     const action = setPetFoundAction.bind(null, petToken);
     return (
-      <Sheet id="marcar-encontrada" title="Marcar como encontrada" open onClose={close} side="right" size="md">
+      <Sheet
+        id="marcar-encontrada"
+        title="Marcar como encontrada"
+        open
+        onClose={close}
+        side="right"
+        size="md"
+      >
         <MarkFoundConfirmation action={action} petName={petName} onCancel={close} />
       </Sheet>
     );
