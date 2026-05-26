@@ -28,6 +28,7 @@ import {
   appointments,
   approvalRequests,
   attachments,
+  cases,
   custodyDisputeParties,
   custodyDisputes,
   db,
@@ -267,6 +268,8 @@ export type WorkflowKind =
   | "custody_transfer_pending"
   | "approval_request_pending"
   | "custody_dispute_open"
+  | "bite_observation_open"
+  | "dangerous_breed_pending_attestation"
   | "foster_proposal_resolved"
   | "welfare_report_closed"
   | "adoption_application_resolved"
@@ -485,20 +488,104 @@ async function fetchOpenCustodyDisputes(userId: string): Promise<WorkflowItem[]>
   }));
 }
 
+async function fetchOpenBiteCases(userId: string): Promise<WorkflowItem[]> {
+  // Open bite_incident cases (rabies observation) where the affected pet
+  // is owned by the user.
+  const rows = await db
+    .select({
+      caseId: cases.id,
+      publicCode: cases.publicCode,
+      petName: pets.name,
+      petPublicToken: pets.publicToken,
+      openedAt: cases.openedAt,
+    })
+    .from(cases)
+    .innerJoin(pets, eq(pets.id, cases.primaryPetId))
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(cases.caseKind, "bite_incident"),
+        ne(cases.status, "closed"),
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    );
+  return rows.map((r) => ({
+    id: `bite_case:${r.caseId}`,
+    kind: "bite_observation_open" as const,
+    title: `Observación por mordedura · ${r.petName}`,
+    subtitle: `${r.publicCode} · procedimiento en curso`,
+    ctaUrl: `/mis-mascotas/${r.petPublicToken}`,
+    since: r.openedAt,
+    severity: "warning" as const,
+  }));
+}
+
+async function fetchPendingPppAttestations(userId: string): Promise<WorkflowItem[]> {
+  // Pets flagged as potentially dangerous breed where the owner has NOT
+  // yet recorded a `dangerous_breed_attested` event. Surfaces as a
+  // pending task on /inicio so the owner can comply.
+  const rows = await db.execute<{
+    pet_id: string;
+    pet_name: string;
+    pet_public_token: string;
+    registered_at: string;
+  }>(sql`
+    SELECT
+      p.id::text AS pet_id,
+      p.name AS pet_name,
+      p.public_token AS pet_public_token,
+      p.created_at::text AS registered_at
+    FROM pets p
+    JOIN ownerships o ON o.pet_id = p.id
+     AND o.owner_user_id = ${userId}
+     AND o.role = 'owner'
+     AND o.ended_at IS NULL
+    WHERE p.potentially_dangerous_breed = TRUE
+      AND p.status != 'deceased'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events e
+        WHERE e.pet_id = p.id
+          AND e.event_type = 'dangerous_breed_attested'
+      )
+  `);
+  return rows.map((r) => ({
+    id: `ppp_pending:${r.pet_id}`,
+    kind: "dangerous_breed_pending_attestation" as const,
+    title: `Atestá la raza de ${r.pet_name}`,
+    subtitle: "Tu mascota es PPP (potencialmente peligrosa) — hace falta atestación legal",
+    ctaUrl: `/mis-mascotas/${r.pet_public_token}/eventos/atestar-raza-peligrosa`,
+    since: new Date(r.registered_at),
+    severity: "warning" as const,
+  }));
+}
+
 export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]> {
-  const [foster, lost, welfare, adoption, custody, approval, disputes] = await Promise.all([
-    fetchPendingFosterProposals(userId),
-    fetchLostPets(userId),
-    fetchOpenWelfareReports(userId),
-    fetchPendingAdoptionApplications(userId),
-    fetchPendingCustodyTransfers(userId),
-    fetchPendingApprovalRequests(userId),
-    fetchOpenCustodyDisputes(userId),
-  ]);
+  const [foster, lost, welfare, adoption, custody, approval, disputes, bite, ppp] =
+    await Promise.all([
+      fetchPendingFosterProposals(userId),
+      fetchLostPets(userId),
+      fetchOpenWelfareReports(userId),
+      fetchPendingAdoptionApplications(userId),
+      fetchPendingCustodyTransfers(userId),
+      fetchPendingApprovalRequests(userId),
+      fetchOpenCustodyDisputes(userId),
+      fetchOpenBiteCases(userId),
+      fetchPendingPppAttestations(userId),
+    ]);
   // Sort by `since` desc — most recently opened workflow on top.
-  return [...foster, ...lost, ...welfare, ...adoption, ...custody, ...approval, ...disputes].sort(
-    (a, b) => b.since.getTime() - a.since.getTime(),
-  );
+  return [
+    ...foster,
+    ...lost,
+    ...welfare,
+    ...adoption,
+    ...custody,
+    ...approval,
+    ...disputes,
+    ...bite,
+    ...ppp,
+  ].sort((a, b) => b.since.getTime() - a.since.getTime());
 }
 
 // ---------------------------------------------------------------------------
