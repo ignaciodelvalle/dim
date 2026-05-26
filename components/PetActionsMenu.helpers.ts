@@ -50,6 +50,19 @@ export function deriveActionItems(input: PetActionsMenuInput): ActionItem[] {
     variant: "default",
   });
 
+  // "Mostrar Libreta (Tier 2)" — owner opt-in window for the public
+  // credential to reveal a curated medical summary. Hidden for deceased
+  // pets (the credential is the in-memoriam page; widening it makes no
+  // sense). The page itself enforces the same gate server-side.
+  if (pet.status !== "deceased") {
+    items.push({
+      id: "tier2-public",
+      label: "Mostrar Libreta en la credencial",
+      href: `/mis-mascotas/${pet.publicToken}/mostrar-libreta`,
+      variant: "default",
+    });
+  }
+
   // "Marcar como perdida" — only when active.
   if (pet.status === "active") {
     items.push({

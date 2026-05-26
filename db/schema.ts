@@ -485,6 +485,14 @@ export const pets = pgTable(
       .notNull()
       .default(true),
     allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
+    // Tier 2 público temporal — owner opt-in window for /p/[publicToken].
+    // When non-null and > now(), the public credential reveals a curated
+    // medical summary (vacunas vigentes, esterilización, medicación
+    // activa, condiciones permanentes) on top of the Tier 0 identity
+    // rollups it normally shows. Set by enableTier2PublicAction (hardcoded
+    // +24h in v1), cleared by revokeTier2PublicAction or naturally by
+    // expiration. Owner contact / address / notes are never exposed.
+    tier2PublicEnabledUntil: timestamp("tier2_public_enabled_until", { withTimezone: true }),
     // External legal custody proceedings flag. Set true by
     // custody_dispute_raised events (admin or govt initiated), unset by
     // custody_dispute_resolved. Features that should respect the flag

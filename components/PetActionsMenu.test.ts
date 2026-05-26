@@ -75,4 +75,20 @@ describe("deriveActionItems — conditional rules", () => {
     expect(ids).toContain("new-event");
     expect(ids).toContain("edit");
   });
+
+  it("'Mostrar Libreta en la credencial' (Tier 2) rendered for active/lost, hidden for deceased", () => {
+    const active = deriveActionItems(
+      makeInput({ pet: { species: "dog", status: "active", publicToken: "TK" } }),
+    );
+    const lost = deriveActionItems(
+      makeInput({ pet: { species: "dog", status: "lost", publicToken: "TK" } }),
+    );
+    const deceased = deriveActionItems(
+      makeInput({ pet: { species: "dog", status: "deceased", publicToken: "TK" } }),
+    );
+
+    expect(active.map((a) => a.id)).toContain("tier2-public");
+    expect(lost.map((a) => a.id)).toContain("tier2-public");
+    expect(deceased.map((a) => a.id)).not.toContain("tier2-public");
+  });
 });
