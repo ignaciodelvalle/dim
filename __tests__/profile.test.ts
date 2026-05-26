@@ -198,14 +198,15 @@ describe("updateProfileForUser — validation rejections", () => {
     expect(result.error).toMatch(/VALIDATION_ERROR/);
   });
 
-  it("rejects invalid AR phone format when provided", async () => {
+  it("accepts any non-empty phone format (AR validation is now a client-side soft warning)", async () => {
+    // Phone format is no longer rejected server-side. The client surfaces a
+    // soft warning via `lib/ar-phone.ts` for non-AR-looking values, but the
+    // value saves regardless.
     const result = await updateProfileForUser(actorUserId, {
       displayName: "Valid Name",
       phone: "123-abc-xyz",
     });
-    expect(result).toHaveProperty("error");
-    if (!("error" in result)) return;
-    expect(result.error).toMatch(/VALIDATION_ERROR/);
+    expect(result).toEqual({ ok: true });
   });
 
   it("accepts empty string phone (clears the value)", async () => {

@@ -33,23 +33,14 @@ export type UploadAvatarResult = { error: string } | { ok: true; avatarUrl: stri
 // Zod schemas
 // ---------------------------------------------------------------------------
 
-// Argentine phone — accepts common formats:
-//   +54 9 11 1234-5678 | +5491112345678 | 011 15-1234-5678 | 11 1234-5678
-// We allow empty string (caller sets phone to null when empty).
-const AR_PHONE_RE =
-  /^(\+?54\s?9?\s?\d{2,4}[\s-]?\d{4}[\s-]?\d{4}|0\d{2,4}\s?(?:15[\s-]?)?\d{4}[\s-]?\d{4}|\d{2,4}[\s-]?\d{4}[\s-]?\d{4})$/;
-
-// Emergency / vet contact fields share the same nullable-string-with-optional-AR-phone
-// semantics as the main phone field. Names are free-form (1-80 chars) and clear
+// Emergency / vet contact fields share the same nullable-string semantics
+// as the main phone field. Names are free-form (1-80 chars) and clear
 // to null when sent as empty string.
+// Phone fields no longer enforce AR format server-side — the client form
+// surfaces a soft warning via `lib/ar-phone.ts` instead. Older landlines,
+// satellite phones, and foreign numbers all save without error.
 const emergencyTextField = z.string().max(80, "Máximo 80 caracteres").optional();
-
-const emergencyPhoneField = z
-  .string()
-  .optional()
-  .refine((v) => v === undefined || v === "" || AR_PHONE_RE.test(v.replace(/\s/g, " ").trim()), {
-    message: "El teléfono no tiene un formato argentino válido",
-  });
+const phoneField = z.string().max(40, "Máximo 40 caracteres").optional();
 
 const updateProfileSchema = z.object({
   displayName: z
@@ -60,19 +51,14 @@ const updateProfileSchema = z.object({
   // phone semantics:
   //   undefined  → caller did not include phone in the update; leave DB value unchanged
   //   ""         → caller explicitly cleared phone; set to null in DB
-  //   string     → validate AR format, then store as-is
-  phone: z
-    .string()
-    .optional()
-    .refine((v) => v === undefined || v === "" || AR_PHONE_RE.test(v.replace(/\s/g, " ").trim()), {
-      message: "El teléfono no tiene un formato argentino válido",
-    }),
+  //   string     → store as-is (format hint shown client-side as warning, not error)
+  phone: phoneField,
   // Emergency contact + preferred vet — surfaced on <PetEmergencyCard>. Same
   // undefined / "" / string semantics as `phone`. Added by migration 0042.
   preferredVetName: emergencyTextField,
-  preferredVetPhone: emergencyPhoneField,
+  preferredVetPhone: phoneField,
   emergencyContactName: emergencyTextField,
-  emergencyContactPhone: emergencyPhoneField,
+  emergencyContactPhone: phoneField,
 });
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;

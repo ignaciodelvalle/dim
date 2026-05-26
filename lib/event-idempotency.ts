@@ -23,7 +23,7 @@
 
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db, petEvents } from "@/db";
 import type { NewPetEvent, PetEvent } from "@/db/schema";
@@ -102,11 +102,16 @@ export async function insertEventIdempotent(
   }
 
   // Key present → try insert with conflict guard.
+  // The unique index `pet_events_idempotency_idx` is PARTIAL (`WHERE client_idempotency_key
+  // IS NOT NULL`). Postgres requires the same WHERE clause in ON CONFLICT to match the
+  // partial index — without `targetWhere`, Postgres errors with "no unique or exclusion
+  // constraint matching the ON CONFLICT specification".
   const inserted = await executor
     .insert(petEvents)
     .values(values)
     .onConflictDoNothing({
       target: [petEvents.petId, petEvents.eventType, petEvents.clientIdempotencyKey],
+      where: sql`client_idempotency_key is not null`,
     })
     .returning();
 
