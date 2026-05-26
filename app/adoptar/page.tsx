@@ -55,13 +55,11 @@ export default async function AdoptarPage({
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="bg-white">
       <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Adoptar en MiMAR
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-4xl font-semibold tracking-tight text-gob-text">Adoptar en MiMAR</h1>
+          <p className="text-sm text-gob-text-gray">
             Mascotas publicadas por refugios verificados en Argentina. Si ves alguna que te resuene,
             postulate y el refugio te contacta.
           </p>
@@ -70,26 +68,23 @@ export default async function AdoptarPage({
         <AdoptionFiltersBar filters={filters} />
 
         {items.length === 0 ? (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <div className="rounded-lg border border-gob-border px-6 py-10 text-center space-y-2">
+            <p className="text-sm font-medium text-gob-text">
               No encontramos mascotas con esos filtros.
             </p>
             {hasActiveFilters ? (
-              <Link
-                href="/adoptar"
-                className="text-sm text-emerald-700 dark:text-emerald-300 underline"
-              >
+              <Link href="/adoptar" className="text-sm text-gob-success underline">
                 Limpiar filtros
               </Link>
             ) : (
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-gob-text-muted">
                 Volvé en unos días — los refugios suben mascotas seguido.
               </p>
             )}
           </div>
         ) : (
           <>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-gob-text-muted">
               {items.length} mascota{items.length === 1 ? "" : "s"}
               {nextCursor ? " (mostrando los más recientes)" : ""}
             </p>
@@ -103,7 +98,7 @@ export default async function AdoptarPage({
               <div className="flex justify-center pt-4">
                 <Link
                   href={`/adoptar?${buildSearchParams(filters, nextCursor).toString()}`}
-                  className="px-5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                  className="px-5 py-2.5 rounded-lg border border-gob-border-strong text-sm font-medium hover:bg-gob-surface-alt"
                 >
                   Mostrar más
                 </Link>
@@ -133,9 +128,9 @@ function PetListingCard({ item }: { item: CardItem }) {
   const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
 
   return (
-    <li className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 hover:shadow-lg transition-shadow">
+    <li className="rounded-xl border border-gob-border overflow-hidden bg-white hover:shadow-lg transition-shadow">
       <Link href={`/adoptar/${item.petPublicToken}`} className="block">
-        <div className="aspect-square bg-neutral-100 dark:bg-neutral-900 relative">
+        <div className="aspect-square bg-gob-surface-alt relative">
           {photoUrl ? (
             <img
               src={photoUrl}
@@ -143,7 +138,7 @@ function PetListingCard({ item }: { item: CardItem }) {
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-5xl text-neutral-400 dark:text-neutral-600">
+            <div className="absolute inset-0 flex items-center justify-center text-5xl text-gob-text-muted">
               {item.name.charAt(0).toUpperCase()}
             </div>
           )}
@@ -164,30 +159,24 @@ function PetListingCard({ item }: { item: CardItem }) {
         </div>
         <div className="p-4 space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-              {item.name}
-            </h2>
+            <h2 className="text-lg font-semibold text-gob-text">{item.name}</h2>
             {provinceLabel && (
-              <span className="text-xs text-neutral-500 dark:text-neutral-500">
+              <span className="text-xs text-gob-text-muted">
                 {item.jurisdictionLocality
                   ? `${item.jurisdictionLocality}, ${provinceLabel}`
                   : provinceLabel}
               </span>
             )}
           </div>
-          {facts.length > 0 && (
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">{facts.join(" · ")}</p>
-          )}
+          {facts.length > 0 && <p className="text-xs text-gob-text-gray">{facts.join(" · ")}</p>}
           {item.adoptionStory && (
-            <p className="text-xs text-neutral-700 dark:text-neutral-300 line-clamp-3">
-              {item.adoptionStory}
-            </p>
+            <p className="text-xs text-gob-text-gray line-clamp-3">{item.adoptionStory}</p>
           )}
-          <p className="text-[11px] text-neutral-500 pt-1 border-t border-neutral-100 dark:border-neutral-900">
+          <p className="text-[11px] text-gob-text-muted pt-1 border-t border-gob-surface-alt">
             Publica:{" "}
             <Link
               href={`/refugios/${item.orgPublicToken}`}
-              className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
+              className="underline hover:text-gob-text"
             >
               {item.orgDisplayName}
             </Link>

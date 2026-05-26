@@ -118,26 +118,26 @@ export default async function PostularPage({
   }
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="bg-white">
       <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
         <Link
           href={`/adoptar/${petToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text"
         >
           ← Volver a la ficha
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
             Postularte para adoptar a {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             {org.displayName} recibe tu postulación y te contacta por mail para coordinar.
           </p>
         </header>
 
         {intentExpired && (
-          <output className="block rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm text-amber-900 dark:text-amber-200">
+          <output className="block rounded-lg border border-gob-warning/40 bg-gob-warning/10 p-3 text-sm text-gob-warning-text">
             Tu intención de postulación expiró, pero tu cuenta sigue activa. Podés seguir desde acá
             sin problema.
           </output>
@@ -155,18 +155,16 @@ export default async function PostularPage({
 
 function InstitutionalBlocked({ petToken }: { petToken: string }) {
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="bg-white">
       <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-          Esta cuenta no puede postularse
-        </h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold text-gob-text">Esta cuenta no puede postularse</h1>
+        <p className="text-sm text-gob-text-gray">
           Las cuentas institucionales (admin y autoridades sanitarias) no pueden postularse para
           adoptar. Si querés adoptar a título personal, creá una cuenta personal con otro email.
         </p>
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
+          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
         >
           Volver a la ficha
         </Link>
@@ -177,18 +175,16 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
 
 function NoLongerAvailable({ name }: { name: string }) {
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="bg-white">
       <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-          {name} ya no está disponible
-        </h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold text-gob-text">{name} ya no está disponible</h1>
+        <p className="text-sm text-gob-text-gray">
           La publicación cambió desde que entraste a esta página. Volvé al listado y elegí otra
           mascota.
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
+          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
         >
           Ver otras en adopción
         </Link>
@@ -199,18 +195,16 @@ function NoLongerAvailable({ name }: { name: string }) {
 
 function AlreadyApplied({ name }: { name: string }) {
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="bg-white">
       <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-          Ya postulaste para {name}
-        </h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-2xl font-semibold text-gob-text">Ya postulaste para {name}</h1>
+        <p className="text-sm text-gob-text-gray">
           El refugio recibió tu postulación y la está revisando. Te van a contactar por email cuando
           tengan novedades.
         </p>
         <Link
           href="/mis-mascotas/postulaciones"
-          className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
+          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
         >
           Ver mis postulaciones
         </Link>

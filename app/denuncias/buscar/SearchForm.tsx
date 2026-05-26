@@ -23,10 +23,7 @@ export function SearchForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
-        <label
-          htmlFor="code"
-          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
-        >
+        <label htmlFor="code" className="block text-sm font-medium text-gob-text-gray">
           Código de seguimiento
         </label>
         <input
@@ -39,15 +36,15 @@ export function SearchForm() {
             setValue(e.target.value);
             if (error) setError(null);
           }}
-          className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-sm font-mono tracking-wide text-neutral-900 dark:text-neutral-50 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+          className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2.5 text-sm font-mono tracking-wide text-gob-text placeholder:text-gob-text-muted focus:outline-none focus:ring-2 focus:ring-gob-primary"
           autoComplete="off"
           spellCheck={false}
         />
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-gob-danger">{error}</p>}
       </div>
       <button
         type="submit"
-        className="w-full rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium py-2.5 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+        className="w-full rounded-lg bg-gob-primary text-white text-sm font-medium py-2.5 hover:opacity-90 transition-colors"
       >
         Buscar
       </button>

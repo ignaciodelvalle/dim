@@ -31,28 +31,24 @@ const SEVERITY_CARDS: SeverityCard[] = [
     label: "Grave / urgente",
     description: "El animal está en peligro inmediato o hay heridas visibles",
     icon: "🚨",
-    borderClass:
-      "border-red-200 dark:border-red-900 hover:border-red-400 dark:hover:border-red-700",
-    selectedBorderClass: "border-red-600 dark:border-red-400 bg-red-50 dark:bg-red-950/30",
+    borderClass: "border-gob-danger/30 hover:border-gob-danger/60",
+    selectedBorderClass: "border-gob-danger bg-gob-danger/10",
   },
   {
     value: "moderado",
     label: "Moderado",
     description: "Condiciones de vida malas, abandono, descuido sostenido",
     icon: "⚠️",
-    borderClass:
-      "border-amber-200 dark:border-amber-900 hover:border-amber-400 dark:hover:border-amber-700",
-    selectedBorderClass: "border-amber-600 dark:border-amber-400 bg-amber-50 dark:bg-amber-950/30",
+    borderClass: "border-gob-warning/40 hover:border-gob-warning/70",
+    selectedBorderClass: "border-gob-warning bg-gob-warning/10",
   },
   {
     value: "sospecha",
     label: "Sospecha",
     description: "Creo que algo no está bien, pero no estoy seguro/a",
     icon: "🔍",
-    borderClass:
-      "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600",
-    selectedBorderClass:
-      "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900",
+    borderClass: "border-gob-border hover:border-gob-border-strong",
+    selectedBorderClass: "border-gob-primary bg-gob-surface-alt",
   },
 ];
 
@@ -65,12 +61,8 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
   return (
     <section className="space-y-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          ¿Qué tan grave es?
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Elegí la que más se acerca a lo que viste.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Qué tan grave es?</h1>
+        <p className="text-sm text-gob-text-muted">Elegí la que más se acerca a lo que viste.</p>
       </div>
 
       <ul className="space-y-3">
@@ -96,10 +88,8 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
                   {card.icon}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-                    {card.label}
-                  </span>
-                  <span className="block text-xs text-neutral-600 dark:text-neutral-400 mt-0.5 leading-relaxed">
+                  <span className="block text-sm font-semibold text-gob-text">{card.label}</span>
+                  <span className="block text-xs text-gob-text-gray mt-0.5 leading-relaxed">
                     {card.description}
                   </span>
                 </span>
@@ -109,7 +99,7 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
         })}
       </ul>
 
-      <p className="text-xs text-neutral-400 dark:text-neutral-600 text-center pt-2">
+      <p className="text-xs text-gob-text-muted text-center pt-2">
         No importa cuál elijas — todas las denuncias son revisadas por el equipo.
       </p>
     </section>

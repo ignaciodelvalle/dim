@@ -48,12 +48,8 @@ export function Step4Subject({
   return (
     <section className="space-y-5">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          ¿Sobre quién?
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Opcional — nos ayuda a actuar más rápido.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Sobre quién?</h1>
+        <p className="text-sm text-gob-text-muted">Opcional — nos ayuda a actuar más rápido.</p>
       </div>
 
       {/* Main two cards */}
@@ -65,8 +61,8 @@ export function Step4Subject({
               <label
                 className={`flex items-start gap-3 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors ${
                   isSelected
-                    ? "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900"
-                    : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600"
+                    ? "border-gob-primary bg-gob-surface-alt"
+                    : "border-gob-border hover:border-gob-border-strong"
                 }`}
               >
                 {/* Visually hidden radio — semantics carried by the label */}
@@ -82,10 +78,8 @@ export function Step4Subject({
                   {card.icon}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                    {card.label}
-                  </span>
-                  <span className="block text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  <span className="block text-sm font-medium text-gob-text">{card.label}</span>
+                  <span className="block text-xs text-gob-text-muted mt-0.5">
                     {card.description}
                   </span>
                 </span>
@@ -101,8 +95,8 @@ export function Step4Subject({
         onClick={() => onSubjectKindChange("location")}
         className={`w-full text-left rounded-xl border px-4 py-3 text-sm transition-colors ${
           subjectKind === "location"
-            ? "border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900 font-medium text-neutral-900 dark:text-neutral-50"
-            : "border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-neutral-400 dark:hover:border-neutral-600"
+            ? "border-gob-primary bg-gob-surface-alt font-medium text-gob-text"
+            : "border-dashed border-gob-border-strong text-gob-text-muted hover:border-gob-border-strong"
         }`}
       >
         🏢 Edificio / persona / lugar específico
@@ -110,7 +104,7 @@ export function Step4Subject({
 
       {/* Conditional fields */}
       {subjectKind === "registered_pet" && (
-        <div className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+        <div className="space-y-3 rounded-xl border border-gob-border p-4">
           <div className="space-y-1.5">
             <label htmlFor="subjectPetToken" className={labelClass}>
               Código MiMAR de la mascota (opcional)
@@ -127,7 +121,7 @@ export function Step4Subject({
               className={`${inputClass} font-mono uppercase`}
               autoCapitalize="characters"
             />
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            <p className="text-xs text-gob-text-muted">
               Si no lo sabés, no es obligatorio. Dejalo vacío.
             </p>
           </div>
@@ -184,14 +178,14 @@ export function Step4Subject({
 
       {error && (
         <p
-          className="text-sm text-red-600 dark:text-red-400 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2"
+          className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2"
           role="alert"
         >
           {error}
         </p>
       )}
 
-      <p className="text-xs text-neutral-400 dark:text-neutral-600 text-center">
+      <p className="text-xs text-gob-text-muted text-center">
         Podés saltear este paso. Tus datos anteriores ya son suficientes.
       </p>
     </section>

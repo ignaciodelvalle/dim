@@ -31,11 +31,7 @@ export function ApplyButton({ petToken, petName }: { petToken: string; petName: 
       >
         {pending ? "Procesando..." : `Postularme para adoptar a ${petName}`}
       </button>
-      {error && (
-        <output className="block text-sm text-red-700 dark:text-red-300 text-center">
-          {error}
-        </output>
-      )}
+      {error && <output className="block text-sm text-gob-danger text-center">{error}</output>}
     </div>
   );
 }
