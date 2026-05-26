@@ -39,9 +39,9 @@
 // TODO(J-followup): Travel docs — no pet_attachments table yet. <PetTravelDocs>
 //   renders an empty state until the table / attachment kind is added.
 //
-// TODO(K): Lost mode branch — when pet.status === "lost", the Chunk K swap
-//   will add the lost cockpit layout (LostModeBanner + LostScanFeed etc.) as
-//   a server-side branch here. <PetProfileHero> already sets lostMode=true.
+// Lost mode (Chunk K, 2026-05-26): when pet.status === "lost", an early
+// return ~line 410 renders <LostCockpit> instead of this main flow. The
+// regular sections below are therefore only reached for active pets.
 // ---------------------------------------------------------------------------
 
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
@@ -58,6 +58,7 @@ import { PpPCard } from "@/components/PpPCard";
 import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
+import { LostCockpit } from "@/components/pet-profile/LostCockpit";
 import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
 import { PetEmergencyCard } from "@/components/pet-profile/PetEmergencyCard";
 import { PetHealthTimeline } from "@/components/pet-profile/PetHealthTimeline";
@@ -86,6 +87,7 @@ import { getEarnedAchievements } from "@/lib/achievements/catalog";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
+import { fetchFinderNotificationsSince, fetchScanEventsSince } from "@/lib/lost-cockpit";
 import {
   fetchActiveRemindersForPet,
   fetchPetEventsForProfileV2,
@@ -105,15 +107,10 @@ import { PetReminders } from "./_components/PetReminders";
 // (needed by DeceasedView). For active pets, fetchPetEventsForProfileV2 is
 // used instead, which runs two targeted queries without attachment signing.
 
-// TODO(K-followup): When pet.status === 'lost', this page should show the
-// lost-mode cockpit (LostModeBanner, LostShareCard, LostLastSeenCard,
-// LostDisclosureCard, LostScanFeed) instead of the regular sections.
-// The cockpit components already exist in components/pet-profile/.
-// This requires: fetchLostEpisodeForPet (open lost_pet_episode case),
-// fetchScanEvents (credential_scanned events for this pet), and
-// fetchFinderMessages (finder contact messages — table TBD).
-// Fold into a conditional branch at the top of PetDetailPage once those
-// query helpers are in place.
+// Lost mode wires the cockpit (banner + last-seen + disclosure toggles +
+// scan/finder feed) as an early return below, after the deceased branch.
+// LostShareCard is intentionally left out of this iteration — see
+// components/pet-profile/LostCockpit.tsx for the wiring.
 
 // ---------------------------------------------------------------------------
 // Pet state derivation — maps pets fields to the visual state ring convention.
@@ -406,6 +403,76 @@ export default async function PetDetailPage({
     );
   }
 
+  // Lost mode branch — focused cockpit (4 cards) instead of the regular
+  // profile sections. Components live in components/pet-profile/Lost*.tsx;
+  // data helpers in lib/lost-cockpit.ts.
+  if (pet.status === "lost") {
+    const lostCase = allCases.find((c) => c.caseKind === "lost_pet_episode" && c.status === "open");
+    // Most recent status_changed event holds the location snapshot written
+    // by setPetLostAction. The opening "to_status=lost" row is always the
+    // newest one while the pet is in lost mode.
+    const [lostEvent] = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "status_changed")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+    const lostPayload = (lostEvent?.payload ?? {}) as {
+      location_description?: string | null;
+      reason?: string | null;
+    };
+    let ownerFirstName = "";
+    if (accessPath === "owner") {
+      const [ownerProfile] = await db
+        .select({ displayName: profiles.displayName })
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1);
+      ownerFirstName = (ownerProfile?.displayName ?? "").split(" ")[0] ?? "";
+    }
+    const since = lostCase?.openedAt ?? new Date(0);
+    const [scans, finders] = await Promise.all([
+      fetchScanEventsSince(pet.id, since),
+      fetchFinderNotificationsSince(pet.id, since),
+    ]);
+    const jurisdictionLabel =
+      [pet.jurisdictionLocality, pet.jurisdictionProvince].filter(Boolean).join(", ") || "—";
+    return (
+      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+        <div className="max-w-2xl mx-auto pt-6 space-y-4">
+          <Link
+            href="/mis-mascotas"
+            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          >
+            ← Volver a mis mascotas
+          </Link>
+          <LostCockpit
+            publicToken={pet.publicToken}
+            petName={pet.name}
+            petPhotoUrl={photoUrl}
+            ownerFirstName={ownerFirstName}
+            caseId={lostCase?.id ?? ""}
+            casePublicCode={lostCase?.publicCode ?? ""}
+            lostSince={lostCase?.openedAt ?? lostEvent?.occurredAt ?? new Date()}
+            jurisdictionLabel={jurisdictionLabel}
+            lastSeenPlaceName={lostPayload.location_description ?? "Ubicación no especificada"}
+            lastSeenLocalityLabel={pet.jurisdictionLocality ?? "—"}
+            lastSeenNote={lostPayload.reason ?? null}
+            prefs={{
+              discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+              disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+              discloseEmailWhenLost: pet.discloseEmailWhenLost,
+              discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+              allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+            }}
+            scans={scans}
+            finders={finders}
+          />
+        </div>
+      </main>
+    );
+  }
+
   // v2 targeted queries — replaces the old O(N) events + attachment signing.
   const { typedEvents, recentFive } = await fetchPetEventsForProfileV2(pet.id);
 
@@ -553,7 +620,9 @@ export default async function PetDetailPage({
     weightLabel: pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null,
     state: derivePetState(pet),
     stateLabel: derivePetStateLabel(pet),
-    lostMode: pet.status === "lost",
+    // Lost mode renders the cockpit via an early return above; by the
+    // time we reach this object pet.status is never "lost".
+    lostMode: false,
   };
 
   // Medication doses for MedicationDosesSection.
