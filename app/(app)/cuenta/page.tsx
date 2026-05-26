@@ -210,8 +210,8 @@ export default async function CuentaPage() {
             {profile.role === "owner" && (
               <ActionCard
                 href="/cuenta/upgrade"
-                label="Subir a veterinario"
-                description="Registrá tu matrícula profesional"
+                label="Convertirme en profesional / organización"
+                description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
               />
             )}
             {profile.role === "owner" && profile.accountType === "personal" && (
