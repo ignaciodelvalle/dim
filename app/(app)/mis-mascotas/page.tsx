@@ -136,7 +136,6 @@ export default async function MisMascotasPage({
             Convertirme en profesional / organización →
           </Link>
         </div>
-
       </div>
     </main>
   );
