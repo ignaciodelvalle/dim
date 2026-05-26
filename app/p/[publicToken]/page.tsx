@@ -24,6 +24,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
+import { Tier2MedicalView } from "./Tier2MedicalView";
 
 export default async function PublicCredentialPage({
   params,
@@ -91,6 +92,81 @@ export default async function PublicCredentialPage({
     : null;
 
   const isLost = pet.status === "lost";
+
+  // Tier 2 público temporal — owner-opt-in window. Active when the
+  // timestamp is in the future. The medical summary block fetches a tiny
+  // extra projection only when active so the default Tier 0 render stays
+  // cheap. See app/actions/tier2-public.ts + migration 0049.
+  const tier2EnabledUntil = pet.tier2PublicEnabledUntil
+    ? new Date(pet.tier2PublicEnabledUntil)
+    : null;
+  const tier2Active = !!tier2EnabledUntil && tier2EnabledUntil > new Date();
+
+  let tier2VaccineActive = 0;
+  let tier2IsSterilized = false;
+  const tier2ActiveMedications: string[] = [];
+  if (tier2Active) {
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    // Vacunación "vigente" v1: unique vaccine_name applied in the last 12
+    // months. Conservative — a future PR can wire computeVaccinationSummary
+    // (catalog interval-aware) once the libreta health-status helpers land.
+    const recentVaccines = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, pet.id),
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`${petEvents.occurredAt} >= ${oneYearAgo.toISOString()}`,
+        ),
+      );
+    const seen = new Set<string>();
+    for (const row of recentVaccines) {
+      const name =
+        typeof (row.payload as { vaccine_name?: unknown })?.vaccine_name === "string"
+          ? (row.payload as { vaccine_name: string }).vaccine_name.trim().toLowerCase()
+          : "";
+      if (name) seen.add(name);
+    }
+    tier2VaccineActive = seen.size;
+
+    const [steril] = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
+      .limit(1);
+    tier2IsSterilized = !!steril;
+
+    // Active medications: started without a referencing stop. Same shape
+    // as computeMedicationsActive (lib/libreta-health-status.ts) but
+    // inlined to avoid coupling this page to that PR until both ship.
+    const medRows = await db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, pet.id),
+          sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
+        ),
+      );
+    const stoppedIds = new Set<string>();
+    for (const r of medRows) {
+      if (r.eventType !== "medication_stopped") continue;
+      const sid = (r.payload as { medication_started_event_id?: unknown })
+        ?.medication_started_event_id;
+      if (typeof sid === "string") stoppedIds.add(sid);
+    }
+    for (const r of medRows) {
+      if (r.eventType !== "medication_started") continue;
+      if (stoppedIds.has(r.id)) continue;
+      const drug = (r.payload as { drug_name?: unknown })?.drug_name;
+      if (typeof drug === "string" && drug.trim()) tier2ActiveMedications.push(drug.trim());
+    }
+  }
 
   // Service dog banner (Ley 26.858). Renders ONLY when the owner has opted
   // in to full_banner visibility AND the credential is vigente AND in
@@ -321,6 +397,25 @@ export default async function PublicCredentialPage({
           <PermanentConditionsBanner
             codes={pet.permanentConditions}
             other={pet.permanentConditionsOther}
+          />
+        )}
+
+        {/* Tier 2 público temporal — owner-opt-in widened medical projection.
+            Only renders during the active window (set by enableTier2PublicAction
+            for 24h in v1). Never exposes owner contact or notes. */}
+        {tier2Active && tier2EnabledUntil && (
+          <Tier2MedicalView
+            enabledUntil={tier2EnabledUntil}
+            vaccineSummary={{
+              active: tier2VaccineActive,
+              expired: 0,
+              dueSoon: 0,
+              missing: 0,
+            }}
+            isSterilized={tier2IsSterilized}
+            activeMedications={tier2ActiveMedications}
+            permanentConditions={pet.permanentConditions ?? []}
+            permanentConditionsOther={pet.permanentConditionsOther}
           />
         )}
 
