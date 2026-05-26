@@ -110,68 +110,54 @@ export default async function InicioPage() {
   const cases = openWf.map(adaptWorkflow);
 
   return (
-    <main className="p-6">
-      <div className="mx-auto max-w-2xl space-y-5 pb-10 pt-4">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Hola, {firstName}
-          </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            ¿Qué le pasó a alguna mascota hoy?
-          </p>
-        </header>
+    <div className="mx-auto max-w-4xl space-y-6 pb-10 pt-2">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">Hola, {firstName}</h1>
+        <p className="text-sm text-gob-text-muted">¿Qué le pasó a alguna mascota hoy?</p>
+      </header>
 
-        <RemindersSection reminders={reminders} />
+      <RemindersSection reminders={reminders} />
 
-        <EventCatcher pets={eventCatcherPets} />
+      <EventCatcher pets={eventCatcherPets} />
 
-        {cases.length > 0 && <CasesWidget cases={cases} />}
+      {cases.length > 0 && <CasesWidget cases={cases} />}
 
-        {appointments.length > 0 && (
-          <section
-            aria-labelledby="next-appts-h"
-            className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
-          >
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2
-                id="next-appts-h"
-                className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-              >
-                Próximos turnos
-              </h2>
-              <Link
-                href="/mis-turnos"
-                className="text-xs font-medium text-gob-azul-link hover:underline"
-              >
-                Ver agenda →
-              </Link>
-            </div>
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-              {appointments.map(({ appointment, slot, offering }) => (
-                <li key={appointment.publicToken} className="flex items-center gap-3 py-2">
-                  <DateChip date={new Date(slot.startsAt)} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                      {offering.displayName}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {new Date(slot.startsAt).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+      {appointments.length > 0 && (
+        <section aria-labelledby="next-appts-h" className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 id="next-appts-h" className="text-base font-semibold text-gob-text">
+              Próximos turnos
+            </h2>
+            <Link
+              href="/mis-turnos"
+              className="text-xs font-medium text-gob-azul-link hover:underline"
+            >
+              Ver agenda →
+            </Link>
+          </div>
+          <ul className="divide-y divide-gob-border">
+            {appointments.map(({ appointment, slot, offering }) => (
+              <li key={appointment.publicToken} className="flex items-center gap-3 py-2.5">
+                <DateChip date={new Date(slot.startsAt)} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gob-text">{offering.displayName}</p>
+                  <p className="text-xs text-gob-text-muted">
+                    {new Date(slot.startsAt).toLocaleTimeString("es-AR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-        <p className="text-center text-xs text-neutral-400 dark:text-neutral-600">
-          Notificaciones, medicaciones y workflows previos viven en el menú lateral.
-        </p>
-      </div>
-    </main>
+      <p className="pt-2 text-center text-xs text-gob-text-muted">
+        Notificaciones, medicaciones y workflows previos viven en el menú lateral.
+      </p>
+    </div>
   );
 }
 
@@ -192,13 +178,9 @@ const MONTH_ABBR = [
 
 function DateChip({ date }: { date: Date }) {
   return (
-    <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-md border border-neutral-200 text-center dark:border-neutral-700">
-      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-        {MONTH_ABBR[date.getMonth()]}
-      </span>
-      <span className="text-sm font-semibold leading-tight text-neutral-900 dark:text-neutral-50">
-        {date.getDate()}
-      </span>
+    <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-md border border-gob-border text-center">
+      <span className="text-[11px] text-gob-text-muted">{MONTH_ABBR[date.getMonth()]}</span>
+      <span className="text-sm font-semibold leading-tight text-gob-text">{date.getDate()}</span>
     </div>
   );
 }
