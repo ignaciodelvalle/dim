@@ -39,9 +39,6 @@
 // TODO(J-followup): Travel docs — no pet_attachments table yet. <PetTravelDocs>
 //   renders an empty state until the table / attachment kind is added.
 //
-// TODO(K): Lost mode branch — when pet.status === "lost", the Chunk K swap
-//   will add the lost cockpit layout (LostModeBanner + LostScanFeed etc.) as
-//   a server-side branch here. <PetProfileHero> already sets lostMode=true.
 // ---------------------------------------------------------------------------
 
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
@@ -86,6 +83,7 @@ import { getEarnedAchievements } from "@/lib/achievements/catalog";
 import { excludeSelfScansClause } from "@/lib/events";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
+import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
 import {
   fetchActiveRemindersForPet,
   fetchPetEventsForProfileV2,
@@ -98,22 +96,13 @@ import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
+import { LostCockpit } from "./LostCockpit";
 import { MarkFoundButton } from "./MarkFoundButton";
 import { PetReminders } from "./_components/PetReminders";
 
 // NOTE: eventsWithAttachments is fetched only when pet.status === 'deceased'
 // (needed by DeceasedView). For active pets, fetchPetEventsForProfileV2 is
 // used instead, which runs two targeted queries without attachment signing.
-
-// TODO(K-followup): When pet.status === 'lost', this page should show the
-// lost-mode cockpit (LostModeBanner, LostShareCard, LostLastSeenCard,
-// LostDisclosureCard, LostScanFeed) instead of the regular sections.
-// The cockpit components already exist in components/pet-profile/.
-// This requires: fetchLostEpisodeForPet (open lost_pet_episode case),
-// fetchScanEvents (credential_scanned events for this pet), and
-// fetchFinderMessages (finder contact messages — table TBD).
-// Fold into a conditional branch at the top of PetDetailPage once those
-// query helpers are in place.
 
 // ---------------------------------------------------------------------------
 // Pet state derivation — maps pets fields to the visual state ring convention.
@@ -345,6 +334,7 @@ export default async function PetDetailPage({
     preferredVetPhone: string | null;
     emergencyContactName: string | null;
     emergencyContactPhone: string | null;
+    displayName: string;
   } | null = null;
   if (accessPath === "owner") {
     const [profileRow] = await db
@@ -353,6 +343,7 @@ export default async function PetDetailPage({
         preferredVetPhone: profiles.preferredVetPhone,
         emergencyContactName: profiles.emergencyContactName,
         emergencyContactPhone: profiles.emergencyContactPhone,
+        displayName: profiles.displayName,
       })
       .from(profiles)
       .where(eq(profiles.id, user.id))
@@ -402,6 +393,45 @@ export default async function PetDetailPage({
         pet={pet}
         photoUrl={photoUrl}
         eventsWithAttachments={deceasedEventsWithAttachments}
+      />
+    );
+  }
+
+  // EARLY RETURN for lost: show the lost cockpit instead of the normal sections.
+  // Runs before the heavy fetchPetEventsForProfileV2 / weight / reminder queries
+  // since those are irrelevant when the pet is lost.
+  if (pet.status === "lost") {
+    const [episode, scans] = await Promise.all([
+      fetchLostEpisodeForPet(pet.id),
+      fetchLostScanEvents(pet.id),
+    ]);
+
+    const heroPet = {
+      name: pet.name,
+      publicToken: pet.publicToken,
+      photoUrl,
+      species: speciesLabel(pet.species),
+      breed: pet.breed,
+      ageLabel: ageFromDateOfBirth(pet.dateOfBirth) ?? "—",
+      weightLabel: pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null,
+      state: "urgent" as const,
+      stateLabel: "Perdida",
+      lostMode: true,
+    };
+
+    // Derive owner first name from displayName (first word only).
+    const ownerFirstName = viewerContacts?.displayName
+      ? (viewerContacts.displayName.split(" ")[0] ?? viewerContacts.displayName)
+      : "el dueño";
+
+    return (
+      <LostCockpit
+        pet={pet}
+        petHeroProps={heroPet}
+        photoUrl={photoUrl}
+        episode={episode}
+        scans={scans}
+        ownerFirstName={ownerFirstName}
       />
     );
   }
@@ -553,7 +583,7 @@ export default async function PetDetailPage({
     weightLabel: pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null,
     state: derivePetState(pet),
     stateLabel: derivePetStateLabel(pet),
-    lostMode: pet.status === "lost",
+    lostMode: false,
   };
 
   // Medication doses for MedicationDosesSection.
