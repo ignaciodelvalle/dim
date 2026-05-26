@@ -110,7 +110,7 @@ export default async function InicioPage() {
   const cases = openWf.map(adaptWorkflow);
 
   return (
-    <main className="min-h-screen bg-white p-6 dark:bg-neutral-950">
+    <main className="p-6">
       <div className="mx-auto max-w-2xl space-y-5 pb-10 pt-4">
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
