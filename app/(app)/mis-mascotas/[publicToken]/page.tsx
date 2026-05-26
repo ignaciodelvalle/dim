@@ -216,75 +216,67 @@ function DeceasedView({
   eventsWithAttachments: Parameters<typeof EventTimeline>[0]["events"];
 }) {
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
-      <div className="max-w-2xl mx-auto pt-6 space-y-8">
-        <Link
-          href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
-          ← Volver a mis mascotas
-        </Link>
+    <div className="max-w-2xl mx-auto pt-6 space-y-8">
+      <Link
+        href="/mis-mascotas"
+        className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
+      >
+        ← Volver a mis mascotas
+      </Link>
 
-        {/* In-memoriam hero — centered, muted */}
-        <section className="flex flex-col items-center gap-3 pt-4">
-          {photoUrl ? (
-            <img
-              src={photoUrl}
-              alt={pet.name}
-              className="w-24 h-24 rounded-full object-cover opacity-80"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-3xl font-semibold text-neutral-400 dark:text-neutral-600 opacity-80">
-              {pet.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="text-center space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-              {pet.name}
-            </h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
-              {deceasedSubtitle(pet)}
-            </p>
-          </div>
-
-          <p className="text-sm text-neutral-500 dark:text-neutral-500 pt-1">
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}/editar`}
-              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
-            >
-              Editar mascota
-            </Link>
-            {" · "}
-            <Link
-              href={`/p/${pet.publicToken}`}
-              target="_blank"
-              rel="noopener"
-              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
-            >
-              Ver credencial pública
-            </Link>
-            {" · "}
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
-              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
-            >
-              + Agregar nota
-            </Link>
-          </p>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Libreta sanitaria
-          </h2>
-          <EventTimeline
-            events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
-            publicToken={pet.publicToken}
-            chips={LIBRETA_FILTER_CHIPS}
+      {/* In-memoriam hero — centered, muted */}
+      <section className="flex flex-col items-center gap-3 pt-4">
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={pet.name}
+            className="w-24 h-24 rounded-full object-cover opacity-80"
           />
-        </section>
-      </div>
-    </main>
+        ) : (
+          <div className="w-24 h-24 rounded-full bg-gob-surface-alt flex items-center justify-center text-3xl font-semibold text-gob-text-muted opacity-80">
+            {pet.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <div className="text-center space-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">{pet.name}</h1>
+          <p className="text-sm text-gob-text-muted">{deceasedSubtitle(pet)}</p>
+        </div>
+
+        <p className="text-sm text-gob-text-muted pt-1">
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}/editar`}
+            className="underline underline-offset-4 hover:text-gob-text-gray"
+          >
+            Editar mascota
+          </Link>
+          {" · "}
+          <Link
+            href={`/p/${pet.publicToken}`}
+            target="_blank"
+            rel="noopener"
+            className="underline underline-offset-4 hover:text-gob-text-gray"
+          >
+            Ver credencial pública
+          </Link>
+          {" · "}
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
+            className="underline underline-offset-4 hover:text-gob-text-gray"
+          >
+            + Agregar nota
+          </Link>
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight text-gob-text">Libreta sanitaria</h2>
+        <EventTimeline
+          events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
+          publicToken={pet.publicToken}
+          chips={LIBRETA_FILTER_CHIPS}
+        />
+      </section>
+    </div>
   );
 }
 
@@ -614,247 +606,243 @@ export default async function PetDetailPage({
     .map((e) => ({ ...e, attachmentUrl: null }));
 
   return (
-    <main className="min-h-screen bg-white p-5 dark:bg-neutral-950">
-      <div className="mx-auto max-w-2xl space-y-4 pb-12">
-        {/* §4.9 (1) Back link */}
-        <Link
-          href={
-            accessPath === "org" && organization
-              ? `/org/${organization.publicToken}/mascotas`
-              : "/mis-mascotas"
-          }
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-          data-section="back-link"
-        >
-          ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
-        </Link>
+    <div className="mx-auto max-w-2xl space-y-4 pb-12">
+      {/* §4.9 (1) Back link */}
+      <Link
+        href={
+          accessPath === "org" && organization
+            ? `/org/${organization.publicToken}/mascotas`
+            : "/mis-mascotas"
+        }
+        className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
+        data-section="back-link"
+      >
+        ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
+      </Link>
 
-        {/* Org-mediated access notice */}
-        {accessPath === "org" && organization && (
-          <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
-            Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
-            Cualquier evento que registres queda atribuido a la organización.
-          </div>
-        )}
-
-        {isTransit && <TransitBanner petName={pet.name} />}
-
-        {pet.rabiesObservationStatus === "in_progress" && (
-          <RabiesObservationBanner pet={pet} events={typedEvents} />
-        )}
-
-        {/* §4.9 (2) Open cases section */}
-        <div data-section="cases">
-          <PetOpenCasesSection petId={pet.id} />
+      {/* Org-mediated access notice */}
+      {accessPath === "org" && organization && (
+        <div className="rounded border border-gob-info/30 bg-gob-info/10 px-3 py-2 text-sm text-gob-text">
+          Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
+          Cualquier evento que registres queda atribuido a la organización.
         </div>
+      )}
 
-        {/* Pregnancy card — conditional, above hero */}
-        {pregnancyCardData && (
-          <PregnancyInProgressCard
-            petPublicToken={pet.publicToken}
-            pregnancyStartedAt={pregnancyCardData.startedAt}
-            weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
-            expectedBirthAt={pregnancyCardData.expectedBirthAt}
-            lastClinicalAt={pregnancyCardData.lastClinicalAt}
-          />
-        )}
+      {isTransit && <TransitBanner petName={pet.name} />}
 
-        {/* §4.9 (3) PPP card — DEFERRED to Slice C */}
-        {pet.potentiallyDangerousBreed && (
-          <div data-section="ppp-card">
-            <PpPCard
-              petPublicToken={pet.publicToken}
-              breed={pet.breed}
-              events={typedEvents.map((e) => ({ ...e, attachmentUrl: null }))}
-              isTransit={isTransit}
-            />
-            {/* PPP CABA export CTA */}
-            {accessPath === "owner" &&
-              pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
-                <PppExportCabaButton petPublicToken={pet.publicToken} />
-              )}
-          </div>
-        )}
+      {pet.rabiesObservationStatus === "in_progress" && (
+        <RabiesObservationBanner pet={pet} events={typedEvents} />
+      )}
 
-        {/* §4.9 (4) Service Dog credential card — DEFERRED to Slice C */}
-        {serviceDogRow &&
-          serviceDogRow.credentialStatus === "vigente" &&
-          serviceDogRow.inService && (
-            <div data-section="service-dog-card">
-              <ServiceDogCredentialCard
-                petPublicToken={pet.publicToken}
-                petName={pet.name}
-                microchipId={pet.microchipId}
-                serviceDog={serviceDogRow}
-                photoUrl={photoUrl}
-              />
-            </div>
-          )}
+      {/* §4.9 (2) Open cases section */}
+      <div data-section="cases">
+        <PetOpenCasesSection petId={pet.id} />
+      </div>
 
-        {/* §4.9 (5) Hero — identity header */}
-        <div data-section="hero">
-          <PetProfileHero pet={heroData} />
-        </div>
-
-        {/* Quick-action buttons (Modo perdido / Compartir QR / Llamar vet) */}
-        <PetQuickActions
+      {/* Pregnancy card — conditional, above hero */}
+      {pregnancyCardData && (
+        <PregnancyInProgressCard
           petPublicToken={pet.publicToken}
-          petStatus={pet.status as "active" | "lost" | "deceased"}
-          preferredVetPhone={viewerContacts?.preferredVetPhone ?? null}
+          pregnancyStartedAt={pregnancyCardData.startedAt}
+          weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
+          expectedBirthAt={pregnancyCardData.expectedBirthAt}
+          lastClinicalAt={pregnancyCardData.lastClinicalAt}
         />
+      )}
 
-        {/* Visual tab-bar linking Resumen ↔ Libreta ↔ Historial */}
-        <PetDetailTabs petPublicToken={pet.publicToken} historialCount={historialCount} />
-
-        {/* §4.9 (6) Achievements row + credentials */}
-        <div data-section="achievements">
-          <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
+      {/* §4.9 (3) PPP card — DEFERRED to Slice C */}
+      {pet.potentiallyDangerousBreed && (
+        <div data-section="ppp-card">
+          <PpPCard
+            petPublicToken={pet.publicToken}
+            breed={pet.breed}
+            events={typedEvents.map((e) => ({ ...e, attachmentUrl: null }))}
+            isTransit={isTransit}
+          />
+          {/* PPP CABA export CTA */}
+          {accessPath === "owner" &&
+            pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
+              <PppExportCabaButton petPublicToken={pet.publicToken} />
+            )}
         </div>
+      )}
 
-        {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
-        <div data-section="current-state">
-          <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
-        </div>
-
-        {/* §4.9 (8) Cuidados próximos — consolidates reminders + appointments + meds */}
-        <div data-section="upcoming-care">
-          <PetUpcomingCareSection
-            reminders={petActiveReminders}
-            appointments={upcomingAppointments}
-            medicationDoses={pendingMedicationReminders.map((r) => ({
-              reminderId: r.id,
-              drugName: r.title,
-              dueAt: r.dueAt,
-            }))}
-            petToken={pet.publicToken}
+      {/* §4.9 (4) Service Dog credential card — DEFERRED to Slice C */}
+      {serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService && (
+        <div data-section="service-dog-card">
+          <ServiceDogCredentialCard
+            petPublicToken={pet.publicToken}
+            petName={pet.name}
+            microchipId={pet.microchipId}
+            serviceDog={serviceDogRow}
+            photoUrl={photoUrl}
           />
         </div>
+      )}
 
-        {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
+      {/* §4.9 (5) Hero — identity header */}
+      <div data-section="hero">
+        <PetProfileHero pet={heroData} />
+      </div>
+
+      {/* Quick-action buttons (Modo perdido / Compartir QR / Llamar vet) */}
+      <PetQuickActions
+        petPublicToken={pet.publicToken}
+        petStatus={pet.status as "active" | "lost" | "deceased"}
+        preferredVetPhone={viewerContacts?.preferredVetPhone ?? null}
+      />
+
+      {/* Visual tab-bar linking Resumen ↔ Libreta ↔ Historial */}
+      <PetDetailTabs petPublicToken={pet.publicToken} historialCount={historialCount} />
+
+      {/* §4.9 (6) Achievements row + credentials */}
+      <div data-section="achievements">
+        <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
+      </div>
+
+      {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
+      <div data-section="current-state">
+        <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+      </div>
+
+      {/* §4.9 (8) Cuidados próximos — consolidates reminders + appointments + meds */}
+      <div data-section="upcoming-care">
+        <PetUpcomingCareSection
+          reminders={petActiveReminders}
+          appointments={upcomingAppointments}
+          medicationDoses={pendingMedicationReminders.map((r) => ({
+            reminderId: r.id,
+            drugName: r.title,
+            dueAt: r.dueAt,
+          }))}
+          petToken={pet.publicToken}
+        />
+      </div>
+
+      {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
             signTimelineAttachmentsForPet is bound to the pet's publicToken so
             the client component receives a (eventIds) => Promise<…> signer
             that satisfies the SignerFn type without server-only imports. */}
-        <div data-section="health-timeline">
-          <PetHealthTimeline
-            recentFive={recentFive}
-            fullHistoryHref={`/mis-mascotas/${pet.publicToken}/historial`}
-            signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
-          />
-        </div>
-
-        {/* §4.9 (10) Actions menu — replaces inline action buttons */}
-        <div data-section="actions-menu">
-          <PetActionsMenu
-            pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
-            accessPath={accessPath === "org" ? "org" : "owner"}
-            ownershipRole={ownershipRole}
-            hasPendingReturnProposal={false}
-          />
-        </div>
-
-        {/* Auxiliary cards — below PetActionsMenu per design §5 */}
-
-        {/* v2 Emergency card */}
-        <PetEmergencyCard
-          editHref="/cuenta/editar"
-          vet={
-            viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
-              ? {
-                  name: viewerContacts.preferredVetName,
-                  role: "Vet de cabecera",
-                  phone: viewerContacts.preferredVetPhone,
-                }
-              : null
-          }
-          emergencyContact={
-            viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
-              ? {
-                  name: viewerContacts.emergencyContactName,
-                  role: "Contacto emergencia",
-                  phone: viewerContacts.emergencyContactPhone,
-                }
-              : null
-          }
-          alerts={[]}
-        />
-
-        {/* Medication doses — preserved (needed until MedicationDosesSection is refactored) */}
-        <MedicationDosesSection
-          pet={pet}
-          reminders={pendingMedicationReminders}
-          sourceEvents={medicationSourceEvents}
-        />
-
-        {/* v2 Weight sparkline */}
-        <PetWeightChart samples={weightHistory} />
-
-        <section>
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}/libreta`}
-            className="block w-full text-center px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
-          >
-            Ver libreta completa →
-          </Link>
-        </section>
-
-        {/* v2 Credential card */}
-        <PetCredentialCard
-          publicToken={pet.publicToken}
-          qrUrl={`/p/${pet.publicToken}.png`}
-          publicHref={`/p/${pet.publicToken}`}
-        />
-
-        {/* §4.20 placeholder — owner-only, captures demand for physical QR tag */}
-        {physicalTagInterest ? (
-          <PhysicalTagInterestCard
-            petPublicToken={pet.publicToken}
-            petName={pet.name}
-            initialInterested={physicalTagInterest.interested}
-            initialRequestedAt={physicalTagInterest.requestedAt}
-          />
-        ) : null}
-
-        {/* v2 Tracking placeholder */}
-        <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
-
-        {/* v2 Travel docs — TODO(J-followup): wire from pet_attachments or
-            attachments with kind in ('passport','intl_cert') once table exists. */}
-        <PetTravelDocs
-          uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
-          docs={[]}
-        />
-
-        {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
-            Renders nothing when the param is absent or unknown. */}
-        <SheetMounter
-          petToken={pet.publicToken}
-          petName={pet.name}
-          species={pet.species}
-          petStatus={pet.status as "active" | "lost" | "deceased"}
-          tier2PublicEnabledUntil={
-            pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
-          }
-          markLostData={
-            pet.status === "active"
-              ? {
-                  discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
-                  disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
-                  discloseEmailWhenLost: pet.discloseEmailWhenLost,
-                  discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
-                  allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
-                  petHasMicrochip: !!pet.microchipId,
-                  petHasTattoo: !!pet.tattooCode,
-                  petColor: pet.color ?? null,
-                  petDistinguishingFeatures: pet.distinguishingFeatures ?? null,
-                  petJurisdictionProvince: pet.jurisdictionProvince ?? null,
-                  petJurisdictionLocality: pet.jurisdictionLocality ?? null,
-                }
-              : null
-          }
-          editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
+      <div data-section="health-timeline">
+        <PetHealthTimeline
+          recentFive={recentFive}
+          fullHistoryHref={`/mis-mascotas/${pet.publicToken}/historial`}
+          signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
         />
       </div>
-    </main>
+
+      {/* §4.9 (10) Actions menu — replaces inline action buttons */}
+      <div data-section="actions-menu">
+        <PetActionsMenu
+          pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
+          accessPath={accessPath === "org" ? "org" : "owner"}
+          ownershipRole={ownershipRole}
+          hasPendingReturnProposal={false}
+        />
+      </div>
+
+      {/* Auxiliary cards — below PetActionsMenu per design §5 */}
+
+      {/* v2 Emergency card */}
+      <PetEmergencyCard
+        editHref="/cuenta/editar"
+        vet={
+          viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
+            ? {
+                name: viewerContacts.preferredVetName,
+                role: "Vet de cabecera",
+                phone: viewerContacts.preferredVetPhone,
+              }
+            : null
+        }
+        emergencyContact={
+          viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
+            ? {
+                name: viewerContacts.emergencyContactName,
+                role: "Contacto emergencia",
+                phone: viewerContacts.emergencyContactPhone,
+              }
+            : null
+        }
+        alerts={[]}
+      />
+
+      {/* Medication doses — preserved (needed until MedicationDosesSection is refactored) */}
+      <MedicationDosesSection
+        pet={pet}
+        reminders={pendingMedicationReminders}
+        sourceEvents={medicationSourceEvents}
+      />
+
+      {/* v2 Weight sparkline */}
+      <PetWeightChart samples={weightHistory} />
+
+      <section>
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}/libreta`}
+          className="block w-full text-center px-4 py-3 rounded-lg border border-gob-border text-sm font-medium text-gob-text-gray hover:bg-gob-surface-alt transition-colors"
+        >
+          Ver libreta completa →
+        </Link>
+      </section>
+
+      {/* v2 Credential card */}
+      <PetCredentialCard
+        publicToken={pet.publicToken}
+        qrUrl={`/p/${pet.publicToken}.png`}
+        publicHref={`/p/${pet.publicToken}`}
+      />
+
+      {/* §4.20 placeholder — owner-only, captures demand for physical QR tag */}
+      {physicalTagInterest ? (
+        <PhysicalTagInterestCard
+          petPublicToken={pet.publicToken}
+          petName={pet.name}
+          initialInterested={physicalTagInterest.interested}
+          initialRequestedAt={physicalTagInterest.requestedAt}
+        />
+      ) : null}
+
+      {/* v2 Tracking placeholder */}
+      <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+
+      {/* v2 Travel docs — TODO(J-followup): wire from pet_attachments or
+            attachments with kind in ('passport','intl_cert') once table exists. */}
+      <PetTravelDocs
+        uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
+        docs={[]}
+      />
+
+      {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
+            Renders nothing when the param is absent or unknown. */}
+      <SheetMounter
+        petToken={pet.publicToken}
+        petName={pet.name}
+        species={pet.species}
+        petStatus={pet.status as "active" | "lost" | "deceased"}
+        tier2PublicEnabledUntil={
+          pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
+        }
+        markLostData={
+          pet.status === "active"
+            ? {
+                discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+                disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+                discloseEmailWhenLost: pet.discloseEmailWhenLost,
+                discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+                allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+                petHasMicrochip: !!pet.microchipId,
+                petHasTattoo: !!pet.tattooCode,
+                petColor: pet.color ?? null,
+                petDistinguishingFeatures: pet.distinguishingFeatures ?? null,
+                petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+                petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+              }
+            : null
+        }
+        editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
+      />
+    </div>
   );
 }
 
@@ -907,25 +895,21 @@ function MedicationDosesSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          Próximas dosis
-        </h2>
+        <h2 className="text-lg font-semibold tracking-tight text-gob-text">Próximas dosis</h2>
         <Link
           href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/medicacion-inicio`}
-          className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
         >
           + Nueva medicación
         </Link>
       </div>
       {allReminders.length === 0 ? (
-        <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin dosis pendientes.</p>
+        <p className="text-sm text-gob-text-muted">Sin dosis pendientes.</p>
       ) : (
         <div className="space-y-4">
           {[...groups.entries()].map(([key, group]) => (
             <div key={key} className="space-y-2">
-              <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                {group.drugName}
-              </p>
+              <p className="text-sm font-medium text-gob-text-gray">{group.drugName}</p>
               <ul className="space-y-2">
                 {group.reminders.map((reminder) => {
                   const proximity = formatDoseProximity(reminder.dueAt);
@@ -933,17 +917,15 @@ function MedicationDosesSection({
                   return (
                     <li
                       key={reminder.id}
-                      className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center justify-between gap-3"
+                      className="border border-gob-border rounded-xl p-4 flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0 space-y-0.5">
-                        <p className="text-sm text-neutral-900 dark:text-neutral-50">
+                        <p className="text-sm text-gob-text">
                           {reminder.description ?? reminder.title}
                         </p>
                         <p
                           className={`text-xs font-medium ${
-                            isOverdue
-                              ? "text-red-600 dark:text-red-400"
-                              : "text-neutral-500 dark:text-neutral-500"
+                            isOverdue ? "text-gob-danger" : "text-gob-text-muted"
                           }`}
                         >
                           {proximity}
@@ -953,7 +935,7 @@ function MedicationDosesSection({
                         <input type="hidden" name="reminderId" value={reminder.id} />
                         <button
                           type="submit"
-                          className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shrink-0"
+                          className="px-3 py-1.5 rounded-lg bg-gob-primary text-white text-xs font-medium hover:bg-gob-primary/90 transition-colors shrink-0"
                         >
                           Marcar dada
                         </button>
@@ -998,18 +980,16 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
     observationUntil <= new Date();
 
   return (
-    <section className="rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
-      <p className="font-medium text-amber-900 dark:text-amber-200">
-        Observación antirrábica en curso
-      </p>
-      <p className="text-sm text-amber-800 dark:text-amber-300">
+    <section className="rounded-xl border border-gob-warning/40 bg-gob-warning/10 p-4 space-y-3">
+      <p className="font-medium text-gob-warning-text">Observación antirrábica en curso</p>
+      <p className="text-sm text-gob-warning-text">
         {biteDate
           ? `Por la mordedura del ${biteDate.toLocaleDateString("es-AR")}, `
           : "Por una mordedura reportada recientemente, "}
         {pet.name} está en observación obligatoria de 10 días.
         {observationUntil && ` Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}.`}
       </p>
-      <p className="text-xs text-amber-700 dark:text-amber-400">
+      <p className="text-xs text-gob-warning-text">
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
         de comportamiento, consultá al veterinario de inmediato.
       </p>
@@ -1023,7 +1003,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         >
           <button
             type="submit"
-            className="px-3 py-1.5 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-gob-warning text-white text-sm font-medium hover:bg-gob-warning/90 transition-colors"
           >
             Confirmar fin de observación
           </button>
@@ -1035,8 +1015,8 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
 
 function TransitBanner({ petName }: { petName: string }) {
   return (
-    <section className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
-      <p className="text-sm text-amber-900 dark:text-amber-200">
+    <section className="rounded-xl border border-gob-warning/30 bg-gob-warning/10 p-4 space-y-3">
+      <p className="text-sm text-gob-warning-text">
         Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
         viaja con la mascota.
       </p>
@@ -1045,7 +1025,7 @@ function TransitBanner({ petName }: { petName: string }) {
           type="button"
           disabled
           title="Próximamente"
-          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200 opacity-60 cursor-not-allowed"
+          className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text opacity-60 cursor-not-allowed"
         >
           Convertir en mi mascota
         </button>
@@ -1053,7 +1033,7 @@ function TransitBanner({ petName }: { petName: string }) {
           type="button"
           disabled
           title="Próximamente"
-          className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-200 opacity-60 cursor-not-allowed"
+          className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text opacity-60 cursor-not-allowed"
         >
           Buscar nuevo hogar
         </button>
@@ -1086,39 +1066,33 @@ function UpcomingAppointments({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-        Próximos turnos
-      </h2>
+      <h2 className="text-lg font-semibold tracking-tight text-gob-text">Próximos turnos</h2>
       {sorted.length === 0 ? (
-        <p className="text-sm text-neutral-500 dark:text-neutral-500">
-          No hay turnos próximos para {pet.name}.
-        </p>
+        <p className="text-sm text-gob-text-muted">No hay turnos próximos para {pet.name}.</p>
       ) : (
         <ul className="space-y-3">
           {sorted.map((apt) => (
             <li
               key={`apt-${apt.publicToken}`}
-              className="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2"
+              className="border border-gob-border rounded-xl p-4 space-y-2"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-0.5">
-                  <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                    {apt.offeringDisplayName}
-                  </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                  <p className="font-medium text-gob-text">{apt.offeringDisplayName}</p>
+                  <p className="text-xs text-gob-text-muted">
                     {new Date(apt.slotStartsAt).toLocaleString("es-AR", {
                       dateStyle: "medium",
                       timeStyle: "short",
                     })}
                   </p>
                 </div>
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gob-success/10 text-gob-success">
                   turno
                 </span>
               </div>
               <Link
                 href={`/mis-turnos/${apt.publicToken}`}
-                className="inline-block text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+                className="inline-block text-xs text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
               >
                 Ver detalle →
               </Link>
@@ -1137,10 +1111,8 @@ function UpcomingAppointments({
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
-        {label}
-      </dt>
-      <dd className="text-neutral-900 dark:text-neutral-50">{value || "—"}</dd>
+      <dt className="text-xs uppercase tracking-wider text-gob-text-muted">{label}</dt>
+      <dd className="text-gob-text">{value || "—"}</dd>
     </div>
   );
 }
