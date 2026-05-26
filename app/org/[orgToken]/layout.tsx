@@ -7,8 +7,13 @@
 // The orgToken (organizations.publicToken) is the URL-stable identifier used
 // throughout this portal instead of inferring an "active org" from session.
 
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { eq } from "drizzle-orm";
 import type { ReactNode } from "react";
+
+import { AppFooter, AppHeader } from "@/components/poncho";
+import { buildOrgNav } from "@/components/poncho/Layout/nav-presets";
+import { db, profiles } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 
 export default async function OrgLayout({
   children,
@@ -19,6 +24,23 @@ export default async function OrgLayout({
 }) {
   const { orgToken } = await params;
   // Validates membership. Returns notFound() on failure — never leaks org existence.
-  await requireOrgAccessByToken(orgToken);
-  return <>{children}</>;
+  const { user } = await requireOrgAccessByToken(orgToken);
+
+  // profiles.displayName is NOT NULL — always present; no fallback needed.
+  const [profile] = await db
+    .select({ displayName: profiles.displayName })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <AppHeader
+        nav={buildOrgNav(orgToken)}
+        user={{ name: profile?.displayName ?? "", href: "/cuenta" }}
+      />
+      <div className="flex-1">{children}</div>
+      <AppFooter />
+    </div>
+  );
 }
