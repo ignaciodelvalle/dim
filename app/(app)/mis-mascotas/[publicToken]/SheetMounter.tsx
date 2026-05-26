@@ -30,6 +30,7 @@ import { NoteForm } from "./eventos/nuevo/nota/NoteForm";
 import { WeightForm } from "./eventos/nuevo/peso/WeightForm";
 import { SymptomForm } from "./eventos/nuevo/sintoma/SymptomForm";
 import { VaccinationForm } from "./eventos/nuevo/vacuna/VaccinationForm";
+import { MarkLostForm } from "./perdida/MarkLostForm";
 
 import {
   createMedicationStartAction,
@@ -37,6 +38,7 @@ import {
   createSymptomObservedAction,
   createVaccinationAction,
   createWeightAction,
+  setPetLostAction,
 } from "@/app/actions/events";
 import { createLibretaShareAction } from "@/app/actions/libreta-share";
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
@@ -44,15 +46,37 @@ import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/
 import { ShareLibretaSheet } from "./_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "./_tier2-public/Tier2PublicView";
 
+type MarkLostData = {
+  discloseFirstNameWhenLost: boolean;
+  disclosePhoneWhenLost: boolean;
+  discloseEmailWhenLost: boolean;
+  discloseLastLocationWhenLost: boolean;
+  allowFinderFormWhenLost: boolean;
+  petHasMicrochip: boolean;
+  petHasTattoo: boolean;
+  petColor: string | null;
+  petDistinguishingFeatures: string | null;
+  petJurisdictionProvince: string | null;
+  petJurisdictionLocality: string | null;
+};
+
 type Props = {
   petToken: string;
   petName: string;
   species: string;
   /** ISO string of pet.tier2PublicEnabledUntil — null when not set. */
   tier2PublicEnabledUntil: string | null;
+  /** Data required by MarkLostForm. Null when pet is not active (already lost or deceased). */
+  markLostData: MarkLostData | null;
 };
 
-export function SheetMounter({ petToken, petName, species, tier2PublicEnabledUntil }: Props) {
+export function SheetMounter({
+  petToken,
+  petName,
+  species,
+  tier2PublicEnabledUntil,
+  markLostData,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -162,6 +186,38 @@ export function SheetMounter({ petToken, petName, species, tier2PublicEnabledUnt
     return (
       <Sheet id="transferir-mascota" title="Transferir mascota" open onClose={close}>
         <TransferStub petName={petName} />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "marcar-perdida") {
+    if (!markLostData) return null; // pet not active — flow doesn't apply
+    const action = setPetLostAction.bind(null, petToken);
+    return (
+      <Sheet
+        id="marcar-perdida"
+        title="Marcar como perdida"
+        open
+        onClose={close}
+        side="right"
+        size="lg"
+      >
+        <MarkLostForm
+          action={action}
+          disclosureDefaults={{
+            discloseFirstNameWhenLost: markLostData.discloseFirstNameWhenLost,
+            disclosePhoneWhenLost: markLostData.disclosePhoneWhenLost,
+            discloseEmailWhenLost: markLostData.discloseEmailWhenLost,
+            discloseLastLocationWhenLost: markLostData.discloseLastLocationWhenLost,
+            allowFinderFormWhenLost: markLostData.allowFinderFormWhenLost,
+          }}
+          petHasMicrochip={markLostData.petHasMicrochip}
+          petHasTattoo={markLostData.petHasTattoo}
+          petColor={markLostData.petColor}
+          petDistinguishingFeatures={markLostData.petDistinguishingFeatures}
+          petJurisdictionProvince={markLostData.petJurisdictionProvince}
+          petJurisdictionLocality={markLostData.petJurisdictionLocality}
+        />
       </Sheet>
     );
   }
