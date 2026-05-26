@@ -10,7 +10,7 @@
 import { eq } from "drizzle-orm";
 import type { ReactNode } from "react";
 
-import { AppFooter, AppHeader } from "@/components/poncho";
+import { Sidebar, Topbar } from "@/components/poncho";
 import { buildOrgNav } from "@/components/poncho/Layout/nav-presets";
 import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -24,7 +24,7 @@ export default async function OrgLayout({
 }) {
   const { orgToken } = await params;
   // Validates membership. Returns notFound() on failure — never leaks org existence.
-  const { user } = await requireOrgAccessByToken(orgToken);
+  const { user, organization } = await requireOrgAccessByToken(orgToken);
 
   // profiles.displayName is NOT NULL — always present; no fallback needed.
   const [profile] = await db
@@ -33,14 +33,25 @@ export default async function OrgLayout({
     .where(eq(profiles.id, user.id))
     .limit(1);
 
+  const orgNav = buildOrgNav(orgToken);
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader
-        nav={buildOrgNav(orgToken)}
+    <div className="min-h-screen bg-white">
+      <Sidebar
+        nav={orgNav}
         user={{ name: profile?.displayName ?? "", href: "/cuenta" }}
+        roleAccent="org"
+        brand={{ title: organization.displayName }}
       />
-      <div className="flex-1">{children}</div>
-      <AppFooter />
+      <div className="flex min-h-screen flex-col md:ml-60">
+        <Topbar
+          mobileDrawerNav={orgNav}
+          brandTitle={organization.displayName}
+        />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
