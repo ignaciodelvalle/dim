@@ -156,9 +156,16 @@ export default async function InicioPage() {
         </section>
       )}
 
-      <p className="pt-2 text-center text-xs text-gob-text-muted">
-        Notificaciones, medicaciones y workflows previos viven en el menú lateral.
-      </p>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-4 text-xs text-gob-text-muted">
+        <Link
+          href="/denuncias/nueva"
+          className="text-gob-azul-link underline underline-offset-4 hover:no-underline"
+        >
+          + Denunciar maltrato animal
+        </Link>
+        <span aria-hidden>·</span>
+        <span>Notificaciones, medicaciones y workflows previos viven en el menú lateral.</span>
+      </div>
     </div>
   );
 }

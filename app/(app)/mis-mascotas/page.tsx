@@ -109,29 +109,17 @@ export default async function MisMascotasPage({
         )}
 
         <div className="flex gap-4 pt-2 text-sm flex-wrap">
-          <Link
-            href="/denuncias/nueva"
-            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
-            + Denunciar maltrato animal
-          </Link>
-          <Link
-            href="/denuncias/mias"
-            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
-            Mis denuncias
-          </Link>
           {!profile?.dniNumber && (
             <Link
               href="/mis-mascotas/reclamar"
-              className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+              className="text-gob-text-gray underline underline-offset-4 hover:text-gob-text transition-colors"
             >
               Reclamar adopción de refugio
             </Link>
           )}
           <Link
             href="/cuenta/upgrade"
-            className="text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-gob-text-gray underline underline-offset-4 hover:text-gob-text transition-colors"
           >
             Convertirme en profesional / organización →
           </Link>
