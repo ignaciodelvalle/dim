@@ -9,6 +9,16 @@
 import { useRef, useState } from "react";
 
 import { updateProfileAction, uploadAvatarAction } from "@/app/actions/profile";
+import { looksLikeArPhone } from "@/lib/ar-phone";
+
+function PhoneFormatWarning({ value }: { value: string }) {
+  if (!value || looksLikeArPhone(value)) return null;
+  return (
+    <p className="mt-1 text-xs text-amber-700">
+      Formato inusual para Argentina — guardamos igual, revisalo si querés.
+    </p>
+  );
+}
 
 type InitialProfile = {
   displayName: string;
@@ -266,6 +276,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
             {fieldErrors.phone}
           </p>
         )}
+        <PhoneFormatWarning value={phone} />
       </div>
 
       {/* Emergency / vet contact group — appears on <PetEmergencyCard>
@@ -312,6 +323,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
               placeholder="+54 9 11 1234-5678"
               className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
             />
+            <PhoneFormatWarning value={preferredVetPhone} />
           </div>
           <div>
             <label
@@ -345,6 +357,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
               placeholder="+54 9 11 1234-5678"
               className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
             />
+            <PhoneFormatWarning value={emergencyContactPhone} />
           </div>
         </div>
       </fieldset>
