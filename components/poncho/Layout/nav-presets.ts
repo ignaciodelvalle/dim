@@ -1,4 +1,4 @@
-// Role-specific nav presets for AppHeader.
+// Role-specific nav presets for Sidebar and AppHeader.
 // Pure module — no side effects, no React, no async.
 
 import type { NavItem } from "./HeaderNav";
@@ -9,10 +9,10 @@ import type { NavItem } from "./HeaderNav";
 
 export const OWNER_NAV: NavItem[] = [
   { href: "/inicio", label: "Inicio", matchPrefix: "/inicio" },
-  { href: "/mis-mascotas", label: "Mascotas", matchPrefix: "/mis-mascotas" },
+  { href: "/mis-mascotas", label: "Mis Mascotas", matchPrefix: "/mis-mascotas" },
   { href: "/mis-turnos", label: "Turnos", matchPrefix: "/mis-turnos" },
-  { href: "/notificaciones", label: "Avisos", matchPrefix: "/notificaciones" },
-  { href: "/cuenta", label: "Yo", matchPrefix: "/cuenta" },
+  { href: "/notificaciones", label: "Notificaciones", matchPrefix: "/notificaciones" },
+  { href: "/cuenta", label: "Tu cuenta", matchPrefix: "/cuenta" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -38,14 +38,14 @@ export function buildOrgNav(orgToken: string): NavItem[] {
       matchPrefix: `/org/${orgToken}/servicios`,
     },
     {
+      href: `/org/${orgToken}/adopciones`,
+      label: "Operaciones",
+      matchPrefix: `/org/${orgToken}/adopciones`,
+    },
+    {
       href: `/org/${orgToken}/equipo`,
       label: "Equipo",
       matchPrefix: `/org/${orgToken}/equipo`,
-    },
-    {
-      href: `/org/${orgToken}/adopciones`,
-      label: "Adopciones",
-      matchPrefix: `/org/${orgToken}/adopciones`,
     },
   ];
 }
@@ -55,23 +55,26 @@ export function buildOrgNav(orgToken: string): NavItem[] {
 // Preserves all top-level routes from app/gob/layout.tsx.
 // ---------------------------------------------------------------------------
 
+// Primary 7 match design spec (Panel · Cola · Vigilancia · Casos · Reglas · Catálogo · Histórico).
+// Additional routes kept for completeness; sidebar renders all items but the spec's 7
+// primaries are ordered first.
 export const GOB_NAV: NavItem[] = [
-  { href: "/gob", label: "Dashboard" },
+  { href: "/gob", label: "Panel" },
   { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
+  { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
+  { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
+  { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
+  { href: "/gob/servicios", label: "Catálogo", matchPrefix: "/gob/servicios" },
+  { href: "/gob/historial", label: "Histórico", matchPrefix: "/gob/historial" },
   { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
   {
     href: "/gob/organizaciones",
     label: "Organizaciones",
     matchPrefix: "/gob/organizaciones",
   },
-  { href: "/gob/servicios", label: "Servicios", matchPrefix: "/gob/servicios" },
-  { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
   { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
   { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
   { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
-  { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
-  { href: "/gob/historial", label: "Historial", matchPrefix: "/gob/historial" },
-  { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
 ];
 
 // ---------------------------------------------------------------------------
