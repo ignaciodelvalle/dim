@@ -33,8 +33,8 @@ export function AchievementsSection({ earned, credentials = [] }: Props) {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-        Logros · 🏆
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted">
+        Logros y credenciales
       </h2>
       <ul className="flex flex-wrap gap-2">
         {/* Credentials leftmost */}
