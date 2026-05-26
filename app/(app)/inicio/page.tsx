@@ -15,9 +15,10 @@ import Link from "next/link";
 
 import { type CaseRow, CasesWidget } from "@/components/CasesWidget";
 import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
-import { and, eq, isNull } from "drizzle-orm";
+import { NotificationBell } from "@/components/NotificationBell";
+import { and, count, eq, isNull } from "drizzle-orm";
 
-import { db, profiles } from "@/db";
+import { db, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import type { DashboardPet, WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
 import {
@@ -94,7 +95,7 @@ function adaptWorkflow(w: WorkflowItem): CaseRow {
 export default async function InicioPage() {
   const { user } = await requireUserOrRedirect();
 
-  const [profile, pets, openWf, appointments, reminders] = await Promise.all([
+  const [profile, pets, openWf, appointments, reminders, [{ unreadCount }]] = await Promise.all([
     db
       .select({ displayName: profiles.displayName })
       .from(profiles)
@@ -104,6 +105,16 @@ export default async function InicioPage() {
     fetchOpenWorkflows(user.id),
     fetchUpcomingAppointments(user.id, 5),
     fetchActiveReminders(user.id),
+    db
+      .select({ unreadCount: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, user.id),
+          isNull(notifications.readAt),
+          isNull(notifications.archivedAt),
+        ),
+      ),
   ]);
 
   const firstName = (profile[0]?.displayName ?? "").trim().split(/\s+/)[0] || "amigo";
@@ -113,9 +124,12 @@ export default async function InicioPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-10 pt-2">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">Hola, {firstName}</h1>
-        <p className="text-sm text-gob-text-muted">¿Qué le pasó a alguna mascota hoy?</p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text">Hola, {firstName}</h1>
+          <p className="text-sm text-gob-text-muted">¿Qué le pasó a alguna mascota hoy?</p>
+        </div>
+        <NotificationBell unreadCount={unreadCount} />
       </header>
 
       <RemindersSection reminders={reminders} />
