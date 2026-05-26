@@ -100,27 +100,19 @@
   --leading-base: 1.5;
 }
 
-/* Modo oscuro: ajustamos neutros + aclarar semánticos para mantener contraste. */
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-background: #0a0a0a;
-    --color-foreground: #fafafa;
-    --color-muted: #a3a3a3;
-    --color-muted-foreground: #d4d4d4;
-    --color-accent: #6a78c2;
-    --color-border: #2a2a2a;
-    --color-ring: #62cdf2;
-    /* Aclaramos las semánticas para que el ratio AA aguante sobre fondo oscuro */
-    --color-primary: #6a78c2;
-    --color-success: #66bb6a;
-    --color-danger: #ef5350;
-    --color-warning: #ffb74d;
-    --color-info: #4fc3f7;
-  }
-}
+/* Dark mode desactivado en el redesign Poncho.
+ * El DS oficial gob.ar es light-only. Las 325+ classes `dark:*` legacy quedan
+ * inertes: la directiva `@variant dark` redefine el matcher a una class manual
+ * `.dark` que nunca se monta, así que `dark:bg-neutral-950` etc. nunca aplican.
+ * Para reactivar dark mode en el futuro: poner `<html class="dark">` o cambiar
+ * el `@variant` a la default media-query strategy. */
+@variant dark (&:where(.dark, .dark *));
 
 /* ---- Base ------------------------------------------------------------------ */
 
+html {
+  color-scheme: light;
+}
 html,
 body {
   background: var(--color-background);
