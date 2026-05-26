@@ -1,9 +1,9 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { db, eventNotificationOutbox, profiles } from "@/db";
 import { AppFooter, AppHeader } from "@/components/poncho";
 import { ADMIN_NAV } from "@/components/poncho/Layout/nav-presets";
+import { db, eventNotificationOutbox, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
@@ -42,10 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AppHeader
-        nav={nav}
-        user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }}
-      />
+      <AppHeader nav={nav} user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }} />
 
       {/* Meta-strip: role + scope + cross-portal links */}
       <div className="border-b border-gob-border bg-gob-surface-alt">
@@ -56,10 +53,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             Universal
           </p>
           <div className="flex items-center gap-4 text-xs">
-            <Link
-              href="/gob"
-              className="text-gob-text-muted hover:text-gob-primary no-underline"
-            >
+            <Link href="/gob" className="text-gob-text-muted hover:text-gob-primary no-underline">
               Ir a Gobierno →
             </Link>
             <Link

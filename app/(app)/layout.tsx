@@ -9,9 +9,9 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-import { db, profiles } from "@/db";
 import { AppFooter, AppHeader } from "@/components/poncho";
 import { OWNER_NAV } from "@/components/poncho/Layout/nav-presets";
+import { db, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AuthenticatedLayout({

@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 
-import { db, profiles } from "@/db";
 import { AppFooter, AppHeader } from "@/components/poncho";
 import { GOB_NAV } from "@/components/poncho/Layout/nav-presets";
+import { db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
@@ -32,10 +32,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AppHeader
-        nav={GOB_NAV}
-        user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }}
-      />
+      <AppHeader nav={GOB_NAV} user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }} />
 
       {/* Meta-strip: role + scope + cross-portal links */}
       <div className="border-b border-gob-border bg-gob-surface-alt">

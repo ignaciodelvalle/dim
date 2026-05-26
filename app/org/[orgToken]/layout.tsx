@@ -10,9 +10,9 @@
 import { eq } from "drizzle-orm";
 import type { ReactNode } from "react";
 
-import { db, profiles } from "@/db";
 import { AppFooter, AppHeader } from "@/components/poncho";
 import { buildOrgNav } from "@/components/poncho/Layout/nav-presets";
+import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 
 export default async function OrgLayout({
