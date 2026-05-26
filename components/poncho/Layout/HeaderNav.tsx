@@ -9,6 +9,8 @@ export type NavItem = {
   href: string;
   label: string;
   matchPrefix?: string;
+  /** Optional numeric badge overlaid on the nav item (e.g. breach count). */
+  badge?: number;
 };
 
 type Props = {
@@ -88,13 +90,18 @@ export function HeaderNav({ nav, user }: Props) {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`rounded-md px-3 py-2 text-sm font-semibold no-underline transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-semibold no-underline transition-colors ${
                 active
                   ? "bg-gob-surface-alt text-gob-primary"
                   : "text-gob-text-gray hover:bg-gob-surface-alt hover:text-gob-primary"
               }`}
             >
               {item.label}
+              {item.badge != null && item.badge > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -173,13 +180,18 @@ export function HeaderNav({ nav, user }: Props) {
                     key={item.href}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    className={`block min-h-12 rounded-md px-4 py-3 text-base font-semibold no-underline ${
+                    className={`flex min-h-12 items-center gap-2 rounded-md px-4 py-3 text-base font-semibold no-underline ${
                       active
                         ? "bg-gob-surface-alt text-gob-primary"
                         : "text-gob-text-gray hover:bg-gob-surface-alt"
                     }`}
                   >
                     {item.label}
+                    {item.badge != null && item.badge > 0 && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
