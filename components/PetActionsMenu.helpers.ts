@@ -42,11 +42,12 @@ export function deriveActionItems(input: PetActionsMenuInput): ActionItem[] {
     variant: "default",
   });
 
-  // "Editar mascota" — always.
+  // "Editar mascota" — always. Opens the editar-mascota sheet; the
+  // /editar page is kept as a deep-link target.
   items.push({
     id: "edit",
     label: "Editar mascota",
-    href: `/mis-mascotas/${pet.publicToken}/editar`,
+    href: `/mis-mascotas/${pet.publicToken}?sheet=editar-mascota`,
     variant: "default",
   });
 
