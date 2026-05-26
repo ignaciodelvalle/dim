@@ -98,6 +98,7 @@ import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
 import { MarkFoundButton } from "./MarkFoundButton";
+import { SheetMounter } from "./SheetMounter";
 import { PetReminders } from "./_components/PetReminders";
 
 // NOTE: eventsWithAttachments is fetched only when pet.status === 'deceased'
@@ -793,6 +794,10 @@ export default async function PetDetailPage({
           uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
           docs={[]}
         />
+
+        {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
+            Renders nothing when the param is absent or unknown. */}
+        <SheetMounter petToken={pet.publicToken} petName={pet.name} species={pet.species} />
       </div>
     </main>
   );
