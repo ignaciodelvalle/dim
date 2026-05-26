@@ -1,9 +1,13 @@
 // Reminder surface for /inicio — shows actionable vaccine reminders above the fold.
-// Renders nothing when there is no actionable load (see threshold logic below).
+// Two render modes:
+//   1 reminder  → inline banner with "Registrar" CTA (matches Pantallas dump line ~17-19)
+//   2+         → Panel with header + reminder card list
+//   0          → null
 
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
 import { ReminderCard } from "@/components/poncho/ReminderCard";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
+import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.
@@ -43,19 +47,43 @@ function buildStatusText(daysUntilDue: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Visibility rule (spec §A.2):
-//  - 0 reminders → null
-//  - >0 reminders BUT no overdue/overdue_critical AND < 3 reminders → null
-//  - otherwise → render
+// Banner background tone by variant. Maps to Poncho semantic tokens so the
+// banner shifts amber → red as the reminder gets more critical.
 // ---------------------------------------------------------------------------
 
-function shouldRender(reminders: ActiveReminderRow[]): boolean {
-  if (reminders.length === 0) return false;
-  const hasOverdue = reminders.some(
-    (r) => r.variant === "overdue" || r.variant === "overdue_critical",
+const BANNER_TONE: Record<ActiveReminderRow["variant"], string> = {
+  upcoming: "bg-gob-info/10 border-gob-info/30 text-gob-text",
+  due_soon: "bg-gob-warning/20 border-gob-warning/40 text-gob-text",
+  overdue: "bg-gob-danger/10 border-gob-danger/40 text-gob-text",
+  overdue_critical: "bg-gob-danger/15 border-gob-danger/60 text-gob-text",
+  success: "bg-gob-success/10 border-gob-success/30 text-gob-text",
+};
+
+function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
+  const tone = BANNER_TONE[reminder.variant] ?? BANNER_TONE.upcoming;
+  const registerHref = `/mis-mascotas/${reminder.petToken}?sheet=vacuna&text=${encodeURIComponent(reminder.title)}`;
+  return (
+    <section
+      aria-labelledby="single-reminder-heading"
+      className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${tone}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p id="single-reminder-heading" className="text-sm font-semibold">
+          {reminder.title} de {reminder.petName}{" "}
+          {buildStatusText(reminder.daysUntilDue).toLowerCase()}
+        </p>
+        <p className="mt-0.5 text-xs text-gob-text-muted">
+          Programable desde el sheet de Vacuna · {formatDueAt(reminder.dueAt)}
+        </p>
+      </div>
+      <Link
+        href={registerHref}
+        className="inline-flex shrink-0 items-center justify-center rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white no-underline hover:bg-gob-primary-hover"
+      >
+        Registrar
+      </Link>
+    </section>
   );
-  if (!hasOverdue && reminders.length < 3) return false;
-  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,8 +97,14 @@ export function RemindersSection({
 }: {
   reminders: ActiveReminderRow[];
 }) {
-  if (!shouldRender(reminders)) return null;
+  if (reminders.length === 0) return null;
 
+  // Single reminder → inline banner with CTA.
+  if (reminders.length === 1) {
+    return <ReminderBanner reminder={reminders[0]} />;
+  }
+
+  // 2+ reminders → Panel with list.
   const visible = reminders.slice(0, VISIBLE_COUNT);
   const overflow = reminders.slice(VISIBLE_COUNT);
   const totalCount = reminders.length;
@@ -95,7 +129,6 @@ export function RemindersSection({
                 petName={r.petName}
                 statusText={buildStatusText(r.daysUntilDue)}
                 dueAt={`Vence el ${formatDueAt(r.dueAt)}`}
-                // TODO(C4): wire actions slot with Agendar / Posponer buttons
               />
             </li>
           ))}
@@ -115,7 +148,6 @@ export function RemindersSection({
                     petName={r.petName}
                     statusText={buildStatusText(r.daysUntilDue)}
                     dueAt={`Vence el ${formatDueAt(r.dueAt)}`}
-                    // TODO(C4): wire actions slot with Agendar / Posponer buttons
                   />
                 </li>
               ))}
