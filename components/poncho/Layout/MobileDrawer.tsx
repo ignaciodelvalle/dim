@@ -79,7 +79,10 @@ export function MobileDrawer({ nav, brandTitle = "MiMAR" }: Props) {
           </div>
 
           {/* Nav items */}
-          <nav aria-label="Navegación principal" className="flex flex-col gap-0.5 overflow-y-auto px-2 py-3">
+          <nav
+            aria-label="Navegación principal"
+            className="flex flex-col gap-0.5 overflow-y-auto px-2 py-3"
+          >
             {nav.map((item) => {
               const active = isActive(item, pathname);
               return (

@@ -71,14 +71,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         brand={{ title: "MiMAR", subtitle: "Admin" }}
       />
       <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar
-          mobileDrawerNav={nav}
-          brandTitle="MiMAR"
-          actions={metaStrip}
-        />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">
-          {children}
-        </main>
+        <Topbar mobileDrawerNav={nav} brandTitle="MiMAR" actions={metaStrip} />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>
   );

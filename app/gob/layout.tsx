@@ -40,10 +40,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
       </p>
       <div className="flex items-center gap-3 text-xs">
         {profile.role === "admin" && (
-          <Link
-            href="/admin"
-            className="text-gob-text-muted hover:text-gob-primary no-underline"
-          >
+          <Link href="/admin" className="text-gob-text-muted hover:text-gob-primary no-underline">
             Ir a Admin →
           </Link>
         )}
@@ -66,14 +63,8 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
         brand={{ title: "MiMAR", subtitle: "Gobierno" }}
       />
       <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar
-          mobileDrawerNav={GOB_NAV}
-          brandTitle="MiMAR"
-          actions={metaStrip}
-        />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">
-          {children}
-        </main>
+        <Topbar mobileDrawerNav={GOB_NAV} brandTitle="MiMAR" actions={metaStrip} />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>
   );

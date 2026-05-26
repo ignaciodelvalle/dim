@@ -29,7 +29,10 @@ export function SidebarNav({ nav, roleAccent }: Props) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3" aria-label="Navegación principal">
+    <nav
+      className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
+      aria-label="Navegación principal"
+    >
       {nav.map((item) => {
         const active = isActive(item, pathname);
         return (

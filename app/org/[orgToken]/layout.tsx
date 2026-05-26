@@ -44,13 +44,8 @@ export default async function OrgLayout({
         brand={{ title: organization.displayName }}
       />
       <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar
-          mobileDrawerNav={orgNav}
-          brandTitle={organization.displayName}
-        />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">
-          {children}
-        </main>
+        <Topbar mobileDrawerNav={orgNav} brandTitle={organization.displayName} />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>
   );

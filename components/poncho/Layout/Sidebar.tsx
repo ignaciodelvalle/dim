@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { GobStripe } from "./GobStripe";
 import type { NavItem } from "./HeaderNav";
-import { SidebarNav, type RoleAccent } from "./SidebarNav";
+import { type RoleAccent, SidebarNav } from "./SidebarNav";
 
 type Props = {
   nav: NavItem[];
@@ -75,9 +75,7 @@ export function Sidebar({ nav, user, roleAccent = "owner", brand }: Props) {
               {userInitials || "?"}
             </span>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-medium text-gob-text-strong">
-                {user.name}
-              </span>
+              <span className="truncate text-sm font-medium text-gob-text-strong">{user.name}</span>
               {user.email && (
                 <span className="truncate text-[11px] leading-none text-gob-text-muted">
                   {user.email}

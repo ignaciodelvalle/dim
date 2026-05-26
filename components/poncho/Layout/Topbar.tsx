@@ -28,13 +28,9 @@ export function Topbar({ title, actions, mobileDrawerNav, brandTitle }: Props) {
       <div className="flex items-center gap-3">
         {/* Hamburger only visible on mobile — MobileDrawer is client */}
         <MobileDrawer nav={mobileDrawerNav} brandTitle={brandTitle} />
-        {title && (
-          <h1 className="text-base font-semibold text-gob-text-strong">{title}</h1>
-        )}
+        {title && <h1 className="text-base font-semibold text-gob-text-strong">{title}</h1>}
       </div>
-      {actions && (
-        <div className="flex items-center gap-2">{actions}</div>
-      )}
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
     </header>
   );
 }
