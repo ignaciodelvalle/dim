@@ -1,9 +1,16 @@
 import Link from "next/link";
 
+import { fetchDecisionsMetrics, fetchQueueHealth, fetchUserMetrics } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 export default async function AdminDashboardPage() {
   await requireAdminOrRedirect();
+
+  const [users, queue, decisions] = await Promise.all([
+    fetchUserMetrics(),
+    fetchQueueHealth(),
+    fetchDecisionsMetrics(),
+  ]);
 
   return (
     <main className="px-6 py-8">
@@ -16,6 +23,30 @@ export default async function AdminDashboardPage() {
             Gestión de cuentas institucionales: govts y admins del sistema.
           </p>
         </header>
+
+        {/* Live system metrics — spec AC3 (audit-internal-roles-pages PR5) */}
+        <section>
+          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted mb-3">
+            Estado del sistema
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <MetricTile label="Usuarios personales" value={users.totalPersonal} />
+            <MetricTile
+              label="Solicitudes pendientes"
+              value={queue.pendingTotal}
+              note={
+                queue.oldestPendingDaysAgo != null
+                  ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
+                  : undefined
+              }
+            />
+            <MetricTile
+              label="Decisiones (últimos 7d)"
+              value={decisions.approved7d + decisions.rejected7d}
+              note={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
+            />
+          </div>
+        </section>
 
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Card
@@ -47,6 +78,24 @@ export default async function AdminDashboardPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: number;
+  note?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-gob-border bg-gob-surface p-4 space-y-1">
+      <p className="text-xs uppercase tracking-wider text-gob-text-muted">{label}</p>
+      <p className="text-2xl font-semibold tabular-nums text-gob-text">{value}</p>
+      {note && <p className="text-xs text-gob-text-gray">{note}</p>}
+    </div>
   );
 }
 
