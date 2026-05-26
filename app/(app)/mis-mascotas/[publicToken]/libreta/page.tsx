@@ -7,6 +7,7 @@ import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanita
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { petPhotoUrl } from "@/lib/storage";
 
+import { PetDetailTabs } from "@/components/pet-profile/PetDetailTabs";
 import { LibretaIdentityHeader } from "./LibretaIdentityHeader";
 import { LibretaSanitariaView } from "./LibretaSanitariaView";
 import { SharesManager } from "./SharesManager";
@@ -68,6 +69,11 @@ export default async function LibretaPage({
             ← Volver a {pet.name}
           </Link>
           <ViewToggle publicToken={pet.publicToken} vista={vista} />
+        </div>
+
+        {/* Visual tab-bar linking Resumen ↔ Libreta ↔ Historial */}
+        <div className="print:hidden">
+          <PetDetailTabs petPublicToken={pet.publicToken} />
         </div>
 
         <LibretaIdentityHeader pet={pet} photoUrl={photoUrl} ownerFirstName={ownerFirstName} />

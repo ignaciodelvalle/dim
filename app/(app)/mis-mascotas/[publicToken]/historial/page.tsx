@@ -1,3 +1,4 @@
+import { PetDetailTabs } from "@/components/pet-profile/PetDetailTabs";
 import { attachments, db, petEvents } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
@@ -57,6 +58,12 @@ export default async function PetHistorialPage({
         >
           ← Volver a {pet.name}
         </Link>
+
+        {/* Visual tab-bar linking Resumen ↔ Libreta ↔ Historial */}
+        <PetDetailTabs
+          petPublicToken={pet.publicToken}
+          historialCount={eventsWithAttachments.length}
+        />
 
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
