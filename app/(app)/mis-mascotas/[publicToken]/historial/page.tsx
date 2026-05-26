@@ -1,3 +1,4 @@
+import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { attachments, db, petEvents } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
@@ -66,6 +67,8 @@ export default async function PetHistorialPage({
             Historial completo de {pet.name}
           </p>
         </div>
+
+        <PetOpenCasesSection petId={pet.id} />
 
         <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />
       </div>

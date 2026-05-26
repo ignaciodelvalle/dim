@@ -60,6 +60,15 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
     });
   }
 
+  // Per-type counts drive chip badges and let us hide chips with no events.
+  // Chip layout follows the mockup: leading "Todos N" pill + only the chip
+  // types that have at least one matching event in this pet's history.
+  const countsByType = new Map<string, number>();
+  for (const e of events) {
+    countsByType.set(e.eventType, (countsByType.get(e.eventType) ?? 0) + 1);
+  }
+  const visibleChips = effectiveChips.filter((c) => (countsByType.get(c.type) ?? 0) > 0);
+
   // Self-scans are excluded at the DB level (lib/events.excludeSelfScansClause)
   // so no client-side filtering needed here.
   const filteredEvents =
@@ -69,24 +78,36 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
     return <p className="text-sm text-neutral-500 dark:text-neutral-500">Sin eventos todavía.</p>;
   }
 
+  const allSelected = selectedTypes.size === 0;
+  const chipClass = (selected: boolean) =>
+    selected
+      ? "px-3 py-1 rounded-full text-xs font-medium transition-colors bg-neutral-900 text-white dark:bg-neutral-50 dark:text-neutral-900"
+      : "px-3 py-1 rounded-full text-xs font-medium transition-colors border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900";
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {effectiveChips.map((chip) => {
+        <button
+          key="__all"
+          type="button"
+          onClick={() => setSelectedTypes(new Set())}
+          aria-pressed={allSelected}
+          className={chipClass(allSelected)}
+        >
+          Todos {events.length}
+        </button>
+        {visibleChips.map((chip) => {
           const isSelected = selectedTypes.has(chip.type);
+          const count = countsByType.get(chip.type) ?? 0;
           return (
             <button
               key={chip.type}
               type="button"
               onClick={() => toggleType(chip.type)}
               aria-pressed={isSelected}
-              className={
-                isSelected
-                  ? "px-3 py-1 rounded-full text-xs font-medium transition-colors bg-neutral-900 text-white dark:bg-neutral-50 dark:text-neutral-900"
-                  : "px-3 py-1 rounded-full text-xs font-medium transition-colors border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900"
-              }
+              className={chipClass(isSelected)}
             >
-              {chip.label}
+              {chip.label} {count}
             </button>
           );
         })}
