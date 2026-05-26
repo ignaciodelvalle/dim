@@ -3,8 +3,8 @@ import { excludeSelfScansClause } from "@/lib/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { eventAttachmentSignedUrl } from "@/lib/storage";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import Link from "next/link";
 import { EventTimeline } from "../EventTimeline";
+import { PetDetailTabs } from "../_components/PetDetailTabs";
 
 export default async function PetHistorialPage({
   params,
@@ -51,12 +51,7 @@ export default async function PetHistorialPage({
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
-          ← Volver a {pet.name}
-        </Link>
+        <PetDetailTabs publicToken={pet.publicToken} activeTab="historial" />
 
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">

@@ -7,6 +7,7 @@ import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanita
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { petPhotoUrl } from "@/lib/storage";
 
+import { PetDetailTabs } from "../_components/PetDetailTabs";
 import { LibretaIdentityHeader } from "./LibretaIdentityHeader";
 import { LibretaSanitariaView } from "./LibretaSanitariaView";
 import { SharesManager } from "./SharesManager";
@@ -61,12 +62,7 @@ export default async function LibretaPage({
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 print:p-0 print:bg-white">
       <div className="max-w-2xl mx-auto pt-6 pb-20 space-y-6 print:max-w-none print:pt-0">
         <div className="flex items-center justify-between gap-4 print:hidden">
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}`}
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
-            ← Volver a {pet.name}
-          </Link>
+          <PetDetailTabs publicToken={pet.publicToken} activeTab="libreta" />
           <ViewToggle publicToken={pet.publicToken} vista={vista} />
         </div>
 

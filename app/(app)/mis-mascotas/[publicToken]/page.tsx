@@ -99,6 +99,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
 import { MarkFoundButton } from "./MarkFoundButton";
+import { PetDetailTabs } from "./_components/PetDetailTabs";
 import { PetReminders } from "./_components/PetReminders";
 
 // NOTE: eventsWithAttachments is fetched only when pet.status === 'deceased'
@@ -578,6 +579,8 @@ export default async function PetDetailPage({
         >
           ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
         </Link>
+
+        <PetDetailTabs publicToken={pet.publicToken} activeTab="resumen" />
 
         {/* Org-mediated access notice */}
         {accessPath === "org" && organization && (
