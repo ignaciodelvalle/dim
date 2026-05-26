@@ -116,15 +116,6 @@ export default async function MisTurnosPage() {
             ))}
           </Section>
         )}
-
-        <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href="/mis-mascotas"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
-          >
-            ← Volver a mis mascotas
-          </Link>
-        </div>
       </div>
     </main>
   );

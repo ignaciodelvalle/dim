@@ -224,13 +224,6 @@ function DeceasedView({
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
-        <Link
-          href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
-          ← Volver a mis mascotas
-        </Link>
-
         {/* In-memoriam hero — centered, muted */}
         <section className="flex flex-col items-center gap-3 pt-4">
           {photoUrl ? (
@@ -440,12 +433,6 @@ export default async function PetDetailPage({
     return (
       <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
         <div className="max-w-2xl mx-auto pt-6 space-y-4">
-          <Link
-            href="/mis-mascotas"
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
-            ← Volver a mis mascotas
-          </Link>
           <LostCockpit
             publicToken={pet.publicToken}
             petName={pet.name}

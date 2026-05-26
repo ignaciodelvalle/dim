@@ -165,15 +165,6 @@ export default async function DevolucionPage({
           proposedAt={proposedAt}
           backUrl="/mis-mascotas"
         />
-
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href="/mis-mascotas"
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
-            ← Volver a mis mascotas
-          </Link>
-        </footer>
       </div>
     </main>
   );
