@@ -1,6 +1,19 @@
 // Org inbox of welfare denuncias emitted by members of this org.
 // Read-only summary — case lifecycle lives in /casos/[publicCode].
 
+// ---------------------------------------------------------------------------
+// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 — 2026-05-26)
+//
+// This page exists but is NOT reachable from any nav or dashboard CTA. The
+// underlying flow (welfare receipts inbox for an org) is not yet wired
+// end-to-end. Keep this page intact — when the flow lands, add a nav entry
+// in `components/poncho/Layout/nav-presets.ts` or a CTA on the org dashboard.
+//
+// Wire when org capability-gating for welfare reporting is complete.
+//
+// Audited: 2026-05-26. Re-evaluate during next role audit.
+// ---------------------------------------------------------------------------
+
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 

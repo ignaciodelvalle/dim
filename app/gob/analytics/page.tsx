@@ -1,3 +1,18 @@
+// ---------------------------------------------------------------------------
+// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 — 2026-05-26)
+//
+// This page exists but is NOT reachable from any nav or dashboard CTA. The
+// underlying flow (analytics dashboard for govt role) is not yet wired
+// end-to-end. Keep this page intact — when the flow lands, add a nav entry
+// in `components/poncho/Layout/nav-presets.ts` or a CTA on the gob dashboard.
+//
+// Wire when KPI/analytics work returns to the roadmap; currently exploratory.
+// Note: /gob/analytics/export is a child of this page — both are unreachable
+// from nav until this parent page is wired.
+//
+// Audited: 2026-05-26. Re-evaluate during next role audit.
+// ---------------------------------------------------------------------------
+
 import Link from "next/link";
 
 import {
