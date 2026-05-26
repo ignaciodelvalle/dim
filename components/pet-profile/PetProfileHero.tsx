@@ -1,20 +1,15 @@
-"use client";
-
-import Link from "next/link";
-
-import type { PetState } from "@/components/EventCatcher";
-import { Button } from "@/components/poncho";
-
 // PetProfileHero — top of the owner pet-profile page.
 //
 // Big square photo (148px) inside a state-colored ring; pet's identity
-// below; primary actions (Modo perdido, Compartir QR, Llamar vet).
+// below. Quick actions (Modo perdido / Compartir QR / Llamar vet) and the
+// "Acciones" dropdown live OUTSIDE the hero — see `PetQuickActions` and
+// `PetActionsMenu`. The hero is identity-only.
 //
 // State color follows the same convention as EventCatcher's chip row —
 // ok / info / attention / urgent — so the same pet "reads" identical
 // across the home and the profile.
-//
-// Spec: docs/pet-profile-owner-plan-2026-05-20.md — owner view.
+
+import type { PetState } from "@/components/EventCatcher";
 
 export type PetHeroPet = {
   name: string;
@@ -86,31 +81,6 @@ export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
       <p className="relative mt-1 text-sm text-neutral-500 dark:text-neutral-400">
         {[pet.species, pet.breed, pet.ageLabel, pet.weightLabel].filter(Boolean).join(" · ")}
       </p>
-
-      <div className="relative mt-4 flex flex-wrap justify-center gap-2">
-        <Button
-          variant={pet.lostMode ? "primary" : "danger"}
-          size="sm"
-          // eslint-disable-next-line @next/next/no-link-as-button
-          onClick={() => {
-            /* server action wired by parent */
-          }}
-        >
-          {pet.lostMode ? "Mascota encontrada" : "Modo perdido"}
-        </Button>
-        <Link
-          href={`/p/${pet.publicToken}`}
-          className="inline-flex min-h-9 items-center rounded-full bg-gob-primary px-4 text-sm font-semibold text-white hover:bg-gob-primary-hover"
-        >
-          Compartir QR
-        </Link>
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}/editar`}
-          className="inline-flex min-h-9 items-center rounded-full px-4 text-sm font-semibold text-gob-azul-link hover:underline"
-        >
-          Editar
-        </Link>
-      </div>
     </section>
   );
 }
