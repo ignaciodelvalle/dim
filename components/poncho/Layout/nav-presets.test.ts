@@ -4,8 +4,13 @@ import { describe, expect, it } from "vitest";
 import { ADMIN_NAV, GOB_NAV, OWNER_NAV, buildOrgNav } from "./nav-presets";
 
 describe("buildOrgNav", () => {
-  it("produces exactly 6 items", () => {
-    expect(buildOrgNav("ORG-ABC")).toHaveLength(6);
+  it("produces exactly 5 items (equipo removed — no page.tsx exists)", () => {
+    expect(buildOrgNav("ORG-ABC")).toHaveLength(5);
+  });
+
+  it("does not contain an equipo entry (broken nav — ADR-4: no roadmap signal → remove)", () => {
+    const hrefs = buildOrgNav("ORG-ABC").map((i) => i.href);
+    expect(hrefs).not.toContain("/org/ORG-ABC/equipo");
   });
 
   it("all hrefs start with /org/<orgToken>/... (or are the exact panel root)", () => {
@@ -25,6 +30,14 @@ describe("buildOrgNav", () => {
   it("panel item href is exactly /org/<orgToken> (no trailing slash)", () => {
     const [panel] = buildOrgNav("ORG-ABC");
     expect(panel.href).toBe("/org/ORG-ABC");
+  });
+
+  it("contains Agenda, Mascotas, Servicios, Operaciones entries", () => {
+    const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
+    expect(labels).toContain("Agenda");
+    expect(labels).toContain("Mascotas");
+    expect(labels).toContain("Servicios");
+    expect(labels).toContain("Operaciones");
   });
 });
 
@@ -76,6 +89,11 @@ describe("GOB_NAV — no route regression", () => {
 
   it("has at least 12 items (no silent drops)", () => {
     expect(GOB_NAV.length).toBeGreaterThanOrEqual(12);
+  });
+
+  // Spec task 1.2: GOB_NAV has 0 dead hrefs — all entries verified against filesystem
+  it("does NOT contain /gob/analytics (no top-level nav entry; analytics is an orphan handled in PR2)", () => {
+    expect(hrefs).not.toContain("/gob/analytics");
   });
 });
 
