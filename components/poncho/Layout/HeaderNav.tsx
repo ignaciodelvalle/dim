@@ -90,8 +90,8 @@ export function HeaderNav({ nav, user }: Props) {
               aria-current={active ? "page" : undefined}
               className={`rounded-md px-3 py-2 text-sm font-semibold no-underline transition-colors ${
                 active
-                  ? "bg-gob-surface-alt text-gob-primary"
-                  : "text-gob-text-gray hover:bg-gob-surface-alt hover:text-gob-primary"
+                  ? "bg-gob-surface-alt text-gob-primary dark:bg-neutral-800 dark:text-neutral-50"
+                  : "text-gob-text-gray hover:bg-gob-surface-alt hover:text-gob-primary dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-neutral-50"
               }`}
             >
               {item.label}
@@ -105,7 +105,7 @@ export function HeaderNav({ nav, user }: Props) {
         {user ? (
           <Link
             href={user.href ?? "/cuenta"}
-            className="flex items-center gap-2 rounded-full border border-gob-border px-3 py-2 text-sm font-semibold text-gob-primary no-underline hover:border-gob-border-strong"
+            className="flex items-center gap-2 rounded-full border border-gob-border px-3 py-2 text-sm font-semibold text-gob-primary no-underline hover:border-gob-border-strong dark:border-neutral-700 dark:text-neutral-50 dark:hover:border-neutral-500"
           >
             <Icon name="usuarios" size={18} decorative />
             <span className="max-w-[14ch] truncate">{user.name}</span>
@@ -128,7 +128,7 @@ export function HeaderNav({ nav, user }: Props) {
           aria-controls={panelId}
           aria-label={open ? "Cerrar menú" : "Abrir menú"}
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gob-border text-gob-primary hover:border-gob-border-strong"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gob-border text-gob-primary hover:border-gob-border-strong dark:border-neutral-700 dark:text-neutral-50 dark:hover:border-neutral-500"
         >
           {open ? <CloseIcon /> : <HamburgerIcon />}
         </button>
@@ -152,14 +152,14 @@ export function HeaderNav({ nav, user }: Props) {
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-black/40"
           />
-          <div className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gob-border px-4 py-3">
-              <span className="text-lg font-bold text-gob-primary">MiMAR</span>
+          <div className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-xl dark:bg-neutral-950">
+            <div className="flex items-center justify-between border-b border-gob-border px-4 py-3 dark:border-neutral-800">
+              <span className="text-lg font-bold text-gob-primary dark:text-neutral-50">MiMAR</span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar menú"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-gob-text-gray hover:bg-gob-surface-alt"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-gob-text-gray hover:bg-gob-surface-alt dark:text-neutral-300 dark:hover:bg-neutral-900"
               >
                 <CloseIcon size={20} />
               </button>
@@ -175,8 +175,8 @@ export function HeaderNav({ nav, user }: Props) {
                     aria-current={active ? "page" : undefined}
                     className={`block min-h-12 rounded-md px-4 py-3 text-base font-semibold no-underline ${
                       active
-                        ? "bg-gob-surface-alt text-gob-primary"
-                        : "text-gob-text-gray hover:bg-gob-surface-alt"
+                        ? "bg-gob-surface-alt text-gob-primary dark:bg-neutral-800 dark:text-neutral-50"
+                        : "text-gob-text-gray hover:bg-gob-surface-alt dark:text-neutral-300 dark:hover:bg-neutral-900"
                     }`}
                   >
                     {item.label}
@@ -185,11 +185,11 @@ export function HeaderNav({ nav, user }: Props) {
               })}
             </nav>
 
-            <div className="border-t border-gob-border px-4 py-4">
+            <div className="border-t border-gob-border px-4 py-4 dark:border-neutral-800">
               {user ? (
                 <Link
                   href={user.href ?? "/cuenta"}
-                  className="flex items-center gap-2 rounded-full border border-gob-border px-4 py-3 text-sm font-semibold text-gob-primary no-underline"
+                  className="flex items-center gap-2 rounded-full border border-gob-border px-4 py-3 text-sm font-semibold text-gob-primary no-underline dark:border-neutral-700 dark:text-neutral-50"
                 >
                   <Icon name="usuarios" size={18} decorative />
                   Mi cuenta · {user.name}

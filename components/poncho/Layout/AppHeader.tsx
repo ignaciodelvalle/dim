@@ -29,10 +29,10 @@ type Props = {
 
 export function AppHeader({ user, nav = DEFAULT_NAV }: Props) {
   return (
-    <header className="sticky top-0 z-40 bg-white">
+    <header className="sticky top-0 z-40 bg-white dark:bg-neutral-950">
       <GobStripe />
 
-      <div className="border-b border-gob-border">
+      <div className="border-b border-gob-border dark:border-neutral-800">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 md:px-6">
           {/* Marca */}
           <Link
@@ -47,8 +47,8 @@ export function AppHeader({ user, nav = DEFAULT_NAV }: Props) {
               <Icon name="perro-asistencia" size={22} decorative />
             </span>
             <span className="flex flex-col leading-tight">
-              <span className="text-lg font-bold text-gob-primary">MiMAR</span>
-              <span className="hidden text-xs text-gob-text-muted sm:inline">
+              <span className="text-lg font-bold text-gob-primary dark:text-neutral-50">MiMAR</span>
+              <span className="hidden text-xs text-gob-text-muted dark:text-neutral-400 sm:inline">
                 Mi Mascota Argentina
               </span>
             </span>

@@ -49,24 +49,26 @@ type Props = {
 
 export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
   return (
-    <footer className="mt-12 bg-white">
-      <div className="border-t border-gob-border">
+    <footer className="mt-12 bg-white dark:bg-neutral-950">
+      <div className="border-t border-gob-border dark:border-neutral-800">
         <div className="mx-auto max-w-6xl px-4 py-10 md:px-6">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
             {/* Marca + tagline */}
             <div>
-              <p className="text-lg font-bold text-gob-primary">MiMAR</p>
-              <p className="mt-1 text-sm text-gob-text-muted">
+              <p className="text-lg font-bold text-gob-primary dark:text-neutral-50">MiMAR</p>
+              <p className="mt-1 text-sm text-gob-text-muted dark:text-neutral-400">
                 Mi Mascota Argentina · Credencial digital sanitaria.
               </p>
-              <p className="mt-4 text-xs text-gob-text-muted">
+              <p className="mt-4 text-xs text-gob-text-muted dark:text-neutral-400">
                 Una iniciativa pública para que cada animal cuente con su historia clínica portable.
               </p>
             </div>
 
             {columns.map((col) => (
               <nav key={col.title} aria-label={col.title}>
-                <h2 className="text-sm font-bold text-gob-text-gray">{col.title}</h2>
+                <h2 className="text-sm font-bold text-gob-text-gray dark:text-neutral-200">
+                  {col.title}
+                </h2>
                 <ul className="mt-3 space-y-2">
                   {col.links.map((l) => (
                     <li key={l.href}>
@@ -74,7 +76,7 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
                         href={l.href}
                         target={l.external ? "_blank" : undefined}
                         rel={l.external ? "noopener noreferrer" : undefined}
-                        className="text-sm text-gob-text-gray no-underline hover:text-gob-azul-link hover:underline"
+                        className="text-sm text-gob-text-gray no-underline hover:text-gob-azul-link hover:underline dark:text-neutral-300 dark:hover:text-neutral-50"
                       >
                         {l.label}
                       </Link>
@@ -86,7 +88,7 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
           </div>
 
           {/* Línea legal */}
-          <div className="mt-10 flex flex-col gap-3 border-t border-gob-border pt-6 text-xs text-gob-text-muted md:flex-row md:items-center md:justify-between">
+          <div className="mt-10 flex flex-col gap-3 border-t border-gob-border pt-6 text-xs text-gob-text-muted md:flex-row md:items-center md:justify-between dark:border-neutral-800 dark:text-neutral-400">
             <p>
               Los contenidos están licenciados bajo{" "}
               <a
