@@ -5,6 +5,7 @@ import type { Pet } from "@/db";
 import { speciesLabel } from "@/lib/format";
 import { petStatusToPhotoStatus } from "@/lib/poncho-status";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
+import { type PriorityBadge, getPriorityBadge } from "./PetCard.helpers";
 
 // Shared pet card. Used by /mis-mascotas (full grid), /inicio (top 6
 // snippet), and future surfaces. Self-contained — only depends on the
@@ -14,47 +15,63 @@ import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 // shelter_custody row (vecino-en-tránsito helping a stray, not a real
 // owner). Keeps the visual contract identical to the inline original.
 //
-// vaccineReminderState: optional — when set, renders a small badge showing
-// the highest-priority vaccine reminder state for this pet. Pulse animation
-// is applied by this component for overdue_critical (per design spec E-D4:
-// the consumer applies pulse, not Badge itself).
+// Priority badge (right side): lost > deceased > vaccine > none. See
+// PetCard.helpers.ts for the rule.
 
 type VaccineReminderState = {
   variant: ReminderVariant;
 };
 
-function VaccineBadge({ variant }: { variant: ReminderVariant }) {
-  switch (variant) {
-    case "upcoming":
-      return (
-        <Badge variant="info" aria-label="Tiene vacunas a programar en próximos 14 días">
-          Vacunas próximas
+function PriorityBadgeView({ badge }: { badge: PriorityBadge }) {
+  if (badge.kind === "lost") {
+    return (
+      <span className="animate-pulse motion-reduce:animate-none">
+        <Badge variant="danger" aria-label="Mascota perdida">
+          URGENTE · perdido
         </Badge>
-      );
-    case "due_soon":
-      return (
-        <Badge variant="warning" aria-label="Tiene una vacuna que vence pronto">
-          Vacuna pronto
-        </Badge>
-      );
-    case "overdue":
-      return (
-        <Badge variant="danger" aria-label="Tiene una vacuna vencida">
-          Vacuna vencida
-        </Badge>
-      );
-    case "overdue_critical":
-      return (
-        <span className="animate-pulse motion-reduce:animate-none">
-          <Badge variant="danger" aria-label="Tiene una vacuna obligatoria vencida">
-            URGENTE
-          </Badge>
-        </span>
-      );
-    default:
-      // success or any unrecognized variant: no badge
-      return null;
+      </span>
+    );
   }
+  if (badge.kind === "deceased") {
+    return (
+      <Badge variant="neutral" aria-label="Mascota fallecida">
+        En memoria
+      </Badge>
+    );
+  }
+  if (badge.kind === "vaccine") {
+    switch (badge.variant) {
+      case "upcoming":
+        return (
+          <Badge variant="info" aria-label="Tiene vacunas a programar en próximos 14 días">
+            Vacunas próximas
+          </Badge>
+        );
+      case "due_soon":
+        return (
+          <Badge variant="warning" aria-label="Tiene una vacuna que vence pronto">
+            Vacuna pronto
+          </Badge>
+        );
+      case "overdue":
+        return (
+          <Badge variant="danger" aria-label="Tiene una vacuna vencida">
+            Vacuna vencida
+          </Badge>
+        );
+      case "overdue_critical":
+        return (
+          <span className="animate-pulse motion-reduce:animate-none">
+            <Badge variant="danger" aria-label="Tiene una vacuna obligatoria vencida">
+              URGENTE
+            </Badge>
+          </span>
+        );
+      default:
+        return null;
+    }
+  }
+  return null;
 }
 
 export function PetCard({
@@ -96,11 +113,15 @@ export function PetCard({
             {pet.color && ` · ${pet.color}`}
           </p>
         </div>
-        {vaccineReminderState && (
-          <div className="shrink-0">
-            <VaccineBadge variant={vaccineReminderState.variant} />
-          </div>
-        )}
+        {(() => {
+          const badge = getPriorityBadge(pet.status, vaccineReminderState);
+          if (badge.kind === "none") return null;
+          return (
+            <div className="shrink-0">
+              <PriorityBadgeView badge={badge} />
+            </div>
+          );
+        })()}
         <span className="text-neutral-400 dark:text-neutral-600 shrink-0" aria-hidden>
           ›
         </span>
