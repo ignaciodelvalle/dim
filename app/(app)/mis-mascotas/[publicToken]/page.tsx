@@ -56,9 +56,11 @@ import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
 import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
+import { PetDetailTabs } from "@/components/pet-profile/PetDetailTabs";
 import { PetEmergencyCard } from "@/components/pet-profile/PetEmergencyCard";
 import { PetHealthTimeline } from "@/components/pet-profile/PetHealthTimeline";
 import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetProfileHero";
+import { PetQuickActions } from "@/components/pet-profile/PetQuickActions";
 import { PetTrackingPlaceholder } from "@/components/pet-profile/PetTrackingPlaceholder";
 import { PetTravelDocs } from "@/components/pet-profile/PetTravelDocs";
 import { PetWeightChart } from "@/components/pet-profile/PetWeightChart";
@@ -92,7 +94,7 @@ import {
 import { requirePetAccess } from "@/lib/pet-access";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
-import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EventTimeline } from "./EventTimeline";
@@ -534,47 +536,59 @@ export default async function PetDetailPage({
   }
 
   // Parallel data fetching — all remaining queries.
-  const [petActiveReminders, pendingMedicationReminders, upcomingAppointments, weightHistory] =
-    await Promise.all([
-      // Vaccine reminders for owner path only.
-      accessPath === "owner"
-        ? fetchActiveRemindersForPet(user.id, pet.id)
-        : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
-      // Pending medication dose reminders, soonest first.
-      db
-        .select()
-        .from(reminders)
-        .where(
-          and(
-            eq(reminders.petId, pet.id),
-            eq(reminders.reminderType, "medication"),
-            isNull(reminders.completedAt),
-          ),
-        )
-        .orderBy(asc(reminders.dueAt)),
-      // Upcoming confirmed appointments for this pet, soonest first (max 10).
-      db
-        .select({
-          publicToken: appointments.publicToken,
-          status: appointments.status,
-          offeringDisplayName: serviceOfferings.displayName,
-          slotStartsAt: timeSlots.startsAt,
-        })
-        .from(appointments)
-        .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-        .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-        .where(
-          and(
-            eq(appointments.petId, pet.id),
-            eq(appointments.status, "confirmed"),
-            gt(timeSlots.startsAt, new Date()),
-          ),
-        )
-        .orderBy(asc(timeSlots.startsAt))
-        .limit(10),
-      // Weight history for PetWeightChart.
-      fetchPetWeightHistory(pet.id),
-    ]);
+  const [
+    petActiveReminders,
+    pendingMedicationReminders,
+    upcomingAppointments,
+    weightHistory,
+    historialCount,
+  ] = await Promise.all([
+    // Vaccine reminders for owner path only.
+    accessPath === "owner"
+      ? fetchActiveRemindersForPet(user.id, pet.id)
+      : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
+    // Pending medication dose reminders, soonest first.
+    db
+      .select()
+      .from(reminders)
+      .where(
+        and(
+          eq(reminders.petId, pet.id),
+          eq(reminders.reminderType, "medication"),
+          isNull(reminders.completedAt),
+        ),
+      )
+      .orderBy(asc(reminders.dueAt)),
+    // Upcoming confirmed appointments for this pet, soonest first (max 10).
+    db
+      .select({
+        publicToken: appointments.publicToken,
+        status: appointments.status,
+        offeringDisplayName: serviceOfferings.displayName,
+        slotStartsAt: timeSlots.startsAt,
+      })
+      .from(appointments)
+      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+      .where(
+        and(
+          eq(appointments.petId, pet.id),
+          eq(appointments.status, "confirmed"),
+          gt(timeSlots.startsAt, new Date()),
+        ),
+      )
+      .orderBy(asc(timeSlots.startsAt))
+      .limit(10),
+    // Weight history for PetWeightChart.
+    fetchPetWeightHistory(pet.id),
+    // Historial event count — used by PetDetailTabs badge. Uses excludeSelfScansClause
+    // for consistency with the historial page's own query.
+    db
+      .select({ value: count() })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
+      .then((rows) => rows[0]?.value ?? 0),
+  ]);
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
@@ -681,6 +695,16 @@ export default async function PetDetailPage({
         <div data-section="hero">
           <PetProfileHero pet={heroData} />
         </div>
+
+        {/* Quick-action buttons (Modo perdido / Compartir QR / Llamar vet) */}
+        <PetQuickActions
+          petPublicToken={pet.publicToken}
+          petStatus={pet.status as "active" | "lost" | "deceased"}
+          preferredVetPhone={viewerContacts?.preferredVetPhone ?? null}
+        />
+
+        {/* Visual tab-bar linking Resumen ↔ Libreta ↔ Historial */}
+        <PetDetailTabs petPublicToken={pet.publicToken} historialCount={historialCount} />
 
         {/* §4.9 (6) Achievements row + credentials */}
         <div data-section="achievements">
