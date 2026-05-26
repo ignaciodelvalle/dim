@@ -9,7 +9,7 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-import { AppFooter, AppHeader } from "@/components/poncho";
+import { Sidebar, Topbar } from "@/components/poncho";
 import { OWNER_NAV } from "@/components/poncho/Layout/nav-presets";
 import { db, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
@@ -40,10 +40,17 @@ export default async function AuthenticatedLayout({
       : (user.email?.split("@")[0] ?? "");
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader nav={OWNER_NAV} user={{ name: displayName, href: "/cuenta" }} />
-      <div className="flex-1">{children}</div>
-      <AppFooter />
+    <div className="min-h-screen bg-white">
+      <Sidebar
+        nav={OWNER_NAV}
+        user={{ name: displayName, href: "/cuenta" }}
+        roleAccent="owner"
+        brand={{ title: "MiMAR", subtitle: "Mi Mascota Argentina" }}
+      />
+      <div className="flex min-h-screen flex-col md:ml-60">
+        <Topbar mobileDrawerNav={OWNER_NAV} brandTitle="MiMAR" />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
+      </div>
     </div>
   );
 }
