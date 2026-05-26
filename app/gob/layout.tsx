@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 
+import { db, profiles } from "@/db";
+import { AppFooter, AppHeader } from "@/components/poncho";
+import { GOB_NAV } from "@/components/poncho/Layout/nav-presets";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
@@ -9,6 +13,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 // institutional roles (Fase 5 invariant).
 export default async function GobiernoLayout({ children }: { children: React.ReactNode }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+
   const scopeLabel =
     profile.role === "admin"
       ? "Universal"
@@ -18,112 +23,49 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
           : `${jurisdictions.length} localidades`;
 
+  // profiles.displayName is NOT NULL — always present.
+  const [profileRow] = await db
+    .select({ displayName: profiles.displayName })
+    .from(profiles)
+    .where(eq(profiles.id, profile.id))
+    .limit(1);
+
   return (
-    <div className="min-h-screen bg-white dark:bg-neutral-950">
-      <nav className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
-              MiMAR Gobierno
-            </p>
-            <span className="text-xs text-neutral-400 dark:text-neutral-600">·</span>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">
-              <span className="font-medium">{profile.role}</span>
-              <span className="text-neutral-400 dark:text-neutral-600"> · </span>
-              {scopeLabel}
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-sm">
-            <Link
-              href="/gob"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/gob/cola"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Cola
-            </Link>
-            <Link
-              href="/gob/usuarios"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Usuarios
-            </Link>
-            <Link
-              href="/gob/organizaciones"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Organizaciones
-            </Link>
-            <Link
-              href="/gob/servicios"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Servicios
-            </Link>
-            <Link
-              href="/gob/vigilancia"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Vigilancia
-            </Link>
-            <Link
-              href="/gob/perdidas"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Pérdidas
-            </Link>
-            <Link
-              href="/gob/disputas"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Disputas
-            </Link>
-            <Link
-              href="/gob/maltrato"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Maltrato
-            </Link>
-            <Link
-              href="/gob/casos"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Casos
-            </Link>
-            <Link
-              href="/gob/historial"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Historial
-            </Link>
-            <Link
-              href="/gob/reglas"
-              className="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
-              Reglas
-            </Link>
+    <div className="flex min-h-screen flex-col">
+      <AppHeader
+        nav={GOB_NAV}
+        user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }}
+      />
+
+      {/* Meta-strip: role + scope + cross-portal links */}
+      <div className="border-b border-gob-border bg-gob-surface-alt">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-2 md:px-6">
+          <p className="text-xs text-gob-text-gray">
+            <span className="font-medium">{profile.role}</span>
+            <span className="text-gob-text-muted"> · </span>
+            {scopeLabel}
+          </p>
+          <div className="flex items-center gap-4 text-xs">
             {profile.role === "admin" && (
               <Link
                 href="/admin"
-                className="text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                className="text-gob-text-muted hover:text-gob-primary no-underline"
               >
                 Ir a Admin →
               </Link>
             )}
             <Link
               href="/mis-mascotas"
-              className="text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              className="text-gob-text-muted hover:text-gob-primary no-underline"
             >
               ← Salir
             </Link>
           </div>
         </div>
-      </nav>
-      {children}
+      </div>
+
+      <div className="flex-1">{children}</div>
+      <AppFooter />
     </div>
   );
 }
