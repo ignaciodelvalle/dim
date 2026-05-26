@@ -6,10 +6,10 @@
 //
 // Scope clause pattern mirrors lib/govt-dashboards.ts.
 
-import { and, count, countDistinct, gte, lt, sql } from "drizzle-orm";
+import { and, count, countDistinct, gte, inArray, lt, not, sql } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
-import { cases, db, petEvents, pets } from "@/db";
+import { cases, db, petEvents, pets, welfareReports } from "@/db";
 
 export type DashboardActor = { role: "admin" | "govt" };
 export type DashboardJurisdiction = { province: string; locality: string };
@@ -379,4 +379,54 @@ export async function fetchActiveZoonosis(
     hidat: 0, // TODO(L-followup): no hidat event type exists yet
     deltaWeek,
   };
+}
+
+// ---------------------------------------------------------------------------
+// KPI 5 — Open welfare reports (Denuncias ciudadanas)
+// ---------------------------------------------------------------------------
+
+// Statuses considered "terminal" — excluded from the active count.
+const WELFARE_TERMINAL_STATUSES = ["closed", "duplicate"] as const;
+
+// Scope clause for welfare_reports rows — same pattern as
+// welfareReportsScopeClause in lib/govt-dashboards.ts.
+function welfareReportsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+  if (actor.role === "admin") return null;
+  if (jurisdictions.length === 0) return sql`false`;
+  const pairs = jurisdictions.map(
+    (j) =>
+      sql`(${welfareReports.jurisdictionProvince} = ${j.province} AND ${welfareReports.jurisdictionLocality} = ${j.locality})`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
+
+export type OpenWelfareReportsKpi = {
+  /** Count of welfare reports with a non-terminal status in scope. */
+  count: number;
+};
+
+/**
+ * Returns the count of active (non-terminal) welfare reports for the viewer's
+ * jurisdiction. Mirrors the scope pattern used by fetchWelfareMetrics in
+ * lib/govt-dashboards.ts.
+ */
+export async function fetchOpenWelfareReportsCount(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<OpenWelfareReportsKpi> {
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    return { count: 0 };
+  }
+
+  const scope = welfareReportsScopeClause(actor, jurisdictions);
+
+  const conditions = [not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]))];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({ n: count() })
+    .from(welfareReports)
+    .where(and(...conditions));
+
+  return { count: rows[0]?.n ?? 0 };
 }

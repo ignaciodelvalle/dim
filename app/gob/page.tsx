@@ -23,6 +23,7 @@ import { formatDate } from "@/lib/format";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
+  fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
 } from "@/lib/govt-home-kpis";
@@ -76,12 +77,14 @@ export default async function GobiernoDashboardPage({
   // --- KPI live queries (L-followup) -------------------------------------
 
   const actor = { role: profile.role } as const;
-  const [rabiesCoverage, sterilizations, bitesPer10k, activeZoonosis] = await Promise.all([
-    fetchRabiesCoverage(actor, jurisdictions),
-    fetchSterilizationMetrics(actor, jurisdictions),
-    fetchBitesPer10k(actor, jurisdictions),
-    fetchActiveZoonosis(actor, jurisdictions),
-  ]);
+  const [rabiesCoverage, sterilizations, bitesPer10k, activeZoonosis, openWelfareReports] =
+    await Promise.all([
+      fetchRabiesCoverage(actor, jurisdictions),
+      fetchSterilizationMetrics(actor, jurisdictions),
+      fetchBitesPer10k(actor, jurisdictions),
+      fetchActiveZoonosis(actor, jurisdictions),
+      fetchOpenWelfareReportsCount(actor, jurisdictions),
+    ]);
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------
   // Admin sees universal scope via listCasesForAdmin; govt is jurisdiction-scoped.
@@ -333,10 +336,20 @@ export default async function GobiernoDashboardPage({
               </Link>
             }
           >
-            {/* TODO(L-followup): connect to welfareReports count */}
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Conectar a <code className="text-xs">welfareReports</code>.
-            </p>
+            {openWelfareReports.count === 0 ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                No hay denuncias activas en tu jurisdicción.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-3xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-50">
+                  {openWelfareReports.count}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {openWelfareReports.count === 1 ? "denuncia activa" : "denuncias activas"}
+                </p>
+              </div>
+            )}
           </DashboardCard>
 
           <DashboardCard
