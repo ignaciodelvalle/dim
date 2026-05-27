@@ -38,6 +38,12 @@ export type IntakeFormState = {
   warning?: "CHIP_MATCH_ACTIVE";
   matchedPetToken?: string;
   forceToken?: string;
+  // Optional success flag. Default success path is a redirect to the org
+  // mascotas list. The intake wizard (sprint 4 PR-030) passes noRedirect=1
+  // so it can render its own SuccessScreen with the new pet's name + token.
+  ok?: boolean;
+  createdPetToken?: string;
+  createdPetName?: string;
 };
 
 type IntakeReason = "rescue" | "surrender" | "seizure" | "stray_found" | "other";
@@ -339,6 +345,15 @@ export async function createIntakeAction(
     } catch (e) {
       console.error("notifications insert failed (action did succeed)", e);
     }
+  }
+
+  if (String(formData.get("noRedirect") ?? "") === "1") {
+    return {
+      error: null,
+      ok: true,
+      createdPetToken: publicToken,
+      createdPetName: parsed.name,
+    };
   }
 
   redirect(`/org/${orgToken}/mascotas?nueva=${publicToken}`);
