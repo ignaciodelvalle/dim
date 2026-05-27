@@ -1,19 +1,8 @@
 import Link from "next/link";
 
-import {
-  ageBucketLabel,
-  buildSearchParams,
-  energyLabel,
-  parseSearchParams,
-  sizeLabel,
-} from "@/lib/adoption-listing";
+import { AdoptionListingCard } from "@/components/AdoptionListingCard";
+import { buildSearchParams, parseSearchParams } from "@/lib/adoption-listing";
 import { queryAdoptionListing } from "@/lib/adoption-listing-query";
-import { PROVINCES } from "@/lib/ar-provincias";
-import { petPhotoUrl } from "@/lib/storage";
-
-const PROVINCE_BY_NAME = new Map<string, (typeof PROVINCES)[number]>(
-  PROVINCES.map((p) => [p.name as string, p]),
-);
 
 import { AdoptionFiltersBar } from "./AdoptionFiltersBar";
 
@@ -90,7 +79,7 @@ export default async function AdoptarPage({
             </p>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {items.map((item) => (
-                <PetListingCard key={item.petId} item={item} />
+                <AdoptionListingCard key={item.petId} item={item} />
               ))}
             </ul>
 
@@ -108,81 +97,5 @@ export default async function AdoptarPage({
         )}
       </div>
     </main>
-  );
-}
-
-type CardItem = Awaited<ReturnType<typeof queryAdoptionListing>>["items"][number];
-
-function PetListingCard({ item }: { item: CardItem }) {
-  const photoUrl = petPhotoUrl(item.primaryPhotoStoragePath);
-  const provinceLabel =
-    (item.jurisdictionProvince && PROVINCE_BY_NAME.get(item.jurisdictionProvince)?.name) ||
-    item.jurisdictionProvince ||
-    null;
-
-  const facts: string[] = [];
-  if (item.adoptionAgeBucket) facts.push(ageBucketLabel(item.adoptionAgeBucket, item.sex));
-  if (item.adoptionSizeEstimate) facts.push(sizeLabel(item.adoptionSizeEstimate));
-  if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel));
-
-  const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
-
-  return (
-    <li className="rounded-xl border border-gob-border overflow-hidden bg-white hover:shadow-lg transition-shadow">
-      <Link href={`/adoptar/${item.petPublicToken}`} className="block">
-        <div className="aspect-square bg-gob-surface-alt relative">
-          {photoUrl ? (
-            <img
-              src={photoUrl}
-              alt={item.name}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-5xl text-gob-text-muted">
-              {item.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          {(item.isSterilized || item.microchipId) && (
-            <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-              {item.isSterilized && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-600 text-white">
-                  {sterilizedLabel}
-                </span>
-              )}
-              {item.microchipId && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-sky-600 text-white">
-                  Con chip
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="p-4 space-y-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold text-gob-text">{item.name}</h2>
-            {provinceLabel && (
-              <span className="text-xs text-gob-text-muted">
-                {item.jurisdictionLocality
-                  ? `${item.jurisdictionLocality}, ${provinceLabel}`
-                  : provinceLabel}
-              </span>
-            )}
-          </div>
-          {facts.length > 0 && <p className="text-xs text-gob-text-gray">{facts.join(" · ")}</p>}
-          {item.adoptionStory && (
-            <p className="text-xs text-gob-text-gray line-clamp-3">{item.adoptionStory}</p>
-          )}
-          <p className="text-[11px] text-gob-text-muted pt-1 border-t border-gob-surface-alt">
-            Publica:{" "}
-            <Link
-              href={`/refugios/${item.orgPublicToken}`}
-              className="underline hover:text-gob-text"
-            >
-              {item.orgDisplayName}
-            </Link>
-          </p>
-        </div>
-      </Link>
-    </li>
   );
 }
