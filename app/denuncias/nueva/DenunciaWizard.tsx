@@ -34,6 +34,7 @@
 import { useRef, useState } from "react";
 
 import { createWelfareReportAction } from "@/app/actions/welfare";
+import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
 import type { WelfareReportKind } from "@/lib/welfare";
 
@@ -46,7 +47,6 @@ import {
 import { Step3Where, type WhenOption, resolveOccurredAt } from "./_components/Step3Where";
 import { Step4Subject, type SubjectKindWizard } from "./_components/Step4Subject";
 import { type ContactMode, Step5Contact } from "./_components/Step5Contact";
-import { SuccessScreen } from "./_components/SuccessScreen";
 
 const TOTAL_STEPS = 5;
 const STEP_LABELS = ["Qué pasó", "Gravedad", "Dónde", "Quién", "Cerrar"];
@@ -232,7 +232,18 @@ export function DenunciaWizard() {
   }
 
   if (successCode) {
-    return <SuccessScreen referenceCode={successCode} />;
+    return (
+      <SuccessScreen
+        title="Denuncia registrada"
+        description="Tu denuncia fue recibida. Gracias por animarte a denunciar."
+        code={successCode}
+        codeWarning="Si enviaste anónima, este código es la única forma de volver a esta denuncia. Guardalo en un lugar seguro o sacale screenshot."
+        next={[
+          { label: "Ver mi denuncia →", href: `/denuncias/codigo/${successCode}` },
+          { label: "Volver al inicio", href: "/", variant: "secondary" },
+        ]}
+      />
+    );
   }
 
   return (

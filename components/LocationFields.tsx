@@ -53,7 +53,42 @@ const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ),
 });
 
-export type LocationMode = "point" | "jurisdiction" | "jurisdiction+point" | "full";
+// Canonical names per the trilogy unification design rules (AGENTS.md §"Design
+// rules" rule #1): L1 (jurisdiction only), L2 (jurisdiction + map + bidirectional
+// text + optional postal address).
+//
+// Legacy names are still accepted with a deprecation console.warn so consumers
+// can migrate at their own pace. The "point" and "jurisdiction+point" variants
+// are deprecated wholesale — point-without-jurisdiction is a UX anti-pattern,
+// and jurisdiction+point is just L2 without the bidirectional text. Consumers
+// of those should move to "l2".
+export type LocationMode =
+  | "l1"
+  | "l2"
+  // --- deprecated, accepted for backward compatibility ---
+  | "point"
+  | "jurisdiction"
+  | "jurisdiction+point"
+  | "full";
+
+// Normalize the public mode prop down to the internal feature flags. Legacy
+// names are mapped to their canonical replacement and emit a deprecation
+// warning at runtime (in dev only).
+type CanonicalMode = "l1" | "l2" | "point";
+
+function resolveMode(mode: LocationMode): CanonicalMode {
+  if (mode === "l1" || mode === "l2" || mode === "point") return mode;
+  let canonical: CanonicalMode;
+  if (mode === "jurisdiction") canonical = "l1";
+  else if (mode === "full" || mode === "jurisdiction+point") canonical = "l2";
+  else canonical = "l2"; // unreachable, satisfies TS
+  if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[LocationFields] mode="${mode}" is deprecated. Use mode="${canonical}" — see AGENTS.md "Design rules" rule #1.`,
+    );
+  }
+  return canonical;
+}
 
 export type LocationFieldsValue = {
   provinceCode?: string | null;
@@ -73,6 +108,7 @@ export function LocationFields({
   biasProvince = null,
   biasLocality = null,
   inputNames,
+  useMyLocationVariant = "secondary",
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -83,15 +119,25 @@ export function LocationFields({
   // migrating to the integrated picker (MarkLostForm reads "lastKnownLocation",
   // not "locationDescription").
   inputNames?: { lat?: string; lng?: string; description?: string };
+  // How prominent the "Usar mi ubicación actual" affordance should be.
+  // "primary" renders a big leading button (used by MarkLost step 1 and the
+  // public denuncia step 3 — when you're standing in front of the situation
+  // the device geolocation is the fastest path). "secondary" keeps the
+  // current inline link next to the map header (used by forms where the
+  // location is provided after the fact). Defaults to "secondary".
+  useMyLocationVariant?: "primary" | "secondary";
 }) {
-  const includesJurisdiction =
-    mode === "jurisdiction" || mode === "jurisdiction+point" || mode === "full";
-  const includesPoint = mode === "point" || mode === "jurisdiction+point" || mode === "full";
-  const includesAddress = mode === "full";
+  const canonicalMode = resolveMode(mode);
+  const includesJurisdiction = canonicalMode === "l1" || canonicalMode === "l2";
+  const includesPoint = canonicalMode === "l2" || canonicalMode === "point";
+  // L2 inherits the postal-address field from the legacy `full` mode; standalone
+  // point and L1 do not. (When all `full` consumers have migrated to `l2`, the
+  // postal address can be retired or pulled into a sibling `l3` mode.)
+  const includesAddress = canonicalMode === "l2";
   // Only the standalone "point" mode gets the integrated, bidirectionally
-  // synced description text. "full" already has locationAddress; "jurisdiction"
-  // has nothing to sync.
-  const integratedDescription = mode === "point";
+  // synced description text. L2 already has locationAddress; L1 has nothing
+  // to sync.
+  const integratedDescription = canonicalMode === "point";
 
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(
     defaultValue?.lat != null && defaultValue?.lng != null
@@ -221,8 +267,26 @@ export function LocationFields({
   const latInputName = inputNames?.lat ?? "locationLat";
   const lngInputName = inputNames?.lng ?? "locationLng";
 
+  // Primary "Usar mi ubicación actual" CTA, shown above the inputs when the
+  // mode has a map (l2 or point) and the consumer opted into the primary
+  // variant. Falls back silently if geolocation isn't available.
+  const showPrimaryLocateButton = includesPoint && useMyLocationVariant === "primary";
+
   return (
     <div className="space-y-4">
+      {showPrimaryLocateButton && (
+        <button
+          type="button"
+          onClick={handleUseMyLocation}
+          disabled={geoLoading}
+          aria-label="Usar mi ubicación actual"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2 transition-colors"
+        >
+          <span aria-hidden="true">📍</span>
+          {geoLoading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
+        </button>
+      )}
+
       {includesAddress && (
         <div className="space-y-1.5">
           <label htmlFor="locationAddress" className={labelClass}>
@@ -332,14 +396,16 @@ export function LocationFields({
             <p className={labelClass}>
               {integratedDescription ? "Ajuste fino" : "Ubicación precisa (opcional)"}
             </p>
-            <button
-              type="button"
-              onClick={handleUseMyLocation}
-              disabled={geoLoading}
-              className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
-            >
-              {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
-            </button>
+            {showPrimaryLocateButton ? null : (
+              <button
+                type="button"
+                onClick={handleUseMyLocation}
+                disabled={geoLoading}
+                className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
+              >
+                {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
+              </button>
+            )}
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-500">
             Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
