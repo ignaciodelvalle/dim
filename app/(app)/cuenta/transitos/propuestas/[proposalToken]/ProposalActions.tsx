@@ -7,6 +7,7 @@ import {
   acceptFosterProposalAction,
   rejectFosterProposalAction,
 } from "@/app/actions/foster-proposals";
+import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { labelClass } from "@/lib/form-classes";
 
 const REJECTION_REASONS = [
@@ -33,6 +34,7 @@ export function ProposalActions({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+  const [acceptedRemaining, setAcceptedRemaining] = useState<number | null>(null);
   const [mode, setMode] = useState<"none" | "accept" | "reject">("none");
 
   // Accept state
@@ -55,11 +57,14 @@ export function ProposalActions({
         setError(result.error);
         return;
       }
-      let msg = `Aceptaste el tránsito de ${petName}. Te quedan ${result.remainingSlots} slot(s).`;
+      setAcceptedRemaining(result.remainingSlots);
       if (result.cascadeCancelledProposals.length > 0) {
-        msg += ` ${result.cascadeCancelledProposals.length} propuesta(s) pendiente(s) se cancelaron por falta de capacity.`;
+        // Surface the cascade-cancel side effect alongside the success
+        // screen's description so the user knows what else happened.
+        setOkMessage(
+          `${result.cascadeCancelledProposals.length} propuesta(s) pendiente(s) se cancelaron por falta de capacity.`,
+        );
       }
-      setOkMessage(msg);
       router.refresh();
     });
   }
@@ -81,6 +86,24 @@ export function ProposalActions({
     });
   }
 
+  // Acceptance success → render full SuccessScreen with cascade detail in
+  // the description when applicable (sprint 6 PR-053).
+  if (acceptedRemaining !== null) {
+    const baseDescription = `Aceptaste el tránsito de ${petName}. Te quedan ${acceptedRemaining} slot(s) disponibles para nuevas propuestas.`;
+    return (
+      <SuccessScreen
+        title={`Tránsito aceptado: ${petName}`}
+        description={okMessage ? `${baseDescription} ${okMessage}` : baseDescription}
+        next={[
+          { label: "Ver mis tránsitos", href: "/cuenta/transitos/activos" },
+          { label: "Ver el perfil de la mascota", href: "/mis-mascotas", variant: "secondary" },
+        ]}
+      />
+    );
+  }
+
+  // Rejection path keeps the lightweight inline confirmation — no follow-up
+  // actions to surface beyond the message itself.
   if (okMessage) {
     return (
       <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
