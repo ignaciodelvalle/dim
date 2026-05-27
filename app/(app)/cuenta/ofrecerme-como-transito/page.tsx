@@ -4,7 +4,7 @@ import { db, fosterVolunteers, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { eq } from "drizzle-orm";
 
-import { FosterVolunteerForm } from "./FosterVolunteerForm";
+import { FosterVolunteerWizard } from "./FosterVolunteerWizard";
 
 export default async function OfrecermeComoTransitoPage() {
   const { user } = await requireUserOrRedirect();
@@ -48,7 +48,7 @@ export default async function OfrecermeComoTransitoPage() {
         {!ready ? (
           <PreCheckChecklist checks={checks} />
         ) : (
-          <FosterVolunteerForm
+          <FosterVolunteerWizard
             initial={
               existing
                 ? {
