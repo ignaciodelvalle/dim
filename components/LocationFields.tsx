@@ -73,6 +73,7 @@ export function LocationFields({
   biasProvince = null,
   biasLocality = null,
   inputNames,
+  useMyLocationVariant = "secondary",
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -83,6 +84,13 @@ export function LocationFields({
   // migrating to the integrated picker (MarkLostForm reads "lastKnownLocation",
   // not "locationDescription").
   inputNames?: { lat?: string; lng?: string; description?: string };
+  // How prominent the "Usar mi ubicación actual" affordance should be.
+  // "primary" renders a big leading button (used by MarkLost step 1 and the
+  // public denuncia step 3 — when you're standing in front of the situation
+  // the device geolocation is the fastest path). "secondary" keeps the
+  // current inline link next to the map header (used by forms where the
+  // location is provided after the fact). Defaults to "secondary".
+  useMyLocationVariant?: "primary" | "secondary";
 }) {
   const includesJurisdiction =
     mode === "jurisdiction" || mode === "jurisdiction+point" || mode === "full";
@@ -221,8 +229,26 @@ export function LocationFields({
   const latInputName = inputNames?.lat ?? "locationLat";
   const lngInputName = inputNames?.lng ?? "locationLng";
 
+  // Primary "Usar mi ubicación actual" CTA, shown above the inputs when the
+  // mode has a map (l2 or point) and the consumer opted into the primary
+  // variant. Falls back silently if geolocation isn't available.
+  const showPrimaryLocateButton = includesPoint && useMyLocationVariant === "primary";
+
   return (
     <div className="space-y-4">
+      {showPrimaryLocateButton && (
+        <button
+          type="button"
+          onClick={handleUseMyLocation}
+          disabled={geoLoading}
+          aria-label="Usar mi ubicación actual"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2 transition-colors"
+        >
+          <span aria-hidden="true">📍</span>
+          {geoLoading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
+        </button>
+      )}
+
       {includesAddress && (
         <div className="space-y-1.5">
           <label htmlFor="locationAddress" className={labelClass}>
@@ -332,14 +358,16 @@ export function LocationFields({
             <p className={labelClass}>
               {integratedDescription ? "Ajuste fino" : "Ubicación precisa (opcional)"}
             </p>
-            <button
-              type="button"
-              onClick={handleUseMyLocation}
-              disabled={geoLoading}
-              className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
-            >
-              {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
-            </button>
+            {showPrimaryLocateButton ? null : (
+              <button
+                type="button"
+                onClick={handleUseMyLocation}
+                disabled={geoLoading}
+                className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
+              >
+                {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
+              </button>
+            )}
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-500">
             Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
