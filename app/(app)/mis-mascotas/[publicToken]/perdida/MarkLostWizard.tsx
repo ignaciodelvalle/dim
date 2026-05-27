@@ -175,7 +175,6 @@ export function MarkLostWizard({
             mode="l2"
             biasProvince={petJurisdictionProvince}
             biasLocality={petJurisdictionLocality}
-            inputNames={{ description: "lastKnownLocation" }}
             useMyLocationVariant="primary"
           />
 
