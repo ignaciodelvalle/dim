@@ -1,4 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
@@ -12,6 +13,18 @@ import { petPhotoUrl } from "@/lib/storage";
 import { ViewLogger } from "./ViewLogger";
 
 export const dynamic = "force-dynamic";
+
+// Common shape passed to the expired / revoked / deceased terminal views so
+// each one can render the pet identity context (foto + nombre + raza) plus a
+// link back to the public profile per AGENTS.md "Design rules" rule #4 + doc 10
+// §3 punto 2 (sprint 5 PR-040).
+type TerminalPetContext = {
+  name: string;
+  species: string;
+  publicToken: string;
+  photoUrl: string | null;
+  createdAtIso: string;
+};
 
 export default async function PublicLibretaPage({
   params,
@@ -27,22 +40,20 @@ export default async function PublicLibretaPage({
       petId: libretaShareTokens.petId,
       expiresAt: libretaShareTokens.expiresAt,
       revokedAt: libretaShareTokens.revokedAt,
+      createdAt: libretaShareTokens.createdAt,
     })
     .from(libretaShareTokens)
     .where(eq(libretaShareTokens.shareToken, shareToken))
     .limit(1);
 
   if (!share) notFound();
-  const status = validateShareToken(share);
-  if (status === "revoked") return <RevokedView />;
-  if (status === "expired") return <ExpiredView />;
 
-  // Load pet and apply deceased guard (D8).
+  // Always load the pet so terminal views (revoked / expired / deceased) can
+  // show context. If the pet row vanished (cascade or hard delete), fall back
+  // to a 404 since the share token is meaningless without it.
   const [pet] = await db.select().from(pets).where(eq(pets.id, share.petId)).limit(1);
   if (!pet) notFound();
-  if (pet.status === "deceased") return <DeceasedView />;
 
-  // Photo.
   let photoUrl: string | null = null;
   if (pet.primaryPhotoId) {
     const [attachment] = await db
@@ -52,6 +63,19 @@ export default async function PublicLibretaPage({
       .limit(1);
     photoUrl = petPhotoUrl(attachment?.storagePath);
   }
+
+  const context: TerminalPetContext = {
+    name: pet.name,
+    species: pet.species,
+    publicToken: pet.publicToken,
+    photoUrl,
+    createdAtIso: share.createdAt.toISOString(),
+  };
+
+  const status = validateShareToken(share);
+  if (status === "revoked") return <RevokedView context={context} />;
+  if (status === "expired") return <ExpiredView context={context} />;
+  if (pet.status === "deceased") return <DeceasedView context={context} />;
 
   // Libreta events (same filter as the owner view).
   const events = await db
@@ -91,41 +115,95 @@ export default async function PublicLibretaPage({
   );
 }
 
-function RevokedView() {
+// ---------------------------------------------------------------------------
+// Terminal views (sprint 5 PR-040)
+//
+// Each gets the pet context so the user knows WHAT they were looking at, and
+// gets a CTA back to the public profile (Tier 0) so they can contact the
+// owner to request a fresh share link.
+// ---------------------------------------------------------------------------
+
+function TerminalShell({
+  title,
+  description,
+  context,
+}: {
+  title: string;
+  description: string;
+  context: TerminalPetContext;
+}) {
+  const speciesLabel =
+    context.species === "dog" ? "Canino" : context.species === "cat" ? "Felino" : "Mascota";
+  const createdAt = new Date(context.createdAtIso).toLocaleDateString("es-AR");
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-white">
-      <div className="max-w-md text-center space-y-3">
-        <h1 className="text-2xl font-semibold">Este enlace fue revocado</h1>
-        <p className="text-sm text-neutral-600">
-          El dueno/a desactivo este compartido. Si lo necesitas de nuevo, pedle uno nuevo.
+      <div className="max-w-md w-full text-center space-y-5">
+        <div className="mx-auto inline-block">
+          <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-neutral-100 ring-4 ring-neutral-200">
+            {context.photoUrl ? (
+              <img
+                src={context.photoUrl}
+                alt={`Foto de ${context.name}`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span aria-hidden="true" className="text-3xl">
+                🐾
+              </span>
+            )}
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-neutral-900">{title}</h1>
+          <p className="text-sm text-neutral-700">
+            Era un resumen médico temporal de <strong>{context.name}</strong> ({speciesLabel})
+            compartido el {createdAt}.
+          </p>
+          <p className="text-sm text-neutral-600">{description}</p>
+        </div>
+
+        <Link
+          href={`/p/${context.publicToken}`}
+          className="inline-block px-5 py-3 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2"
+        >
+          Ver el perfil público de {context.name}
+        </Link>
+
+        <p className="text-xs text-neutral-500">
+          Desde el perfil público podés escribirle a la dueña para pedir un acceso nuevo.
         </p>
       </div>
     </main>
   );
 }
 
-function ExpiredView() {
+function RevokedView({ context }: { context: TerminalPetContext }) {
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-white">
-      <div className="max-w-md text-center space-y-3">
-        <h1 className="text-2xl font-semibold">Este enlace vencio</h1>
-        <p className="text-sm text-neutral-600">
-          El compartido tenia fecha de expiracion y ya paso. Pedle al dueno/a uno nuevo.
-        </p>
-      </div>
-    </main>
+    <TerminalShell
+      title="Este link fue revocado por la dueña"
+      description="Si necesitás un acceso nuevo, contactá a través del perfil público de la mascota."
+      context={context}
+    />
   );
 }
 
-function DeceasedView() {
+function ExpiredView({ context }: { context: TerminalPetContext }) {
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-white">
-      <div className="max-w-md text-center space-y-3">
-        <h1 className="text-2xl font-semibold">Libreta no disponible</h1>
-        <p className="text-sm text-neutral-600">
-          Esta libreta sanitaria ya no se comparte publicamente.
-        </p>
-      </div>
-    </main>
+    <TerminalShell
+      title="Este link expiró"
+      description="Era un compartido temporal y ya pasó su fecha. Pedile a la dueña un acceso nuevo a través del perfil público."
+      context={context}
+    />
+  );
+}
+
+function DeceasedView({ context }: { context: TerminalPetContext }) {
+  return (
+    <TerminalShell
+      title="Libreta no disponible"
+      description="Esta libreta sanitaria ya no se comparte públicamente."
+      context={context}
+    />
   );
 }

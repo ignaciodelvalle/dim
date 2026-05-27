@@ -384,9 +384,16 @@ export default async function PublicCredentialPage({
       <ScanLogger publicToken={publicToken} />
       <div className="max-w-md mx-auto pt-8 space-y-6">
         {/* Tier 0+ emergency-info banner — owner-toggled. No PII beyond the
-            banner text itself. No drug names, no owner name, no contact. */}
+            banner text itself. No drug names, no owner name, no contact.
+            Sticky on mobile (md:relative) so the warning stays visible while
+            a finder scrolls through the rest of the credential.
+            Sprint 5 PR-042 / doc 10 §3 punto 4. */}
         {pet.emergencyInfoVisible && (
-          <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-center">
+          <div
+            className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-rose-50/95 backdrop-blur border-b border-rose-200 dark:bg-rose-950/85 dark:border-rose-900/60 text-center md:static md:mx-0 md:-mt-0 md:px-4 md:py-3 md:bg-rose-50 md:border md:rounded-xl md:dark:bg-rose-950/30"
+            role="alert"
+            data-section="emergency-banner"
+          >
             <p className="text-sm font-medium text-rose-900 dark:text-rose-200">
               Esta mascota requiere atención médica
             </p>

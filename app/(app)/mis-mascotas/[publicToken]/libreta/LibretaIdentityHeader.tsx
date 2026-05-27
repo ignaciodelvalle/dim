@@ -1,6 +1,8 @@
 // Identity header for the libreta sanitaria. Pure presentation — Parte C
 // (Tier-2 shareable) will reuse this with share-token-resolved data.
 
+import Link from "next/link";
+
 import { sexLabel, speciesLabel } from "@/lib/format";
 import { tattooLocationLabel } from "@/lib/lookups";
 
@@ -67,6 +69,14 @@ export function LibretaIdentityHeader({ pet, photoUrl, ownerFirstName }: Props) 
         <p className="text-xs font-mono text-neutral-400 dark:text-neutral-600 tracking-wider pt-1">
           {pet.publicToken}
         </p>
+        <Link
+          href={`/p/${pet.publicToken}`}
+          target="_blank"
+          rel="noopener"
+          className="inline-block text-xs text-neutral-500 dark:text-neutral-400 underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200 pt-1"
+        >
+          Ver perfil público de {pet.name} ↗
+        </Link>
       </div>
     </header>
   );
