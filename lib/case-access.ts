@@ -4,10 +4,19 @@
 //
 // Returns true if the viewer can read this case. Caller treats false as
 // 404 (not 403) to avoid leaking case existence to outside parties.
+//
+// Anonymous viewers (viewer = null, per handoff P0-1): allowed only for
+// case kinds whose existence + outline is intentionally public — bite
+// incidents (public-health interest), lost pet episodes (already public
+// via /p/[token]), adoption listings (already public via /adoptar), and
+// welfare denuncias (transparency over the abuse-reporting flow). All
+// other kinds 404 for anon. The page additionally redacts PII for the
+// anonymous render path.
 
 import { and, eq, isNull } from "drizzle-orm";
 
 import { custodyDisputeParties, db, organizationMemberships, ownerships } from "@/db";
+import type { CaseKind } from "./case-kinds";
 import type { CaseDetail } from "./case-queries";
 
 export interface CaseViewer {
@@ -16,7 +25,27 @@ export interface CaseViewer {
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>;
 }
 
-export async function canReadCase(detail: CaseDetail, viewer: CaseViewer): Promise<boolean> {
+// Case kinds whose existence + redacted outline can be shown without auth.
+// Keep this list narrow — every new entry exposes a new surface to scraping
+// and competing-fact harassment. Off-list kinds 404 for anon (no leak).
+const PUBLIC_ANONYMOUS_KINDS: ReadonlySet<CaseKind> = new Set<CaseKind>([
+  "bite_incident",
+  "lost_pet_episode",
+  "adoption_listing",
+  "welfare_denuncia",
+]);
+
+export function isPubliclyVisibleKind(kind: string): boolean {
+  return PUBLIC_ANONYMOUS_KINDS.has(kind as CaseKind);
+}
+
+export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null): Promise<boolean> {
+  // Anonymous: allow only if the case kind is in the public allow-list.
+  // The page renders a PII-redacted view; see `app/casos/[publicCode]`.
+  if (!viewer) {
+    return isPubliclyVisibleKind(detail.caseKind);
+  }
+
   // Admin: universal scope.
   if (viewer.role === "admin") return true;
 

@@ -1,17 +1,21 @@
 // Unified case-detail page. Reachable from /casos/CAS-XXXX-XXXX.
 //
-// The page is role-aware: admin / govt-in-scope / subject-owner /
-// per-kind party (foster, org member, applicant, dispute party) all
-// reach the same URL and see the same content. Access is gated via
-// canReadCase — outside parties get a 404 (notFound) so case
-// existence is not leaked.
+// The page is role-aware:
+//   - admin / govt-in-scope / subject-owner / per-kind party (foster,
+//     org member, applicant, dispute party) → full view with PII
+//   - anonymous (no session) → redacted public view, only for the case
+//     kinds in PUBLIC_ANONYMOUS_KINDS (bite_incident, lost_pet_episode,
+//     adoption_listing, welfare_denuncia). Other kinds 404 to avoid
+//     leaking existence.
+//
+// Access is gated via canReadCase. Outside parties get notFound() (not
+// 403) so case existence is never leaked.
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
 import { db, govtAssignments, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { canReadCase } from "@/lib/case-access";
 import { caseKindLabel } from "@/lib/case-kinds";
 import { getNormativesForCase } from "@/lib/case-normatives";
@@ -19,6 +23,7 @@ import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDate, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
+import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull } from "drizzle-orm";
 
 interface PageProps {
@@ -30,35 +35,53 @@ export default async function CaseDetailPage({ params }: PageProps) {
   const detail = await getCaseDetailByPublicCode(publicCode);
   if (!detail) notFound();
 
-  const { user } = await requireUserOrRedirect();
+  // Resolve session (optional — anonymous viewers reach the public branch).
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Resolve viewer role + jurisdictions for the access gate.
-  const [profile] = await db
-    .select({ id: profiles.id, role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (!profile) notFound();
+  let viewerRole: "owner" | "vet" | "govt" | "admin" | null = null;
+  let viewerUserId: string | null = null;
+  let jurisdictions: Array<{ province: string; locality: string }> = [];
 
-  const jurisdictions =
-    profile.role === "govt"
-      ? await db
+  if (user) {
+    const [profile] = await db
+      .select({ id: profiles.id, role: profiles.role })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+    if (profile) {
+      viewerRole = profile.role;
+      viewerUserId = profile.id;
+      if (profile.role === "govt") {
+        jurisdictions = await db
           .select({
             province: govtAssignments.jurisdictionProvince,
             locality: govtAssignments.jurisdictionLocality,
           })
           .from(govtAssignments)
-          .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)))
-      : [];
+          .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)));
+      }
+    }
+  }
 
-  const allowed = await canReadCase(detail, {
-    userId: profile.id,
-    role: profile.role,
-    jurisdictions,
-  });
+  const allowed = await canReadCase(
+    detail,
+    viewerUserId && viewerRole ? { userId: viewerUserId, role: viewerRole, jurisdictions } : null,
+  );
   if (!allowed) notFound();
 
-  const petLink = computePetLink(detail, profile.role);
+  // Anonymous viewers see a redacted view: no opener/closer names, no
+  // event notes, generic "Ver perfil público" pet link instead of the
+  // authed `/mis-mascotas` deep link.
+  const isPublic = viewerUserId === null;
+
+  const petLink = isPublic
+    ? detail.pet
+      ? `/p/${detail.pet.publicToken}`
+      : null
+    : computePetLink(detail, viewerRole ?? "owner");
   const photoUrl = detail.pet?.primaryPhotoStoragePath
     ? petPhotoUrl(detail.pet.primaryPhotoStoragePath)
     : null;
@@ -153,7 +176,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
             Partes
           </h3>
           <ul className="mt-2 space-y-1 text-sm">
-            {detail.openedByUser ? (
+            {/* Personal names redacted for the anonymous public view. Public
+                organizations stay visible — they're identifiable entities
+                already linked from /refugios/. */}
+            {!isPublic && detail.openedByUser ? (
               <li className="text-zinc-700 dark:text-zinc-300">
                 <span className="text-zinc-500 dark:text-zinc-400">Abrió: </span>
                 {detail.openedByUser.displayName}
@@ -170,13 +196,16 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 </Link>
               </li>
             ) : null}
-            {detail.closedByUser ? (
+            {!isPublic && detail.closedByUser ? (
               <li className="text-zinc-700 dark:text-zinc-300">
                 <span className="text-zinc-500 dark:text-zinc-400">Cerró: </span>
                 {detail.closedByUser.displayName}
               </li>
             ) : null}
-            {!detail.openedByUser && !detail.openedByOrganization ? (
+            {isPublic && !detail.openedByOrganization ? (
+              <li className="text-zinc-500 dark:text-zinc-400">Datos de partes no disponibles</li>
+            ) : null}
+            {!isPublic && !detail.openedByUser && !detail.openedByOrganization ? (
               <li className="text-zinc-500 dark:text-zinc-400">Apertura automática del sistema</li>
             ) : null}
           </ul>
@@ -214,8 +243,9 @@ export default async function CaseDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Opened reason */}
-      {detail.openedReason ? (
+      {/* Opened reason — hidden for anon: free-text may contain PII
+          (denouncer descriptions, victim names, internal context). */}
+      {!isPublic && detail.openedReason ? (
         <section className="mb-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Motivo de apertura
@@ -255,7 +285,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{text}</p>
                   ) : null;
                 })()}
-                {e.notes ? (
+                {/* Internal notes hidden for anon: they're free-form and
+                    routinely contain PII (denouncer descriptions, internal
+                    org coordination, addresses). */}
+                {!isPublic && e.notes ? (
                   <p className="mt-2 rounded bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                     {e.notes}
                   </p>
