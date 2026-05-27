@@ -1,14 +1,26 @@
 "use client";
 
+// AdoptionListingForm — 2-step wizard for adoption listing edit + publish.
+// Trilogy unification handoff §4 PR-032 (scoped to 2 steps; the original
+// 3-step plan included a photo carousel + drag-drop reorder which is
+// parked — no pet_photos table exists today, see docs/superpowers/plans/
+// 2026-05-27-spec-later-tracker.md for the deferred work).
+//
+// Steps:
+//   1. Historia y atributos — story + requirements + age/size/energy +
+//      convivencia tri-state + fee. CTA Guardar y continuar (calls
+//      updateAdoptionListingContentAction; on success → step 2).
+//   2. Visibilidad pública — status controls (Publicar adopción / Pausar /
+//      Despublicar) + summary recap. CTA per current state.
+
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-
-import { labelClass } from "@/lib/form-classes";
 
 import {
   setAdoptionListingStatusAction,
   updateAdoptionListingContentAction,
 } from "@/app/actions/adoption-listing";
+import { WizardShell } from "@/components/poncho/Wizard";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -20,6 +32,7 @@ import {
   energyLabel,
   sizeLabel,
 } from "@/lib/adoption-listing";
+import { labelClass } from "@/lib/form-classes";
 
 type Initial = {
   isPublished: boolean;
@@ -36,6 +49,9 @@ type Initial = {
   feeArs: number | null;
 };
 
+const TOTAL_STEPS = 2;
+const STEP_LABELS = ["Historia y atributos", "Visibilidad pública"];
+
 export function AdoptionListingForm({
   petPublicToken,
   initial,
@@ -49,6 +65,7 @@ export function AdoptionListingForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
 
@@ -69,10 +86,7 @@ export function AdoptionListingForm({
     setError(null);
     setOkMessage(null);
     startTransition(async () => {
-      const result = await setAdoptionListingStatusAction({
-        petPublicToken,
-        action,
-      });
+      const result = await setAdoptionListingStatusAction({ petPublicToken, action });
       if ("error" in result) {
         setError(result.error);
         return;
@@ -107,202 +121,261 @@ export function AdoptionListingForm({
       }
       setOkMessage("Datos guardados.");
       router.refresh();
+      setStep(2);
     });
   }
 
   return (
-    <div className="space-y-6">
-      {/* Status controls */}
-      <section className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          Visibilidad pública
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {!initial.isPublished && (
-            <button
-              type="button"
-              onClick={() => runStatus("publish")}
-              disabled={pending || !canPublish}
-              className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
-              title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
-            >
-              Publicar adopción
-            </button>
+    <WizardShell
+      currentStep={step}
+      totalSteps={TOTAL_STEPS}
+      stepLabels={STEP_LABELS}
+      onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
+    >
+      {/* Step 1 — Content edit */}
+      <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+        <form onSubmit={saveContent} className="space-y-4">
+          <div>
+            <label htmlFor="story" className={`${labelClass} mb-1`}>
+              Historia
+            </label>
+            <textarea
+              id="story"
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              rows={5}
+              placeholder="Contá quién es esta mascota, cómo llegó al refugio, qué la hace especial."
+              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            />
+            <p className="text-xs text-neutral-500 mt-1 tabular-nums">{story.length} / 5000</p>
+          </div>
+
+          <div>
+            <label htmlFor="requirements" className={`${labelClass} mb-1`}>
+              Requisitos para adoptar
+            </label>
+            <textarea
+              id="requirements"
+              value={requirements}
+              onChange={(e) => setRequirements(e.target.value)}
+              rows={3}
+              placeholder="Mayores de edad, entrevista previa, compromiso de castración, etc."
+              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label htmlFor="age" className="block text-xs text-neutral-500 mb-1">
+                Edad
+              </label>
+              <select
+                id="age"
+                value={ageBucket}
+                onChange={(e) => setAgeBucket(e.target.value as AgeBucket | "")}
+                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              >
+                <option value="">Sin definir</option>
+                {ADOPTION_AGE_BUCKETS.map((b) => (
+                  <option key={b} value={b}>
+                    {ageBucketLabel(b, petSex)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="size" className="block text-xs text-neutral-500 mb-1">
+                Talle
+              </label>
+              <select
+                id="size"
+                value={sizeEstimate}
+                onChange={(e) => setSizeEstimate(e.target.value as SizeEstimate | "")}
+                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              >
+                <option value="">Sin definir</option>
+                {ADOPTION_SIZE_ESTIMATES.map((s) => (
+                  <option key={s} value={s}>
+                    {sizeLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="energy" className="block text-xs text-neutral-500 mb-1">
+                Energía
+              </label>
+              <select
+                id="energy"
+                value={energyLevel}
+                onChange={(e) => setEnergyLevel(e.target.value as EnergyLevel | "")}
+                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              >
+                <option value="">Sin definir</option>
+                {ADOPTION_ENERGY_LEVELS.map((e) => (
+                  <option key={e} value={e}>
+                    {energyLabel(e)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+              Convivencia
+            </legend>
+            <TriState
+              label="¿Se lleva bien con chicos?"
+              value={goodWithKids}
+              onChange={setGoodWithKids}
+            />
+            <TriState
+              label="¿Se lleva bien con otros perros?"
+              value={goodWithDogs}
+              onChange={setGoodWithDogs}
+            />
+            <TriState
+              label="¿Se lleva bien con gatos?"
+              value={goodWithCats}
+              onChange={setGoodWithCats}
+            />
+            <TriState label="¿Necesita patio?" value={needsYard} onChange={setNeedsYard} />
+          </fieldset>
+
+          <div>
+            <label htmlFor="fee" className="block text-xs text-neutral-500 mb-1">
+              Aporte de adopción (ARS, opcional)
+            </label>
+            <input
+              id="fee"
+              type="number"
+              min={0}
+              value={feeArs}
+              onChange={(e) => setFeeArs(e.target.value)}
+              placeholder="Ej: 15000"
+              className="w-40 px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            />
+            <p className="text-xs text-neutral-500 mt-1">
+              Para cubrir vacunas, castración, traslado. Dejá vacío si no aplica.
+            </p>
+          </div>
+
+          {error && (
+            <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>
           )}
-          {initial.isPublished && !initial.isPaused && (
-            <>
-              <button
-                type="button"
-                onClick={() => runStatus("pause")}
-                disabled={pending}
-                className="px-3 py-1.5 rounded text-sm border border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-300 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 disabled:opacity-50"
-              >
-                Pausar
-              </button>
-              <button
-                type="button"
-                onClick={() => runStatus("unpublish")}
-                disabled={pending}
-                className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
-              >
-                Despublicar
-              </button>
-            </>
+          {okMessage && (
+            <output className="block text-sm text-emerald-700 dark:text-emerald-300">
+              {okMessage}
+            </output>
           )}
-          {initial.isPaused && (
-            <>
-              <button
-                type="button"
-                onClick={() => runStatus("unpause")}
-                disabled={pending}
-                className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
-              >
-                Reanudar
-              </button>
-              <button
-                type="button"
-                onClick={() => runStatus("unpublish")}
-                disabled={pending}
-                className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
-              >
-                Despublicar
-              </button>
-            </>
-          )}
-        </div>
-        <p className="text-xs text-neutral-500">
-          Pausar conserva la historia y el contenido. Despublicar borra el timestamp de publicación
-          (los textos siguen guardados para una futura republicación).
-        </p>
+
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full px-4 py-3 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50"
+          >
+            {pending ? "Guardando..." : "Guardar y continuar"}
+          </button>
+        </form>
       </section>
 
-      {/* Content edits */}
-      <form onSubmit={saveContent} className="space-y-4">
-        <div>
-          <label htmlFor="story" className={`${labelClass} mb-1`}>
-            Historia
-          </label>
-          <textarea
-            id="story"
-            value={story}
-            onChange={(e) => setStory(e.target.value)}
-            rows={5}
-            placeholder="Contá quién es esta mascota, cómo llegó al refugio, qué la hace especial."
-            className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-          />
-          <p className="text-xs text-neutral-500 mt-1 tabular-nums">{story.length} / 5000</p>
-        </div>
-
-        <div>
-          <label htmlFor="requirements" className={`${labelClass} mb-1`}>
-            Requisitos para adoptar
-          </label>
-          <textarea
-            id="requirements"
-            value={requirements}
-            onChange={(e) => setRequirements(e.target.value)}
-            rows={3}
-            placeholder="Mayores de edad, entrevista previa, compromiso de castración, etc."
-            className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-          />
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label htmlFor="age" className="block text-xs text-neutral-500 mb-1">
-              Edad
-            </label>
-            <select
-              id="age"
-              value={ageBucket}
-              onChange={(e) => setAgeBucket(e.target.value as AgeBucket | "")}
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-            >
-              <option value="">Sin definir</option>
-              {ADOPTION_AGE_BUCKETS.map((b) => (
-                <option key={b} value={b}>
-                  {ageBucketLabel(b, petSex)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="size" className="block text-xs text-neutral-500 mb-1">
-              Talle
-            </label>
-            <select
-              id="size"
-              value={sizeEstimate}
-              onChange={(e) => setSizeEstimate(e.target.value as SizeEstimate | "")}
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-            >
-              <option value="">Sin definir</option>
-              {ADOPTION_SIZE_ESTIMATES.map((s) => (
-                <option key={s} value={s}>
-                  {sizeLabel(s)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="energy" className="block text-xs text-neutral-500 mb-1">
-              Energía
-            </label>
-            <select
-              id="energy"
-              value={energyLevel}
-              onChange={(e) => setEnergyLevel(e.target.value as EnergyLevel | "")}
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-            >
-              <option value="">Sin definir</option>
-              {ADOPTION_ENERGY_LEVELS.map((e) => (
-                <option key={e} value={e}>
-                  {energyLabel(e)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-            Convivencia
-          </legend>
-          <TriState
-            label="¿Se lleva bien con chicos?"
-            value={goodWithKids}
-            onChange={setGoodWithKids}
-          />
-          <TriState
-            label="¿Se lleva bien con otros perros?"
-            value={goodWithDogs}
-            onChange={setGoodWithDogs}
-          />
-          <TriState
-            label="¿Se lleva bien con gatos?"
-            value={goodWithCats}
-            onChange={setGoodWithCats}
-          />
-          <TriState label="¿Necesita patio?" value={needsYard} onChange={setNeedsYard} />
-        </fieldset>
-
-        <div>
-          <label htmlFor="fee" className="block text-xs text-neutral-500 mb-1">
-            Aporte de adopción (ARS, opcional)
-          </label>
-          <input
-            id="fee"
-            type="number"
-            min={0}
-            value={feeArs}
-            onChange={(e) => setFeeArs(e.target.value)}
-            placeholder="Ej: 15000"
-            className="w-40 px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
-          />
-          <p className="text-xs text-neutral-500 mt-1">
-            Para cubrir vacunas, castración, traslado. Dejá vacío si no aplica.
+      {/* Step 2 — Status / publish */}
+      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
+          <p className="font-semibold text-neutral-900 dark:text-neutral-50">
+            Lo que vas a publicar
           </p>
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
+            <dt className="text-neutral-500">Historia</dt>
+            <dd className="col-span-2">
+              {story ? `${story.slice(0, 80)}${story.length > 80 ? "…" : ""}` : "Sin definir"}
+            </dd>
+            <dt className="text-neutral-500">Edad</dt>
+            <dd className="col-span-2">
+              {ageBucket ? ageBucketLabel(ageBucket as AgeBucket, petSex) : "—"}
+            </dd>
+            <dt className="text-neutral-500">Talle</dt>
+            <dd className="col-span-2">
+              {sizeEstimate ? sizeLabel(sizeEstimate as SizeEstimate) : "—"}
+            </dd>
+            <dt className="text-neutral-500">Energía</dt>
+            <dd className="col-span-2">
+              {energyLevel ? energyLabel(energyLevel as EnergyLevel) : "—"}
+            </dd>
+            <dt className="text-neutral-500">Aporte</dt>
+            <dd className="col-span-2">{feeArs || "—"}</dd>
+          </dl>
         </div>
+
+        <section className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            Visibilidad pública
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {!initial.isPublished && (
+              <button
+                type="button"
+                onClick={() => runStatus("publish")}
+                disabled={pending || !canPublish}
+                className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+                title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
+              >
+                Publicar adopción
+              </button>
+            )}
+            {initial.isPublished && !initial.isPaused && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => runStatus("pause")}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded text-sm border border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-300 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 disabled:opacity-50"
+                >
+                  Pausar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runStatus("unpublish")}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                >
+                  Despublicar
+                </button>
+              </>
+            )}
+            {initial.isPaused && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => runStatus("unpause")}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Reanudar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runStatus("unpublish")}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                >
+                  Despublicar
+                </button>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-neutral-500">
+            Pausar conserva la historia y el contenido. Despublicar borra el timestamp de
+            publicación (los textos siguen guardados para una futura republicación).
+          </p>
+          {!canPublish && !initial.isPublished && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Hay bloqueos pendientes (mascota perdida, fallecida, no eligible, en disputa o
+              observación antirrábica). Resolvé antes de publicar.
+            </p>
+          )}
+        </section>
 
         {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
         {okMessage && (
@@ -310,16 +383,8 @@ export function AdoptionListingForm({
             {okMessage}
           </output>
         )}
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="px-4 py-2 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50"
-        >
-          {pending ? "Guardando..." : "Guardar datos"}
-        </button>
-      </form>
-    </div>
+      </section>
+    </WizardShell>
   );
 }
 
