@@ -435,7 +435,14 @@ function orgTypeToReporterRole(orgType: string): "vet" | "shelter" | "govt" | "w
   }
 }
 
-export type ReportBiteFromOrgFormState = { error: string | null };
+export type ReportBiteFromOrgFormState = {
+  error: string | null;
+  // Optional success flag — set when the OrgBiteForm wizard passes
+  // noRedirect=1 so it can render its own SuccessScreen with the 10-day
+  // observation reminder (sprint 5 PR-045). Default path stays a redirect.
+  ok?: boolean;
+  petToken?: string;
+};
 
 export async function reportBiteFromOrgAction(
   orgToken: string,
@@ -660,6 +667,13 @@ export async function reportBiteFromOrgAction(
   }
 
   revalidatePath(`/org/${orgToken}`);
+  if (String(formData.get("noRedirect") ?? "") === "1") {
+    return {
+      error: null,
+      ok: true,
+      petToken: String(formData.get("petPublicToken") ?? "").trim(),
+    };
+  }
   redirect(`/org/${orgToken}?evento=mordedura_reportada`);
 }
 
