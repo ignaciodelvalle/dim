@@ -22,8 +22,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { db, organizations, ownerships, pets, profiles } from "@/db";
-import { APPLY_INTENT_COOKIE_NAME, generateApplyIntentToken } from "@/lib/apply-intent";
-import { APPLY_INTENT_TTL_MS } from "@/lib/apply-intent";
+import {
+  APPLY_INTENT_COOKIE_NAME,
+  APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
+  APPLY_INTENT_TTL_MS,
+  generateApplyIntentToken,
+} from "@/lib/apply-intent";
 import { createClient } from "@/lib/supabase/server";
 
 export type StartApplyIntentResult = { ok: true } | { error: string };
@@ -92,6 +96,23 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
     path: "/",
     maxAge: Math.floor(APPLY_INTENT_TTL_MS / 1000),
   });
+  // Parallel plain cookie so the /inicio "Continuá tu postulación" banner
+  // can render without reverse-engineering the petToken out of the signed
+  // cookie. See lib/apply-intent.ts for the security trade-off.
+  cookieStore.set(APPLY_INTENT_PET_TOKEN_COOKIE_NAME, petToken, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: Math.floor(APPLY_INTENT_TTL_MS / 1000),
+  });
   const returnTo = `/adoptar/${petToken}/postular`;
   redirect(`/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
+}
+
+// Dismiss the apply-intent banner from /inicio. Clears both cookies.
+export async function dismissApplyIntentAction(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(APPLY_INTENT_COOKIE_NAME);
+  cookieStore.delete(APPLY_INTENT_PET_TOKEN_COOKIE_NAME);
 }

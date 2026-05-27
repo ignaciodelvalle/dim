@@ -26,6 +26,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const TOKEN_TTL_MS = 15 * 60 * 1000;
 
 export const APPLY_INTENT_COOKIE_NAME = "adoption_apply_intent";
+// Plain (unsigned) parallel cookie that exposes the target pet token so the
+// /inicio "Continuá tu postulación" banner (sprint 3 PR-024) can render
+// without recovering the petToken from the signed cookie. Security stays in
+// APPLY_INTENT_COOKIE_NAME: a cookie that says "I was trying to adopt pet X"
+// is not a capability — the postular page still re-runs the full listability
+// check + verifies the signed token before rendering the form.
+export const APPLY_INTENT_PET_TOKEN_COOKIE_NAME = "adoption_apply_pet_token";
 export const APPLY_INTENT_KIND = "adoption_apply";
 
 function getSigningKey(): string {
