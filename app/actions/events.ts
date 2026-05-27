@@ -857,7 +857,7 @@ export async function setPetLostAction(
   if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 
-  const locationDescription = String(formData.get("lastKnownLocation") ?? "").trim() || null;
+  const locationDescription = String(formData.get("locationAddress") ?? "").trim() || null;
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
   // Precise coordinates from the LocationFields map picker. Empty string when

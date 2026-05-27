@@ -83,9 +83,9 @@ export function LocationFields({
   defaultValue?: LocationFieldsValue;
   biasProvince?: string | null;
   biasLocality?: string | null;
-  // Override the wire-format name for the L2 address input. MarkLost uses
-  // this to keep its server-action contract ("lastKnownLocation") during
-  // the unified-location migration. Critique §5 retires the alias.
+  // Override the wire-format name for the L2 address / lat / lng hidden
+  // inputs. Retained for flexibility; no current consumer overrides these
+  // (the lastKnownLocation alias was retired by critique §5).
   inputNames?: { lat?: string; lng?: string; description?: string };
   // "primary" renders a big leading "Usar mi ubicación actual" button
   // (PetSighting, denuncia step 3). "secondary" keeps the inline link.
