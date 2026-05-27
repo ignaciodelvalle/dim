@@ -144,7 +144,7 @@ export function Step3Where({
           FormData at submit. */}
       <div className="space-y-1.5">
         <p className={`${labelClass} mb-2`}>Lugar (opcional pero muy útil)</p>
-        <LocationFields mode="l2" />
+        <LocationFields mode="l2" allowAnonymous />
       </div>
 
       {error && (
