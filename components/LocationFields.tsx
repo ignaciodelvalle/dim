@@ -1,40 +1,34 @@
 "use client";
 
-// Shared location form section. Replaces the three independent
-// implementations in PetForm, WelfareReportForm, and MarkLostForm.
+// Shared location form section. Single-input pattern for both L1 and L2,
+// per critique-direcciones-2026-05-27 §"Opción B": the user types one
+// thing, the structured fields are derived from the selected result.
 //
-// Four modes match the three layers of location described in
-// AGENTS.md → Aggregation & privacy policy (admin jurisdiction / point /
-// postal address) in the combinations the existing forms need:
+//   l1 — single locality autocomplete (cross-province ar_localities).
+//        Province is derived from the chosen locality.
+//   l2 — single Nominatim autocomplete on the address line. Map below
+//        is for confirmation + drag-to-adjust; dragging reverse-geocodes
+//        and refills the address + jurisdiction. No separate province/
+//        locality inputs for L2 — the autocomplete pick (or pin drag)
+//        fills the hidden inputs in bloque.
 //
-//   point                — map picker + bidirectionally-synced description text
-//                          (forms can opt-out of the integrated text by passing
-//                          inputNames.description = null — not currently used)
-//   jurisdiction         — province + locality only (used by PetForm)
-//   jurisdiction+point   — both above (org coverage, vet visits later)
-//   full                 — postal address + jurisdiction + point (welfare)
+// Hidden-input wire format (back-compat with every existing action):
+//   provinceCode        — ISO 3166-2:AR. Always emitted (empty when user
+//                         hasn't picked anything).
+//   provinceName        — display name. Companion to provinceCode.
+//   localityName        — canonical when picked, raw query otherwise.
+//   localityNameIndecId — INDEC id from ar_localities; empty when L2 (no
+//                         INDEC match path) or when L1 user typed free text.
+//   locationLat         — decimal latitude (L2 only).
+//   locationLng         — decimal longitude (L2 only).
+//   locationAddress     — address text (L2 only). MarkLost can override
+//                         the field name via inputNames.description for
+//                         back-compat with its setPetLostAction reader;
+//                         removal of the alias is tracked in critique §5.
 //
-// Bidirectional geocoding (mode="point"):
-//   - Typing in the description field (debounced 600ms) calls the Nominatim
-//     proxy and centers the map on the top result.
-//   - Dragging or clicking the map pin reverse-geocodes the new coords and
-//     fills the description field with the OSM display_name.
-//   - A skip flag prevents feedback loops between the two directions.
-//   - On any geocoder failure or empty result, the form keeps working with
-//     text + pin as independent fields (graceful degradation).
-//
-// Form wire format the consuming server action MUST read:
-//   provinceCode    — ISO 3166-2:AR code (string). Resolve via provinceByCode.
-//   localityName    — display string (free text). Stored as-is for now;
-//                     canonical ar_localities lookup comes when gov dashboards
-//                     justify it.
-//   locationLat     — decimal latitude (string). Pass to writePoint.
-//   locationLng     — decimal longitude (string). Pass to writePoint.
-//   locationAddress — free-text street / corner / reference (string, "full" mode).
-//   locationDescription — geocoded description text (string, "point" mode).
-//                     Form can override the field name via inputNames.description
-//                     to preserve a legacy contract (e.g. MarkLostForm uses
-//                     "lastKnownLocation").
+// Deprecated mode aliases (`point`, `jurisdiction`, `jurisdiction+point`,
+// `full`) still resolve via resolveMode for a few releases. `point` has no
+// active consumers; alias cleanup is critique §6/§8.
 
 import {
   type GeocodeResult,
@@ -43,8 +37,8 @@ import {
   reverseGeocodeAction,
   reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
-import { LocalityCombobox } from "@/components/LocalityCombobox";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { type Province, provinceByName } from "@/lib/ar-provincias";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
@@ -55,15 +49,6 @@ const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ),
 });
 
-// Canonical names per the trilogy unification design rules (AGENTS.md §"Design
-// rules" rule #1): L1 (jurisdiction only), L2 (jurisdiction + map + bidirectional
-// text + optional postal address).
-//
-// Legacy names are still accepted with a deprecation console.warn so consumers
-// can migrate at their own pace. The "point" and "jurisdiction+point" variants
-// are deprecated wholesale — point-without-jurisdiction is a UX anti-pattern,
-// and jurisdiction+point is just L2 without the bidirectional text. Consumers
-// of those should move to "l2".
 export type LocationMode =
   | "l1"
   | "l2"
@@ -73,17 +58,15 @@ export type LocationMode =
   | "jurisdiction+point"
   | "full";
 
-// Normalize the public mode prop down to the internal feature flags. Legacy
-// names are mapped to their canonical replacement and emit a deprecation
-// warning at runtime (in dev only).
-type CanonicalMode = "l1" | "l2" | "point";
+type CanonicalMode = "l1" | "l2";
 
 function resolveMode(mode: LocationMode): CanonicalMode {
-  if (mode === "l1" || mode === "l2" || mode === "point") return mode;
+  if (mode === "l1" || mode === "l2") return mode;
   let canonical: CanonicalMode;
   if (mode === "jurisdiction") canonical = "l1";
-  else if (mode === "full" || mode === "jurisdiction+point") canonical = "l2";
-  else canonical = "l2"; // unreachable, satisfies TS
+  // `point` was a UX anti-pattern (lat/lng without jurisdiction); collapse
+  // to l2 so the few callers that lingered still get a working surface.
+  else canonical = "l2";
   if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
     console.warn(
       `[LocationFields] mode="${mode}" is deprecated. Use mode="${canonical}" — see AGENTS.md "Design rules" rule #1.`,
@@ -98,6 +81,9 @@ export type LocationFieldsValue = {
   lat?: number | null;
   lng?: number | null;
   address?: string | null;
+  // Legacy alias for the address text; some consumers (MarkLost) read it
+  // under a different name on the server. Pre-fill from address first,
+  // description second.
   description?: string | null;
 };
 
@@ -115,37 +101,23 @@ export function LocationFields({
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
-  // Geocoder bias hints. Used only when mode="point".
   biasProvince?: string | null;
   biasLocality?: string | null;
-  // Hidden input names. Lets a form keep its server-side contract while
-  // migrating to the integrated picker (MarkLostForm reads "lastKnownLocation",
-  // not "locationDescription").
+  // Override the wire-format name for the L2 address input. MarkLost uses
+  // this to keep its server-action contract ("lastKnownLocation") during
+  // the unified-location migration. Critique §5 retires the alias.
   inputNames?: { lat?: string; lng?: string; description?: string };
-  // How prominent the "Usar mi ubicación actual" affordance should be.
-  // "primary" renders a big leading button (used by MarkLost step 1 and the
-  // public denuncia step 3 — when you're standing in front of the situation
-  // the device geolocation is the fastest path). "secondary" keeps the
-  // current inline link next to the map header (used by forms where the
-  // location is provided after the fact). Defaults to "secondary".
+  // "primary" renders a big leading "Usar mi ubicación actual" button
+  // (PetSighting, denuncia step 3). "secondary" keeps the inline link.
   useMyLocationVariant?: "primary" | "secondary";
-  // When true, geocoding lookups use the IP-rate-limited public actions
-  // (no auth gate). Required for surfaces rendered to anonymous users —
-  // PetSightingForm, DenunciaWizard. Defaults to false (authed actions).
+  // True for anonymous public flows (PetSightingForm, DenunciaWizard).
+  // Routes geocoding calls through the IP-rate-limited public actions.
   allowAnonymous?: boolean;
 }) {
   const canonicalMode = resolveMode(mode);
-  const includesJurisdiction = canonicalMode === "l1" || canonicalMode === "l2";
-  const includesPoint = canonicalMode === "l2" || canonicalMode === "point";
-  // L2 inherits the postal-address field from the legacy `full` mode; standalone
-  // point and L1 do not. (When all `full` consumers have migrated to `l2`, the
-  // postal address can be retired or pulled into a sibling `l3` mode.)
-  const includesAddress = canonicalMode === "l2";
-  // Only the standalone "point" mode gets the integrated, bidirectionally
-  // synced description text. L2 already has locationAddress; L1 has nothing
-  // to sync.
-  const integratedDescription = canonicalMode === "point";
+  const isL2 = canonicalMode === "l2";
 
+  // Map point (L2 only). Pre-filled when defaultValue has lat/lng.
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(
     defaultValue?.lat != null && defaultValue?.lng != null
       ? { lat: defaultValue.lat, lng: defaultValue.lng }
@@ -153,56 +125,48 @@ export function LocationFields({
   );
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
-  // Province state lifted from the uncontrolled <select> so LocalityCombobox
-  // (which scopes its search to a province) can react to province changes.
-  const [selectedProvinceCode, setSelectedProvinceCode] = useState<string>(
-    defaultValue?.provinceCode ?? "",
+
+  // Picked jurisdiction (L2 only) — driven by Nominatim result selection or
+  // map-drag reverse geocoding. The hidden inputs read from here. Defaults
+  // pre-fill from props so edit forms render with the persisted values.
+  const [pickedProvince, setPickedProvince] = useState<{
+    code: string;
+    name: string;
+  } | null>(
+    defaultValue?.provinceCode
+      ? {
+          code: defaultValue.provinceCode,
+          name: defaultValue.provinceCode, // best-effort; provinceByCode resolution happens server-side
+        }
+      : null,
+  );
+  const [pickedLocality, setPickedLocality] = useState<string | null>(
+    defaultValue?.localityName ?? null,
   );
 
-  // Description text + sync state. Only meaningful when integratedDescription
-  // is true; cheap to keep declared unconditionally so hook order stays stable.
-  const [description, setDescription] = useState<string>(defaultValue?.description ?? "");
+  // L2 address text + autocomplete state.
+  const [addressText, setAddressText] = useState<string>(
+    defaultValue?.address ?? defaultValue?.description ?? "",
+  );
   const [geocodeLoading, setGeocodeLoading] = useState<"none" | "forward" | "reverse">("none");
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([]);
   const [geocodeMessage, setGeocodeMessage] = useState<"empty" | "failed" | null>(null);
-  // When the reverse handler fills the description from a pin move, the
-  // forward effect must NOT re-geocode the auto-filled text. The same flag
-  // covers the multi-result picker (clicking an entry fills the description).
+  // Suppress forward effect when address text was filled by a result pick
+  // or by reverse geocoding (prevents infinite loops).
   const skipNextForward = useRef(false);
 
-  function handleUseMyLocation() {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setGeoError("Tu navegador no soporta geolocalización.");
-      return;
-    }
-    setGeoError(null);
-    setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        // Treat this like a user-driven pin move so we reverse-geocode it.
-        handlePointChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGeoLoading(false);
-      },
-      (err) => {
-        setGeoError(
-          err.code === err.PERMISSION_DENIED
-            ? "Permiso de ubicación denegado. Podés tocar el mapa para marcar el punto."
-            : "No se pudo obtener tu ubicación. Tocá el mapa para marcarla.",
-        );
-        setGeoLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
-  }
+  const addressInputName = inputNames?.description ?? "locationAddress";
+  const latInputName = inputNames?.lat ?? "locationLat";
+  const lngInputName = inputNames?.lng ?? "locationLng";
 
-  // Forward geocoding (description → coords), debounced.
+  // Forward geocoding (address text → coords + jurisdiction), debounced.
   useEffect(() => {
-    if (!integratedDescription) return;
+    if (!isL2) return;
     if (skipNextForward.current) {
       skipNextForward.current = false;
       return;
     }
-    const trimmed = description.trim();
+    const trimmed = addressText.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
       setGeocodeResults([]);
       setGeocodeMessage(null);
@@ -222,12 +186,12 @@ export function LocationFields({
           setGeocodeResults([]);
           setGeocodeMessage("empty");
         } else {
-          // Auto-place pin on top result. We do NOT need skipNextForward here:
-          // LocationPicker only fires onChange on user gestures (click/drag),
-          // not on prop changes — so updating `point` won't loop back.
+          // Auto-place pin and provisional jurisdiction on top result.
+          // LocationPicker only fires onChange on user gestures, so this
+          // doesn't loop back into handlePointChange.
           setPoint({ lat: results[0].lat, lng: results[0].lng });
-          // Show the alternate results so the user can pick a different one if
-          // the top guess is wrong. Single-result is silent.
+          applyJurisdictionFromResult(results[0]);
+          // Show alternates so the user can correct the top guess.
           setGeocodeResults(results.length > 1 ? results : []);
         }
       } catch {
@@ -238,13 +202,12 @@ export function LocationFields({
     }, FORWARD_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [description, biasProvince, biasLocality, integratedDescription, allowAnonymous]);
+  }, [addressText, biasProvince, biasLocality, isL2, allowAnonymous]);
 
-  // Reverse geocoding (coords → description) — fired by user gestures on the
-  // map (click, drag) and by "Usar mi ubicación".
+  // Reverse geocoding (coords → address + jurisdiction). Fires on map gesture.
   async function handlePointChange(newPoint: { lat: number; lng: number }) {
     setPoint(newPoint);
-    if (!integratedDescription) return;
+    if (!isL2) return;
     setGeocodeLoading("reverse");
     setGeocodeMessage(null);
     const reverseAction = allowAnonymous ? reverseGeocodePublicAction : reverseGeocodeAction;
@@ -252,7 +215,8 @@ export function LocationFields({
       const r = await reverseAction(newPoint.lat, newPoint.lng);
       if (r) {
         skipNextForward.current = true;
-        setDescription(r.display_name);
+        setAddressText(r.display_name);
+        applyJurisdictionFromResult(r);
         setGeocodeResults([]);
       } else {
         setGeocodeMessage("empty");
@@ -264,22 +228,53 @@ export function LocationFields({
     }
   }
 
+  // Map a Nominatim result's free-text province name to an ISO code via
+  // PROVINCES. Sets pickedProvince + pickedLocality (best effort; both
+  // null when the result doesn't resolve cleanly).
+  function applyJurisdictionFromResult(r: {
+    province: string | null;
+    locality: string | null;
+  }): void {
+    const province: Province | null = r.province ? provinceByName(r.province) : null;
+    setPickedProvince(province ? { code: province.code, name: province.name } : null);
+    setPickedLocality(r.locality ?? null);
+  }
+
   function pickResult(result: GeocodeResult) {
     skipNextForward.current = true;
-    setDescription(result.display_name);
+    setAddressText(result.display_name);
     setPoint({ lat: result.lat, lng: result.lng });
+    applyJurisdictionFromResult(result);
     setGeocodeResults([]);
     setGeocodeMessage(null);
   }
 
-  const descriptionInputName = inputNames?.description ?? "locationDescription";
-  const latInputName = inputNames?.lat ?? "locationLat";
-  const lngInputName = inputNames?.lng ?? "locationLng";
+  function handleUseMyLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setGeoError("Tu navegador no soporta geolocalización.");
+      return;
+    }
+    setGeoError(null);
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // Treat as a pin move so we reverse-geocode and fill the address.
+        handlePointChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoLoading(false);
+      },
+      (err) => {
+        setGeoError(
+          err.code === err.PERMISSION_DENIED
+            ? "Permiso de ubicación denegado. Podés tocar el mapa para marcar el punto."
+            : "No se pudo obtener tu ubicación. Tocá el mapa para marcarla.",
+        );
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
 
-  // Primary "Usar mi ubicación actual" CTA, shown above the inputs when the
-  // mode has a map (l2 or point) and the consumer opted into the primary
-  // variant. Falls back silently if geolocation isn't available.
-  const showPrimaryLocateButton = includesPoint && useMyLocationVariant === "primary";
+  const showPrimaryLocateButton = isL2 && useMyLocationVariant === "primary";
 
   return (
     <div className="space-y-4">
@@ -296,149 +291,119 @@ export function LocationFields({
         </button>
       )}
 
-      {includesAddress && (
+      {/* L1 — cross-province locality autocomplete, single input. */}
+      {!isL2 && (
         <div className="space-y-1.5">
-          <label htmlFor="locationAddress" className={labelClass}>
-            Dirección o referencia
+          <label htmlFor="localityName" className={labelClass}>
+            Localidad
           </label>
-          <input
-            id="locationAddress"
-            name="locationAddress"
-            type="text"
-            placeholder="Calle y altura, esquina, o referencia visible"
-            defaultValue={defaultValue?.address ?? ""}
-            className={inputClass}
+          <LocalityPickerAcross
+            id="localityName"
+            defaultValue={{
+              provinceCode: defaultValue?.provinceCode ?? null,
+              localityName: defaultValue?.localityName ?? null,
+            }}
           />
         </div>
       )}
 
-      {includesJurisdiction && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* L2 — Nominatim autocomplete on the address line, plus map for
+          confirmation and drag-to-adjust. No separate province/locality
+          inputs; the autocomplete (or the map drag) fills them via the
+          hidden inputs below. */}
+      {isL2 && (
+        <>
           <div className="space-y-1.5">
-            <label htmlFor="provinceCode" className={labelClass}>
-              Provincia
+            <label htmlFor={addressInputName} className={labelClass}>
+              Dirección o referencia
             </label>
-            <select
-              id="provinceCode"
-              name="provinceCode"
-              value={selectedProvinceCode}
-              onChange={(e) => setSelectedProvinceCode(e.target.value)}
-              className={inputClass}
-            >
-              <option value="">No especificar</option>
-              {PROVINCES.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="localityName" className={labelClass}>
-              Barrio o localidad
-            </label>
-            <LocalityCombobox
-              provinceCode={selectedProvinceCode || null}
-              defaultValue={{ localityName: defaultValue?.localityName ?? null }}
-              name="localityName"
-            />
-          </div>
-        </div>
-      )}
-
-      {includesPoint && (
-        <div className="space-y-2">
-          {integratedDescription && (
-            <div className="space-y-1.5">
-              <label htmlFor={descriptionInputName} className={labelClass}>
-                Ubicación
-              </label>
-              <div className="relative">
-                <input
-                  id={descriptionInputName}
-                  name={descriptionInputName}
-                  type="text"
-                  placeholder="Ej: Plaza Italia, esquina Cerviño"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className={inputClass}
-                  aria-busy={geocodeLoading !== "none"}
-                />
-                {geocodeLoading !== "none" && (
-                  <span
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500 dark:text-neutral-400"
-                    aria-live="polite"
-                  >
-                    {geocodeLoading === "forward" ? "Buscando…" : "Identificando…"}
-                  </span>
-                )}
-              </div>
-              {geocodeResults.length > 0 && (
-                <ul className="border border-neutral-200 dark:border-neutral-800 rounded-lg divide-y divide-neutral-200 dark:divide-neutral-800 bg-white dark:bg-neutral-900 text-sm overflow-hidden">
-                  {geocodeResults.map((r) => (
-                    <li key={`${r.lat}-${r.lng}-${r.display_name}`}>
-                      <button
-                        type="button"
-                        onClick={() => pickResult(r)}
-                        className="block w-full text-left px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-900 dark:text-neutral-50"
-                      >
-                        {r.display_name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {geocodeMessage === "empty" && (
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  No encontramos esa dirección. Podés moverte por el mapa.
-                </p>
-              )}
-              {geocodeMessage === "failed" && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  No pudimos buscar la dirección ahora. Tipeá lo que sepas y movete por el mapa.
-                </p>
+            <div className="relative">
+              <input
+                id={addressInputName}
+                name={addressInputName}
+                type="text"
+                value={addressText}
+                onChange={(e) => setAddressText(e.target.value)}
+                placeholder="Empezá a tipear: calle y altura, esquina, plaza…"
+                className={inputClass}
+                aria-busy={geocodeLoading !== "none"}
+              />
+              {geocodeLoading !== "none" && (
+                <span
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500 dark:text-neutral-400"
+                  aria-live="polite"
+                >
+                  {geocodeLoading === "forward" ? "Buscando…" : "Identificando…"}
+                </span>
               )}
             </div>
-          )}
-
-          <div className="flex items-baseline justify-between gap-3">
-            <p className={labelClass}>
-              {integratedDescription ? "Ajuste fino" : "Ubicación precisa (opcional)"}
-            </p>
-            {showPrimaryLocateButton ? null : (
-              <button
-                type="button"
-                onClick={handleUseMyLocation}
-                disabled={geoLoading}
-                className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
-              >
-                {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
-              </button>
+            {geocodeResults.length > 0 && (
+              <ul className="border border-neutral-200 dark:border-neutral-800 rounded-lg divide-y divide-neutral-200 dark:divide-neutral-800 bg-white dark:bg-neutral-900 text-sm overflow-hidden">
+                {geocodeResults.map((r) => (
+                  <li key={`${r.lat}-${r.lng}-${r.display_name}`}>
+                    <button
+                      type="button"
+                      onClick={() => pickResult(r)}
+                      className="block w-full text-left px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-900 dark:text-neutral-50"
+                    >
+                      {r.display_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {geocodeMessage === "empty" && (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                No encontramos esa dirección. Podés moverte por el mapa para ajustarla.
+              </p>
+            )}
+            {geocodeMessage === "failed" && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                No pudimos buscar la dirección ahora. Tipeá lo que sepas y movete por el mapa.
+              </p>
             )}
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
-            Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
-            estás en el lugar.
-          </p>
-          <LocationPicker value={point} onChange={handlePointChange} />
-          {geoError && (
-            <p className="text-xs text-amber-700 dark:text-amber-400" role="alert">
-              {geoError}
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className={labelClass}>Ajuste fino</p>
+              {showPrimaryLocateButton ? null : (
+                <button
+                  type="button"
+                  onClick={handleUseMyLocation}
+                  disabled={geoLoading}
+                  className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
+                >
+                  {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+              Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
+              estás en el lugar.
             </p>
-          )}
-          {point && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
-              {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
-            </p>
-          )}
-          {/* Hidden inputs carry the picked coords through the standard form
-              submit. Empty strings when no point is set — the server actions
-              already treat empty as null via writePoint(null). The description
-              text input above is already controlled and named, so it submits
-              itself; no hidden mirror needed. */}
+            <LocationPicker value={point} onChange={handlePointChange} />
+            {geoError && (
+              <p className="text-xs text-amber-700 dark:text-amber-400" role="alert">
+                {geoError}
+              </p>
+            )}
+            {point && (
+              <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
+                {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
+              </p>
+            )}
+          </div>
+
+          {/* L2 hidden inputs — jurisdiction derived from autocomplete pick
+              or map-drag reverse-geocoding; lat/lng from the pin. */}
+          <input type="hidden" name="provinceCode" value={pickedProvince?.code ?? ""} />
+          <input type="hidden" name="provinceName" value={pickedProvince?.name ?? ""} />
+          <input type="hidden" name="localityName" value={pickedLocality ?? ""} />
+          <input type="hidden" name="localityNameIndecId" value="" />
           <input type="hidden" name={latInputName} value={point ? String(point.lat) : ""} />
           <input type="hidden" name={lngInputName} value={point ? String(point.lng) : ""} />
-        </div>
+        </>
       )}
     </div>
   );
