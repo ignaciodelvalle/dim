@@ -486,8 +486,16 @@ export async function createOrganizationAction(
     cuit: String(formData.get("cuit") ?? "").trim() || null,
     email: String(formData.get("email") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim() || null,
-    jurisdictionProvince: String(formData.get("jurisdictionProvince") ?? "").trim(),
-    jurisdictionLocality: String(formData.get("jurisdictionLocality") ?? "").trim(),
+    // LocationFields (l1) submits the ISO code as `provinceCode` + the display
+    // name as `localityName`. Legacy free-text inputs submitted these under
+    // `jurisdictionProvince` / `jurisdictionLocality`. Accept both during the
+    // sprint 4 migration window — the action canonicalizes downstream.
+    jurisdictionProvince:
+      String(formData.get("provinceCode") ?? "").trim() ||
+      String(formData.get("jurisdictionProvince") ?? "").trim(),
+    jurisdictionLocality:
+      String(formData.get("localityName") ?? "").trim() ||
+      String(formData.get("jurisdictionLocality") ?? "").trim(),
     personeriaJuridicaNumber: String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
   };
 
@@ -517,8 +525,12 @@ export async function createClinicAction(
     cuit: String(formData.get("cuit") ?? "").trim() || null,
     email: String(formData.get("email") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim() || null,
-    jurisdictionProvince: String(formData.get("jurisdictionProvince") ?? "").trim(),
-    jurisdictionLocality: String(formData.get("jurisdictionLocality") ?? "").trim(),
+    jurisdictionProvince:
+      String(formData.get("provinceCode") ?? "").trim() ||
+      String(formData.get("jurisdictionProvince") ?? "").trim(),
+    jurisdictionLocality:
+      String(formData.get("localityName") ?? "").trim() ||
+      String(formData.get("jurisdictionLocality") ?? "").trim(),
     personeriaJuridicaNumber: String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
   };
 
