@@ -1,14 +1,10 @@
 // ---------------------------------------------------------------------------
-// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 — 2026-05-26)
+// WIRED (sprint 4 PR-045 — 2026-05-27)
 //
-// This page exists but is NOT reachable from any nav or dashboard CTA. The
-// underlying flow (bite reports submitted from org context) is not yet wired
-// end-to-end. Keep this page intact — when the flow lands, add a nav entry
-// in `components/poncho/Layout/nav-presets.ts` or a CTA on the org dashboard.
-//
-// Wire when org bite-reporting capability is added to the nav surface.
-//
-// Audited: 2026-05-26. Re-evaluate during next role audit.
+// Form is now a 4-step Poncho wizard with SuccessScreen on submit (10-day
+// observation reminder). Org dashboard surfacing remains pending — when a
+// "Mordeduras" CTA lands, add a nav entry in
+// `components/poncho/Layout/nav-presets.ts`.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";

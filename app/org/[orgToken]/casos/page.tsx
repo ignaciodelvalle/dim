@@ -5,16 +5,11 @@
 // independent of the row link — separate tap target per Fase E spec.
 
 // ---------------------------------------------------------------------------
-// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 — 2026-05-26)
+// WIRED (sprint 5 PR-047 — 2026-05-27)
 //
-// This page exists but is NOT reachable from any nav or dashboard CTA. The
-// underlying flow (cases view per org) is not yet wired end-to-end. Keep
-// this page intact — when the flow lands, add a nav entry in
-// `components/poncho/Layout/nav-presets.ts` or a CTA on the org dashboard.
-//
-// Wire when org dashboard CTA for open cases lands.
-//
-// Audited: 2026-05-26. Re-evaluate during next role audit.
+// Reachable from the org dashboard "Casos abiertos" count card. The previous
+// DEFERRED-BY-DESIGN audit comment is retired; nav presets remain a future
+// improvement (the link from the dashboard is the canonical entry today).
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
