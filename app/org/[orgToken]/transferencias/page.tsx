@@ -2,17 +2,10 @@
 // custody_transfer_handshake case the org opened — open + closed.
 
 // ---------------------------------------------------------------------------
-// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 — 2026-05-26)
+// WIRED (sprint 5 PR-047 — 2026-05-27)
 //
-// This page exists but is NOT reachable from any nav or dashboard CTA. The
-// underlying flow (cross-org transfer handshake) is not yet wired end-to-end.
-// Keep this page intact — when the flow lands, add a nav entry in
-// `components/poncho/Layout/nav-presets.ts` or a CTA on the org dashboard.
-//
-// Wire after the cross-org transfer epic finishes; currently the UI exists
-// but has no nav surface or dashboard entry point.
-//
-// Audited: 2026-05-26. Re-evaluate during next role audit.
+// Reachable from the org dashboard "Transferencias pendientes" count card.
+// Sender flow itself is wired by PR-033 (ProposeTransferForm as wizard).
 // ---------------------------------------------------------------------------
 
 import { and, desc, eq } from "drizzle-orm";
