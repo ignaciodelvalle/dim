@@ -36,8 +36,9 @@
 //   under "Contactos para emergencias". One set of contacts per owner, shared
 //   across all their pets (consistent with how an owner thinks about it).
 //
-// TODO(J-followup): Travel docs — no pet_attachments table yet. <PetTravelDocs>
-//   renders an empty state until the table / attachment kind is added.
+// TODO(spec-later): Travel docs — see docs/superpowers/plans/2026-05-27-spec-later-tracker.md#travel-docs.
+//   The `pet_attachments` table / attachment kind decision is open; <PetTravelDocs>
+//   renders an empty state until it lands.
 //
 // ---------------------------------------------------------------------------
 
@@ -650,7 +651,8 @@ export default async function PetDetailPage({
         />
       )}
 
-      {/* §4.9 (3) PPP card — DEFERRED to Slice C */}
+      {/* §4.9 (3) PPP card — provincial export deferred. See
+            docs/superpowers/plans/2026-05-27-spec-later-tracker.md#ppp-card. */}
       {pet.potentiallyDangerousBreed && (
         <div data-section="ppp-card">
           <PpPCard
@@ -667,7 +669,8 @@ export default async function PetDetailPage({
         </div>
       )}
 
-      {/* §4.9 (4) Service Dog credential card — DEFERRED to Slice C */}
+      {/* §4.9 (4) Service Dog credential card — issuance model deferred. See
+            docs/superpowers/plans/2026-05-27-spec-later-tracker.md#service-dog-card. */}
       {serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService && (
         <div data-section="service-dog-card">
           <ServiceDogCredentialCard
@@ -806,8 +809,9 @@ export default async function PetDetailPage({
       {/* v2 Tracking placeholder */}
       <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
 
-      {/* v2 Travel docs — TODO(J-followup): wire from pet_attachments or
-            attachments with kind in ('passport','intl_cert') once table exists. */}
+      {/* v2 Travel docs — TODO(spec-later): wire from pet_attachments or
+            attachments with kind in ('passport','intl_cert') once the table
+            decision lands. See docs/superpowers/plans/2026-05-27-spec-later-tracker.md#travel-docs. */}
       <PetTravelDocs
         uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
         docs={[]}
