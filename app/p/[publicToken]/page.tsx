@@ -219,6 +219,8 @@ export default async function PublicCredentialPage({
     phone: string | null;
     email: string | null;
     locationText: string | null;
+    lostLat: number | null;
+    lostLng: number | null;
     lostDescription: {
       accessoriesWhenLost: string | null;
       behaviorNotes: string | null;
@@ -320,6 +322,8 @@ export default async function PublicCredentialPage({
       phone: ownerRow?.profile.phone ?? null,
       email: ownerEmail,
       locationText: textLocation ?? geoLocation,
+      lostLat: eventPoint?.lat ?? null,
+      lostLng: eventPoint?.lng ?? null,
       lostDescription,
       lostSince: latestLostEvent?.occurredAt ?? null,
     };
@@ -363,6 +367,8 @@ export default async function PublicCredentialPage({
           distinguishingFeatures={pet.distinguishingFeatures}
           finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
           sightingFormHref={`/p/${publicToken}/sighting`}
+          lastSeenLat={pet.discloseLastLocationWhenLost ? lostContext.lostLat : null}
+          lastSeenLng={pet.discloseLastLocationWhenLost ? lostContext.lostLng : null}
           lostSince={lostContext.lostSince ?? new Date()}
           tattooCode={pet.tattooCode}
           tattooLocation={pet.tattooLocation}
