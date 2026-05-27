@@ -1,9 +1,12 @@
 "use client";
 
+import { useActionState } from "react";
+
 import type { EventFormState } from "@/app/actions/events";
+import { LocationFields } from "@/components/LocationFields";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
-import { useActionState } from "react";
+
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -60,6 +63,15 @@ export function VetVisitForm({
           className={inputClass}
         />
       </div>
+
+      <details className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
+        <summary className="text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+          Ubicación (opcional)
+        </summary>
+        <div className="mt-3">
+          <LocationFields mode="l1" />
+        </div>
+      </details>
 
       <AttachmentField />
 

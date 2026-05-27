@@ -357,6 +357,11 @@ export async function createVetVisitAction(
   const clinic = String(formData.get("clinic") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  // Per-event L1 jurisdiction (sprint 4 PR-034 / doc 09 §3.A). Optional;
+  // the LocationFields submits provinceCode + localityName when the user
+  // filled them. Empty → not persisted on the payload.
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   if (!reason) return { error: "Falta el motivo de la visita." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
@@ -375,6 +380,8 @@ export async function createVetVisitAction(
         diagnosis,
         vet_name: vetName,
         clinic,
+        jurisdiction_province: eventJurisdictionProvince,
+        jurisdiction_locality: eventJurisdictionLocality,
       });
       const { event, wasNoop: vetNoop } = await insertEventIdempotent(
         {
@@ -1885,6 +1892,8 @@ export async function createClinicalInfoAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
     return { error: "Tipo de información clínica inválido." };
@@ -1907,6 +1916,8 @@ export async function createClinicalInfoAction(
         title,
         details,
         performed_by: performedBy,
+        jurisdiction_province: eventJurisdictionProvince,
+        jurisdiction_locality: eventJurisdictionLocality,
       });
       const { event, wasNoop: clinicalNoop } = await insertEventIdempotent(
         {
