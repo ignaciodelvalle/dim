@@ -170,7 +170,7 @@ export default async function DevolverAlDuenoPage({
           {!ownerPhone && <p className="text-sm text-neutral-500">Teléfono no disponible.</p>}
         </section>
 
-        <ProposeReturnForm orgToken={orgToken} petPublicToken={publicToken} />
+        <ProposeReturnForm orgToken={orgToken} petPublicToken={publicToken} petName={pet.name} />
 
         <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
           <Link
