@@ -110,11 +110,11 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
                 role="switch"
                 aria-checked={prefs[row.key]}
                 aria-label={`Mostrar ${row.label.toLowerCase()}`}
-                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${prefs[row.key] ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-700"}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${prefs[row.key] ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-700"}`}
               >
                 <span
                   aria-hidden
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${prefs[row.key] ? "translate-x-[18px]" : "translate-x-0.5"}`}
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${prefs[row.key] ? "translate-x-5" : "translate-x-0.5"}`}
                 />
               </button>
             </form>
