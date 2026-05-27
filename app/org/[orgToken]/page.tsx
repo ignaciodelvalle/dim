@@ -2,10 +2,17 @@
 // and the set of capabilities they currently hold. Non-admins can request any
 // non-granted capability inline; admins see a link to the approval queue.
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { type OrganizationCapability, db, organizationCapabilityGrants, profiles } from "@/db";
+import {
+  type OrganizationCapability,
+  cases,
+  db,
+  fosterProposals,
+  organizationCapabilityGrants,
+  profiles,
+} from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { CAPABILITY_CATALOG, getGrantedCapabilities } from "@/lib/capabilities";
 
@@ -125,6 +132,45 @@ export default async function OrgDashboardPage({
     return stateByCapability.get(capability) ?? { kind: "none" };
   }
 
+  // Sprint 5 PR-047 — surface live counts so admins land on the panel and
+  // immediately see what needs attention. Queries run in parallel.
+  //
+  // Note: the original plan included 'Check-ins pendientes' but the
+  // reminders table is owner-scoped (no organization_id column today), so
+  // counting checkins per-org would require joining against the adoption
+  // chain. Deferred — the existing 'Check-ins post-adopción' link in the
+  // capability grid below still surfaces the page.
+  const [openCasesRow, pendingTransfersRow, pendingFosterRow] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(cases)
+      .where(and(eq(cases.openedByOrganizationId, organization.id), eq(cases.status, "open"))),
+    db
+      .select({ n: count() })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.caseKind, "custody_transfer_handshake"),
+          eq(cases.receiverOrganizationId, organization.id),
+          eq(cases.status, "open"),
+        ),
+      ),
+    db
+      .select({ n: count() })
+      .from(fosterProposals)
+      .where(
+        and(
+          eq(fosterProposals.organizationId, organization.id),
+          eq(fosterProposals.status, "pending"),
+        ),
+      ),
+  ]);
+  const counts = {
+    openCases: openCasesRow[0]?.n ?? 0,
+    pendingTransfers: pendingTransfersRow[0]?.n ?? 0,
+    pendingFosterProposals: pendingFosterRow[0]?.n ?? 0,
+  };
+
   return (
     <main className="min-h-screen bg-white dark:bg-neutral-950">
       {/* Cross-portal nav rail */}
@@ -192,6 +238,36 @@ export default async function OrgDashboardPage({
               </p>
             )}
           </header>
+
+          {/* Sprint 5 PR-047 — live counts surface so admins see pending work
+              at a glance. Each card links to the surface that resolves it. */}
+          <section aria-label="Pendientes del refugio" className="grid grid-cols-3 gap-3">
+            <Link
+              href={`/org/${orgToken}/casos`}
+              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+            >
+              <p className="text-2xl font-semibold tabular-nums">{counts.openCases}</p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">Casos abiertos</p>
+            </Link>
+            <Link
+              href={`/org/${orgToken}/transferencias/recibidas`}
+              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+            >
+              <p className="text-2xl font-semibold tabular-nums">{counts.pendingTransfers}</p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                Transferencias pendientes
+              </p>
+            </Link>
+            <Link
+              href={`/org/${orgToken}/voluntarios/propuestas`}
+              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+            >
+              <p className="text-2xl font-semibold tabular-nums">{counts.pendingFosterProposals}</p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                Propuestas de tránsito
+              </p>
+            </Link>
+          </section>
 
           {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (
             <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
