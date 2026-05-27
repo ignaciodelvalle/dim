@@ -195,7 +195,7 @@ export function ProposalActions({
         onClick={() => setMode("accept")}
         className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
       >
-        Aceptar
+        Aceptar propuesta
       </button>
       <button
         type="button"
