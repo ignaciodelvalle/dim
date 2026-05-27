@@ -110,7 +110,10 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
   redirect(`/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
 }
 
-// Dismiss the apply-intent banner from /inicio. Clears both cookies.
+// @no-auth-required: dismissing a banner is a UX preference, not a capability.
+// The action only deletes two cookies from the caller's own browser session;
+// there is nothing to authorize. The cookies it clears are themselves either
+// short-lived (signed token, 15min TTL) or non-sensitive (plain pet token).
 export async function dismissApplyIntentAction(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(APPLY_INTENT_COOKIE_NAME);
