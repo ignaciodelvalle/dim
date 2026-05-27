@@ -15,6 +15,7 @@ import { notFound } from "next/navigation";
 
 import { queryAdoptionListing } from "@/lib/adoption-listing-query";
 import { PROVINCES } from "@/lib/ar-provincias";
+import { queryPublicOfferings } from "@/lib/org-public-offerings";
 import { queryOrgPublicProfile } from "@/lib/org-public-profile";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,6 +23,7 @@ import { AboutPanel } from "./AboutPanel";
 import { AdoptionPanel } from "./AdoptionPanel";
 import { HelpPanel } from "./HelpPanel";
 import { OrgHero } from "./OrgHero";
+import { ServicesPanel } from "./ServicesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -60,11 +62,11 @@ export default async function RefugioPage({
   const isAuthed = Boolean(user);
 
   // Fan out the three queries — visibility gate + adoption listing +
-  // public offerings (the offerings consumer ships in P2-5; the data
-  // layer lives here from P2-1 so the page is a single fetch).
-  const [org, { items, nextCursor }] = await Promise.all([
+  // public offerings (P2-5 consumer).
+  const [org, { items, nextCursor }, offerings] = await Promise.all([
     queryOrgPublicProfile(orgToken),
     queryAdoptionListing({ organizationToken: orgToken }, null, 24),
+    queryPublicOfferings(orgToken, { limit: 9 }),
   ]);
 
   if (!org) notFound();
@@ -98,6 +100,8 @@ export default async function RefugioPage({
           items={items}
           hasMore={Boolean(nextCursor)}
         />
+
+        <ServicesPanel orgToken={orgToken} offerings={offerings} />
 
         <HelpPanel org={org} isAuthed={isAuthed} />
       </div>
