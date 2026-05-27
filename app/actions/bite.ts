@@ -119,6 +119,10 @@ export async function reportBiteAction(
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  // Per-event L1 jurisdiction (sprint 4 PR-034). Optional; defaults to the
+  // pet's jurisdiction downstream if omitted.
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   // 4. Snapshot rabies-vaccine status at the moment of the bite.
   const rabiesVaccineValid = await computeRabiesVaccineValidAtBite(pet.id, occurredAt);
@@ -163,6 +167,8 @@ export async function reportBiteAction(
         context,
         rabies_vaccine_valid_at_incident: rabiesVaccineValid,
         reporter_role: "owner",
+        jurisdiction_province: eventJurisdictionProvince,
+        jurisdiction_locality: eventJurisdictionLocality,
       });
       const { event: biteEvent, wasNoop: biteNoop } = await insertEventIdempotent(
         {
