@@ -358,6 +358,15 @@ export const profiles = pgTable(
       .notNull()
       .default("personal")
       .$type<"personal" | "institutional">(),
+    // Global disclosure prefs (handoff P1-2). Each toggle controls a
+    // single surface; per-pet overrides live on `pets.disclose_*_when_lost`.
+    // Defaults follow privacy-first: name + phone hidden, org contact
+    // opt-in (allows shelters/clinics to reach you), zone alerts opt-in
+    // (community help). Surfaced in /cuenta Privacy section (handoff P3-3).
+    discloseNameCredential: boolean("disclose_name_credential").notNull().default(false),
+    disclosePhoneCredential: boolean("disclose_phone_credential").notNull().default(false),
+    allowOrgContact: boolean("allow_org_contact").notNull().default(true),
+    allowLostAlertsInZone: boolean("allow_lost_alerts_in_zone").notNull().default(true),
     // Irreversible soft-deactivation timestamp. NULL = active. Set by
     // deactivateAdminAction / deactivateGovtAction in Fase 5.
     deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
@@ -666,6 +675,17 @@ export const organizations = pgTable(
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
     status: orgStatusEnum("status").notNull().default("active"),
+    // Public-profile fields (handoff P1-1). Surfaced on /refugios/[orgToken]
+    // for verified shelter / rescue_network orgs. Free-form description
+    // capped at 2000 chars via CHECK constraint declared below. Donation
+    // methods is a typed JSONB blob (cbu / cvu / alias / mpLink / btcAddress)
+    // — see DonationMethods type in lib/org-public-profile.ts.
+    description: text("description"),
+    logoStoragePath: text("logo_storage_path"),
+    discloseAddress: boolean("disclose_address").notNull().default(true),
+    donationMethods: jsonb("donation_methods"),
+    latitude: numeric("latitude", { precision: 9, scale: 6 }),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
@@ -675,6 +695,14 @@ export const organizations = pgTable(
   (table) => ({
     orgTypeIdx: index("organizations_org_type_idx").on(table.orgType),
     verifiedIdx: index("organizations_verified_idx").on(table.verified),
+    descriptionLengthCheck: check(
+      "organizations_description_length_check",
+      sql`${table.description} IS NULL OR length(${table.description}) <= 2000`,
+    ),
+    coordinatesPairCheck: check(
+      "organizations_coordinates_pair_check",
+      sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`,
+    ),
   }),
 );
 
@@ -1696,6 +1724,11 @@ export const serviceOfferings = pgTable(
       onDelete: "set null",
     }),
     rejectionReason: text("rejection_reason"),
+
+    // Whether the offering surfaces on the public refugio profile
+    // (`/refugios/[orgToken]`). Default false per privacy-first (handoff
+    // P1-3); the offering owner explicitly opts in via the org-side form.
+    isPublic: boolean("is_public").notNull().default(false),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
