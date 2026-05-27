@@ -5,7 +5,11 @@ import { notFound, redirect } from "next/navigation";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
-import { APPLY_INTENT_COOKIE_NAME, validateApplyIntentToken } from "@/lib/apply-intent";
+import {
+  APPLY_INTENT_COOKIE_NAME,
+  APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
+  validateApplyIntentToken,
+} from "@/lib/apply-intent";
 import { createClient } from "@/lib/supabase/server";
 
 import { ApplicationForm } from "./ApplicationForm";
@@ -95,6 +99,9 @@ export default async function PostularPage({
     if (!ok) intentExpired = true;
     cookieStore.delete(APPLY_INTENT_COOKIE_NAME);
   }
+  // Also clear the parallel pet-token cookie so the /inicio banner doesn't
+  // keep pointing at a pet the user just landed on.
+  cookieStore.delete(APPLY_INTENT_PET_TOKEN_COOKIE_NAME);
 
   // 5) Idempotency — render "ya postulaste" if there's an unresolved
   // _submitted from this applicant for this pet.

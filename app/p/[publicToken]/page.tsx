@@ -362,6 +362,7 @@ export default async function PublicCredentialPage({
           }
           distinguishingFeatures={pet.distinguishingFeatures}
           finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
+          sightingFormHref={`/p/${publicToken}/sighting`}
           lostSince={lostContext.lostSince ?? new Date()}
           tattooCode={pet.tattooCode}
           tattooLocation={pet.tattooLocation}
