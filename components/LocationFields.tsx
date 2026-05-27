@@ -53,7 +53,42 @@ const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ),
 });
 
-export type LocationMode = "point" | "jurisdiction" | "jurisdiction+point" | "full";
+// Canonical names per the trilogy unification design rules (AGENTS.md §"Design
+// rules" rule #1): L1 (jurisdiction only), L2 (jurisdiction + map + bidirectional
+// text + optional postal address).
+//
+// Legacy names are still accepted with a deprecation console.warn so consumers
+// can migrate at their own pace. The "point" and "jurisdiction+point" variants
+// are deprecated wholesale — point-without-jurisdiction is a UX anti-pattern,
+// and jurisdiction+point is just L2 without the bidirectional text. Consumers
+// of those should move to "l2".
+export type LocationMode =
+  | "l1"
+  | "l2"
+  // --- deprecated, accepted for backward compatibility ---
+  | "point"
+  | "jurisdiction"
+  | "jurisdiction+point"
+  | "full";
+
+// Normalize the public mode prop down to the internal feature flags. Legacy
+// names are mapped to their canonical replacement and emit a deprecation
+// warning at runtime (in dev only).
+type CanonicalMode = "l1" | "l2" | "point";
+
+function resolveMode(mode: LocationMode): CanonicalMode {
+  if (mode === "l1" || mode === "l2" || mode === "point") return mode;
+  let canonical: CanonicalMode;
+  if (mode === "jurisdiction") canonical = "l1";
+  else if (mode === "full" || mode === "jurisdiction+point") canonical = "l2";
+  else canonical = "l2"; // unreachable, satisfies TS
+  if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[LocationFields] mode="${mode}" is deprecated. Use mode="${canonical}" — see AGENTS.md "Design rules" rule #1.`,
+    );
+  }
+  return canonical;
+}
 
 export type LocationFieldsValue = {
   provinceCode?: string | null;
@@ -92,14 +127,17 @@ export function LocationFields({
   // location is provided after the fact). Defaults to "secondary".
   useMyLocationVariant?: "primary" | "secondary";
 }) {
-  const includesJurisdiction =
-    mode === "jurisdiction" || mode === "jurisdiction+point" || mode === "full";
-  const includesPoint = mode === "point" || mode === "jurisdiction+point" || mode === "full";
-  const includesAddress = mode === "full";
+  const canonicalMode = resolveMode(mode);
+  const includesJurisdiction = canonicalMode === "l1" || canonicalMode === "l2";
+  const includesPoint = canonicalMode === "l2" || canonicalMode === "point";
+  // L2 inherits the postal-address field from the legacy `full` mode; standalone
+  // point and L1 do not. (When all `full` consumers have migrated to `l2`, the
+  // postal address can be retired or pulled into a sibling `l3` mode.)
+  const includesAddress = canonicalMode === "l2";
   // Only the standalone "point" mode gets the integrated, bidirectionally
-  // synced description text. "full" already has locationAddress; "jurisdiction"
-  // has nothing to sync.
-  const integratedDescription = mode === "point";
+  // synced description text. L2 already has locationAddress; L1 has nothing
+  // to sync.
+  const integratedDescription = canonicalMode === "point";
 
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(
     defaultValue?.lat != null && defaultValue?.lng != null

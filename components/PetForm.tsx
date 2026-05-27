@@ -386,7 +386,7 @@ export function PetForm({
             defaultOpen={isEdit && !!existingPet?.jurisdictionProvince}
           >
             <LocationFields
-              mode="jurisdiction"
+              mode="l1"
               defaultValue={{
                 // Existing rows store the display name in jurisdiction_province;
                 // resolve to the ISO code for the select. Once the canonical-

@@ -138,11 +138,13 @@ export function Step3Where({
         })}
       </fieldset>
 
-      {/* Location — uses existing LocationFields component in full mode.
-          Fields are uncontrolled; the wizard reads them via FormData at submit. */}
+      {/* Location — uses the shared LocationFields component in L2 mode
+          (jurisdiction + postal address + map; see AGENTS.md "Design rules"
+          rule #1). Fields are uncontrolled; the wizard reads them via
+          FormData at submit. */}
       <div className="space-y-1.5">
         <p className={`${labelClass} mb-2`}>Lugar (opcional pero muy útil)</p>
-        <LocationFields mode="full" />
+        <LocationFields mode="l2" />
       </div>
 
       {error && (
