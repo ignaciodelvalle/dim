@@ -44,6 +44,7 @@ export function PetSightingForm({
         biasProvince={biasProvince}
         biasLocality={biasLocality}
         useMyLocationVariant="primary"
+        allowAnonymous
       />
 
       <div className="space-y-1">

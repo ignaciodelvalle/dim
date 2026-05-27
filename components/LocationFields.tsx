@@ -39,7 +39,9 @@
 import {
   type GeocodeResult,
   geocodeAddressAction,
+  geocodeAddressPublicAction,
   reverseGeocodeAction,
+  reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
 import { LocalityCombobox } from "@/components/LocalityCombobox";
 import { PROVINCES } from "@/lib/ar-provincias";
@@ -109,6 +111,7 @@ export function LocationFields({
   biasLocality = null,
   inputNames,
   useMyLocationVariant = "secondary",
+  allowAnonymous = false,
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -126,6 +129,10 @@ export function LocationFields({
   // current inline link next to the map header (used by forms where the
   // location is provided after the fact). Defaults to "secondary".
   useMyLocationVariant?: "primary" | "secondary";
+  // When true, geocoding lookups use the IP-rate-limited public actions
+  // (no auth gate). Required for surfaces rendered to anonymous users —
+  // PetSightingForm, DenunciaWizard. Defaults to false (authed actions).
+  allowAnonymous?: boolean;
 }) {
   const canonicalMode = resolveMode(mode);
   const includesJurisdiction = canonicalMode === "l1" || canonicalMode === "l2";
@@ -202,11 +209,12 @@ export function LocationFields({
       return;
     }
 
+    const forwardAction = allowAnonymous ? geocodeAddressPublicAction : geocodeAddressAction;
     const timer = setTimeout(async () => {
       setGeocodeLoading("forward");
       setGeocodeMessage(null);
       try {
-        const results = await geocodeAddressAction(trimmed, {
+        const results = await forwardAction(trimmed, {
           province: biasProvince,
           locality: biasLocality,
         });
@@ -230,7 +238,7 @@ export function LocationFields({
     }, FORWARD_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [description, biasProvince, biasLocality, integratedDescription]);
+  }, [description, biasProvince, biasLocality, integratedDescription, allowAnonymous]);
 
   // Reverse geocoding (coords → description) — fired by user gestures on the
   // map (click, drag) and by "Usar mi ubicación".
@@ -239,8 +247,9 @@ export function LocationFields({
     if (!integratedDescription) return;
     setGeocodeLoading("reverse");
     setGeocodeMessage(null);
+    const reverseAction = allowAnonymous ? reverseGeocodePublicAction : reverseGeocodeAction;
     try {
-      const r = await reverseGeocodeAction(newPoint.lat, newPoint.lng);
+      const r = await reverseAction(newPoint.lat, newPoint.lng);
       if (r) {
         skipNextForward.current = true;
         setDescription(r.display_name);
