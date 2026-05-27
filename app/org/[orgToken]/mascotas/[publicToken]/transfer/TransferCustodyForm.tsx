@@ -32,7 +32,7 @@ export function TransferCustodyForm({
             name="destinationOrgId"
             required
             defaultValue=""
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
           >
             <option value="" disabled>
               Elegí una organización…
@@ -84,18 +84,18 @@ export function TransferCustodyForm({
             rows={3}
             maxLength={500}
             placeholder="Motivo, condiciones especiales, contacto en el destino…"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
           />
         </label>
       </section>
 
-      <p className="text-xs rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+      <p className="text-xs rounded border border-gob-warning/40 bg-gob-warning/10 px-3 py-2 text-gob-warning-text">
         Si el animal tiene tránsito activo, ese registro se cierra automáticamente y se notifica al
         tránsito.
       </p>
 
       {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger/30 bg-gob-danger/10 px-3 py-2 text-gob-danger">
           {state.error}
         </p>
       )}
@@ -103,7 +103,7 @@ export function TransferCustodyForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 disabled:opacity-50"
+        className="px-4 py-2 rounded bg-gob-primary text-white disabled:opacity-50"
       >
         {isPending ? "Transfiriendo…" : "Transferir custodia"}
       </button>

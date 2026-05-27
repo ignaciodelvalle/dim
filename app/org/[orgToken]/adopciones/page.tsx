@@ -40,10 +40,10 @@ export default async function AdoptionReviewIndexPage({
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
           <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">{auth.error}</p>
+          <p className="text-sm text-gob-text-gray">{auth.error}</p>
           <Link href={`/org/${orgToken}`} className="text-sm text-neutral-600 underline">
             ← Volver al panel
           </Link>
@@ -107,29 +107,22 @@ export default async function AdoptionReviewIndexPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-4xl mx-auto space-y-8">
         <header className="space-y-2">
-          <Link
-            href={`/org/${orgToken}`}
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
+          <Link href={`/org/${orgToken}`} className="text-sm text-neutral-500 hover:text-gob-text">
             ← Panel de {organization.displayName}
           </Link>
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Postulaciones pendientes
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold text-gob-text">Postulaciones pendientes</h1>
+          <p className="text-sm text-gob-text-gray">
             Personas que se postularon para adoptar mascotas en custodia. Entrá a cada postulación
             para aprobarla o no avanzar con ella.
           </p>
         </header>
 
         {groups.size === 0 ? (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              No tenés postulaciones pendientes.
-            </p>
+          <div className="rounded-lg border border-gob-border px-6 py-10 text-center space-y-2">
+            <p className="text-sm font-medium text-gob-text">No tenés postulaciones pendientes.</p>
             <p className="text-xs text-neutral-500">
               Cuando alguien se postule a una mascota publicada en /adoptar, aparece acá.
             </p>
@@ -138,7 +131,7 @@ export default async function AdoptionReviewIndexPage({
           <div className="space-y-6">
             {Array.from(groups.values()).map((group) => (
               <section key={group.petId} className="space-y-2">
-                <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+                <h2 className="text-lg font-semibold text-gob-text">
                   {group.petName}{" "}
                   <span className="text-sm font-normal text-neutral-500">
                     ({group.apps.length} pendiente
@@ -149,21 +142,21 @@ export default async function AdoptionReviewIndexPage({
                   {group.apps.map((app) => (
                     <li
                       key={app.application_id}
-                      className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 hover:shadow-sm"
+                      className="rounded-lg border border-gob-border p-4 hover:shadow-sm"
                     >
                       <Link
                         href={`/org/${orgToken}/adopciones/${app.application_id}`}
                         className="block space-y-1"
                       >
                         <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                          <p className="text-sm font-medium text-gob-text">
                             {app.applicant_name ?? "Postulante"}
                           </p>
                           <span className="text-xs text-neutral-500">
                             {new Date(app.submitted_at).toLocaleDateString("es-AR")}
                           </span>
                         </div>
-                        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                        <p className="text-xs text-gob-text-gray">
                           Vivienda: {housingTypeLabel(app.housing_type)}
                         </p>
                       </Link>

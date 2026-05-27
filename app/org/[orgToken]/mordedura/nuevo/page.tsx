@@ -33,16 +33,16 @@ export default async function NewOrgBitePage({
       <div className="max-w-2xl mx-auto space-y-6">
         <Link
           href={`/org/${orgToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
         >
           ← Volver al portal
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
             Reportar mordedura
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Registrar una mordedura que presenciaste o conocés clínicamente. Inicia automáticamente
             el período de observación antirrábica de 10 días según la legislación vigente.
           </p>

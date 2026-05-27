@@ -25,7 +25,7 @@ export function ProposeReturnForm({
 
   if (state.success) {
     return (
-      <div className="rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200 text-sm">
+      <div className="rounded border border-gob-success/30 bg-gob-success/10 px-4 py-3 text-gob-text text-sm">
         Propuesta enviada correctamente. El dueño recibio una notificación para confirmar la
         devolución.
       </div>
@@ -35,10 +35,7 @@ export function ProposeReturnForm({
   return (
     <form action={formAction} className="space-y-4">
       <div className="space-y-1">
-        <label
-          htmlFor="notes"
-          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
-        >
+        <label htmlFor="notes" className="block text-sm font-medium text-gob-text-gray">
           Notas para el dueño (opcional)
         </label>
         <textarea
@@ -47,12 +44,12 @@ export function ProposeReturnForm({
           rows={4}
           maxLength={1000}
           placeholder="Ej: El animal está en buen estado, coordinamos horario de búsqueda..."
-          className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500 resize-y"
+          className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500 resize-y"
         />
       </div>
 
       {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger/30 bg-gob-danger/10 px-3 py-2 text-gob-danger">
           {state.error}
         </p>
       )}

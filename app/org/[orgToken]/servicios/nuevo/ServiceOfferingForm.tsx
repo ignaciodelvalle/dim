@@ -27,7 +27,7 @@ export function ServiceOfferingForm({
   return (
     <form action={formAction} className="space-y-5">
       {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger/30 bg-gob-danger/10 px-3 py-2 text-gob-danger">
           {state.error}
         </p>
       )}
@@ -41,7 +41,7 @@ export function ServiceOfferingForm({
           id="serviceKind"
           name="serviceKind"
           required
-          className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+          className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
         >
           <option value="">— Seleccioná un tipo —</option>
           {serviceKinds.map((k) => (
@@ -65,7 +65,7 @@ export function ServiceOfferingForm({
           minLength={3}
           maxLength={120}
           placeholder="Ej: Vacunación antirrábica — campaña junio 2026"
-          className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+          className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
         />
       </div>
 
@@ -80,7 +80,7 @@ export function ServiceOfferingForm({
           maxLength={500}
           rows={3}
           placeholder="Información adicional para quienes reserven el turno."
-          className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500 resize-none"
+          className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500 resize-none"
         />
       </div>
 
@@ -98,7 +98,7 @@ export function ServiceOfferingForm({
             min={5}
             max={480}
             defaultValue={15}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
           />
         </div>
         <div className="space-y-1">
@@ -113,7 +113,7 @@ export function ServiceOfferingForm({
             min={1}
             max={100}
             defaultValue={1}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
           />
         </div>
       </div>
@@ -131,7 +131,7 @@ export function ServiceOfferingForm({
           min={0}
           step="0.01"
           placeholder="0.00"
-          className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+          className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
         />
       </div>
 
@@ -163,7 +163,7 @@ export function ServiceOfferingForm({
             min={0}
             max={360}
             placeholder="Sin mínimo"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
           />
         </div>
         <div className="space-y-1">
@@ -177,7 +177,7 @@ export function ServiceOfferingForm({
             min={0}
             max={360}
             placeholder="Sin máximo"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
           />
         </div>
       </div>
@@ -186,14 +186,11 @@ export function ServiceOfferingForm({
         <button
           type="submit"
           disabled={isPending}
-          className="px-5 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm disabled:opacity-50"
+          className="px-5 py-2 rounded bg-gob-primary text-white text-sm disabled:opacity-50"
         >
           {isPending ? "Enviando…" : "Enviar para aprobación"}
         </button>
-        <a
-          href={`/org/${orgToken}/servicios`}
-          className="text-sm text-neutral-600 underline dark:text-neutral-400"
-        >
+        <a href={`/org/${orgToken}/servicios`} className="text-sm text-gob-text-gray underline">
           Cancelar
         </a>
       </div>

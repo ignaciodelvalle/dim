@@ -20,16 +20,16 @@ export default async function AssignFosterPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("foster.assign")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             Para asignar tránsitos necesitás el permiso{" "}
             <code className="text-xs">foster.assign</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al listado
           </Link>
@@ -53,15 +53,15 @@ export default async function AssignFosterPage({
     .limit(1);
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Animal no disponible</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al listado
           </Link>
@@ -99,25 +99,22 @@ export default async function AssignFosterPage({
   }));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
             {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Asignar tránsito: {pet.name}</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             La custodia del refugio sigue activa mientras el tránsito cuida físicamente al animal.
           </p>
         </header>
 
         <AssignFosterForm orgToken={orgToken} publicToken={publicToken} candidates={candidates} />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href={`/org/${orgToken}/mascotas`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border">
+          <Link href={`/org/${orgToken}/mascotas`} className="text-sm text-gob-text-gray underline">
             ← Volver al listado
           </Link>
         </footer>

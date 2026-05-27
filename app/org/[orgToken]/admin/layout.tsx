@@ -19,16 +19,16 @@ export default async function OrgAdminLayout({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("capability.grant")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Acceso restringido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             Esta sección es para administradores. Necesitás el permiso{" "}
             <code className="text-xs">capability.grant</code> para revisar solicitudes.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al panel
           </Link>

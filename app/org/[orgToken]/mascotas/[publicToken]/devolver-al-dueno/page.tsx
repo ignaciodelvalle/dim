@@ -26,16 +26,16 @@ export default async function DevolverAlDuenoPage({
 
   if (!granted.has("custody.transfer")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             Para proponer una devolución necesitás el permiso{" "}
             <code className="text-xs">custody.transfer</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al listado
           </Link>
@@ -65,16 +65,16 @@ export default async function DevolverAlDuenoPage({
   // Only allow when pet is lost.
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">No aplicable</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             {pet.name} no está en estado &quot;perdida&quot;. Solo se puede proponer devolución
             cuando la mascota está perdida.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al listado
           </Link>
@@ -109,16 +109,16 @@ export default async function DevolverAlDuenoPage({
 
   if (hasPendingProposal) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Propuesta pendiente</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             Ya existe una propuesta de devolución pendiente para {pet.name}. El dueño aún no
             respondió.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al listado
           </Link>
@@ -141,29 +141,26 @@ export default async function DevolverAlDuenoPage({
   const ownerPhone = ownerRow?.phone ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
             {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Devolver a {pet.name}</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Proponé la devolución al dueño original. El dueño recibirá una notificación y deberá
             confirmar cuando tenga a {pet.name} físicamente.
           </p>
         </header>
 
-        <section className="rounded border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
-          <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">
+        <section className="rounded border border-gob-border p-4 space-y-2">
+          <h2 className="text-sm font-semibold text-gob-text-gray uppercase tracking-wide">
             Dueño registrado
           </h2>
           <p className="text-base">{ownerFirstName}</p>
           {ownerPhone && (
-            <a
-              href={`tel:${ownerPhone}`}
-              className="text-sm text-blue-600 dark:text-blue-400 underline"
-            >
+            <a href={`tel:${ownerPhone}`} className="text-sm text-gob-info underline">
               {ownerPhone}
             </a>
           )}
@@ -172,11 +169,8 @@ export default async function DevolverAlDuenoPage({
 
         <ProposeReturnForm orgToken={orgToken} petPublicToken={publicToken} />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href={`/org/${orgToken}/mascotas`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border">
+          <Link href={`/org/${orgToken}/mascotas`} className="text-sm text-gob-text-gray underline">
             ← Volver al listado
           </Link>
         </footer>

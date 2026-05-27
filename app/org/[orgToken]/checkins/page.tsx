@@ -34,10 +34,10 @@ export default async function CheckinsPage({
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
           <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">{auth.error}</p>
+          <p className="text-sm text-gob-text-gray">{auth.error}</p>
           <Link href={`/org/${orgToken}`} className="text-sm text-neutral-600 underline">
             ← Volver al panel
           </Link>
@@ -68,7 +68,7 @@ export default async function CheckinsPage({
   // state communicates "you'll see things here once you finalize adoptions".
   if (petIds.length === 0) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white">
         <div className="max-w-3xl mx-auto space-y-8">
           <PageHeader orgName={organization.displayName} />
           <p className="text-sm text-neutral-500">
@@ -131,7 +131,7 @@ export default async function CheckinsPage({
   const upcoming = openReminders.filter((r) => new Date(r.dueAt).getTime() >= now.getTime());
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-3xl mx-auto space-y-8">
         <PageHeader orgName={organization.displayName} />
 
@@ -144,7 +144,7 @@ export default async function CheckinsPage({
               Ningún check-in vencido. Si el adoptante se atrasa, va a aparecer acá.
             </p>
           ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+            <ul className="divide-y divide-gob-border rounded border border-gob-border">
               {overdue.map((row) => {
                 const days = -daysFromNow(row.dueAt, now);
                 return (
@@ -156,20 +156,18 @@ export default async function CheckinsPage({
                       <p className="text-sm font-medium">
                         <Link
                           href={`/mis-mascotas/${row.publicToken}`}
-                          className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
+                          className="underline underline-offset-2 hover:text-gob-text"
                         >
                           {row.petName}
                         </Link>{" "}
                         — {row.title}
                       </p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                      <p className="text-xs text-gob-text-gray">
                         Adoptante: {row.adopterName ?? "—"} · vencido hace {days}{" "}
                         {days === 1 ? "día" : "días"}
                       </p>
                     </div>
-                    <span className="text-xs text-amber-700 dark:text-amber-400 shrink-0">
-                      Vencido
-                    </span>
+                    <span className="text-xs text-gob-warning-text shrink-0">Vencido</span>
                   </li>
                 );
               })}
@@ -184,7 +182,7 @@ export default async function CheckinsPage({
           {upcoming.length === 0 ? (
             <p className="text-sm text-neutral-500">No hay próximos check-ins en agenda.</p>
           ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+            <ul className="divide-y divide-gob-border rounded border border-gob-border">
               {upcoming.map((row) => {
                 const days = daysFromNow(row.dueAt, now);
                 return (
@@ -196,13 +194,13 @@ export default async function CheckinsPage({
                       <p className="text-sm font-medium">
                         <Link
                           href={`/mis-mascotas/${row.publicToken}`}
-                          className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
+                          className="underline underline-offset-2 hover:text-gob-text"
                         >
                           {row.petName}
                         </Link>{" "}
                         — {row.title}
                       </p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                      <p className="text-xs text-gob-text-gray">
                         Adoptante: {row.adopterName ?? "—"} · en {days}{" "}
                         {days === 1 ? "día" : "días"} ({formatDate(row.dueAt)})
                       </p>
@@ -222,24 +220,22 @@ export default async function CheckinsPage({
           {recentCheckins.length === 0 ? (
             <p className="text-sm text-neutral-500">Ningún check-in registrado todavía.</p>
           ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+            <ul className="divide-y divide-gob-border rounded border border-gob-border">
               {recentCheckins.map((row) => (
                 <li key={row.eventId} className="px-3 py-3 space-y-1">
                   <p className="text-sm font-medium">
                     <Link
                       href={`/mis-mascotas/${row.publicToken}`}
-                      className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
+                      className="underline underline-offset-2 hover:text-gob-text"
                     >
                       {row.petName}
                     </Link>
                   </p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                  <p className="text-xs text-gob-text-gray">
                     {row.adopterName ?? "Adoptante"} · {formatDate(row.occurredAt)}
                   </p>
                   {row.notes && (
-                    <p className="text-xs italic text-neutral-700 dark:text-neutral-300 pt-1">
-                      "{row.notes}"
-                    </p>
+                    <p className="text-xs italic text-gob-text-gray pt-1">"{row.notes}"</p>
                   )}
                 </li>
               ))}
@@ -258,7 +254,7 @@ function PageHeader({ orgName }: { orgName: string }) {
     <header className="space-y-2">
       <p className="text-xs uppercase tracking-wider text-neutral-500">Seguimiento · {orgName}</p>
       <h1 className="text-3xl font-semibold">Check-ins post-adopción</h1>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-gob-text-gray">
         Los adoptantes se autoreportan en las ventanas pactadas. Acá ves lo que llegó, lo que está
         por venir y lo que no llegó a tiempo.
       </p>
@@ -268,11 +264,8 @@ function PageHeader({ orgName }: { orgName: string }) {
 
 function BackLink({ orgToken }: { orgToken: string }) {
   return (
-    <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-      <Link
-        href={`/org/${orgToken}`}
-        className="text-sm text-neutral-600 underline dark:text-neutral-400"
-      >
+    <footer className="pt-4 border-t border-gob-border">
+      <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline">
         ← Volver al panel
       </Link>
     </footer>

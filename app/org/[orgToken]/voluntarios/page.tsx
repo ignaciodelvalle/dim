@@ -45,7 +45,7 @@ export default async function VoluntariosPage({
 
   if ("error" in result) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white">
         <div className="max-w-4xl mx-auto pt-10">
           <p className="text-sm text-red-600">{result.error}</p>
         </div>
@@ -54,13 +54,11 @@ export default async function VoluntariosPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-4xl mx-auto pt-10 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Pool de voluntarios
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text">Pool de voluntarios</h1>
+          <p className="mt-2 text-sm text-gob-text-gray">
             Voluntarios activos con al menos un slot disponible.
           </p>
         </header>
@@ -78,7 +76,7 @@ export default async function VoluntariosPage({
               id="filter-species"
               name="species"
               defaultValue={filters.species ?? ""}
-              className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             >
               <option value="">Todas</option>
               <option value="dog">Perros</option>
@@ -95,7 +93,7 @@ export default async function VoluntariosPage({
               type="text"
               name="province"
               defaultValue={filters.province ?? ""}
-              className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             />
           </div>
           <div>
@@ -107,7 +105,7 @@ export default async function VoluntariosPage({
               type="text"
               name="locality"
               defaultValue={filters.locality ?? ""}
-              className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             />
           </div>
           <div>
@@ -118,7 +116,7 @@ export default async function VoluntariosPage({
               id="filter-pet"
               name="pet"
               defaultValue={filters.pet ?? ""}
-              className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             >
               <option value="">— sin mascota —</option>
               {orgPets.map((p) => (
@@ -130,7 +128,7 @@ export default async function VoluntariosPage({
           </div>
           <button
             type="submit"
-            className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium text-sm"
+            className="px-4 py-2 rounded-lg bg-gob-primary text-white font-medium text-sm"
           >
             Filtrar
           </button>

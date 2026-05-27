@@ -48,13 +48,11 @@ export default async function PetsNoAptasPage({
   const now = new Date();
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-3xl mx-auto pt-10 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Mascotas no aptas para adopción
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text">Mascotas no aptas para adopción</h1>
+          <p className="mt-2 text-sm text-gob-text-gray">
             Animales en custodia marcados explícitamente como NO aptos para adopción. Resolvé el
             motivo desde el perfil del pet para volver a marcarlos como aptos.
           </p>
@@ -67,7 +65,7 @@ export default async function PetsNoAptasPage({
         ) : (
           Array.from(byReason.entries()).map(([reason, list]) => (
             <section key={reason} className="space-y-2">
-              <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
+              <h2 className="text-lg font-medium text-gob-text">
                 {REASON_LABELS[reason] ?? reason}
               </h2>
               <ul className="space-y-2">
@@ -79,7 +77,7 @@ export default async function PetsNoAptasPage({
                   return (
                     <li
                       key={pet.id}
-                      className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-3 space-y-1"
+                      className="rounded-lg border border-gob-border-strong p-3 space-y-1"
                     >
                       <div className="flex items-baseline justify-between gap-3">
                         <Link
@@ -89,7 +87,7 @@ export default async function PetsNoAptasPage({
                           {pet.name}
                         </Link>
                         {reEvalDue && (
-                          <span className="text-xs rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 px-2 py-0.5">
+                          <span className="text-xs rounded-full bg-gob-warning/10 text-gob-warning-text px-2 py-0.5">
                             Re-evaluación vencida
                           </span>
                         )}

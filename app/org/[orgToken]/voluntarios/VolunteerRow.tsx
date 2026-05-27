@@ -69,10 +69,10 @@ export function VolunteerRow({
   }
 
   return (
-    <li className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
+    <li className="rounded-lg border border-gob-border-strong p-4 space-y-3">
       <div className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <p className="font-medium text-neutral-900 dark:text-neutral-50">{row.displayName}</p>
+          <p className="font-medium text-gob-text">{row.displayName}</p>
           <p className="text-xs text-neutral-500 space-x-2">
             <span>{row.availableSlots} slot(s)</span>
             <span>·</span>
@@ -90,14 +90,12 @@ export function VolunteerRow({
             {row.matchScore != null && (
               <>
                 <span>·</span>
-                <span className="text-neutral-700 dark:text-neutral-300">
-                  match {row.matchScore}/100
-                </span>
+                <span className="text-gob-text-gray">match {row.matchScore}/100</span>
               </>
             )}
           </p>
           {row.matchWarnings.length > 0 && (
-            <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5 mt-1">
+            <ul className="text-xs text-gob-warning-text space-y-0.5 mt-1">
               {row.matchWarnings.map((w) => (
                 <li key={w}>• {w}</li>
               ))}
@@ -109,7 +107,7 @@ export function VolunteerRow({
             type="button"
             onClick={() => setOpen(true)}
             disabled={orgPets.length === 0}
-            className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 disabled:opacity-50 whitespace-nowrap"
+            className="px-3 py-1.5 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
           >
             Proponer tránsito
           </button>
@@ -117,7 +115,7 @@ export function VolunteerRow({
       </div>
 
       {open && !okMessage && (
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-3 space-y-3">
+        <div className="border-t border-gob-border pt-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label
@@ -130,7 +128,7 @@ export function VolunteerRow({
                 id={`propose-pet-${row.userId}`}
                 value={petToken}
                 onChange={(e) => setPetToken(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
               >
                 {orgPets.map((p) => (
                   <option key={p.id} value={p.publicToken}>
@@ -153,7 +151,7 @@ export function VolunteerRow({
                 value={durationWeeks}
                 onChange={(e) => setDurationWeeks(e.target.value)}
                 placeholder="Opcional"
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
               />
             </div>
           </div>
@@ -162,11 +160,9 @@ export function VolunteerRow({
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Notas para el voluntario (opcional)"
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
           />
-          {error && (
-            <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>
-          )}
+          {error && <output className="block text-sm text-gob-danger">{error}</output>}
           <div className="flex gap-2">
             <button
               type="button"
@@ -180,7 +176,7 @@ export function VolunteerRow({
               type="button"
               onClick={() => setOpen(false)}
               disabled={pending}
-              className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm"
+              className="px-4 py-2 rounded-lg border border-gob-border-strong text-sm"
             >
               Cancelar
             </button>
@@ -188,11 +184,7 @@ export function VolunteerRow({
         </div>
       )}
 
-      {okMessage && (
-        <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-          {okMessage}
-        </output>
-      )}
+      {okMessage && <output className="block text-sm text-gob-success">{okMessage}</output>}
     </li>
   );
 }

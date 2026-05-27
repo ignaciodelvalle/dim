@@ -58,18 +58,18 @@ export default async function OrgNuevaDenunciaPage({
 
   if (!isAllowed) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white">
         <div className="max-w-2xl mx-auto pt-10 space-y-6">
           <Link
             href={`/org/${orgToken}`}
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-muted hover:text-gob-text"
           >
             ← Volver al panel
           </Link>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text">
             Reporte de maltrato — solo para roles institucionales
           </h1>
-          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+          <div className="rounded-lg border border-gob-warning/40 bg-gob-warning/10 p-4 text-sm text-gob-warning-text space-y-2">
             {!organization.verified ? (
               <p>
                 <strong>{organization.displayName}</strong> todavía no fue verificada por MiMAR. El
@@ -86,7 +86,7 @@ export default async function OrgNuevaDenunciaPage({
               Mientras tanto, podés usar el{" "}
               <Link
                 href="/denuncias/nueva"
-                className="underline underline-offset-4 hover:text-amber-950 dark:hover:text-amber-50"
+                className="underline underline-offset-4 hover:opacity-80"
               >
                 canal público de denuncias
               </Link>
@@ -109,35 +109,35 @@ export default async function OrgNuevaDenunciaPage({
   const boundAction = createOrgWelfareReportAction.bind(null, orgToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-xl mx-auto pt-10 space-y-8">
         <header className="space-y-2">
           <Link
             href={`/org/${orgToken}`}
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-muted hover:text-gob-text"
           >
             ← Volver al panel
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
             Nueva investigación de maltrato
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Canal profesional: tu reporte se procesa con prioridad crítica y notifica inmediatamente
             a las autoridades de la jurisdicción.
           </p>
         </header>
 
-        <section className="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-3 text-sm text-emerald-900 dark:text-emerald-100">
+        <section className="rounded-lg border border-gob-success/30 bg-gob-success/10 p-3 text-sm text-gob-text">
           <p>
             <span className="font-medium">Reportando como:</span>{" "}
             <strong>{organization.displayName}</strong> ·{" "}
-            <span className="text-emerald-800 dark:text-emerald-200">
+            <span className="text-gob-success">
               {reporterProfile?.displayName ?? "vos"} ({membership?.role})
             </span>
           </p>
         </section>
 
-        <section className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-100 space-y-1">
+        <section className="rounded-lg border border-gob-warning/40 bg-gob-warning/10 p-3 text-xs text-gob-warning-text space-y-1">
           <p className="font-medium">Algunas particularidades del canal profesional:</p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
@@ -156,8 +156,8 @@ export default async function OrgNuevaDenunciaPage({
 
         <WelfareReportForm action={boundAction} isAnonymous={false} />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <p className="text-xs text-neutral-400 dark:text-neutral-600">
+        <footer className="pt-4 border-t border-gob-border">
+          <p className="text-xs text-gob-text-muted">
             Ley Nacional 14.346 (1954) — Malos tratos y actos de crueldad contra animales.
           </p>
         </footer>

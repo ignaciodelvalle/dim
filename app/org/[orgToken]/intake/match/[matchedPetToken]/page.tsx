@@ -40,15 +40,15 @@ export default async function IntakeMatchPage({
   // Must still be lost — if it was found in the meantime, tell the user.
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Mascota ya no esta perdida</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray">
             {pet.name} ya fue encontrada o su estado cambio. Podes continuar el ingreso normalmente.
           </p>
           <Link
             href={`/org/${orgToken}/intake`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
           >
             Volver al ingreso
           </Link>
@@ -92,14 +92,14 @@ export default async function IntakeMatchPage({
   const ownerFirstName = ownerRow?.displayName?.split(" ")[0] ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-xl mx-auto space-y-6">
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-wider text-neutral-500">
             {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Coincidencia de microchip</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Este chip ya esta registrado en MiMAR. Confirma si es el mismo animal.
           </p>
         </header>
@@ -121,11 +121,8 @@ export default async function IntakeMatchPage({
           cancelRedirect={`/org/${orgToken}/intake`}
         />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href={`/org/${orgToken}/intake`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border">
+          <Link href={`/org/${orgToken}/intake`} className="text-sm text-gob-text-gray underline">
             Cancelar y volver al ingreso
           </Link>
         </footer>

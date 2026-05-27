@@ -31,7 +31,7 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
           placeholder="DIM-XXXX-XXXX"
           className={`${inputClass} font-mono uppercase tracking-wider`}
         />
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="text-xs text-gob-text-muted">
           El dueño tiene este token en la credencial pública (escaneable o en su perfil).
         </p>
       </div>
@@ -80,8 +80,8 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
               key={opt.value}
               className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
                 victimKind === opt.value
-                  ? "border-neutral-900 bg-neutral-50 dark:border-neutral-50 dark:bg-neutral-900"
-                  : "border-neutral-300 dark:border-neutral-700"
+                  ? "border-gob-primary bg-gob-surface-alt"
+                  : "border-gob-border-strong"
               }`}
             >
               <input
@@ -99,8 +99,8 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
       </div>
 
       {victimKind === "human" && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 bg-neutral-50 dark:bg-neutral-900/30">
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <div className="rounded-xl border border-gob-border p-4 space-y-3 bg-gob-surface-alt">
+          <p className="text-xs text-gob-text-gray">
             Datos de contacto opcionales — para denuncia obligatoria a autoridad sanitaria si
             corresponde.
           </p>
@@ -182,9 +182,9 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
           <input
             type="checkbox"
             name="vetInvolved"
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong"
           />
-          <span className="text-sm text-neutral-900 dark:text-neutral-50">
+          <span className="text-sm text-gob-text">
             Intervino un profesional veterinario en el incidente o atención posterior.
           </span>
         </label>
@@ -203,15 +203,15 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
         />
       </div>
 
-      <div className="rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-2">
+      <div className="rounded-xl border border-gob-warning/40 bg-gob-warning/10 p-4 space-y-2">
         <label className="flex items-start gap-3 cursor-pointer">
           <input
             type="checkbox"
             name="confirmObservation"
             required
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 text-amber-600 focus:ring-amber-600"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong text-amber-600 focus:ring-amber-600"
           />
-          <span className="text-sm text-amber-900 dark:text-amber-200">
+          <span className="text-sm text-gob-warning-text">
             Entiendo que esto inicia un período de observación antirrábica obligatorio de 10 días
             (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987) y se notifica al dueño y a la autoridad
             sanitaria correspondiente.
@@ -220,7 +220,7 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
       </div>
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -228,7 +228,7 @@ export function OrgBiteForm({ action }: { action: FormAction }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-warning-text text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Reportando..." : "Reportar mordedura"}
       </button>

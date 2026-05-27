@@ -36,10 +36,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const SEVERITY_TONES: Record<string, string> = {
-  critical: "text-red-700 dark:text-red-300",
-  high: "text-orange-700 dark:text-orange-300",
-  medium: "text-amber-700 dark:text-amber-300",
-  low: "text-neutral-600 dark:text-neutral-400",
+  critical: "text-gob-danger",
+  high: "text-gob-warning-text",
+  medium: "text-gob-warning-text",
+  low: "text-gob-text-gray",
 };
 
 export default async function OrgMaltratoRecibidosPage({
@@ -71,21 +71,18 @@ export default async function OrgMaltratoRecibidosPage({
     .limit(100);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-3xl mx-auto pt-10 space-y-6">
-        <Link
-          href={`/org/${orgToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
+        <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-muted hover:text-gob-text">
           ← Volver al panel
         </Link>
 
         <header className="flex items-baseline justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
               Investigaciones de maltrato
             </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray">
               Reportes emitidos por miembros de {organization.displayName}.
             </p>
           </div>
@@ -98,43 +95,40 @@ export default async function OrgMaltratoRecibidosPage({
         </header>
 
         {rows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center text-sm text-neutral-500">
+          <p className="rounded-lg border border-dashed border-gob-border-strong p-8 text-center text-sm text-neutral-500">
             Tu organización todavía no emitió denuncias profesionales.
           </p>
         ) : (
           <ul className="space-y-3">
             {rows.map((r) => (
-              <li
-                key={r.reportId}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2"
-              >
+              <li key={r.reportId} className="rounded-lg border border-gob-border p-4 space-y-2">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                    <p className="text-sm font-medium text-gob-text">
                       {welfareReportKindLabel(r.kind)}{" "}
                       <span className={`text-xs ${SEVERITY_TONES[r.severity] ?? ""}`}>
                         · {welfareReportSeverityLabel(r.severity)}
                       </span>
                     </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <p className="text-xs text-gob-text-muted">
                       {welfareReportSubjectKindLabel(r.subjectKind)}
                       {r.petName ? ` · 🐾 ${r.petName}` : ""}
                       {!r.petName && r.subjectDescription
                         ? ` · ${r.subjectDescription.slice(0, 60)}`
                         : ""}
                     </p>
-                    <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
+                    <p className="text-[10px] font-mono text-gob-text-muted">
                       {r.referenceCode} · creada el {formatDate(r.createdAt)}
                     </p>
                   </div>
-                  <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-gob-surface-alt text-gob-text-gray">
                     {STATUS_LABELS[r.status] ?? r.status}
                   </span>
                 </div>
                 {r.casePublicCode && (
                   <Link
                     href={`/casos/${r.casePublicCode}`}
-                    className="inline-block text-xs underline text-neutral-700 dark:text-neutral-300 hover:text-neutral-900"
+                    className="inline-block text-xs underline text-gob-text-gray hover:text-gob-text"
                   >
                     Ver caso →
                   </Link>

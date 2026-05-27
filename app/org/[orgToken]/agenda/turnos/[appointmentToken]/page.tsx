@@ -73,11 +73,11 @@ export default async function OrgAppointmentDetailPage({
   const backUrl = `/org/${orgToken}/agenda`;
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950 p-6">
+    <main className="min-h-screen bg-white p-6">
       <div className="max-w-lg mx-auto pt-8 space-y-8">
         <Link
           href={backUrl}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray underline underline-offset-4"
         >
           ← Volver a la agenda
         </Link>
@@ -86,12 +86,10 @@ export default async function OrgAppointmentDetailPage({
           <p className="text-xs uppercase tracking-wider text-neutral-500">
             {organization.displayName}
           </p>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            {offering.displayName}
-          </h1>
+          <h1 className="text-2xl font-semibold text-gob-text">{offering.displayName}</h1>
         </header>
 
-        <dl className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+        <dl className="space-y-3 rounded-xl border border-gob-border p-4">
           <Row label="Mascota">{pet.name}</Row>
           <Row label="Tipo de servicio">{kindDef?.label ?? offering.serviceKind}</Row>
           <Row label="Fecha y hora">
@@ -116,12 +114,12 @@ export default async function OrgAppointmentDetailPage({
             onCancel={cancelAppointmentByOrgAction}
           />
         ) : (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <div className="rounded-xl border border-gob-border p-4">
+            <p className="text-sm text-gob-text-gray">
               Este turno ya fue procesado (estado: <strong>{appointment.status}</strong>).
             </p>
             {appointment.attendedAt && (
-              <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
+              <p className="text-xs text-neutral-500 mt-1">
                 Asistencia registrada el {appointment.attendedAt.toLocaleDateString("es-AR")}.
               </p>
             )}
@@ -135,10 +133,8 @@ export default async function OrgAppointmentDetailPage({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-        {label}
-      </dt>
-      <dd className="text-sm text-neutral-900 dark:text-neutral-50 mt-0.5">{children}</dd>
+      <dt className="text-xs text-gob-text-muted uppercase tracking-wide">{label}</dt>
+      <dd className="text-sm text-gob-text mt-0.5">{children}</dd>
     </div>
   );
 }

@@ -92,69 +92,56 @@ export default async function OrgTransferenciasEntrantesPage({
     .limit(200);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-3xl mx-auto pt-10 space-y-6">
-        <Link
-          href={`/org/${orgToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
+        <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-muted hover:text-gob-text">
           ← Volver al panel
         </Link>
 
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
             Transferencias entrantes
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Propuestas dirigidas a {organization.displayName}.
           </p>
         </header>
 
-        <nav className="text-xs text-neutral-500 dark:text-neutral-400 flex gap-3">
-          <Link
-            href={`/org/${orgToken}/transferencias`}
-            className="hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
+        <nav className="text-xs text-gob-text-muted flex gap-3">
+          <Link href={`/org/${orgToken}/transferencias`} className="hover:text-gob-text">
             ← Salientes
           </Link>
-          <span className="font-medium text-neutral-900 dark:text-neutral-50">Entrantes</span>
+          <span className="font-medium text-gob-text">Entrantes</span>
         </nav>
 
         {rows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center text-sm text-neutral-500">
+          <p className="rounded-lg border border-dashed border-gob-border-strong p-8 text-center text-sm text-neutral-500">
             No tenés propuestas de transferencia entrantes.
           </p>
         ) : (
           <ul className="space-y-3">
             {rows.map((r) => (
-              <li
-                key={r.caseId}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2"
-              >
+              <li key={r.caseId} className="rounded-lg border border-gob-border p-4 space-y-2">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                      {r.petName ?? "(sin pet)"}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <p className="text-sm font-medium text-gob-text">{r.petName ?? "(sin pet)"}</p>
+                    <p className="text-xs text-gob-text-muted">
                       De <strong>{r.senderOrgName ?? "—"}</strong>
                       {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
                     </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <p className="text-xs text-gob-text-muted">
                       Recibida el {formatDate(r.openedAt)}
                       {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
                     </p>
                     {r.notes ? (
-                      <p className="mt-1 text-xs italic text-neutral-600 dark:text-neutral-400">
-                        “{r.notes}”
-                      </p>
+                      <p className="mt-1 text-xs italic text-gob-text-gray">“{r.notes}”</p>
                     ) : null}
                   </div>
                   <span
                     className={`text-xs uppercase tracking-wider px-2 py-0.5 rounded ${
                       r.status === "open"
-                        ? "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-                        : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        ? "bg-gob-warning/10 text-gob-warning-text"
+                        : "bg-gob-surface-alt text-gob-text-gray"
                     }`}
                   >
                     {r.status === "closed" && r.closedReason
@@ -164,7 +151,7 @@ export default async function OrgTransferenciasEntrantesPage({
                 </div>
                 <Link
                   href={`/casos/${r.publicCode}`}
-                  className="inline-block text-xs underline text-neutral-700 dark:text-neutral-300 hover:text-neutral-900"
+                  className="inline-block text-xs underline text-gob-text-gray hover:text-gob-text"
                 >
                   Ver caso →
                 </Link>

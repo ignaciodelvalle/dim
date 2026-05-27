@@ -31,7 +31,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               name="name"
               required
               maxLength={120}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
               placeholder="Ej: Negrita, Sin nombre, Marrón #4"
             />
           </label>
@@ -41,7 +41,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               name="species"
               required
               defaultValue=""
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             >
               <option value="" disabled>
                 Seleccionar
@@ -76,7 +76,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               type="number"
               min={0}
               max={40}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             />
           </label>
           <label className="space-y-1">
@@ -86,7 +86,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               type="number"
               min={0}
               max={11}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             />
           </label>
         </div>
@@ -97,7 +97,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             <input
               name="breed"
               maxLength={120}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             />
           </label>
           <label className="space-y-1">
@@ -105,7 +105,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             <input
               name="color"
               maxLength={120}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             />
           </label>
         </div>
@@ -116,7 +116,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             name="distinguishingFeatures"
             rows={2}
             maxLength={500}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             placeholder="Cicatrices, manchas, oreja cortada, etc."
           />
         </label>
@@ -129,7 +129,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               <input
                 name="microchipId"
                 maxLength={20}
-                className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+                className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
               />
             </label>
             <label className="space-y-1">
@@ -138,14 +138,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
                 name="microchipCountryCode"
                 maxLength={3}
                 defaultValue="858"
-                className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+                className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
               />
             </label>
           </div>
         </details>
       </section>
 
-      <section className="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+      <section className="space-y-3 pt-2 border-t border-gob-border">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
           Sobre el ingreso
         </h2>
@@ -198,7 +198,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             name="occurredAt"
             type="date"
             defaultValue={today}
-            className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            className="rounded border border-gob-border-strong bg-white px-3 py-2"
           />
         </label>
 
@@ -208,7 +208,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             name="intakeCondition"
             rows={3}
             maxLength={500}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             placeholder="Estado nutricional, lesiones, enfermedades aparentes…"
           />
         </label>
@@ -218,14 +218,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           <input
             name="rescueJurisdiction"
             maxLength={200}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            className="w-full rounded border border-gob-border-strong bg-white px-3 py-2"
             placeholder="Ej: Mataderos, CABA"
           />
         </label>
       </section>
 
       {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger/30 bg-gob-danger/10 px-3 py-2 text-gob-danger">
           {state.error}
         </p>
       )}
@@ -234,7 +234,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <button
           type="submit"
           disabled={isPending}
-          className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 disabled:opacity-50"
+          className="px-4 py-2 rounded bg-gob-primary text-white disabled:opacity-50"
         >
           {isPending ? "Registrando…" : "Registrar ingreso"}
         </button>

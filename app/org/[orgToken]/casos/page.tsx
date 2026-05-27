@@ -36,15 +36,15 @@ export default async function OrgCasosPage({ params }: PageProps) {
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Casos</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-2xl font-bold text-gob-text">Casos</h1>
+        <p className="mt-1 text-sm text-gob-text-gray">
           Expedientes donde {organization.displayName} es la organización que abrió el caso o
           actualmente tiene custodia activa.
         </p>
       </header>
 
       {items.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+        <p className="rounded-2xl border border-dashed border-gob-border-strong p-8 text-center text-sm text-gob-text-muted">
           Sin casos abiertos ni cerrados por ahora.
         </p>
       ) : (
@@ -52,7 +52,7 @@ export default async function OrgCasosPage({ params }: PageProps) {
           {items.map((c) => (
             <li
               key={c.id}
-              className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 md:flex-row md:items-center md:justify-between"
+              className="flex flex-col gap-3 rounded-2xl border border-gob-border bg-white p-4 md:flex-row md:items-center md:justify-between"
             >
               <div className="flex flex-col gap-1">
                 <CaseBadge
@@ -61,7 +61,7 @@ export default async function OrgCasosPage({ params }: PageProps) {
                   status={c.status}
                   size="sm"
                 />
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="text-xs text-gob-text-muted">
                   Abierto el {formatDate(c.openedAt)}
                   {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
                 </span>
@@ -69,14 +69,12 @@ export default async function OrgCasosPage({ params }: PageProps) {
               {c.primaryPetPublicToken && c.primaryPetName ? (
                 <Link
                   href={`/org/${orgToken}/mascotas/${c.primaryPetPublicToken}`}
-                  className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                  className="inline-flex items-center rounded-full bg-gob-surface-alt px-3 py-1.5 text-sm text-gob-text-gray transition hover:bg-gob-border"
                 >
                   🐾 {c.primaryPetName}
                 </Link>
               ) : (
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                  Caso sin mascota registrada
-                </span>
+                <span className="text-sm text-gob-text-muted">Caso sin mascota registrada</span>
               )}
             </li>
           ))}

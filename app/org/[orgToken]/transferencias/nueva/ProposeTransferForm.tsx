@@ -82,7 +82,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           value={receiverOrgId}
           onChange={(e) => setReceiverOrgId(e.target.value)}
           required
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-50"
+          className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text"
         >
           <option value="">Elegí una organización verificada…</option>
           {receivers.map((r) => (
@@ -92,7 +92,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             </option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="mt-1 text-xs text-gob-text-muted">
           Solo aparecen orgs verificadas activas. Sin auto-selección por proximidad.
         </p>
       </div>
@@ -106,7 +106,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           required
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-50"
+          className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text"
         >
           <option value="">Elegí un motivo…</option>
           {REASON_OPTIONS.map((opt) => (
@@ -128,11 +128,11 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           rows={4}
           required={reasonRequiresNotes}
           placeholder="Contexto para que el destinatario evalúe — visible al receiver."
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-50"
+          className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text"
         />
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+      <div className="rounded-lg border border-gob-warning/40 bg-gob-warning/10 p-3 text-xs text-gob-warning-text">
         <p>
           La propuesta expira en <strong>30 días</strong> si no recibe respuesta del destinatario.
           {petName} sigue bajo tu custodia hasta que la organización destinataria acepte.
@@ -140,16 +140,16 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       </div>
 
       {error && (
-        <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+        <p className="rounded-lg border border-gob-danger/30 bg-gob-danger/10 p-3 text-sm text-gob-danger">
           {error}
         </p>
       )}
 
-      <div className="flex justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+      <div className="flex justify-end gap-2 border-t border-gob-border pt-4">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-md px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          className="rounded-md px-4 py-2 text-sm text-gob-text-gray hover:bg-gob-surface-alt"
         >
           Cancelar
         </button>

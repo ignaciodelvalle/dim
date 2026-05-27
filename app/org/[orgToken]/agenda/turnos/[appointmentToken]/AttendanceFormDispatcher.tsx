@@ -65,9 +65,7 @@ export function AttendanceFormDispatcher({
   return (
     <div className="space-y-8">
       <section>
-        <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-50 mb-4">
-          Registrar asistencia
-        </h2>
+        <h2 className="text-base font-semibold text-gob-text mb-4">Registrar asistencia</h2>
 
         {isVaccination && (
           <VaccinationAttendanceForm
@@ -102,22 +100,20 @@ export function AttendanceFormDispatcher({
         )}
       </section>
 
-      <section className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-3">
-        <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          Otras acciones
-        </h2>
+      <section className="border-t border-gob-border pt-6 space-y-3">
+        <h2 className="text-sm font-medium text-gob-text-gray">Otras acciones</h2>
         <div className="flex gap-3 flex-wrap">
           <button
             type="button"
             onClick={handleNoShow}
-            className="px-4 py-2 rounded-md border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+            className="px-4 py-2 rounded-md border border-gob-warning/40 text-gob-warning-text text-sm font-medium hover:bg-gob-warning/10 transition-colors"
           >
             No vino
           </button>
           <button
             type="button"
             onClick={handleCancel}
-            className="px-4 py-2 rounded-md border border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            className="px-4 py-2 rounded-md border border-gob-danger/30 text-gob-danger text-sm font-medium hover:bg-gob-danger/10 transition-colors"
           >
             Cancelar turno
           </button>

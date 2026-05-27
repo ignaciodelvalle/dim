@@ -37,10 +37,10 @@ export default async function OrgIndexPage() {
 
   if (myOrgs.length === 0) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
         <div className="max-w-md text-center space-y-3">
           <h1 className="text-2xl font-semibold">Sin organizaciones</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             No sos miembro activo de ninguna organización. Si tu organización te invitó, revisá tu
             email para aceptar la invitación. Si querés registrar una nueva, andá a{" "}
             <Link href="/cuenta/upgrade" className="underline">
@@ -50,7 +50,7 @@ export default async function OrgIndexPage() {
           </p>
           <Link
             href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white text-sm font-medium"
           >
             Volver a mis mascotas
           </Link>
@@ -66,11 +66,11 @@ export default async function OrgIndexPage() {
 
   // Multiple memberships — render a picker so the user can choose.
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white">
       <div className="max-w-2xl mx-auto pt-8 space-y-6">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold">Seleccionar organización</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Pertenecés a {myOrgs.length} organizaciones. Elegí con cuál querés trabajar.
           </p>
         </header>
@@ -79,7 +79,7 @@ export default async function OrgIndexPage() {
             <li key={org.id}>
               <Link
                 href={`/org/${org.publicToken}`}
-                className="block p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                className="block p-4 rounded-xl border border-gob-border hover:bg-gob-surface-alt transition-colors"
               >
                 <p className="font-medium">{org.displayName}</p>
                 <p className="text-sm text-neutral-500 mt-0.5">

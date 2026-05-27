@@ -78,8 +78,8 @@ export function EligibilityForm({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-3 text-sm">
-        <p className="text-neutral-600 dark:text-neutral-400">
+      <div className="rounded-lg border border-gob-border-strong p-3 text-sm">
+        <p className="text-gob-text-gray">
           Estado actual:{" "}
           <strong>
             {current.eligible === true
@@ -92,7 +92,7 @@ export function EligibilityForm({
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">Decisión</p>
+        <p className="text-sm font-medium text-gob-text">Decisión</p>
         <div className="flex gap-2">
           <button
             type="button"
@@ -100,7 +100,7 @@ export function EligibilityForm({
             className={`px-3 py-1.5 rounded-lg border text-sm ${
               decision === "eligible"
                 ? "bg-emerald-600 text-white border-emerald-600"
-                : "border-neutral-300 dark:border-neutral-700"
+                : "border-gob-border-strong"
             }`}
           >
             Apta para adopción
@@ -110,8 +110,8 @@ export function EligibilityForm({
             onClick={() => setDecision("not_eligible")}
             className={`px-3 py-1.5 rounded-lg border text-sm ${
               decision === "not_eligible"
-                ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-50"
-                : "border-neutral-300 dark:border-neutral-700"
+                ? "bg-gob-primary text-white border-gob-primary"
+                : "border-gob-border-strong"
             }`}
           >
             NO apta
@@ -129,7 +129,7 @@ export function EligibilityForm({
               id="elig-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as Reason)}
-              className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             >
               {REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
@@ -148,7 +148,7 @@ export function EligibilityForm({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder={reason === "other" ? "Describí el motivo" : "Notas (opcional)"}
-              className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             />
           </div>
           <div>
@@ -160,7 +160,7 @@ export function EligibilityForm({
               type="date"
               value={until}
               onChange={(e) => setUntil(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
             />
             <p className="text-xs text-neutral-500 mt-1">
               Si lo dejás vacío, queda no-apta hasta que la marques manualmente otra vez.
@@ -169,19 +169,15 @@ export function EligibilityForm({
         </div>
       )}
 
-      {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
-      {okMessage && (
-        <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-          {okMessage}
-        </output>
-      )}
+      {error && <output className="block text-sm text-gob-danger">{error}</output>}
+      {okMessage && <output className="block text-sm text-gob-success">{okMessage}</output>}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 disabled:opacity-50"
+          className="px-4 py-2 rounded-lg bg-gob-primary text-white font-medium hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Guardando..." : "Guardar elegibilidad"}
         </button>
@@ -189,7 +185,7 @@ export function EligibilityForm({
           type="button"
           onClick={() => router.push(`/org/${orgToken}/mascotas`)}
           disabled={pending}
-          className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700"
+          className="px-4 py-2 rounded-lg border border-gob-border-strong"
         >
           Cancelar
         </button>

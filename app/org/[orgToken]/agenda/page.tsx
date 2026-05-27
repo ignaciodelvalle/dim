@@ -21,23 +21,23 @@ import { notFound } from "next/navigation";
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   confirmed: {
     label: "Confirmado",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    className: "bg-gob-success/10 text-gob-success",
   },
   attended: {
     label: "Asistido",
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+    className: "bg-gob-info/10 text-gob-info",
   },
   cancelled_by_org: {
     label: "Cancelado",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text-gray",
   },
   cancelled_by_owner: {
     label: "Cancelado",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text-gray",
   },
   no_show: {
     label: "Ausente",
-    className: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+    className: "bg-gob-danger/10 text-gob-danger",
   },
 };
 
@@ -104,20 +104,18 @@ export default async function OrgAgendaPage({
   const nextDate = new Date(current.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950 p-6">
+    <main className="min-h-screen bg-white p-6">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-wider text-neutral-500">
               {organization.displayName}
             </p>
-            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-              Agenda del día
-            </h1>
+            <h1 className="text-2xl font-semibold text-gob-text">Agenda del día</h1>
           </div>
           <Link
             href={`/org/${orgToken}`}
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+            className="text-sm text-gob-text-gray underline underline-offset-4"
           >
             ← Volver al panel
           </Link>
@@ -127,11 +125,11 @@ export default async function OrgAgendaPage({
         <div className="flex items-center gap-3">
           <Link
             href={`/org/${orgToken}/agenda?fecha=${prevDate}`}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+            className="px-3 py-1.5 rounded-md border border-gob-border text-sm hover:bg-gob-surface-alt transition-colors"
           >
             ← Anterior
           </Link>
-          <span className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <span className="text-sm font-medium text-gob-text">
             {new Date(`${targetDateStr}T12:00:00`).toLocaleDateString("es-AR", {
               weekday: "long",
               day: "numeric",
@@ -141,7 +139,7 @@ export default async function OrgAgendaPage({
           </span>
           <Link
             href={`/org/${orgToken}/agenda?fecha=${nextDate}`}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+            className="px-3 py-1.5 rounded-md border border-gob-border text-sm hover:bg-gob-surface-alt transition-colors"
           >
             Siguiente →
           </Link>
@@ -149,11 +147,11 @@ export default async function OrgAgendaPage({
 
         {/* Appointments list */}
         {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 py-8 text-center">
+          <p className="text-sm text-gob-text-muted py-8 text-center">
             No hay turnos para este día.
           </p>
         ) : (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <ul className="divide-y divide-gob-border rounded-xl border border-gob-border">
             {rows.map(({ appointment, slot, offering, pet, ownerProfile }) => {
               const kindDef = findServiceKind(offering.serviceKind);
               const badge = STATUS_BADGE[appointment.status] ?? STATUS_BADGE.confirmed;
@@ -167,19 +165,17 @@ export default async function OrgAgendaPage({
 
               return (
                 <li key={appointment.id} className="p-4 flex items-start gap-4">
-                  <div className="shrink-0 text-sm font-mono text-neutral-600 dark:text-neutral-400 w-14 pt-0.5">
+                  <div className="shrink-0 text-sm font-mono text-gob-text-gray w-14 pt-0.5">
                     {slotTime}
                   </div>
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-                        {pet.name}
-                      </p>
+                      <p className="text-sm font-semibold text-gob-text">{pet.name}</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}>
                         {badge.label}
                       </span>
                     </div>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    <p className="text-xs text-gob-text-muted">
                       {kindDef?.label ?? offering.serviceKind} · <span>{ownerLabel}</span>
                       {ownerProfile?.phone && <> · {ownerProfile.phone}</>}
                     </p>
@@ -188,7 +184,7 @@ export default async function OrgAgendaPage({
                     <div className="shrink-0">
                       <Link
                         href={`/org/${orgToken}/agenda/turnos/${appointment.publicToken}`}
-                        className="text-xs px-3 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-neutral-700 dark:text-neutral-300"
+                        className="text-xs px-3 py-1.5 rounded-md border border-gob-border-strong hover:bg-gob-surface-alt transition-colors text-gob-text-gray"
                       >
                         Gestionar
                       </Link>
