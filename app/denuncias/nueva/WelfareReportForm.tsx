@@ -279,7 +279,7 @@ export function WelfareReportForm({
       </div>
 
       {/* Location */}
-      <LocationFields mode="full" />
+      <LocationFields mode="l2" />
 
       {/* Occurred at */}
       <div className={FIELD_CLASS}>
