@@ -58,6 +58,9 @@ export async function recordPostAdoptionCheckinAction(
   const notesRaw = String(formData.get("notes") ?? "").trim();
   const notes = notesRaw || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  // Per-event L1 (sprint 4 PR-034). Optional.
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   // Look up the most recent adoption_finalized event for this pet. The
   // related organization is denormalized from that payload so the check-in
@@ -97,6 +100,8 @@ export async function recordPostAdoptionCheckinAction(
         related_organization_id: orgId,
         photo_attachment_ids: [],
         notes,
+        jurisdiction_province: eventJurisdictionProvince,
+        jurisdiction_locality: eventJurisdictionLocality,
       });
       const now = new Date();
       const { event, wasNoop: checkinNoop } = await insertEventIdempotent(

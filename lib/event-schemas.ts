@@ -342,6 +342,12 @@ const vetVisitLogged = z
       // visit to a real vet (user) or clinic (organization).
       attended_by_organization_id: z.string().uuid().nullable().optional(),
       attended_by_user_id: z.string().uuid().nullable().optional(),
+      // L1 jurisdiction (optional). Sprint 4 PR-034 / doc 09 §3.A: events
+      // that happen at a known location capture province + locality so the
+      // gob surveillance projections can attribute them. Falls back to the
+      // pet's jurisdiction when omitted (no behavior change for legacy rows).
+      jurisdiction_province: z.string().nullable().optional(),
+      jurisdiction_locality: z.string().nullable().optional(),
     }),
   )
   .strict()
@@ -400,6 +406,9 @@ const clinicalInfoLogged = z
         .optional(),
       live_births_count: z.number().int().min(0).max(20).nullable().optional(),
       vet_consulted: z.string().nullable().optional(),
+      // L1 jurisdiction (optional). Sprint 4 PR-034 / doc 09 §3.A.
+      jurisdiction_province: z.string().nullable().optional(),
+      jurisdiction_locality: z.string().nullable().optional(),
     }),
   )
   .strict()
@@ -676,6 +685,9 @@ const incidentReported = z
       context: z.string().nullable().optional(),
       rabies_vaccine_valid_at_incident: z.boolean().nullable().optional(),
       reporter_role: z.enum(["owner", "vet", "shelter", "govt", "witness"]).nullable().optional(),
+      // L1 jurisdiction (optional). Sprint 4 PR-034 / doc 09 §3.A.
+      jurisdiction_province: z.string().nullable().optional(),
+      jurisdiction_locality: z.string().nullable().optional(),
     }),
   )
   .strict();
@@ -1223,6 +1235,9 @@ const postAdoptionCheckin = z
       related_organization_id: z.string().uuid(),
       photo_attachment_ids: z.array(z.string().uuid()).default([]),
       notes: z.string().nullable(),
+      // L1 jurisdiction (optional). Sprint 4 PR-034 / doc 09 §3.A.
+      jurisdiction_province: z.string().nullable().optional(),
+      jurisdiction_locality: z.string().nullable().optional(),
     }),
   )
   .strict();
