@@ -9,8 +9,7 @@
 import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
-import { LocalityCombobox } from "@/components/LocalityCombobox";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -24,15 +23,14 @@ export function AssignLocalityForm({
   onAssigned?: (locality: AssignedLocality) => void;
 }) {
   const [mode, setMode] = useState<Mode>("idle");
-  // provinceCode is the ISO 3166-2:AR code (e.g. "AR-C"). It feeds the
-  // combobox's scope and is mapped to the display name at submit time.
-  const [provinceCode, setProvinceCode] = useState("");
+  // provinceName is the canonical display name from ar_provincias, resolved
+  // by LocalityPickerAcross when the user picks a result.
+  const [provinceName, setProvinceName] = useState("");
   const [locality, setLocality] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastAssigned, setLastAssigned] = useState<AssignedLocality | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const provinceName = PROVINCES.find((p) => p.code === provinceCode)?.name ?? "";
   const localityTrimmed = locality.trim();
   const canSubmit = provinceName.length > 0 && localityTrimmed.length > 0 && !pending;
 
@@ -46,7 +44,7 @@ export function AssignLocalityForm({
           type="button"
           onClick={() => {
             setMode("idle");
-            setProvinceCode("");
+            setProvinceName("");
             setLocality("");
             setLastAssigned(null);
           }}
@@ -65,47 +63,25 @@ export function AssignLocalityForm({
           Asignar nueva localidad
         </p>
 
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <label
-              htmlFor="assign-locality-province"
-              className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
-            >
-              Provincia
-            </label>
-            <select
-              id="assign-locality-province"
-              value={provinceCode}
-              onChange={(e) => {
-                setProvinceCode(e.target.value);
-                setLocality("");
-              }}
-              disabled={pending}
-              className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-50"
-            >
-              <option value="">Elegí una provincia</option>
-              {PROVINCES.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label
-              htmlFor="assign-locality-locality"
-              className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
-            >
-              Localidad
-            </label>
-            <LocalityCombobox
-              provinceCode={provinceCode || null}
-              defaultValue={{ localityName: locality }}
-              name="assignLocalityName"
-              onSelect={(r) => setLocality(r?.localityName ?? "")}
-            />
-          </div>
+        <div className="space-y-1">
+          <label
+            htmlFor="assign-locality-locality"
+            className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+          >
+            Localidad
+          </label>
+          <LocalityPickerAcross
+            id="assign-locality-locality"
+            onSelect={(r) => {
+              setProvinceName(r?.provinceName ?? "");
+              setLocality(r?.localityName ?? "");
+            }}
+          />
+          {provinceName && (
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-500">
+              Provincia: {provinceName}
+            </p>
+          )}
         </div>
 
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}

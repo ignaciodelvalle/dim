@@ -511,6 +511,15 @@ export async function reportBiteFromOrgAction(
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
   const vetInvolved = formData.get("vetInvolved") === "on";
+  // Per-event L1 jurisdiction (critique-direcciones-2026-05-27 §Bug 4).
+  // Optional: when omitted the case + incident default to the pet's
+  // jurisdiction. Critical for org-side reports where the bite often
+  // happens outside the pet's home jurisdiction (mascota CABA mordió
+  // en San Isidro).
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const caseProvince = eventJurisdictionProvince ?? pet.jurisdictionProvince;
+  const caseLocality = eventJurisdictionLocality ?? pet.jurisdictionLocality;
 
   // 4. Snapshot rabies-vaccine status at the moment of the bite.
   const rabiesVaccineValid = await computeRabiesVaccineValidAtBite(pet.id, occurredAt);
@@ -538,8 +547,8 @@ export async function reportBiteFromOrgAction(
           kind: "bite_incident",
           primarySubjectKind: "registered_pet",
           primaryPetId: pet.id,
-          jurisdictionProvince: pet.jurisdictionProvince,
-          jurisdictionLocality: pet.jurisdictionLocality,
+          jurisdictionProvince: caseProvince,
+          jurisdictionLocality: caseLocality,
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
           openedReason: `Bite incident reported by ${organization.displayName} (${reporterRole}) — victim=${victimKind}, severity=${severity}`,
@@ -561,6 +570,8 @@ export async function reportBiteFromOrgAction(
         context,
         rabies_vaccine_valid_at_incident: rabiesVaccineValid,
         reporter_role: reporterRole,
+        jurisdiction_province: eventJurisdictionProvince,
+        jurisdiction_locality: eventJurisdictionLocality,
       });
       const [biteEvent] = await tx
         .insert(petEvents)

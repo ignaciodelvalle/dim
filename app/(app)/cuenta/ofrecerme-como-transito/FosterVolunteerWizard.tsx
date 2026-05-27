@@ -27,7 +27,9 @@ import {
   upsertFosterVolunteerAction,
   withdrawFosterVolunteerAction,
 } from "@/app/actions/foster-volunteers";
+import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { WizardShell } from "@/components/poncho/Wizard";
+import { provinceByName } from "@/lib/ar-provincias";
 import { labelClass } from "@/lib/form-classes";
 
 type InitialState = {
@@ -215,33 +217,25 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="fv-province" className={labelClass}>
-                  Provincia
-                </label>
-                <input
-                  id="fv-province"
-                  type="text"
-                  value={province}
-                  onChange={(e) => setProvince(e.target.value)}
-                  placeholder="Buenos Aires"
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950"
-                />
-              </div>
-              <div>
-                <label htmlFor="fv-locality" className={labelClass}>
-                  Localidad
-                </label>
-                <input
-                  id="fv-locality"
-                  type="text"
-                  value={locality}
-                  onChange={(e) => setLocality(e.target.value)}
-                  placeholder="La Plata"
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950"
-                />
-              </div>
+            <div>
+              <label htmlFor="fv-locality" className={labelClass}>
+                Localidad
+              </label>
+              <LocalityPickerAcross
+                id="fv-locality"
+                defaultValue={{
+                  provinceCode: provinceByName(province)?.code ?? null,
+                  provinceName: province || null,
+                  localityName: locality || null,
+                }}
+                onSelect={(result) => {
+                  setProvince(result?.provinceName ?? "");
+                  setLocality(result?.localityName ?? "");
+                }}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                La provincia se deduce de la localidad que elijas.
+              </p>
             </div>
 
             <div className="space-y-2">
