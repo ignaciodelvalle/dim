@@ -6,6 +6,7 @@ import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/lib
 import { attachments, db, libretaShareTokens, petEvents, pets } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
+import { validateShareToken } from "@/lib/libreta-share-token";
 import { petPhotoUrl } from "@/lib/storage";
 
 import { ViewLogger } from "./ViewLogger";
@@ -31,8 +32,10 @@ export default async function PublicLibretaPage({
     .where(eq(libretaShareTokens.shareToken, shareToken))
     .limit(1);
 
-  if (!share || share.revokedAt) return <RevokedView />;
-  if (share.expiresAt && share.expiresAt < new Date()) return <ExpiredView />;
+  if (!share) notFound();
+  const status = validateShareToken(share);
+  if (status === "revoked") return <RevokedView />;
+  if (status === "expired") return <ExpiredView />;
 
   // Load pet and apply deceased guard (D8).
   const [pet] = await db.select().from(pets).where(eq(pets.id, share.petId)).limit(1);
