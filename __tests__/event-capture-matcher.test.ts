@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { extractDateFromText, matchCaptureIntent } from "@/lib/event-capture-matcher";
+import {
+  CAPTURE_INPUT_MAX_LENGTH,
+  extractDateFromText,
+  matchCaptureIntent,
+} from "@/lib/event-capture-matcher";
 
 // Use a fixed reference date so the date tests are stable.
 const NOW = new Date("2026-05-19T12:00:00Z");
@@ -106,5 +110,45 @@ describe("extractDateFromText", () => {
   });
   it("rejects invalid dates (Feb 30)", () => {
     expect(extractDateFromText("el 30/02/2026", NOW)).toBeNull();
+  });
+});
+
+describe("matchCaptureIntent — adversarial inputs", () => {
+  it("truncates input above CAPTURE_INPUT_MAX_LENGTH before matching", () => {
+    // Place the trigger word past the cap. After truncation it disappears, so
+    // the matcher returns null — which is exactly the desired anti-abuse
+    // behavior (no pathological string ever reaches the RegExp engine).
+    const padding = "x".repeat(CAPTURE_INPUT_MAX_LENGTH + 10);
+    const input = `${padding} vacuna`;
+    expect(matchCaptureIntent(input)).toBeNull();
+  });
+
+  it("matches normally when the trigger word fits under the cap", () => {
+    const padding = "x".repeat(CAPTURE_INPUT_MAX_LENGTH - 20);
+    const input = `vacuna ${padding}`;
+    const result = matchCaptureIntent(input);
+    expect(result?.eventType).toBe("vaccination_administered");
+  });
+
+  it("handles emoji and unicode without crashing", () => {
+    // Emojis don't trigger any pattern but the matcher must return null
+    // cleanly, not throw on grapheme weirdness.
+    expect(matchCaptureIntent("🐕 🩺 ❤️")).toBeNull();
+    expect(matchCaptureIntent("vacuna 💉 antirrábica")?.eventType).toBe("vaccination_administered");
+  });
+
+  it("treats regex metacharacters in input as literal text", () => {
+    // The user typing "vacuna|peso" must match SOLO vacuna — the `|` is just
+    // a character to the matcher because triggers are hardcoded patterns,
+    // not built from input.
+    const result = matchCaptureIntent("vacuna|peso");
+    expect(result?.eventType).toBe("vaccination_administered");
+  });
+
+  it("handles a multi-kb input without crashing (cap protects regex)", () => {
+    // 10kb of `a` characters. After truncation the matcher runs on 500
+    // chars max and returns null in under a few ms. The point is no crash.
+    const input = "a".repeat(10_000);
+    expect(matchCaptureIntent(input)).toBeNull();
   });
 });
