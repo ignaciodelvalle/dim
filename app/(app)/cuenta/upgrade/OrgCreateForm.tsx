@@ -1,8 +1,10 @@
 "use client";
 
-import { type UpgradeFormState, createOrganizationAction } from "@/app/actions/upgrade";
-import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState } from "react";
+
+import { type UpgradeFormState, createOrganizationAction } from "@/app/actions/upgrade";
+import { LocationFields } from "@/components/LocationFields";
+import { inputClass, labelClass } from "@/lib/form-classes";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -79,22 +81,17 @@ export function OrgCreateForm() {
         hint="11 dígitos sin guiones. Ej: 30712345678"
       />
       <Field id="phone" name="phone" type="tel" label="Teléfono (opcional)" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field
-          id="jurisdictionProvince"
-          name="jurisdictionProvince"
-          type="text"
-          label="Provincia"
-          hint="Para enrutar la verificación al govt correspondiente."
-          required
-        />
-        <Field
-          id="jurisdictionLocality"
-          name="jurisdictionLocality"
-          type="text"
-          label="Localidad"
-          required
-        />
+      {/* Jurisdiction — L1 (province + locality) per AGENTS.md "Design rules"
+            rule #1. LocationFields submits `provinceCode` and `localityName`;
+            the createOrganizationAction reads those keys plus the legacy
+            `jurisdictionProvince` / `jurisdictionLocality` aliases for
+            backward compatibility. */}
+      <div className="space-y-1">
+        <p className={labelClass}>Jurisdicción</p>
+        <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-2">
+          Para enrutar la verificación al govt correspondiente.
+        </p>
+        <LocationFields mode="l1" />
       </div>
       <Field
         id="personeriaJuridicaNumber"
