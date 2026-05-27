@@ -184,7 +184,7 @@ export default async function AdoptarFichaPage({
         // biome-ignore lint/security/noDangerouslySetInnerHtml: SEO JSON-LD needs raw <script> content. The input is JSON.stringify of a controlled object, not user data.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
+      <div className="max-w-4xl mx-auto px-6 py-10 pb-32 md:pb-10 space-y-8">
         <Link href="/adoptar" className="text-sm text-gob-text-muted hover:text-gob-text">
           ← Volver a /adoptar
         </Link>
