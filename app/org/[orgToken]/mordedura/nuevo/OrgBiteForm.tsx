@@ -16,6 +16,7 @@
 import { useState, useTransition } from "react";
 
 import { type ReportBiteFromOrgFormState, reportBiteFromOrgAction } from "@/app/actions/bite";
+import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { inputClass, labelClass } from "@/lib/form-classes";
@@ -46,6 +47,9 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
   const [petPublicToken, setPetPublicToken] = useState("");
   const [occurredAt, setOccurredAt] = useState(today);
   const [locationDescription, setLocationDescription] = useState("");
+  const [provinceCode, setProvinceCode] = useState("");
+  const [provinceName, setProvinceName] = useState("");
+  const [localityName, setLocalityName] = useState("");
   const [victimKind, setVictimKind] = useState<"human" | "animal" | "unknown">("human");
   const [victimContactName, setVictimContactName] = useState("");
   const [victimContactPhone, setVictimContactPhone] = useState("");
@@ -62,6 +66,9 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
     fd.set("petPublicToken", petPublicToken.trim());
     fd.set("occurredAt", occurredAt);
     if (locationDescription) fd.set("locationDescription", locationDescription);
+    if (provinceCode) fd.set("provinceCode", provinceCode);
+    if (provinceName) fd.set("provinceName", provinceName);
+    if (localityName) fd.set("localityName", localityName);
     fd.set("victimKind", victimKind);
     if (victimContactName) fd.set("victimContactName", victimContactName);
     if (victimContactPhone) fd.set("victimContactPhone", victimContactPhone);
@@ -179,6 +186,25 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             placeholder="Ej: Plaza Italia, esquina Cerviño"
             className={inputClass}
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="bite-locality" className={labelClass}>
+            Jurisdicción del incidente
+          </label>
+          <LocalityPickerAcross
+            id="bite-locality"
+            placeholder="Localidad o barrio del incidente…"
+            onSelect={(result) => {
+              setProvinceCode(result?.provinceCode ?? "");
+              setProvinceName(result?.provinceName ?? "");
+              setLocalityName(result?.localityName ?? "");
+            }}
+          />
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+            Para enrutar el reporte a la autoridad sanitaria correspondiente. Si no la elegís,
+            usamos la jurisdicción registrada de la mascota.
+          </p>
         </div>
 
         <div className="space-y-1.5">
