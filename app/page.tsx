@@ -69,6 +69,60 @@ export default async function Home() {
           </Link>
         </div>
 
+        {/* 3-step explainer (sprint 6 PR-055 / doc 10 §6). Stacked on mobile,
+            row on desktop. */}
+        <section
+          aria-label="Cómo funciona MiMAR"
+          className="pt-10 grid grid-cols-1 md:grid-cols-3 gap-4 text-left"
+        >
+          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+            <div
+              className="h-10 w-10 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-xl"
+              aria-hidden="true"
+            >
+              🐾
+            </div>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              1. Cargá tu mascota
+            </p>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              Datos básicos, foto, y microchip si tenés. Tarda menos de un minuto.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+            <div
+              className="h-10 w-10 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-xl"
+              aria-hidden="true"
+            >
+              📱
+            </div>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              2. Imprimí su QR
+            </p>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              Pegalo en la chapita del collar. Es la credencial pública que muestra solo lo que
+              decidís compartir.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+            <div
+              className="h-10 w-10 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-xl"
+              aria-hidden="true"
+            >
+              📍
+            </div>
+            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              3. Si se pierde, todos pueden ayudar
+            </p>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              Quien la encuentre escanea el QR y ve cómo contactarte. Vecinos pueden reportar dónde
+              la vieron.
+            </p>
+          </div>
+        </section>
+
         <div className="pt-4 flex flex-col items-center gap-2">
           <Link
             href="/denuncias/nueva"
