@@ -18,6 +18,8 @@ import { queryAdoptionListing } from "@/lib/adoption-listing-query";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { queryOrgPublicProfile } from "@/lib/org-public-profile";
 
+import { OrgHero } from "./OrgHero";
+
 export const dynamic = "force-dynamic";
 
 const PROVINCE_BY_NAME = new Map<string, (typeof PROVINCES)[number]>(
@@ -59,53 +61,22 @@ export default async function RefugioPage({
     (org.jurisdictionProvince && PROVINCE_BY_NAME.get(org.jurisdictionProvince)?.name) ||
     org.jurisdictionProvince ||
     null;
+  const localityLabel =
+    org.jurisdictionLocality && provinceLabel
+      ? `${org.jurisdictionLocality}, ${provinceLabel}`
+      : (provinceLabel ?? org.jurisdictionLocality ?? null);
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
-      <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
+    <main className="min-h-screen bg-gob-surface">
+      <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
         <Link
           href="/adoptar"
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-muted hover:text-gob-text"
         >
           ← Volver a /adoptar
         </Link>
 
-        <header className="space-y-3">
-          <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            {org.displayName}
-          </h1>
-          {(provinceLabel || org.jurisdictionLocality) && (
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              {org.jurisdictionLocality && provinceLabel
-                ? `${org.jurisdictionLocality}, ${provinceLabel}`
-                : (provinceLabel ?? org.jurisdictionLocality)}
-            </p>
-          )}
-          {(org.email || org.phone || org.website) && (
-            <div className="text-xs text-neutral-500 space-x-3">
-              {org.email && (
-                <a href={`mailto:${org.email}`} className="underline">
-                  {org.email}
-                </a>
-              )}
-              {org.phone && <span>· {org.phone}</span>}
-              {org.website && (
-                <a
-                  href={org.website.startsWith("http") ? org.website : `https://${org.website}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  · {org.website}
-                </a>
-              )}
-            </div>
-          )}
-          <p className="text-xs text-neutral-500">
-            Refugio verificado por MiMAR. Las postulaciones llegan directo al equipo del refugio,
-            que coordina los próximos pasos por email con cada candidato.
-          </p>
-        </header>
+        <OrgHero org={org} localityLabel={localityLabel} />
 
         {items.length === 0 ? (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-6 py-10 text-center space-y-2">
