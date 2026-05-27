@@ -224,6 +224,8 @@ export function SheetMounter({
             discloseLastLocationWhenLost: markLostData.discloseLastLocationWhenLost,
             allowFinderFormWhenLost: markLostData.allowFinderFormWhenLost,
           }}
+          petName={petName}
+          petPublicToken={petToken}
           petHasMicrochip={markLostData.petHasMicrochip}
           petHasTattoo={markLostData.petHasTattoo}
           petColor={markLostData.petColor}
