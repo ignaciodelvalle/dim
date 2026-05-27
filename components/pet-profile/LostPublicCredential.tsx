@@ -35,6 +35,9 @@ interface Props {
   distinguishingFeatures: string | null;
   /** Finder form URL. Pass null to hide the CTA. */
   finderFormHref: string | null;
+  /** Sighting form URL ("La vi cerca de acá"). Independent of finderFormHref —
+   * surfaces a lower-commitment way to help (drop a pin, no custody claim). */
+  sightingFormHref?: string | null;
   /** Date the pet was marked lost. */
   lostSince: Date;
   /** Tattoo code — gated by lost status (D3). Null if pet has no tattoo. */
@@ -57,6 +60,7 @@ export function LostPublicCredential({
   lastSeenLocality,
   distinguishingFeatures,
   finderFormHref,
+  sightingFormHref = null,
   lostSince,
   tattooCode = null,
   tattooLocation = null,
@@ -110,7 +114,15 @@ export function LostPublicCredential({
                 href={finderFormHref}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-gob-primary px-5 text-sm font-semibold text-white hover:bg-gob-primary-hover"
               >
-                📍 La encontré
+                📍 La tengo conmigo
+              </Link>
+            )}
+            {sightingFormHref && (
+              <Link
+                href={sightingFormHref}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white border border-gob-border px-5 text-sm font-semibold text-gob-text hover:bg-gob-surface-alt dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+              >
+                👀 La vi cerca de acá
               </Link>
             )}
           </div>
