@@ -24,17 +24,17 @@ import { TriageActions } from "./TriageActions";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 animate-pulse" />
+    <div className="w-full h-64 rounded-lg border border-gob-border bg-gob-surface-alt animate-pulse" />
   ),
 });
 
 const STATUS_TONE: Record<string, string> = {
-  open: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200",
-  triaged: "bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200",
-  in_progress: "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200",
-  closed: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200",
-  invalid: "bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400",
-  duplicate: "bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400",
+  open: "bg-gob-warning/20 text-gob-warning-text",
+  triaged: "bg-gob-info/10 text-gob-info",
+  in_progress: "bg-indigo-100 text-indigo-800",
+  closed: "bg-gob-success/10 text-gob-success",
+  invalid: "bg-gob-surface-alt text-gob-text-gray",
+  duplicate: "bg-gob-surface-alt text-gob-text-gray",
 };
 
 export default async function GobMaltratoDetailPage({
@@ -113,16 +113,13 @@ export default async function GobMaltratoDetailPage({
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Breadcrumb */}
-        <Link
-          href="/gob/maltrato"
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
+        <Link href="/gob/maltrato" className="text-sm text-gob-text-muted hover:text-gob-text">
           ← Volver al listado
         </Link>
 
         <header className="space-y-2">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-2xl font-semibold text-gob-text">
               {welfareReportKindLabel(report.kind)}
             </h1>
             <span
@@ -136,34 +133,34 @@ export default async function GobMaltratoDetailPage({
               {welfareReportSeverityLabel(report.severity)}
             </span>
           </div>
-          <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
+          <p className="text-[10px] font-mono text-gob-text-muted">
             {report.referenceCode} · creada {formatDateTime(report.createdAt)}
           </p>
         </header>
 
         {/* Summary chips row — case metadata at a glance */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+          <div className="rounded-lg border border-gob-border px-3 py-2 space-y-0.5">
             <p className="text-[10px] uppercase tracking-wider text-neutral-500">Edad del caso</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+            <p className="text-sm font-semibold text-gob-text">
               {ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
             </p>
           </div>
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+          <div className="rounded-lg border border-gob-border px-3 py-2 space-y-0.5">
             <p className="text-[10px] uppercase tracking-wider text-neutral-500">Gravedad</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+            <p className="text-sm font-semibold text-gob-text">
               {welfareReportSeverityLabel(report.severity)}
             </p>
           </div>
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+          <div className="rounded-lg border border-gob-border px-3 py-2 space-y-0.5">
             <p className="text-[10px] uppercase tracking-wider text-neutral-500">Estado</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+            <p className="text-sm font-semibold text-gob-text">
               {welfareReportStatusLabel(report.status)}
             </p>
           </div>
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+          <div className="rounded-lg border border-gob-border px-3 py-2 space-y-0.5">
             <p className="text-[10px] uppercase tracking-wider text-neutral-500">Asignado a</p>
-            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50 truncate">
+            <p className="text-sm font-semibold text-gob-text truncate">
               {assignedToName ?? "Sin asignar"}
             </p>
           </div>
@@ -179,29 +176,27 @@ export default async function GobMaltratoDetailPage({
           />
         )}
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+        <section className="rounded-lg border border-gob-border p-4 space-y-2">
           <h2 className="text-xs uppercase tracking-wider text-neutral-500">¿Qué pasó?</h2>
-          <p className="text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">
-            {report.description}
-          </p>
+          <p className="text-sm text-gob-text whitespace-pre-wrap">{report.description}</p>
           {report.occurredAt && (
             <p className="text-xs text-neutral-500">Ocurrió el {formatDate(report.occurredAt)}</p>
           )}
         </section>
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+        <section className="rounded-lg border border-gob-border p-4 space-y-2">
           <h2 className="text-xs uppercase tracking-wider text-neutral-500">Sujeto</h2>
           <p className="text-sm">{welfareReportSubjectKindLabel(report.subjectKind)}</p>
           {report.subjectDescription && (
-            <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+            <p className="text-sm text-gob-text-gray whitespace-pre-wrap">
               {report.subjectDescription}
             </p>
           )}
         </section>
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+        <section className="rounded-lg border border-gob-border p-4 space-y-3">
           <h2 className="text-xs uppercase tracking-wider text-neutral-500">Lugar</h2>
-          <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-1">
+          <div className="text-sm text-gob-text-gray space-y-1">
             {report.locationAddress && <p>{report.locationAddress}</p>}
             {(report.jurisdictionLocality || report.jurisdictionProvince) && (
               <p>
@@ -222,7 +217,7 @@ export default async function GobMaltratoDetailPage({
         </section>
 
         {attachments.length > 0 && (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+          <section className="rounded-lg border border-gob-border p-4 space-y-2">
             <h2 className="text-xs uppercase tracking-wider text-neutral-500">
               Evidencia ({attachments.length})
             </h2>
@@ -237,7 +232,7 @@ export default async function GobMaltratoDetailPage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs underline hover:text-neutral-900 dark:hover:text-neutral-50"
+                      className="text-xs underline hover:text-gob-text"
                     >
                       Abrir →
                     </a>
@@ -250,10 +245,10 @@ export default async function GobMaltratoDetailPage({
           </section>
         )}
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+        <section className="rounded-lg border border-gob-border p-4 space-y-2">
           <h2 className="text-xs uppercase tracking-wider text-neutral-500">Reportante</h2>
           {report.reporterUserId ? (
-            <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            <p className="text-sm text-gob-text-gray">
               {actorNames.get(report.reporterUserId) ?? "Usuario registrado"}
               {report.reporterContactEmail && (
                 <span className="text-neutral-500"> · {report.reporterContactEmail}</span>
@@ -279,13 +274,13 @@ export default async function GobMaltratoDetailPage({
         </section>
 
         {(report.triagedAt || report.closedAt) && (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
-            <h2 className="text-xs uppercase tracking-wider text-neutral-500">Trayectoria</h2>
+          <section className="rounded-lg border border-gob-border p-4 space-y-2 text-sm">
+            <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">Trayectoria</h2>
             {report.triagedAt && (
               <p>
                 Revisada el {formatDateTime(report.triagedAt)}
                 {report.triagedByUserId && (
-                  <span className="text-neutral-500">
+                  <span className="text-gob-text-muted">
                     {" "}
                     por {actorNames.get(report.triagedByUserId) ?? "una autoridad"}
                   </span>
@@ -294,7 +289,7 @@ export default async function GobMaltratoDetailPage({
             )}
             {report.closedAt && <p>Cerrada el {formatDateTime(report.closedAt)}</p>}
             {report.resolutionNotes && (
-              <div className="rounded bg-neutral-50 dark:bg-neutral-900 p-3 text-xs text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+              <div className="rounded bg-gob-surface-alt p-3 text-xs text-gob-text-gray whitespace-pre-wrap">
                 {report.resolutionNotes}
               </div>
             )}
@@ -302,31 +297,31 @@ export default async function GobMaltratoDetailPage({
         )}
 
         {!isTerminal && (
-          <section className="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-              Acciones
-            </h2>
+          <section className="space-y-3 pt-2 border-t border-gob-border">
+            <h2 className="text-lg font-semibold text-gob-text">Acciones</h2>
             <TriageActions welfareReportId={report.id} currentStatus={report.status} />
           </section>
         )}
 
         {/* MPF export — available regardless of triage status */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-neutral-500">Export fiscal</h2>
+        <section className="rounded-lg border border-gob-border p-4 space-y-2">
+          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">Export fiscal</h2>
           <MpfExportButton welfareReportId={report.id} />
         </section>
 
         {/* Timeline — chronological event log */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
-          <h2 className="text-xs uppercase tracking-wider text-neutral-500">Línea de tiempo</h2>
+        <section className="rounded-lg border border-gob-border p-4 space-y-4">
+          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">Línea de tiempo</h2>
           <Timeline events={timelineEvents} />
         </section>
 
         {/* Normativa aplicable — static references, v1 */}
         {/* TODO(E4-followup): source normativa from a real catalog instead of hardcoded list */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-          <h2 className="text-xs uppercase tracking-wider text-neutral-500">Normativa aplicable</h2>
-          <ul className="space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
+        <section className="rounded-lg border border-gob-border p-4 space-y-3">
+          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">
+            Normativa aplicable
+          </h2>
+          <ul className="space-y-2 text-sm text-gob-text-gray">
             <li>
               <span className="font-medium">Ley Nacional 14.346</span> — Protección de los animales
               contra actos de crueldad.

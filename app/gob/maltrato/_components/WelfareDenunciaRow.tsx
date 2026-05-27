@@ -18,12 +18,12 @@ const SEVERITY_VARIANT: Record<WelfareReportSeverity, "danger" | "warning" | "in
 };
 
 const STATUS_TONE: Record<WelfareReportStatus, string> = {
-  open: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200",
-  triaged: "bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200",
-  in_progress: "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200",
-  closed: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200",
-  invalid: "bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400",
-  duplicate: "bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400",
+  open: "bg-gob-warning/20 text-gob-warning-text",
+  triaged: "bg-gob-info/10 text-gob-info",
+  in_progress: "bg-indigo-100 text-indigo-800",
+  closed: "bg-gob-success/10 text-gob-success",
+  invalid: "bg-gob-surface-alt text-gob-text-gray",
+  duplicate: "bg-gob-surface-alt text-gob-text-gray",
 };
 
 /** Compact time-ago label for a past date, in Spanish. */
@@ -56,27 +56,27 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
   const severityVariant = SEVERITY_VARIANT[report.severity] ?? "neutral";
 
   return (
-    <li className="rounded-lg border border-neutral-200 dark:border-neutral-800">
+    <li className="rounded-lg border border-gob-border">
       <Link
         href={`/gob/maltrato/${report.id}`}
-        className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+        className="block px-4 py-3 hover:bg-gob-surface-alt transition"
       >
         <div className="flex items-baseline justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+              <p className="text-sm font-medium text-gob-text">
                 {welfareReportKindLabel(report.kind)}
               </p>
               <Badge variant={severityVariant}>{welfareReportSeverityLabel(report.severity)}</Badge>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            <p className="text-xs text-gob-text-muted">
               {report.jurisdictionLocality && report.jurisdictionProvince
                 ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
                 : "Sin jurisdicción declarada"}
               {" · "}
               {timeAgo(new Date(report.createdAt))}
             </p>
-            <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
+            <p className="text-[10px] text-gob-text-muted font-mono">
               {report.referenceCode}
               {report.assignedToUserId ? " · Asignada" : ""}
             </p>

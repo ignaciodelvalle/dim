@@ -45,14 +45,14 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notas para el aplicante (opcional)."
           rows={2}
-          className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+          className="w-full text-xs rounded-md border border-gob-border bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary"
         />
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={approve}
             disabled={pending}
-            className="text-xs px-3 py-1.5 rounded-md bg-emerald-700 dark:bg-emerald-600 text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="text-xs px-3 py-1.5 rounded-md bg-gob-success text-white hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {pending ? "Aprobando..." : "Confirmar aprobación"}
           </button>
@@ -63,12 +63,12 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
               setNotes("");
               setError(null);
             }}
-            className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-md border border-gob-border hover:bg-gob-surface-alt transition-colors"
           >
             Cancelar
           </button>
         </div>
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-gob-danger">{error}</p>}
       </div>
     );
   }
@@ -82,14 +82,14 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
           onChange={(e) => setReason(e.target.value)}
           placeholder="Razón del rechazo (mínimo 5 caracteres). Se envía al aplicante."
           rows={3}
-          className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+          className="w-full text-xs rounded-md border border-gob-border bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary"
         />
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={reject}
             disabled={pending || tooShort}
-            className="text-xs px-3 py-1.5 rounded-md bg-red-600 dark:bg-red-700 text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="text-xs px-3 py-1.5 rounded-md bg-gob-danger text-white hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {pending ? "Rechazando..." : "Confirmar rechazo"}
           </button>
@@ -100,12 +100,12 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
               setReason("");
               setError(null);
             }}
-            className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-md border border-gob-border hover:bg-gob-surface-alt transition-colors"
           >
             Cancelar
           </button>
         </div>
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-gob-danger">{error}</p>}
       </div>
     );
   }
@@ -116,7 +116,7 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
         type="button"
         onClick={() => setMode("approving")}
         disabled={pending}
-        className="text-sm px-4 py-2 rounded-md bg-emerald-700 dark:bg-emerald-600 text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+        className="text-sm px-4 py-2 rounded-md bg-gob-success text-white hover:opacity-90 transition-opacity disabled:opacity-50"
       >
         Aprobar
       </button>
@@ -124,11 +124,11 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
         type="button"
         onClick={() => setMode("rejecting")}
         disabled={pending}
-        className="text-sm px-4 py-2 rounded-md border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors disabled:opacity-50"
+        className="text-sm px-4 py-2 rounded-md border border-gob-danger/30 text-gob-danger hover:bg-gob-danger/10 transition-colors disabled:opacity-50"
       >
         Rechazar
       </button>
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-gob-danger">{error}</p>}
     </div>
   );
 }

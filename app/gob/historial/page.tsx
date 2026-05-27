@@ -42,37 +42,33 @@ export default async function GobHistorialPage() {
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Mi historial
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">Mi historial</h1>
+          <p className="text-sm text-gob-text-gray">
             Últimas {entries.length} acciones realizadas por{" "}
             <span className="font-medium">{actor?.displayName ?? user.id}</span>.
           </p>
         </header>
 
         {entries.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
-            No registraste acciones todavía.
-          </p>
+          <p className="text-sm text-gob-text-muted">No registraste acciones todavía.</p>
         ) : (
           <ul className="space-y-2">
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-start justify-between gap-3"
+                className="rounded-lg border border-gob-border px-4 py-3 flex items-start justify-between gap-3"
               >
                 <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm text-neutral-900 dark:text-neutral-50">
+                  <p className="text-sm text-gob-text">
                     {ACTION_LABELS[entry.action] ?? entry.action}
                   </p>
                   {entry.approvalRequestId && (
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
+                    <p className="text-xs text-gob-text-muted font-mono">
                       req: {entry.approvalRequestId}
                     </p>
                   )}
                 </div>
-                <time className="text-xs text-neutral-400 dark:text-neutral-600 whitespace-nowrap">
+                <time className="text-xs text-gob-text-muted whitespace-nowrap">
                   {new Date(entry.performedAt).toLocaleString("es-AR", {
                     dateStyle: "short",
                     timeStyle: "short",

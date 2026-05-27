@@ -32,10 +32,8 @@ export default async function GobDisputasPage() {
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-1">
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Disputas de custodia
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold text-gob-text">Disputas de custodia</h1>
+          <p className="text-sm text-gob-text-gray">
             {profile.role === "admin"
               ? "Todas las disputas abiertas en el sistema."
               : "Disputas abiertas en tu cobertura."}
@@ -43,24 +41,19 @@ export default async function GobDisputasPage() {
         </header>
 
         {scoped.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
-            No hay disputas abiertas.
-          </p>
+          <p className="text-sm text-gob-text-muted">No hay disputas abiertas.</p>
         ) : (
           <ul className="space-y-2">
             {scoped.map(({ dispute, pet }) => (
-              <li
-                key={dispute.id}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800"
-              >
+              <li key={dispute.id} className="rounded-lg border border-gob-border">
                 <Link
                   href={`/gob/disputas/${dispute.publicToken}`}
-                  className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  className="block px-4 py-3 hover:bg-gob-surface-alt transition"
                 >
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  <p className="text-sm font-medium text-gob-text">
                     {pet.name} <span className="text-neutral-500 font-normal">({pet.species})</span>
                   </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-0.5">
+                  <p className="text-xs text-gob-text-muted mt-0.5">
                     {dispute.jurisdictionLocality}, {dispute.jurisdictionProvince} · Abierta{" "}
                     {new Date(dispute.createdAt).toLocaleDateString("es-AR", {
                       day: "numeric",
@@ -68,7 +61,7 @@ export default async function GobDisputasPage() {
                       year: "numeric",
                     })}
                   </p>
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono mt-1">
+                  <p className="text-[10px] text-gob-text-muted font-mono mt-1">
                     {dispute.publicToken}
                   </p>
                 </Link>

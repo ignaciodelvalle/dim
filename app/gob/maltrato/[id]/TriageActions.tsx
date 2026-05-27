@@ -117,23 +117,23 @@ export function TriageActions({
   };
 
   return (
-    <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
+    <div className="rounded-lg border border-gob-border-strong p-4 space-y-3">
       <p className="text-sm font-medium">{titles[mode]}</p>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholders[mode]}
-        className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+        className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
       />
       <p className="text-xs text-neutral-500 tabular-nums">{notes.trim().length} caracteres</p>
-      {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
+      {error && <output className="block text-sm text-gob-danger">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending || notes.trim().length < 10}
-          className="px-4 py-2 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50"
+          className="px-4 py-2 rounded bg-gob-primary text-white text-sm font-medium disabled:opacity-50"
         >
           {pending ? "Procesando..." : "Confirmar"}
         </button>
@@ -141,7 +141,7 @@ export function TriageActions({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded border border-neutral-300 dark:border-neutral-700 text-sm"
+          className="px-4 py-2 rounded border border-gob-border-strong text-sm"
         >
           Cancelar
         </button>
@@ -161,10 +161,10 @@ function ActionButton({
 }) {
   const toneClass =
     tone === "primary"
-      ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:bg-neutral-800"
+      ? "bg-gob-primary text-white hover:opacity-90"
       : tone === "success"
         ? "bg-emerald-600 text-white hover:bg-emerald-700"
-        : "border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900";
+        : "border border-gob-border-strong text-gob-text-gray hover:bg-gob-surface-alt";
   return (
     <button
       type="button"

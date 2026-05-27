@@ -107,48 +107,40 @@ export default async function DisputeDetailPage({
         <header className="space-y-2">
           <Link
             href="/gob/disputas"
-            className="text-sm text-neutral-500 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50 underline underline-offset-4"
+            className="text-sm text-gob-text-muted hover:text-gob-text underline underline-offset-4"
           >
             ← Volver a la lista
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-              {pet.name}
-            </h1>
-            <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200">
+            <h1 className="text-3xl font-semibold text-gob-text">{pet.name}</h1>
+            <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded-full bg-gob-warning/20 text-gob-warning-text">
               {STATUS_LABELS[dispute.status] ?? dispute.status}
             </span>
           </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             {pet.species}
             {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
             {dispute.jurisdictionProvince}
           </p>
-          <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
-            {dispute.publicToken}
-          </p>
+          <p className="text-[10px] text-gob-text-muted font-mono">{dispute.publicToken}</p>
         </header>
 
         {dispute.status === "open" && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-100">
+          <div className="rounded-lg border border-gob-warning/40 bg-gob-warning/10 p-3 text-sm text-gob-warning-text">
             Disputa abierta — la mascota queda bloqueada para transferencias o adopción hasta que se
             resuelva o retire.
           </div>
         )}
 
         {dispute.status === "resolved" && dispute.resolutionSummary && (
-          <section className="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 space-y-2">
-            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-              Resolución: {dispute.resolution}
-            </p>
-            <p className="text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap">
-              {dispute.resolutionSummary}
-            </p>
+          <section className="rounded-lg border border-gob-success/40 bg-gob-success/10 p-4 space-y-2">
+            <p className="text-sm font-medium text-gob-success">Resolución: {dispute.resolution}</p>
+            <p className="text-sm text-gob-text whitespace-pre-wrap">{dispute.resolutionSummary}</p>
           </section>
         )}
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Partes</h2>
+          <h2 className="text-lg font-semibold text-gob-text">Partes</h2>
           {parties.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin partes registradas todavía.</p>
           ) : (
@@ -156,20 +148,18 @@ export default async function DisputeDetailPage({
               {parties.map(({ party, userProfile, org }) => (
                 <li
                   key={party.id}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 space-y-1"
+                  className="rounded-lg border border-gob-border px-4 py-3 space-y-1"
                 >
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  <p className="text-sm font-medium text-gob-text">
                     {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
                     <span className="ml-2 text-xs text-neutral-500 font-normal">
                       {PARTY_ROLE_LABELS[party.partyRole] ?? party.partyRole}
                     </span>
                   </p>
                   {party.partyPositionSummary && (
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                      {party.partyPositionSummary}
-                    </p>
+                    <p className="text-xs text-gob-text-gray">{party.partyPositionSummary}</p>
                   )}
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-600">
+                  <p className="text-[10px] text-gob-text-muted">
                     Sumada el{" "}
                     {new Date(party.addedAt).toLocaleDateString("es-AR", {
                       day: "numeric",
@@ -185,9 +175,7 @@ export default async function DisputeDetailPage({
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            Historia de custodia
-          </h2>
+          <h2 className="text-lg font-semibold text-gob-text">Historia de custodia</h2>
           {timeline.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin eventos de custodia previos.</p>
           ) : (
@@ -195,7 +183,7 @@ export default async function DisputeDetailPage({
               {timeline.map((e) => (
                 <li
                   key={e.id}
-                  className="flex items-baseline justify-between gap-3 border-l-2 border-neutral-200 dark:border-neutral-800 pl-3 py-1"
+                  className="flex items-baseline justify-between gap-3 border-l-2 border-gob-border pl-3 py-1"
                 >
                   <span className="font-mono text-xs">{e.eventType}</span>
                   <span className="text-xs text-neutral-500">
@@ -215,10 +203,8 @@ export default async function DisputeDetailPage({
         </section>
 
         {canResolve && (
-          <section className="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-              Resolver disputa
-            </h2>
+          <section className="space-y-3 pt-2 border-t border-gob-border">
+            <h2 className="text-lg font-semibold text-gob-text">Resolver disputa</h2>
             <ResolveDisputeForm disputeToken={disputeToken} />
             {canWithdraw && (
               <div className="pt-2">

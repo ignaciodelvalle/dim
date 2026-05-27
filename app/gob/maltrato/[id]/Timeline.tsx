@@ -34,24 +34,22 @@ export function Timeline({ events }: TimelineProps) {
   }
 
   return (
-    <ol className="relative border-l border-neutral-200 dark:border-neutral-700 space-y-6 pl-6">
+    <ol className="relative border-l border-gob-border space-y-6 pl-6">
       {events.map((event) => (
         <li key={event.id} className="relative">
           {/* Timeline dot */}
           <span
-            className={`absolute -left-[1.65rem] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-neutral-950 ${kindDot(event.kind)}`}
+            className={`absolute -left-[1.65rem] top-1 w-3 h-3 rounded-full border-2 border-white ${kindDot(event.kind)}`}
             aria-hidden="true"
           />
           <div className="space-y-0.5">
-            <p className="text-xs text-neutral-400 dark:text-neutral-500 tabular-nums">
+            <p className="text-xs text-gob-text-muted tabular-nums">
               {formatDateTime(event.occurredAt)}
               {event.actorName && (
-                <span className="ml-1 text-neutral-500 dark:text-neutral-400">
-                  · {event.actorName}
-                </span>
+                <span className="ml-1 text-gob-text-muted">· {event.actorName}</span>
               )}
             </p>
-            <p className="text-sm text-neutral-800 dark:text-neutral-200">{event.summary}</p>
+            <p className="text-sm text-gob-text">{event.summary}</p>
           </div>
         </li>
       ))}
