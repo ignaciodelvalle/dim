@@ -57,6 +57,12 @@ import { redirect } from "next/navigation";
 
 export type EventFormState = {
   error: string | null;
+  // Optional success flag. The default success path for event actions is a
+  // server-side redirect (so a screenshot of the form can't be re-submitted).
+  // Forms that need to render their own SuccessScreen — currently just
+  // MarkLostWizard (sprint 3 PR-021) — pass `noRedirect=1` in the FormData
+  // and the action returns `{ error: null, ok: true }` instead of redirecting.
+  ok?: boolean;
 };
 
 async function cleanupAttachment(supabase: SupabaseServerClient, path: string | null) {
@@ -897,6 +903,13 @@ export async function setPetLostAction(
   });
 
   if (result.error) return result;
+
+  // Wizards that own a SuccessScreen pass `noRedirect=1` so they can render
+  // the "Activamos la búsqueda" surface client-side instead of getting a
+  // hard redirect mid-transition.
+  if (String(formData.get("noRedirect") ?? "") === "1") {
+    return { error: null, ok: true };
+  }
 
   redirect(`/mis-mascotas/${publicToken}`);
 }

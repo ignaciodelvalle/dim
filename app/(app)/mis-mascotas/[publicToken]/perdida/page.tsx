@@ -55,6 +55,8 @@ export default async function MarkPetLostPage({
         <MarkLostWizard
           action={boundAction}
           disclosureDefaults={disclosureDefaults}
+          petName={pet.name}
+          petPublicToken={pet.publicToken}
           petHasMicrochip={!!pet.microchipId}
           petHasTattoo={!!pet.tattooCode}
           petColor={pet.color ?? null}

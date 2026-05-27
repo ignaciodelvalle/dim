@@ -22,6 +22,7 @@ import { useRef, useState, useTransition } from "react";
 
 import type { DisclosurePrefsInput, EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
+import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
@@ -70,6 +71,8 @@ const DISCLOSURE_TOGGLES: Array<{
 export function MarkLostWizard({
   action,
   disclosureDefaults,
+  petName,
+  petPublicToken,
   petHasMicrochip,
   petHasTattoo,
   petColor,
@@ -79,6 +82,8 @@ export function MarkLostWizard({
 }: {
   action: FormAction;
   disclosureDefaults: DisclosurePrefsInput;
+  petName: string;
+  petPublicToken: string;
   petHasMicrochip: boolean;
   petHasTattoo: boolean;
   petColor: string | null;
@@ -96,6 +101,7 @@ export function MarkLostWizard({
   const [step, setStep] = useState(1);
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   function goBack() {
@@ -111,11 +117,39 @@ export function MarkLostWizard({
   function handleSubmit() {
     setErrorMessage(null);
     const formData = formRef.current ? new FormData(formRef.current) : new FormData();
+    // Signal to setPetLostAction to skip the redirect so we can render
+    // our own SuccessScreen client-side (sprint 3 PR-021).
+    formData.set("noRedirect", "1");
     startTransition(async () => {
       const result = await action({ error: null }, formData);
-      if (result?.error) setErrorMessage(result.error);
-      // On success the server action redirects, so no else branch needed.
+      if (result?.error) {
+        setErrorMessage(result.error);
+        return;
+      }
+      if (result?.ok) {
+        setSubmitted(true);
+      }
     });
+  }
+
+  if (submitted) {
+    const profileHref = `/mis-mascotas/${petPublicToken}`;
+    const printHref = `/p/${petPublicToken}?print=true`;
+    const shareText = `${petName} está perdida — ayudanos a encontrarla. Su perfil público:`;
+    const shareUrl = `https://wa.me/?text=${encodeURIComponent(
+      `${shareText} ${typeof window !== "undefined" ? window.location.origin : ""}/p/${petPublicToken}`,
+    )}`;
+    return (
+      <SuccessScreen
+        title={`Activamos la búsqueda de ${petName}`}
+        description="Su perfil público ya muestra el aviso. Más gente va a poder ayudarte a encontrarla."
+        next={[
+          { label: "Compartir por WhatsApp", href: shareUrl },
+          { label: "Imprimir cartel A4", href: printHref, variant: "secondary" },
+          { label: "Volver al perfil", href: profileHref, variant: "tertiary" },
+        ]}
+      />
+    );
   }
 
   return (
