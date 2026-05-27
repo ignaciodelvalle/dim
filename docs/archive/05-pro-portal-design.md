@@ -1,4 +1,10 @@
-# 05 — /pro vet independiente · design spec (handoff)
+# 05 — /pro vet independiente · design spec ⚪ ARCHIVED
+
+> ⚪ **Archived 2026-05-27 (sprint 1 PR-007).** El portal `/pro` fue deprecado: `app/pro/` no existe en el código y el flujo del vet independiente se atendió desde dentro del org portal (`/org/[orgToken]/*`). Esta spec se conserva como referencia histórica del journey "vet sin clínica" por si el segmento se reabre en el futuro — no como spec viva.
+>
+> Para el flujo del vet independiente real ver `docs/org-portal-event-flows.md` + `docs/superpowers/specs/2026-05-18-foster-volunteers-pool-design.md` para el modelo de capabilities.
+
+---
 
 > Portal para veterinarios independientes (no afiliados a una clínica). Scope: **scheduling y libreta** — sin intake, foster, adopción, ni gestión organizacional. AGENTS.md: "El independiente opera como service provider".
 

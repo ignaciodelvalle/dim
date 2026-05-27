@@ -61,7 +61,7 @@ Componentes nuevos a sumar por estas specs (cubiertos in-line):
 | 02 | [Foster volunteers pool](./02-foster-pool.md) | `/cuenta/ofrecerme-como-transito`, `/cuenta/transitos/*`, `/org/[orgToken]/voluntarios` | 🟠 Media-alta |
 | 03 | [/adoptar listing público](./03-adoptar-public.md) | `/adoptar`, `/adoptar/[petToken]`, `/refugios/[orgToken]` | 🟠 Media-alta — feed la conversión a postulación |
 | 04 | [Govt dashboards](./04-govt-dashboards.md) | `/gob/vigilancia`, `/gob/perdidas`, `/gob/maltrato`, `/gob/disputas` (+ admin universal) | 🟡 Media — depende del onboarding govt |
-| 05 | [/pro vet independiente](./05-pro-portal.md) | `/pro`, `/pro/servicios`, `/pro/agenda` | 🟡 Media — habilita un segmento nuevo |
+| 05 | ~~/pro vet independiente~~ | ~~`/pro`, `/pro/servicios`, `/pro/agenda`~~ | ⚪ **Archived** — el portal `/pro` fue deprecado; el flujo del vet independiente vive ahora dentro del org portal. Spec movida a [`../archive/05-pro-portal-design.md`](../archive/05-pro-portal-design.md) en sprint 1 PR-007. |
 | 06 | [Vaccine-due UX](./06-vaccine-due.md) | `/mis-mascotas/[publicToken]` (cards), `/notificaciones`, `/inicio` | 🟢 Baja-media — quick win |
 
 ## Resumen ejecutivo
