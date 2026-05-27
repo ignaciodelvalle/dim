@@ -19,6 +19,11 @@ Prompts que se usaron para construir features grandes en el rebuild. El feature 
 - **`event-sourcing-hardening-prompt.md`** — prompt que llevó a la implementación del hardening del event-sourcing (Zod schemas estrictos, `validateEventPayload`, append-only triggers, projection rebuild script). **Mayoría implementado**; UUIDv7 quedó pendiente como irrelevante hasta primer projector real.
 - **`org-portal-prompt.md`** — prompt que disparó el build del org portal completo (`/org/[orgToken]/*`). El feature está implementado; algunos extractos de este doc todavía se citan como canon en specs/plans recientes (por ej. el patrón de `foster_ended.payload.reason='adoption'` siendo programmatic-only). Cuando se cite, anotar como referencia histórica — no es la fuente de verdad viva.
 
+### Specs superseded (movidas acá en sprint 1 PR-007, 2026-05-27)
+
+- **`2026-05-18-maltreatment-reporting-design.md`** — denuncia de maltrato. Proponía una arquitectura de `ghost_subject` pets que el código no implementó: la versión real vive en la tabla `welfare_reports` con `subjectKind` enum polimórfico (`db/schema.ts:885-983`, `app/actions/welfare.ts`, `app/denuncias/nueva/`). Para trabajar el feature ver `docs/superpowers/plans/2026-05-18-welfare-reports-polish.md`.
+- **`05-pro-portal-design.md`** — portal `/pro` para vets independientes. Deprecado: el flujo del vet independiente vive ahora dentro del org portal (`/org/[orgToken]/...`), no existe `app/pro/`. Spec se conserva por su análisis del journey "vet sin clínica", útil si en el futuro se reabre.
+
 ## Qué NO está acá (mantenido en `docs/`)
 
 - **`docs/legal-framework-full.md`** — framework legal AR vivo, sigue iterando.

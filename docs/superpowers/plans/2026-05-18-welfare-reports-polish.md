@@ -11,7 +11,7 @@
 
 ## 0. Antes de tocar nada
 
-Lectura obligatoria. Este plan asume conocimiento de la arquitectura actual; el código es la fuente de verdad — el spec `2026-05-18-maltreatment-reporting-design.md` quedó **superseded** y NO se debe seguir (proponía una arquitectura distinta de ghost_subject pets que el código no implementa).
+Lectura obligatoria. Este plan asume conocimiento de la arquitectura actual; el código es la fuente de verdad — el spec `docs/archive/2026-05-18-maltreatment-reporting-design.md` quedó **superseded** (movido a `docs/archive/` en sprint 1 PR-007) y NO se debe seguir (proponía una arquitectura distinta de ghost_subject pets que el código no implementa).
 
 1. **`db/schema.ts:885-983`** — definición de `welfareReports` + `welfareReportAttachments`. Polimorfismo via `subjectKind` enum (`registered_pet | unowned_animal | location | general`). Coords en `location_lat/lng` numeric(10,7) — mismo shape que `pet_events.location_*`.
 2. **`app/actions/welfare.ts`** — `createWelfareReportAction`. El bridge a pet_events vive en líneas 222-312 (transacción atómica después del welfare_reports INSERT).
@@ -387,7 +387,7 @@ Comentar el TODO original (líneas 9-11).
 
 #### Paso 4.1 — Banner SUPERSEDED en maltreatment-reporting spec
 
-Editar `docs/superpowers/specs/2026-05-18-maltreatment-reporting-design.md`. Reemplazar el header con:
+Editar `docs/archive/2026-05-18-maltreatment-reporting-design.md` (movido a `docs/archive/` en sprint 1 PR-007). Reemplazar el header con:
 
 ```markdown
 # Denuncia de maltrato animal — design spec ⚠️ SUPERSEDED
