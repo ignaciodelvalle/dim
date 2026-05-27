@@ -20,6 +20,7 @@ import {
   isNull,
   lte,
   ne,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -270,6 +271,7 @@ export type WorkflowKind =
   | "custody_dispute_open"
   | "bite_observation_open"
   | "dangerous_breed_pending_attestation"
+  | "case_generic_open"
   | "foster_proposal_resolved"
   | "welfare_report_closed"
   | "adoption_application_resolved"
@@ -561,8 +563,85 @@ async function fetchPendingPppAttestations(userId: string): Promise<WorkflowItem
   }));
 }
 
+// Case kinds with a dedicated fetcher above. The sweep below excludes
+// these so we don't show duplicate rows. `adoption_listing` is org-side
+// only and intentionally skipped.
+const CASE_KINDS_COVERED_BY_KIND_FETCHERS = [
+  "foster_placement",
+  "lost_pet_episode",
+  "welfare_denuncia",
+  "adoption_application",
+  "custody_dispute",
+  "custody_transfer_handshake",
+  "bite_incident",
+  "adoption_listing",
+] as const;
+
+// Catch-all: any open case the user is connected to via pet ownership,
+// opener, or applicant role, whose `caseKind` is NOT already covered by a
+// dedicated fetcher. Surfaces case kinds like `microchip_remediation` and
+// any future kind without requiring a code change to the dashboard.
+async function fetchOpenCasesGenericSweep(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db
+    .selectDistinct({
+      caseId: cases.id,
+      publicCode: cases.publicCode,
+      caseKind: cases.caseKind,
+      openedAt: cases.openedAt,
+      petName: pets.name,
+    })
+    .from(cases)
+    .leftJoin(pets, eq(pets.id, cases.primaryPetId))
+    .leftJoin(
+      ownerships,
+      and(
+        eq(ownerships.petId, cases.primaryPetId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .where(
+      and(
+        ne(cases.status, "closed"),
+        notInArray(cases.caseKind, [...CASE_KINDS_COVERED_BY_KIND_FETCHERS]),
+        or(
+          eq(ownerships.ownerUserId, userId),
+          eq(cases.openedByUserId, userId),
+          eq(cases.applicantUserId, userId),
+        ),
+      ),
+    );
+  return rows.map((r) => ({
+    id: `case_generic:${r.caseId}`,
+    kind: "case_generic_open" as const,
+    title: r.petName ? `Caso ${r.publicCode} · ${r.petName}` : `Caso ${r.publicCode}`,
+    subtitle: caseKindLabelFallback(r.caseKind),
+    ctaUrl: `/casos/${r.publicCode}`,
+    since: r.openedAt,
+    severity: "info" as const,
+  }));
+}
+
+// Lightweight label lookup that doesn't import lib/case-kinds.ts (avoids
+// circular dep risk). Falls back to the raw caseKind if unknown — the
+// dashboard still renders, the row is just a bit less polished.
+function caseKindLabelFallback(caseKind: string): string {
+  switch (caseKind) {
+    case "microchip_remediation":
+      return "Reemplazo de microchip en curso";
+    case "custody_episode":
+      return "Episodio de custodia";
+    case "outbreak_investigation":
+      return "Investigación de brote sanitario";
+    case "foster_proposal":
+      return "Propuesta de tránsito";
+    default:
+      return caseKind.replaceAll("_", " ");
+  }
+}
+
 export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]> {
-  const [foster, lost, welfare, adoption, custody, approval, disputes, bite, ppp] =
+  const [foster, lost, welfare, adoption, custody, approval, disputes, bite, ppp, generic] =
     await Promise.all([
       fetchPendingFosterProposals(userId),
       fetchLostPets(userId),
@@ -573,6 +652,7 @@ export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]
       fetchOpenCustodyDisputes(userId),
       fetchOpenBiteCases(userId),
       fetchPendingPppAttestations(userId),
+      fetchOpenCasesGenericSweep(userId),
     ]);
   // Sort by `since` desc — most recently opened workflow on top.
   return [
@@ -585,6 +665,7 @@ export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]
     ...disputes,
     ...bite,
     ...ppp,
+    ...generic,
   ].sort((a, b) => b.since.getTime() - a.since.getTime());
 }
 

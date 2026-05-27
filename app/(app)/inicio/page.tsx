@@ -75,6 +75,7 @@ const WORKFLOW_KIND_ICON: Record<WorkflowKind, string> = {
   approval_request_decided: "📋",
   bite_observation_open: "🦷",
   dangerous_breed_pending_attestation: "⚠️",
+  case_generic_open: "📁",
 };
 
 function adaptWorkflow(w: WorkflowItem): CaseRow {
