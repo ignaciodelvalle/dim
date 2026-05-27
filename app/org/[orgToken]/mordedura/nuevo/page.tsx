@@ -48,7 +48,7 @@ export default async function NewOrgBitePage({
           </p>
         </header>
 
-        <OrgBiteForm action={boundAction} />
+        <OrgBiteForm action={boundAction} orgToken={orgToken} />
       </div>
     </main>
   );
