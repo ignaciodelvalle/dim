@@ -1,9 +1,29 @@
 "use client";
 
-import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
-import { useActionState } from "react";
+// IntakeForm — 4-step wizard for org-side intake.
+// Trilogy unification handoff §4 PR-030.
+//
+// Steps:
+//   1. Microchip — quick chip lookup (optional). If chip matches a lost pet,
+//      createIntakeAction redirects to the match flow on submit. If the user
+//      has no chip number, they advance to step 2 with the field empty.
+//   2. Identidad — name, species, sex, age, breed, color, distinguishing
+//      features. CTA Continuar.
+//   3. Estado del ingreso — reason, custody role, occurredAt, condition,
+//      jurisdiction. CTA Continuar.
+//   4. Confirmar — recap of what's about to land + Crear ingreso CTA.
+//      On success → SuccessScreen "Mascota ingresada: [name]" with three
+//      actions (Asignar tránsito, Publicar adopción, Ver ficha).
+//
+// State stays controlled at the wizard top — same pattern as
+// FosterVolunteerWizard. Submit builds a FormData manually and posts it
+// to createIntakeAction with noRedirect=1.
 
-const initialState: IntakeFormState = { error: null };
+import { useState, useTransition } from "react";
+
+import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
+import { SuccessScreen } from "@/components/poncho/SuccessScreen";
+import { WizardShell } from "@/components/poncho/Wizard";
 
 const INTAKE_REASONS = [
   { value: "rescue", label: "Rescate" },
@@ -13,35 +33,157 @@ const INTAKE_REASONS = [
   { value: "other", label: "Otro" },
 ] as const;
 
+const TOTAL_STEPS = 4;
+const STEP_LABELS = ["Microchip", "Identidad", "Estado", "Confirmar"];
+
+const inputCls =
+  "w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2";
+
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  const [step, setStep] = useState(1);
+  const [pending, startTransition] = useTransition();
+  const [state, setState] = useState<IntakeFormState>({ error: null });
+
+  // Controlled state for every field. Strings throughout; the action
+  // does its own parsing and coercion.
   const today = new Date().toISOString().slice(0, 10);
+  const [name, setName] = useState("");
+  const [species, setSpecies] = useState("");
+  const [sex, setSex] = useState<"unknown" | "male" | "female">("unknown");
+  const [ageYears, setAgeYears] = useState("");
+  const [ageMonths, setAgeMonths] = useState("");
+  const [breed, setBreed] = useState("");
+  const [color, setColor] = useState("");
+  const [distinguishingFeatures, setDistinguishingFeatures] = useState("");
+  const [microchipId, setMicrochipId] = useState("");
+  const [microchipCountryCode, setMicrochipCountryCode] = useState("858");
+  const [intakeReason, setIntakeReason] = useState("");
+  const [custodyRole, setCustodyRole] = useState<"shelter_custody" | "owner">("shelter_custody");
+  const [occurredAt, setOccurredAt] = useState(today);
+  const [intakeCondition, setIntakeCondition] = useState("");
+  const [rescueJurisdiction, setRescueJurisdiction] = useState("");
+
+  function submit() {
+    setState({ error: null });
+    const fd = new FormData();
+    fd.set("name", name);
+    fd.set("species", species);
+    fd.set("sex", sex);
+    if (ageYears) fd.set("ageYears", ageYears);
+    if (ageMonths) fd.set("ageMonths", ageMonths);
+    if (breed) fd.set("breed", breed);
+    if (color) fd.set("color", color);
+    if (distinguishingFeatures) fd.set("distinguishingFeatures", distinguishingFeatures);
+    if (microchipId) fd.set("microchipId", microchipId);
+    if (microchipCountryCode) fd.set("microchipCountryCode", microchipCountryCode);
+    fd.set("intakeReason", intakeReason);
+    fd.set("custodyRole", custodyRole);
+    fd.set("occurredAt", occurredAt);
+    if (intakeCondition) fd.set("intakeCondition", intakeCondition);
+    if (rescueJurisdiction) fd.set("rescueJurisdiction", rescueJurisdiction);
+    fd.set("noRedirect", "1");
+    startTransition(async () => {
+      const result = await action({ error: null }, fd);
+      setState(result);
+    });
+  }
+
+  if (state.ok && state.createdPetToken && state.createdPetName) {
+    const orgRoot = `/org/${orgToken}`;
+    return (
+      <SuccessScreen
+        title={`Mascota ingresada: ${state.createdPetName}`}
+        description="Quedó registrada bajo custodia del refugio. Podés continuar el flujo desde acá."
+        next={[
+          {
+            label: "Asignar tránsito",
+            href: `${orgRoot}/mascotas/${state.createdPetToken}?sheet=asignar-transito`,
+          },
+          {
+            label: "Publicar adopción",
+            href: `${orgRoot}/mascotas/${state.createdPetToken}/adoptar`,
+            variant: "secondary",
+          },
+          {
+            label: "Ver ficha",
+            href: `${orgRoot}/mascotas/${state.createdPetToken}`,
+            variant: "tertiary",
+          },
+        ]}
+      />
+    );
+  }
+
+  const canSubmit = !!name && !!species && !!intakeReason && !!occurredAt && !pending;
 
   return (
-    <form action={formAction} className="space-y-6">
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
-          Sobre el animal
-        </h2>
+    <WizardShell
+      currentStep={step}
+      totalSteps={TOTAL_STEPS}
+      stepLabels={STEP_LABELS}
+      onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
+    >
+      {/* Step 1 — Microchip */}
+      <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          Si la mascota tiene microchip, ingrésalo. Si el chip coincide con una mascota perdida en
+          MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="space-y-1">
+            <span className="text-sm">Número de microchip</span>
+            <input
+              type="text"
+              value={microchipId}
+              onChange={(e) => setMicrochipId(e.target.value)}
+              maxLength={20}
+              placeholder="985141004321456"
+              className={inputCls}
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-sm">País del chip</span>
+            <input
+              type="text"
+              value={microchipCountryCode}
+              onChange={(e) => setMicrochipCountryCode(e.target.value)}
+              maxLength={3}
+              className={inputCls}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => setStep(2)}
+          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium transition-colors"
+        >
+          {microchipId ? "Continuar (chequearemos el chip al confirmar)" : "Continuar sin chip"}
+        </button>
+      </section>
+
+      {/* Step 2 — Identidad */}
+      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
             <span className="text-sm">Nombre o alias temporal *</span>
             <input
-              name="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
               maxLength={120}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className={inputCls}
               placeholder="Ej: Negrita, Sin nombre, Marrón #4"
             />
           </label>
           <label className="space-y-1">
             <span className="text-sm">Especie *</span>
             <select
-              name="species"
+              value={species}
+              onChange={(e) => setSpecies(e.target.value)}
               required
-              defaultValue=""
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className={inputCls}
             >
               <option value="" disabled>
                 Seleccionar
@@ -56,56 +198,65 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <fieldset className="space-y-1">
           <legend className="text-sm">Sexo</legend>
           <div className="flex flex-wrap gap-3 text-sm">
-            <label className="flex items-center gap-1">
-              <input type="radio" name="sex" value="unknown" defaultChecked /> Desconocido
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="radio" name="sex" value="male" /> Macho
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="radio" name="sex" value="female" /> Hembra
-            </label>
+            {(["unknown", "male", "female"] as const).map((v) => (
+              <label key={v} className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="sex"
+                  value={v}
+                  checked={sex === v}
+                  onChange={() => setSex(v)}
+                />{" "}
+                {v === "unknown" ? "Desconocido" : v === "male" ? "Macho" : "Hembra"}
+              </label>
+            ))}
           </div>
         </fieldset>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-sm">Edad estimada — años</span>
+            <span className="text-sm">Edad — años</span>
             <input
-              name="ageYears"
               type="number"
               min={0}
               max={40}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              value={ageYears}
+              onChange={(e) => setAgeYears(e.target.value)}
+              className={inputCls}
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm">Edad estimada — meses</span>
+            <span className="text-sm">Edad — meses</span>
             <input
-              name="ageMonths"
               type="number"
               min={0}
               max={11}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              value={ageMonths}
+              onChange={(e) => setAgeMonths(e.target.value)}
+              className={inputCls}
             />
           </label>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-sm">Raza (si se sabe)</span>
+            <span className="text-sm">Raza</span>
             <input
-              name="breed"
+              type="text"
+              value={breed}
+              onChange={(e) => setBreed(e.target.value)}
               maxLength={120}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className={inputCls}
             />
           </label>
           <label className="space-y-1">
             <span className="text-sm">Color / pelaje</span>
             <input
-              name="color"
+              type="text"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
               maxLength={120}
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+              className={inputCls}
             />
           </label>
         </div>
@@ -113,49 +264,40 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <label className="block space-y-1">
           <span className="text-sm">Señas particulares</span>
           <textarea
-            name="distinguishingFeatures"
+            value={distinguishingFeatures}
+            onChange={(e) => setDistinguishingFeatures(e.target.value)}
             rows={2}
             maxLength={500}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
             placeholder="Cicatrices, manchas, oreja cortada, etc."
+            className={inputCls}
           />
         </label>
 
-        <details className="space-y-2">
-          <summary className="text-sm cursor-pointer">Microchip (opcional)</summary>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <label className="space-y-1">
-              <span className="text-sm">Número de microchip</span>
-              <input
-                name="microchipId"
-                maxLength={20}
-                className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-sm">País del chip</span>
-              <input
-                name="microchipCountryCode"
-                maxLength={3}
-                defaultValue="858"
-                className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
-              />
-            </label>
-          </div>
-        </details>
+        <button
+          type="button"
+          onClick={() => setStep(3)}
+          disabled={!name || !species}
+          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium disabled:opacity-50 transition-colors"
+        >
+          Continuar
+        </button>
       </section>
 
-      <section className="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
-          Sobre el ingreso
-        </h2>
-
+      {/* Step 3 — Estado */}
+      <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
         <fieldset className="space-y-1">
-          <legend className="text-sm">Motivo *</legend>
+          <legend className="text-sm">Motivo del ingreso *</legend>
           <div className="flex flex-col gap-1 text-sm">
             {INTAKE_REASONS.map((r) => (
               <label key={r.value} className="flex items-center gap-2">
-                <input type="radio" name="intakeReason" value={r.value} required /> {r.label}
+                <input
+                  type="radio"
+                  name="intakeReason"
+                  value={r.value}
+                  checked={intakeReason === r.value}
+                  onChange={() => setIntakeReason(r.value)}
+                />{" "}
+                {r.label}
               </label>
             ))}
           </div>
@@ -169,7 +311,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
                 type="radio"
                 name="custodyRole"
                 value="shelter_custody"
-                defaultChecked
+                checked={custodyRole === "shelter_custody"}
+                onChange={() => setCustodyRole("shelter_custody")}
                 className="mt-1"
               />
               <span>
@@ -180,7 +323,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               </span>
             </label>
             <label className="flex items-start gap-2">
-              <input type="radio" name="custodyRole" value="owner" className="mt-1" />
+              <input
+                type="radio"
+                name="custodyRole"
+                value="owner"
+                checked={custodyRole === "owner"}
+                onChange={() => setCustodyRole("owner")}
+                className="mt-1"
+              />
               <span>
                 <span className="block font-medium">Dueño/a permanente</span>
                 <span className="block text-xs text-neutral-500">
@@ -195,50 +345,93 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <label className="block space-y-1">
           <span className="text-sm">Fecha del ingreso</span>
           <input
-            name="occurredAt"
             type="date"
-            defaultValue={today}
-            className="rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+            value={occurredAt}
+            onChange={(e) => setOccurredAt(e.target.value)}
+            className={`${inputCls} sm:w-auto`}
           />
         </label>
 
         <label className="block space-y-1">
           <span className="text-sm">Condición al ingreso</span>
           <textarea
-            name="intakeCondition"
+            value={intakeCondition}
+            onChange={(e) => setIntakeCondition(e.target.value)}
             rows={3}
             maxLength={500}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
             placeholder="Estado nutricional, lesiones, enfermedades aparentes…"
+            className={inputCls}
           />
         </label>
 
         <label className="block space-y-1">
           <span className="text-sm">Jurisdicción / lugar de rescate</span>
           <input
-            name="rescueJurisdiction"
+            type="text"
+            value={rescueJurisdiction}
+            onChange={(e) => setRescueJurisdiction(e.target.value)}
             maxLength={200}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
             placeholder="Ej: Mataderos, CABA"
+            className={inputCls}
           />
         </label>
+
+        <button
+          type="button"
+          onClick={() => setStep(4)}
+          disabled={!intakeReason}
+          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium disabled:opacity-50 transition-colors"
+        >
+          Continuar
+        </button>
       </section>
 
-      {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
-          {state.error}
-        </p>
-      )}
+      {/* Step 4 — Confirmar */}
+      <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
+          <p className="font-semibold text-neutral-900 dark:text-neutral-50">Resumen del ingreso</p>
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
+            <dt className="text-neutral-500">Nombre</dt>
+            <dd className="col-span-2">{name || "—"}</dd>
+            <dt className="text-neutral-500">Especie</dt>
+            <dd className="col-span-2">{species || "—"}</dd>
+            <dt className="text-neutral-500">Microchip</dt>
+            <dd className="col-span-2 font-mono">{microchipId || "(sin chip)"}</dd>
+            <dt className="text-neutral-500">Motivo</dt>
+            <dd className="col-span-2">
+              {INTAKE_REASONS.find((r) => r.value === intakeReason)?.label ?? "—"}
+            </dd>
+            <dt className="text-neutral-500">Rol</dt>
+            <dd className="col-span-2">
+              {custodyRole === "shelter_custody" ? "Custodia temporal" : "Dueño/a permanente"}
+            </dd>
+            <dt className="text-neutral-500">Fecha</dt>
+            <dd className="col-span-2">{occurredAt}</dd>
+          </dl>
+        </div>
 
-      <div className="flex items-center gap-3 pt-2">
+        {state.warning === "CHIP_MATCH_ACTIVE" && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-100">
+            El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
+            admin antes de continuar.
+          </div>
+        )}
+
+        {state.error && (
+          <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+            {state.error}
+          </p>
+        )}
+
         <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 disabled:opacity-50"
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium disabled:opacity-50 transition-colors"
         >
-          {isPending ? "Registrando…" : "Registrar ingreso"}
+          {pending ? "Registrando…" : "Crear ingreso"}
         </button>
-      </div>
-    </form>
+      </section>
+    </WizardShell>
   );
 }
