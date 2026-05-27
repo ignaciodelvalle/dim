@@ -2,7 +2,7 @@ import { setPetLostAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MarkLostForm } from "./MarkLostForm";
+import { MarkLostWizard } from "./MarkLostWizard";
 
 export default async function MarkPetLostPage({
   params,
@@ -52,7 +52,7 @@ export default async function MarkPetLostPage({
             aparezca.
           </p>
         </div>
-        <MarkLostForm
+        <MarkLostWizard
           action={boundAction}
           disclosureDefaults={disclosureDefaults}
           petHasMicrochip={!!pet.microchipId}

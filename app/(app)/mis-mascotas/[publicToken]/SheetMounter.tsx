@@ -30,7 +30,7 @@ import { NoteForm } from "./eventos/nuevo/nota/NoteForm";
 import { WeightForm } from "./eventos/nuevo/peso/WeightForm";
 import { SymptomForm } from "./eventos/nuevo/sintoma/SymptomForm";
 import { VaccinationForm } from "./eventos/nuevo/vacuna/VaccinationForm";
-import { MarkLostForm } from "./perdida/MarkLostForm";
+import { MarkLostWizard } from "./perdida/MarkLostWizard";
 
 import {
   createMedicationStartAction,
@@ -215,7 +215,7 @@ export function SheetMounter({
         side="right"
         size="lg"
       >
-        <MarkLostForm
+        <MarkLostWizard
           action={action}
           disclosureDefaults={{
             discloseFirstNameWhenLost: markLostData.discloseFirstNameWhenLost,
