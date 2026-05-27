@@ -42,7 +42,7 @@ export function DeactivateGovtActions({
 
   if (mode === "done") {
     return (
-      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+      <p className="text-xs text-gob-success">
         Govt desactivado. {target.displayName} fue notificado.
       </p>
     );
@@ -63,7 +63,7 @@ export function DeactivateGovtActions({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-xs px-3 py-1.5 rounded-md border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 hover:opacity-90 transition-opacity"
+      className="text-xs px-3 py-1.5 rounded-md border border-red-300 text-red-800 hover:opacity-90 transition-opacity"
     >
       Desactivar govt
     </button>
@@ -172,11 +172,11 @@ function DeactivateGovtForm({
       : null;
 
   return (
-    <div className="rounded border border-red-200 dark:border-red-900 p-3 space-y-3 bg-red-50 dark:bg-red-950/20">
-      <p className="text-xs uppercase tracking-wider text-red-900 dark:text-red-300">
+    <div className="rounded border border-red-200 p-3 space-y-3 bg-gob-danger/10">
+      <p className="text-xs uppercase tracking-wider text-gob-danger">
         Desactivar govt — {target.displayName}
       </p>
-      <p className="text-[10px] text-red-800 dark:text-red-400">
+      <p className="text-[10px] text-gob-danger">
         Esta accion es irreversible desde esta interfaz. El usuario quedara desactivado y recibira
         una notificacion con el motivo.
         {localityWarning && <span className="block mt-1 font-medium">{localityWarning}</span>}
@@ -187,7 +187,7 @@ function DeactivateGovtForm({
       <div className="space-y-1">
         <label
           htmlFor="deactivate-govt-evidence"
-          className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+          className="block text-[10px] uppercase tracking-wider text-gob-text-muted"
         >
           Evidencia (al menos 1 archivo)
         </label>
@@ -199,17 +199,15 @@ function DeactivateGovtForm({
           multiple
           onChange={handleFilesChange}
           disabled={uploading || pending}
-          className="text-xs text-neutral-700 dark:text-neutral-300"
+          className="text-xs text-gob-text-gray"
         />
-        {uploading && (
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-500">Subiendo...</p>
-        )}
+        {uploading && <p className="text-[10px] text-gob-text-muted">Subiendo...</p>}
         {uploadedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {uploadedFiles.map((f) => (
               <li
                 key={f.attachmentId}
-                className="flex items-center gap-2 text-[10px] text-neutral-600 dark:text-neutral-400"
+                className="flex items-center gap-2 text-[10px] text-gob-text-gray"
               >
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
@@ -232,20 +230,20 @@ function DeactivateGovtForm({
           onChange={(e) => setConfirm(e.target.checked)}
           className="mt-0.5 shrink-0"
         />
-        <span className="text-xs text-red-900 dark:text-red-300">
+        <span className="text-xs text-gob-danger">
           Confirmo que quiero desactivar la cuenta de {target.displayName} y revocar todas sus
           localidades activas. Esta accion genera un registro permanente en el audit log.
         </span>
       </label>
 
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-gob-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="text-xs px-3 py-1.5 rounded-md bg-red-700 dark:bg-red-700 text-white hover:opacity-90 disabled:opacity-50"
+          className="text-xs px-3 py-1.5 rounded-md bg-red-700 text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Desactivando..." : "Desactivar"}
         </button>
@@ -253,7 +251,7 @@ function DeactivateGovtForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="text-xs px-3 py-1.5 rounded-md border border-gob-border-strong hover:bg-gob-surface-alt"
         >
           Cancelar
         </button>
@@ -274,12 +272,12 @@ function MotivoField({ value, onChange }: { value: string; onChange: (v: string)
       <div className="flex items-center justify-between">
         <label
           htmlFor="deactivate-govt-motivo"
-          className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+          className="block text-[10px] uppercase tracking-wider text-gob-text-muted"
         >
           Motivo (minimo {MOTIVO_MIN} caracteres)
         </label>
         <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-red-500 dark:text-red-400" : "text-neutral-400 dark:text-neutral-600"}`}
+          className={`text-[10px] tabular-nums ${tooShort ? "text-gob-danger" : "text-gob-text-muted"}`}
         >
           {len}/{MOTIVO_MIN}
         </span>
@@ -289,7 +287,7 @@ function MotivoField({ value, onChange }: { value: string; onChange: (v: string)
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+        className="w-full text-xs rounded-md border border-gob-border-strong bg-white px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-900"
       />
     </div>
   );

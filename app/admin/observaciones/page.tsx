@@ -16,13 +16,11 @@ const STATUS_LABEL: Record<RabiesObservationStatus, string> = {
 };
 
 const STATUS_TONE: Record<RabiesObservationStatus, string> = {
-  in_progress: "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-  completed_negative:
-    "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
-  completed_positive_rabies: "bg-red-100 text-red-900 dark:bg-red-950/40 dark:text-red-200",
-  completed_dead: "bg-red-100 text-red-900 dark:bg-red-950/40 dark:text-red-200",
-  completed_lost_to_followup:
-    "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+  in_progress: "bg-gob-warning text-gob-warning-text",
+  completed_negative: "bg-gob-success/10 text-gob-success",
+  completed_positive_rabies: "bg-gob-danger/10 text-gob-danger",
+  completed_dead: "bg-gob-danger/10 text-gob-danger",
+  completed_lost_to_followup: "bg-gob-surface-alt text-gob-text-gray",
 };
 
 function formatRelative(date: Date | null): string {
@@ -60,10 +58,8 @@ export default async function ObservacionesPage() {
       return (
         <main className="px-6 py-8">
           <div className="max-w-5xl mx-auto space-y-4">
-            <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-              Observaciones antirrábicas
-            </h1>
-            <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+            <h1 className="text-3xl font-semibold text-gob-text">Observaciones antirrábicas</h1>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-gob-warning-text">
               Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al
               menos una.
             </div>
@@ -96,10 +92,8 @@ export default async function ObservacionesPage() {
     return (
       <main className="px-6 py-8">
         <div className="max-w-5xl mx-auto space-y-4">
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Observaciones antirrábicas
-          </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold text-gob-text">Observaciones antirrábicas</h1>
+          <p className="text-sm text-gob-text-muted">
             No hay observaciones activas ni cierres recientes en tu cobertura.
           </p>
         </div>
@@ -151,10 +145,10 @@ export default async function ObservacionesPage() {
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
             Observaciones antirrábicas
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas
             requieren cierre profesional cuando hubo síntomas escalables; las completadas se
             muestran como referencia (últimos 30 días).
@@ -166,35 +160,27 @@ export default async function ObservacionesPage() {
             const started = startedByPet.get(r.petId);
             const status = (r.status ?? "in_progress") as RabiesObservationStatus;
             return (
-              <li
-                key={r.petId}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3"
-              >
+              <li key={r.petId} className="rounded-lg border border-gob-border px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-0.5">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                      {r.petName}{" "}
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                        · {r.species}
-                      </span>
+                    <p className="text-sm font-medium text-gob-text">
+                      {r.petName} <span className="text-xs text-gob-text-muted">· {r.species}</span>
                     </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    <p className="text-xs text-gob-text-muted">
                       {r.locality ?? "—"}, {r.province ?? "—"}
                     </p>
                     {ownerByPet.get(r.petId) && (
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      <p className="text-xs text-gob-text-muted">
                         Dueño/a: {ownerByPet.get(r.petId)}
                       </p>
                     )}
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    <p className="text-xs text-gob-text-muted">
                       Inicio: {formatRelative(started?.occurredAt ?? null)}
                       {started?.observationUntil
                         ? ` · Cierre estimado: ${started.observationUntil.toLocaleDateString("es-AR")}`
                         : null}
                     </p>
-                    <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">
-                      {r.petPublicToken}
-                    </p>
+                    <p className="text-[10px] font-mono text-gob-text-muted">{r.petPublicToken}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
                     <span
@@ -205,7 +191,7 @@ export default async function ObservacionesPage() {
                     {status === "in_progress" && (
                       <Link
                         href={`/admin/observaciones/${r.petPublicToken}`}
-                        className="text-xs underline underline-offset-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+                        className="text-xs underline underline-offset-2 text-gob-text-gray hover:text-gob-text"
                       >
                         Cerrar profesionalmente
                       </Link>

@@ -14,9 +14,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  ok: "text-emerald-700 dark:text-emerald-300",
-  failed: "text-red-700 dark:text-red-300",
-  running: "text-amber-700 dark:text-amber-300",
+  ok: "text-gob-success",
+  failed: "text-gob-danger",
+  running: "text-gob-warning-text",
 };
 
 export default async function AdminSistemaPage() {
@@ -34,12 +34,8 @@ export default async function AdminSistemaPage() {
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-8">
         <header className="space-y-1">
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Salud del sistema
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Métricas operativas en vivo. Solo admin.
-          </p>
+          <h1 className="text-3xl font-semibold text-gob-text">Salud del sistema</h1>
+          <p className="text-sm text-gob-text-gray">Métricas operativas en vivo. Solo admin.</p>
         </header>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -82,7 +78,7 @@ export default async function AdminSistemaPage() {
               <ul className="space-y-1 text-sm">
                 {crons.map((c) => (
                   <li key={c.cronName} className="flex items-baseline justify-between gap-3">
-                    <span className="text-neutral-600 dark:text-neutral-400">{c.cronName}</span>
+                    <span className="text-gob-text-gray">{c.cronName}</span>
                     <span className="tabular-nums text-xs">
                       {c.lastRunAt
                         ? new Date(c.lastRunAt).toLocaleString("es-AR", {
@@ -109,15 +105,13 @@ export default async function AdminSistemaPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            Actividad por govt
-          </h2>
+          <h2 className="text-lg font-semibold text-gob-text">Actividad por govt</h2>
           {govts.length === 0 ? (
             <p className="text-sm text-neutral-500">No hay govts activos.</p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
+            <div className="overflow-x-auto rounded-lg border border-gob-border">
               <table className="w-full text-sm">
-                <thead className="bg-neutral-50 dark:bg-neutral-900/40">
+                <thead className="bg-gob-surface-alt">
                   <tr className="text-left text-xs uppercase tracking-wider text-neutral-500">
                     <th className="px-3 py-2">Govt</th>
                     <th className="px-3 py-2">Localidades</th>
@@ -127,10 +121,7 @@ export default async function AdminSistemaPage() {
                 </thead>
                 <tbody>
                   {govts.map((g) => (
-                    <tr
-                      key={g.userId}
-                      className="border-t border-neutral-200 dark:border-neutral-800"
-                    >
+                    <tr key={g.userId} className="border-t border-gob-border">
                       <td className="px-3 py-2 font-medium">{g.displayName}</td>
                       <td className="px-3 py-2 tabular-nums">{g.localitiesCount}</td>
                       <td className="px-3 py-2 tabular-nums">{g.decisions30d}</td>
@@ -157,7 +148,7 @@ export default async function AdminSistemaPage() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+    <div className="rounded-lg border border-gob-border p-4 space-y-2">
       <p className="text-xs uppercase tracking-wider text-neutral-500">{title}</p>
       <div className="space-y-1">{children}</div>
     </div>
@@ -167,7 +158,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs text-neutral-600 dark:text-neutral-400">{label}</span>
+      <span className="text-xs text-gob-text-gray">{label}</span>
       <span className="text-sm font-medium tabular-nums">{value}</span>
     </div>
   );

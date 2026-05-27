@@ -85,56 +85,52 @@ export default async function AdminDetailPage({
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Back nav */}
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted">
           <Link
             href="/admin/admins"
-            className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+            className="underline underline-offset-4 hover:text-gob-text-gray"
           >
             &larr; Volver a Administradores
           </Link>
         </p>
 
         {/* Identity card */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-5 space-y-3">
+        <section className="rounded-lg border border-gob-border p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+                <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
                   {target.displayName}
                 </h1>
                 {isSelf && (
-                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 rounded">
+                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-gob-warning/20 text-gob-warning-text rounded">
                     Vos
                   </span>
                 )}
               </div>
-              <p className="text-sm text-neutral-500 dark:text-neutral-500">{email}</p>
+              <p className="text-sm text-gob-text-muted">{email}</p>
             </div>
             <span
               className={`px-2 py-0.5 rounded uppercase tracking-wider text-[10px] shrink-0 ${
                 isActive
-                  ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"
-                  : "bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"
+                  ? "bg-gob-success/10 text-gob-success"
+                  : "bg-gob-surface-alt text-gob-text-gray"
               }`}
             >
               {isActive ? "Activo" : "Desactivado"}
             </span>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <dt className="text-neutral-500 dark:text-neutral-500">Tipo de cuenta</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50 capitalize">
-              {target.accountType}
-            </dd>
-            <dt className="text-neutral-500 dark:text-neutral-500">Rol</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50">Administrador</dd>
-            <dt className="text-neutral-500 dark:text-neutral-500">Creado</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50">
-              {target.createdAt.toLocaleDateString("es-AR")}
-            </dd>
+            <dt className="text-gob-text-muted">Tipo de cuenta</dt>
+            <dd className="text-gob-text capitalize">{target.accountType}</dd>
+            <dt className="text-gob-text-muted">Rol</dt>
+            <dd className="text-gob-text">Administrador</dd>
+            <dt className="text-gob-text-muted">Creado</dt>
+            <dd className="text-gob-text">{target.createdAt.toLocaleDateString("es-AR")}</dd>
             {!isActive && target.deactivatedAt && (
               <>
-                <dt className="text-neutral-500 dark:text-neutral-500">Desactivado</dt>
-                <dd className="text-red-600 dark:text-red-400">
+                <dt className="text-gob-text-muted">Desactivado</dt>
+                <dd className="text-gob-danger">
                   {target.deactivatedAt.toLocaleDateString("es-AR")}
                 </dd>
               </>
@@ -145,9 +141,7 @@ export default async function AdminDetailPage({
         {/* Account actions */}
         {isActive && actorProfile && (
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              Acciones de cuenta
-            </h2>
+            <h2 className="text-sm font-medium text-gob-text">Acciones de cuenta</h2>
             <div className="flex items-start gap-3 flex-wrap">
               <DeactivateAdminActions
                 target={{ id: target.id, displayName: target.displayName }}
@@ -173,22 +167,19 @@ export default async function AdminDetailPage({
 
         {/* Audit log tail */}
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <h2 className="text-sm font-medium text-gob-text">
             Audit log (ultimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">Sin registros.</p>
+            <p className="text-xs text-gob-text-muted">Sin registros.</p>
           ) : (
             <ul className="space-y-1">
               {auditEntries.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="text-xs text-neutral-600 dark:text-neutral-400 flex items-center gap-3"
-                >
-                  <span className="tabular-nums text-neutral-400 dark:text-neutral-600 shrink-0">
+                <li key={entry.id} className="text-xs text-gob-text-gray flex items-center gap-3">
+                  <span className="tabular-nums text-gob-text-muted shrink-0">
                     {entry.performedAt.toLocaleDateString("es-AR")}
                   </span>
-                  <code className="text-[10px] bg-neutral-100 dark:bg-neutral-900 px-1 py-0.5 rounded">
+                  <code className="text-[10px] bg-gob-surface-alt px-1 py-0.5 rounded">
                     {entry.action}
                   </code>
                 </li>

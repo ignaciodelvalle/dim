@@ -66,56 +66,54 @@ export default async function ObservationDetailPage({
       <div className="max-w-2xl mx-auto space-y-6">
         <Link
           href="/admin/observaciones"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
         >
           ← Volver al listado
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
             Cierre profesional — {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray">
             Como {profile.role === "admin" ? "administrador" : "autoridad sanitaria"}, podés cerrar
             con cualquier outcome.
           </p>
         </header>
 
-        <section className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
-          <p className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+        <section className="rounded-xl border border-gob-border p-4 space-y-2">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             Datos de la mascota
           </p>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             <div>
               <dt className="text-xs text-neutral-500">Especie</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">{pet.species}</dd>
+              <dd className="text-gob-text">{pet.species}</dd>
             </div>
             <div>
               <dt className="text-xs text-neutral-500">Jurisdicción</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">
+              <dd className="text-gob-text">
                 {pet.jurisdictionLocality ?? "—"}, {pet.jurisdictionProvince ?? "—"}
               </dd>
             </div>
             {ownerRow && (
               <div>
                 <dt className="text-xs text-neutral-500">Dueño/a</dt>
-                <dd className="text-neutral-900 dark:text-neutral-50">{ownerRow.displayName}</dd>
+                <dd className="text-gob-text">{ownerRow.displayName}</dd>
               </div>
             )}
             <div>
               <dt className="text-xs text-neutral-500">Token público</dt>
-              <dd className="font-mono text-xs text-neutral-700 dark:text-neutral-300">
-                {pet.publicToken}
-              </dd>
+              <dd className="font-mono text-xs text-gob-text-gray">{pet.publicToken}</dd>
             </div>
           </dl>
         </section>
 
-        <section className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-1">
-          <p className="text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300">
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1">
+          <p className="text-xs uppercase tracking-wider text-gob-warning-text">
             Observación activa
           </p>
-          <p className="text-sm text-amber-900 dark:text-amber-200">
+          <p className="text-sm text-amber-900">
             {observationUntil
               ? `Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}`
               : "Sin fecha de cierre."}
@@ -123,11 +121,11 @@ export default async function ObservationDetailPage({
         </section>
 
         {escalatingSymptoms.length > 0 && (
-          <section className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-4 space-y-2">
-            <p className="text-xs uppercase tracking-wider text-red-800 dark:text-red-300">
+          <section className="rounded-xl border border-red-200 bg-gob-danger/10 p-4 space-y-2">
+            <p className="text-xs uppercase tracking-wider text-gob-danger">
               Síntomas registrados durante la observación
             </p>
-            <ul className="space-y-1 text-sm text-red-900 dark:text-red-200">
+            <ul className="space-y-1 text-sm text-red-900">
               {escalatingSymptoms.map((s) => {
                 const payload = s.payload as Record<string, unknown>;
                 const alerted = (payload.alerted_disease_codes as string[]) ?? [];

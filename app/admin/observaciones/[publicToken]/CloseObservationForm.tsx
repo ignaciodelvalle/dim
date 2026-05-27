@@ -56,7 +56,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {error}
         </p>
       )}
@@ -64,7 +64,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Cerrando..." : "Cerrar observación"}
       </button>

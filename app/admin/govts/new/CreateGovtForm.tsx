@@ -118,10 +118,7 @@ export function CreateGovtForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
-          >
+          <label htmlFor="email" className="block text-sm font-medium text-gob-text-gray mb-1">
             Email
           </label>
           <input
@@ -131,14 +128,14 @@ export function CreateGovtForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="operador@municipio.gob.ar"
-            className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="w-full text-sm rounded-md border border-gob-border-strong bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900"
           />
         </div>
 
         <div>
           <label
             htmlFor="displayName"
-            className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            className="block text-sm font-medium text-gob-text-gray mb-1"
           >
             Nombre de display
           </label>
@@ -150,24 +147,22 @@ export function CreateGovtForm() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Municipalidad de La Plata"
             maxLength={100}
-            className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="w-full text-sm rounded-md border border-gob-border-strong bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900"
           />
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              Localidades iniciales
-            </p>
+            <p className="block text-sm font-medium text-gob-text-gray">Localidades iniciales</p>
             <button
               type="button"
               onClick={addLocality}
-              className="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 underline underline-offset-4"
+              className="text-xs text-neutral-500 hover:text-gob-text-gray underline underline-offset-4"
             >
               + Agregar localidad
             </button>
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-3">
+          <p className="text-xs text-gob-text-muted mb-3">
             Opcional. Se pueden asignar mas localidades luego desde la pagina del operador.
           </p>
           <div className="space-y-2">
@@ -176,7 +171,7 @@ export function CreateGovtForm() {
                 <select
                   value={l.provinceCode}
                   onChange={(e) => updateLocality(l.id, "provinceCode", e.target.value)}
-                  className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+                  className="flex-1 text-sm rounded-md border border-gob-border-strong bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900"
                   aria-label="Provincia"
                 >
                   <option value="">Elegí provincia</option>
@@ -198,7 +193,7 @@ export function CreateGovtForm() {
                   <button
                     type="button"
                     onClick={() => removeLocality(l.id)}
-                    className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 text-sm px-2 py-2"
+                    className="text-neutral-400 hover:text-red-600 text-sm px-2 py-2"
                     aria-label="Quitar localidad"
                   >
                     &times;
@@ -211,8 +206,8 @@ export function CreateGovtForm() {
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-4 py-3">
-          <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+        <div className="rounded-md bg-gob-danger/10 border border-red-200 px-4 py-3">
+          <p className="text-sm text-gob-danger">{error}</p>
         </div>
       )}
 
@@ -220,13 +215,13 @@ export function CreateGovtForm() {
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2 text-sm bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2 text-sm bg-gob-primary text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Creando..." : "Crear cuenta govt"}
         </button>
         <a
           href="/admin/govts"
-          className="px-5 py-2 text-sm border border-neutral-300 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-900"
+          className="px-5 py-2 text-sm border border-gob-border-strong rounded-md hover:bg-gob-surface-alt"
         >
           Cancelar
         </a>

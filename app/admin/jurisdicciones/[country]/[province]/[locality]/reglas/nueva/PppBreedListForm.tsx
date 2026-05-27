@@ -62,16 +62,14 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
-      <p className="text-sm rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+      <p className="text-sm rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
         Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados
         reciben notificación.
       </p>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          Razas consideradas PPP
-        </legend>
-        <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-1.5">
+        <legend className="text-sm font-medium text-gob-text">Razas consideradas PPP</legend>
+        <div className="max-h-72 overflow-y-auto rounded-lg border border-gob-border p-3 space-y-1.5">
           {ALL_BREEDS.map((b) => (
             <label key={b} className="flex items-center gap-2 text-sm">
               <input
@@ -81,11 +79,9 @@ export function PppBreedListForm({
                 checked={breeds.includes(b)}
                 onChange={() => toggle(b)}
               />
-              <span className="text-neutral-900 dark:text-neutral-50">{b}</span>
+              <span className="text-gob-text">{b}</span>
               {DEFAULT_BREEDS_SET.has(b) && (
-                <span className="text-xs text-neutral-400 dark:text-neutral-600">
-                  (default AR ✓)
-                </span>
+                <span className="text-xs text-gob-text-muted">(default AR ✓)</span>
               )}
             </label>
           ))}
@@ -103,12 +99,12 @@ export function PppBreedListForm({
             value={customBreed}
             onChange={(e) => setCustomBreed(e.target.value)}
             placeholder="Boxer, Cimarrón Uruguayo…"
-            className="flex-1 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            className="flex-1 px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
           />
           <button
             type="button"
             onClick={addCustom}
-            className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm"
+            className="px-3 py-2 rounded-lg border border-gob-border-strong text-sm"
           >
             Agregar
           </button>
@@ -124,15 +120,13 @@ export function PppBreedListForm({
           name="notes"
           defaultValue={initialNotes}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm"
         />
       </div>
 
-      {state.warning && (
-        <p className="text-sm text-amber-700 dark:text-amber-300">{state.warning}</p>
-      )}
+      {state.warning && <p className="text-sm text-gob-warning-text">{state.warning}</p>}
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -140,7 +134,7 @@ export function PppBreedListForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
       >
         {isPending ? "Guardando…" : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </button>

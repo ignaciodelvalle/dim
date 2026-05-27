@@ -83,52 +83,47 @@ export default async function AdminOutboxDetailPage({
   return (
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-6">
-        <Link
-          href="/admin/outbox"
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
+        <Link href="/admin/outbox" className="text-sm text-neutral-500 hover:text-gob-text">
           ← Volver al outbox
         </Link>
 
         {/* Header */}
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text">
             {symbol} {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
           </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-muted">
             {jurisdiction || "Sin jurisdicción"} · {buildStatusLabel(row.status)}
           </p>
-          <p className="text-[10px] font-mono text-neutral-400 dark:text-neutral-600">{row.id}</p>
+          <p className="text-[10px] font-mono text-gob-text-muted">{row.id}</p>
         </header>
 
         {/* Delivery state */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+        <section className="rounded-lg border border-gob-border p-4 space-y-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
             Estado de entrega
           </h2>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <dt className="text-neutral-500">Estado</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">
-              {buildStatusLabel(row.status)}
-            </dd>
+            <dd className="text-gob-text">{buildStatusLabel(row.status)}</dd>
 
             <dt className="text-neutral-500">Intentos</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">{row.attempts}</dd>
+            <dd className="text-gob-text">{row.attempts}</dd>
 
             <dt className="text-neutral-500">Último intento</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">{fmt(row.lastAttemptAt)}</dd>
+            <dd className="text-gob-text">{fmt(row.lastAttemptAt)}</dd>
 
             <dt className="text-neutral-500">Próximo reintento</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">{fmt(row.nextRetryAt)}</dd>
+            <dd className="text-gob-text">{fmt(row.nextRetryAt)}</dd>
 
             <dt className="text-neutral-500">Entregado</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">{fmt(row.deliveredAt)}</dd>
+            <dd className="text-gob-text">{fmt(row.deliveredAt)}</dd>
 
             <dt className="text-neutral-500">Creado</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">{fmt(row.createdAt)}</dd>
+            <dd className="text-gob-text">{fmt(row.createdAt)}</dd>
 
             <dt className="text-neutral-500">SLA vence</dt>
-            <dd className="text-neutral-900 dark:text-neutral-100">
+            <dd className="text-gob-text">
               {fmt(row.slaDueAt)}
               {cue === "breach" && (
                 <span className="ml-2 text-red-600 font-semibold text-xs">(INCUMPLIDO)</span>
@@ -141,7 +136,7 @@ export default async function AdminOutboxDetailPage({
               <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                 Último error
               </p>
-              <pre className="rounded bg-neutral-100 dark:bg-neutral-900 p-3 text-xs text-red-700 dark:text-red-400 overflow-auto whitespace-pre-wrap break-words">
+              <pre className="rounded bg-gob-surface-alt p-3 text-xs text-gob-danger overflow-auto whitespace-pre-wrap break-words">
                 {row.lastError}
               </pre>
             </div>
@@ -149,17 +144,17 @@ export default async function AdminOutboxDetailPage({
         </section>
 
         {/* Payload snapshot */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+        <section className="rounded-lg border border-gob-border p-4 space-y-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
             Payload snapshot
           </h2>
-          <pre className="rounded bg-neutral-50 dark:bg-neutral-900 p-3 text-xs text-neutral-700 dark:text-neutral-300 overflow-auto whitespace-pre-wrap break-words">
+          <pre className="rounded bg-gob-surface-alt p-3 text-xs text-gob-text-gray overflow-auto whitespace-pre-wrap break-words">
             {JSON.stringify(row.payloadSnapshot, null, 2)}
           </pre>
         </section>
 
         {/* Source event — type, timestamps, author provenance, full payload */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+        <section className="rounded-lg border border-gob-border p-4 space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
             Evento origen
           </h2>
@@ -167,22 +162,16 @@ export default async function AdminOutboxDetailPage({
             <>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <dt className="text-neutral-500">Tipo</dt>
-                <dd className="font-mono text-xs text-neutral-900 dark:text-neutral-100">
-                  {sourceEvent.eventType}
-                </dd>
+                <dd className="font-mono text-xs text-gob-text">{sourceEvent.eventType}</dd>
                 <dt className="text-neutral-500">Ocurrido</dt>
-                <dd className="text-neutral-900 dark:text-neutral-100">
-                  {fmt(sourceEvent.occurredAt)}
-                </dd>
+                <dd className="text-gob-text">{fmt(sourceEvent.occurredAt)}</dd>
                 <dt className="text-neutral-500">Registrado</dt>
-                <dd className="text-neutral-900 dark:text-neutral-100">
-                  {fmt(sourceEvent.recordedAt)}
-                </dd>
+                <dd className="text-gob-text">{fmt(sourceEvent.recordedAt)}</dd>
                 <dt className="text-neutral-500">Rol del autor</dt>
-                <dd className="text-neutral-900 dark:text-neutral-100">
+                <dd className="text-gob-text">
                   {sourceEvent.authorRole}
                   {sourceEvent.authorVerified && (
-                    <span className="ml-1.5 text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">
+                    <span className="ml-1.5 text-[10px] text-gob-success font-semibold uppercase">
                       verificado
                     </span>
                   )}
@@ -214,7 +203,7 @@ export default async function AdminOutboxDetailPage({
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
                   Payload del evento
                 </p>
-                <pre className="rounded bg-neutral-50 dark:bg-neutral-900 p-3 text-xs text-neutral-700 dark:text-neutral-300 overflow-auto whitespace-pre-wrap break-words">
+                <pre className="rounded bg-gob-surface-alt p-3 text-xs text-gob-text-gray overflow-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(sourceEvent.payload, null, 2)}
                 </pre>
               </div>
@@ -228,11 +217,9 @@ export default async function AdminOutboxDetailPage({
 
         {/* Manual retry */}
         {canRetry && (
-          <section className="rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-              Reintentar manualmente
-            </h2>
-            <p className="text-xs text-amber-800 dark:text-amber-200">
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-amber-900">Reintentar manualmente</h2>
+            <p className="text-xs text-gob-warning-text">
               Este botón no entrega la notificación de forma sincrónica. Resetea{" "}
               <code className="font-mono">next_retry_at = now()</code> y{" "}
               <code className="font-mono">status = pending</code> para que el cron de drenaje lo
@@ -246,7 +233,7 @@ export default async function AdminOutboxDetailPage({
             >
               <button
                 type="submit"
-                className="text-sm px-4 py-2 rounded-md bg-amber-700 dark:bg-amber-600 text-white hover:opacity-90 font-medium"
+                className="text-sm px-4 py-2 rounded-md bg-amber-700 text-white hover:opacity-90 font-medium"
               >
                 Reintentar ahora
               </button>
@@ -255,7 +242,7 @@ export default async function AdminOutboxDetailPage({
         )}
 
         {row.status === "delivered" && (
-          <p className="text-sm text-emerald-700 dark:text-emerald-400">
+          <p className="text-sm text-gob-success">
             Esta fila ya fue entregada exitosamente. No se requiere acción.
           </p>
         )}

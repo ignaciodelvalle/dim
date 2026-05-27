@@ -59,10 +59,8 @@ export default async function NewRulePage({
           ← Volver
         </Link>
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Nueva regla
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text">Nueva regla</h1>
+          <p className="text-sm text-gob-text-gray">
             {country} · {province ?? "(nivel país)"} · {locality ?? "(toda la provincia)"}
           </p>
         </header>

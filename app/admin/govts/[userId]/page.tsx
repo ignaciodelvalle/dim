@@ -75,47 +75,45 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Back nav */}
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted">
           <Link
             href="/admin/govts"
-            className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+            className="underline underline-offset-4 hover:text-gob-text-gray"
           >
             &larr; Volver a Gobiernos
           </Link>
         </p>
 
         {/* Identity card */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-5 space-y-3">
+        <section className="rounded-lg border border-gob-border p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+              <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
                 {govt.displayName}
               </h1>
-              <p className="text-sm text-neutral-500 dark:text-neutral-500">{email}</p>
+              <p className="text-sm text-gob-text-muted">{email}</p>
             </div>
             <span
               className={`px-2 py-0.5 rounded uppercase tracking-wider text-[10px] shrink-0 ${
                 isActive
-                  ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"
-                  : "bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"
+                  ? "bg-gob-success/10 text-gob-success"
+                  : "bg-gob-surface-alt text-gob-text-gray"
               }`}
             >
               {isActive ? "Activo" : "Desactivado"}
             </span>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <dt className="text-neutral-500 dark:text-neutral-500">Tipo de cuenta</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50 capitalize">{govt.accountType}</dd>
-            <dt className="text-neutral-500 dark:text-neutral-500">Rol</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50">Gobierno</dd>
-            <dt className="text-neutral-500 dark:text-neutral-500">Creado</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50">
-              {govt.createdAt.toLocaleDateString("es-AR")}
-            </dd>
+            <dt className="text-gob-text-muted">Tipo de cuenta</dt>
+            <dd className="text-gob-text capitalize">{govt.accountType}</dd>
+            <dt className="text-gob-text-muted">Rol</dt>
+            <dd className="text-gob-text">Gobierno</dd>
+            <dt className="text-gob-text-muted">Creado</dt>
+            <dd className="text-gob-text">{govt.createdAt.toLocaleDateString("es-AR")}</dd>
             {!isActive && govt.deactivatedAt && (
               <>
-                <dt className="text-neutral-500 dark:text-neutral-500">Desactivado</dt>
-                <dd className="text-red-600 dark:text-red-400">
+                <dt className="text-gob-text-muted">Desactivado</dt>
+                <dd className="text-gob-danger">
                   {govt.deactivatedAt.toLocaleDateString("es-AR")}
                 </dd>
               </>
@@ -125,25 +123,20 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
 
         {/* Active localities */}
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <h2 className="text-sm font-medium text-gob-text">
             Localidades activas ({activeAssignments.length})
           </h2>
 
           {activeAssignments.length === 0 ? (
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
-              Sin localidades activas.
-            </p>
+            <p className="text-xs text-gob-text-muted">Sin localidades activas.</p>
           ) : (
             <ul className="space-y-2">
               {activeAssignments.map((a) => {
                 const label = `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
                 return (
-                  <li
-                    key={a.id}
-                    className="rounded border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-2"
-                  >
+                  <li key={a.id} className="rounded border border-gob-border px-3 py-2 space-y-2">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-neutral-900 dark:text-neutral-50">{label}</span>
+                      <span className="text-sm text-gob-text">{label}</span>
                       {isActive && (
                         <RevokeLocalityRowActions
                           assignmentId={a.id}
@@ -169,15 +162,15 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         {/* Revoked localities (collapsible) */}
         {revokedAssignments.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-sm text-neutral-500 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 select-none">
+            <summary className="cursor-pointer text-sm text-gob-text-muted hover:text-gob-text-gray select-none">
               Localidades revocadas ({revokedAssignments.length})
             </summary>
             <ul className="mt-2 space-y-1">
               {revokedAssignments.map((a) => (
-                <li key={a.id} className="text-xs text-neutral-500 dark:text-neutral-500 px-3">
+                <li key={a.id} className="text-xs text-gob-text-muted px-3">
                   {a.jurisdictionLocality}, {a.jurisdictionProvince}
                   {a.revokedAt && (
-                    <span className="ml-2 text-neutral-400 dark:text-neutral-600">
+                    <span className="ml-2 text-gob-text-muted">
                       (revocada {a.revokedAt.toLocaleDateString("es-AR")})
                     </span>
                   )}
@@ -190,9 +183,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         {/* Account actions */}
         {isActive && (
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              Acciones de cuenta
-            </h2>
+            <h2 className="text-sm font-medium text-gob-text">Acciones de cuenta</h2>
             <div className="flex items-start gap-3 flex-wrap">
               <DeactivateGovtActions
                 target={{
@@ -214,22 +205,19 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
 
         {/* Audit log tail */}
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <h2 className="text-sm font-medium text-gob-text">
             Audit log (ultimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">Sin registros.</p>
+            <p className="text-xs text-gob-text-muted">Sin registros.</p>
           ) : (
             <ul className="space-y-1">
               {auditEntries.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="text-xs text-neutral-600 dark:text-neutral-400 flex items-center gap-3"
-                >
-                  <span className="tabular-nums text-neutral-400 dark:text-neutral-600 shrink-0">
+                <li key={entry.id} className="text-xs text-gob-text-gray flex items-center gap-3">
+                  <span className="tabular-nums text-gob-text-muted shrink-0">
                     {entry.performedAt.toLocaleDateString("es-AR")}
                   </span>
-                  <code className="text-[10px] bg-neutral-100 dark:bg-neutral-900 px-1 py-0.5 rounded">
+                  <code className="text-[10px] bg-gob-surface-alt px-1 py-0.5 rounded">
                     {entry.action}
                   </code>
                 </li>
