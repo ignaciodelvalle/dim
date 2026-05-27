@@ -36,3 +36,4 @@ export { Sheet, type SheetProps, type SheetSide, type SheetSize } from "./Sheet"
 export { Crumbs, type CrumbsProps, type Crumb } from "./Crumbs";
 export { SuccessScreen, type SuccessAction } from "./SuccessScreen";
 export { ErrorBoundary } from "./ErrorBoundary";
+export { Toaster, toast } from "./Toast";

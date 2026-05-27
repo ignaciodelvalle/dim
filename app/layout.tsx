@@ -1,4 +1,7 @@
 import type { Metadata, Viewport } from "next";
+
+import { Toaster } from "@/components/poncho/Toast";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,7 +25,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es-AR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
