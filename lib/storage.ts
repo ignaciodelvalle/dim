@@ -17,6 +17,13 @@ export function petPhotoUrl(storagePath: string | null | undefined): string | nu
   return `${SUPABASE_URL}/storage/v1/object/public/pet-photos/${storagePath}`;
 }
 
+// org-logos bucket — public read, like pet-photos. Used by the refugio
+// public profile (handoff P2-2).
+export function orgLogoUrl(storagePath: string | null | undefined): string | null {
+  if (!storagePath) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/org-logos/${storagePath}`;
+}
+
 export async function eventAttachmentSignedUrl(
   supabase: SupabaseServerClient,
   storagePath: string,
