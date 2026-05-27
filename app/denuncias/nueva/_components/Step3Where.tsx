@@ -1,7 +1,7 @@
 "use client";
 
 // Step 3 — Dónde y cuándo + qué viste.
-// - LocationFields (mode="full") for address, province, locality + optional map pin.
+// - LocationFields (mode="l2") for address autocomplete + map pin + derived jurisdiction.
 // - Three radio options for "cuándo" that resolve to an ISO date string for occurredAt.
 // - Textarea for description (maps to welfareReports.description).
 

@@ -20,16 +20,18 @@ If you are about to add a primitive, a flow, or a CTA: read the four
 
 ## Cross-cutting rules
 
-### 1. Three levels of location capture (L1 / L2 / L3)
+### 1. Two levels of location capture (L1 / L2)
 
 | Mode | Captures | Used when | Component |
 | --- | --- | --- | --- |
-| **L1** | Jurisdiction only (province + locality) | Downstream queries are jurisdiction-bounded but the exact point doesn't matter — owner upgrade, clinical/vet events, foster availability. | `<LocationFields mode="l1">` |
-| **L2** | Jurisdiction + map point + free-text description (bidirectionally geocoded) | "Where" matters as a coordinate — denuncia, MarkLost last-seen, org-side incident reports. | `<LocationFields mode="l2">` |
-| **L3** | Full postal address + jurisdiction + point | Delivery-grade address — rare; org legal address, devolución meeting point. | `<LocationFields mode="full">` |
+| **L1** | Jurisdiction only — province derived from a single locality autocomplete against `ar_localities` | Downstream queries are jurisdiction-bounded but the exact point doesn't matter — owner upgrade, clinical/vet events, foster availability. | `<LocationFields mode="l1">` |
+| **L2** | Nominatim address autocomplete + map confirmation + derived jurisdiction (province, locality, lat/lng filled in one pick) | "Where" matters as a coordinate — denuncia, MarkLost last-seen, org-side incident reports. | `<LocationFields mode="l2">` |
 
-Never invent a fourth mode. If a flow seems to need one, raise it in
-design rather than forking a variant.
+L3 (delivery-grade postal address) is **collapsed into L2** — no separate
+mode. Critique-direcciones-2026-05-27 §Opción B closed the L3 fantasma:
+L2 already carries address text plus coordinates. Never invent a third
+mode; if a flow seems to need one, raise it in design rather than
+forking a variant.
 
 ### 2. Four verbs for primary buttons
 

@@ -49,31 +49,11 @@ const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ),
 });
 
-export type LocationMode =
-  | "l1"
-  | "l2"
-  // --- deprecated, accepted for backward compatibility ---
-  | "point"
-  | "jurisdiction"
-  | "jurisdiction+point"
-  | "full";
-
-type CanonicalMode = "l1" | "l2";
-
-function resolveMode(mode: LocationMode): CanonicalMode {
-  if (mode === "l1" || mode === "l2") return mode;
-  let canonical: CanonicalMode;
-  if (mode === "jurisdiction") canonical = "l1";
-  // `point` was a UX anti-pattern (lat/lng without jurisdiction); collapse
-  // to l2 so the few callers that lingered still get a working surface.
-  else canonical = "l2";
-  if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
-    console.warn(
-      `[LocationFields] mode="${mode}" is deprecated. Use mode="${canonical}" — see AGENTS.md "Design rules" rule #1.`,
-    );
-  }
-  return canonical;
-}
+// Two modes: l1 (jurisdiction only) and l2 (jurisdiction + map + address).
+// Deprecated aliases (`point`, `jurisdiction`, `jurisdiction+point`, `full`)
+// were retired in critique §6/§8 — they had zero active consumers by the
+// time the cleanup landed.
+export type LocationMode = "l1" | "l2";
 
 export type LocationFieldsValue = {
   provinceCode?: string | null;
@@ -114,8 +94,7 @@ export function LocationFields({
   // Routes geocoding calls through the IP-rate-limited public actions.
   allowAnonymous?: boolean;
 }) {
-  const canonicalMode = resolveMode(mode);
-  const isL2 = canonicalMode === "l2";
+  const isL2 = mode === "l2";
 
   // Map point (L2 only). Pre-filled when defaultValue has lat/lng.
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(

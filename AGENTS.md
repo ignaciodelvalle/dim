@@ -810,13 +810,14 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 
 The trilogy-unification design critiques (`docs/design/08`, `09`, `10` from 2026-05-27) codified four cross-cutting UI conventions. They apply to every new form, surface, or copy edit. Existing surfaces are being migrated sprint-by-sprint per `docs/superpowers/plans/2026-05-27-trilogy-unification-handoff.md`.
 
-### 1. Three levels of location capture (L1 / L2 / L3)
+### 1. Two levels of location capture (L1 / L2)
 
-- **L1 — jurisdiction only** (province + locality). Used when downstream queries are jurisdiction-bounded but the exact point doesn't matter — e.g. owner upgrades to org, vet/clinical events, foster-volunteer availability. Component: `<LocationFields mode="l1">`.
-- **L2 — jurisdiction + map point + free-text description**, bidirectionally geocoded. Used when "where" matters as a coordinate — denuncia location, MarkLost last-seen, org-side incident reports. Component: `<LocationFields mode="l2">`.
-- **L3 — full postal address + jurisdiction + point**. Used only when a delivery-grade address is required (rare; org legal address, devolución meeting point). Component: `<LocationFields mode="full">` until renamed in PR-012.
+- **L1 — jurisdiction only** (province + locality, derived from a single locality autocomplete against `ar_localities`). Used when downstream queries are jurisdiction-bounded but the exact point doesn't matter — e.g. owner upgrades to org, vet/clinical events, foster-volunteer availability. Component: `<LocationFields mode="l1">`.
+- **L2 — Nominatim address autocomplete + map confirmation + derived jurisdiction**. Used when "where" matters as a coordinate — denuncia location, MarkLost last-seen, org-side incident reports. The autocomplete pick fills address + lat/lng + province + locality in one gesture; the map below is for visual confirmation and drag-to-adjust. Component: `<LocationFields mode="l2">`.
 
-Never invent a new mode; if a flow seems to need one, raise it in design rather than adding a fourth variant.
+L3 (delivery-grade postal address) is **collapsed into L2** — no separate mode. L2 already carries address text plus coordinates; if a true delivery use case appears, revisit then. Critique-direcciones-2026-05-27 §Opción B closed the L3 fantasma.
+
+Never invent a new mode; if a flow seems to need one, raise it in design rather than adding a third variant.
 
 ### 2. Four verbs for primary buttons
 
