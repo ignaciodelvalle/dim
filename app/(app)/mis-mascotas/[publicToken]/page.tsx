@@ -60,6 +60,7 @@ import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
 import { PetDetailTabs } from "@/components/pet-profile/PetDetailTabs";
 import { PetEmergencyCard } from "@/components/pet-profile/PetEmergencyCard";
 import { PetHealthTimeline } from "@/components/pet-profile/PetHealthTimeline";
+import { PetMarkLostFooterCta } from "@/components/pet-profile/PetMarkLostFooterCta";
 import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetProfileHero";
 import { PetQuickActions } from "@/components/pet-profile/PetQuickActions";
 import { PetTrackingPlaceholder } from "@/components/pet-profile/PetTrackingPlaceholder";
@@ -846,6 +847,13 @@ export default async function PetDetailPage({
         }
         editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
       />
+
+      {/* Mobile-only sticky footer CTA — surfaces "Marcar como perdida" without
+            making the owner dig into the Acciones panel. Hidden on desktop and
+            for non-active pets. See components/pet-profile/PetMarkLostFooterCta.tsx. */}
+      {accessPath === "owner" ? (
+        <PetMarkLostFooterCta petPublicToken={pet.publicToken} petStatus={pet.status} />
+      ) : null}
     </div>
   );
 }
