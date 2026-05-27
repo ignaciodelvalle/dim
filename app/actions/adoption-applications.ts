@@ -24,8 +24,10 @@
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 import { db, notifications, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { APPLY_INTENT_COOKIE_NAME, APPLY_INTENT_PET_TOKEN_COOKIE_NAME } from "@/lib/apply-intent";
 import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createClient } from "@/lib/supabase/server";
@@ -216,6 +218,18 @@ export async function submitAdoptionApplicationAction(
     } catch (e) {
       console.error("notifications insert failed (action did succeed)", e);
     }
+  }
+
+  // Cleanup apply-intent cookies — the trámite finished, the breadcrumb on
+  // /inicio shouldn't keep pointing here. Server Actions are allowed to
+  // mutate cookies; the page (Server Component) is not. Wrapped because
+  // tests invoke the action outside a request scope and cookies() throws.
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete(APPLY_INTENT_COOKIE_NAME);
+    cookieStore.delete(APPLY_INTENT_PET_TOKEN_COOKIE_NAME);
+  } catch {
+    // best-effort; the event already persisted
   }
 
   return { ok: true, applicationEventId };
