@@ -806,6 +806,45 @@ DIM has a dual identity by design.
 
 If you find yourself making a decision that breaks Mi Argentina alignment for short-term convenience, reconsider.
 
+## Design rules (UI conventions)
+
+The trilogy-unification design critiques (`docs/design/08`, `09`, `10` from 2026-05-27) codified four cross-cutting UI conventions. They apply to every new form, surface, or copy edit. Existing surfaces are being migrated sprint-by-sprint per `docs/superpowers/plans/2026-05-27-trilogy-unification-handoff.md`.
+
+### 1. Three levels of location capture (L1 / L2 / L3)
+
+- **L1 — jurisdiction only** (province + locality). Used when downstream queries are jurisdiction-bounded but the exact point doesn't matter — e.g. owner upgrades to org, vet/clinical events, foster-volunteer availability. Component: `<LocationFields mode="l1">`.
+- **L2 — jurisdiction + map point + free-text description**, bidirectionally geocoded. Used when "where" matters as a coordinate — denuncia location, MarkLost last-seen, org-side incident reports. Component: `<LocationFields mode="l2">`.
+- **L3 — full postal address + jurisdiction + point**. Used only when a delivery-grade address is required (rare; org legal address, devolución meeting point). Component: `<LocationFields mode="full">` until renamed in PR-012.
+
+Never invent a new mode; if a flow seems to need one, raise it in design rather than adding a fourth variant.
+
+### 2. Four verbs for primary buttons
+
+CTAs in any flow MUST use one of these verb shapes, in priority order:
+
+1. **`Continuar`** — intermediate step inside a wizard (no commit yet).
+2. **`Confirmar X`** — definitive, hard-to-reverse action that the user owns ("Confirmar cierre de medicación", "Confirmar elegibilidad", "Confirmar reemplazo de chip").
+3. **`Crear X`** — creation that produces a new persistent object the user controls ("Crear consultorio", "Crear servicio").
+4. **Verb-specific to the domain** when 1–3 don't fit, with the object included ("Registrar vacuna", "Publicar adopción", "Reportar mordedura", "Marcar como perdida"). Never bare ("Aceptar", "Guardar", "Publicar" on its own).
+
+`Registrar X` is reserved for logging an observable event (medical, sighting). `Confirmar X` is reserved for definitive actions. Closing a treatment is `Confirmar cierre`, not `Registrar fin`.
+
+### 3. `WizardShell` is the only multi-step chrome
+
+Multi-step flows (≥3 sections, or ≥1 destructive step) MUST use `components/poncho/Wizard/WizardShell`. The shell owns the back arrow, the step counter, the progress bar's a11y label, and the optional cancel link. Step labels and submit-button copy are caller-supplied; consumers do not re-implement the chrome.
+
+If a flow has only two screens (a form and a confirm), do not use the wizard — use a single page with a `<ConfirmDialog>` or a SuccessScreen.
+
+### 4. `SuccessScreen` closes "trámite"-style flows
+
+Denuncia, adoption application, intake, devolución, mordedura, and similar bureaucratic flows MUST end on `components/poncho/SuccessScreen` (PR-011 onward). The screen surfaces the confirmation code, a short description of what happens next, and 2–3 contextual actions. Silent redirects after the final submit are forbidden for these flows — the user must see the receipt.
+
+Lightweight inline edits (toggle, save profile field) keep their existing inline `<Toast>` confirmation; SuccessScreen is for full trámites only.
+
+### Drift policy
+
+If a new feature seems to need an exception, write the exception into the PR description and link it from the relevant design critique doc (08/09/10) so the rule's footprint stays explicit. Mute exceptions are the path to drift.
+
 ## Open questions / future work
 
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `mimar-go-to-market.md` for the GTM analysis)

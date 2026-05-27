@@ -126,7 +126,7 @@ export function AdoptionListingForm({
               className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
               title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
             >
-              Publicar
+              Publicar adopción
             </button>
           )}
           {initial.isPublished && !initial.isPaused && (
