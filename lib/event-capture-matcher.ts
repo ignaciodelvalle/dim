@@ -339,12 +339,24 @@ export function extractDateFromText(text: string, now: Date = new Date()): strin
 }
 
 /**
+ * Maximum input length the matcher will process. Hard cap so that the
+ * RegExp engine can never see a pathological 10kb+ string. The text the
+ * matcher cares about (an event description from /anotar) fits well under
+ * this — anything longer is either a copy/paste accident or abuse.
+ */
+export const CAPTURE_INPUT_MAX_LENGTH = 500;
+
+/**
  * Run the matcher against a free-text input. Returns the first
  * pattern that fires, with whatever slots could be extracted. Returns
  * null if no pattern matched (UI should surface "no reconocemos eso").
  */
 export function matchCaptureIntent(text: string): MatchResult | null {
-  const trimmed = text.trim();
+  // Truncate before any regex runs. The RegExp patterns themselves are
+  // hardcoded above, so user input cannot inject a pattern — but a long
+  // enough input could still expose pathological backtracking on the
+  // existing patterns (especially the note catch-all `(.+)$`). Cap first.
+  const trimmed = text.trim().slice(0, CAPTURE_INPUT_MAX_LENGTH);
   if (!trimmed) return null;
 
   for (const pattern of PATTERNS) {
