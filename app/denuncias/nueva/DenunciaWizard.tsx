@@ -31,9 +31,12 @@
 // Anti-spam: honeypot field included.
 // TODO(M-followup): add dwell-time measurement client-side before submit.
 
-import { createWelfareReportAction } from "@/app/actions/welfare";
-import type { WelfareReportKind } from "@/lib/welfare";
 import { useRef, useState } from "react";
+
+import { createWelfareReportAction } from "@/app/actions/welfare";
+import { WizardShell } from "@/components/poncho/Wizard";
+import type { WelfareReportKind } from "@/lib/welfare";
+
 import { Step1Kind } from "./_components/Step1Kind";
 import {
   Step2Severity,
@@ -44,9 +47,9 @@ import { Step3Where, type WhenOption, resolveOccurredAt } from "./_components/St
 import { Step4Subject, type SubjectKindWizard } from "./_components/Step4Subject";
 import { type ContactMode, Step5Contact } from "./_components/Step5Contact";
 import { SuccessScreen } from "./_components/SuccessScreen";
-import { WizardShell } from "./_components/WizardShell";
 
 const TOTAL_STEPS = 5;
+const STEP_LABELS = ["Qué pasó", "Gravedad", "Dónde", "Quién", "Cerrar"];
 
 type WizardState = {
   kind: WelfareReportKind | null;
@@ -249,7 +252,12 @@ export function DenunciaWizard() {
 
       {/* Steps 1 and 2 are pure state — rendered conditionally, no uncontrolled DOM inputs */}
       {step === 1 && (
-        <WizardShell currentStep={1} totalSteps={TOTAL_STEPS} onBack={undefined}>
+        <WizardShell
+          currentStep={1}
+          totalSteps={TOTAL_STEPS}
+          stepLabels={STEP_LABELS}
+          onBack={undefined}
+        >
           <Step1Kind
             selected={wizState.kind}
             onSelect={(kind) => {
@@ -266,7 +274,12 @@ export function DenunciaWizard() {
       )}
 
       {step === 2 && (
-        <WizardShell currentStep={2} totalSteps={TOTAL_STEPS} onBack={goBack}>
+        <WizardShell
+          currentStep={2}
+          totalSteps={TOTAL_STEPS}
+          stepLabels={STEP_LABELS}
+          onBack={goBack}
+        >
           <Step2Severity
             selected={wizState.severity}
             onSelect={(severity) => {
@@ -300,7 +313,12 @@ export function DenunciaWizard() {
             : undefined
         }
       >
-        <WizardShell currentStep={3} totalSteps={TOTAL_STEPS} onBack={goBack}>
+        <WizardShell
+          currentStep={3}
+          totalSteps={TOTAL_STEPS}
+          stepLabels={STEP_LABELS}
+          onBack={goBack}
+        >
           <Step3Where
             when={wizState.when}
             description={wizState.description}
@@ -323,7 +341,12 @@ export function DenunciaWizard() {
       </div>
 
       {step === 4 && (
-        <WizardShell currentStep={4} totalSteps={TOTAL_STEPS} onBack={goBack}>
+        <WizardShell
+          currentStep={4}
+          totalSteps={TOTAL_STEPS}
+          stepLabels={STEP_LABELS}
+          onBack={goBack}
+        >
           <Step4Subject
             subjectKind={wizState.subjectKind}
             subjectPetToken={wizState.subjectPetToken}
@@ -356,7 +379,12 @@ export function DenunciaWizard() {
       )}
 
       {step === 5 && (
-        <WizardShell currentStep={5} totalSteps={TOTAL_STEPS} onBack={goBack}>
+        <WizardShell
+          currentStep={5}
+          totalSteps={TOTAL_STEPS}
+          stepLabels={STEP_LABELS}
+          onBack={goBack}
+        >
           <Step5Contact
             contactMode={wizState.contactMode}
             contactEmail={wizState.contactEmail}
