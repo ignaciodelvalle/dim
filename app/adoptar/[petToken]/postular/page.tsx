@@ -90,18 +90,15 @@ export default async function PostularPage({
     return <NoLongerAvailable name={pet.name} />;
   }
 
-  // 4) Apply-intent cookie.
+  // 4) Apply-intent cookie — read only. Next 15 forbids cookie mutation in
+  // Server Components; cleanup happens in submitAdoptionApplicationAction
+  // (success path) and in dismissApplyIntentAction (banner X). The signed
+  // cookie's 15min TTL also covers the "user bails forever" case.
   const cookieStore = await cookies();
   const intentCookie = cookieStore.get(APPLY_INTENT_COOKIE_NAME);
-  let intentExpired = false;
-  if (intentCookie) {
-    const ok = validateApplyIntentToken(petToken, intentCookie.value);
-    if (!ok) intentExpired = true;
-    cookieStore.delete(APPLY_INTENT_COOKIE_NAME);
-  }
-  // Also clear the parallel pet-token cookie so the /inicio banner doesn't
-  // keep pointing at a pet the user just landed on.
-  cookieStore.delete(APPLY_INTENT_PET_TOKEN_COOKIE_NAME);
+  const intentExpired = intentCookie
+    ? !validateApplyIntentToken(petToken, intentCookie.value)
+    : false;
 
   // 5) Idempotency — render "ya postulaste" if there's an unresolved
   // _submitted from this applicant for this pet.
