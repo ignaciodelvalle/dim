@@ -183,7 +183,7 @@ export function EligibilityForm({
           disabled={pending}
           className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 disabled:opacity-50"
         >
-          {pending ? "Guardando..." : "Guardar elegibilidad"}
+          {pending ? "Guardando..." : "Confirmar elegibilidad"}
         </button>
         <button
           type="button"
