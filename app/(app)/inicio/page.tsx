@@ -28,6 +28,7 @@ import {
   fetchUpcomingAppointments,
 } from "@/lib/owner-dashboard";
 import { petPhotoUrl } from "@/lib/storage";
+import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { RemindersSection } from "./_components/RemindersSection";
 
 export const dynamic = "force-dynamic";
@@ -131,6 +132,8 @@ export default async function InicioPage() {
         </div>
         <NotificationBell unreadCount={unreadCount} />
       </header>
+
+      <IntentApplyBanner />
 
       <RemindersSection reminders={reminders} />
 
