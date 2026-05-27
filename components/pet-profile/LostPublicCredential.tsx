@@ -48,6 +48,11 @@ interface Props {
   tattooDescription?: string | null;
   /** Resolved public URL of the tattoo photo, or null if unavailable. */
   tattooPhotoUrl?: string | null;
+  /** Last seen lat/lng — when present, renders a "Ver en el mapa" link to
+   * Google Maps so a finder can navigate from where the pet was lost.
+   * Sprint 5 PR-041 / doc 10 §3 punto 1. */
+  lastSeenLat?: number | null;
+  lastSeenLng?: number | null;
 }
 
 export function LostPublicCredential({
@@ -66,16 +71,26 @@ export function LostPublicCredential({
   tattooLocation = null,
   tattooDescription = null,
   tattooPhotoUrl = null,
+  lastSeenLat = null,
+  lastSeenLng = null,
 }: Props) {
   const tattooLocLabel = tattooLocationLabel(tattooLocation);
+  const mapHref =
+    lastSeenLat != null && lastSeenLng != null
+      ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
+      : null;
   return (
     <main className="min-h-screen bg-red-50 px-4 py-6 dark:bg-red-950/30">
       <div className="mx-auto max-w-md space-y-4">
-        <div className="rounded-2xl bg-red-700 px-4 py-3 text-center text-white">
-          <p className="text-xs font-semibold uppercase tracking-widest opacity-90">
-            Mascota perdida
-          </p>
-          <p className="mt-0.5 text-xs opacity-90">desde {formatLostSince(lostSince)}</p>
+        {/* Urgent banner (sprint 5 PR-041 / doc 10 §3 punto 1) — surfaces the
+            "perdida" state + how recent, in the lostUrgentBanner spec voice. */}
+        <div
+          className="rounded-2xl bg-red-700 px-4 py-3 text-center text-white"
+          role="alert"
+          data-section="lost-urgent-banner"
+        >
+          <p className="text-base font-bold tracking-wide">⚠ ESTÁ PERDIDA</p>
+          <p className="mt-0.5 text-xs opacity-90">{formatLostSince(lostSince)}</p>
         </div>
 
         <section className="rounded-2xl bg-white p-5 text-center shadow-sm dark:bg-neutral-900">
@@ -145,6 +160,16 @@ export function LostPublicCredential({
             <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100 text-3xl dark:from-emerald-950/30 dark:to-blue-950/30">
               📍
             </div>
+            {mapHref && (
+              <a
+                href={mapHref}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-3 inline-block text-xs font-medium text-emerald-700 dark:text-emerald-300 underline underline-offset-2 hover:text-emerald-900"
+              >
+                Ver en el mapa ↗
+              </a>
+            )}
           </section>
         )}
 
