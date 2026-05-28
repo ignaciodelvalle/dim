@@ -7,16 +7,19 @@ import type { OrgPublicProfile } from "@/lib/org-public-profile";
 //
 // Three render branches:
 //   1. lat/lng set AND disclose_address=true (gated by queryOrgPublicProfile,
-//      which nulls lat/lng when disclose_address is false) → mapa + address +
-//      "Cómo llegar" link
+//      which nulls lat/lng when disclose_address is false) → mapa
+//      embebido + "Cómo llegar" link
 //   2. only jurisdiction (province + locality, no point) → solo texto
 //      "Operan en {Localidad}, {Provincia}"
-//   3. disclose_address=false → panel doesn't render at all
+//   3. disclose_address=false → panel doesn't render
 //
-// queryOrgPublicProfile already handles (3) — when disclose_address is
-// false, latitude/longitude come back as null. So here we only branch
-// between (1) and (2) — and skip the panel entirely if even the
-// jurisdiction text would be empty.
+// Implementation note: we considered server-side rendering via the
+// `staticmaps` lib (D2 default), but its `sharp` dep doesn't build
+// reliably for the Vercel linux-x64 runtime when installed from a
+// Windows dev box. Iframe is the no-deps, zero-runtime-risk fallback —
+// OSM hosts the embed page and serves tiles directly to the visitor's
+// browser. Cookie footprint is OSM's own; acceptable for a public
+// refugio profile (no PII on the page surrounding the iframe).
 
 interface Props {
   org: OrgPublicProfile;
@@ -24,29 +27,38 @@ interface Props {
   localityLabel: string | null;
 }
 
+// ~0.012 degrees per direction at zoom ~14 gives a city-block view.
+const BBOX_HALF_DEG = 0.012;
+
+function buildOsmEmbedSrc(lat: number, lng: number): string {
+  const minLon = lng - BBOX_HALF_DEG;
+  const maxLon = lng + BBOX_HALF_DEG;
+  const minLat = lat - BBOX_HALF_DEG;
+  const maxLat = lat + BBOX_HALF_DEG;
+  const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+  const marker = `${lat},${lng}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${marker}&layer=mapnik`;
+}
+
 export function LocationPanel({ org, localityLabel }: Props) {
   const hasPoint = org.latitude != null && org.longitude != null;
 
-  // Nothing to show → don't render (P2-6: no empty placeholders).
   if (!hasPoint && !localityLabel) return null;
-
-  const mapSrc = hasPoint
-    ? `/api/static-map?lat=${org.latitude}&lng=${org.longitude}&zoom=15&w=800&h=450`
-    : null;
 
   return (
     <Panel aria-labelledby="ubicacion-title">
       <PanelHeader title={<span id="ubicacion-title">Dónde estamos</span>} />
       <PanelBody>
-        {mapSrc ? (
+        {hasPoint && org.latitude != null && org.longitude != null ? (
           <>
-            <img
-              src={mapSrc}
-              alt={`Mapa con la ubicación de ${org.displayName}${
+            <iframe
+              title={`Mapa con la ubicación de ${org.displayName}${
                 localityLabel ? ` en ${localityLabel}` : ""
               }`}
-              className="rounded-xl w-full aspect-video md:aspect-[21/9] object-cover bg-gob-surface-alt"
+              src={buildOsmEmbedSrc(org.latitude, org.longitude)}
+              className="rounded-xl w-full aspect-video md:aspect-[21/9] border border-gob-border bg-gob-surface-alt"
               loading="lazy"
+              referrerPolicy="no-referrer"
             />
             {localityLabel && (
               <p className="mt-3 text-sm font-medium text-gob-text">{localityLabel}</p>
@@ -59,8 +71,6 @@ export function LocationPanel({ org, localityLabel }: Props) {
             </Link>
           </>
         ) : (
-          // Only jurisdiction, no point — surface the text alone (no empty
-          // map gradient, no degraded placeholder).
           localityLabel && (
             <p className="text-sm text-gob-text">
               Operan en <span className="font-medium">{localityLabel}</span>.
