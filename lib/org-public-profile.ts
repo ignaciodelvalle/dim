@@ -23,6 +23,10 @@ export type DonationMethods = {
 };
 
 export type OrgPublicProfile = {
+  /** Internal UUID — never rendered, only used server-side to join other
+   * queries (memberships, offerings). Not PII; serializing it client-side
+   * is fine but unnecessary. */
+  id: string;
   publicToken: string;
   displayName: string;
   legalName: string | null;
@@ -49,6 +53,7 @@ export type OrgPublicProfile = {
 export async function queryOrgPublicProfile(orgToken: string): Promise<OrgPublicProfile | null> {
   const [row] = await db
     .select({
+      id: organizations.id,
       publicToken: organizations.publicToken,
       displayName: organizations.displayName,
       legalName: organizations.legalName,
@@ -86,6 +91,7 @@ export async function queryOrgPublicProfile(orgToken: string): Promise<OrgPublic
   const showAddress = row.discloseAddress;
 
   return {
+    id: row.id,
     publicToken: row.publicToken,
     displayName: row.displayName,
     legalName: row.legalName,
