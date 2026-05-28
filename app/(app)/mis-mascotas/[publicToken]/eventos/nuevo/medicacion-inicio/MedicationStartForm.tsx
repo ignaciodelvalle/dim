@@ -1,8 +1,8 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/drugs";
-import { inputClass, labelClass } from "@/lib/form-classes";
 import { FREQUENCY_LABELS } from "@/lib/medication-schedule";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState, useState } from "react";
@@ -11,8 +11,6 @@ import { AttachmentField } from "../AttachmentField";
 const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
-
-const hintClass = "text-xs text-gob-text-muted ";
 
 export function MedicationStartForm({
   action,
@@ -60,180 +58,186 @@ export function MedicationStartForm({
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Drug name with datalist */}
-      <div className="space-y-1.5">
-        <label htmlFor="drugName" className={labelClass}>
-          Medicamento<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="drugName"
-          name="drugName"
-          type="text"
-          list="drug-options"
-          required
-          placeholder="Amoxicilina, Metronidazol..."
-          className={inputClass}
-          onChange={handleDrugNameChange}
-          autoComplete="off"
-        />
-        <datalist id="drug-options">
-          {catalogDrugs.map((d) => (
-            <option key={d.code} value={d.label} />
-          ))}
-        </datalist>
-        {matchedDrug && (
-          <p className={hintClass}>
-            Categoría: {matchedDrug.category}
-            {matchedDrug.brandNames?.length
-              ? ` · Marcas: ${matchedDrug.brandNames.join(", ")}`
-              : ""}
-          </p>
+      <Field
+        label="Medicamento"
+        required
+        help={
+          matchedDrug
+            ? `Categoría: ${matchedDrug.category}${
+                matchedDrug.brandNames?.length
+                  ? ` · Marcas: ${matchedDrug.brandNames.join(", ")}`
+                  : ""
+              }`
+            : undefined
+        }
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="drugName"
+            type="text"
+            list="drug-options"
+            required
+            placeholder="Amoxicilina, Metronidazol..."
+            onChange={handleDrugNameChange}
+            autoComplete="off"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
         )}
-      </div>
+      </Field>
+      <datalist id="drug-options">
+        {catalogDrugs.map((d) => (
+          <option key={d.code} value={d.label} />
+        ))}
+      </datalist>
 
       {/* Dose — pre-fills from catalog match */}
-      <div className="space-y-1.5">
-        <label htmlFor="dose" className={labelClass}>
-          Dosis<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="dose"
-          name="dose"
-          type="text"
-          required
-          value={doseValue}
-          onChange={(e) => setDoseValue(e.target.value)}
-          placeholder="10 mg/kg, 1 comprimido..."
-          className={inputClass}
-        />
-        {matchedDrug && (
-          <p className={hintClass}>
-            Sugerencia basada en {matchedDrug.label}. Ajustá según indicación veterinaria.
-          </p>
+      <Field
+        label="Dosis"
+        required
+        help={
+          matchedDrug
+            ? `Sugerencia basada en ${matchedDrug.label}. Ajustá según indicación veterinaria.`
+            : undefined
+        }
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="dose"
+            type="text"
+            required
+            value={doseValue}
+            onChange={(e) => setDoseValue(e.target.value)}
+            placeholder="10 mg/kg, 1 comprimido..."
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
         )}
-      </div>
+      </Field>
 
       {/* Frequency — structured select */}
-      <div className="space-y-1.5">
-        <label htmlFor="frequency" className={labelClass}>
-          Frecuencia<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select
-          id="frequency"
-          name="frequency"
-          required
-          value={frequency}
-          onChange={handleFrequencyChange}
-          className={inputClass}
-        >
-          <option value="">Seleccioná una frecuencia</option>
-          {(Object.entries(FREQUENCY_LABELS) as [string, string][]).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Frecuencia" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="frequency"
+            required
+            value={frequency}
+            onChange={handleFrequencyChange}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">Seleccioná una frecuencia</option>
+            {(Object.entries(FREQUENCY_LABELS) as [string, string][]).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
       {/* Custom hours — revealed when frequency === "custom" */}
       {showCustomHours && (
-        <div className="space-y-1.5">
-          <label htmlFor="customHours" className={labelClass}>
-            Cada cuántas horas<span className="text-gob-danger ml-0.5">*</span>
-          </label>
-          <input
-            id="customHours"
-            name="customHours"
-            type="number"
-            min="1"
-            max="24"
-            required
-            placeholder="Ej. 8"
-            className={inputClass}
-          />
-          <p className={hintClass}>Ingresá un valor entre 1 y 24 horas.</p>
-        </div>
+        <Field label="Cada cuántas horas" required help="Ingresá un valor entre 1 y 24 horas.">
+          {({ id, describedBy, invalid }) => (
+            <Input
+              id={id}
+              name="customHours"
+              type="number"
+              min="1"
+              max="24"
+              required
+              placeholder="Ej. 8"
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </Field>
       )}
 
       {/* First dose datetime */}
-      <div className="space-y-1.5">
-        <label htmlFor="firstDoseAt" className={labelClass}>
-          Primera dosis<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="firstDoseAt"
-          name="firstDoseAt"
-          type="datetime-local"
-          required
-          defaultValue={localDatetime}
-          className={inputClass}
-        />
-        <p className={hintClass}>Desde este momento se van a generar los recordatorios de dosis.</p>
-      </div>
+      <Field
+        label="Primera dosis"
+        required
+        help="Desde este momento se van a generar los recordatorios de dosis."
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="firstDoseAt"
+            type="datetime-local"
+            required
+            defaultValue={localDatetime}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {/* Duration — optional */}
-      <div className="space-y-1.5">
-        <label htmlFor="durationDays" className={labelClass}>
-          Duración del tratamiento (días)
-        </label>
-        <input
-          id="durationDays"
-          name="durationDays"
-          type="number"
-          min="1"
-          max="90"
-          placeholder="Ej. 7"
-          className={inputClass}
-        />
-        <p className={hintClass}>
-          Sin duración: vamos a generar recordatorios para los próximos 14 días. Cuando termine el
-          tratamiento, marcalo como fin y cancelamos los pendientes.
-        </p>
-      </div>
+      <Field
+        label="Duración del tratamiento (días)"
+        help="Sin duración: vamos a generar recordatorios para los próximos 14 días. Cuando termine el tratamiento, marcalo como fin y cancelamos los pendientes."
+      >
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="durationDays"
+            type="number"
+            min="1"
+            max="90"
+            placeholder="Ej. 7"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       {/* Prescribed by */}
-      <div className="space-y-1.5">
-        <label htmlFor="prescribedBy" className={labelClass}>
-          Prescripto por
-        </label>
-        <input
-          id="prescribedBy"
-          name="prescribedBy"
-          type="text"
-          placeholder="Nombre del veterinario/a"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Prescripto por">
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="prescribedBy"
+            type="text"
+            placeholder="Nombre del veterinario/a"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       {/* Start date — "día de inicio" (may differ from firstDoseAt) */}
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Día de inicio<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={defaultOccurredAt ?? today}
-          className={inputClass}
-        />
-        <p className={hintClass}>
-          Fecha en que empezó el tratamiento (puede diferir de la primera dosis registrada).
-        </p>
-      </div>
+      <Field
+        label="Día de inicio"
+        required
+        help="Fecha en que empezó el tratamiento (puede diferir de la primera dosis registrada)."
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaultOccurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaultNotes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaultNotes ?? ""}
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 

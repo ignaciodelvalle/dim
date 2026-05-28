@@ -16,7 +16,7 @@
 import { useActionState, useState } from "react";
 
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
-import { Checkbox } from "@/components/poncho";
+import { Checkbox, Input, Select, Textarea } from "@/components/poncho";
 import { WizardShell } from "@/components/poncho/Wizard";
 import type { ServiceKindDef } from "@/lib/service-kinds";
 
@@ -24,9 +24,6 @@ const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 
 const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Tipo", "Capacidad", "Elegibilidad"];
-
-const inputCls =
-  "w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary";
 
 export function ServiceOfferingForm({
   serviceKinds,
@@ -63,21 +60,21 @@ export function ServiceOfferingForm({
             <label htmlFor="serviceKind" className="block text-sm font-medium">
               Tipo de servicio <span className="text-gob-danger">*</span>
             </label>
-            <select id="serviceKind" name="serviceKind" required className={inputCls}>
+            <Select id="serviceKind" name="serviceKind" required>
               <option value="">— Seleccioná un tipo —</option>
               {serviceKinds.map((k) => (
                 <option key={k.code} value={k.code}>
                   {k.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="space-y-1">
             <label htmlFor="displayName" className="block text-sm font-medium">
               Nombre del servicio <span className="text-gob-danger">*</span>
             </label>
-            <input
+            <Input
               id="displayName"
               name="displayName"
               type="text"
@@ -85,7 +82,6 @@ export function ServiceOfferingForm({
               minLength={3}
               maxLength={120}
               placeholder="Ej: Vacunación antirrábica — campaña junio 2026"
-              className={inputCls}
             />
           </div>
 
@@ -93,13 +89,13 @@ export function ServiceOfferingForm({
             <label htmlFor="description" className="block text-sm font-medium">
               Descripción <span className="text-gob-text-muted font-normal">(opcional)</span>
             </label>
-            <textarea
+            <Textarea
               id="description"
               name="description"
               maxLength={500}
               rows={3}
               placeholder="Información adicional para quienes reserven el turno."
-              className={`${inputCls} resize-none`}
+              className="resize-none"
             />
           </div>
 
@@ -119,7 +115,7 @@ export function ServiceOfferingForm({
               <label htmlFor="durationMinutes" className="block text-sm font-medium">
                 Duración (minutos) <span className="text-gob-danger">*</span>
               </label>
-              <input
+              <Input
                 id="durationMinutes"
                 name="durationMinutes"
                 type="number"
@@ -127,14 +123,13 @@ export function ServiceOfferingForm({
                 min={5}
                 max={480}
                 defaultValue={15}
-                className={inputCls}
               />
             </div>
             <div className="space-y-1">
               <label htmlFor="slotCapacity" className="block text-sm font-medium">
                 Capacidad por turno <span className="text-gob-danger">*</span>
               </label>
-              <input
+              <Input
                 id="slotCapacity"
                 name="slotCapacity"
                 type="number"
@@ -142,7 +137,6 @@ export function ServiceOfferingForm({
                 min={1}
                 max={100}
                 defaultValue={1}
-                className={inputCls}
               />
             </div>
           </div>
@@ -152,14 +146,13 @@ export function ServiceOfferingForm({
               Precio (ARS){" "}
               <span className="text-gob-text-muted font-normal">— vacío para campaña gratuita</span>
             </label>
-            <input
+            <Input
               id="priceArs"
               name="priceArs"
               type="number"
               min={0}
               step="0.01"
               placeholder="0.00"
-              className={inputCls}
             />
           </div>
 
@@ -192,14 +185,13 @@ export function ServiceOfferingForm({
                 Edad mínima (meses){" "}
                 <span className="text-gob-text-muted font-normal">(opcional)</span>
               </label>
-              <input
+              <Input
                 id="eligibilityAgeMinMonths"
                 name="eligibilityAgeMinMonths"
                 type="number"
                 min={0}
                 max={360}
                 placeholder="Sin mínimo"
-                className={inputCls}
               />
             </div>
             <div className="space-y-1">
@@ -207,14 +199,13 @@ export function ServiceOfferingForm({
                 Edad máxima (meses){" "}
                 <span className="text-gob-text-muted font-normal">(opcional)</span>
               </label>
-              <input
+              <Input
                 id="eligibilityAgeMaxMonths"
                 name="eligibilityAgeMaxMonths"
                 type="number"
                 min={0}
                 max={360}
                 placeholder="Sin máximo"
-                className={inputCls}
               />
             </div>
           </div>
