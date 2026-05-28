@@ -6,10 +6,10 @@
 // at the call site so the form doesn't need to know which it's calling.
 
 import type { NewPetFormState } from "@/app/actions/pets";
+import { Field, Input, Select } from "@/components/poncho";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/ar-provincias";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
-import { inputClass, labelClass } from "@/lib/form-classes";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
@@ -142,8 +142,7 @@ export function PetForm({
       <Section title="Lo básico" defaultOpen>
         <PhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
 
-        <Field
-          id="name"
+        <TextField
           name="name"
           type="text"
           label="Nombre"
@@ -157,7 +156,6 @@ export function PetForm({
             a sub-select picks the concrete companion species. */}
         <input type="hidden" name="species" value={species} />
         <SelectField
-          id="species-group"
           name="speciesGroup"
           label="Especie"
           required
@@ -184,7 +182,6 @@ export function PetForm({
         </SelectField>
         {speciesGroup === "other" && (
           <SelectField
-            id="species-subgroup"
             name="speciesSubgroup"
             label='Tipo de "Otra"'
             required
@@ -203,13 +200,7 @@ export function PetForm({
           </SelectField>
         )}
 
-        <SelectField
-          id="sex"
-          name="sex"
-          label="Sexo"
-          required
-          defaultValue={existingPet?.sex ?? "unknown"}
-        >
+        <SelectField name="sex" label="Sexo" required defaultValue={existingPet?.sex ?? "unknown"}>
           <option value="unknown">No sé</option>
           <option value="male">Macho</option>
           <option value="female">Hembra</option>
@@ -217,8 +208,7 @@ export function PetForm({
 
         <AgeFields defaultYears={initialAge.years} defaultMonths={initialAge.months} />
 
-        <Field
-          id="color"
+        <TextField
           name="color"
           type="text"
           label="Color / marcas"
@@ -230,38 +220,37 @@ export function PetForm({
         <>
           {/* SECTION: Identificación y raza */}
           <Section title="Identificación y raza" defaultOpen={isEdit && !!existingPet?.breed}>
-            <div className="space-y-1.5">
-              <label htmlFor="breed" className={labelClass}>
-                Raza
-              </label>
-              <input
-                id="breed"
-                name="breed"
-                type="text"
-                list="breed-options"
-                value={breed}
-                onChange={(e) => setBreed(e.target.value)}
-                placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
-                disabled={!species}
-                className={`${inputClass} disabled:opacity-50`}
-              />
-              <datalist id="breed-options">
-                {breedOptions.map((b) => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
-              {breedIsDangerous && (
-                <div className="mt-2 p-3 rounded-lg border border-gob-warning  bg-gob-warning/10  text-xs text-gob-warning-text ">
-                  Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
-                  Ley Provincial 14.107). Vas a tener que registrarte en el registro provincial
-                  correspondiente. MiMAR marcará tu mascota con la flag oficial y te avisará en
-                  notificaciones.
-                </div>
+            <Field label="Raza">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  name="breed"
+                  type="text"
+                  list="breed-options"
+                  value={breed}
+                  onChange={(e) => setBreed(e.target.value)}
+                  placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
+                  disabled={!species}
+                  className="disabled:opacity-50"
+                  aria-describedby={describedBy}
+                />
               )}
-            </div>
+            </Field>
+            <datalist id="breed-options">
+              {breedOptions.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
+            {breedIsDangerous && (
+              <div className="p-3 rounded-lg border border-gob-warning  bg-gob-warning/10  text-xs text-gob-warning-text ">
+                Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078, Ley
+                Provincial 14.107). Vas a tener que registrarte en el registro provincial
+                correspondiente. MiMAR marcará tu mascota con la flag oficial y te avisará en
+                notificaciones.
+              </div>
+            )}
 
             <SelectField
-              id="acquisitionMethod"
               name="acquisitionMethod"
               label={
                 isEdit
@@ -284,8 +273,7 @@ export function PetForm({
 
           {/* SECTION: Salud y vida diaria */}
           <Section title="Salud y vida diaria">
-            <Field
-              id="estimatedWeightKg"
+            <TextField
               name="estimatedWeightKg"
               type="number"
               label="Peso estimado (kg)"
@@ -311,7 +299,6 @@ export function PetForm({
             />
 
             <SelectField
-              id="trainingLevel"
               name="trainingLevel"
               label="Nivel de entrenamiento"
               defaultValue={existingPet?.trainingLevel ?? ""}
@@ -327,27 +314,25 @@ export function PetForm({
 
           {/* SECTION: Seguro */}
           <Section title="Seguro de mascota">
-            <div className="space-y-1.5">
-              <label htmlFor="insuranceCompany" className={labelClass}>
-                Compañía
-              </label>
-              <input
-                id="insuranceCompany"
-                name="insuranceCompany"
-                type="text"
-                list="insurance-companies"
-                placeholder="Buscar o tipear…"
-                defaultValue={existingPet?.insuranceCompany ?? undefined}
-                className={inputClass}
-              />
-              <datalist id="insurance-companies">
-                {INSURANCE_COMPANIES.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <Field
-              id="insurancePolicyNumber"
+            <Field label="Compañía">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  name="insuranceCompany"
+                  type="text"
+                  list="insurance-companies"
+                  placeholder="Buscar o tipear…"
+                  defaultValue={existingPet?.insuranceCompany ?? undefined}
+                  aria-describedby={describedBy}
+                />
+              )}
+            </Field>
+            <datalist id="insurance-companies">
+              {INSURANCE_COMPANIES.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            <TextField
               name="insurancePolicyNumber"
               type="text"
               label="Número de póliza"
@@ -466,20 +451,22 @@ export function PetForm({
               })}
             </div>
             {conditions.has("otra") && (
-              <div className="mt-3 space-y-1">
-                <label htmlFor="permanentConditionsOther" className={labelClass}>
-                  Especificá la condición
-                </label>
-                <input
-                  id="permanentConditionsOther"
-                  name="permanentConditionsOther"
-                  type="text"
-                  required={conditions.has("otra")}
-                  maxLength={120}
-                  value={conditionsOther}
-                  onChange={(e) => setConditionsOther(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-                />
+              <div className="mt-3">
+                <Field label="Especificá la condición" required>
+                  {({ id, describedBy, invalid }) => (
+                    <Input
+                      id={id}
+                      name="permanentConditionsOther"
+                      type="text"
+                      required
+                      maxLength={120}
+                      value={conditionsOther}
+                      onChange={(e) => setConditionsOther(e.target.value)}
+                      aria-describedby={describedBy}
+                      invalid={invalid}
+                    />
+                  )}
+                </Field>
               </div>
             )}
             {!conditions.has("otra") && (
@@ -541,7 +528,9 @@ function CustodyKindToggle({
 }) {
   return (
     <div className="space-y-3">
-      <span className={labelClass}>¿Es tu mascota o la estás cuidando?</span>
+      <span className="block text-[0.88em] font-semibold text-gob-text-muted">
+        ¿Es tu mascota o la estás cuidando?
+      </span>
       <input type="hidden" name="custodyKind" value={value} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <CustodyOptionCard
@@ -646,9 +635,9 @@ function AgeFields({
 }) {
   return (
     <div className="space-y-1.5">
-      <span className={labelClass}>Edad aproximada</span>
+      <span className="block text-[0.88em] font-semibold text-gob-text-muted">Edad aproximada</span>
       <div className="grid grid-cols-2 gap-3">
-        <input
+        <Input
           id="ageYears"
           name="ageYears"
           type="number"
@@ -656,9 +645,8 @@ function AgeFields({
           max="40"
           placeholder="Años"
           defaultValue={defaultYears ?? undefined}
-          className={inputClass}
         />
-        <input
+        <Input
           id="ageMonths"
           name="ageMonths"
           type="number"
@@ -666,7 +654,6 @@ function AgeFields({
           max="11"
           placeholder="Meses"
           defaultValue={defaultMonths ?? undefined}
-          className={inputClass}
         />
       </div>
       <p className="text-xs text-gob-text-muted ">Si no sabés exacto, una estimación está bien.</p>
@@ -678,37 +665,32 @@ function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
   return (
     <div className="space-y-3 pt-3 border-t border-gob-border-strong ">
       <p className="text-xs text-gob-text-muted  uppercase tracking-wider">Microchip</p>
-      <Field
-        id="microchipId"
+      <TextField
         name="microchipId"
         type="text"
         label="Número de chip (15 dígitos, ISO 11784/11785)"
         autoComplete="off"
         defaultValue={existingPet?.microchipId ?? undefined}
       />
-      <Field
-        id="microchipCountryCode"
+      <TextField
         name="microchipCountryCode"
         type="text"
         label="Código de país"
         defaultValue={existingPet?.microchipCountryCode ?? "858"}
       />
-      <Field
-        id="microchipImplantedAt"
+      <TextField
         name="microchipImplantedAt"
         type="date"
         label="Fecha de implantación"
         defaultValue={existingPet?.microchipImplantedAt ?? undefined}
       />
-      <Field
-        id="microchipImplantedBy"
+      <TextField
         name="microchipImplantedBy"
         type="text"
         label="Implantado por (vet / clínica)"
         defaultValue={existingPet?.microchipImplantedBy ?? undefined}
       />
       <SelectField
-        id="microchipLocation"
         name="microchipLocation"
         label="Ubicación en el cuerpo"
         defaultValue={existingPet?.microchipLocation ?? ""}
@@ -744,7 +726,7 @@ function CheckboxGroup({
 
   return (
     <div className="space-y-2">
-      <span className={labelClass}>{label}</span>
+      <span className="block text-[0.88em] font-semibold text-gob-text-muted">{label}</span>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         {options.map((opt) => (
           <label
@@ -762,13 +744,13 @@ function CheckboxGroup({
           </label>
         ))}
       </div>
-      <input
+      <Input
         id={otherFieldName}
         name={otherFieldName}
         type="text"
         placeholder="Otros (separá por coma si querés varios)"
         defaultValue={otherDefaultValue}
-        className={`${inputClass} mt-1 text-sm`}
+        className="mt-1"
       />
     </div>
   );
@@ -783,7 +765,7 @@ function PhotoField({
 }) {
   return (
     <div className="space-y-2">
-      <span className={labelClass}>Foto (opcional)</span>
+      <span className="block text-[0.88em] font-semibold text-gob-text-muted">Foto (opcional)</span>
       <label
         htmlFor="photo"
         className="flex items-center gap-4 p-3 rounded-lg border border-dashed border-gob-border-strong  cursor-pointer hover:bg-gob-surface-alt  transition-colors"
@@ -817,8 +799,11 @@ function PhotoField({
   );
 }
 
-function Field({
-  id,
+// TextField / SelectField are thin adapters over the Poncho Field + Input/Select
+// primitives. They keep PetForm's many call sites terse while delegating label,
+// id wiring, and styling to the design system. (Renamed from the former local
+// `Field` to avoid the name-clash with the imported Poncho `Field`.)
+function TextField({
   name,
   type,
   label,
@@ -828,7 +813,6 @@ function Field({
   step,
   min,
 }: {
-  id: string;
   name: string;
   type: string;
   label: string;
@@ -839,28 +823,26 @@ function Field({
   min?: string;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        autoComplete={autoComplete}
-        required={required}
-        defaultValue={defaultValue}
-        step={step}
-        min={min}
-        className={inputClass}
-      />
-    </div>
+    <Field label={label} required={required}>
+      {({ id, describedBy, invalid }) => (
+        <Input
+          id={id}
+          name={name}
+          type={type}
+          autoComplete={autoComplete}
+          required={required}
+          defaultValue={defaultValue}
+          step={step}
+          min={min}
+          aria-describedby={describedBy}
+          invalid={invalid}
+        />
+      )}
+    </Field>
   );
 }
 
 function SelectField({
-  id,
   name,
   label,
   required,
@@ -869,7 +851,6 @@ function SelectField({
   defaultValue,
   children,
 }: {
-  id: string;
   name: string;
   label: string;
   required?: boolean;
@@ -880,20 +861,19 @@ function SelectField({
 }) {
   const controlled = value !== undefined;
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <select
-        id={id}
-        name={name}
-        required={required}
-        {...(controlled ? { value, onChange } : { defaultValue: defaultValue ?? "" })}
-        className={inputClass}
-      >
-        {children}
-      </select>
-    </div>
+    <Field label={label} required={required}>
+      {({ id, describedBy, invalid }) => (
+        <Select
+          id={id}
+          name={name}
+          required={required}
+          aria-describedby={describedBy}
+          invalid={invalid}
+          {...(controlled ? { value, onChange } : { defaultValue: defaultValue ?? "" })}
+        >
+          {children}
+        </Select>
+      )}
+    </Field>
   );
 }
