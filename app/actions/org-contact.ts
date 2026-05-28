@@ -24,10 +24,17 @@ const MAX_EMAIL_LEN = 254;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function callerIpAddress(): Promise<string> {
-  const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
-  return reqHeaders.get("x-real-ip") ?? "unknown";
+  // headers() throws when called outside a request scope (e.g. vitest).
+  // Treat that as "unknown" so the rate-limit cohort key degrades
+  // gracefully — the action still runs and persists.
+  try {
+    const reqHeaders = await headers();
+    const forwardedFor = reqHeaders.get("x-forwarded-for");
+    if (forwardedFor) return forwardedFor.split(",")[0].trim();
+    return reqHeaders.get("x-real-ip") ?? "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 // @no-auth-required: public contact form on /refugios/[orgToken]. IP +
