@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 
 import type { EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
 import { AttachmentField } from "../AttachmentField";
@@ -41,97 +41,94 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Sub-kind */}
-      <div className="space-y-1.5">
-        <label htmlFor="subKind" className={labelClass}>
-          Tipo<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select
-          id="subKind"
-          name="subKind"
-          required
-          value={subKind}
-          onChange={(e) => setSubKind(e.target.value as SubKind)}
-          className={inputClass}
-        >
-          {SUB_KINDS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Tipo" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="subKind"
+            required
+            value={subKind}
+            onChange={(e) => setSubKind(e.target.value as SubKind)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            {SUB_KINDS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
       {/* Title */}
-      <div className="space-y-1.5">
-        <label htmlFor="title" className={labelClass}>
-          Título / nombre<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="title"
-          name="title"
-          type="text"
-          required
-          placeholder={TITLE_PLACEHOLDERS[subKind]}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Título / nombre" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="title"
+            type="text"
+            required
+            placeholder={TITLE_PLACEHOLDERS[subKind]}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {/* Details */}
-      <div className="space-y-1.5">
-        <label htmlFor="details" className={labelClass}>
-          Detalles, resultados, observaciones
-        </label>
-        <textarea
-          id="details"
-          name="details"
-          rows={4}
-          placeholder="Resultados, valores de referencia, comentarios del veterinario…"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Detalles, resultados, observaciones">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="details"
+            rows={4}
+            placeholder="Resultados, valores de referencia, comentarios del veterinario…"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       {/* Performed by */}
-      <div className="space-y-1.5">
-        <label htmlFor="performedBy" className={labelClass}>
-          Realizado por (vet / clínica)
-        </label>
-        <input
-          id="performedBy"
-          name="performedBy"
-          type="text"
-          placeholder="Dr. García · Clínica Veterinaria X"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Realizado por (vet / clínica)">
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="performedBy"
+            type="text"
+            placeholder="Dr. García · Clínica Veterinaria X"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       {/* Date */}
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Fecha<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {/* Notes */}
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas adicionales
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          placeholder="Cualquier detalle extra que quieras recordar…"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas adicionales">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            placeholder="Cualquier detalle extra que quieras recordar…"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <details className="rounded-lg border border-gob-border  p-3">
         <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">

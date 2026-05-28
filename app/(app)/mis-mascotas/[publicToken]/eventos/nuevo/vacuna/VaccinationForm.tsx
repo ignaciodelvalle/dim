@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useMemo, useState } from "react";
@@ -50,83 +50,96 @@ export function VaccinationForm({
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {sourceReminderId && <input type="hidden" name="sourceReminderId" value={sourceReminderId} />}
 
-      <div className="space-y-1.5">
-        <label htmlFor="vaccineName" className={labelClass}>
-          Vacuna<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="vaccineName"
-          name="vaccineName"
-          type="text"
-          required
-          list="vaccine-options"
-          placeholder="Empezá a tipear o elegí…"
-          autoComplete="off"
-          value={vaccineName}
-          onChange={(e) => setVaccineName(e.target.value)}
-          className={inputClass}
-        />
-        <datalist id="vaccine-options">
-          {vaccines.map((v) => (
-            <option key={v.name} value={v.name} />
-          ))}
-        </datalist>
-      </div>
-
-      <Field
-        id="occurredAt"
-        name="occurredAt"
-        type="date"
-        label="Fecha de aplicación"
-        required
-        defaultValue={defaults?.occurredAt ?? today}
-      />
-
-      <Field id="brand" name="brand" type="text" label="Marca / laboratorio" />
-
-      <Field id="batch" name="batch" type="text" label="Lote" />
-
-      <Field
-        id="administeredBy"
-        name="administeredBy"
-        type="text"
-        label="Aplicada por (vet / clínica)"
-      />
-
-      <div className="space-y-1.5">
-        <label htmlFor="nextDueAt" className={labelClass}>
-          Próxima dosis (opcional — crea recordatorio)
-        </label>
-        <input
-          id="nextDueAt"
-          name="nextDueAt"
-          type="date"
-          value={effectiveNextDue}
-          onChange={(e) => {
-            setNextDueOverridden(true);
-            setNextDueAt(e.target.value);
-          }}
-          className={inputClass}
-        />
-        {!nextDueOverridden && suggestedNextDue && (
-          <p className="text-xs text-gob-text-muted ">
-            Sugerencia automática según el catálogo. Editá libremente si corresponde.
-          </p>
+      <Field label="Vacuna" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="vaccineName"
+            type="text"
+            required
+            list="vaccine-options"
+            placeholder="Empezá a tipear o elegí…"
+            autoComplete="off"
+            value={vaccineName}
+            onChange={(e) => setVaccineName(e.target.value)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
         )}
-      </div>
+      </Field>
+      <datalist id="vaccine-options">
+        {vaccines.map((v) => (
+          <option key={v.name} value={v.name} />
+        ))}
+      </datalist>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha de aplicación" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
+      <Field label="Marca / laboratorio">
+        {({ id, describedBy }) => (
+          <Input id={id} name="brand" type="text" aria-describedby={describedBy} />
+        )}
+      </Field>
+
+      <Field label="Lote">
+        {({ id, describedBy }) => (
+          <Input id={id} name="batch" type="text" aria-describedby={describedBy} />
+        )}
+      </Field>
+
+      <Field label="Aplicada por (vet / clínica)">
+        {({ id, describedBy }) => (
+          <Input id={id} name="administeredBy" type="text" aria-describedby={describedBy} />
+        )}
+      </Field>
+
+      <Field
+        label="Próxima dosis (opcional — crea recordatorio)"
+        optional={false}
+        help={
+          !nextDueOverridden && suggestedNextDue
+            ? "Sugerencia automática según el catálogo. Editá libremente si corresponde."
+            : undefined
+        }
+      >
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="nextDueAt"
+            type="date"
+            value={effectiveNextDue}
+            onChange={(e) => {
+              setNextDueOverridden(true);
+              setNextDueAt(e.target.value);
+            }}
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
+
+      <Field label="Notas">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? ""}
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 
@@ -144,38 +157,5 @@ export function VaccinationForm({
         {isPending ? "Guardando..." : "Registrar vacuna"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  defaultValue,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  defaultValue?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        className={inputClass}
-      />
-    </div>
   );
 }
