@@ -30,6 +30,7 @@ import { CompartirOrgSheet } from "./sheets/CompartirOrgSheet";
 import { ConsultaSinTurnoSheet } from "./sheets/ConsultaSinTurnoSheet";
 import { ContactarSheet } from "./sheets/ContactarSheet";
 import { DonarSheet } from "./sheets/DonarSheet";
+import { SerVoluntarioSheet } from "./sheets/SerVoluntarioSheet";
 import { VerificacionInfoSheet } from "./sheets/VerificacionInfoSheet";
 
 export const dynamic = "force-dynamic";
@@ -141,6 +142,7 @@ export default async function RefugioPage({
         longitude={org.longitude}
       />
       <DonarSheet orgDisplayName={org.displayName} methods={org.donationMethods} />
+      <SerVoluntarioSheet orgToken={orgToken} orgDisplayName={org.displayName} />
     </main>
   );
 }

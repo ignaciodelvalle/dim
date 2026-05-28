@@ -32,9 +32,12 @@ async function callerIpAddress(): Promise<string> {
 
 // @no-auth-required: public contact form on /refugios/[orgToken]. IP +
 // per-org rate limits via enforceRateLimit. Inquirer is anonymous by
-// design — only email is required so the org can reply.
+// design — only email is required so the org can reply. `kind`
+// distinguishes the Contactar sheet from the Ser voluntario sheet
+// (handoff P2-9b) — same shape, separate inboxes.
 export async function submitOrgContactAction(
   orgToken: string,
+  kind: "contact" | "volunteer",
   _previous: SubmitOrgContactState,
   formData: FormData,
 ): Promise<SubmitOrgContactState> {
@@ -90,6 +93,7 @@ export async function submitOrgContactAction(
   // 4. Persist.
   await db.insert(orgContactMessages).values({
     organizationId: org.id,
+    kind,
     inquirerName: name,
     inquirerEmail: email,
     message,
