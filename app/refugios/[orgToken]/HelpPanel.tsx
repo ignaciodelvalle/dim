@@ -25,6 +25,16 @@ type HelpCard = {
 };
 
 export function HelpPanel({ org, isAuthed }: Props) {
+  // Foster CTA goes straight to the existing FosterVolunteerWizard at
+  // /cuenta/ofrecerme-como-transito (a per-user surface). The handoff
+  // mentioned a sheet variant pre-filled with ?org=… but the wizard
+  // doesn't bind to a specific org today — foster preferences are
+  // global and orgs match against them. Routing to the wizard keeps
+  // the UX correct; anon users get bounced through /login first.
+  const fosterHref = isAuthed
+    ? "/cuenta/ofrecerme-como-transito"
+    : `/login?intent=foster&returnTo=${encodeURIComponent("/cuenta/ofrecerme-como-transito")}`;
+
   const cards: HelpCard[] = [
     {
       key: "adoptar",
@@ -36,9 +46,7 @@ export function HelpPanel({ org, isAuthed }: Props) {
       key: "transito",
       emoji: "🏠",
       label: "Ofrecete como tránsito",
-      href: isAuthed
-        ? `?sheet=ofrecerme-transito-org&org=${org.publicToken}`
-        : `/login?intent=foster&returnTo=${encodeURIComponent(`/refugios/${org.publicToken}?sheet=ofrecerme-transito-org`)}`,
+      href: fosterHref,
     },
   ];
 

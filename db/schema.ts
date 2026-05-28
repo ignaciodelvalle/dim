@@ -718,6 +718,10 @@ export const orgContactMessages = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    /** What surface produced the message — 'contact' (Contactar sheet)
+     * or 'volunteer' (Ser voluntario sheet). New kinds = one CHECK
+     * update, no schema migration. */
+    kind: text("kind").notNull().default("contact").$type<"contact" | "volunteer">(),
     inquirerName: text("inquirer_name"),
     inquirerEmail: text("inquirer_email").notNull(),
     message: text("message").notNull(),
@@ -730,6 +734,10 @@ export const orgContactMessages = pgTable(
   (table) => ({
     orgIdx: index("org_contact_messages_org_idx").on(table.organizationId),
     createdAtIdx: index("org_contact_messages_created_at_idx").on(table.createdAt),
+    kindCheck: check(
+      "org_contact_messages_kind_check",
+      sql`${table.kind} IN ('contact', 'volunteer')`,
+    ),
     messageLengthCheck: check(
       "org_contact_messages_message_length_check",
       sql`length(${table.message}) <= 500`,
