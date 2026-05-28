@@ -2,15 +2,63 @@ import { markAllNotificationsReadAction } from "@/app/actions/notifications";
 import { NotificationCard } from "@/components/NotificationCard";
 import { EmptyState } from "@/components/poncho/EmptyState";
 import { Tabs } from "@/components/poncho/Tabs";
-import { db, notifications, pets } from "@/db";
+import { type Notification, type Pet, db, notifications, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { fetchNotificationCategoryCounts } from "@/lib/owner-dashboard";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { Suspense } from "react";
 
-// TODO(C4-followup): when ≥3 notifications share the same relatedPetId +
-// notificationType, group them collapsibly per spec §D agrupamiento.
+// Grouping (handoff P4-5): when ≥3 notifications share the same
+// (relatedPetId, notificationType), collapse into a single "leader" row
+// with a "+ N más" disclosure that expands the rest. Singletons and
+// groups of 2 keep individual rendering.
+
+const GROUP_MIN = 3;
+
+type NotificationRow = { notification: Notification; pet: Pet | null };
+
+type Group =
+  | { kind: "single"; row: NotificationRow }
+  | { kind: "group"; leader: NotificationRow; rest: NotificationRow[] };
+
+function groupNotifications(rows: NotificationRow[]): Group[] {
+  // Pre-count buckets so we know which rows are part of a group ≥ GROUP_MIN.
+  // Bucket key: (relatedPetId ?? "_") + notificationType. relatedPetId may
+  // be null (admin-side notifications); they bucket by type only.
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = `${row.notification.relatedPetId ?? "_"}|${row.notification.notificationType}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  // Single pass — preserve the original descending-createdAt order. When
+  // we hit the first row of a 3+ bucket, emit a group leader carrying the
+  // rest of the bucket. Subsequent rows from that same bucket are skipped
+  // (already represented by the leader's `rest`).
+  const result: Group[] = [];
+  const seenBuckets = new Map<string, NotificationRow[]>();
+  for (const row of rows) {
+    const key = `${row.notification.relatedPetId ?? "_"}|${row.notification.notificationType}`;
+    const total = counts.get(key) ?? 0;
+    if (total < GROUP_MIN) {
+      result.push({ kind: "single", row });
+      continue;
+    }
+    // ≥ GROUP_MIN — bucket gets collapsed under one leader.
+    const existing = seenBuckets.get(key);
+    if (existing) {
+      // Already emitted the leader for this bucket; append to its `rest`.
+      existing.push(row);
+      continue;
+    }
+    // First time we see this bucket; this row is the leader (most recent).
+    const rest: NotificationRow[] = [];
+    seenBuckets.set(key, rest);
+    result.push({ kind: "group", leader: row, rest });
+  }
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Category definitions
@@ -151,11 +199,40 @@ export default async function NotificacionesPage({
           />
         ) : (
           <ul className="space-y-3">
-            {rows.map(({ notification, pet }) => (
-              <li key={notification.id}>
-                <NotificationCard notification={notification} relatedPet={pet} />
-              </li>
-            ))}
+            {groupNotifications(rows).map((entry) => {
+              if (entry.kind === "single") {
+                return (
+                  <li key={entry.row.notification.id}>
+                    <NotificationCard
+                      notification={entry.row.notification}
+                      relatedPet={entry.row.pet}
+                    />
+                  </li>
+                );
+              }
+              // Grouped: leader card + collapsible '+N más' details with the
+              // remaining rows.
+              return (
+                <li key={entry.leader.notification.id}>
+                  <NotificationCard
+                    notification={entry.leader.notification}
+                    relatedPet={entry.leader.pet}
+                  />
+                  <details className="mt-2 ml-3 pl-3 border-l-2 border-neutral-200 dark:border-neutral-800">
+                    <summary className="cursor-pointer text-xs text-gob-azul-link hover:underline select-none">
+                      + {entry.rest.length} más del mismo tipo
+                    </summary>
+                    <ul className="space-y-3 mt-3">
+                      {entry.rest.map(({ notification, pet }) => (
+                        <li key={notification.id}>
+                          <NotificationCard notification={notification} relatedPet={pet} />
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
