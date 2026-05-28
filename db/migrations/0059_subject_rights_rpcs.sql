@@ -171,4 +171,8 @@ COMMENT ON FUNCTION public.export_subject_data(uuid) IS
 COMMENT ON FUNCTION public.erase_subject_data(uuid, text) IS
   'Ley 25.326 art. 16 — derecho de supresión. Soft-delete + hash de PII. Auth: self o admin institucional.';
 
+-- Tell PostgREST to refresh its schema cache so the new RPCs are visible
+-- without a service restart. Harmless if PostgREST is not running.
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;
