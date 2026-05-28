@@ -10,16 +10,21 @@
 // queryOrgPublicProfile. Future panels (P2-2..P2-12) plug into the
 // existing skeleton instead of re-querying.
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { db, organizationMemberships } from "@/db";
 import { queryAdoptionListing } from "@/lib/adoption-listing-query";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { queryPublicOfferings } from "@/lib/org-public-offerings";
 import { queryOrgPublicProfile } from "@/lib/org-public-profile";
+import { orgLogoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { AboutPanel } from "./AboutPanel";
+import { AdminBanner } from "./AdminBanner";
 import { AdoptionPanel } from "./AdoptionPanel";
 import { HelpPanel } from "./HelpPanel";
 import { LocationPanel } from "./LocationPanel";
@@ -39,17 +44,42 @@ const PROVINCE_BY_NAME = new Map<string, (typeof PROVINCES)[number]>(
   PROVINCES.map((p) => [p.name as string, p]),
 );
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ orgToken: string }>;
-}) {
+}): Promise<Metadata> {
   const { orgToken } = await params;
   const org = await queryOrgPublicProfile(orgToken);
   if (!org) return { title: "Refugio no disponible — MiMAR" };
+
+  const locality = org.jurisdictionLocality ?? org.jurisdictionProvince ?? "Argentina";
+  const description =
+    org.description?.slice(0, 160) ??
+    `Mascotas en adopción publicadas por ${org.displayName}, refugio verificado en ${locality}.`;
+  const canonicalUrl = `${SITE_URL}/refugios/${orgToken}`;
+  const logoAbsolute = orgLogoUrl(org.logoStoragePath);
+
   return {
     title: `${org.displayName} — Refugio en MiMAR`,
-    description: `Mascotas en adopción publicadas por ${org.displayName}.`,
+    description,
+    alternates: { canonical: canonicalUrl },
+    openGraph: {
+      title: `${org.displayName} — Refugio en MiMAR`,
+      description,
+      url: canonicalUrl,
+      siteName: "MiMAR",
+      images: logoAbsolute ? [{ url: logoAbsolute }] : [`${SITE_URL}/og-default-org.jpg`],
+      type: "profile",
+      locale: "es_AR",
+    },
+    twitter: {
+      card: "summary",
+      title: `${org.displayName} — Refugio en MiMAR`,
+      description,
+    },
   };
 }
 
@@ -79,6 +109,26 @@ export default async function RefugioPage({
 
   if (!org) notFound();
 
+  // Admin/coordinator banner (handoff P2-11 + D5: only admins and
+  // coordinators of THIS org see it — volunteers / fosters / non-members
+  // / anon don't).
+  let viewerIsAdminOrCoordinator = false;
+  if (user) {
+    const [membership] = await db
+      .select({ id: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.userId, user.id),
+          eq(organizationMemberships.organizationId, org.id),
+          isNull(organizationMemberships.leftAt),
+          inArray(organizationMemberships.role, ["admin", "coordinator"]),
+        ),
+      )
+      .limit(1);
+    viewerIsAdminOrCoordinator = Boolean(membership);
+  }
+
   const provinceLabel =
     (org.jurisdictionProvince && PROVINCE_BY_NAME.get(org.jurisdictionProvince)?.name) ||
     org.jurisdictionProvince ||
@@ -88,61 +138,105 @@ export default async function RefugioPage({
       ? `${org.jurisdictionLocality}, ${provinceLabel}`
       : (provinceLabel ?? org.jurisdictionLocality ?? null);
 
+  // JSON-LD Organization schema for rich-result eligibility on search
+  // engines + LinkedIn. Generated server-side and injected as a literal
+  // script tag — Next handles the dangerouslySetInnerHTML escape.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": org.orgType === "shelter" ? "AnimalShelter" : "NGO",
+    name: org.displayName,
+    legalName: org.legalName ?? undefined,
+    url: `${SITE_URL}/refugios/${orgToken}`,
+    description: org.description ?? undefined,
+    logo: orgLogoUrl(org.logoStoragePath) ?? undefined,
+    email: org.email ?? undefined,
+    telephone: org.phone ?? undefined,
+    sameAs: org.website ? [org.website] : undefined,
+    address:
+      org.jurisdictionLocality || org.jurisdictionProvince
+        ? {
+            "@type": "PostalAddress",
+            addressLocality: org.jurisdictionLocality ?? undefined,
+            addressRegion: org.jurisdictionProvince ?? undefined,
+            addressCountry: "AR",
+          }
+        : undefined,
+    geo:
+      org.latitude != null && org.longitude != null
+        ? {
+            "@type": "GeoCoordinates",
+            latitude: org.latitude,
+            longitude: org.longitude,
+          }
+        : undefined,
+  };
+
   return (
-    <main className="min-h-screen bg-gob-surface">
-      <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
-        <Link
-          href="/adoptar"
-          className="inline-block text-sm text-gob-text-muted hover:text-gob-text"
-        >
-          ← Volver a /adoptar
-        </Link>
+    <>
+      {viewerIsAdminOrCoordinator && <AdminBanner orgToken={orgToken} />}
+      <main className="min-h-screen bg-gob-surface">
+        <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
+          {/* JSON-LD — rendered as a literal script in document head context
+              so crawlers can index the structured data. */}
+          <script
+            type="application/ld+json"
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: safe-by-construction JSON
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          />
 
-        <OrgHero org={org} localityLabel={localityLabel} />
+          <Link
+            href="/adoptar"
+            className="inline-block text-sm text-gob-text-muted hover:text-gob-text"
+          >
+            ← Volver a /adoptar
+          </Link>
 
-        {org.description && <AboutPanel description={org.description} />}
+          <OrgHero org={org} localityLabel={localityLabel} />
 
-        <AdoptionPanel
-          orgToken={orgToken}
-          displayName={org.displayName}
-          items={items}
-          hasMore={Boolean(nextCursor)}
-        />
+          {org.description && <AboutPanel description={org.description} />}
 
-        <ServicesPanel orgToken={orgToken} offerings={offerings} />
+          <AdoptionPanel
+            orgToken={orgToken}
+            displayName={org.displayName}
+            items={items}
+            hasMore={Boolean(nextCursor)}
+          />
 
-        <LocationPanel org={org} localityLabel={localityLabel} />
+          <ServicesPanel orgToken={orgToken} offerings={offerings} />
 
-        <HelpPanel org={org} isAuthed={isAuthed} />
-      </div>
+          <LocationPanel org={org} localityLabel={localityLabel} />
 
-      {/* Sheets — read ?sheet=... from URL and self-mount. Each sheet
+          <HelpPanel org={org} isAuthed={isAuthed} />
+        </div>
+
+        {/* Sheets — read ?sheet=... from URL and self-mount. Each sheet
           checks its own searchParams.sheet === id, so they can be all
           mounted unconditionally; React renders only the one that's open. */}
-      <ContactarSheet
-        orgToken={orgToken}
-        orgDisplayName={org.displayName}
-        orgEmail={org.email}
-        orgPhone={org.phone}
-      />
-      <CompartirOrgSheet orgToken={orgToken} orgDisplayName={org.displayName} />
-      <VerificacionInfoSheet
-        verifiedByName={org.verifiedBy?.displayName ?? null}
-        verifiedAt={org.verifiedAt}
-      />
-      <ConsultaSinTurnoSheet
-        orgDisplayName={org.displayName}
-        orgEmail={org.email}
-        orgPhone={org.phone}
-        jurisdictionLabel={localityLabel}
-      />
-      <ComoLlegarSheet
-        orgDisplayName={org.displayName}
-        latitude={org.latitude}
-        longitude={org.longitude}
-      />
-      <DonarSheet orgDisplayName={org.displayName} methods={org.donationMethods} />
-      <SerVoluntarioSheet orgToken={orgToken} orgDisplayName={org.displayName} />
-    </main>
+        <ContactarSheet
+          orgToken={orgToken}
+          orgDisplayName={org.displayName}
+          orgEmail={org.email}
+          orgPhone={org.phone}
+        />
+        <CompartirOrgSheet orgToken={orgToken} orgDisplayName={org.displayName} />
+        <VerificacionInfoSheet
+          verifiedByName={org.verifiedBy?.displayName ?? null}
+          verifiedAt={org.verifiedAt}
+        />
+        <ConsultaSinTurnoSheet
+          orgDisplayName={org.displayName}
+          orgEmail={org.email}
+          orgPhone={org.phone}
+          jurisdictionLabel={localityLabel}
+        />
+        <ComoLlegarSheet
+          orgDisplayName={org.displayName}
+          latitude={org.latitude}
+          longitude={org.longitude}
+        />
+        <DonarSheet orgDisplayName={org.displayName} methods={org.donationMethods} />
+        <SerVoluntarioSheet orgToken={orgToken} orgDisplayName={org.displayName} />
+      </main>
+    </>
   );
 }
