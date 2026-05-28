@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 
 import type { BiteFormState } from "@/app/actions/bite";
 import { LocationFields } from "@/components/LocationFields";
+import { Checkbox } from "@/components/poncho";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
@@ -177,18 +178,12 @@ export function BiteForm({
       </div>
 
       <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            name="confirmObservation"
-            required
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong  text-gob-warning-text focus:ring-gob-warning"
-          />
+        <Checkbox name="confirmObservation" required>
           <span className="text-sm text-gob-warning-text ">
             Entiendo que reportar esto inicia un período de observación antirrábica obligatorio de
             10 días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
           </span>
-        </label>
+        </Checkbox>
       </div>
 
       {state.error && (

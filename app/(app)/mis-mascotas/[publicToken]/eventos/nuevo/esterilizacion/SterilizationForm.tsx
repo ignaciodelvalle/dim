@@ -1,9 +1,11 @@
 "use client";
 
+import { useActionState } from "react";
+
 import type { EventFormState } from "@/app/actions/events";
+import { Radio } from "@/components/poncho";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
-import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -29,20 +31,12 @@ export function SterilizationForm({
           Procedimiento<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="procedure"
-              value="castration"
-              required
-              className="accent-gob-primary "
-            />
-            <span className="text-sm text-gob-text ">Castración</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="procedure" value="spay" className="accent-gob-primary " />
-            <span className="text-sm text-gob-text ">Ovariectomía</span>
-          </label>
+          <Radio name="procedure" value="castration" required>
+            Castración
+          </Radio>
+          <Radio name="procedure" value="spay">
+            Ovariectomía
+          </Radio>
         </div>
       </div>
 

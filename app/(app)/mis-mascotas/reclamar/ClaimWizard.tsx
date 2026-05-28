@@ -13,6 +13,7 @@ import {
   lookupForClaimAction,
   submitClaimDisputeAction,
 } from "@/app/actions/pet-claim";
+import { Radio } from "@/components/poncho";
 
 type IdKind = "microchip" | "tattoo";
 
@@ -80,28 +81,22 @@ export function ClaimWizard() {
           <legend className="text-sm font-medium text-gob-text ">
             ¿Cómo identificás a la mascota?
           </legend>
-          <label className="flex items-center gap-2 text-sm text-gob-text-gray ">
-            <input
-              type="radio"
-              name="kind"
-              value="microchip"
-              checked={state.kind === "microchip"}
-              onChange={() => setState({ ...state, kind: "microchip", value: "", error: null })}
-              className="h-4 w-4 accent-gob-primary"
-            />
+          <Radio
+            name="kind"
+            value="microchip"
+            checked={state.kind === "microchip"}
+            onChange={() => setState({ ...state, kind: "microchip", value: "", error: null })}
+          >
             Microchip (15 dígitos)
-          </label>
-          <label className="flex items-center gap-2 text-sm text-gob-text-gray ">
-            <input
-              type="radio"
-              name="kind"
-              value="tattoo"
-              checked={state.kind === "tattoo"}
-              onChange={() => setState({ ...state, kind: "tattoo", value: "", error: null })}
-              className="h-4 w-4 accent-gob-primary"
-            />
+          </Radio>
+          <Radio
+            name="kind"
+            value="tattoo"
+            checked={state.kind === "tattoo"}
+            onChange={() => setState({ ...state, kind: "tattoo", value: "", error: null })}
+          >
             Tatuaje
-          </label>
+          </Radio>
         </fieldset>
 
         <div className="space-y-1">
