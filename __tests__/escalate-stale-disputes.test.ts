@@ -149,9 +149,12 @@ describe("escalate-stale-disputes", () => {
   });
 
   it("recovery — escalation with no resolvable authorities still flips status", async () => {
+    // Real canonical province (CHECK constraint enforces the 24-enum since
+    // migration 0055), synthetic locality nobody covers — that's enough to
+    // exercise the "no resolvable authority" branch.
     const stale = await makeDisputeCase({
       openedAt: TWO_YEARS_AGO,
-      jurisdictionProvince: "ESCALATE_TEST_UNASSIGNED_PROVINCE",
+      jurisdictionProvince: "Tierra del Fuego",
       jurisdictionLocality: "ESCALATE_TEST_UNASSIGNED_LOCALITY",
     });
 

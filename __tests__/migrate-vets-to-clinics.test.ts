@@ -89,7 +89,7 @@ async function insertOrphanOffering(suffix: string) {
       publicToken: `SVO-MIGRATE-${suffix}-${Date.now()}`,
       providerUserId: vetUserId,
       jurisdictionCountry: "AR",
-      jurisdictionProvince: "AR-B",
+      jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
       serviceKind: "vaccination",
       displayName: `Vacunación ${suffix}`,
@@ -128,7 +128,7 @@ describe("migrate-vets-to-clinics — happy path", () => {
     expect(org.verified).toBe(true);
     expect(org.verifiedAt).toBeInstanceOf(Date);
     expect(org.createdByUserId).toBe(vetUserId);
-    expect(org.jurisdictionProvince).toBe("AR-B");
+    expect(org.jurisdictionProvince).toBe("Buenos Aires");
     expect(org.jurisdictionLocality).toBe("La Plata");
     expect(org.publicToken).toMatch(/^DIM-/);
 

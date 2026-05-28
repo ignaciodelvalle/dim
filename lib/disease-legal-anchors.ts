@@ -79,7 +79,7 @@ const ORD_CABA_41831: LegalReference = {
   label: "Ord. CABA 41.831 / 1987",
   scope: "Profilaxis antirrábica en CABA — observación obligatoria 10 días",
   jurisdiction: "province",
-  appliesTo: { province: "Ciudad Autónoma de Buenos Aires" },
+  appliesTo: { province: "CABA" },
 };
 
 const LEY_5325_PBA: LegalReference = {

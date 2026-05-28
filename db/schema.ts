@@ -29,6 +29,21 @@ import {
 } from "drizzle-orm/pg-core";
 
 // ============================================================================
+// Shared SQL fragments
+// ============================================================================
+
+// Canonical jurisdiction_province enum literal used by the CHECK constraints
+// on the 11 tables that store this column. See migration
+// 0055_jurisdiction_province_canonical.sql and lib/jurisdiction-canonical.ts.
+// Keep this list in sync with PROVINCES in lib/ar-provincias.ts.
+const CANONICAL_PROVINCE_SQL_LIST = sql`(
+  'Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes',
+  'Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones',
+  'Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe',
+  'Santiago del Estero','Tierra del Fuego','Tucumán'
+)`;
+
+// ============================================================================
 // Enums
 // ============================================================================
 
@@ -644,6 +659,10 @@ export const pets = pgTable(
     tattooCodeIdx: index("pets_tattoo_code_idx")
       .on(table.tattooCode)
       .where(sql`${table.tattooCode} IS NOT NULL`),
+    petsJurisdictionProvinceCanonical: check(
+      "pets_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
   }),
 );
 
@@ -707,6 +726,10 @@ export const organizations = pgTable(
     coordinatesPairCheck: check(
       "organizations_coordinates_pair_check",
       sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`,
+    ),
+    organizationsJurisdictionProvinceCanonical: check(
+      "organizations_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );
@@ -774,6 +797,10 @@ export const organizationCoverage = pgTable(
     jurisdictionIdx: index("organization_coverage_jurisdiction_idx").on(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
+    ),
+    organizationCoverageJurisdictionProvinceCanonical: check(
+      "organization_coverage_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );
@@ -1260,6 +1287,10 @@ export const welfareReports = pgTable(
     ),
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
+    welfareReportsJurisdictionProvinceCanonical: check(
+      "welfare_reports_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
   }),
 );
 
@@ -1417,6 +1448,10 @@ export const govtAssignments = pgTable(
     localityIdx: index("govt_assignments_locality_idx")
       .on(table.jurisdictionProvince, table.jurisdictionLocality)
       .where(sql`${table.revokedAt} IS NULL`),
+    govtAssignmentsJurisdictionProvinceCanonical: check(
+      "govt_assignments_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
   }),
 );
 
@@ -1512,6 +1547,10 @@ export const approvalRequests = pgTable(
     approvalDecisionConsistent: check(
       "approval_decision_consistent",
       sql`(${table.status} in ('approved', 'rejected') and ${table.decidedAt} is not null and ${table.decidedByUserId} is not null) or (${table.status} in ('pending', 'withdrawn') and ${table.decidedAt} is null and ${table.decidedByUserId} is null)`,
+    ),
+    approvalRequestsJurisdictionProvinceCanonical: check(
+      "approval_requests_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );
@@ -1724,6 +1763,10 @@ export const govtBusinessRules = pgTable(
       "govt_business_rules_rule_type_valid",
       sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries')`,
     ),
+    govtBusinessRulesJurisdictionProvinceCanonical: check(
+      "govt_business_rules_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
   }),
 );
 
@@ -1819,6 +1862,10 @@ export const serviceOfferings = pgTable(
     ),
     serviceCapacityPositive: check("service_capacity_positive", sql`${table.slotCapacity} > 0`),
     serviceDurationPositive: check("service_duration_positive", sql`${table.durationMinutes} > 0`),
+    serviceOfferingsJurisdictionProvinceCanonical: check(
+      "service_offerings_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
   }),
 );
 
@@ -2189,6 +2236,10 @@ export const fosterVolunteers = pgTable(
       "foster_volunteers_at_least_one_species",
       sql`${table.status} != 'active' or (${table.acceptsDogs} or ${table.acceptsCats} or ${table.acceptsOtherSpecies})`,
     ),
+    fosterVolunteersJurisdictionProvinceCanonical: check(
+      "foster_volunteers_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
   }),
 );
 
@@ -2383,6 +2434,10 @@ export const custodyDisputes = pgTable(
     custodyDisputesRaisedRoleValid: check(
       "custody_disputes_raised_role_valid",
       sql`${table.raisedByRole} in ('owner','org','govt','admin')`,
+    ),
+    custodyDisputesJurisdictionProvinceCanonical: check(
+      "custody_disputes_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );
@@ -2714,6 +2769,10 @@ export const cases = pgTable(
     casesOpenedReasonMinLength: check(
       "cases_opened_reason_min_length",
       sql`${table.openedReason} is null or length(${table.openedReason}) >= 10`,
+    ),
+    casesJurisdictionProvinceCanonical: check(
+      "cases_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );

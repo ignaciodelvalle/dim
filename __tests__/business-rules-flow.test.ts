@@ -20,8 +20,15 @@ const supabase = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: fa
 const ADMIN_EMAIL = "br-flow-admin@dim-test.local";
 const OWNER_EMAIL = "br-flow-owner@dim-test.local";
 const PASS = "BrFlow_2026!";
-const TEST_PROVINCE = "BR-FLOW-PROVINCE";
+// Real canonical province name (migration 0055 enforces the 24-enum
+// CHECK on jurisdiction_province). Test isolation is anchored on the
+// synthetic LOCALITY values, which carry the BR-FLOW prefix.
+const TEST_PROVINCE = "Buenos Aires";
 const TEST_LOCALITY = "BR-FLOW-LOCALITY";
+const NOOP_LOCALITY = "BR-NOOP-LOCALITY";
+const INVALID_LOCALITY = "BR-INVALID-LOCALITY";
+const UPDATE_LOCALITY = "BR-UPDATE-LOCALITY";
+const DELETE_LOCALITY = "BR-DELETE-LOCALITY";
 
 let adminUserId: string;
 let ownerUserId: string;
@@ -98,8 +105,8 @@ afterAll(async () => {
   }
   await db.execute(sql`
     delete from govt_business_rules
-    where jurisdiction_province in (${TEST_PROVINCE}, 'BR-NOOP-PROVINCE',
-      'BR-INVALID-PROVINCE', 'BR-UPDATE-PROVINCE', 'BR-DELETE-PROVINCE')
+    where jurisdiction_locality in (${TEST_LOCALITY}, ${NOOP_LOCALITY},
+      ${INVALID_LOCALITY}, ${UPDATE_LOCALITY}, ${DELETE_LOCALITY})
   `);
   for (const petId of insertedPetIds) {
     await withMutationOverride(async (tx) => {
@@ -145,7 +152,7 @@ describe("createBusinessRuleWriter", () => {
       actorUserId: adminUserId,
       ruleType: "ppp_breed_list",
       jurisdictionCountry: "AR",
-      jurisdictionProvince: "BR-NOOP-PROVINCE",
+      jurisdictionProvince: TEST_PROVINCE,
       jurisdictionLocality: null,
       rulePayload: defaultBreeds,
       notes: null,
@@ -163,7 +170,7 @@ describe("createBusinessRuleWriter", () => {
       actorUserId: adminUserId,
       ruleType: "ppp_breed_list",
       jurisdictionCountry: "AR",
-      jurisdictionProvince: "BR-INVALID-PROVINCE",
+      jurisdictionProvince: TEST_PROVINCE,
       jurisdictionLocality: null,
       rulePayload: { breeds: "not-an-array" },
       notes: null,
@@ -217,8 +224,8 @@ describe("updateBusinessRuleWriter", () => {
       actorUserId: adminUserId,
       ruleType: "ppp_breed_list",
       jurisdictionCountry: "AR",
-      jurisdictionProvince: "BR-UPDATE-PROVINCE",
-      jurisdictionLocality: null,
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: UPDATE_LOCALITY,
       rulePayload: { breeds: ["UpdMe1"] },
       notes: null,
       legalAnchorIds: [],
@@ -258,8 +265,8 @@ describe("deleteBusinessRuleWriter", () => {
       actorUserId: adminUserId,
       ruleType: "ppp_breed_list",
       jurisdictionCountry: "AR",
-      jurisdictionProvince: "BR-DELETE-PROVINCE",
-      jurisdictionLocality: null,
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: DELETE_LOCALITY,
       rulePayload: { breeds: ["DeleteMe"] },
       notes: null,
       legalAnchorIds: [],

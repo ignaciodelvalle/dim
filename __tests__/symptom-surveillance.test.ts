@@ -38,7 +38,7 @@ let adminUserId: string;
 
 const insertedPetIds: string[] = [];
 
-const TEST_PROVINCE = "AR-C";
+const TEST_PROVINCE = "CABA";
 const TEST_LOCALITY = "Belgrano";
 
 // ---------------------------------------------------------------------------

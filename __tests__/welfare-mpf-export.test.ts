@@ -44,7 +44,7 @@ function makeReport(overrides: Partial<WelfareReport> = {}): WelfareReport {
     subjectPetId: null,
     subjectDescription: "Perro callejero sin collar",
     locationAddress: "Av. Corrientes 1234",
-    jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+    jurisdictionProvince: "CABA",
     jurisdictionLocality: "CABA",
     locationLat: "-34.6037",
     locationLng: "-58.3816",
@@ -239,7 +239,7 @@ describe("generateMpfExportAction — mocked storage", () => {
         subjectKind: "registered_pet",
         subjectPetId: petId,
         status: "open",
-        jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+        jurisdictionProvince: "CABA",
         jurisdictionLocality: "CABA",
       })
       .returning();
@@ -260,7 +260,7 @@ describe("generateMpfExportAction — mocked storage", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockRequireAdminOrGovt.mockResolvedValue({
       profile: { id: govtUserId, role: "govt" },
-      jurisdictions: [{ province: "Ciudad Autónoma de Buenos Aires", locality: "CABA" }],
+      jurisdictions: [{ province: "CABA", locality: "CABA" }],
       user: { id: govtUserId },
       supabase: supabaseMock,
     } as any);

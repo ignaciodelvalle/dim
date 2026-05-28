@@ -29,7 +29,7 @@ beforeAll(async () => {
       orgType: "clinic",
       email: "san-pablo-pb@dim-test.local",
       verified: true,
-      jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+      jurisdictionProvince: "CABA",
       jurisdictionLocality: "Palermo",
     })
     .returning();
@@ -59,7 +59,7 @@ beforeAll(async () => {
       orgType: "clinic",
       email: "san-lucas-pb@dim-test.local",
       verified: false,
-      jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+      jurisdictionProvince: "CABA",
       jurisdictionLocality: "Palermo",
     })
     .returning();
@@ -126,7 +126,7 @@ describe("searchVetsAndClinics", () => {
 
   it("boosts jurisdiction-matching organizations to the top", async () => {
     const cabaFirst = await searchVetsAndClinics(SUFFIX, {
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Palermo",
     });
     const firstOrg = cabaFirst.find((r) => r.kind === "organization");

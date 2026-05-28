@@ -22,11 +22,11 @@
 // digits) before the cross-check and before any insert.
 
 import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
-import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
@@ -206,12 +206,13 @@ function parsePetForm(formData: FormData): { parsed: ParsedPet; error: string | 
       trainingLevel,
       insuranceCompany: String(formData.get("insuranceCompany") ?? "").trim() || null,
       insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
-      // The shared LocationFields component submits the ISO 3166-2:AR code.
-      // Resolve it to the display name for storage — the column still holds
-      // free text until the canonical-codes migration lands (deferred until
-      // gov dashboards need k-anonymity-safe rollups).
-      jurisdictionProvince:
-        provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null,
+      // jurisdiction_province is stored as the canonical display name
+      // (e.g. "Buenos Aires", "CABA"). Wire format from LocationFields is the
+      // ISO code; the helper accepts any input shape and returns the canonical
+      // display name. See migration 0055 + lib/jurisdiction-canonical.ts.
+      jurisdictionProvince: canonicalProvinceNameForStorage(
+        String(formData.get("provinceCode") ?? "").trim(),
+      ),
       jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
       // Flag is jurisdiction-resolved at action time — parse stays sync.
       acquisitionMethod,

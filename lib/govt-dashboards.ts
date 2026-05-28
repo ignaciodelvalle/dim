@@ -423,34 +423,34 @@ export type VigilanciaMetrics = {
 };
 
 // Hardcoded province-name → ISO 3166-2:AR code map.
-// The cases table stores free-text province names; the GeoJSON uses ISO codes.
-// Limitation: only common Argentine provinces are mapped here. Unknown provinces
-// return code: "". Extend this map as new jurisdictions are onboarded.
+// The cases table stores the canonical display name (migration 0055 + check
+// constraint enforcing the 24-enum). The GeoJSON uses ISO codes. Unknown
+// provinces return code: "" — should be impossible after migration 0055.
 export const PROVINCE_ISO_MAP: Record<string, string> = {
-  "Ciudad Autónoma de Buenos Aires": "AR-C",
   "Buenos Aires": "AR-B",
-  Córdoba: "AR-X",
-  "Santa Fe": "AR-S",
-  Mendoza: "AR-M",
-  Tucumán: "AR-T",
-  "Entre Ríos": "AR-E",
-  Salta: "AR-A",
-  Misiones: "AR-N",
-  Chaco: "AR-H",
-  Corrientes: "AR-W",
-  Santiago: "AR-G",
-  "San Juan": "AR-J",
-  "Río Negro": "AR-R",
-  Neuquén: "AR-Q",
-  Jujuy: "AR-Y",
-  Formosa: "AR-P",
-  "San Luis": "AR-D",
+  CABA: "AR-C",
   Catamarca: "AR-K",
-  "La Rioja": "AR-F",
+  Chaco: "AR-H",
   Chubut: "AR-U",
-  "Santa Cruz": "AR-Z",
-  "Tierra del Fuego": "AR-V",
+  Córdoba: "AR-X",
+  Corrientes: "AR-W",
+  "Entre Ríos": "AR-E",
+  Formosa: "AR-P",
+  Jujuy: "AR-Y",
   "La Pampa": "AR-L",
+  "La Rioja": "AR-F",
+  Mendoza: "AR-M",
+  Misiones: "AR-N",
+  Neuquén: "AR-Q",
+  "Río Negro": "AR-R",
+  Salta: "AR-A",
+  "San Juan": "AR-J",
+  "San Luis": "AR-D",
+  "Santa Cruz": "AR-Z",
+  "Santa Fe": "AR-S",
+  "Santiago del Estero": "AR-G",
+  "Tierra del Fuego": "AR-V",
+  Tucumán: "AR-T",
 };
 
 // Build a scope clause for the `cases` table. Admin: null (no restriction).

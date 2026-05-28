@@ -203,11 +203,11 @@ export const ORGS = {
     cuit: "30-71000001-1",
     email: "contacto@patitasdelnorte.test",
     phone: "+54 9 11 5555-3001",
-    jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+    jurisdictionProvince: "CABA",
     jurisdictionLocality: "Palermo",
     coverage: [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Palermo", isPrimary: true },
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Recoleta", isPrimary: false },
+      { province: "CABA", locality: "Palermo", isPrimary: true },
+      { province: "CABA", locality: "Recoleta", isPrimary: false },
     ],
     verified: true,
   },
@@ -218,11 +218,9 @@ export const ORGS = {
     cuit: "30-71000002-2",
     email: "turnos@clinicarecoleta.test",
     phone: "+54 9 11 5555-3002",
-    jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+    jurisdictionProvince: "CABA",
     jurisdictionLocality: "Recoleta",
-    coverage: [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Recoleta", isPrimary: true },
-    ],
+    coverage: [{ province: "CABA", locality: "Recoleta", isPrimary: true }],
     verified: true,
   },
   "rescate-puerto-madero": {
@@ -232,12 +230,12 @@ export const ORGS = {
     cuit: "30-71000003-3",
     email: "rescate@puertomadero.test",
     phone: "+54 9 11 5555-3003",
-    jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+    jurisdictionProvince: "CABA",
     jurisdictionLocality: "Puerto Madero",
     coverage: [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Puerto Madero", isPrimary: true },
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Retiro", isPrimary: false },
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "San Nicolás", isPrimary: false },
+      { province: "CABA", locality: "Puerto Madero", isPrimary: true },
+      { province: "CABA", locality: "Retiro", isPrimary: false },
+      { province: "CABA", locality: "San Nicolás", isPrimary: false },
     ],
     verified: true,
   },
@@ -248,12 +246,12 @@ export const ORGS = {
     cuit: "30-71000004-4",
     email: "centro@mascotasba.test",
     phone: "+54 9 11 5555-3004",
-    jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+    jurisdictionProvince: "CABA",
     jurisdictionLocality: "Retiro",
     coverage: [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Retiro", isPrimary: true },
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Puerto Madero", isPrimary: false },
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "San Nicolás", isPrimary: false },
+      { province: "CABA", locality: "Retiro", isPrimary: true },
+      { province: "CABA", locality: "Puerto Madero", isPrimary: false },
+      { province: "CABA", locality: "San Nicolás", isPrimary: false },
     ],
     verified: true,
   },
@@ -264,11 +262,9 @@ export const ORGS = {
     cuit: "30-71000005-5",
     email: "pendiente@refugio.test",
     phone: "+54 9 11 5555-3005",
-    jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+    jurisdictionProvince: "CABA",
     jurisdictionLocality: "Recoleta",
-    coverage: [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Recoleta", isPrimary: true },
-    ],
+    coverage: [{ province: "CABA", locality: "Recoleta", isPrimary: true }],
     verified: false, // pending in /admin queue
   },
 } as const;
@@ -276,11 +272,11 @@ export const ORGS = {
 export type OrgKey = keyof typeof ORGS;
 
 const GOVT_ASSIGNMENTS = [
-  { province: "Ciudad Autónoma de Buenos Aires", locality: "Retiro" },
-  { province: "Ciudad Autónoma de Buenos Aires", locality: "Puerto Madero" },
-  { province: "Ciudad Autónoma de Buenos Aires", locality: "San Nicolás" },
-  { province: "Ciudad Autónoma de Buenos Aires", locality: "Recoleta" },
-  { province: "Ciudad Autónoma de Buenos Aires", locality: "Palermo" },
+  { province: "CABA", locality: "Retiro" },
+  { province: "CABA", locality: "Puerto Madero" },
+  { province: "CABA", locality: "San Nicolás" },
+  { province: "CABA", locality: "Recoleta" },
+  { province: "CABA", locality: "Palermo" },
 ];
 
 const PHOTO_DIR_ABS = path.join(process.cwd(), "docs", "archive", "Fotos");
@@ -476,7 +472,7 @@ async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
         phone: u.phone,
         matriculaVerified: true,
         matriculaNumber: "V-99001-CABA",
-        matriculaJurisdiccion: "Ciudad Autónoma de Buenos Aires",
+        matriculaJurisdiccion: "CABA",
       });
     } else {
       await setProfileFields(deps, id, {
