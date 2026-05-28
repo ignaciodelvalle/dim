@@ -17,10 +17,16 @@ export const FLAG_REASONS = [
   "trivial_description",
   "critical_without_evidence",
   "duplicate_within_24h",
+  "bot_suspected_dwell_time",
+  "bot_suspected_honeypot",
 ] as const;
 export type FlagReason = (typeof FLAG_REASONS)[number];
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+// Below this dwell-time the submit looks automated. 10 seconds is the
+// floor a human takes to navigate from page-load through five steps of
+// the wizard. Handoff P4-2d.
+const MIN_HUMAN_DWELL_MS = 10_000;
 
 export type ModerationInput = {
   // The id of the row that was just inserted — excluded from the
@@ -30,10 +36,30 @@ export type ModerationInput = {
   severity: string;
   subjectKind: string;
   attachmentCount: number;
+  /** Milliseconds from wizard mount to submit. Undefined when the
+   * client didn't send it (legacy clients). Below 10s → bot. */
+  dwellTimeMs?: number;
+  /** Honeypot field that the form initializes empty and never exposes.
+   * Bots that auto-fill every field stuff something here. */
+  honeypotValue?: string;
 };
 
 export async function computeFlagReasons(input: ModerationInput): Promise<FlagReason[]> {
   const reasons: FlagReason[] = [];
+
+  // Rule 0a — dwell-time bot heuristic. Submits faster than a human
+  // could plausibly fill a 5-step wizard are silently flagged. The
+  // submitter still sees the normal SuccessScreen (no signal to the
+  // bot); the row enters moderation and never reaches /gob/maltrato.
+  if (input.dwellTimeMs !== undefined && input.dwellTimeMs < MIN_HUMAN_DWELL_MS) {
+    reasons.push("bot_suspected_dwell_time");
+  }
+
+  // Rule 0b — honeypot. The wizard initializes `_hp` to "" and never
+  // exposes it. A bot scraping every field stuffs something here.
+  if (input.honeypotValue && input.honeypotValue.trim().length > 0) {
+    reasons.push("bot_suspected_honeypot");
+  }
 
   // Rule 1 — trivial description.
   // The form already enforces description ≥ 20 chars at validation time, so
@@ -94,6 +120,10 @@ export function reasonLabel(reason: FlagReason | string): string {
       return "Crítica sin sujeto concreto ni evidencia";
     case "duplicate_within_24h":
       return "Duplicada en las últimas 24h";
+    case "bot_suspected_dwell_time":
+      return "Submit sospechoso por tiempo (posible bot)";
+    case "bot_suspected_honeypot":
+      return "Honeypot rellenado (bot)";
     default:
       return reason;
   }

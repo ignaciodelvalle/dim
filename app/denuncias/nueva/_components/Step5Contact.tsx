@@ -146,9 +146,27 @@ export function Step5Contact({
         </div>
       )}
 
-      {/* TODO(M-followup): add optional evidence file uploader here.
-          Plan calls for a drop zone with camera capture (`accept="image/*,video/*"`
-          `capture="environment"`). Defer until after the UI shell ships. */}
+      {/* Evidence uploader (handoff P4-2b). Multi-file, image/video.
+          The wizard's FormData captures these via formRef + getAll('attachment');
+          welfare.ts already calls uploadWelfareEvidence on those entries. */}
+      <details className="rounded-xl border border-dashed border-gob-border p-4">
+        <summary className="cursor-pointer text-sm font-medium text-gob-text">
+          📎 Sumar fotos o videos <span className="text-gob-text-muted">(opcional)</span>
+        </summary>
+        <div className="mt-3 space-y-2">
+          <input
+            type="file"
+            name="attachment"
+            multiple
+            accept="image/*,video/*"
+            capture="environment"
+            className="block w-full text-xs text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-gob-surface-alt file:text-gob-text file:cursor-pointer"
+          />
+          <p className="text-xs text-gob-text-muted">
+            Hasta 5 archivos, 25 MB cada uno. Fotos o videos de lo que viste.
+          </p>
+        </div>
+      </details>
 
       {error && (
         <p

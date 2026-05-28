@@ -89,6 +89,13 @@ export function DenunciaWizard() {
   // including LocationFields' uncontrolled hidden inputs inside Step3Where.
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Mount timestamp for dwell-time bot rejection (handoff P4-2d).
+  // Submits with dwell < 10s are silently dropped server-side — the user
+  // (or bot) sees the same SuccessScreen but no row persists. Captured
+  // here so the wizard owns the start-of-flow timestamp; serialized into
+  // FormData on submit.
+  const mountedAt = useRef<number>(Date.now());
+
   function updateState(patch: Partial<WizardState>) {
     setWizState((prev) => ({ ...prev, ...patch }));
     setStepError(null);
@@ -209,6 +216,10 @@ export function DenunciaWizard() {
 
       // Honeypot — must be empty
       formData.set("_hp", "");
+
+      // Dwell time — millisecond delta from mount to submit. Server uses
+      // this to silent-reject obvious bots (handoff P4-2d).
+      formData.set("dwellTimeMs", String(Date.now() - mountedAt.current));
 
       const result = await createWelfareReportAction({ error: null }, formData);
 

@@ -436,12 +436,20 @@ export async function createWelfareReportAction(
   if (!user) {
     try {
       const attachmentCount = uploadResult?.uploaded?.length ?? 0;
+      // Bot heuristics — dwell-time + honeypot (handoff P4-2d). Parsed
+      // here (not earlier) so they only apply to the anon branch and
+      // never short-circuit a legit submit.
+      const dwellTimeMsRaw = String(formData.get("dwellTimeMs") ?? "").trim();
+      const dwellTimeMs = dwellTimeMsRaw ? Number.parseInt(dwellTimeMsRaw, 10) : undefined;
+      const honeypotValue = String(formData.get("_hp") ?? "");
       const flagReasons = await computeFlagReasons({
         reportId: insertedId,
         description,
         severity,
         subjectKind,
         attachmentCount,
+        dwellTimeMs: Number.isFinite(dwellTimeMs) ? dwellTimeMs : undefined,
+        honeypotValue,
       });
       if (flagReasons.length > 0) {
         await db
