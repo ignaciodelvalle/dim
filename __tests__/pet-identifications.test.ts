@@ -2,15 +2,18 @@
 // (compliance handoff PR 0).
 //
 // Three contracts under test:
-//  1. Backfill from legacy pets.microchip_id created an `active`
-//     `microchip_iso` row per pet at migration time.
-//  2. `replaceIdentification` swaps active rows atomically — old → replaced
+//  1. addIdentification persists chip rows with ISO 11784/11785 subfields
+//     decomposed (country / manufacturer / national_id).
+//  2. replaceIdentification swaps active rows atomically — old → replaced
 //     with replaced_by_id pointing at the new row.
-//  3. Tattoos legitimately collide across registries — two distinct
-//     `pet_identifications` rows with the same `code` and `kind='tattoo'`
-//     must both insert (the partial unique index is chip-only).
+//  3. Tattoos legitimately collide across registries — two distinct rows
+//     with the same `code` and `kind='tattoo'` must both insert; chips
+//     with duplicate codes are rejected by the partial unique index.
+//
+// The migration's backfill correctness is verified manually + via the
+// existing chip-match.test.ts (which uses the lookupByChip helper).
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petIdentifications, pets } from "@/db";
@@ -66,25 +69,32 @@ afterAll(async () => {
 
 // ---------------------------------------------------------------------------
 
-describe("pet_identifications backfill (migration 0056)", () => {
-  it("seeded an active microchip_iso row for every legacy pet with a 15-digit chip", async () => {
-    // Pull a non-zero count from prod-seeded fixtures. Bootstrap inserts ~26
-    // legacy pets with chips; the migration backfills those that pass the
-    // strict ISO 15-digit shape.
-    const rows = await db
+describe("pet_identifications round-trip", () => {
+  it("addIdentification persists a microchip_iso row with ISO subfields decomposed", async () => {
+    const petId = await makePet();
+    const code = makeChip(1);
+    const add = await addIdentification({
+      petId,
+      kind: "microchip_iso",
+      code,
+      implantationSite: "interescapular",
+    });
+    expect("id" in add).toBe(true);
+    if (!("id" in add)) return;
+
+    const [row] = await db
       .select()
       .from(petIdentifications)
-      .where(
-        and(eq(petIdentifications.kind, "microchip_iso"), eq(petIdentifications.status, "active")),
-      )
-      .limit(5);
-
-    // At least one — exact count depends on fixture seeding, which can vary.
-    expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) {
-      expect(r.code).toMatch(/^\d{15}$/);
-      expect(r.isoCompliant).toBe(true);
-    }
+      .where(eq(petIdentifications.id, add.id));
+    expect(row).toBeDefined();
+    expect(row.kind).toBe("microchip_iso");
+    expect(row.status).toBe("active");
+    expect(row.code).toBe(code);
+    expect(row.isoCountryCode).toBe(code.slice(0, 3));
+    expect(row.isoManufacturerCode).toBe(code.slice(3, 7));
+    expect(row.isoNationalId).toBe(code.slice(7, 15));
+    expect(row.isoCompliant).toBe(true);
+    expect(row.implantationSite).toBe("interescapular");
   });
 });
 
