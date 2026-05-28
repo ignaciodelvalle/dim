@@ -3,11 +3,22 @@
 // Step 4 — Sobre quién (opcional pero recomendado).
 // Two main cards: "Una mascota" / "Animal sin dueño / no lo sé".
 // Tertiary option: "Edificio / persona / lugar" → subjectKind='location'.
-// Microchip lookup deferred — accepts free text token only.
-// TODO(M-followup): wire subjectPetToken to a real MiMAR chip lookup that
-// returns boolean matched/not-matched without leaking the pet record (plan §Open decisions #3).
+//
+// Chip / token lookup vivo (handoff P4-2a): debounced call to
+// lookupPetForDenunciaAction. On match shows a small preview "Esta
+// mascota está registrada como {nombre} ({estado}). Dueño:
+// {iniciales}." — non-leaky projection from the public action.
 
+import { useEffect, useState, useTransition } from "react";
+
+import {
+  type PublicLookupResult,
+  lookupPetForDenunciaAction,
+} from "@/app/actions/pet-lookup-public";
 import { inputClass, labelClass } from "@/lib/form-classes";
+
+const LOOKUP_DEBOUNCE_MS = 300;
+const LOOKUP_MIN_LEN = 8;
 
 export type SubjectKindWizard = "registered_pet" | "unowned_animal" | "location";
 
@@ -107,15 +118,13 @@ export function Step4Subject({
         <div className="space-y-3 rounded-xl border border-gob-border p-4">
           <div className="space-y-1.5">
             <label htmlFor="subjectPetToken" className={labelClass}>
-              Código MiMAR de la mascota (opcional)
+              Código MiMAR o microchip (opcional)
             </label>
-            {/* TODO(M-followup): replace with a live chip lookup that returns
-                boolean matched/not-matched without leaking the pet record. */}
             <input
               id="subjectPetToken"
               name="subjectPetToken"
               type="text"
-              placeholder="Ej: DIM-XXXX-XXXX"
+              placeholder="Ej: DIM-XXXX-XXXX o 15 dígitos del chip"
               value={subjectPetToken}
               onChange={(e) => onSubjectPetTokenChange(e.target.value)}
               className={`${inputClass} font-mono uppercase`}
@@ -124,6 +133,7 @@ export function Step4Subject({
             <p className="text-xs text-gob-text-muted">
               Si no lo sabés, no es obligatorio. Dejalo vacío.
             </p>
+            <PetLookupPreview query={subjectPetToken} />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="subjectDescription" className={labelClass}>
@@ -189,5 +199,54 @@ export function Step4Subject({
         Podés saltear este paso. Tus datos anteriores ya son suficientes.
       </p>
     </section>
+  );
+}
+
+// Debounced lookup against lookupPetForDenunciaAction. Renders a small
+// preview chip when the query matches a registered pet; silent on misses
+// (no "not found" copy — that's noisy when the user is mid-typing).
+function PetLookupPreview({ query }: { query: string }) {
+  const [result, setResult] = useState<PublicLookupResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < LOOKUP_MIN_LEN) {
+      setResult(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      startTransition(async () => {
+        const r = await lookupPetForDenunciaAction(trimmed);
+        setResult(r);
+      });
+    }, LOOKUP_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  if (pending) {
+    return <p className="text-xs text-gob-text-muted">Buscando…</p>;
+  }
+  if (!result || !result.found) return null;
+
+  const statusLabel =
+    result.petStatus === "lost"
+      ? "perdida"
+      : result.petStatus === "deceased"
+        ? "fallecida"
+        : "activa";
+
+  return (
+    <div className="rounded-lg border border-gob-success/40 bg-gob-success/5 px-3 py-2 text-xs text-gob-text">
+      <p>
+        ✓ Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
+        <span className="text-gob-text-muted">({statusLabel})</span>
+        {result.ownerInitials && (
+          <>
+            . Dueño: <span className="font-mono">{result.ownerInitials}</span>
+          </>
+        )}
+      </p>
+    </div>
   );
 }
