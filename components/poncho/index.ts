@@ -37,3 +37,10 @@ export { Crumbs, type CrumbsProps, type Crumb } from "./Crumbs";
 export { SuccessScreen, type SuccessAction } from "./SuccessScreen";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { Toaster, toast } from "./Toast";
+
+// Form primitives (Poncho PR-A) — Field + Input/Textarea/Select.
+// See components/poncho/README.md → "Forms" section.
+export { Field, type FieldProps, type FieldRenderProps } from "./Field";
+export { Input, type InputProps } from "./Input";
+export { Textarea, type TextareaProps } from "./Textarea";
+export { Select, type SelectProps } from "./Select";

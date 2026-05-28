@@ -90,11 +90,44 @@ trámites only.
 
 ### Forms & flows
 
+- [`Field`](./Field.tsx) — label + control + help/error wrapper. Use the
+  render-prop API so the inner control receives `id`, `aria-describedby`,
+  and `invalid` already wired. Replaces the boilerplate `<label htmlFor>`
+  + `<input>` + manual `aria-describedby` pattern in every form.
+- [`Input`](./Input.tsx) — 44px height, 10px radius, Poncho `_forms.scss`
+  spec. Pass `invalid={invalid}` from the Field render-prop to get the
+  danger border + `aria-invalid="true"`.
+- [`Textarea`](./Textarea.tsx) — same border/padding pattern, `min-h-24` +
+  `resize-y` so users can expand for long inputs.
+- [`Select`](./Select.tsx) — native `<select>` with consistent chevron
+  (inline SVG bg-image) cross-browser.
 - [`Wizard/WizardShell`](./Wizard/WizardShell.tsx) — multi-step chrome (rule §3).
 - [`SuccessScreen`](./SuccessScreen.tsx) — trámite closer (rule §4).
 - [`Button`](./Button.tsx) — primary button. Use the four verbs from rule §2.
 - [`Sheet`](./Sheet.tsx) — bottom-sheet / side-sheet for non-trámite confirmations.
 - [`Photo`](./Photo.tsx) — placeholder + image with status badge.
+
+#### Form primitive — usage
+
+```tsx
+<Field label="Email" help="Te lo pedimos para enviarte el código" required>
+  {({ id, describedBy, invalid }) => (
+    <Input
+      id={id}
+      type="email"
+      aria-describedby={describedBy}
+      invalid={invalid}
+      value={email}
+      onChange={(e) => setEmail(e.target.value)}
+    />
+  )}
+</Field>
+```
+
+When `error` is set on `<Field>`, the help text is hidden, the error
+renders with `role="alert"`, and `invalid` flips to `true` (which the
+control passes to `aria-invalid` + the danger border). No manual ARIA
+wiring needed in the consumer.
 
 ### Feedback & state
 
