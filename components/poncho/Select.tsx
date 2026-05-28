@@ -19,7 +19,7 @@ const CHEVRON_SVG =
 
 const BASE_CLASSES =
   "block w-full appearance-none pl-4 pr-10 py-1.5 text-[0.88em] text-gob-text bg-gob-surface " +
-  "border rounded-[10px] " +
+  "border rounded-[var(--radius-input)] " +
   "disabled:bg-gob-surface-alt disabled:cursor-not-allowed disabled:text-gob-text-muted " +
   "transition-colors bg-no-repeat";
 

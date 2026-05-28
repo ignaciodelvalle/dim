@@ -25,7 +25,7 @@ Definidos en `app/globals.css` `@theme`:
 | `--color-warning` | `#e7ba61` | Advertencias |
 | `--color-info` | `#2897d4` | Banners informativos |
 | `--color-border` | `#dddddd` | Borders default |
-| `--color-ring` | `#37bbed` | Focus ring (no es texto) |
+| `--color-ring` | `#ffce1c` | Focus ring (Poncho v2 amarillo maíz, no es texto) |
 
 ## Combinaciones canónicas
 
@@ -41,14 +41,14 @@ Definidos en `app/globals.css` `@theme`:
 | `#ffffff` sobre `#c62828` (danger bg + text) | **6.7 : 1** | ✅ AA |
 | `#000000` sobre `#e7ba61` (warning bg + text) | **11.7 : 1** | ✅ AAA |
 | `#2897d4` sobre `#ffffff` (info inline) | **3.5 : 1** | ⚠️ AA grande (≥ 18pt) o UI components solo. NO usar para texto normal. |
-| `#37bbed` outline sobre `#ffffff` (focus ring) | **2.9 : 1** | 🛡 Cumple SC 1.4.11 (Non-text Contrast) por ancho + offset, no por color |
+| `#ffce1c` outline sobre `#ffffff` (focus ring Poncho v2) | **1.5 : 1** | 🛡 Color contrast sub-AA. Cumple SC 1.4.11 (Non-text Contrast) por **geometría** — 3px outline + 2px offset es indicador no-color suficiente. El amarillo maíz es el focus oficial gob.ar. |
 
 ## Reglas operativas
 
 1. **Texto normal (< 18pt regular o < 14pt bold) sobre fondo blanco**: usar `--color-foreground`, `--color-muted-foreground`, o `--color-muted`. Todos AAA.
 2. **Texto grande sobre blanco**: cualquiera de los semánticos (success/danger/warning) si la jerarquía visual lo justifica.
 3. **`--color-info` (#2897d4) NO se usa para texto normal sobre blanco**. Reservado para iconos / bordes / texto grande de banners.
-4. **Focus ring (`--color-ring`)** no requiere ratio AA porque el indicador es geométrico (3px solid outline + 2px offset). Si en el futuro se cambia el valor, mantener al menos 3px de ancho para que SC 1.4.11 siga cumpliendo.
+4. **Focus ring (`--color-ring` = `#ffce1c`, Poncho v2 amarillo maíz)** no requiere ratio AA porque el indicador es geométrico (3px solid outline + 2px offset). El color contrast por sí solo es 1.5:1, sub-AA — la suficiencia viene del ancho + offset. Si se reduce el ancho de outline, el cumplimiento de SC 1.4.11 cae; mantener ≥3px.
 5. **Warning text sobre fondo blanco**: usar `--color-foreground` (negro) sobre `--color-warning` bg, NO el amarillo solo. Banner pattern: `bg-gob-warning text-gob-text`.
 
 ## Cómo se midió
