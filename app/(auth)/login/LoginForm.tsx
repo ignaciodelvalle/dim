@@ -1,7 +1,7 @@
 "use client";
 
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input } from "@/components/poncho";
 import { useActionState } from "react";
 
 const initialState: AuthFormState = { error: null };
@@ -28,38 +28,32 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
 
       <form action={formAction} className="space-y-4">
         {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-        <div className="space-y-1.5">
-          <label htmlFor="email" className={labelClass}>
-            Correo electrónico
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className={inputClass}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="password" className={labelClass}>
-            Contraseña
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            className={inputClass}
-          />
-        </div>
-
-        {state.error && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-            {state.error}
-          </p>
-        )}
+        <Field label="Correo electrónico" required error={state.error ?? undefined}>
+          {({ id, describedBy, invalid }) => (
+            <Input
+              id={id}
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </Field>
+        <Field label="Contraseña" required>
+          {({ id, describedBy, invalid }) => (
+            <Input
+              id={id}
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </Field>
 
         <button
           type="submit"

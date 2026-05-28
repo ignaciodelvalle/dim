@@ -20,7 +20,7 @@
  */
 
 import type { EventFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -49,57 +49,51 @@ export function WeightForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="kg" className={labelClass}>
-          Peso (kg)<span className="text-red-500 ml-0.5">*</span>
-        </label>
-        <input
-          id="kg"
-          name="kg"
-          type="number"
-          step="0.1"
-          min="0"
-          required
-          defaultValue={defaults?.kg ?? undefined}
-          placeholder="Ej: 12.5"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Peso (kg)" required error={state.error ?? undefined}>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="kg"
+            type="number"
+            step="0.1"
+            min="0"
+            required
+            defaultValue={defaults?.kg ?? undefined}
+            placeholder="Ej: 12.5"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Fecha<span className="text-red-500 ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={defaults?.occurredAt ?? today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? undefined}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? undefined}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
-
-      {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-          {state.error}
-        </p>
-      )}
 
       <button
         type="submit"

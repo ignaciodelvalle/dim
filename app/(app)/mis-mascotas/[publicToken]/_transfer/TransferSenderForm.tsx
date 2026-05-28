@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { type InitiateTransferInput, initiatePetTransferAction } from "@/app/actions/pet-transfer";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 
 const REASONS: Array<{ value: InitiateTransferInput["reason"]; label: string }> = [
   { value: "sale", label: "Venta" },
@@ -55,74 +56,61 @@ export function TransferSenderForm({
         debe aceptarla — la libreta sanitaria viaja con la mascota.
       </p>
 
-      <div className="space-y-1">
-        <label
-          htmlFor="transfer-email"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
-          Email del receptor
-        </label>
-        <input
-          id="transfer-email"
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="receptor@ejemplo.com"
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-gob-primary focus:outline-none focus:ring-1 focus:ring-gob-primary dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-        />
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          Si todavía no tiene cuenta en MiMAR, le enviamos un link de signup.
-        </p>
-      </div>
+      <Field
+        label="Email del receptor"
+        help="Si todavía no tiene cuenta en MiMAR, le enviamos un link de signup."
+        required
+        error={error ?? undefined}
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="receptor@ejemplo.com"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1">
-        <label
-          htmlFor="transfer-reason"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
-          Motivo
-        </label>
-        <select
-          id="transfer-reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value as InitiateTransferInput["reason"])}
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-        >
-          {REASONS.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Motivo" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            value={reason}
+            onChange={(e) => setReason(e.target.value as InitiateTransferInput["reason"])}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            {REASONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
-      <div className="space-y-1">
-        <label
-          htmlFor="transfer-note"
-          className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-        >
-          Comentario (opcional)
-        </label>
-        <textarea
-          id="transfer-note"
-          rows={3}
-          maxLength={500}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-        />
-      </div>
+      <Field label="Comentario">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            rows={3}
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
         La propuesta vence en 7 días. Mientras esté pendiente podés cancelarla.
       </p>
-
-      {error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-          {error}
-        </p>
-      )}
 
       <button
         type="submit"

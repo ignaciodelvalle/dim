@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import { type DniVerifyFormState, verifyDniAction } from "@/app/actions/dni-verification";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input } from "@/components/poncho";
 
 const initialState: DniVerifyFormState = { error: null };
 
@@ -32,32 +32,28 @@ export function DniVerifyForm({ next }: { next: string }) {
       {/* Hidden field passes the validated `next` value through the form cycle. */}
       <input type="hidden" name="next" value={next} />
 
-      <div className="space-y-1.5">
-        <label htmlFor="dni" className={labelClass}>
-          Número de DNI
-        </label>
-        <input
-          id="dni"
-          name="dni"
-          type="text"
-          inputMode="numeric"
-          required
-          placeholder="Ej: 34567890"
-          className={inputClass}
-        />
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
-          7 u 8 dígitos sin puntos ni espacios.
-          {/* TODO(mi-argentina): this form is a placeholder until the real Mi Argentina OAuth
-              integration is available. When that lands, this page becomes the OAuth callback
-              landing — the user never types their DNI manually. */}
-        </p>
-      </div>
-
-      {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-          {state.error}
-        </p>
-      )}
+      {/* TODO(mi-argentina): this form is a placeholder until the real Mi Argentina OAuth
+          integration is available. When that lands, this page becomes the OAuth callback
+          landing — the user never types their DNI manually. */}
+      <Field
+        label="Número de DNI"
+        help="7 u 8 dígitos sin puntos ni espacios."
+        error={state.error ?? undefined}
+        required
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="dni"
+            type="text"
+            inputMode="numeric"
+            required
+            placeholder="Ej: 34567890"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <button
         type="submit"
