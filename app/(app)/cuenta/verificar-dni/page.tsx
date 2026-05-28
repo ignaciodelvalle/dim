@@ -37,13 +37,11 @@ export default async function VerificarDniPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-10 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Verificar DNI
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">Verificar DNI</h1>
+          <p className="text-sm text-gob-text-gray ">
             Ingresá tu número de DNI para continuar. Este paso es requerido antes de enviar una
             solicitud de rol en MiMAR.
           </p>
@@ -54,7 +52,7 @@ export default async function VerificarDniPage({
         <div className="pt-2">
           <Link
             href="/cuenta"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
           >
             ← Volver a mi cuenta
           </Link>

@@ -53,25 +53,20 @@ export default async function TransitosActivosPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto pt-10 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Tránsitos activos
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Tránsitos activos</h1>
+          <p className="mt-2 text-sm text-gob-text-gray ">
             Mascotas que estás cuidando hoy. Tenés los mismos permisos sobre la libreta sanitaria y
             eventos que un dueño mientras dure el tránsito.
           </p>
         </header>
 
         {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-8 text-center">
+          <p className="text-sm text-gob-text-muted py-8 text-center">
             No tenés tránsitos activos.{" "}
-            <Link
-              href="/cuenta/transitos/propuestas"
-              className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
+            <Link href="/cuenta/transitos/propuestas" className="underline hover:text-gob-text ">
               Mirá tus propuestas
             </Link>
             .
@@ -83,17 +78,17 @@ export default async function TransitosActivosPage() {
               return (
                 <li
                   key={ownership.id}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3"
+                  className="rounded-lg border border-gob-border-strong  p-4 space-y-3"
                 >
                   <div className="flex items-baseline justify-between gap-3">
                     <div className="space-y-1">
                       <Link
                         href={`/mis-mascotas/${pet.publicToken}`}
-                        className="font-medium text-neutral-900 dark:text-neutral-50 hover:underline"
+                        className="font-medium text-gob-text  hover:underline"
                       >
                         {pet.name}
                       </Link>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-gob-text-muted">
                         {pet.species}
                         {pet.breed && ` · ${pet.breed}`}
                         {org && (
@@ -115,19 +110,13 @@ export default async function TransitosActivosPage() {
           </ul>
         )}
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2 text-sm">
-          <p className="text-neutral-600 dark:text-neutral-400">
-            <Link
-              href="/cuenta/transitos/propuestas"
-              className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
+        <footer className="pt-4 border-t border-gob-border  space-y-2 text-sm">
+          <p className="text-gob-text-gray ">
+            <Link href="/cuenta/transitos/propuestas" className="underline hover:text-gob-text ">
               Propuestas
             </Link>
             {" · "}
-            <Link
-              href="/cuenta/transitos/historial"
-              className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
+            <Link href="/cuenta/transitos/historial" className="underline hover:text-gob-text ">
               Historial
             </Link>
           </p>

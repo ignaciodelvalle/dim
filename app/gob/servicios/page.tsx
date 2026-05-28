@@ -39,10 +39,10 @@ export default async function GobServiciosPage() {
       return (
         <main className="px-6 py-8">
           <div className="max-w-5xl mx-auto space-y-4">
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
               Servicios pendientes
             </h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+            <p className="text-sm text-gob-text-muted ">
               No tenés localidades asignadas. Contactá a un administrador para recibir cobertura
               jurisdiccional.
             </p>
@@ -88,14 +88,14 @@ export default async function GobServiciosPage() {
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Servicios pendientes
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p>
+          <p className="text-sm text-gob-text-gray ">{subtitle}</p>
         </header>
 
         {pendingOfferings.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
+          <p className="text-sm text-gob-text-muted ">
             Cuando lleguen nuevas solicitudes vas a verlas acá.
           </p>
         ) : (
@@ -115,30 +115,25 @@ export default async function GobServiciosPage() {
                 .join(", ");
 
               return (
-                <li
-                  key={offering.id}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3"
-                >
+                <li key={offering.id} className="rounded-lg border border-gob-border  px-4 py-3">
                   <Link
                     href={`/gob/servicios/${offering.publicToken}`}
                     className="flex items-start justify-between gap-3 group"
                   >
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                        {offering.displayName}
-                      </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                      <p className="text-sm font-medium text-gob-text ">{offering.displayName}</p>
+                      <p className="text-xs text-gob-text-muted ">
                         {providerLabel} · {kindLabel}
                         {location ? ` · ${location}` : ""}
                         {` · Capacidad: ${offering.slotCapacity}`}
                       </p>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
+                      <p className="text-[10px] text-gob-text-muted  font-mono">
                         {offering.publicToken} ·{" "}
                         {new Date(offering.submittedAt).toLocaleDateString("es-AR")}
                       </p>
                     </div>
                     <span
-                      className="text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-300"
+                      className="text-gob-text-muted group-hover:text-gob-text-gray "
                       aria-hidden
                     >
                       ›

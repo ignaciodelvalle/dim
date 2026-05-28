@@ -80,12 +80,12 @@ export function LostPublicCredential({
       ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
       : null;
   return (
-    <main className="min-h-screen bg-red-50 px-4 py-6 dark:bg-red-950/30">
+    <main className="min-h-screen bg-gob-danger/10 px-4 py-6 ">
       <div className="mx-auto max-w-md space-y-4">
         {/* Urgent banner (sprint 5 PR-041 / doc 10 §3 punto 1) — surfaces the
             "perdida" state + how recent, in the lostUrgentBanner spec voice. */}
         <div
-          className="rounded-2xl bg-red-700 px-4 py-3 text-center text-white"
+          className="rounded-2xl bg-gob-danger px-4 py-3 text-center text-white"
           role="alert"
           data-section="lost-urgent-banner"
         >
@@ -93,33 +93,31 @@ export function LostPublicCredential({
           <p className="mt-0.5 text-xs opacity-90">{formatLostSince(lostSince)}</p>
         </div>
 
-        <section className="rounded-2xl bg-white p-5 text-center shadow-sm dark:bg-neutral-900">
+        <section className="rounded-2xl bg-white p-5 text-center shadow-sm ">
           <div className="mx-auto inline-block">
-            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-amber-100 ring-[5px] ring-red-600">
+            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-gob-warning/10 ring-[5px] ring-gob-danger">
               {petPhotoUrl ? (
                 <img src={petPhotoUrl} alt={petName} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-5xl font-bold text-amber-700">
+                <span className="text-5xl font-bold text-gob-warning-text">
                   {petName.charAt(0).toUpperCase()}
                 </span>
               )}
             </span>
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-red-800 dark:text-red-200">
+          <h1 className="mt-4 text-2xl font-bold text-gob-danger ">
             ¡Hola! Soy {petName} — Estoy perdida
           </h1>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{identityLine}</p>
+          <p className="mt-1 text-sm text-gob-text-gray ">{identityLine}</p>
           {distinguishingFeatures && (
-            <p className="mt-2 text-sm italic text-neutral-700 dark:text-neutral-300">
-              "{distinguishingFeatures}"
-            </p>
+            <p className="mt-2 text-sm italic text-gob-text-gray ">"{distinguishingFeatures}"</p>
           )}
 
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {ownerPhoneE164 && (
               <a
                 href={`tel:${ownerPhoneE164}`}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-gob-success px-5 text-sm font-semibold text-white hover:bg-gob-success"
               >
                 📞 Llamar{ownerFirstName ? ` a ${ownerFirstName}` : ""}
               </a>
@@ -135,7 +133,7 @@ export function LostPublicCredential({
             {sightingFormHref && (
               <Link
                 href={sightingFormHref}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white border border-gob-border px-5 text-sm font-semibold text-gob-text hover:bg-gob-surface-alt dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white border border-gob-border px-5 text-sm font-semibold text-gob-text hover:bg-gob-surface-alt   "
               >
                 👀 La vi cerca de acá
               </Link>
@@ -143,21 +141,21 @@ export function LostPublicCredential({
           </div>
 
           {!ownerPhoneE164 && !finderFormHref && (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            <p className="mt-3 rounded-lg bg-gob-warning/10 px-3 py-2 text-xs text-gob-warning-text  ">
               Esta mascota no tiene canales de contacto habilitados.
             </p>
           )}
         </section>
 
         {(lastSeenPlaceName || lastSeenLocality) && (
-          <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-neutral-900">
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+          <section className="rounded-2xl bg-white p-4 shadow-sm ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gob-text-muted ">
               Última vez vista
             </p>
-            <p className="mt-1 text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            <p className="mt-1 text-sm font-medium text-gob-text ">
               {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100 text-3xl dark:from-emerald-950/30 dark:to-blue-950/30">
+            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100 text-3xl  ">
               📍
             </div>
             {mapHref && (
@@ -165,7 +163,7 @@ export function LostPublicCredential({
                 href={mapHref}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="mt-3 inline-block text-xs font-medium text-emerald-700 dark:text-emerald-300 underline underline-offset-2 hover:text-emerald-900"
+                className="mt-3 inline-block text-xs font-medium text-gob-success  underline underline-offset-2 hover:text-gob-success"
               >
                 Ver en el mapa ↗
               </a>
@@ -174,22 +172,20 @@ export function LostPublicCredential({
         )}
 
         {tattooCode && (
-          <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-neutral-900">
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+          <section className="rounded-2xl bg-white p-4 shadow-sm ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gob-text-muted ">
               Tatuaje
             </p>
-            <p className="mt-1 font-mono text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            <p className="mt-1 font-mono text-sm font-medium text-gob-text ">
               {tattooCode}
               {tattooLocLabel && (
-                <span className="ml-2 font-sans text-xs text-neutral-500 dark:text-neutral-400">
+                <span className="ml-2 font-sans text-xs text-gob-text-muted ">
                   · {tattooLocLabel}
                 </span>
               )}
             </p>
             {tattooDescription && (
-              <p className="mt-1 text-xs italic text-neutral-600 dark:text-neutral-400">
-                {tattooDescription}
-              </p>
+              <p className="mt-1 text-xs italic text-gob-text-gray ">{tattooDescription}</p>
             )}
             {tattooPhotoUrl && (
               <img
@@ -198,14 +194,14 @@ export function LostPublicCredential({
                 className="mt-3 w-full rounded-xl object-cover"
               />
             )}
-            <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+            <p className="mt-2 text-[11px] text-gob-text-muted ">
               Compará el código y la foto con el animal que tenés en frente antes de confirmar la
               coincidencia.
             </p>
           </section>
         )}
 
-        <p className="text-center text-[11px] text-neutral-500 dark:text-neutral-400">
+        <p className="text-center text-[11px] text-gob-text-muted ">
           Esta credencial pertenece a MiMAR — Mi Mascota Argentina.
         </p>
       </div>

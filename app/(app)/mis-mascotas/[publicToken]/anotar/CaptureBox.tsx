@@ -146,26 +146,26 @@ export function CaptureBox({
           }}
           rows={3}
           placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
-          className="w-full px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 text-base focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 focus:border-transparent"
+          className="w-full px-4 py-3 rounded-lg border border-gob-border-strong  bg-white  text-gob-text  text-base focus:outline-none focus:ring-2 focus:ring-gob-primary  focus:border-transparent"
         />
         <button
           type="submit"
           disabled={pending || !text.trim()}
-          className="px-5 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2.5 rounded-lg bg-gob-success text-white text-sm font-semibold hover:bg-gob-success disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? "Buscando formulario..." : "Identificar →"}
         </button>
         {unmatched && (
-          <p className="text-sm text-amber-800 dark:text-amber-300">
+          <p className="text-sm text-gob-warning-text ">
             No pude identificar el tipo de evento. Probá decirlo distinto, o tocá uno de los atajos.
           </p>
         )}
       </form>
 
-      <div className="flex items-center gap-3 text-xs text-neutral-500">
-        <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+      <div className="flex items-center gap-3 text-xs text-gob-text-muted">
+        <div className="flex-1 h-px bg-gob-surface-alt " />
         <span>o cargá directamente</span>
-        <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+        <div className="flex-1 h-px bg-gob-surface-alt " />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -180,7 +180,7 @@ export function CaptureBox({
             <Link
               key={qa.eventType}
               href={href}
-              className="text-center px-3 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-sm font-medium text-neutral-900 dark:text-neutral-50"
+              className="text-center px-3 py-3 rounded-lg border border-gob-border-strong  hover:bg-gob-surface-alt  text-sm font-medium text-gob-text "
             >
               {qa.label}
             </Link>
@@ -188,11 +188,11 @@ export function CaptureBox({
         })}
       </div>
 
-      <p className="text-xs text-neutral-500 text-center pt-2">
+      <p className="text-xs text-gob-text-muted text-center pt-2">
         Si lo que necesitás registrar no aparece arriba,{" "}
         <Link
           href={`/mis-mascotas/${petPublicToken}/eventos/nuevo`}
-          className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="underline hover:text-gob-text "
         >
           ver todos los tipos de evento
         </Link>{" "}

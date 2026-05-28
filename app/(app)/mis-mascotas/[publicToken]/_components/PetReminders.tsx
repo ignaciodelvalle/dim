@@ -93,14 +93,14 @@ export function PetReminders({
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/mis-mascotas/${petToken}/eventos/nuevo/vacuna?reminderId=${r.reminderId}`}
-                      className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-gob-primary  text-white  text-xs font-medium hover:bg-gob-primary  transition-colors"
                     >
                       Registrar
                     </Link>
                     <form action={deleteVaccineReminderAction.bind(null, petToken, r.reminderId)}>
                       <button
                         type="submit"
-                        className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                        className="px-3 py-1.5 rounded-lg border border-gob-border  text-gob-text-gray  text-xs font-medium hover:bg-gob-surface-alt  transition-colors"
                       >
                         Eliminar
                       </button>

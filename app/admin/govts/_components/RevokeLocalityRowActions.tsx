@@ -32,7 +32,7 @@ export function RevokeLocalityRowActions({
   const [mode, setMode] = useState<Mode>("idle");
 
   if (mode === "done") {
-    return <span className="text-[10px] text-emerald-700 dark:text-emerald-400">Revocada</span>;
+    return <span className="text-[10px] text-gob-success ">Revocada</span>;
   }
 
   if (mode === "confirming") {
@@ -51,7 +51,7 @@ export function RevokeLocalityRowActions({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-[10px] px-2 py-1 rounded border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 hover:opacity-90 transition-opacity"
+      className="text-[10px] px-2 py-1 rounded border border-gob-warning  text-gob-warning-text  hover:opacity-90 transition-opacity"
     >
       Revocar
     </button>
@@ -157,8 +157,8 @@ function RevokeLocalityForm({
   }
 
   return (
-    <div className="rounded border border-amber-200 dark:border-amber-900 p-3 space-y-3 bg-amber-50 dark:bg-amber-950/20 mt-2">
-      <p className="text-xs uppercase tracking-wider text-amber-900 dark:text-amber-300">
+    <div className="rounded border border-gob-warning  p-3 space-y-3 bg-gob-warning/10  mt-2">
+      <p className="text-xs uppercase tracking-wider text-gob-warning-text ">
         Revocar localidad — {localityLabel}
       </p>
 
@@ -167,7 +167,7 @@ function RevokeLocalityForm({
       <div className="space-y-1">
         <label
           htmlFor="revoke-locality-evidence"
-          className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+          className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
         >
           Evidencia (al menos 1 archivo)
         </label>
@@ -179,23 +179,21 @@ function RevokeLocalityForm({
           multiple
           onChange={handleFilesChange}
           disabled={uploading || pending}
-          className="text-xs text-neutral-700 dark:text-neutral-300"
+          className="text-xs text-gob-text-gray "
         />
-        {uploading && (
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-500">Subiendo...</p>
-        )}
+        {uploading && <p className="text-[10px] text-gob-text-muted ">Subiendo...</p>}
         {uploadedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {uploadedFiles.map((f) => (
               <li
                 key={f.attachmentId}
-                className="flex items-center gap-2 text-[10px] text-neutral-600 dark:text-neutral-400"
+                className="flex items-center gap-2 text-[10px] text-gob-text-gray "
               >
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
                   type="button"
                   onClick={() => removeFile(f.attachmentId)}
-                  className="text-red-500 hover:underline shrink-0"
+                  className="text-gob-danger hover:underline shrink-0"
                 >
                   Quitar
                 </button>
@@ -212,20 +210,20 @@ function RevokeLocalityForm({
           onChange={(e) => setConfirm(e.target.checked)}
           className="mt-0.5 shrink-0"
         />
-        <span className="text-xs text-amber-900 dark:text-amber-300">
+        <span className="text-xs text-gob-warning-text ">
           Confirmo que quiero revocar la localidad {localityLabel}. Esta accion genera un registro
           permanente en el audit log.
         </span>
       </label>
 
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-gob-danger ">{error}</p>}
 
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="text-xs px-3 py-1.5 rounded-md bg-amber-700 dark:bg-amber-700 text-white hover:opacity-90 disabled:opacity-50"
+          className="text-xs px-3 py-1.5 rounded-md bg-gob-warning  text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Revocando..." : "Revocar localidad"}
         </button>
@@ -233,7 +231,7 @@ function RevokeLocalityForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt "
         >
           Cancelar
         </button>
@@ -254,12 +252,12 @@ function MotivoField({ value, onChange }: { value: string; onChange: (v: string)
       <div className="flex items-center justify-between">
         <label
           htmlFor="revoke-locality-motivo"
-          className="block text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500"
+          className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
         >
           Motivo (minimo {MOTIVO_MIN} caracteres)
         </label>
         <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-red-500 dark:text-red-400" : "text-neutral-400 dark:text-neutral-600"}`}
+          className={`text-[10px] tabular-nums ${tooShort ? "text-gob-danger " : "text-gob-text-muted "}`}
         >
           {len}/{MOTIVO_MIN}
         </span>
@@ -269,7 +267,7 @@ function MotivoField({ value, onChange }: { value: string; onChange: (v: string)
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+        className="w-full text-xs rounded-md border border-gob-border  bg-white  px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gob-primary "
       />
     </div>
   );

@@ -150,7 +150,7 @@ export function WelfareReportForm({
       {/* Kind */}
       <div className={FIELD_CLASS}>
         <label htmlFor="kind" className={labelClass}>
-          Tipo de situación<span className="text-red-500 ml-0.5">*</span>
+          Tipo de situación<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <select id="kind" name="kind" required className={inputClass}>
           <option value="">Seleccioná una opción</option>
@@ -165,7 +165,7 @@ export function WelfareReportForm({
       {/* Severity */}
       <div className={FIELD_CLASS}>
         <label htmlFor="severity" className={labelClass}>
-          Gravedad<span className="text-red-500 ml-0.5">*</span>
+          Gravedad<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <select id="severity" name="severity" required className={inputClass}>
           <option value="">Seleccioná una opción</option>
@@ -180,7 +180,7 @@ export function WelfareReportForm({
       {/* Description */}
       <div className={FIELD_CLASS}>
         <label htmlFor="description" className={labelClass}>
-          ¿Qué pasó?<span className="text-red-500 ml-0.5">*</span>
+          ¿Qué pasó?<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <textarea
           id="description"
@@ -199,7 +199,7 @@ export function WelfareReportForm({
       {/* Subject kind */}
       <fieldset className={FIELD_CLASS}>
         <legend className={labelClass}>
-          ¿Sobre quién?<span className="text-red-500 ml-0.5">*</span>
+          ¿Sobre quién?<span className="text-gob-danger ml-0.5">*</span>
         </legend>
         <div className="space-y-2 mt-1">
           {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
@@ -245,7 +245,7 @@ export function WelfareReportForm({
               : subjectKind === "location"
                 ? "Descripción del lugar"
                 : "Descripción de la situación"}
-            <span className="text-red-500 ml-0.5">*</span>
+            <span className="text-gob-danger ml-0.5">*</span>
           </label>
           <textarea
             id="subjectDescription"

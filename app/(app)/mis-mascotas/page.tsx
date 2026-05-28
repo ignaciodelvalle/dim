@@ -54,10 +54,10 @@ export default async function MisMascotasPage({
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
         <header className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
               Hola, {profile?.displayName ?? "amigo"}
             </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               {ownedPets.length === 0
                 ? "Todavía no tenés mascotas registradas."
                 : `${ownedPets.length} mascota${ownedPets.length === 1 ? "" : "s"} en tu libreta.`}
@@ -72,7 +72,7 @@ export default async function MisMascotasPage({
         </header>
 
         {claimedCount !== null && (
-          <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
             {claimedCount > 0
               ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
               : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
@@ -101,13 +101,11 @@ export default async function MisMascotasPage({
 
 function EmptyState() {
   return (
-    <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-10 text-center space-y-3">
-      <p className="text-neutral-700 dark:text-neutral-300">
-        Empezá registrando tu primera mascota.
-      </p>
+    <div className="border border-dashed border-gob-border-strong  rounded-xl p-10 text-center space-y-3">
+      <p className="text-gob-text-gray ">Empezá registrando tu primera mascota.</p>
       <Link
         href="/mis-mascotas/nueva"
-        className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+        className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
       >
         Agregar tu primera mascota
       </Link>

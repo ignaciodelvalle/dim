@@ -37,26 +37,26 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40">
+    <section className="space-y-3 rounded-2xl border border-gob-warning bg-gob-warning/10 p-4  ">
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+        <h2 className="text-sm font-semibold text-gob-warning-text ">
           ⚠ Animal Potencialmente Peligroso (PPP)
         </h2>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:text-amber-300">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-gob-warning-text ">
           Ley CABA 4078 · Prov 14.107
         </span>
       </header>
 
-      <p className="text-xs text-amber-900 dark:text-amber-100">
+      <p className="text-xs text-gob-warning-text ">
         {breed
           ? `Por la raza (${breed}) esta mascota está sujeta al régimen de Animales Potencialmente Peligrosos.`
           : "Esta mascota está marcada como Animal Potencialmente Peligroso."}
       </p>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-100/60 p-3 text-xs dark:border-amber-800 dark:bg-amber-950/60">
-        <p className="font-medium text-amber-900 dark:text-amber-100">Atestación</p>
+      <div className="rounded-lg border border-gob-warning bg-gob-warning/10/60 p-3 text-xs  ">
+        <p className="font-medium text-gob-warning-text ">Atestación</p>
         {latestAttestation ? (
-          <p className="mt-1 text-amber-800 dark:text-amber-200">
+          <p className="mt-1 text-gob-warning-text ">
             ✓ Atestada en{" "}
             <strong>{REGISTRY_LABELS[payload.registry ?? ""] ?? payload.registry}</strong>
             {payload.attested_at ? ` el ${formatDate(payload.attested_at)}` : ""}
@@ -69,16 +69,16 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
           </p>
         ) : (
           <div className="mt-1 space-y-2">
-            <p className="text-amber-800 dark:text-amber-200">⚠ Atestación pendiente.</p>
+            <p className="text-gob-warning-text ">⚠ Atestación pendiente.</p>
             {isTransit ? (
-              <p className="text-amber-700 dark:text-amber-300">
+              <p className="text-gob-warning-text ">
                 La obligación legal de atestar es del dueño permanente. Como tránsito no podés
                 cargar la atestación.
               </p>
             ) : (
               <Link
                 href={`/mis-mascotas/${petPublicToken}/eventos/atestar-raza-peligrosa`}
-                className="inline-block rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+                className="inline-block rounded-md bg-gob-warning px-3 py-1.5 text-xs font-medium text-white hover:bg-gob-warning  "
               >
                 Registrar atestación →
               </Link>
@@ -87,11 +87,9 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
         )}
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-100/40 p-3 text-xs dark:border-amber-800 dark:bg-amber-950/40">
-        <p className="font-medium text-amber-900 dark:text-amber-100">
-          Requisitos generales (informativos)
-        </p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-amber-800 dark:text-amber-200">
+      <div className="rounded-lg border border-gob-warning bg-gob-warning/10/40 p-3 text-xs  ">
+        <p className="font-medium text-gob-warning-text ">Requisitos generales (informativos)</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-gob-warning-text ">
           <li>Bozal y correa corta en vía pública</li>
           <li>Seguro de responsabilidad civil recomendado</li>
           <li>Identificación visible permanente</li>

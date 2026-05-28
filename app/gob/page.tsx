@@ -107,19 +107,19 @@ export default async function GobiernoDashboardPage({
         <>
           <Link
             href="/gob/cola"
-            className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800"
+            className="rounded-md bg-gob-info px-3 py-1.5 text-sm font-medium text-white hover:bg-gob-info"
           >
             Cola de aprobaciones
           </Link>
           <Link
             href="/gob/organizaciones"
-            className="rounded-md border border-blue-700 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+            className="rounded-md border border-gob-info px-3 py-1.5 text-sm font-medium text-gob-azul-link hover:bg-gob-info/10 "
           >
             Habilitación
           </Link>
           <Link
             href="/gob/maltrato"
-            className="rounded-md border border-red-700 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
+            className="rounded-md border border-gob-danger px-3 py-1.5 text-sm font-medium text-gob-danger hover:bg-gob-danger/10 "
           >
             Acta de infracción
           </Link>
@@ -198,23 +198,19 @@ export default async function GobiernoDashboardPage({
           <DashboardCard
             title="Cola de aprobaciones"
             action={
-              <Link href="/gob/cola" className="text-blue-700 hover:underline dark:text-blue-400">
+              <Link href="/gob/cola" className="text-gob-azul-link hover:underline ">
                 Ver cola →
               </Link>
             }
           >
             {pending.length === 0 ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                No hay solicitudes pendientes.
-              </p>
+              <p className="text-sm text-gob-text-muted ">No hay solicitudes pendientes.</p>
             ) : (
               <div className="space-y-3">
-                <p className="text-3xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-50">
+                <p className="text-3xl font-semibold tabular-nums text-gob-text ">
                   {pending.length}
                 </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  solicitudes esperando revisión
-                </p>
+                <p className="text-xs text-gob-text-muted ">solicitudes esperando revisión</p>
               </div>
             )}
           </DashboardCard>
@@ -223,14 +219,12 @@ export default async function GobiernoDashboardPage({
             title="Actividad reciente"
             action={
               recentDecisions.length > 0 ? (
-                <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                  últimos 7 días
-                </span>
+                <span className="text-xs text-gob-text-muted ">últimos 7 días</span>
               ) : null
             }
           >
             {recentDecisions.length === 0 ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              <p className="text-sm text-gob-text-muted ">
                 No tenés acciones registradas en los últimos 7 días.
               </p>
             ) : (
@@ -238,12 +232,12 @@ export default async function GobiernoDashboardPage({
                 {recentDecisions.map((entry) => (
                   <li
                     key={entry.id}
-                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 odd:bg-neutral-50 dark:odd:bg-neutral-900/40"
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 odd:bg-gob-surface-alt "
                   >
-                    <p className="text-sm text-neutral-900 dark:text-neutral-50">
+                    <p className="text-sm text-gob-text ">
                       {ACTION_LABELS[entry.action] ?? entry.action}
                     </p>
-                    <time className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums whitespace-nowrap">
+                    <time className="text-xs text-gob-text-muted  tabular-nums whitespace-nowrap">
                       {new Date(entry.performedAt).toLocaleString("es-AR", {
                         dateStyle: "short",
                         timeStyle: "short",
@@ -258,7 +252,7 @@ export default async function GobiernoDashboardPage({
           <DashboardCard
             title="Casos regulatorios"
             action={
-              <Link href="/gob/casos" className="text-blue-700 hover:underline dark:text-blue-400">
+              <Link href="/gob/casos" className="text-gob-azul-link hover:underline ">
                 {openCasesTotal > openCases.length
                   ? `Ver todos (${openCasesTotal}) →`
                   : "Ver todos →"}
@@ -266,11 +260,9 @@ export default async function GobiernoDashboardPage({
             }
           >
             {profile.role !== "admin" && jurisdictions.length === 0 ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Sin jurisdicciones asignadas todavía.
-              </p>
+              <p className="text-sm text-gob-text-muted ">Sin jurisdicciones asignadas todavía.</p>
             ) : openCases.length === 0 ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              <p className="text-sm text-gob-text-muted ">
                 Sin casos abiertos{" "}
                 {profile.role === "admin" ? "en el sistema" : "en tu jurisdicción"}.
               </p>
@@ -279,7 +271,7 @@ export default async function GobiernoDashboardPage({
                 {openCases.map((c) => (
                   <li
                     key={c.id}
-                    className="flex flex-col gap-1 rounded-md px-2 py-1.5 odd:bg-neutral-50 dark:odd:bg-neutral-900/40"
+                    className="flex flex-col gap-1 rounded-md px-2 py-1.5 odd:bg-gob-surface-alt "
                   >
                     <div className="flex items-center justify-between gap-2">
                       <CaseBadge
@@ -288,14 +280,14 @@ export default async function GobiernoDashboardPage({
                         status={c.status}
                         size="sm"
                       />
-                      <time className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums whitespace-nowrap">
+                      <time className="text-xs text-gob-text-muted  tabular-nums whitespace-nowrap">
                         {formatDate(c.openedAt)}
                       </time>
                     </div>
                     {c.primaryPetPublicToken && c.primaryPetName ? (
                       <Link
                         href={`/mis-mascotas/${c.primaryPetPublicToken}`}
-                        className="text-xs text-neutral-600 hover:underline dark:text-neutral-400"
+                        className="text-xs text-gob-text-gray hover:underline "
                       >
                         🐾 {c.primaryPetName}
                       </Link>
@@ -312,15 +304,12 @@ export default async function GobiernoDashboardPage({
           <DashboardCard
             title="Vigilancia"
             action={
-              <Link
-                href="/gob/vigilancia"
-                className="text-blue-700 hover:underline dark:text-blue-400"
-              >
+              <Link href="/gob/vigilancia" className="text-gob-azul-link hover:underline ">
                 Ver →
               </Link>
             }
           >
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-muted ">
               Señales de zoonosis filtradas a tu cobertura.
             </p>
           </DashboardCard>
@@ -328,24 +317,21 @@ export default async function GobiernoDashboardPage({
           <DashboardCard
             title="Denuncias ciudadanas"
             action={
-              <Link
-                href="/gob/maltrato"
-                className="text-blue-700 hover:underline dark:text-blue-400"
-              >
+              <Link href="/gob/maltrato" className="text-gob-azul-link hover:underline ">
                 Ver bandeja →
               </Link>
             }
           >
             {openWelfareReports.count === 0 ? (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              <p className="text-sm text-gob-text-muted ">
                 No hay denuncias activas en tu jurisdicción.
               </p>
             ) : (
               <div className="space-y-3">
-                <p className="text-3xl font-semibold tabular-nums text-neutral-900 dark:text-neutral-50">
+                <p className="text-3xl font-semibold tabular-nums text-gob-text ">
                   {openWelfareReports.count}
                 </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                <p className="text-xs text-gob-text-muted ">
                   {openWelfareReports.count === 1 ? "denuncia activa" : "denuncias activas"}
                 </p>
               </div>
@@ -355,15 +341,12 @@ export default async function GobiernoDashboardPage({
           <DashboardCard
             title="Pérdidas"
             action={
-              <Link
-                href="/gob/perdidas"
-                className="text-blue-700 hover:underline dark:text-blue-400"
-              >
+              <Link href="/gob/perdidas" className="text-gob-azul-link hover:underline ">
                 Ver →
               </Link>
             }
           >
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-muted ">
               Mascotas en status <code className="text-xs">lost</code> en tu cobertura.
             </p>
           </DashboardCard>

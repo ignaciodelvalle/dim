@@ -27,23 +27,19 @@ const KIND_ICON: Record<CaseKind, string> = {
 const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
   open: {
     label: "Abierto",
-    classes:
-      "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-100 dark:ring-emerald-800",
+    classes: "bg-gob-success/10 text-gob-success ring-1 ring-gob-success   ",
   },
   escalated: {
     label: "Escalado",
-    classes:
-      "bg-amber-50 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-100 dark:ring-amber-800",
+    classes: "bg-gob-warning/10 text-gob-warning-text ring-1 ring-gob-warning   ",
   },
   closed: {
     label: "Cerrado",
-    classes:
-      "bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-700",
+    classes: "bg-gob-surface-alt text-gob-text ring-1 ring-gob-border   ",
   },
   merged: {
     label: "Fusionado",
-    classes:
-      "bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-700",
+    classes: "bg-gob-surface-alt text-gob-text ring-1 ring-gob-border   ",
   },
 };
 
@@ -60,12 +56,12 @@ export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) 
   return (
     <Link
       href={`/casos/${publicCode}`}
-      className={`inline-flex items-center rounded-full bg-white ring-1 ring-zinc-200 transition hover:bg-zinc-50 dark:bg-zinc-900 dark:ring-zinc-700 dark:hover:bg-zinc-800 ${sizeClasses}`}
+      className={`inline-flex items-center rounded-full bg-white ring-1 ring-gob-border transition hover:bg-gob-surface-alt    ${sizeClasses}`}
     >
       <span aria-hidden>{KIND_ICON[caseKind]}</span>
-      <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{publicCode}</span>
-      <span className="text-zinc-500 dark:text-zinc-400">·</span>
-      <span className="text-zinc-700 dark:text-zinc-300">{caseKindLabel(caseKind)}</span>
+      <span className="font-mono font-semibold text-gob-text ">{publicCode}</span>
+      <span className="text-gob-text-muted ">·</span>
+      <span className="text-gob-text ">{caseKindLabel(caseKind)}</span>
       <span
         className={`ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusStyle.classes}`}
       >

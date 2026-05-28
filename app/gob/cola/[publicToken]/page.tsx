@@ -77,20 +77,20 @@ export default async function ReviewRequestPage({
         <div>
           <Link
             href="/gob/cola"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver a la cola
           </Link>
         </div>
 
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
             {STATUS_LABELS[request.status] ?? request.status}
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             {TYPE_LABELS[request.type] ?? request.type}
           </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs text-gob-text-muted ">
             <span className="font-mono">{request.publicToken}</span> ·{" "}
             {request.jurisdictionLocality}, {request.jurisdictionProvince} · creada{" "}
             {new Date(request.createdAt).toLocaleString("es-AR", {
@@ -101,25 +101,21 @@ export default async function ReviewRequestPage({
         </header>
 
         <Section title="Aplicante">
-          <p className="text-sm text-neutral-900 dark:text-neutral-50">
-            {applicant?.displayName ?? "Usuario"}
-          </p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
-            Rol actual: {applicant?.role ?? "owner"}
-          </p>
+          <p className="text-sm text-gob-text ">{applicant?.displayName ?? "Usuario"}</p>
+          <p className="text-xs text-gob-text-muted ">Rol actual: {applicant?.role ?? "owner"}</p>
         </Section>
 
         {targetOrg && (
           <Section title="Organización a verificar">
-            <p className="text-sm text-neutral-900 dark:text-neutral-50">{targetOrg.displayName}</p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            <p className="text-sm text-gob-text ">{targetOrg.displayName}</p>
+            <p className="text-xs text-gob-text-muted ">
               {targetOrg.legalName} · {targetOrg.orgType}
             </p>
           </Section>
         )}
 
         <Section title="Payload">
-          <pre className="text-[11px] leading-relaxed rounded-md bg-neutral-50 dark:bg-neutral-900 p-3 overflow-x-auto text-neutral-700 dark:text-neutral-300">
+          <pre className="text-[11px] leading-relaxed rounded-md bg-gob-surface-alt  p-3 overflow-x-auto text-gob-text-gray ">
             {JSON.stringify(request.payload, null, 2)}
           </pre>
         </Section>
@@ -130,7 +126,7 @@ export default async function ReviewRequestPage({
           </Section>
         ) : (
           <Section title="Decisión">
-            <p className="text-sm text-neutral-900 dark:text-neutral-50">
+            <p className="text-sm text-gob-text ">
               {STATUS_LABELS[request.status]}
               {request.decidedAt &&
                 ` el ${new Date(request.decidedAt).toLocaleString("es-AR", {
@@ -139,9 +135,7 @@ export default async function ReviewRequestPage({
                 })}`}
             </p>
             {request.decisionNotes && (
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                Notas: {request.decisionNotes}
-              </p>
+              <p className="text-xs text-gob-text-gray  mt-1">Notas: {request.decisionNotes}</p>
             )}
           </Section>
         )}
@@ -153,12 +147,8 @@ export default async function ReviewRequestPage({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
-        {title}
-      </h2>
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-1">
-        {children}
-      </div>
+      <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">{title}</h2>
+      <div className="rounded-lg border border-gob-border  p-4 space-y-1">{children}</div>
     </section>
   );
 }

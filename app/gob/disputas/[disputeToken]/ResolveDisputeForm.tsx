@@ -58,16 +58,16 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-neutral-300 dark:border-neutral-700 p-4">
+    <div className="space-y-3 rounded-lg border border-gob-border-strong  p-4">
       <div>
-        <label htmlFor="outcome" className="block text-xs text-neutral-500 mb-1">
+        <label htmlFor="outcome" className="block text-xs text-gob-text-muted mb-1">
           Resolución
         </label>
         <select
           id="outcome"
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as Outcome)}
-          className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
         >
           {OUTCOMES.map((o) => (
             <option key={o.value} value={o.value}>
@@ -78,15 +78,15 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       </div>
 
       {outcome === "ownership_transferred" && (
-        <div className="space-y-2 rounded border border-neutral-200 dark:border-neutral-800 p-3">
+        <div className="space-y-2 rounded border border-gob-border  p-3">
           <div className="flex gap-2 text-xs">
             <button
               type="button"
               onClick={() => setTransferKind("user")}
               className={`px-2 py-1 rounded border ${
                 transferKind === "user"
-                  ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-50"
-                  : "border-neutral-300 dark:border-neutral-700"
+                  ? "bg-gob-primary  text-white  border-gob-border-strong "
+                  : "border-gob-border-strong "
               }`}
             >
               A persona
@@ -96,15 +96,15 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
               onClick={() => setTransferKind("org")}
               className={`px-2 py-1 rounded border ${
                 transferKind === "org"
-                  ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-50"
-                  : "border-neutral-300 dark:border-neutral-700"
+                  ? "bg-gob-primary  text-white  border-gob-border-strong "
+                  : "border-gob-border-strong "
               }`}
             >
               A organización
             </button>
           </div>
           <div>
-            <label htmlFor="transfer-target" className="block text-xs text-neutral-500 mb-1">
+            <label htmlFor="transfer-target" className="block text-xs text-gob-text-muted mb-1">
               {transferKind === "user"
                 ? "User ID destino (UUID)"
                 : "Organization ID destino (UUID)"}
@@ -119,9 +119,9 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
                   : setTransferToOrgId(e.target.value)
               }
               placeholder="00000000-0000-0000-0000-000000000000"
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm font-mono"
+              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm font-mono"
             />
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="text-xs text-gob-text-muted mt-1">
               La transferencia cierra todas las ownerships activas y abre una nueva al destino.
             </p>
           </div>
@@ -129,7 +129,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       )}
 
       <div>
-        <label htmlFor="resolution-summary" className="block text-xs text-neutral-500 mb-1">
+        <label htmlFor="resolution-summary" className="block text-xs text-gob-text-muted mb-1">
           Resumen de la resolución (mínimo 100 caracteres)
         </label>
         <textarea
@@ -138,15 +138,15 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setResolutionSummary(e.target.value)}
           rows={5}
           placeholder="Explicá el fundamento, evidencia considerada y decisión tomada."
-          className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
         />
-        <p className="text-xs text-neutral-500 mt-1 tabular-nums">
+        <p className="text-xs text-gob-text-muted mt-1 tabular-nums">
           {resolutionSummary.trim().length} / 100
         </p>
       </div>
 
       <div>
-        <label htmlFor="resolution-notes" className="block text-xs text-neutral-500 mb-1">
+        <label htmlFor="resolution-notes" className="block text-xs text-gob-text-muted mb-1">
           Notas internas (opcional)
         </label>
         <textarea
@@ -155,23 +155,19 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="Notas que quedan en el payload del evento"
-          className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
         />
       </div>
 
-      {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
-      {okMessage && (
-        <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-          {okMessage}
-        </output>
-      )}
+      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+      {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-4 py-2 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50"
+          className="px-4 py-2 rounded bg-gob-primary  text-white  text-sm font-medium disabled:opacity-50"
         >
           {pending ? "Resolviendo..." : "Resolver disputa"}
         </button>

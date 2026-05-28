@@ -49,7 +49,7 @@ export function TattooForm({ action }: { action: FormAction }) {
           placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
           className={inputClass}
         />
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted ">
           Opcional. Texto libre para anotar de dónde viene el tatuaje.
         </p>
       </div>
@@ -72,7 +72,7 @@ export function TattooForm({ action }: { action: FormAction }) {
       <div className="space-y-1.5">
         <label htmlFor="attachment" className={labelClass}>
           Foto del tatuaje
-          <span className="text-red-500 ml-0.5">*</span>
+          <span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="attachment"
@@ -80,16 +80,16 @@ export function TattooForm({ action }: { action: FormAction }) {
           type="file"
           accept="image/*"
           required
-          className="block w-full text-sm text-neutral-700 dark:text-neutral-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-neutral-100 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-neutral-50 hover:file:bg-neutral-200 dark:hover:file:bg-neutral-700 file:cursor-pointer"
+          className="block w-full text-sm text-gob-text-gray  file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gob-surface-alt  file:text-gob-text  hover:file:bg-gob-surface-alt  file:cursor-pointer"
         />
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted ">
           Imagen de hasta 5 MB. Es lo que permite a quien encuentre a tu mascota verificar
           visualmente que coincide con el código.
         </p>
       </div>
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -97,7 +97,7 @@ export function TattooForm({ action }: { action: FormAction }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar tatuaje"}
       </button>
@@ -126,7 +126,7 @@ function Field({
     <div className="space-y-1.5">
       <label htmlFor={id} className={labelClass}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-gob-danger ml-0.5">*</span>}
       </label>
       <input
         id={id}

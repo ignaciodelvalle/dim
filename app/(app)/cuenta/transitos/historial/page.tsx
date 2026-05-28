@@ -49,29 +49,25 @@ export default async function TransitosHistorialPage() {
     .orderBy(desc(fosterProposals.proposedAt));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto pt-10 space-y-8">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Historial de tránsitos
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Historial de tránsitos</h1>
+          <p className="mt-2 text-sm text-gob-text-gray ">
             Tránsitos terminados y propuestas que no llegaron a aceptarse.
           </p>
         </header>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-            Tránsitos finalizados
-          </h2>
+          <h2 className="text-lg font-medium text-gob-text ">Tránsitos finalizados</h2>
           {past.length === 0 ? (
-            <p className="text-sm text-neutral-500">Todavía no tenés tránsitos finalizados.</p>
+            <p className="text-sm text-gob-text-muted">Todavía no tenés tránsitos finalizados.</p>
           ) : (
             <ul className="space-y-2">
               {past.map(({ ownership, pet }) => (
                 <li
                   key={ownership.id}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-sm flex items-baseline justify-between gap-3"
+                  className="rounded-lg border border-gob-border  p-3 text-sm flex items-baseline justify-between gap-3"
                 >
                   <div>
                     <Link
@@ -80,7 +76,7 @@ export default async function TransitosHistorialPage() {
                     >
                       {pet.name}
                     </Link>
-                    <p className="text-xs text-neutral-500 mt-0.5">
+                    <p className="text-xs text-gob-text-muted mt-0.5">
                       {ownership.startedAt
                         ? new Date(ownership.startedAt).toLocaleDateString("es-AR", {
                             day: "numeric",
@@ -103,21 +99,16 @@ export default async function TransitosHistorialPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-            Propuestas no concretadas
-          </h2>
+          <h2 className="text-lg font-medium text-gob-text ">Propuestas no concretadas</h2>
           {noProposals.length === 0 ? (
-            <p className="text-sm text-neutral-500">No hay propuestas en el historial.</p>
+            <p className="text-sm text-gob-text-muted">No hay propuestas en el historial.</p>
           ) : (
             <ul className="space-y-2">
               {noProposals.map(({ proposal, pet, org }) => (
-                <li
-                  key={proposal.id}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-sm"
-                >
+                <li key={proposal.id} className="rounded-lg border border-gob-border  p-3 text-sm">
                   <p>
                     {org.displayName} · {pet.name} ·{" "}
-                    <span className="text-neutral-500">
+                    <span className="text-gob-text-muted">
                       {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
                         proposal.status}
                     </span>
@@ -129,11 +120,8 @@ export default async function TransitosHistorialPage() {
           )}
         </section>
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800 text-sm">
-          <Link
-            href="/cuenta/transitos/activos"
-            className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
+        <footer className="pt-4 border-t border-gob-border  text-sm">
+          <Link href="/cuenta/transitos/activos" className="underline hover:text-gob-text ">
             ← Tránsitos activos
           </Link>
         </footer>

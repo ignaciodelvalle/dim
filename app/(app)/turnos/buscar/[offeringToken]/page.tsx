@@ -90,11 +90,11 @@ export default async function OfferingDetailPage({
   const backParams = new URLSearchParams({ service_kind: offering.serviceKind });
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-8 space-y-8">
         <Link
           href={`/turnos/buscar?${backParams.toString()}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
         >
           ← Volver a resultados
         </Link>
@@ -109,11 +109,9 @@ export default async function OfferingDetailPage({
             />
           )}
           <div className="space-y-1 flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-              {offering.displayName}
-            </h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">{providerLabel}</p>
-            <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            <h1 className="text-2xl font-semibold text-gob-text ">{offering.displayName}</h1>
+            <p className="text-sm text-gob-text-muted ">{providerLabel}</p>
+            <p className="text-xs text-gob-text-muted ">
               {kindDef?.label ?? offering.serviceKind}
               {offering.priceArs !== null
                 ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
@@ -122,20 +120,16 @@ export default async function OfferingDetailPage({
               {org?.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
             </p>
             {offering.description && (
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 pt-1">
-                {offering.description}
-              </p>
+              <p className="text-sm text-gob-text-gray  pt-1">{offering.description}</p>
             )}
           </div>
         </div>
 
         {/* Slot grid */}
         <div className="space-y-6">
-          <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-            Turnos disponibles
-          </h2>
+          <h2 className="text-lg font-medium text-gob-text ">Turnos disponibles</h2>
           {groupedByDay.size === 0 ? (
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               No hay turnos disponibles en los próximos 60 días.
             </p>
           ) : (
@@ -153,7 +147,7 @@ export default async function OfferingDetailPage({
 
                 return (
                   <div key={dayLabel} className="space-y-2">
-                    <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 capitalize">
+                    <p className="text-sm font-medium text-gob-text-gray  capitalize">
                       {dayHeading}
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -168,13 +162,11 @@ export default async function OfferingDetailPage({
                           <Link
                             key={slot.id}
                             href={`/turnos/buscar/${offeringToken}/reservar/${slot.id}`}
-                            className="inline-flex flex-col items-center px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-neutral-50 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-center"
+                            className="inline-flex flex-col items-center px-4 py-2.5 rounded-lg border border-gob-border  hover:border-gob-border-strong  hover:bg-gob-surface-alt  transition-colors text-center"
                           >
-                            <span className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                              {timeLabel}
-                            </span>
+                            <span className="text-sm font-medium text-gob-text ">{timeLabel}</span>
                             {slot.capacity > 1 && (
-                              <span className="text-xs text-neutral-400 dark:text-neutral-500">
+                              <span className="text-xs text-gob-text-muted ">
                                 {remaining} lugar{remaining === 1 ? "" : "es"}
                               </span>
                             )}

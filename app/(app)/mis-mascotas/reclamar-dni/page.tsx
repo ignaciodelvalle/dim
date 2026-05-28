@@ -21,26 +21,26 @@ export default async function ClaimPage() {
   const alreadyHasDni = !!profile?.dniNumber;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-10 space-y-6">
         <Link
           href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
         >
           ← Mis mascotas
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Reclamar adopción por DNI
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             ¿El refugio te registró como adoptante con tu DNI antes de que abrieras tu cuenta?
             Ingresá tu DNI y vinculamos las mascotas a tu perfil. Si tu mascota tiene chip o
             tatuaje,{" "}
             <Link
               href="/mis-mascotas/reclamar"
-              className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
+              className="underline underline-offset-2 hover:text-gob-text "
             >
               usá el reclamo por identificación
             </Link>
@@ -49,7 +49,7 @@ export default async function ClaimPage() {
         </header>
 
         {alreadyHasDni ? (
-          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="rounded border border-gob-warning bg-gob-warning/10 px-3 py-3 text-sm text-gob-warning-text   ">
             Tu perfil ya tiene un DNI registrado. Si esperás reclamar una mascota con otro DNI,
             contactá al refugio o a soporte.
           </div>

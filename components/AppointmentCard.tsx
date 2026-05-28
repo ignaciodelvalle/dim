@@ -19,19 +19,19 @@ export type AppointmentRow = {
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   confirmed: {
     label: "Confirmado",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    className: "bg-gob-success/10 text-gob-success  ",
   },
   attended: {
     label: "Asistido",
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+    className: "bg-gob-info/10 text-gob-azul-link  ",
   },
   cancelled: {
     label: "Cancelado",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text  ",
   },
   no_show: {
     label: "No asistió",
-    className: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+    className: "bg-gob-danger/10 text-gob-danger  ",
   },
 };
 
@@ -64,22 +64,18 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
     <li>
       <Link
         href={`/mis-turnos/${appointment.publicToken}`}
-        className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+        className="block border border-gob-border  rounded-xl p-4 hover:bg-gob-surface-alt  transition-colors"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-0.5">
-            <p className="font-medium text-neutral-900 dark:text-neutral-50 truncate">
-              {offering.displayName}
-            </p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            <p className="font-medium text-gob-text  truncate">{offering.displayName}</p>
+            <p className="text-xs text-gob-text-muted ">
               {pet.name} · {providerLabel}
             </p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">
+            <p className="text-xs text-gob-text-muted  capitalize">
               {dateLabel} · {timeLabel}
             </p>
-            {kindDef && (
-              <p className="text-xs text-neutral-400 dark:text-neutral-500">{kindDef.label}</p>
-            )}
+            {kindDef && <p className="text-xs text-gob-text-muted ">{kindDef.label}</p>}
           </div>
           <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}>
             {statusBadge.label}

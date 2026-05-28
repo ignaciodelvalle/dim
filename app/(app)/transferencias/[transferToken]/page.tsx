@@ -46,15 +46,15 @@ export default async function TransferPage({
 
   if (!result.ok) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-md mx-auto pt-10 space-y-4">
           <Link
             href="/mis-mascotas"
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
           >
             ← Mis mascotas
           </Link>
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+          <div className="rounded-lg border border-gob-danger bg-gob-danger/10 p-4 text-sm text-gob-danger   ">
             {result.error}
           </div>
         </div>
@@ -67,26 +67,26 @@ export default async function TransferPage({
   const reasonLabel = transfer.reason ? (REASON_LABELS[transfer.reason] ?? transfer.reason) : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-10 space-y-6">
         <Link
           href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
         >
           ← Mis mascotas
         </Link>
 
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          <p className="text-xs uppercase tracking-wide text-gob-text-muted ">
             Transferencia · {statusLabel}
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
             {transfer.isRecipient
               ? `Recibiste a ${transfer.petName}`
               : `Transferencia de ${transfer.petName}`}
           </h1>
           {transfer.fromDisplayName && transfer.isRecipient && (
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               {transfer.fromDisplayName} te quiere transferir esta mascota.
             </p>
           )}
@@ -95,25 +95,23 @@ export default async function TransferPage({
         <dl className="space-y-3 text-sm">
           {reasonLabel && (
             <div>
-              <dt className="text-xs text-neutral-500 dark:text-neutral-400">Motivo</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">{reasonLabel}</dd>
+              <dt className="text-xs text-gob-text-muted ">Motivo</dt>
+              <dd className="text-gob-text ">{reasonLabel}</dd>
             </div>
           )}
           {transfer.note && (
             <div>
-              <dt className="text-xs text-neutral-500 dark:text-neutral-400">Comentario</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">{transfer.note}</dd>
+              <dt className="text-xs text-gob-text-muted ">Comentario</dt>
+              <dd className="text-gob-text ">{transfer.note}</dd>
             </div>
           )}
           <div>
-            <dt className="text-xs text-neutral-500 dark:text-neutral-400">Vence</dt>
-            <dd className="text-neutral-900 dark:text-neutral-50">
-              {formatExpiresAt(transfer.expiresAt)}
-            </dd>
+            <dt className="text-xs text-gob-text-muted ">Vence</dt>
+            <dd className="text-gob-text ">{formatExpiresAt(transfer.expiresAt)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500 dark:text-neutral-400">Email del receptor</dt>
-            <dd className="font-mono text-neutral-900 dark:text-neutral-50">{transfer.toEmail}</dd>
+            <dt className="text-xs text-gob-text-muted ">Email del receptor</dt>
+            <dd className="font-mono text-gob-text ">{transfer.toEmail}</dd>
           </div>
         </dl>
 

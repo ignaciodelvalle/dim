@@ -28,15 +28,15 @@ export default async function MembershipsPage() {
   const count = memberships.length;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         {/* Header */}
         <header className="space-y-1">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
               Mis organizaciones
             </h1>
-            <span className="text-sm font-medium text-neutral-500 dark:text-neutral-500">
+            <span className="text-sm font-medium text-gob-text-muted ">
               {count === 0 ? "ninguna" : count === 1 ? "1 membresía" : `${count} membresías`}
             </span>
           </div>
@@ -44,15 +44,15 @@ export default async function MembershipsPage() {
 
         {/* Empty state */}
         {count === 0 && (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-8 text-center space-y-3">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <div className="rounded-lg border border-gob-border  p-8 text-center space-y-3">
+            <p className="text-sm text-gob-text-gray ">
               No tenés membresías de ninguna organización todavía.
             </p>
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+            <p className="text-sm text-gob-text-muted ">
               Si querés crear una clínica, refugio o red de rescate,{" "}
               <Link
                 href="/cuenta/upgrade"
-                className="underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+                className="underline underline-offset-4 hover:text-gob-text  transition-colors"
               >
                 pasate a veterinario/a
               </Link>{" "}
@@ -68,11 +68,11 @@ export default async function MembershipsPage() {
               <li key={membership.id}>
                 <Link
                   href={`/org/${organization.publicToken}`}
-                  className="flex items-start justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors gap-4"
+                  className="flex items-start justify-between rounded-lg border border-gob-border  p-4 hover:bg-gob-surface-alt  transition-colors gap-4"
                 >
                   <div className="space-y-2 min-w-0">
                     {/* Org name */}
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50 truncate">
+                    <p className="text-sm font-medium text-gob-text  truncate">
                       {organization.displayName}
                     </p>
 
@@ -84,7 +84,7 @@ export default async function MembershipsPage() {
                     </div>
 
                     {/* Joined date */}
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <p className="text-xs text-gob-text-muted ">
                       Miembro desde{" "}
                       {membership.joinedAt.toLocaleDateString("es-AR", {
                         year: "numeric",
@@ -94,10 +94,7 @@ export default async function MembershipsPage() {
                     </p>
                   </div>
 
-                  <span
-                    className="text-neutral-400 dark:text-neutral-600 shrink-0 mt-0.5"
-                    aria-hidden
-                  >
+                  <span className="text-gob-text-muted  shrink-0 mt-0.5" aria-hidden>
                     →
                   </span>
                 </Link>
@@ -110,7 +107,7 @@ export default async function MembershipsPage() {
         <div className="pt-2">
           <Link
             href="/cuenta"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
           >
             ← Volver a mi cuenta
           </Link>
@@ -127,7 +124,7 @@ export default async function MembershipsPage() {
 function OrgTypeBadge({ orgType }: { orgType: string }) {
   const label = ORG_TYPE_LABELS[orgType] ?? orgType;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gob-info/10  text-gob-azul-link  border-gob-info ">
       {label}
     </span>
   );
@@ -136,13 +133,13 @@ function OrgTypeBadge({ orgType }: { orgType: string }) {
 function VerifiedBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gob-success/10  text-gob-success  border-gob-success ">
         Verificada
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gob-warning/10  text-gob-warning-text  border-gob-warning ">
       Pendiente verificación
     </span>
   );
@@ -151,7 +148,7 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
 function RoleBadge({ role }: { role: string }) {
   const label = ROLE_LABELS[role] ?? role;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gob-surface-alt  text-gob-text-gray  border-gob-border ">
       {label}
     </span>
   );

@@ -70,13 +70,10 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
   return (
     <section
       aria-labelledby="lp-discl-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="lp-discl-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="lp-discl-h" className="text-base font-semibold text-gob-text ">
           Qué se muestra al público
         </h2>
         <Link
@@ -97,20 +94,18 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
                 "use server";
                 await toggleAction(row.key, !prefs[row.key]);
               }}
-              className="flex items-center gap-3 rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-900"
+              className="flex items-center gap-3 rounded-lg bg-gob-surface-alt px-3 py-2 "
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                  {row.label}
-                </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">{row.description}</p>
+                <p className="text-sm font-medium text-gob-text ">{row.label}</p>
+                <p className="text-xs text-gob-text-muted ">{row.description}</p>
               </div>
               <button
                 type="submit"
                 role="switch"
                 aria-checked={prefs[row.key]}
                 aria-label={`Mostrar ${row.label.toLowerCase()}`}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${prefs[row.key] ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-700"}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-success focus-visible:ring-offset-2 ${prefs[row.key] ? "bg-gob-success" : "bg-gob-border-strong "}`}
               >
                 <span
                   aria-hidden
@@ -122,7 +117,7 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
         ))}
       </ul>
 
-      <p className="mt-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+      <p className="mt-3 text-[11px] text-gob-text-muted ">
         {prefs.discloseFirstNameWhenLost
           ? `Hoy verán "Lo busca ${ownerFirstName}".`
           : "Hoy no se muestra tu nombre."}

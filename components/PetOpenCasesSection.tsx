@@ -16,12 +16,12 @@ export async function PetOpenCasesSection({ petId }: Props) {
   if (openCases.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-800 dark:bg-amber-950/40">
+    <section className="mb-6 rounded-2xl border border-gob-warning bg-gob-warning/10/60 p-5  ">
       <header className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        <h2 className="text-lg font-semibold text-gob-text ">
           Casos abiertos {openCases.length > 1 ? `(${openCases.length})` : ""}
         </h2>
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">
+        <span className="text-xs text-gob-text-muted ">
           Procedimientos activos que esta mascota tiene abiertos en MiMAR
         </span>
       </header>

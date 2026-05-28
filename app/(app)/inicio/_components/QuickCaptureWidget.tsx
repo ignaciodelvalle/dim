@@ -15,10 +15,8 @@ export function QuickCaptureWidget({ pets }: { pets: DashboardPet[] }) {
   if (pets.length === 0) {
     return (
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-          Captura rápida
-        </h2>
-        <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-6 text-center text-sm text-neutral-500">
+        <h2 className="text-lg font-medium text-gob-text ">Captura rápida</h2>
+        <div className="border border-dashed border-gob-border-strong  rounded-xl p-6 text-center text-sm text-gob-text-muted">
           Cargá una mascota para empezar a anotar eventos.
         </div>
       </section>
@@ -30,11 +28,9 @@ export function QuickCaptureWidget({ pets }: { pets: DashboardPet[] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-          Captura rápida
-        </h2>
+        <h2 className="text-lg font-medium text-gob-text ">Captura rápida</h2>
       </div>
-      <p className="text-xs text-neutral-500 dark:text-neutral-500">
+      <p className="text-xs text-gob-text-muted ">
         Elegí una mascota para anotar algo (vacuna, peso, vet, etc.):
       </p>
       <ul className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -44,7 +40,7 @@ export function QuickCaptureWidget({ pets }: { pets: DashboardPet[] }) {
             <li key={pet.id}>
               <Link
                 href={`/mis-mascotas/${pet.publicToken}/anotar`}
-                className="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors"
+                className="flex items-center gap-2 p-2 rounded-lg border border-gob-border  hover:bg-gob-success/10  hover:border-gob-success  transition-colors"
               >
                 {photo ? (
                   <img
@@ -53,13 +49,11 @@ export function QuickCaptureWidget({ pets }: { pets: DashboardPet[] }) {
                     className="w-9 h-9 rounded-full object-cover shrink-0"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-sm font-semibold text-neutral-600 shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-gob-surface-alt  flex items-center justify-center text-sm font-semibold text-gob-text-gray shrink-0">
                     {pet.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-sm font-medium text-neutral-900 dark:text-neutral-50 truncate">
-                  {pet.name}
-                </span>
+                <span className="text-sm font-medium text-gob-text  truncate">{pet.name}</span>
               </Link>
             </li>
           );

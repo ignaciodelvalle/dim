@@ -82,7 +82,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
 
             <div className="space-y-1.5">
               <label htmlFor="vol-inquirerEmail" className={labelClass}>
-                Tu email <span className="text-red-500 ml-0.5">*</span>
+                Tu email <span className="text-gob-danger ml-0.5">*</span>
               </label>
               <input
                 id="vol-inquirerEmail"
@@ -98,7 +98,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
 
             <div className="space-y-1.5">
               <label htmlFor="vol-message" className={labelClass}>
-                Contales en qué te interesa ayudar <span className="text-red-500 ml-0.5">*</span>
+                Contales en qué te interesa ayudar <span className="text-gob-danger ml-0.5">*</span>
               </label>
               <textarea
                 id="vol-message"

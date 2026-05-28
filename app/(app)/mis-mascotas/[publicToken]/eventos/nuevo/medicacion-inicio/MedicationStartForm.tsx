@@ -12,7 +12,7 @@ const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
-const hintClass = "text-xs text-neutral-500 dark:text-neutral-500";
+const hintClass = "text-xs text-gob-text-muted ";
 
 export function MedicationStartForm({
   action,
@@ -62,7 +62,7 @@ export function MedicationStartForm({
       {/* Drug name with datalist */}
       <div className="space-y-1.5">
         <label htmlFor="drugName" className={labelClass}>
-          Medicamento<span className="text-red-500 ml-0.5">*</span>
+          Medicamento<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="drugName"
@@ -93,7 +93,7 @@ export function MedicationStartForm({
       {/* Dose — pre-fills from catalog match */}
       <div className="space-y-1.5">
         <label htmlFor="dose" className={labelClass}>
-          Dosis<span className="text-red-500 ml-0.5">*</span>
+          Dosis<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="dose"
@@ -115,7 +115,7 @@ export function MedicationStartForm({
       {/* Frequency — structured select */}
       <div className="space-y-1.5">
         <label htmlFor="frequency" className={labelClass}>
-          Frecuencia<span className="text-red-500 ml-0.5">*</span>
+          Frecuencia<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <select
           id="frequency"
@@ -138,7 +138,7 @@ export function MedicationStartForm({
       {showCustomHours && (
         <div className="space-y-1.5">
           <label htmlFor="customHours" className={labelClass}>
-            Cada cuántas horas<span className="text-red-500 ml-0.5">*</span>
+            Cada cuántas horas<span className="text-gob-danger ml-0.5">*</span>
           </label>
           <input
             id="customHours"
@@ -157,7 +157,7 @@ export function MedicationStartForm({
       {/* First dose datetime */}
       <div className="space-y-1.5">
         <label htmlFor="firstDoseAt" className={labelClass}>
-          Primera dosis<span className="text-red-500 ml-0.5">*</span>
+          Primera dosis<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="firstDoseAt"
@@ -207,7 +207,7 @@ export function MedicationStartForm({
       {/* Start date — "día de inicio" (may differ from firstDoseAt) */}
       <div className="space-y-1.5">
         <label htmlFor="occurredAt" className={labelClass}>
-          Día de inicio<span className="text-red-500 ml-0.5">*</span>
+          Día de inicio<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="occurredAt"
@@ -238,7 +238,7 @@ export function MedicationStartForm({
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -246,7 +246,7 @@ export function MedicationStartForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar inicio de medicación"}
       </button>

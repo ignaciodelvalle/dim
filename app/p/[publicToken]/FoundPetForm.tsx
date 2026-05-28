@@ -11,7 +11,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
 
   if (state.ok) {
     return (
-      <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 p-4 text-sm text-emerald-900 dark:text-emerald-200">
+      <div className="rounded-lg border border-gob-success  bg-gob-success/10  p-4 text-sm text-gob-success ">
         <p className="font-medium">¡Gracias!</p>
         <p className="mt-1 text-xs">
           Le avisamos al dueño. Mientras tanto, cuidala lo mejor que puedas.
@@ -21,16 +21,13 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
   }
 
   const inputClass =
-    "w-full px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-800 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent";
+    "w-full px-3 py-2 rounded-lg border border-gob-warning  bg-white  text-gob-text  text-sm focus:outline-none focus:ring-2 focus:ring-gob-warning focus:border-transparent";
 
   return (
     <form action={formAction} className="space-y-3">
       <div className="space-y-1">
-        <label
-          htmlFor="finderName"
-          className="block text-xs font-medium text-amber-900 dark:text-amber-200"
-        >
-          Tu nombre<span className="text-red-500 ml-0.5">*</span>
+        <label htmlFor="finderName" className="block text-xs font-medium text-gob-warning-text ">
+          Tu nombre<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="finderName"
@@ -43,11 +40,8 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
       </div>
 
       <div className="space-y-1">
-        <label
-          htmlFor="finderContact"
-          className="block text-xs font-medium text-amber-900 dark:text-amber-200"
-        >
-          Cómo te contactamos<span className="text-red-500 ml-0.5">*</span>
+        <label htmlFor="finderContact" className="block text-xs font-medium text-gob-warning-text ">
+          Cómo te contactamos<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="finderContact"
@@ -60,10 +54,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
       </div>
 
       <div className="space-y-1">
-        <label
-          htmlFor="message"
-          className="block text-xs font-medium text-amber-900 dark:text-amber-200"
-        >
+        <label htmlFor="message" className="block text-xs font-medium text-gob-warning-text ">
           Mensaje (opcional)
         </label>
         <textarea
@@ -76,7 +67,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
       </div>
 
       {state.error && (
-        <p className="text-xs text-red-700 dark:text-red-400" role="alert">
+        <p className="text-xs text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -84,7 +75,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-2 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-2 rounded-lg bg-gob-warning  text-white text-sm font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando..." : "Avisar al dueño"}
       </button>

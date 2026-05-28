@@ -71,12 +71,12 @@ export async function LostCockpit({
   const caseHref = episode ? `/casos/${episode.publicCode}` : `/mis-mascotas/${pet.publicToken}`;
 
   return (
-    <main className="min-h-screen bg-white p-5 dark:bg-neutral-950">
+    <main className="min-h-screen bg-white p-5 ">
       <div className="mx-auto max-w-2xl space-y-4 pb-12">
         {/* Back link */}
         <Link
           href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Mis mascotas
         </Link>
@@ -93,7 +93,7 @@ export async function LostCockpit({
           />
         ) : (
           // Legacy row without a case — still show a minimal banner.
-          <section role="alert" className="rounded-2xl bg-red-700 p-4 text-white">
+          <section role="alert" className="rounded-2xl bg-gob-danger p-4 text-white">
             <p className="font-semibold">{pet.name} está perdida</p>
           </section>
         )}

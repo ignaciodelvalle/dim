@@ -20,7 +20,7 @@ export function RequestCapabilityForm({
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+        className="text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
       >
         Solicitar
       </button>
@@ -35,27 +35,27 @@ export function RequestCapabilityForm({
         rows={2}
         maxLength={500}
         placeholder={`¿Por qué necesitás "${label}"? (opcional)`}
-        className="text-xs w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2"
+        className="text-xs w-full rounded border border-gob-border-strong  bg-white  p-2"
       />
       <div className="flex items-center gap-2">
         <button
           type="submit"
           disabled={isPending}
-          className="text-xs px-2 py-1 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 disabled:opacity-50"
+          className="text-xs px-2 py-1 rounded bg-gob-primary text-white   disabled:opacity-50"
         >
           {isPending ? "Enviando…" : "Enviar pedido"}
         </button>
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="text-xs px-2 py-1 rounded text-neutral-600 dark:text-neutral-400 hover:underline"
+          className="text-xs px-2 py-1 rounded text-gob-text-gray  hover:underline"
         >
           Cancelar
         </button>
       </div>
-      {state.error && <p className="text-xs text-red-600 dark:text-red-400">{state.error}</p>}
+      {state.error && <p className="text-xs text-gob-danger ">{state.error}</p>}
       {state.ok && (
-        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+        <p className="text-xs text-gob-success ">
           Solicitud enviada. Te avisamos cuando alguien decida.
         </p>
       )}

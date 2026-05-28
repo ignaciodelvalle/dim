@@ -70,13 +70,13 @@ export default async function DesactivarPage() {
   );
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
             Desactivar mi cuenta
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Hola, <strong>{profile.displayName}</strong>. Esta accion es irreversible desde este
             panel. Si necesitás reactivar tu cuenta, contacta a un administrador.
           </p>

@@ -26,7 +26,7 @@ export function SterilizationForm({
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <p className={labelClass}>
-          Procedimiento<span className="text-red-500 ml-0.5">*</span>
+          Procedimiento<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -35,18 +35,13 @@ export function SterilizationForm({
               name="procedure"
               value="castration"
               required
-              className="accent-neutral-900 dark:accent-neutral-50"
+              className="accent-neutral-900 "
             />
-            <span className="text-sm text-neutral-900 dark:text-neutral-50">Castración</span>
+            <span className="text-sm text-gob-text ">Castración</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="procedure"
-              value="spay"
-              className="accent-neutral-900 dark:accent-neutral-50"
-            />
-            <span className="text-sm text-neutral-900 dark:text-neutral-50">Ovariectomía</span>
+            <input type="radio" name="procedure" value="spay" className="accent-neutral-900 " />
+            <span className="text-sm text-gob-text ">Ovariectomía</span>
           </label>
         </div>
       </div>
@@ -85,7 +80,7 @@ export function SterilizationForm({
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -93,7 +88,7 @@ export function SterilizationForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar esterilización"}
       </button>
@@ -120,7 +115,7 @@ function Field({
     <div className="space-y-1.5">
       <label htmlFor={id} className={labelClass}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-gob-danger ml-0.5">*</span>}
       </label>
       <input
         id={id}

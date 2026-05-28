@@ -54,7 +54,7 @@ export function DeathRecordForm({
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <label htmlFor="cause" className={labelClass}>
-          Causa<span className="text-red-500 ml-0.5">*</span>
+          Causa<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <select
           id="cause"
@@ -84,7 +84,7 @@ export function DeathRecordForm({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label htmlFor="diseaseCode" className={labelClass}>
-              Enfermedad<span className="text-red-500 ml-0.5">*</span>
+              Enfermedad<span className="text-gob-danger ml-0.5">*</span>
             </label>
             <select
               id="diseaseCode"
@@ -101,9 +101,7 @@ export function DeathRecordForm({
               ))}
             </select>
             {isReportableDisease && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                Reportable a autoridad sanitaria
-              </p>
+              <p className="text-xs text-gob-warning-text ">Reportable a autoridad sanitaria</p>
             )}
           </div>
 
@@ -113,7 +111,7 @@ export function DeathRecordForm({
               name="confirmedByLab"
               type="checkbox"
               value="true"
-              className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+              className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
             />
             <label htmlFor="confirmedByLab" className={labelClass}>
               Confirmado por laboratorio
@@ -141,7 +139,7 @@ export function DeathRecordForm({
           name="confirmedByVet"
           type="checkbox"
           value="true"
-          className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+          className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
         />
         <label htmlFor="confirmedByVet" className={labelClass}>
           Confirmado por veterinario/a
@@ -161,8 +159,8 @@ export function DeathRecordForm({
         />
       </div>
 
-      <fieldset className="space-y-3 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-        <legend className="px-1 text-sm font-medium text-neutral-900 dark:text-neutral-50">
+      <fieldset className="space-y-3 rounded-lg border border-gob-border  p-3">
+        <legend className="px-1 text-sm font-medium text-gob-text ">
           ¿Falleció en una veterinaria?
         </legend>
 
@@ -177,7 +175,7 @@ export function DeathRecordForm({
               setDeathAtClinic(e.target.checked);
               if (!e.target.checked) setVetContactedOwner("");
             }}
-            className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+            className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
           />
           <label htmlFor="deathAtClinic" className={labelClass}>
             Falleció durante una estadía en la veterinaria
@@ -214,7 +212,7 @@ export function DeathRecordForm({
                       value={opt.value}
                       checked={vetContactedOwner === opt.value}
                       onChange={(e) => setVetContactedOwner(e.target.value)}
-                      className="h-4 w-4 border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+                      className="h-4 w-4 border-gob-border-strong  accent-neutral-900 "
                     />
                     <span>{opt.label}</span>
                   </label>
@@ -229,7 +227,7 @@ export function DeathRecordForm({
                   name="vetDecidedAlone"
                   type="checkbox"
                   value="true"
-                  className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+                  className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
                 />
                 <label htmlFor="vetDecidedAlone" className={labelClass}>
                   El veterinario decidió la disposición sin poder contactarme
@@ -246,7 +244,7 @@ export function DeathRecordForm({
           name="ownerToPrivateCrematorium"
           type="checkbox"
           value="true"
-          className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 accent-neutral-900 dark:accent-neutral-50"
+          className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
         />
         <label htmlFor="ownerToPrivateCrematorium" className={labelClass}>
           Llevé el cuerpo a un crematorio privado por mi cuenta
@@ -284,7 +282,7 @@ export function DeathRecordForm({
       </div>
 
       {showOwnerBurialHint && (
-        <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-200">
+        <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-3 text-sm text-gob-warning-text ">
           <p className="font-medium">Si vas a enterrarlo, te recomendamos:</p>
           <ul className="mt-2 list-disc list-inside space-y-1">
             <li>Profundidad suficiente para que ningún carroñero pueda excavar.</li>
@@ -313,7 +311,7 @@ export function DeathRecordForm({
 
       <div className="space-y-1.5">
         <label htmlFor="occurredAt" className={labelClass}>
-          Fecha<span className="text-red-500 ml-0.5">*</span>
+          Fecha<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="occurredAt"
@@ -341,7 +339,7 @@ export function DeathRecordForm({
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -349,7 +347,7 @@ export function DeathRecordForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar fallecimiento"}
       </button>

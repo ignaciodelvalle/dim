@@ -45,7 +45,7 @@ import { useEffect, useRef, useState } from "react";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 animate-pulse" />
+    <div className="w-full h-64 rounded-lg border border-gob-border  bg-gob-surface-alt  animate-pulse" />
   ),
 });
 
@@ -309,7 +309,7 @@ export function LocationFields({
               />
               {geocodeLoading !== "none" && (
                 <span
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500 dark:text-neutral-400"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gob-text-muted "
                   aria-live="polite"
                 >
                   {geocodeLoading === "forward" ? "Buscando…" : "Identificando…"}
@@ -317,13 +317,13 @@ export function LocationFields({
               )}
             </div>
             {geocodeResults.length > 0 && (
-              <ul className="border border-neutral-200 dark:border-neutral-800 rounded-lg divide-y divide-neutral-200 dark:divide-neutral-800 bg-white dark:bg-neutral-900 text-sm overflow-hidden">
+              <ul className="border border-gob-border  rounded-lg divide-y divide-gob-border  bg-white  text-sm overflow-hidden">
                 {geocodeResults.map((r) => (
                   <li key={`${r.lat}-${r.lng}-${r.display_name}`}>
                     <button
                       type="button"
                       onClick={() => pickResult(r)}
-                      className="block w-full text-left px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-900 dark:text-neutral-50"
+                      className="block w-full text-left px-3 py-2 hover:bg-gob-surface-alt  text-gob-text "
                     >
                       {r.display_name}
                     </button>
@@ -332,12 +332,12 @@ export function LocationFields({
               </ul>
             )}
             {geocodeMessage === "empty" && (
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              <p className="text-xs text-gob-text-muted ">
                 No encontramos esa dirección. Podés moverte por el mapa para ajustarla.
               </p>
             )}
             {geocodeMessage === "failed" && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-gob-warning-text ">
                 No pudimos buscar la dirección ahora. Tipeá lo que sepas y movete por el mapa.
               </p>
             )}
@@ -351,24 +351,24 @@ export function LocationFields({
                   type="button"
                   onClick={handleUseMyLocation}
                   disabled={geoLoading}
-                  className="text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 disabled:opacity-50"
+                  className="text-xs text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  disabled:opacity-50"
                 >
                   {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
                 </button>
               )}
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            <p className="text-xs text-gob-text-muted ">
               Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
               estás en el lugar.
             </p>
             <LocationPicker value={point} onChange={handlePointChange} />
             {geoError && (
-              <p className="text-xs text-amber-700 dark:text-amber-400" role="alert">
+              <p className="text-xs text-gob-warning-text " role="alert">
                 {geoError}
               </p>
             )}
             {point && (
-              <p className="text-xs text-neutral-500 dark:text-neutral-500 font-mono">
+              <p className="text-xs text-gob-text-muted  font-mono">
                 {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
               </p>
             )}

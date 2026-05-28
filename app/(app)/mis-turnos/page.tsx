@@ -66,13 +66,11 @@ export default async function MisTurnosPage() {
   );
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
         <header className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Mis turnos
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Mis turnos</h1>
+          <p className="text-sm text-gob-text-gray ">
             {rows.length === 0
               ? "Todavía no tenés turnos reservados."
               : `${rows.length} turno${rows.length === 1 ? "" : "s"} en total.`}
@@ -80,13 +78,13 @@ export default async function MisTurnosPage() {
         </header>
 
         {rows.length === 0 && (
-          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-10 text-center space-y-3">
-            <p className="text-neutral-700 dark:text-neutral-300">
+          <div className="border border-dashed border-gob-border-strong  rounded-xl p-10 text-center space-y-3">
+            <p className="text-gob-text-gray ">
               Reservá tu primer turno buscando un servicio disponible.
             </p>
             <Link
               href="/turnos/buscar"
-              className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+              className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
             >
               Buscar turnos
             </Link>
@@ -117,10 +115,10 @@ export default async function MisTurnosPage() {
           </Section>
         )}
 
-        <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <div className="pt-4 border-t border-gob-border ">
           <Link
             href="/mis-mascotas"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+            className="text-sm text-gob-text-gray  underline underline-offset-4"
           >
             ← Volver a mis mascotas
           </Link>
@@ -137,7 +135,7 @@ export default async function MisTurnosPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">{title}</h2>
+      <h2 className="text-lg font-medium text-gob-text ">{title}</h2>
       <ul className="space-y-2">{children}</ul>
     </section>
   );

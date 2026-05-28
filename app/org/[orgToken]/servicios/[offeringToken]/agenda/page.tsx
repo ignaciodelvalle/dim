@@ -85,15 +85,15 @@ export default async function AgendaPage({
     .orderBy(serviceScheduleRules.effectiveFrom);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             {organization.displayName} · {kind?.label ?? offering.serviceKind}
           </p>
           <h1 className="text-3xl font-semibold">Agenda</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Reglas de disponibilidad recurrente para <strong>{offering.displayName}</strong>.
           </p>
         </header>
@@ -102,13 +102,13 @@ export default async function AgendaPage({
         <section className="space-y-4">
           <h2 className="text-base font-semibold">Reglas activas</h2>
           {rules.length === 0 ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+            <p className="text-sm text-gob-text-muted ">
               Todavía no hay reglas de agenda. Agregá una abajo para que se materialicen turnos.
             </p>
           ) : (
-            <div className="rounded border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+            <div className="rounded border border-gob-border  overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-neutral-50 dark:bg-neutral-900 text-xs text-neutral-500 uppercase tracking-wider">
+                <thead className="bg-gob-surface-alt  text-xs text-gob-text-muted uppercase tracking-wider">
                   <tr>
                     <th className="px-4 py-2 text-left font-medium">Días</th>
                     <th className="px-4 py-2 text-left font-medium">Horario</th>
@@ -117,17 +117,17 @@ export default async function AgendaPage({
                     {canManage && <th className="px-4 py-2 text-right font-medium">Acción</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                <tbody className="divide-y divide-gob-border ">
                   {rules.map((rule) => (
-                    <tr key={rule.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900">
+                    <tr key={rule.id} className="hover:bg-gob-surface-alt ">
                       <td className="px-4 py-3">{formatDays(rule.daysOfWeek as number[])}</td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {rule.startTimeLocal} – {rule.endTimeLocal}
                       </td>
-                      <td className="px-4 py-3 text-neutral-500">
+                      <td className="px-4 py-3 text-gob-text-muted">
                         {formatDate(rule.effectiveFrom)}
                       </td>
-                      <td className="px-4 py-3 text-neutral-500">
+                      <td className="px-4 py-3 text-gob-text-muted">
                         {rule.effectiveUntil ? formatDate(rule.effectiveUntil) : "Abierto"}
                       </td>
                       {canManage && (
@@ -140,7 +140,7 @@ export default async function AgendaPage({
                           >
                             <button
                               type="submit"
-                              className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                              className="text-xs text-gob-danger  hover:underline"
                             >
                               Eliminar
                             </button>
@@ -159,7 +159,7 @@ export default async function AgendaPage({
         {canManage && (
           <section className="space-y-4">
             <h2 className="text-base font-semibold">Agregar regla</h2>
-            <div className="rounded border border-neutral-200 dark:border-neutral-800 p-5">
+            <div className="rounded border border-gob-border  p-5">
               <AgendaRuleForm
                 serviceOfferingId={offering.id}
                 offeringPublicToken={offeringToken}
@@ -174,7 +174,7 @@ export default async function AgendaPage({
         {canManage && rules.length > 0 && (
           <section className="space-y-2">
             <h2 className="text-base font-semibold">Materializar turnos</h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-muted ">
               Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
               hace automáticamente; este botón es para preview inmediato.
             </p>
@@ -185,10 +185,10 @@ export default async function AgendaPage({
           </section>
         )}
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <footer className="pt-4 border-t border-gob-border ">
           <Link
             href={`/org/${orgToken}/servicios/${offeringToken}`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
+            className="text-sm text-gob-text-gray underline "
           >
             ← Volver al servicio
           </Link>

@@ -28,11 +28,11 @@ export default async function AdoptionReviewDetailPage({
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
           <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">{auth.error}</p>
-          <Link href={`/org/${orgToken}`} className="text-sm text-neutral-600 underline">
+          <p className="text-sm text-gob-text-gray ">{auth.error}</p>
+          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline">
             ← Volver al panel
           </Link>
         </div>
@@ -115,28 +115,24 @@ export default async function AdoptionReviewDetailPage({
   const petAlreadyFinalized = finalized.length > 0;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto space-y-6">
         <Link
           href={`/org/${orgToken}/adopciones`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver a postulaciones
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Postulación para {pet.name}
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Postulación para {pet.name}</h1>
+          <p className="text-sm text-gob-text-gray ">
             Recibida el {new Date(application.recordedAt).toLocaleString("es-AR")}
           </p>
         </header>
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-            Postulante
-          </h2>
+        <section className="rounded-lg border border-gob-border  p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-gob-text ">Postulante</h2>
           <dl className="space-y-1 text-sm">
             <Row label="Nombre" value={applicant?.displayName ?? "(perfil no encontrado)"} />
             {applicant?.phone && <Row label="Teléfono" value={applicant.phone} />}
@@ -145,10 +141,8 @@ export default async function AdoptionReviewDetailPage({
         </section>
 
         {(payload.other_pets || payload.daily_routine || payload.notes) && (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-              Lo que nos contó
-            </h2>
+          <section className="rounded-lg border border-gob-border  p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-gob-text ">Lo que nos contó</h2>
             {payload.other_pets && <Block label="Otras mascotas" body={payload.other_pets} />}
             {payload.daily_routine && <Block label="Día a día" body={payload.daily_routine} />}
             {payload.notes && <Block label="Notas" body={payload.notes} />}
@@ -156,8 +150,8 @@ export default async function AdoptionReviewDetailPage({
         )}
 
         {alreadyResolved ? (
-          <section className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-2">
-            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <section className="rounded-lg border border-gob-border-strong  p-4 space-y-2">
+            <p className="text-sm font-medium text-gob-text ">
               Esta postulación ya fue resuelta:{" "}
               {decision[0].outcome === "approved"
                 ? "aprobada"
@@ -166,14 +160,14 @@ export default async function AdoptionReviewDetailPage({
                   : "rechazada"}
               .
             </p>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-gob-text-muted">
               {new Date(decision[0].decided_at).toLocaleString("es-AR")}
               {decision[0].notes && ` · ${decision[0].notes}`}
             </p>
           </section>
         ) : petAlreadyFinalized ? (
-          <section className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4">
-            <p className="text-sm text-amber-900 dark:text-amber-200">
+          <section className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4">
+            <p className="text-sm text-gob-warning-text ">
               {pet.name} ya fue adoptado/a. No se pueden revisar más postulaciones para esta
               mascota.
             </p>
@@ -186,7 +180,7 @@ export default async function AdoptionReviewDetailPage({
           />
         )}
 
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-gob-text-muted">
           <Link href={`/org/${orgToken}/mascotas/${pet.publicToken}`} className="underline">
             Ver ficha de {pet.name}
           </Link>
@@ -199,8 +193,8 @@ export default async function AdoptionReviewDetailPage({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <dt className="text-xs text-neutral-500 w-32">{label}</dt>
-      <dd className="text-sm text-neutral-900 dark:text-neutral-50">{value}</dd>
+      <dt className="text-xs text-gob-text-muted w-32">{label}</dt>
+      <dd className="text-sm text-gob-text ">{value}</dd>
     </div>
   );
 }
@@ -208,8 +202,8 @@ function Row({ label, value }: { label: string; value: string }) {
 function Block({ label, body }: { label: string; body: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">{body}</p>
+      <p className="text-xs text-gob-text-muted">{label}</p>
+      <p className="text-sm text-gob-text-gray  whitespace-pre-wrap">{body}</p>
     </div>
   );
 }

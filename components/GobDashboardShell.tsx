@@ -49,16 +49,10 @@ export function GobDashboardShell({
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
             {eyebrow && (
-              <p className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
-                {eyebrow}
-              </p>
+              <p className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">{eyebrow}</p>
             )}
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-              {title}
-            </h1>
-            {description && (
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">{description}</p>
-            )}
+            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{title}</h1>
+            {description && <p className="text-sm text-gob-text-gray ">{description}</p>}
           </div>
           {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>
@@ -89,16 +83,10 @@ export function DashboardCard({
   className?: string;
 }) {
   return (
-    <section
-      className={`rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950 ${className}`}
-    >
+    <section className={`rounded-xl border border-gob-border bg-white p-4   ${className}`}>
       {(title || action) && (
         <header className="mb-3 flex items-center justify-between gap-2">
-          {title && (
-            <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
-              {title}
-            </h2>
-          )}
+          {title && <h2 className="text-base font-semibold text-gob-text ">{title}</h2>}
           {action && <div className="text-sm">{action}</div>}
         </header>
       )}

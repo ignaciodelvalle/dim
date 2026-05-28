@@ -41,7 +41,7 @@ export function PetDetailTabs({ petPublicToken, historialCount }: Props) {
   return (
     <nav
       aria-label="Secciones del perfil"
-      className="sticky top-0 z-10 bg-white dark:bg-neutral-950 border-b border-gob-border"
+      className="sticky top-0 z-10 bg-white  border-b border-gob-border"
       data-section="pet-detail-tabs"
     >
       <div className="flex gap-0">
@@ -54,7 +54,7 @@ export function PetDetailTabs({ petPublicToken, historialCount }: Props) {
               "inline-flex items-center min-h-11 px-4 text-sm font-medium transition-colors border-b-2 -mb-px",
               tab.isActive
                 ? "border-gob-primary text-gob-primary"
-                : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50 hover:border-neutral-300 dark:hover:border-neutral-700",
+                : "border-transparent text-gob-text-muted  hover:text-gob-text  hover:border-gob-border-strong ",
             ]
               .join(" ")
               .trim()}

@@ -28,7 +28,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
         <label htmlFor="occurredAt" className={labelClass}>
-          Fecha del cierre<span className="text-red-500 ml-0.5">*</span>
+          Fecha del cierre<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="occurredAt"
@@ -42,13 +42,10 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
 
       <fieldset className="space-y-2">
         <legend className={labelClass}>
-          Resultado<span className="text-red-500 ml-0.5">*</span>
+          Resultado<span className="text-gob-danger ml-0.5">*</span>
         </legend>
         {OUTCOMES.map((o) => (
-          <label
-            key={o.value}
-            className="flex items-center gap-2 text-sm text-neutral-900 dark:text-neutral-50"
-          >
+          <label key={o.value} className="flex items-center gap-2 text-sm text-gob-text ">
             <input
               type="radio"
               name="outcome"
@@ -65,7 +62,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
       {outcome === "live_birth" && (
         <div className="space-y-1.5">
           <label htmlFor="liveBirthsCount" className={labelClass}>
-            Cantidad de crías nacidas vivas<span className="text-red-500 ml-0.5">*</span>
+            Cantidad de crías nacidas vivas<span className="text-gob-danger ml-0.5">*</span>
           </label>
           <input
             id="liveBirthsCount"
@@ -106,13 +103,13 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
         />
       </div>
 
-      <p className="text-xs rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+      <p className="text-xs rounded-lg border border-gob-border bg-gob-surface-alt px-4 py-3 text-gob-text-gray   ">
         Tras este registro la mascota podrá ser candidata para futuros embarazos. Si querés
         evitarlo, considerá registrar también una esterilización.
       </p>
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -120,7 +117,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Cerrando…" : "Confirmar fin de gestación"}
       </button>

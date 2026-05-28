@@ -13,11 +13,11 @@ const STATUS_LABELS = {
 } as const;
 
 const STATUS_TONE: Record<string, string> = {
-  pending: "text-amber-700 dark:text-amber-300",
-  accepted: "text-emerald-700 dark:text-emerald-300",
-  rejected: "text-neutral-500",
-  expired: "text-neutral-500",
-  cancelled: "text-neutral-500",
+  pending: "text-gob-warning-text ",
+  accepted: "text-gob-success ",
+  rejected: "text-gob-text-muted",
+  expired: "text-gob-text-muted",
+  cancelled: "text-gob-text-muted",
 };
 
 export default async function OrgPropuestasPage({
@@ -47,13 +47,11 @@ export default async function OrgPropuestasPage({
   const filtered = filters.status ? rows.filter((r) => r.proposal.status === filters.status) : rows;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-4xl mx-auto pt-10 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Propuestas de tránsito emitidas
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Propuestas de tránsito emitidas</h1>
+          <p className="mt-2 text-sm text-gob-text-gray ">
             Propuestas que tu organización envió al pool de voluntarios.
           </p>
         </header>
@@ -72,21 +70,18 @@ export default async function OrgPropuestasPage({
         </div>
 
         {filtered.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-8 text-center">No hay propuestas.</p>
+          <p className="text-sm text-gob-text-muted py-8 text-center">No hay propuestas.</p>
         ) : (
           <ul className="space-y-2">
             {filtered.map(({ proposal, pet, volunteer }) => (
-              <li
-                key={proposal.id}
-                className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4"
-              >
+              <li key={proposal.id} className="rounded-lg border border-gob-border-strong  p-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="space-y-1">
-                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                    <p className="font-medium text-gob-text ">
                       {volunteer.displayName}{" "}
-                      <span className="text-neutral-500 font-normal">→ {pet.name}</span>
+                      <span className="text-gob-text-muted font-normal">→ {pet.name}</span>
                     </p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-gob-text-muted">
                       {new Date(proposal.proposedAt).toLocaleDateString("es-AR", {
                         day: "numeric",
                         month: "short",
@@ -134,8 +129,8 @@ function FilterLink({
       href={href}
       className={`px-3 py-1 rounded-full border text-xs ${
         active
-          ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
-          : "border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+          ? "border-gob-border-strong bg-gob-primary text-white   "
+          : "border-gob-border-strong  hover:bg-gob-surface-alt "
       }`}
     >
       {label}

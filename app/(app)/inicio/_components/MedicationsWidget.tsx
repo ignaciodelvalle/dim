@@ -10,12 +10,10 @@ export function MedicationsWidget({ medications }: { medications: OngoingMedicat
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-          Tratamientos en curso
-        </h2>
+        <h2 className="text-lg font-medium text-gob-text ">Tratamientos en curso</h2>
       </div>
       {medications.length === 0 ? (
-        <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-6 text-center text-sm text-neutral-500 dark:text-neutral-500">
+        <div className="border border-dashed border-gob-border-strong  rounded-xl p-6 text-center text-sm text-gob-text-muted ">
           Ninguna mascota está bajo tratamiento activo en este momento.
         </div>
       ) : (
@@ -24,12 +22,10 @@ export function MedicationsWidget({ medications }: { medications: OngoingMedicat
             <li key={m.eventId}>
               <Link
                 href={`/mis-mascotas/${m.petPublicToken}/historial`}
-                className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                className="block border border-gob-border  rounded-xl p-4 hover:bg-gob-surface-alt  transition-colors"
               >
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50 truncate">
-                  {m.drugName}
-                </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                <p className="text-sm font-medium text-gob-text  truncate">{m.drugName}</p>
+                <p className="text-xs text-gob-text-muted ">
                   {m.petName} · desde {formatDate(m.startedAt)}
                   {m.frequency && ` · ${m.frequency}`}
                 </p>

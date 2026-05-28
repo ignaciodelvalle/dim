@@ -143,21 +143,19 @@ export default async function NotificacionesPage({
   const unreadCount = rows.filter((r) => r.notification.readAt === null).length;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <Link
           href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Mis mascotas
         </Link>
 
         <header className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-              Notificaciones
-            </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Notificaciones</h1>
+            <p className="text-sm text-gob-text-gray  mt-1">
               {counts.all === 0
                 ? "Sin notificaciones."
                 : unreadCount > 0
@@ -169,7 +167,7 @@ export default async function NotificacionesPage({
             <form action={markAllNotificationsReadAction}>
               <button
                 type="submit"
-                className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+                className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
               >
                 Marcar todas como leídas
               </button>
@@ -218,7 +216,7 @@ export default async function NotificacionesPage({
                     notification={entry.leader.notification}
                     relatedPet={entry.leader.pet}
                   />
-                  <details className="mt-2 ml-3 pl-3 border-l-2 border-neutral-200 dark:border-neutral-800">
+                  <details className="mt-2 ml-3 pl-3 border-l-2 border-gob-border ">
                     <summary className="cursor-pointer text-xs text-gob-azul-link hover:underline select-none">
                       + {entry.rest.length} más del mismo tipo
                     </summary>

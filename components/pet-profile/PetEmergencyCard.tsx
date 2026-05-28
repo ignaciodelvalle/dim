@@ -43,13 +43,10 @@ export function PetEmergencyCard({ vet, emergencyContact, alerts, editHref }: Pr
   return (
     <section
       aria-labelledby="pp-emerg-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="pp-emerg-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="pp-emerg-h" className="text-base font-semibold text-gob-text ">
           Emergencias
         </h2>
         <Link href={editHref} className="text-xs font-medium text-gob-azul-link hover:underline">
@@ -63,11 +60,11 @@ export function PetEmergencyCard({ vet, emergencyContact, alerts, editHref }: Pr
       </div>
 
       {alerts.length > 0 && (
-        <div className="mt-3 rounded-lg border-l-[3px] border-red-600 bg-red-50 px-3 py-2 dark:bg-red-950/30">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-red-800 dark:text-red-200">
+        <div className="mt-3 rounded-lg border-l-[3px] border-gob-danger bg-gob-danger/10 px-3 py-2 ">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gob-danger ">
             Alertas médicas
           </p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-red-900 dark:text-red-100">
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-gob-danger ">
             {alerts.map((a) =>
               a.href ? (
                 <li key={a.id}>
@@ -97,7 +94,7 @@ function ContactCard({
 }) {
   if (!contact) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-gob-border-strong bg-gob-surface-alt p-3 text-sm text-gob-text-muted  ">
         <span aria-hidden>{icon}</span>
         <span className="text-xs">{emptyLabel}</span>
       </div>
@@ -106,19 +103,19 @@ function ContactCard({
   return (
     <a
       href={`tel:${contact.phone.replace(/\s+/g, "")}`}
-      className="flex items-center gap-2.5 rounded-lg bg-neutral-50 p-3 transition-colors hover:bg-red-50 dark:bg-neutral-900 dark:hover:bg-red-950/30"
+      className="flex items-center gap-2.5 rounded-lg bg-gob-surface-alt p-3 transition-colors hover:bg-gob-danger/10  "
     >
       <span
         aria-hidden
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gob-danger/10 text-gob-danger  "
       >
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+        <span className="block text-[10px] font-semibold uppercase tracking-wider text-gob-text-muted ">
           {contact.role}
         </span>
-        <span className="block text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+        <span className="block text-sm font-semibold text-gob-text ">
           {contact.name} · {contact.phone}
         </span>
       </span>

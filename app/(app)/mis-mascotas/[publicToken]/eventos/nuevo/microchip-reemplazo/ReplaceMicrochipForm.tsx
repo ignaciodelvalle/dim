@@ -34,16 +34,13 @@ export function ReplaceMicrochipForm({
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-4 py-3 text-sm text-neutral-600 dark:text-neutral-400">
-        Chip actual:{" "}
-        <span className="font-mono font-medium text-neutral-900 dark:text-neutral-50">
-          {currentChip}
-        </span>
+      <div className="rounded-lg border border-gob-border  bg-gob-surface-alt  px-4 py-3 text-sm text-gob-text-gray ">
+        Chip actual: <span className="font-mono font-medium text-gob-text ">{currentChip}</span>
       </div>
 
       <div className="space-y-1.5">
         <p className={labelClass}>
-          Motivo del reemplazo<span className="text-red-500 ml-0.5">*</span>
+          Motivo del reemplazo<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
           {OWNER_REASONS.map((r) => (
@@ -53,9 +50,9 @@ export function ReplaceMicrochipForm({
                 name="reason"
                 value={r.value}
                 required
-                className="mt-0.5 accent-neutral-900 dark:accent-neutral-50"
+                className="mt-0.5 accent-neutral-900 "
               />
-              <span className="text-sm text-neutral-900 dark:text-neutral-50">{r.label}</span>
+              <span className="text-sm text-gob-text ">{r.label}</span>
             </label>
           ))}
         </div>
@@ -72,7 +69,7 @@ export function ReplaceMicrochipForm({
           placeholder="985141004321456"
           className={inputClass}
         />
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted ">
           Dejalo vacío si solo se revoca el chip (válido para "Solicitud del dueño/a" o "Falla del
           dispositivo").
         </p>
@@ -87,7 +84,7 @@ export function ReplaceMicrochipForm({
 
       <div className="space-y-1.5">
         <label htmlFor="replacedAt" className={labelClass}>
-          Fecha del reemplazo<span className="text-red-500 ml-0.5">*</span>
+          Fecha del reemplazo<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="replacedAt"
@@ -107,7 +104,7 @@ export function ReplaceMicrochipForm({
       </div>
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -115,7 +112,7 @@ export function ReplaceMicrochipForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Confirmar reemplazo de chip"}
       </button>

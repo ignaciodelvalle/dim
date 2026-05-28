@@ -94,7 +94,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+      <nav className="mb-3 text-sm text-gob-text-muted ">
         <Link href="/" className="hover:underline">
           Inicio
         </Link>
@@ -111,10 +111,8 @@ export default async function CaseDetailPage({ params }: PageProps) {
           caseKind={detail.caseKind}
           status={detail.status}
         />
-        <h1 className="mt-3 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          {caseKindLabel(detail.caseKind)}
-        </h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="mt-3 text-2xl font-bold text-gob-text ">{caseKindLabel(detail.caseKind)}</h1>
+        <p className="mt-1 text-sm text-gob-text-muted ">
           Abierto el {formatDateTime(detail.openedAt)}
           {detail.closedAt ? ` · Cerrado el ${formatDateTime(detail.closedAt)}` : ""}
         </p>
@@ -122,39 +120,37 @@ export default async function CaseDetailPage({ params }: PageProps) {
 
       {/* Pet card OR subject descriptor */}
       {detail.pet ? (
-        <section className="mb-6 flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+        <section className="mb-6 flex items-center gap-4 rounded-2xl border border-gob-border bg-white p-5  ">
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={photoUrl}
               alt={detail.pet.name}
-              className="h-20 w-20 rounded-full object-cover ring-2 ring-zinc-100 dark:ring-zinc-800"
+              className="h-20 w-20 rounded-full object-cover ring-2 ring-gob-surface-alt "
             />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-100 text-3xl dark:bg-zinc-800">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gob-surface-alt text-3xl ">
               🐾
             </div>
           )}
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {detail.pet.name}
-            </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <h2 className="text-xl font-semibold text-gob-text ">{detail.pet.name}</h2>
+            <p className="text-sm text-gob-text-muted ">
               {speciesLabel(detail.pet.species)} · {sexLabel(detail.pet.sex)}
             </p>
           </div>
           {petLink ? (
             <Link
               href={petLink}
-              className="inline-flex items-center rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              className="inline-flex items-center rounded-full bg-gob-text px-4 py-2 text-sm font-medium text-white transition hover:bg-gob-text   "
             >
               Ver mascota →
             </Link>
           ) : null}
         </section>
       ) : (
-        <section className="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <section className="mb-6 rounded-2xl border border-gob-border bg-white p-5  ">
+          <p className="text-sm text-gob-text-muted ">
             Sujeto:{" "}
             {detail.primarySubjectKind === "unowned_animal"
               ? "Animal sin identificar"
@@ -171,8 +167,8 @@ export default async function CaseDetailPage({ params }: PageProps) {
 
       {/* Actors + Normatives + Jurisdiction */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <div className="rounded-2xl border border-gob-border bg-white p-4  ">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
             Partes
           </h3>
           <ul className="mt-2 space-y-1 text-sm">
@@ -180,14 +176,14 @@ export default async function CaseDetailPage({ params }: PageProps) {
                 organizations stay visible — they're identifiable entities
                 already linked from /refugios/. */}
             {!isPublic && detail.openedByUser ? (
-              <li className="text-zinc-700 dark:text-zinc-300">
-                <span className="text-zinc-500 dark:text-zinc-400">Abrió: </span>
+              <li className="text-gob-text ">
+                <span className="text-gob-text-muted ">Abrió: </span>
                 {detail.openedByUser.displayName}
               </li>
             ) : null}
             {detail.openedByOrganization ? (
-              <li className="text-zinc-700 dark:text-zinc-300">
-                <span className="text-zinc-500 dark:text-zinc-400">Organización: </span>
+              <li className="text-gob-text ">
+                <span className="text-gob-text-muted ">Organización: </span>
                 <Link
                   href={`/refugios/${detail.openedByOrganization.publicToken}`}
                   className="hover:underline"
@@ -197,45 +193,41 @@ export default async function CaseDetailPage({ params }: PageProps) {
               </li>
             ) : null}
             {!isPublic && detail.closedByUser ? (
-              <li className="text-zinc-700 dark:text-zinc-300">
-                <span className="text-zinc-500 dark:text-zinc-400">Cerró: </span>
+              <li className="text-gob-text ">
+                <span className="text-gob-text-muted ">Cerró: </span>
                 {detail.closedByUser.displayName}
               </li>
             ) : null}
             {isPublic && !detail.openedByOrganization ? (
-              <li className="text-zinc-500 dark:text-zinc-400">Datos de partes no disponibles</li>
+              <li className="text-gob-text-muted ">Datos de partes no disponibles</li>
             ) : null}
             {!isPublic && !detail.openedByUser && !detail.openedByOrganization ? (
-              <li className="text-zinc-500 dark:text-zinc-400">Apertura automática del sistema</li>
+              <li className="text-gob-text-muted ">Apertura automática del sistema</li>
             ) : null}
           </ul>
         </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <div className="rounded-2xl border border-gob-border bg-white p-4  ">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
             Jurisdicción
           </h3>
-          <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="mt-2 text-sm text-gob-text ">
             {detail.jurisdictionLocality && detail.jurisdictionProvince
               ? `${detail.jurisdictionLocality}, ${detail.jurisdictionProvince}`
               : (detail.jurisdictionProvince ?? "Sin especificar")}
           </p>
         </div>
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <div className="rounded-2xl border border-gob-border bg-white p-4  ">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
             Normativa aplicable
           </h3>
           {normatives.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              Sin norma específica catalogada
-            </p>
+            <p className="mt-2 text-sm text-gob-text-muted ">Sin norma específica catalogada</p>
           ) : (
             <ul className="mt-2 space-y-1 text-sm">
               {normatives.map((law) => (
-                <li key={law.id} className="text-zinc-700 dark:text-zinc-300">
+                <li key={law.id} className="text-gob-text ">
                   <span className="font-medium">{law.label}</span>
-                  <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                    {law.scope}
-                  </span>
+                  <span className="block text-xs text-gob-text-muted ">{law.scope}</span>
                 </li>
               ))}
             </ul>
@@ -246,50 +238,41 @@ export default async function CaseDetailPage({ params }: PageProps) {
       {/* Opened reason — hidden for anon: free-text may contain PII
           (denouncer descriptions, victim names, internal context). */}
       {!isPublic && detail.openedReason ? (
-        <section className="mb-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <section className="mb-6 rounded-2xl border border-gob-border bg-gob-surface-alt p-4  ">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
             Motivo de apertura
           </h3>
-          <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{detail.openedReason}</p>
+          <p className="mt-2 text-sm text-gob-text ">{detail.openedReason}</p>
         </section>
       ) : null}
 
       {/* Timeline */}
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-          Línea de tiempo
-        </h3>
+        <h3 className="mb-3 text-lg font-semibold text-gob-text ">Línea de tiempo</h3>
         {detail.events.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-gob-text-muted ">
             Todavía no hay eventos registrados en este caso.
           </p>
         ) : (
           <ol className="space-y-3">
             {detail.events.map((e) => (
-              <li
-                key={e.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"
-              >
+              <li key={e.id} className="rounded-2xl border border-gob-border bg-white p-4  ">
                 <div className="flex items-baseline justify-between">
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                    {eventTypeLabel(e.eventType)}
-                  </span>
-                  <time className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="font-medium text-gob-text ">{eventTypeLabel(e.eventType)}</span>
+                  <time className="text-xs text-gob-text-muted ">
                     {formatDateTime(e.occurredAt)}
                   </time>
                 </div>
                 {(() => {
                   const summary = eventPayloadSummary(e.eventType, e.payload);
                   const text = [summary.primary, summary.secondary].filter(Boolean).join(" · ");
-                  return text ? (
-                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{text}</p>
-                  ) : null;
+                  return text ? <p className="mt-1 text-sm text-gob-text-muted ">{text}</p> : null;
                 })()}
                 {/* Internal notes hidden for anon: they're free-form and
                     routinely contain PII (denouncer descriptions, internal
                     org coordination, addresses). */}
                 {!isPublic && e.notes ? (
-                  <p className="mt-2 rounded bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                  <p className="mt-2 rounded bg-gob-surface-alt p-2 text-xs text-gob-text-muted  ">
                     {e.notes}
                   </p>
                 ) : null}

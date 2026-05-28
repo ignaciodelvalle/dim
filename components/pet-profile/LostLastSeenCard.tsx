@@ -42,13 +42,13 @@ export function LostLastSeenCard({
   return (
     <section
       aria-labelledby="lp-loc-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-loc-h" className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
+        <h2 id="lp-loc-h" className="text-base font-semibold text-gob-text ">
           Última ubicación
           {sightingsCount > 0 && (
-            <span className="ml-2 text-xs font-normal text-neutral-500 dark:text-neutral-400">
+            <span className="ml-2 text-xs font-normal text-gob-text-muted ">
               · {sightingsCount} avistamiento{sightingsCount === 1 ? "" : "s"}
             </span>
           )}
@@ -61,7 +61,7 @@ export function LostLastSeenCard({
         </Link>
       </div>
 
-      <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100 dark:from-emerald-950/30 dark:to-blue-950/30">
+      <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100  ">
         <div className="absolute inset-0 flex items-center justify-center">
           <span aria-hidden className="text-4xl drop-shadow">
             📍
@@ -69,21 +69,17 @@ export function LostLastSeenCard({
         </div>
         <Link
           href={editHref}
-          className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white dark:bg-neutral-900/95"
+          className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white "
         >
           Editar
         </Link>
-        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-white/95 px-3 py-2 text-xs text-neutral-700 shadow-sm dark:bg-neutral-900/95 dark:text-neutral-300">
+        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-white/95 px-3 py-2 text-xs text-gob-text-gray shadow-sm  ">
           <p>
-            <span className="font-semibold text-neutral-900 dark:text-neutral-50">{placeName}</span>
-            <span className="text-neutral-500 dark:text-neutral-400"> · {localityLabel}</span>
-            <span className="text-neutral-500 dark:text-neutral-400"> · {formatWhen(at)}</span>
+            <span className="font-semibold text-gob-text ">{placeName}</span>
+            <span className="text-gob-text-muted "> · {localityLabel}</span>
+            <span className="text-gob-text-muted "> · {formatWhen(at)}</span>
           </p>
-          {note && (
-            <p className="mt-0.5 line-clamp-2 italic text-neutral-500 dark:text-neutral-400">
-              "{note}"
-            </p>
-          )}
+          {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
         </div>
       </div>
     </section>

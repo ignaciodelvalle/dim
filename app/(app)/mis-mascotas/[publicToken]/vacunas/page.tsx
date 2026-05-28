@@ -35,19 +35,19 @@ export default async function VacunasLibretaPage({
   ]);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto pt-6 pb-10 space-y-6">
         {/* Back link */}
         <Link
           href={`/mis-mascotas/${publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver a {pet.name}
         </Link>
 
         {/* Org-access notice */}
         {accessPath === "org" && access.organization && (
-          <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+          <div className="rounded border border-gob-info bg-gob-info/10 px-3 py-2 text-sm text-gob-azul-link   ">
             Estás viendo la libreta de {pet.name} como miembro de{" "}
             <strong>{access.organization.displayName}</strong>. Vista de solo lectura.
           </div>
@@ -55,10 +55,10 @@ export default async function VacunasLibretaPage({
 
         {/* Header */}
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
             Libreta de vacunas — {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+          <p className="text-sm text-gob-text-gray  mt-1">
             Historial completo de vacunaciones y próximos vencimientos.
           </p>
         </header>

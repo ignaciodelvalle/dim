@@ -34,10 +34,8 @@ export default async function OrganizacionesPage({
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Organizaciones
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Organizaciones</h1>
+          <p className="text-sm text-gob-text-gray ">
             {profile.role === "admin"
               ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
               : `Buscá entre las orgs en tus ${jurisdictions.length} localidad${jurisdictions.length === 1 ? "" : "es"}.`}
@@ -50,17 +48,17 @@ export default async function OrganizacionesPage({
             name="q"
             defaultValue={query}
             placeholder="Buscar por nombre, razón social o CUIT"
-            className="flex-1 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="flex-1 text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           />
           <button
             type="submit"
-            className="text-sm px-3 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:opacity-90"
+            className="text-sm px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90"
           >
             Buscar
           </button>
         </form>
 
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-xs text-gob-text-muted ">
           {results.length === 0
             ? query
               ? "Sin resultados."
@@ -79,24 +77,22 @@ export default async function OrganizacionesPage({
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-0.5">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                      {o.displayName}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <p className="text-sm font-medium text-gob-text ">{o.displayName}</p>
+                    <p className="text-xs text-gob-text-muted ">
                       {o.legalName} · {ORG_TYPE_LABELS[o.orgType] ?? o.orgType}
                       {o.cuit && ` · CUIT ${o.cuit}`}
                     </p>
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-600">
+                    <p className="text-[10px] text-gob-text-muted ">
                       {o.jurisdictionLocality ?? "—"}, {o.jurisdictionProvince ?? "—"}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {o.verified ? (
-                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-gob-success/10 text-gob-success  ">
                         Verificada
                       </span>
                     ) : (
-                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-gob-warning/10 text-gob-warning-text  ">
                         Pendiente
                       </span>
                     )}
@@ -116,11 +112,8 @@ export default async function OrganizacionesPage({
           }}
         />
 
-        <p className="text-xs text-neutral-500 dark:text-neutral-500">
-          <Link
-            href="/gob"
-            className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
-          >
+        <p className="text-xs text-gob-text-muted ">
+          <Link href="/gob" className="underline underline-offset-4 hover:text-gob-text-gray ">
             ← Volver al dashboard
           </Link>
         </p>

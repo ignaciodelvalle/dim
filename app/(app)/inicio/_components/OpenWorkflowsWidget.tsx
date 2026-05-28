@@ -11,14 +11,14 @@ export function OpenWorkflowsWidget({ items }: { items: WorkflowItem[] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
+        <h2 className="text-lg font-medium text-gob-text ">
           Procesos abiertos
           {items.length > 0 && (
-            <span className="ml-2 text-xs font-normal text-neutral-500">({items.length})</span>
+            <span className="ml-2 text-xs font-normal text-gob-text-muted">({items.length})</span>
           )}
         </h2>
         {hasMore && (
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-gob-text-muted">
             Mostrando los {MAX_VISIBLE} más recientes
           </span>
         )}

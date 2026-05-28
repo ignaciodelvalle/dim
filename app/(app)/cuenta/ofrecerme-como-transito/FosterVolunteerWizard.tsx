@@ -152,8 +152,8 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
       {/* Status banner + pause/withdraw lives above the wizard — these are
           "out of band" actions that don't fit a linear flow. */}
       {initial && initial.status === "active" && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30 p-3 text-sm flex flex-wrap items-center justify-between gap-3">
-          <p className="text-emerald-900 dark:text-emerald-100">
+        <div className="rounded-lg border border-gob-success bg-gob-success/10   p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+          <p className="text-gob-success ">
             Estás inscripto · <strong>{initial.availableSlots}</strong> slot(s) disponible(s)
           </p>
           <div className="flex gap-2">
@@ -161,7 +161,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
               type="button"
               onClick={() => submit("update_preferences_only", "paused")}
               disabled={pending}
-              className="px-3 py-1.5 rounded text-xs border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+              className="px-3 py-1.5 rounded text-xs border border-gob-border-strong  hover:bg-gob-surface-alt "
             >
               Pausar
             </button>
@@ -169,7 +169,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
               type="button"
               onClick={withdraw}
               disabled={pending}
-              className="px-3 py-1.5 rounded text-xs border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
+              className="px-3 py-1.5 rounded text-xs border border-gob-danger text-gob-danger   hover:bg-gob-danger/10 "
             >
               Salir del pool
             </button>
@@ -177,22 +177,22 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         </div>
       )}
       {initial && initial.status === "paused" && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm flex flex-wrap items-center justify-between gap-3">
-          <p className="text-amber-900 dark:text-amber-100">
+        <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+          <p className="text-gob-warning-text ">
             Tu inscripción está <strong>pausada</strong>. No recibís propuestas nuevas.
           </p>
           <button
             type="button"
             onClick={() => submit("update_preferences_only", "active")}
             disabled={pending}
-            className="px-3 py-1.5 rounded text-xs bg-emerald-600 text-white"
+            className="px-3 py-1.5 rounded text-xs bg-gob-success text-white"
           >
             Reactivar
           </button>
         </div>
       )}
       {isWithdrawn && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-100">
+        <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-sm text-gob-warning-text ">
           Saliste del pool antes. Re-inscribirte va a sumar un slot fresh.
         </div>
       )}
@@ -212,7 +212,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           {/* Step 1 — Disponibilidad */}
           <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
             <div className="space-y-2">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="text-sm text-gob-text-gray ">
                 ¿Dónde estás y por cuánto tiempo podés alojar un animal?
               </p>
             </div>
@@ -233,7 +233,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                   setLocality(result?.localityName ?? "");
                 }}
               />
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="mt-1 text-xs text-gob-text-muted">
                 La provincia se deduce de la localidad que elijas.
               </p>
             </div>
@@ -249,9 +249,9 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 value={maxDurationWeeks}
                 onChange={(e) => setMaxDurationWeeks(e.target.value)}
                 placeholder="Ej: 8"
-                className="w-32 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950"
+                className="w-32 px-3 py-2 rounded-lg border border-gob-border-strong  bg-white "
               />
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-gob-text-muted">
                 Dejalo vacío si podés acompañar el tránsito hasta el fin.
               </p>
             </div>
@@ -259,7 +259,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 transition-colors"
+              className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary transition-colors"
             >
               Continuar
             </button>
@@ -268,9 +268,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           {/* Step 2 — Preferencias */}
           <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                Especies que aceptás
-              </legend>
+              <legend className="text-sm font-medium text-gob-text ">Especies que aceptás</legend>
               <CheckboxRow label="Perros" checked={acceptsDogs} onChange={setAcceptsDogs} />
               <CheckboxRow label="Gatos" checked={acceptsCats} onChange={setAcceptsCats} />
               <CheckboxRow
@@ -281,7 +279,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             </fieldset>
 
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+              <legend className="text-sm font-medium text-gob-text ">
                 Tamaño (solo aplica a perros)
               </legend>
               <CheckboxRow
@@ -302,9 +300,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             </fieldset>
 
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                Edad
-              </legend>
+              <legend className="text-sm font-medium text-gob-text ">Edad</legend>
               <CheckboxRow
                 label="Cachorros (<4 meses)"
                 checked={acceptsPuppies}
@@ -318,9 +314,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             </fieldset>
 
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                Otras condiciones
-              </legend>
+              <legend className="text-sm font-medium text-gob-text ">Otras condiciones</legend>
               <CheckboxRow
                 label="Animales con condiciones crónicas"
                 checked={acceptsChronicConditions}
@@ -332,7 +326,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 onChange={setAcceptsDangerousBreeds}
               />
               {acceptsDangerousBreeds && (
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 pl-6">
+                <p className="text-xs text-gob-text-gray  pl-6">
                   Aclaración: la responsabilidad civil por daños permanece en quien ejerce custodia
                   mientras el animal esté en tránsito.
                 </p>
@@ -342,7 +336,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 transition-colors"
+              className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary transition-colors"
             >
               Continuar
             </button>
@@ -351,9 +345,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           {/* Step 3 — Hogar + Submit */}
           <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                Hogar (opcional)
-              </legend>
+              <legend className="text-sm font-medium text-gob-text ">Hogar (opcional)</legend>
               <TriStateRow
                 label="¿Tenés otros animales en casa?"
                 value={householdOtherPets}
@@ -376,23 +368,17 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 placeholder="Algo que quieras que sepan: experiencia previa, horarios, etc."
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950"
+                className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white "
               />
             </div>
 
-            {error && (
-              <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>
-            )}
-            {okMessage && (
-              <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-                {okMessage}
-              </output>
-            )}
+            {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+            {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
 
             <button
               type="submit"
               disabled={pending}
-              className="w-full px-4 py-3 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50 transition-colors"
             >
               {pending
                 ? "Guardando..."
@@ -422,9 +408,9 @@ function CheckboxRow({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-neutral-300"
+        className="h-4 w-4 rounded border-gob-border-strong"
       />
-      <span className="text-neutral-800 dark:text-neutral-200">{label}</span>
+      <span className="text-gob-text ">{label}</span>
     </label>
   );
 }
@@ -440,7 +426,7 @@ function TriStateRow({
 }) {
   return (
     <div className="flex items-center gap-3 text-sm">
-      <span className="flex-1 text-neutral-800 dark:text-neutral-200">{label}</span>
+      <span className="flex-1 text-gob-text ">{label}</span>
       <div className="flex gap-2">
         {(
           [
@@ -455,8 +441,8 @@ function TriStateRow({
             onClick={() => onChange(opt.v)}
             className={`px-2 py-1 rounded border text-xs ${
               value === opt.v
-                ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-50 dark:bg-neutral-50 dark:text-neutral-900"
-                : "border-neutral-300 dark:border-neutral-700"
+                ? "border-gob-border-strong bg-gob-primary text-white   "
+                : "border-gob-border-strong "
             }`}
           >
             {opt.l}

@@ -28,31 +28,27 @@ function formatRelative(date: Date | null): string {
  */
 export function LostPetRow({ pet }: LostPetRowProps) {
   return (
-    <li className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3">
+    <li className="rounded-lg border border-gob-border  px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              {pet.petName}
-            </p>
+            <p className="text-sm font-medium text-gob-text ">{pet.petName}</p>
             <Badge variant="neutral">{pet.species}</Badge>
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="text-xs text-gob-text-muted ">
             {pet.locality ?? "—"}, {pet.province ?? "—"}
           </p>
           {pet.ownerDisplayName && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              Dueño/a: {pet.ownerDisplayName}
-            </p>
+            <p className="text-xs text-gob-text-muted ">Dueño/a: {pet.ownerDisplayName}</p>
           )}
           {pet.lastSeenLat != null && pet.lastSeenLng != null && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            <p className="text-xs text-gob-text-muted ">
               Última ubicación:{" "}
               <a
                 href={`https://www.openstreetmap.org/?mlat=${pet.lastSeenLat}&mlon=${pet.lastSeenLng}#map=16/${pet.lastSeenLat}/${pet.lastSeenLng}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
+                className="underline underline-offset-2 hover:text-gob-text "
               >
                 {pet.lastSeenLat.toFixed(4)}, {pet.lastSeenLng.toFixed(4)}
               </a>
@@ -60,12 +56,12 @@ export function LostPetRow({ pet }: LostPetRowProps) {
           )}
         </div>
         <div className="text-right space-y-1 whitespace-nowrap">
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
+          <p className="text-xs text-gob-text-muted  tabular-nums">
             {formatRelative(pet.markedLostAt)}
           </p>
           <Link
             href={`/p/${pet.petPublicToken}`}
-            className="inline-block text-xs underline underline-offset-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="inline-block text-xs underline underline-offset-2 text-gob-text-gray  hover:text-gob-text "
           >
             Ver credencial
           </Link>

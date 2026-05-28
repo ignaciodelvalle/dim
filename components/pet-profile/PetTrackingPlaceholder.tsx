@@ -18,18 +18,16 @@ export function PetTrackingPlaceholder({ href }: Props) {
   return (
     <Link
       href={href}
-      className="block rounded-2xl border border-dashed border-emerald-500 bg-gradient-to-br from-emerald-50 to-blue-50 p-5 text-center transition-colors hover:from-emerald-100 hover:to-blue-100 dark:from-emerald-950/30 dark:to-blue-950/30 dark:hover:from-emerald-950/50 dark:hover:to-blue-950/50"
+      className="block rounded-2xl border border-dashed border-gob-success bg-gradient-to-br from-emerald-50 to-blue-50 p-5 text-center transition-colors hover:from-emerald-100 hover:to-blue-100    "
     >
       <p className="mb-1 text-3xl" aria-hidden>
         📍
       </p>
-      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-        Seguí a tu mascota en tiempo real
-      </p>
-      <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm font-semibold text-gob-text ">Seguí a tu mascota en tiempo real</p>
+      <p className="mt-1 text-xs text-gob-text-gray ">
         Conectá un dispositivo de tracking GPS para ver ubicación y zonas seguras.
       </p>
-      <span className="mt-3 inline-block rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white">
+      <span className="mt-3 inline-block rounded-full bg-gob-success px-4 py-1.5 text-xs font-semibold text-white">
         Conectar dispositivo
       </span>
     </Link>

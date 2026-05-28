@@ -25,7 +25,7 @@ const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Tipo", "Capacidad", "Elegibilidad"];
 
 const inputCls =
-  "w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500";
+  "w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary";
 
 export function ServiceOfferingForm({
   serviceKinds,
@@ -51,7 +51,7 @@ export function ServiceOfferingForm({
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {state.error && (
-          <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+          <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
             {state.error}
           </p>
         )}
@@ -60,7 +60,7 @@ export function ServiceOfferingForm({
         <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
           <div className="space-y-1">
             <label htmlFor="serviceKind" className="block text-sm font-medium">
-              Tipo de servicio <span className="text-red-500">*</span>
+              Tipo de servicio <span className="text-gob-danger">*</span>
             </label>
             <select id="serviceKind" name="serviceKind" required className={inputCls}>
               <option value="">— Seleccioná un tipo —</option>
@@ -74,7 +74,7 @@ export function ServiceOfferingForm({
 
           <div className="space-y-1">
             <label htmlFor="displayName" className="block text-sm font-medium">
-              Nombre del servicio <span className="text-red-500">*</span>
+              Nombre del servicio <span className="text-gob-danger">*</span>
             </label>
             <input
               id="displayName"
@@ -90,7 +90,7 @@ export function ServiceOfferingForm({
 
           <div className="space-y-1">
             <label htmlFor="description" className="block text-sm font-medium">
-              Descripción <span className="text-neutral-400 font-normal">(opcional)</span>
+              Descripción <span className="text-gob-text-muted font-normal">(opcional)</span>
             </label>
             <textarea
               id="description"
@@ -105,7 +105,7 @@ export function ServiceOfferingForm({
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-5 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm font-medium"
+            className="w-full px-5 py-3 rounded bg-gob-primary text-white   text-sm font-medium"
           >
             Continuar
           </button>
@@ -116,7 +116,7 @@ export function ServiceOfferingForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label htmlFor="durationMinutes" className="block text-sm font-medium">
-                Duración (minutos) <span className="text-red-500">*</span>
+                Duración (minutos) <span className="text-gob-danger">*</span>
               </label>
               <input
                 id="durationMinutes"
@@ -131,7 +131,7 @@ export function ServiceOfferingForm({
             </div>
             <div className="space-y-1">
               <label htmlFor="slotCapacity" className="block text-sm font-medium">
-                Capacidad por turno <span className="text-red-500">*</span>
+                Capacidad por turno <span className="text-gob-danger">*</span>
               </label>
               <input
                 id="slotCapacity"
@@ -149,7 +149,7 @@ export function ServiceOfferingForm({
           <div className="space-y-1">
             <label htmlFor="priceArs" className="block text-sm font-medium">
               Precio (ARS){" "}
-              <span className="text-neutral-400 font-normal">— vacío para campaña gratuita</span>
+              <span className="text-gob-text-muted font-normal">— vacío para campaña gratuita</span>
             </label>
             <input
               id="priceArs"
@@ -165,7 +165,7 @@ export function ServiceOfferingForm({
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-5 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm font-medium"
+            className="w-full px-5 py-3 rounded bg-gob-primary text-white   text-sm font-medium"
           >
             Continuar
           </button>
@@ -190,7 +190,8 @@ export function ServiceOfferingForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label htmlFor="eligibilityAgeMinMonths" className="block text-sm font-medium">
-                Edad mínima (meses) <span className="text-neutral-400 font-normal">(opcional)</span>
+                Edad mínima (meses){" "}
+                <span className="text-gob-text-muted font-normal">(opcional)</span>
               </label>
               <input
                 id="eligibilityAgeMinMonths"
@@ -204,7 +205,8 @@ export function ServiceOfferingForm({
             </div>
             <div className="space-y-1">
               <label htmlFor="eligibilityAgeMaxMonths" className="block text-sm font-medium">
-                Edad máxima (meses) <span className="text-neutral-400 font-normal">(opcional)</span>
+                Edad máxima (meses){" "}
+                <span className="text-gob-text-muted font-normal">(opcional)</span>
               </label>
               <input
                 id="eligibilityAgeMaxMonths"
@@ -222,13 +224,13 @@ export function ServiceOfferingForm({
             <button
               type="submit"
               disabled={isPending}
-              className="flex-1 px-5 py-3 rounded bg-emerald-600 text-white text-sm font-medium disabled:opacity-50"
+              className="flex-1 px-5 py-3 rounded bg-gob-success text-white text-sm font-medium disabled:opacity-50"
             >
               {isPending ? "Enviando…" : "Crear servicio"}
             </button>
             <a
               href={`/org/${orgToken}/servicios`}
-              className="text-sm text-neutral-600 underline dark:text-neutral-400"
+              className="text-sm text-gob-text-gray underline "
             >
               Cancelar
             </a>

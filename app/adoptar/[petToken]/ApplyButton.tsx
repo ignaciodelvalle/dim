@@ -35,7 +35,7 @@ export function ApplyButton({ petToken, petName }: { petToken: string; petName: 
           type="button"
           onClick={onClick}
           disabled={pending}
-          className="block w-full text-center px-6 py-4 rounded-lg bg-emerald-600 text-white text-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60"
+          className="block w-full text-center px-6 py-4 rounded-lg bg-gob-success text-white text-lg font-semibold hover:bg-gob-success transition-colors disabled:opacity-60"
         >
           {buttonLabel}
         </button>
@@ -44,12 +44,12 @@ export function ApplyButton({ petToken, petName }: { petToken: string; petName: 
 
       {/* Mobile-only sticky CTA at the viewport bottom. Hidden on desktop
           where the inline button above is already in view. */}
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur border-t border-neutral-200 dark:bg-neutral-950/95 dark:border-neutral-800">
+      <div className="md:hidden fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur border-t border-gob-border  ">
         <button
           type="button"
           onClick={onClick}
           disabled={pending}
-          className="block w-full text-center px-5 py-3 rounded-xl bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+          className="block w-full text-center px-5 py-3 rounded-xl bg-gob-success text-white text-base font-semibold hover:bg-gob-success transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-success focus-visible:ring-offset-2"
         >
           {pending ? "Procesando..." : `Postularme a ${petName}`}
         </button>

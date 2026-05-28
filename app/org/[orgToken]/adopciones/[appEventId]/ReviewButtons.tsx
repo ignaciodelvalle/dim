@@ -47,14 +47,14 @@ export function ReviewButtons({
         <button
           type="button"
           onClick={() => setMode("approve")}
-          className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+          className="px-4 py-2 rounded-lg bg-gob-success text-white text-sm font-medium hover:bg-gob-success"
         >
           Aprobar postulación
         </button>
         <button
           type="button"
           onClick={() => setMode("reject")}
-          className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-900"
+          className="px-4 py-2 rounded-lg border border-gob-border-strong  text-sm font-medium hover:bg-gob-surface-alt "
         >
           No avanzar
         </button>
@@ -63,13 +63,13 @@ export function ReviewButtons({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-neutral-300 dark:border-neutral-700 p-4">
-      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+    <div className="space-y-3 rounded-lg border border-gob-border-strong  p-4">
+      <p className="text-sm font-medium text-gob-text ">
         {mode === "approve"
           ? `Aprobar la postulación de ${applicantName}.`
           : `No avanzar con la postulación de ${applicantName}.`}
       </p>
-      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+      <p className="text-xs text-gob-text-gray ">
         {mode === "approve"
           ? "El postulante recibe una notificación y un mail. La adopción se concreta cuando finalices en su ficha."
           : "El postulante recibe una notificación. Las notas son opcionales."}
@@ -79,9 +79,9 @@ export function ReviewButtons({
         onChange={(e) => setNotes(e.target.value)}
         rows={3}
         placeholder={mode === "approve" ? "Notas internas (opcional)" : "Motivo (opcional)"}
-        className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+        className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
       />
-      {error && <output className="block text-sm text-red-700 dark:text-red-300">{error}</output>}
+      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
@@ -89,8 +89,8 @@ export function ReviewButtons({
           disabled={pending}
           className={`px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60 ${
             mode === "approve"
-              ? "bg-emerald-600 text-white hover:bg-emerald-700"
-              : "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900"
+              ? "bg-gob-success text-white hover:bg-gob-success"
+              : "bg-gob-primary  text-white "
           }`}
         >
           {pending ? "Procesando..." : mode === "approve" ? "Confirmar aprobación" : "Confirmar"}
@@ -103,7 +103,7 @@ export function ReviewButtons({
             setNotes("");
           }}
           disabled={pending}
-          className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium"
+          className="px-4 py-2 rounded-lg border border-gob-border-strong  text-sm font-medium"
         >
           Cancelar
         </button>

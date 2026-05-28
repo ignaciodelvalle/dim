@@ -183,23 +183,19 @@ export function PerformedByCombobox({
       />
 
       {selected ? (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-700 dark:bg-emerald-950/40">
-          <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-            {selected.displayName}
-          </span>
+        <div className="flex items-center gap-2 rounded-lg border border-gob-success bg-gob-success/10 px-3 py-2  ">
+          <span className="text-sm font-medium text-gob-success ">{selected.displayName}</span>
           {selected.kind === "organization" ? (
-            <span className="text-xs text-emerald-700 dark:text-emerald-300">
+            <span className="text-xs text-gob-success ">
               ✓ {ORG_TYPE_LABELS[selected.orgType] ?? selected.orgType} verificada
             </span>
           ) : (
-            <span className="text-xs text-emerald-700 dark:text-emerald-300">
-              ✓ Vet matriculado
-            </span>
+            <span className="text-xs text-gob-success ">✓ Vet matriculado</span>
           )}
           <button
             type="button"
             onClick={clearSelection}
-            className="ml-auto text-xs text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
+            className="ml-auto text-xs text-gob-success hover:text-gob-success  "
           >
             ✕ Limpiar
           </button>
@@ -228,12 +224,12 @@ export function PerformedByCombobox({
             aria-expanded={open}
           />
           {pending && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gob-text-muted">
               …
             </span>
           )}
           {open && suggestions.length > 0 && (
-            <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-neutral-200 bg-white shadow-lg dark:border-neutral-800 dark:bg-neutral-950">
+            <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gob-border bg-white shadow-lg  ">
               {suggestions.map((s, i) => (
                 <li key={`${s.kind}-${s.id}`}>
                   <button
@@ -243,15 +239,11 @@ export function PerformedByCombobox({
                       selectSuggestion(s);
                     }}
                     className={`block w-full px-3 py-2 text-left ${
-                      i === activeIdx
-                        ? "bg-neutral-100 dark:bg-neutral-800"
-                        : "hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                      i === activeIdx ? "bg-gob-surface-alt " : "hover:bg-gob-surface-alt "
                     }`}
                   >
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                      {s.displayName}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    <p className="text-sm font-medium text-gob-text ">{s.displayName}</p>
+                    <p className="text-xs text-gob-text-muted ">
                       {s.kind === "organization"
                         ? `${ORG_TYPE_LABELS[s.orgType] ?? s.orgType}${s.jurisdictionLocality ? ` · ${s.jurisdictionLocality}` : ""}`
                         : `Vet matriculado${s.matriculaJurisdiccion ? ` · ${s.matriculaJurisdiccion}` : ""}`}
@@ -262,12 +254,12 @@ export function PerformedByCombobox({
             </ul>
           )}
           {showNoResults && (
-            <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+            <p className="mt-1 text-xs text-gob-text-gray ">
               Sin coincidencias. Tu texto se guardará tal cual como referencia libre.
             </p>
           )}
           {errored && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            <p className="mt-1 text-xs text-gob-warning-text ">
               No pudimos buscar ahora. Podés seguir tipeando — se guarda como texto libre.
             </p>
           )}

@@ -36,19 +36,17 @@ export default async function MostrarLibretaPage({
   const revoke = revokeTier2PublicAction.bind(null, publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-6">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver a {pet.name}
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Mostrar Libreta
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">Mostrar Libreta</h1>
         </header>
 
         <Tier2PublicView

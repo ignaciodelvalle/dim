@@ -21,18 +21,16 @@ const ROLE_LABELS: Record<string, string> = {
 function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
   const roleLabel = ROLE_LABELS[role] ?? role;
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-4">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver al perfil
         </Link>
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-          Devolución de {pet.name}
-        </h1>
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+        <h1 className="text-2xl font-semibold text-gob-text ">Devolución de {pet.name}</h1>
+        <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 text-sm text-gob-warning-text  space-y-2">
           <p className="font-medium">Aceptar una devolución es acción del dueño legal.</p>
           <p>
             Tu vínculo actual con <strong>{pet.name}</strong> es de <strong>{roleLabel}</strong>. Si
@@ -102,15 +100,15 @@ export default async function DevolucionPage({
 
   if (!isPending) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Sin propuestas pendientes</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             No hay propuestas de devolución activas para {pet.name}.
           </p>
           <Link
             href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver a mis mascotas
           </Link>
@@ -148,11 +146,11 @@ export default async function DevolucionPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-lg mx-auto space-y-6">
         <header className="space-y-1">
           <h1 className="text-3xl font-semibold">Devolución de {pet.name}</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Alguien tiene a {pet.name} y quiere devolvértela. Confirmá cuando la tengas físicamente.
           </p>
         </header>
@@ -166,11 +164,8 @@ export default async function DevolucionPage({
           backUrl="/mis-mascotas"
         />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href="/mis-mascotas"
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border ">
+          <Link href="/mis-mascotas" className="text-sm text-gob-text-gray underline ">
             ← Volver a mis mascotas
           </Link>
         </footer>
