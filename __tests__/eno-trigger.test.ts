@@ -513,7 +513,10 @@ describe("processEnoEventTrigger", () => {
         sex: "female",
         status: "active",
         jurisdictionCountry: "AR",
-        jurisdictionProvince: "ENO_TEST_UNASSIGNED_PROVINCE",
+        // Real canonical province (CHECK constraint, migration 0055), but a
+        // synthetic locality nobody covers — the point of this test is "no
+        // govt in scope", and govt assignments live at (province, locality).
+        jurisdictionProvince: "Tierra del Fuego",
         jurisdictionLocality: "ENO_TEST_UNASSIGNED_LOCALITY",
       })
       .returning();

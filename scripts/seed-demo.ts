@@ -220,9 +220,7 @@ export const ORGS = {
     phone: "+54 9 11 5555-3002",
     jurisdictionProvince: "CABA",
     jurisdictionLocality: "Recoleta",
-    coverage: [
-      { province: "CABA", locality: "Recoleta", isPrimary: true },
-    ],
+    coverage: [{ province: "CABA", locality: "Recoleta", isPrimary: true }],
     verified: true,
   },
   "rescate-puerto-madero": {
@@ -266,9 +264,7 @@ export const ORGS = {
     phone: "+54 9 11 5555-3005",
     jurisdictionProvince: "CABA",
     jurisdictionLocality: "Recoleta",
-    coverage: [
-      { province: "CABA", locality: "Recoleta", isPrimary: true },
-    ],
+    coverage: [{ province: "CABA", locality: "Recoleta", isPrimary: true }],
     verified: false, // pending in /admin queue
   },
 } as const;

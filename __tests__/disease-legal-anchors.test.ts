@@ -29,7 +29,7 @@ describe("getLegalAnchorsForDisease — jurisdiction filter", () => {
   it("CABA rabies returns the CABA ord. 41.831", () => {
     const result = getLegalAnchorsForDisease("rabies_confirmed", {
       country: "AR",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Palermo",
     });
     expect(result.some((r) => r.id === "ord_caba_41831_87")).toBe(true);

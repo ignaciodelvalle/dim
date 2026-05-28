@@ -25,7 +25,7 @@ vi.mock("@/lib/auth-guards", () => ({
 
 describe("CABA_PROVINCE", () => {
   it("is a non-empty string matching the canonical CABA name", () => {
-    expect(CABA_PROVINCE).toBe("Ciudad Autónoma de Buenos Aires");
+    expect(CABA_PROVINCE).toBe("CABA");
   });
 });
 
@@ -42,7 +42,7 @@ describe("generatePppCabaPdf — smoke render", () => {
       ownerDisplayName: "María López",
       ownerDniNumber: "30123456",
       ownerEmail: "maria@example.com",
-      jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+      jurisdictionProvince: "CABA",
       jurisdictionLocality: "Palermo",
       exportGeneratedAt: new Date().toLocaleString("es-AR"),
     };
@@ -64,7 +64,7 @@ describe("generatePppCabaPdf — smoke render", () => {
       ownerDisplayName: "Carlos García",
       ownerDniNumber: null,
       ownerEmail: "carlos@example.com",
-      jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+      jurisdictionProvince: "CABA",
       jurisdictionLocality: null,
       exportGeneratedAt: new Date().toLocaleString("es-AR"),
     };
@@ -151,7 +151,7 @@ beforeAll(async () => {
       sex: "male",
       breed: "Pit Bull Terrier",
       potentiallyDangerousBreed: true,
-      jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+      jurisdictionProvince: "CABA",
       jurisdictionLocality: "Palermo",
     })
     .returning();

@@ -147,8 +147,8 @@ describe("fetchSurveillanceSignals", () => {
     const petCABA = await insertFixturePet({
       name: "PetCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
     });
     const petBA = await insertFixturePet({
       name: "PetBA",
@@ -159,8 +159,8 @@ describe("fetchSurveillanceSignals", () => {
     await emitOutbreakSignal({
       petId: petCABA,
       diseaseCode: "rabies_suspected",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
       hoursAgo: 1,
     });
     await emitOutbreakSignal({
@@ -184,8 +184,8 @@ describe("fetchSurveillanceSignals", () => {
     const petCABA = await insertFixturePet({
       name: "PetCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
     });
     const petLP = await insertFixturePet({
       name: "PetLP",
@@ -196,8 +196,8 @@ describe("fetchSurveillanceSignals", () => {
     await emitOutbreakSignal({
       petId: petCABA,
       diseaseCode: "rabies_suspected",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
       hoursAgo: 1,
     });
     await emitOutbreakSignal({
@@ -213,15 +213,15 @@ describe("fetchSurveillanceSignals", () => {
       { role: "govt" },
       [
         {
-          province: "Ciudad Autónoma de Buenos Aires",
-          locality: "Ciudad Autónoma de Buenos Aires",
+          province: "CABA",
+          locality: "CABA",
         },
       ],
       { since },
     );
     expect(r.length).toBeGreaterThanOrEqual(1);
     for (const s of r) {
-      expect(s.province).toBe("Ciudad Autónoma de Buenos Aires");
+      expect(s.province).toBe("CABA");
     }
   });
 
@@ -343,8 +343,8 @@ describe("fetchLostPets", () => {
     const a = await insertFixturePet({
       name: "Lost-CABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
     });
     const b = await insertFixturePet({
       name: "Lost-LP",
@@ -365,8 +365,8 @@ describe("fetchLostPets", () => {
     const a = await insertFixturePet({
       name: "Lost-CABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
     });
     const b = await insertFixturePet({
       name: "Lost-LP",
@@ -517,8 +517,8 @@ describe("fetchVigilanciaMetrics", () => {
     const petCABA = await insertFixturePet({
       name: "ScopeCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
     });
     const petBA = await insertFixturePet({
       name: "ScopeBA",
@@ -529,8 +529,8 @@ describe("fetchVigilanciaMetrics", () => {
     await emitOutbreakSignal({
       petId: petCABA,
       diseaseCode: "rabies_suspected",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
       hoursAgo: 1,
     });
     await emitOutbreakSignal({
@@ -543,7 +543,7 @@ describe("fetchVigilanciaMetrics", () => {
 
     const adminMetrics = await fetchVigilanciaMetrics({ role: "admin" }, []);
     const govtMetrics = await fetchVigilanciaMetrics({ role: "govt" }, [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Ciudad Autónoma de Buenos Aires" },
+      { province: "CABA", locality: "CABA" },
     ]);
 
     // Admin sees both; govt sees only CABA.
@@ -639,7 +639,7 @@ describe("fetchCasesPerLocality", () => {
     const petCABA = await insertFixturePet({
       name: "LocalityCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Palermo",
     });
     const petLP = await insertFixturePet({
@@ -651,7 +651,7 @@ describe("fetchCasesPerLocality", () => {
     await insertFixtureCase({
       caseKind: "welfare_denuncia",
       status: "open",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Palermo",
       petId: petCABA,
     });
@@ -664,12 +664,10 @@ describe("fetchCasesPerLocality", () => {
     });
 
     const rows = await fetchCasesPerLocality({ role: "govt" }, [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Palermo" },
+      { province: "CABA", locality: "Palermo" },
     ]);
 
-    const cabaRow = rows.find(
-      (r) => r.province === "Ciudad Autónoma de Buenos Aires" && r.locality === "Palermo",
-    );
+    const cabaRow = rows.find((r) => r.province === "CABA" && r.locality === "Palermo");
     const lpRow = rows.find((r) => r.province === "Buenos Aires" && r.locality === "La Plata");
 
     expect(cabaRow).toBeDefined();
@@ -700,21 +698,19 @@ describe("fetchCasesPerLocality", () => {
     const petCABA = await insertFixturePet({
       name: "ISOPetCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Recoleta",
     });
     await insertFixtureCase({
       caseKind: "welfare_denuncia",
       status: "open",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Recoleta",
       petId: petCABA,
     });
 
     const rows2 = await fetchCasesPerLocality({ role: "admin" }, []);
-    const cabaRow = rows2.find(
-      (r) => r.province === "Ciudad Autónoma de Buenos Aires" && r.locality === "Recoleta",
-    );
+    const cabaRow = rows2.find((r) => r.province === "CABA" && r.locality === "Recoleta");
     expect(cabaRow?.code).toBe("AR-C");
   });
 });
@@ -764,8 +760,8 @@ describe("fetchZoonosisTrend", () => {
     const petCABA = await insertFixturePet({
       name: "TrendCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
     });
     const petBA = await insertFixturePet({
       name: "TrendBA",
@@ -776,8 +772,8 @@ describe("fetchZoonosisTrend", () => {
     await emitOutbreakSignal({
       petId: petCABA,
       diseaseCode: "rabies_suspected",
-      province: "Ciudad Autónoma de Buenos Aires",
-      locality: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
+      locality: "CABA",
       hoursAgo: 1,
     });
     await emitOutbreakSignal({
@@ -791,8 +787,8 @@ describe("fetchZoonosisTrend", () => {
     const adminTrend = await fetchZoonosisTrend({ role: "admin" }, []);
     const govtTrend = await fetchZoonosisTrend({ role: "govt" }, [
       {
-        province: "Ciudad Autónoma de Buenos Aires",
-        locality: "Ciudad Autónoma de Buenos Aires",
+        province: "CABA",
+        locality: "CABA",
       },
     ]);
 
@@ -875,7 +871,7 @@ describe("fetchPerdidasMetrics", () => {
     const petCABA = await insertFixturePet({
       name: "ScopeLostCABA",
       species: "dog",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "Palermo",
     });
     const petLP = await insertFixturePet({
@@ -889,7 +885,7 @@ describe("fetchPerdidasMetrics", () => {
 
     // Govt scoped only to CABA/Palermo.
     const m = await fetchPerdidasMetrics({ role: "govt" }, [
-      { province: "Ciudad Autónoma de Buenos Aires", locality: "Palermo" },
+      { province: "CABA", locality: "Palermo" },
     ]);
     // La Plata pet must not inflate the count.
     const adminM = await fetchPerdidasMetrics({ role: "admin" }, []);

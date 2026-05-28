@@ -77,7 +77,7 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
   },
   {
     kind: "bite_incident",
-    jurisdiction: { country: "AR", province: "Ciudad Autónoma de Buenos Aires" },
+    jurisdiction: { country: "AR", province: "CABA" },
     laws: [
       {
         id: "ord_caba_41831_1987",
@@ -117,7 +117,7 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
   },
   {
     kind: "welfare_denuncia",
-    jurisdiction: { country: "AR", province: "Ciudad Autónoma de Buenos Aires" },
+    jurisdiction: { country: "AR", province: "CABA" },
     laws: [
       {
         id: "caba_mpf_pipeline",

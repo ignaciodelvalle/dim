@@ -22,8 +22,10 @@ import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb 
 
 export const PPP_EXPORT_SCHEMA_VERSION = "2026-05-21";
 
-// CABA jurisdiction constant — used for validation.
-export const CABA_PROVINCE = "Ciudad Autónoma de Buenos Aires";
+// CABA jurisdiction constant — used for validation. Canonical display name
+// per PROVINCES in lib/ar-provincias.ts (CHECK constraint enforces this since
+// migration 0055).
+export const CABA_PROVINCE = "CABA";
 
 // ---------------------------------------------------------------------------
 // DTO types

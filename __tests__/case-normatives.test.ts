@@ -37,7 +37,7 @@ describe("getNormativesForCase — hierarchy", () => {
   it("CABA bite_incident surfaces Ordenanza 41.831", () => {
     const result = getNormativesForCase("bite_incident", {
       country: "AR",
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "CABA",
     });
     const hasOrd = result.some(

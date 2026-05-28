@@ -108,7 +108,7 @@ describe("geocodeAddress — forward", () => {
   it("sends viewbox+bounded=0 when bias.province has a known bounding box", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => [] });
     await geocodeAddress("Plaza Italia", {
-      province: "Ciudad Autónoma de Buenos Aires",
+      province: "CABA",
       locality: "CABA",
     });
     const url = new URL(fetchMock.mock.calls[0][0] as string);
