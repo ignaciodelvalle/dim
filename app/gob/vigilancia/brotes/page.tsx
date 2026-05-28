@@ -1,4 +1,5 @@
 import {
+  Checkbox,
   EmptyState,
   JurisdictionSwitcher,
   Panel,
@@ -98,20 +99,17 @@ export default async function GobVigilanciaBrotesPage({
             {/* Preserve existing params */}
             {sp.period && <input type="hidden" name="period" value={sp.period} />}
             {sp.signalId && <input type="hidden" name="signalId" value={sp.signalId} />}
-            <label className="flex items-center gap-2 text-sm text-gob-text cursor-pointer select-none">
-              <input
-                type="checkbox"
-                name="soloVerificados"
-                value="1"
-                defaultChecked={soloVerificados}
-                onChange={(e) => {
-                  // Progressive enhancement: submit form on change
-                  e.currentTarget.form?.submit();
-                }}
-                className="accent-gob-primary"
-              />
+            <Checkbox
+              name="soloVerificados"
+              value="1"
+              defaultChecked={soloVerificados}
+              onChange={(e) => {
+                // Progressive enhancement: submit form on change
+                e.currentTarget.form?.submit();
+              }}
+            >
               Solo verificados institucionalmente
-            </label>
+            </Checkbox>
             {soloVerificados && (
               <a
                 href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}

@@ -18,6 +18,7 @@ import { useId, useRef, useState, useTransition } from "react";
 
 import { revokeVetRoleAction } from "@/app/actions/admin-revocations";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { Checkbox } from "@/components/poncho";
 import { canRevoke } from "@/lib/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
@@ -238,18 +239,12 @@ function RevokeVetForm({
         )}
       </div>
 
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={confirm}
-          onChange={(e) => setConfirm(e.target.checked)}
-          className="mt-0.5 shrink-0"
-        />
+      <Checkbox checked={confirm} onChange={(e) => setConfirm(e.target.checked)}>
         <span className="text-xs text-gob-danger ">
           Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta accion genera
           un registro permanente en el audit log.
         </span>
-      </label>
+      </Checkbox>
 
       {error && <p className="text-xs text-gob-danger ">{error}</p>}
 
