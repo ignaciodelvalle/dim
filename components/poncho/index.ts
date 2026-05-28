@@ -39,8 +39,12 @@ export { ErrorBoundary } from "./ErrorBoundary";
 export { Toaster, toast } from "./Toast";
 
 // Form primitives (Poncho PR-A) — Field + Input/Textarea/Select.
+// Grouped controls (Poncho PR-A.5) — Fieldset + Checkbox/Radio.
 // See components/poncho/README.md → "Forms" section.
 export { Field, type FieldProps, type FieldRenderProps } from "./Field";
 export { Input, type InputProps } from "./Input";
 export { Textarea, type TextareaProps } from "./Textarea";
 export { Select, type SelectProps } from "./Select";
+export { Fieldset, type FieldsetProps } from "./Fieldset";
+export { Checkbox, type CheckboxProps } from "./Checkbox";
+export { Radio, type RadioProps } from "./Radio";

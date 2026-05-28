@@ -101,6 +101,16 @@ trámites only.
   `resize-y` so users can expand for long inputs.
 - [`Select`](./Select.tsx) — native `<select>` with consistent chevron
   (inline SVG bg-image) cross-browser.
+- [`Fieldset`](./Fieldset.tsx) — `<fieldset><legend>` wrapper for grouped
+  controls (radios, checkbox groups). Same help/error/required surface as
+  `<Field>`, but with the canonical HTML grouping element so screen
+  readers announce the group label on each child.
+- [`Checkbox`](./Checkbox.tsx),
+  [`Radio`](./Radio.tsx) — native checkbox/radio with Poncho identity
+  (`accent-gob-primary`). Self-contained: the label is `children` and
+  the component renders the `<label>` wrapper. Use inside `<Fieldset>`
+  for grouped controls, or standalone for single toggles (e.g. "Acepto
+  los términos").
 - [`Wizard/WizardShell`](./Wizard/WizardShell.tsx) — multi-step chrome (rule §3).
 - [`SuccessScreen`](./SuccessScreen.tsx) — trámite closer (rule §4).
 - [`Button`](./Button.tsx) — primary button. Use the four verbs from rule §2.
@@ -128,6 +138,27 @@ When `error` is set on `<Field>`, the help text is hidden, the error
 renders with `role="alert"`, and `invalid` flips to `true` (which the
 control passes to `aria-invalid` + the danger border). No manual ARIA
 wiring needed in the consumer.
+
+For grouped controls use `<Fieldset>` instead — same surface, but a
+`<fieldset><legend>` underneath:
+
+```tsx
+<Fieldset legend="Procedimiento" required error={state.procedureError ?? undefined}>
+  <Radio name="procedure" value="castration" required>Castración</Radio>
+  <Radio name="procedure" value="spay">Ovariectomía</Radio>
+</Fieldset>
+
+<Fieldset legend="Vacunas aplicadas" help="Marcá las que correspondan">
+  <Checkbox name="vaccines" value="rabies">Antirrábica</Checkbox>
+  <Checkbox name="vaccines" value="parvo">Parvovirus</Checkbox>
+</Fieldset>
+```
+
+A standalone terms checkbox doesn't need a Fieldset:
+
+```tsx
+<Checkbox name="terms" required>Acepto los términos y condiciones</Checkbox>
+```
 
 ### Feedback & state
 
