@@ -1,6 +1,11 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // @vitejs/plugin-react transforms .tsx with the automatic JSX runtime even
+  // though the repo's tsconfig sets `jsx: "preserve"` (which Next.js needs).
+  // Required by component-level tests introduced in Poncho PR-A.
+  plugins: [react()],
   test: {
     // Tests touch the local Postgres via Drizzle; run serially to avoid
     // cross-test pollution. Per-file isolation is fine; the helper itself
