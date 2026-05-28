@@ -10,7 +10,9 @@
 
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
+  char,
   check,
   date,
   foreignKey,
@@ -3006,3 +3008,93 @@ export const petTransfers = pgTable(
 
 export type PetTransfer = typeof petTransfers.$inferSelect;
 export type NewPetTransfer = typeof petTransfers.$inferInsert;
+
+// ============================================================================
+// Pet identifications — polymorphic identifier table (compliance PR 0)
+// ============================================================================
+// Replaces the parallel-column shape on `pets` (microchip_id, tattoo_*).
+// Legacy columns stay this sprint; migration 0057 drops them. The compat
+// view `pets_with_identifiers` exposes the canonical values alongside the
+// legacy ones during the transition.
+//
+// Why polymorphic: chip replacement needs history; new identifier kinds
+// (RFID, anillo, genoprint) shouldn't demand 5+ new columns each; SENASA's
+// ISO 11784/11785 contract has structured subfields (country / manufacturer
+// / national_id) worth first-class storage.
+
+export const identificationKindEnum = pgEnum("identification_kind", [
+  "microchip_iso",
+  "tattoo",
+  "collar_tag",
+  "photo_biometric",
+]);
+
+export const identificationStatusEnum = pgEnum("identification_status", [
+  "active",
+  "replaced",
+  "removed",
+  "unreadable",
+]);
+
+export type IdentificationKind = (typeof identificationKindEnum.enumValues)[number];
+export type IdentificationStatus = (typeof identificationStatusEnum.enumValues)[number];
+
+export const petIdentifications = pgTable(
+  "pet_identifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    kind: identificationKindEnum("kind").notNull(),
+    status: identificationStatusEnum("status").notNull().default("active"),
+    code: text("code"),
+    recordedAt: date("recorded_at").notNull(),
+    recordedByUserId: uuid("recorded_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    recordedByLabel: text("recorded_by_label"),
+    photoId: uuid("photo_id"),
+    isoCountryCode: char("iso_country_code", { length: 3 }),
+    isoManufacturerCode: char("iso_manufacturer_code", { length: 4 }),
+    isoNationalId: char("iso_national_id", { length: 8 }),
+    isoCompliant: boolean("iso_compliant"),
+    implantationSite: text("implantation_site"),
+    tattooLocation: text("tattoo_location"),
+    tattooDescription: text("tattoo_description"),
+    replacedById: uuid("replaced_by_id").references((): AnyPgColumn => petIdentifications.id, {
+      onDelete: "set null",
+    }),
+    replacementReason: text("replacement_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    petIdx: index("pet_identifications_pet_idx").on(table.petId),
+    codeIdx: index("pet_identifications_code_idx")
+      .on(table.kind, table.code)
+      .where(sql`${table.code} IS NOT NULL AND ${table.status} = 'active'`),
+    chipUnique: uniqueIndex("pet_identifications_chip_unique")
+      .on(table.code)
+      .where(sql`${table.kind} = 'microchip_iso' AND ${table.status} = 'active'`),
+    chipRequiresIsoFields: check(
+      "chip_requires_iso_fields",
+      sql`${table.kind} <> 'microchip_iso' OR (${table.code} IS NOT NULL AND length(${table.code}) = 15)`,
+    ),
+    tattooLocationValid: check(
+      "tattoo_location_valid",
+      sql`${table.tattooLocation} IS NULL OR ${table.tattooLocation} IN ('inner_ear_left','inner_ear_right','inner_thigh','belly','other')`,
+    ),
+    implantationSiteValid: check(
+      "implantation_site_valid",
+      sql`${table.implantationSite} IS NULL OR ${table.implantationSite} IN ('lateral_cuello_izq','lateral_cuello_der','interescapular','otro')`,
+    ),
+    replacementReasonValid: check(
+      "replacement_reason_valid",
+      sql`${table.replacementReason} IS NULL OR ${table.replacementReason} IN ('damaged','migrated','illegible','medical','other')`,
+    ),
+  }),
+);
+
+export type PetIdentification = typeof petIdentifications.$inferSelect;
+export type NewPetIdentification = typeof petIdentifications.$inferInsert;
