@@ -10,8 +10,12 @@
 //
 // TODO(M-followup): build a dedicated org-side wizard and retire this form.
 
+import Link from "next/link";
+import { useActionState, useRef, useState } from "react";
+
 import type { WelfareReportFormState } from "@/app/actions/welfare";
 import { LocationFields } from "@/components/LocationFields";
+import { Radio } from "@/components/poncho";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import {
   WELFARE_REPORT_KINDS,
@@ -21,8 +25,6 @@ import {
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
 } from "@/lib/welfare";
-import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
 
 const initialState: WelfareReportFormState = { error: null };
 
@@ -203,20 +205,15 @@ export function WelfareReportForm({
         </legend>
         <div className="space-y-2 mt-1">
           {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
-            <label
+            <Radio
               key={sk}
-              className="flex items-center gap-2 text-sm text-gob-text cursor-pointer"
+              name="subjectKind"
+              value={sk}
+              checked={subjectKind === sk}
+              onChange={() => setSubjectKind(sk)}
             >
-              <input
-                type="radio"
-                name="subjectKind"
-                value={sk}
-                checked={subjectKind === sk}
-                onChange={() => setSubjectKind(sk)}
-                className="accent-gob-primary"
-              />
               {welfareReportSubjectKindLabel(sk)}
-            </label>
+            </Radio>
           ))}
         </div>
       </fieldset>

@@ -17,6 +17,8 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { Checkbox } from "@/components/poncho";
+
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/service-kinds";
@@ -356,16 +358,9 @@ function SearchFilters({
             className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-gob-text-gray  cursor-pointer pb-0.5">
-          <input
-            type="checkbox"
-            name="solo_gratis"
-            value="true"
-            defaultChecked={currentSoloGratis}
-            className="rounded border-gob-border-strong "
-          />
+        <Checkbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>
           Solo campañas gratuitas
-        </label>
+        </Checkbox>
       </div>
     </form>
   );
