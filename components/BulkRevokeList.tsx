@@ -19,9 +19,8 @@ import { useId, useRef, useState, useTransition } from "react";
 
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { MOTIVO_MIN } from "@/components/MotivoField";
 import { createClient } from "@/lib/supabase/client";
-
-const MOTIVO_MIN = 30;
 
 export interface BulkRevokableItem {
   id: string;

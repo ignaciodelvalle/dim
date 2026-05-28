@@ -14,16 +14,15 @@
 // Client-side canRevoke hides the button when the actor clearly has no scope
 // (defense-in-depth; server is authoritative).
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { revokeOrgVerificationAction } from "@/app/actions/admin-revocations";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { Checkbox } from "@/components/poncho";
 import { canRevoke } from "@/lib/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
-
-const MOTIVO_MIN = 30;
 
 type Org = {
   id: string;
@@ -273,40 +272,6 @@ function RevokeOrgForm({
           Cancelar
         </button>
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shared form primitives (duplicated locally — design ADR refactor in Fase 5+)
-// ---------------------------------------------------------------------------
-
-function MotivoField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const id = useId();
-  const len = value.trim().length;
-  const tooShort = len < MOTIVO_MIN;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <label
-          htmlFor={id}
-          className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
-        >
-          Motivo (minimo {MOTIVO_MIN} caracteres)
-        </label>
-        <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-gob-danger " : "text-gob-text-muted "}`}
-        >
-          {len}/{MOTIVO_MIN}
-        </span>
-      </div>
-      <textarea
-        id={id}
-        rows={3}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-gob-border  bg-white  px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gob-primary "
-      />
     </div>
   );
 }
