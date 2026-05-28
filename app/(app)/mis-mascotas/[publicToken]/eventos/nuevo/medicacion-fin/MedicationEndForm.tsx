@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -30,66 +30,71 @@ export function MedicationEndForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="medicationStartedEventId" className={labelClass}>
-          Medicación a cerrar<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select
-          id="medicationStartedEventId"
-          name="medicationStartedEventId"
-          required
-          defaultValue=""
-          className={inputClass}
-        >
-          <option value="" disabled>
-            Seleccioná un medicamento...
-          </option>
-          {openMedications.map((med) => (
-            <option key={med.id} value={med.id}>
-              {med.drugName} · iniciado {med.startedDate}
+      <Field label="Medicación a cerrar" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="medicationStartedEventId"
+            required
+            defaultValue=""
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="" disabled>
+              Seleccioná un medicamento...
             </option>
-          ))}
-        </select>
-      </div>
+            {openMedications.map((med) => (
+              <option key={med.id} value={med.id}>
+                {med.drugName} · iniciado {med.startedDate}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Fecha de fin<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha de fin" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="reason" className={labelClass}>
-          Motivo (opcional)
-        </label>
-        <input
-          id="reason"
-          name="reason"
-          type="text"
-          placeholder="Tratamiento completo, efectos adversos..."
-          className={inputClass}
-        />
-      </div>
+      <Field label="Motivo">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="reason"
+            type="text"
+            placeholder="Tratamiento completo, efectos adversos..."
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea id="notes" name="notes" rows={3} className={inputClass} />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}

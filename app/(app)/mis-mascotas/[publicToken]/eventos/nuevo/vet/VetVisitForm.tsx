@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import type { EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
 import { AttachmentField } from "../AttachmentField";
@@ -27,42 +27,82 @@ export function VetVisitForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <Field
-        id="reason"
-        name="reason"
-        type="text"
-        label="Motivo de la visita"
-        required
-        placeholder="Control general, urgencia, vacunación..."
-      />
+      <Field label="Motivo de la visita" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="reason"
+            type="text"
+            required
+            placeholder="Control general, urgencia, vacunación..."
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="occurredAt"
-        name="occurredAt"
-        type="date"
-        label="Fecha"
-        required
-        defaultValue={defaults?.occurredAt ?? today}
-      />
+      <Field label="Fecha" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field id="diagnosis" name="diagnosis" type="text" label="Diagnóstico (si lo hubo)" />
+      <Field label="Diagnóstico (si lo hubo)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="diagnosis"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field id="vetName" name="vetName" type="text" label="Veterinario/a" />
+      <Field label="Veterinario/a">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="vetName"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field id="clinic" name="clinic" type="text" label="Clínica" />
+      <Field label="Clínica">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="clinic"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? ""}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <details className="rounded-lg border border-gob-border  p-3">
         <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
@@ -76,7 +116,7 @@ export function VetVisitForm({
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -89,41 +129,5 @@ export function VetVisitForm({
         {isPending ? "Guardando..." : "Registrar visita"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  defaultValue,
-  placeholder,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        className={inputClass}
-      />
-    </div>
   );
 }

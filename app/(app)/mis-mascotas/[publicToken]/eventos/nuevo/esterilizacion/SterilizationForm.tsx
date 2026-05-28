@@ -3,8 +3,7 @@
 import { useActionState } from "react";
 
 import type { EventFormState } from "@/app/actions/events";
-import { Radio } from "@/components/poncho";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Radio, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { AttachmentField } from "../AttachmentField";
 
@@ -27,7 +26,7 @@ export function SterilizationForm({
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
-        <p className={labelClass}>
+        <p className="block mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">
           Procedimiento<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
@@ -40,41 +39,61 @@ export function SterilizationForm({
         </div>
       </div>
 
-      <Field
-        id="occurredAt"
-        name="occurredAt"
-        type="date"
-        label="Fecha de la cirugía"
-        required
-        defaultValue={defaults?.occurredAt ?? today}
-      />
+      <Field label="Fecha de la cirugía" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="performedBy"
-        name="performedBy"
-        type="text"
-        label="Realizada por (veterinario/a)"
-      />
+      <Field label="Realizada por (veterinario/a)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="performedBy"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field id="clinic" name="clinic" type="text" label="Clínica" />
+      <Field label="Clínica">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="clinic"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? ""}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -87,38 +106,5 @@ export function SterilizationForm({
         {isPending ? "Guardando..." : "Registrar esterilización"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  defaultValue,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  defaultValue?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        className={inputClass}
-      />
-    </div>
   );
 }
