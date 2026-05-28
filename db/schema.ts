@@ -2562,6 +2562,33 @@ export const CASE_SUBJECT_KINDS = [
 ] as const;
 export type CaseSubjectKind = (typeof CASE_SUBJECT_KINDS)[number];
 
+// ENO processing queue (handoff P4-6). One row per disease-diagnosis
+// event that needs the ENO fanout (govt notifications + audit log).
+// The event-insert action enqueues here cheaply; the hourly cron
+// worker drains the queue. Keeps pet_events itself pure (immutable);
+// queue state lives separately so it can be retried on failure.
+export const enoProcessingQueue = pgTable(
+  "eno_processing_queue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    petEventId: uuid("pet_event_id").notNull(),
+    /** pending | processed | failed. */
+    status: text("status").notNull().default("pending"),
+    queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    retryCount: integer("retry_count").notNull().default(0),
+    lastError: text("last_error"),
+  },
+  (table) => ({
+    statusIdx: index("eno_processing_queue_status_idx").on(table.status, table.queuedAt),
+    eventIdIdx: uniqueIndex("eno_processing_queue_event_id_unique").on(table.petEventId),
+    statusCheck: check(
+      "eno_processing_queue_status_check",
+      sql`${table.status} IN ('pending', 'processed', 'failed')`,
+    ),
+  }),
+);
+
 export const cases = pgTable(
   "cases",
   {
