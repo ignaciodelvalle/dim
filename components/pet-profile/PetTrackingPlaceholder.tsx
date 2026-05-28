@@ -18,7 +18,7 @@ export function PetTrackingPlaceholder({ href }: Props) {
   return (
     <Link
       href={href}
-      className="block rounded-2xl border border-dashed border-gob-success bg-gradient-to-br from-emerald-50 to-blue-50 p-5 text-center transition-colors hover:from-emerald-100 hover:to-blue-100    "
+      className="block rounded-2xl border border-dashed border-gob-success bg-gradient-to-br from-gob-success/10 to-gob-info/10 p-5 text-center transition-colors hover:from-gob-success/10 hover:to-gob-info/10    "
     >
       <p className="mb-1 text-3xl" aria-hidden>
         📍

@@ -155,7 +155,7 @@ export function LostPublicCredential({
             <p className="mt-1 text-sm font-medium text-gob-text ">
               {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-100 to-blue-100 text-3xl  ">
+            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-gob-success/10 to-gob-info/10 text-3xl  ">
               📍
             </div>
             {mapHref && (

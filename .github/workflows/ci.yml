@@ -32,6 +32,12 @@ jobs:
       - name: Lint (Biome)
         run: pnpm lint
 
+      - name: Lint (Poncho design tokens)
+        # Blocks re-introduction of raw Tailwind palette utilities and any
+        # `dark:` prefix. See scripts/check-design-tokens.ts for the rules
+        # and the autofix codemods.
+        run: pnpm lint:tokens
+
       - name: Typecheck (tsc)
         run: pnpm typecheck
 

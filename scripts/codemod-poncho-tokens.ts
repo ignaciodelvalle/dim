@@ -154,6 +154,24 @@ const MAPPINGS: Array<[RegExp, string]> = [
   [/\bring-blue-(400|500|600|700)\b/g, "ring-gob-azul-link"],
   // amber-200/300 bg
   [/\bbg-amber-(200|300)\b/g, "bg-gob-warning/30"],
+  // accent-* (native checkbox / radio / range tint) → gob-primary
+  [/\baccent-neutral-(700|800|900)\b/g, "accent-gob-primary"],
+  [/\baccent-(zinc|slate|stone|gray)-(700|800|900)\b/g, "accent-gob-primary"],
+  [/\baccent-blue-(500|600|700|800)\b/g, "accent-gob-azul-link"],
+  [/\baccent-red-(500|600|700|800)\b/g, "accent-gob-danger"],
+  [/\baccent-emerald-(500|600|700|800)\b/g, "accent-gob-success"],
+  [/\baccent-green-(500|600|700|800)\b/g, "accent-gob-success"],
+  // Gradient stops (from-/to-/via-) — same family rules as bg-*
+  [/\b(from|to|via)-neutral-(50|100|200)\b/g, "$1-gob-surface-alt"],
+  [/\b(from|to|via)-(zinc|slate|stone|gray)-(50|100|200)\b/g, "$1-gob-surface-alt"],
+  [/\b(from|to|via)-emerald-(50|100|200)\b/g, "$1-gob-success/10"],
+  [/\b(from|to|via)-green-(50|100|200)\b/g, "$1-gob-success/10"],
+  [/\b(from|to|via)-blue-(50|100|200)\b/g, "$1-gob-info/10"],
+  [/\b(from|to|via)-sky-(50|100|200)\b/g, "$1-gob-info/10"],
+  [/\b(from|to|via)-amber-(50|100|200)\b/g, "$1-gob-warning/10"],
+  [/\b(from|to|via)-yellow-(50|100|200)\b/g, "$1-gob-warning/10"],
+  [/\b(from|to|via)-red-(50|100|200)\b/g, "$1-gob-danger/10"],
+  [/\b(from|to|via)-rose-(50|100|200)\b/g, "$1-gob-danger/10"],
 ];
 
 const files = globSync("{app,components}/**/*.{ts,tsx}", {

@@ -26,10 +26,10 @@ export type PetHeroPet = {
 };
 
 const RING_BG: Record<PetState, string> = {
-  ok: "from-neutral-100 to-transparent",
-  info: "from-blue-100 to-transparent",
-  attention: "from-amber-100 to-transparent",
-  urgent: "from-red-100 to-transparent",
+  ok: "from-gob-surface-alt to-transparent",
+  info: "from-gob-info/10 to-transparent",
+  attention: "from-gob-warning/10 to-transparent",
+  urgent: "from-gob-danger/10 to-transparent",
 };
 
 const RING_BORDER: Record<PetState, string> = {

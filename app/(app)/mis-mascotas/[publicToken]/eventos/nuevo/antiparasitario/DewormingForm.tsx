@@ -45,16 +45,16 @@ export function DewormingForm({
               name="type"
               value="internal"
               required
-              className="accent-neutral-900 "
+              className="accent-gob-primary "
             />
             <span className="text-sm text-gob-text ">Interno</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="type" value="external" className="accent-neutral-900 " />
+            <input type="radio" name="type" value="external" className="accent-gob-primary " />
             <span className="text-sm text-gob-text ">Externo</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="type" value="both" className="accent-neutral-900 " />
+            <input type="radio" name="type" value="both" className="accent-gob-primary " />
             <span className="text-sm text-gob-text ">Ambos</span>
           </label>
         </div>
