@@ -672,7 +672,7 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
         microchipCountryCode: seed.microchipId ? "858" : null,
         microchipImplantedAt: seed.microchipId ? new Date().toISOString().slice(0, 10) : null,
         status: "active",
-        jurisdictionProvince: "Ciudad Autónoma de Buenos Aires",
+        jurisdictionProvince: "CABA",
         jurisdictionLocality: "CABA",
         acquisitionMethod: "adopted",
       })

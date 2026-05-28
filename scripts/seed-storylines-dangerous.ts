@@ -23,7 +23,7 @@ import type { Storyline } from "./seed-storylines-iconic";
 
 const CABA = (locality: string, landmark?: string) => ({
   locality,
-  province: "Ciudad Autónoma de Buenos Aires",
+  province: "CABA",
   ...(landmark ? { landmark } : {}),
 });
 
@@ -48,7 +48,7 @@ const cujo: Storyline = {
     estimated_weight_kg: 68,
     potentially_dangerous_breed: false, // not PPP per CABA 4078 / Prov 14.107
     jurisdiction_country: "AR",
-    jurisdiction_province: "Ciudad Autónoma de Buenos Aires",
+    jurisdiction_province: "CABA",
     jurisdiction_locality: "Puerto Madero",
     acquisition_method: "purchased",
     emergency_info_visible: true,
@@ -279,7 +279,7 @@ const cujo: Storyline = {
           ],
         },
         pet_jurisdiction_country: "AR",
-        pet_jurisdiction_province: "Ciudad Autónoma de Buenos Aires",
+        pet_jurisdiction_province: "CABA",
         pet_jurisdiction_locality: "Puerto Madero",
         pet_species: "dog",
         severity: "urgent",
@@ -376,7 +376,7 @@ const roco: Storyline = {
     training_level: "intermediate",
     potentially_dangerous_breed: true, // auto-flag por raza
     jurisdiction_country: "AR",
-    jurisdiction_province: "Ciudad Autónoma de Buenos Aires",
+    jurisdiction_province: "CABA",
     jurisdiction_locality: "Palermo",
     acquisition_method: "rescued",
     emergency_info_visible: true,
