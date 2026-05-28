@@ -56,7 +56,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { config as loadEnv } from "dotenv";
@@ -350,6 +350,23 @@ for (const sqlPath of ORTHOGONAL_ORDER) {
   if (!psql(sqlPath, { strict: true })) {
     console.error(`FATAL: ${sqlPath} failed.`);
     process.exit(1);
+  }
+}
+
+// Step 3.5 — tell PostgREST to reload its schema cache so RPCs and new
+// columns added by migrations (which ran in step 2) become visible without
+// restarting the supabase stack. Without this, tests calling RPCs that
+// were created post-startup get PGRST202 (function not in cache).
+{
+  console.log("\n> NOTIFY pgrst, 'reload schema'");
+  const file = path.join(process.cwd(), "tmp_pgrst_reload.sql");
+  writeFileSync(file, "NOTIFY pgrst, 'reload schema';\n");
+  try {
+    psql(file, { strict: false });
+  } finally {
+    try {
+      unlinkSync(file);
+    } catch {}
   }
 }
 

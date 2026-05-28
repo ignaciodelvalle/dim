@@ -94,6 +94,15 @@ export function PrivacySection({ prefs }: Props) {
           );
         })}
       </ul>
+
+      <div className="pt-3 border-t border-gob-border">
+        <a
+          href="/cuenta/privacidad"
+          className="text-sm text-gob-azul-link hover:underline underline-offset-2"
+        >
+          Datos personales (Ley 25.326): descargar mis datos o eliminar mi cuenta →
+        </a>
+      </div>
     </section>
   );
 }

@@ -142,6 +142,23 @@ export const orgTypeEnum = pgEnum("org_type", [
 
 export const orgStatusEnum = pgEnum("org_status", ["active", "suspended", "dissolved"]);
 
+// PII baseline — Ley 25.326 art. 4° (base legal del tratamiento).
+// Declared in migration 0058 (`pii.apply_baseline()`). Used by the `purpose`
+// column on PII-bearing tables (profiles, pets, pet_identifications,
+// custody_disputes) so each row can be traced to a legal basis.
+export const dataPurposeEnum = pgEnum("data_purpose", [
+  "identidad_mascota",
+  "salud_animal",
+  "notificacion_zoonosis",
+  "reunificacion_perdida",
+  "control_poblacional",
+  "razas_peligrosas",
+  "auditoria_legal",
+  "consentimiento_marketing",
+]);
+
+export type DataPurpose = (typeof dataPurposeEnum.enumValues)[number];
+
 // Role within an organization. See AGENTS.md → OrganizationMembership.
 // `can_write_pet_events` on the membership row gates author privileges
 // independently from role — transportistas may have role=member with false,
@@ -392,6 +409,17 @@ export const profiles = pgTable(
     // Irreversible soft-deactivation timestamp. NULL = active. Set by
     // deactivateAdminAction / deactivateGovtAction in Fase 5.
     deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+    // PII baseline (compliance PR 1, migration 0058). Added by
+    // pii.apply_baseline(). See lib/audit/log.ts (todo, separate sprint).
+    createdBy: uuid("created_by").references((): AnyPgColumn => profiles.id, {
+      onDelete: "set null",
+    }),
+    updatedBy: uuid("updated_by").references((): AnyPgColumn => profiles.id, {
+      onDelete: "set null",
+    }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -407,6 +435,10 @@ export const profiles = pgTable(
     institutionalActiveIdx: index("profiles_institutional_active_idx")
       .on(table.role)
       .where(sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`),
+    // PII soft-delete partial (compliance PR 1, migration 0058).
+    profilesDeletedIdx: index("public_profiles_deleted_idx")
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
     // CHECK constraints — added via ALTER in migrations 0011 / 0015.
     // NOTE: profiles_account_type_role_match was added in 0015 and dropped
     // in 0016 ("Drop profiles_account_type_role_match — keep app-layer
@@ -589,6 +621,13 @@ export const pets = pgTable(
     permanentConditionsOther: text("permanent_conditions_other"),
     discloseConditionsPublicly: boolean("disclose_conditions_publicly").notNull().default(false),
 
+    // PII baseline (compliance PR 1, migration 0058).
+    createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -601,6 +640,10 @@ export const pets = pgTable(
       table.jurisdictionLocality,
     ),
     statusIdx: index("pets_status_idx").on(table.status),
+    // PII soft-delete partial (compliance PR 1).
+    petsDeletedIdx: index("public_pets_deleted_idx")
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
     adoptionListingIdx: index("pets_adoption_listing_active_idx")
       .on(table.adoptionListedAt, table.id)
       .where(
@@ -1682,6 +1725,10 @@ export const AUDIT_LOG_ACTIONS = [
   "pet_transfer_rejected",
   "pet_transfer_cancelled",
   "pet_transfer_expired",
+  // Subject rights — Ley 25.326 (compliance PR 1). Emitted by the RPCs
+  // export_subject_data + erase_subject_data declared in migration 0059.
+  "subject_data_exported",
+  "subject_erasure",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -2417,6 +2464,12 @@ export const custodyDisputes = pgTable(
       onDelete: "set null",
     }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    // PII baseline (compliance PR 1, migration 0058).
+    createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2441,6 +2494,9 @@ export const custodyDisputes = pgTable(
       "custody_disputes_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
+    custodyDisputesDeletedIdx: index("public_custody_disputes_deleted_idx")
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   }),
 );
 
@@ -3066,6 +3122,12 @@ export const petIdentifications = pgTable(
       onDelete: "set null",
     }),
     replacementReason: text("replacement_reason"),
+    // PII baseline (compliance PR 1, migration 0058).
+    createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3093,6 +3155,9 @@ export const petIdentifications = pgTable(
       "replacement_reason_valid",
       sql`${table.replacementReason} IS NULL OR ${table.replacementReason} IN ('damaged','migrated','illegible','medical','other')`,
     ),
+    petIdentificationsDeletedIdx: index("public_pet_identifications_deleted_idx")
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   }),
 );
 
