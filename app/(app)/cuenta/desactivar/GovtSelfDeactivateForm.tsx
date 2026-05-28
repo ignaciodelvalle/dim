@@ -163,7 +163,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
+              className="mt-0.5 h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
             />
             <span className="text-sm text-gob-text-gray ">
               Entiendo y confirmo que quiero desactivar mi cuenta de operador govt.
