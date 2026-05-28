@@ -36,7 +36,7 @@ export function Radio({
         id={id}
         type="radio"
         aria-invalid={invalid || undefined}
-        className={`mt-0.5 h-4 w-4 accent-gob-primary ${className ?? ""}`.trim()}
+        className={`mt-0.5 h-4 w-4 shrink-0 accent-gob-primary ${className ?? ""}`.trim()}
         {...rest}
       />
       <span className={`text-sm text-gob-text leading-tight ${labelClassName ?? ""}`.trim()}>
