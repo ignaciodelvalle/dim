@@ -298,7 +298,7 @@ None of these are blockers for v1. Every one is a hook the data model should acc
   - `insurance_company?`, `insurance_policy_number?`
 - **Jurisdiction (coarse aggregation tag, never coordinates):**
   - `jurisdiction_country` (default `'AR'`)
-  - `jurisdiction_province?`, `jurisdiction_locality?`
+  - `jurisdiction_province?`, `jurisdiction_locality?` — `jurisdiction_province` is stored as the canonical display name from `lib/ar-provincias.ts` (e.g. `"Buenos Aires"`, `"CABA"`) and enforced by a 24-value CHECK constraint on every table that holds the column (migration 0055). Wire format from `LocationFields` is the ISO code; server actions pipe it through `canonicalProvinceNameForStorage()` in `lib/jurisdiction-canonical.ts` before writing.
 - `created_at`, `updated_at`
 - **No precise home coordinates stored on pet.** Location precision lives on events when relevant, not on the pet's home.
 
@@ -318,6 +318,16 @@ None of these are blockers for v1. Every one is a hook the data model should acc
   - `foster` — temporary physical caregiver under an organization's umbrella. Requires `owner_user_id` plus an active `organization_membership` linking the foster to the org that holds the parallel `shelter_custody` row for the same pet.
   - `co_owner` — shared permanent ownership. Schema-ready; UI deferred.
   - `caretaker` — lower-stakes helper (petsitter, daycare). Schema-ready; UI deferred.
+
+### `PetTransfer` — owner→owner handshake (P3-2)
+- `id`, `public_token` (`PTR-XXXX-XXXX`), `pet_id` (fk → pets)
+- `from_owner_id` (fk → profiles), `to_owner_id?` (fk → profiles, null until the receiver signs up + accepts)
+- `to_owner_email` — written before the receiver exists in `auth.users`; magic-link signup via `supabase.auth.admin.inviteUserByEmail` lands on `/transferencias/<token>` post-confirmation
+- `status` (`pending | accepted | rejected | expired | cancelled`), `reason` (`sale | gift | inheritance | other`), `note?`
+- `initiated_at`, `responded_at?`, `expires_at` (initiated + 7d), `rejection_reason?`
+- **One pending transfer per pet.** Partial unique index on `(pet_id) WHERE status='pending'` blocks concurrent transfer races.
+- **Daily expiration cron** at `/api/cron/expire-pet-transfers` (`expirePetTransfersOnce`) flips overdue rows to `expired` and notifies the sender.
+- **Side effects on accept:** ends the prior `ownerships` row, opens a new one, emits `custody_transferred` event. The libreta sanitaria travels with the pet — no payload migration.
 
 ### `PetEvent` — append-only timeline (the spine)
 - `id`, `pet_id`, `event_type`
@@ -455,7 +465,7 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 41 types
+## Event catalog — 44 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -520,6 +530,7 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `credential_scanned` | system | `{ is_self_scan, viewer_authenticated }` — location goes in the event's `location_point` column        |
 | `incident_reported`  | later  | `{ incident_type: bite_inflicted\|bite_suffered\|dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved?, location_description?, victim_kind?, victim_contact_name?, victim_contact_phone?, victim_pet_id?, victim_age_estimate?, context?, rabies_vaccine_valid_at_incident?, reporter_role? }` — umbrella covers bite events (rabies observation flow filters by `payload->>'incident_type'='bite_inflicted'`). `dog_attack` is deprecated in favor of `bite_suffered`. Distinct from `maltreatment_reported` (incident is non-human-cruelty) |
 | `outbreak_signal`    | system | `{ source_symptom_event_id, disease_code, disease_label, match_strength: {high_count, medium_count, low_count, matched_symptom_codes}, pet_jurisdiction_country, pet_jurisdiction_province?, pet_jurisdiction_locality?, pet_species }` — emitted when `symptom_observed` triggers a reportable-disease match. Owner does not see this in the libreta |
+| `disease_reported`   | govt   | `{ disease: lepto\|hidatidosis\|other, confirmed_by_lab, date_of_onset, clinical_notes? }` — govt-side surveillance entry that feeds zoonosis KPIs and the ENO fanout. Not part of the libreta (handoff P4-3) |
 
 **Schema-ready, requires non-owner reporting flow**
 
@@ -543,7 +554,7 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `adoption_reversed`               | later | `{ actor: shelter\|adopter\|court, reason, reverted_finalization_event_id? }` — replaces both `adoption_revoked` and `adoption_withdrawn` (catalog cleanup 2026-05-19) |
 | `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, from_role, to_role, reason?, matched_against_pet_id?, foster_ended_event_id?, notes? }` — handoffs that are not adoption |
 | `custody_transfer_proposed`       | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason, matched_against_pet_id?, proposed_at, notes? }` — Phase 1 of the return-to-owner / cross-org two-phase handshake |
-| `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt, raised_by_user_id, external_proceeding_reference?, reason }` — admin or govt flags the pet as subject to external legal proceedings. Sets `pets.in_custody_dispute = true` |
+| `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt\|owner, raised_by_user_id, external_proceeding_reference?, reason }` — flags the pet as subject to an ownership dispute and sets `pets.in_custody_dispute = true`. Admin/govt use it for external legal proceedings; `owner` is the self-raised path via the chip/tatuaje claim wizard (`/mis-mascotas/reclamar`, P3-1) — adjudication still flows through govt/admin via `custody_dispute_resolved` |
 | `custody_dispute_resolved`        | later | `{ raised_event_id, resolved_by_role: admin\|govt, resolved_by_user_id, outcome: ownership_confirmed\|ownership_transferred\|case_dismissed\|other, notes? }` — closes a prior `custody_dispute_raised`. Sets `pets.in_custody_dispute = false` |
 
 **System telemetry**
