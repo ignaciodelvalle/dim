@@ -1631,6 +1631,9 @@ export const AUDIT_LOG_ACTIONS = [
   // Payload: { disease_code, disease_severity, pet_id, targets_count,
   //            owner_was_notified, legal_anchor }.
   "eno_notification_emitted",
+  // Owner-initiated custody dispute (chip/tatuaje claim wizard, P3-1).
+  // Payload: { dispute_public_token, pet_id, attachments_count }.
+  "claim_dispute_submitted",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
