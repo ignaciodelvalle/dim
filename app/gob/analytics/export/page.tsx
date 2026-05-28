@@ -17,6 +17,7 @@ import Link from "next/link";
 import {
   Alert,
   Button,
+  Checkbox,
   EmptyState,
   JurisdictionSwitcher,
   Panel,
@@ -150,43 +151,18 @@ export default async function GobAnalyticsExportPage({
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-gob-text">Datos a incluir</legend>
                 <div className="space-y-2 pt-1">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="slice"
-                      value="pets"
-                      defaultChecked
-                      className="accent-gob-primary"
-                    />
+                  <Checkbox name="slice" value="pets" defaultChecked>
                     Mascotas (anonimizado)
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="slice"
-                      value="events"
-                      className="accent-gob-primary"
-                    />
+                  </Checkbox>
+                  <Checkbox name="slice" value="events">
                     Eventos
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="slice"
-                      value="cases"
-                      className="accent-gob-primary"
-                    />
+                  </Checkbox>
+                  <Checkbox name="slice" value="cases">
                     Casos
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="slice"
-                      value="organizations"
-                      className="accent-gob-primary"
-                    />
+                  </Checkbox>
+                  <Checkbox name="slice" value="organizations">
                     Organizaciones
-                  </label>
+                  </Checkbox>
                 </div>
               </fieldset>
 

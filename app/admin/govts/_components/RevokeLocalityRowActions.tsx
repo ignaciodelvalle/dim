@@ -12,6 +12,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { revokeGovtLocalityAction } from "@/app/actions/admin-revocations";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { Checkbox } from "@/components/poncho";
 import { createClient } from "@/lib/supabase/client";
 
 const MOTIVO_MIN = 30;
@@ -203,18 +204,14 @@ function RevokeLocalityForm({
         )}
       </div>
 
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={confirm}
-          onChange={(e) => setConfirm(e.target.checked)}
-          className="mt-0.5 shrink-0"
-        />
-        <span className="text-xs text-gob-warning-text ">
-          Confirmo que quiero revocar la localidad {localityLabel}. Esta accion genera un registro
-          permanente en el audit log.
-        </span>
-      </label>
+      <Checkbox
+        checked={confirm}
+        onChange={(e) => setConfirm(e.target.checked)}
+        labelClassName="text-xs! text-gob-warning-text!"
+      >
+        Confirmo que quiero revocar la localidad {localityLabel}. Esta accion genera un registro
+        permanente en el audit log.
+      </Checkbox>
 
       {error && <p className="text-xs text-gob-danger ">{error}</p>}
 

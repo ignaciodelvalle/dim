@@ -8,6 +8,7 @@ import {
   createLibretaShareAction,
   revokeLibretaShareAction,
 } from "@/app/actions/libreta-share";
+import { Checkbox } from "@/components/poncho";
 import type { LibretaShareToken } from "@/db/schema";
 
 type Props = {
@@ -127,17 +128,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               ))}
             </div>
             {expiresInDays === null && (
-              <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={noExpiryConfirmed}
-                  onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
-                  className="accent-gob-primary "
-                />
-                <span className="text-xs text-gob-warning-text ">
-                  Confirmo que este enlace no vence nunca
-                </span>
-              </label>
+              <Checkbox
+                checked={noExpiryConfirmed}
+                onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
+                labelClassName="text-xs! text-gob-warning-text!"
+              >
+                Confirmo que este enlace no vence nunca
+              </Checkbox>
             )}
           </fieldset>
 

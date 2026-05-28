@@ -17,6 +17,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { deactivateAdminAction } from "@/app/actions/admin-institutional";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { Checkbox } from "@/components/poncho";
 import { canDeactivateAdmin } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import { createClient } from "@/lib/supabase/client";
@@ -236,18 +237,14 @@ function DeactivateAdminForm({
         )}
       </div>
 
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={confirm}
-          onChange={(e) => setConfirm(e.target.checked)}
-          className="mt-0.5 shrink-0"
-        />
-        <span className="text-xs text-gob-danger ">
-          Confirmo que quiero desactivar la cuenta de {target.displayName}. Esta accion genera un
-          registro permanente en el audit log.
-        </span>
-      </label>
+      <Checkbox
+        checked={confirm}
+        onChange={(e) => setConfirm(e.target.checked)}
+        labelClassName="text-xs! text-gob-danger!"
+      >
+        Confirmo que quiero desactivar la cuenta de {target.displayName}. Esta accion genera un
+        registro permanente en el audit log.
+      </Checkbox>
 
       {error && <p className="text-xs text-gob-danger ">{error}</p>}
 

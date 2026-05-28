@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { vetSelfResignAction } from "@/app/actions/profile-self-service";
+import { Checkbox } from "@/components/poncho";
 
 export function VetSelfResignForm() {
   const router = useRouter();
@@ -91,17 +92,9 @@ export function VetSelfResignForm() {
       </div>
 
       {/* Confirm checkbox */}
-      <label className="flex items-start gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(e) => setConfirmed(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
-        />
-        <span className="text-sm text-gob-text-gray ">
-          Entiendo y confirmo que quiero renunciar a mi rol de veterinario/a.
-        </span>
-      </label>
+      <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}>
+        Entiendo y confirmo que quiero renunciar a mi rol de veterinario/a.
+      </Checkbox>
 
       {/* Action buttons */}
       <div className="flex gap-3 pt-2">

@@ -7,6 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import { Checkbox } from "@/components/poncho";
 import { labelClass } from "@/lib/form-classes";
 
 const initialState: BusinessRuleFormState = { error: null };
@@ -131,14 +132,9 @@ export function PppAttestationRegistriesForm({
             onChange={(e) => setNewLabel(e.target.value)}
             className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
           />
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={newRequired}
-              onChange={() => setNewRequired((v) => !v)}
-            />
+          <Checkbox checked={newRequired} onChange={() => setNewRequired((v) => !v)}>
             Required
-          </label>
+          </Checkbox>
         </div>
         <button
           type="button"

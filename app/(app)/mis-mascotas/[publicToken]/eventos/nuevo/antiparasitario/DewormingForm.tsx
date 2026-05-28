@@ -1,9 +1,11 @@
 "use client";
 
+import { useActionState } from "react";
+
 import type { EventFormState } from "@/app/actions/events";
+import { Radio } from "@/components/poncho";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
-import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -39,24 +41,15 @@ export function DewormingForm({
           Tipo<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="type"
-              value="internal"
-              required
-              className="accent-gob-primary "
-            />
-            <span className="text-sm text-gob-text ">Interno</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="type" value="external" className="accent-gob-primary " />
-            <span className="text-sm text-gob-text ">Externo</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="type" value="both" className="accent-gob-primary " />
-            <span className="text-sm text-gob-text ">Ambos</span>
-          </label>
+          <Radio name="type" value="internal" required>
+            Interno
+          </Radio>
+          <Radio name="type" value="external">
+            Externo
+          </Radio>
+          <Radio name="type" value="both">
+            Ambos
+          </Radio>
         </div>
       </div>
 

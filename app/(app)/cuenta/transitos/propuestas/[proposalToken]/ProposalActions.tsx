@@ -7,6 +7,7 @@ import {
   acceptFosterProposalAction,
   rejectFosterProposalAction,
 } from "@/app/actions/foster-proposals";
+import { Checkbox } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { labelClass } from "@/lib/form-classes";
 
@@ -116,18 +117,10 @@ export function ProposalActions({
     return (
       <div className="rounded-lg border border-gob-success bg-gob-success/10/50   p-4 space-y-3">
         <h3 className="font-medium text-gob-success ">Aceptar tránsito de {petName}</h3>
-        <label className="flex items-start gap-3 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={allowCoFoster}
-            onChange={(e) => setAllowCoFoster(e.target.checked)}
-            className="h-4 w-4 mt-0.5"
-          />
-          <span className="text-gob-text ">
-            Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo
-            después.
-          </span>
-        </label>
+        <Checkbox checked={allowCoFoster} onChange={(e) => setAllowCoFoster(e.target.checked)}>
+          Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo
+          después.
+        </Checkbox>
         <textarea
           value={acceptNotes}
           onChange={(e) => setAcceptNotes(e.target.value)}

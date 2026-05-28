@@ -16,6 +16,7 @@
 import { useActionState, useState } from "react";
 
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
+import { Checkbox } from "@/components/poncho";
 import { WizardShell } from "@/components/poncho/Wizard";
 import type { ServiceKindDef } from "@/lib/service-kinds";
 
@@ -176,14 +177,12 @@ export function ServiceOfferingForm({
           <div className="space-y-1">
             <span className="block text-sm font-medium">Especies elegibles</span>
             <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="eligibilitySpecies" value="dog" defaultChecked />
+              <Checkbox name="eligibilitySpecies" value="dog" defaultChecked>
                 Perros
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="eligibilitySpecies" value="cat" defaultChecked />
+              </Checkbox>
+              <Checkbox name="eligibilitySpecies" value="cat" defaultChecked>
                 Gatos
-              </label>
+              </Checkbox>
             </div>
           </div>
 
