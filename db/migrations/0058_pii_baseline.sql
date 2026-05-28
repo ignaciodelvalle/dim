@@ -18,16 +18,25 @@
 
 BEGIN;
 
-CREATE TYPE data_purpose AS ENUM (
-  'identidad_mascota',          -- registro y credencial DIM
-  'salud_animal',               -- libreta sanitaria, eventos clínicos
-  'notificacion_zoonosis',      -- ENO Ley 15.465, rabia Res. MS 1144/2018
-  'reunificacion_perdida',      -- L&F, Art. 1947 CCyCN
-  'control_poblacional',        -- castración Ley CABA 1.338, PBA 13.879
-  'razas_peligrosas',           -- Registros Ley CABA 4.078 / PBA 14.107
-  'auditoria_legal',            -- conservación obligatoria por norma
-  'consentimiento_marketing'    -- comunicaciones opcionales
-);
+-- Idempotent enum creation. db:push (drizzle) may create this type ahead of
+-- the migration run when bootstrapping from schema.ts; the DO block makes
+-- CI replays safe in both directions (migration-first or schema-first).
+DO $do_enum$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'data_purpose') THEN
+    CREATE TYPE data_purpose AS ENUM (
+      'identidad_mascota',
+      'salud_animal',
+      'notificacion_zoonosis',
+      'reunificacion_perdida',
+      'control_poblacional',
+      'razas_peligrosas',
+      'auditoria_legal',
+      'consentimiento_marketing'
+    );
+  END IF;
+END
+$do_enum$;
 
 CREATE SCHEMA IF NOT EXISTS pii;
 
