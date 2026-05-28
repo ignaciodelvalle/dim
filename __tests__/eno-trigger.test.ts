@@ -22,6 +22,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { processEnoQueueBatch } from "@/lib/eno-queue-processor";
 import { processEnoEventTrigger } from "@/lib/eno-trigger";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -281,6 +282,7 @@ describe("processEnoEventTrigger", () => {
       .returning();
 
     await processEnoEventTrigger(makeDiagnosisEvent(clinicEvent.id, pet.id, "rabies"));
+    await processEnoQueueBatch();
 
     // Two govt notifications (province + locality)
     const govtNotifs = await db
@@ -352,6 +354,7 @@ describe("processEnoEventTrigger", () => {
       .returning();
 
     await processEnoEventTrigger(makeDiagnosisEvent(clinicEvent.id, pet.id, "rabies_confirmed"));
+    await processEnoQueueBatch();
 
     const govtNotifs = await db
       .select()
@@ -409,6 +412,7 @@ describe("processEnoEventTrigger", () => {
       .returning();
 
     await processEnoEventTrigger(makeDiagnosisEvent(clinicEvent.id, pet.id, "leishmaniasis"));
+    await processEnoQueueBatch();
 
     // Govt notifications are created (N = 2)
     const govtNotifs = await db
@@ -540,6 +544,7 @@ describe("processEnoEventTrigger", () => {
     await expect(
       processEnoEventTrigger(makeDiagnosisEvent(clinicEvent.id, pet.id, "rabies")),
     ).resolves.toBeUndefined();
+    await processEnoQueueBatch();
 
     // Zero govt notifications (no targets)
     const govtNotifs = await db
