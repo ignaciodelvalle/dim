@@ -233,8 +233,15 @@ DIM must be designed around — not against — the Argentine legal landscape fo
 | **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. |
 | **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload should carry a `disposition_method` field (`cremation` / `burial` / `other`) for traceability.        |
 | **Ley Nacional 14.346 (1954)**   | Malos tratos / actos de crueldad contra animales.                                      | `maltreatment_reported` events need to eventually feed real complaint pipelines (denuncia integration is downstream of UI).          |
+| **Ley Nacional 25.326 (2000)**   | Protección de Datos Personales. Arts. 4° (purpose), 14 (acceso), 16 (supresión).       | `purpose data_purpose` + `deleted_at` baseline on every PII table; export/erase RPCs (compliance PR 1) live at `/cuenta/privacidad`. |
+| **Ley Nacional 26.653 (2010)**   | Accesibilidad de la Información en las Páginas Web (WCAG 2.1 AA via Disp. ONTI 6/2019). | Focus ring tokens + biome a11y rules at error level + `docs/a11y/contrast-audit.md` (compliance PR 2).                              |
+| **Res. SENASA 580/2014**         | Formulario antirrábico para traslado interno (canino).                                | `pet_events.tipo_evento_code` con vocabulario en `ref.tipo_evento_sanitario` (compliance PR 3). Cuando SENASA homologue LSUCyF el export es directo. |
+| **Res. SENASA 80/2025**          | Receta Electrónica Veterinaria.                                                       | `tipo_evento_code='prescripcion_electronica'`. Detalles (`principio_activo`, `posologia`) en sprint REV dedicado.                  |
+| **Res. SENASA 284/2024**         | Estándar de identificación electrónica animal (ISO 11784/11785).                       | `pet_identifications` polimórfica con ISO subfields decompuestos (`iso_country_code/manufacturer_code/national_id`) — compliance PR 0. |
+| **LSUCyF (SENASA, 2022)**        | Libreta Sanitaria Única Canina y Felina (papel).                                       | El digital alinea por `tipo_evento_code` para que el export sea 1:1 con el formulario papel.                                       |
+| **Ord. CABA 41.831 (1987)**      | Tenencia, vacunación, identificación de canes en CABA.                                | Art. 4° (tatuaje) cubierto por `pet_identifications kind='tattoo'`. Art. 9° (observación antirrábica 10 días) por `tipo_evento_code='observacion_antirrabica'`. |
 
-None of these are blockers for v1. Every one is a hook the data model should accept without rework, and the table above is the checklist for when we wire up the owner-facing forms behind each.
+None of these are blockers for v1. The data model accepts them without rework; the table is the checklist when wiring owner-facing forms.
 
 ## Data model
 
@@ -280,12 +287,11 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `species`, `breed?`, `name`, `sex` (male|female|unknown)
 - `date_of_birth?`, `birth_date_is_estimated` (bool) — DOB is computed from the years+months input on signup; flagged as estimated by default
 - `color?`, `distinguishing_features?`
-- **Microchip block** (all populated together when chip is provided):
-  - `microchip_id?` (unique when present) — 15-digit ISO 11784/11785 number
-  - `microchip_country_code?` (default `'858'` for Argentina)
-  - `microchip_implanted_at?` (date)
-  - `microchip_implanted_by?` (text — vet name / clinic)
-  - `microchip_location?` (e.g. `interscapular_left`)
+- **Microchip block (legacy — see `PetIdentification` below):**
+  - `microchip_id?`, `microchip_country_code?`, `microchip_implanted_at?`, `microchip_implanted_by?`, `microchip_location?`
+  - These columns coexist with `pet_identifications` during the dual-write window opened by compliance PR 0. Writers populate both inside one transaction; readers consult `pet_identifications` first with a legacy fallback (`lib/chip-lookup.ts`). Migration 0057 drops the legacy block next sprint.
+- **Tattoo block (legacy — same dual-write story):**
+  - `tattoo_code?`, `tattoo_location?`, `tattoo_description?`, `tattoo_recorded_at?`, `tattoo_recorded_by?`, `tattoo_photo_id?`
 - `primary_photo_id?` (fk → Attachment)
 - `status` (active|lost|deceased), `deceased_at?`
 - **Health & lifestyle (owner self-reported):**
@@ -329,6 +335,19 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - **Daily expiration cron** at `/api/cron/expire-pet-transfers` (`expirePetTransfersOnce`) flips overdue rows to `expired` and notifies the sender.
 - **Side effects on accept:** ends the prior `ownerships` row, opens a new one, emits `custody_transferred` event. The libreta sanitaria travels with the pet — no payload migration.
 
+### `PetIdentification` — polymorphic identifier table (compliance PR 0)
+- `id`, `pet_id` (fk → pets)
+- `kind` (`identification_kind` enum: `microchip_iso | tattoo | collar_tag | photo_biometric`)
+- `status` (`identification_status` enum: `active | replaced | removed | unreadable`)
+- `code` — 15 dígitos para `microchip_iso`; texto libre normalizado para `tattoo`
+- **ISO 11784/11785 subfields (chip rows):** `iso_country_code` (3 char, `'858'` AR), `iso_manufacturer_code` (4 char), `iso_national_id` (8 char), `iso_compliant` (bool)
+- **Tattoo subfields:** `tattoo_location`, `tattoo_description`
+- `recorded_at`, `recorded_by_user_id?`, `recorded_by_label?`, `photo_id?`, `implantation_site?`
+- **Replacement chain:** `replaced_by_id` (self-FK), `replacement_reason` (`damaged | migrated | illegible | medical | other`)
+- **Partial unique index:** `(code) WHERE kind='microchip_iso' AND status='active'` — los chips no pueden colisionar; los tatuajes legítimamente sí (CABA Ord. 41.831 no normaliza códigos entre registros).
+- **Sustituye las columnas paralelas en `pets`** (microchip_id, tattoo_code, etc.). El sprint actual hace doble-write para no romper consumidores; migración 0057 dropea las columnas legacy.
+- **Norma bridge:** `ref.identification_kind_norma` mapea cada `kind` a su Res. SENASA / Ord. CABA correspondiente.
+
 ### `PetEvent` — append-only timeline (the spine)
 - `id`, `pet_id`, `event_type`
 - `occurred_at` (real-world time), `recorded_at` (system time)
@@ -338,6 +357,7 @@ None of these are blockers for v1. Every one is a hook the data model should acc
 - `author_verified` (bool, default false) — true only when both: the relevant org is `verified=true` AND the author has `can_write_pet_events=true` in their membership
 - `payload` (jsonb), `notes?`, `created_at`
 - **Location (interim, v1):** `location_lat?`, `location_lng?` — numeric(10,7) lat/lng pair for events that carry precise location (vet visit, scan GPS, found-pet). Migrating to PostGIS `geography(Point, 4326)` as `location_point?` is deferred until we need radius search or polygon-based projections; Drizzle `customType` makes the lift-and-shift straightforward.
+- **SENASA alignment columns (compliance PR 3, all nullable):** `tipo_evento_code` (FK → `ref.tipo_evento_sanitario`), `lote_biologico`, `laboratorio`, `vencimiento_biologico`, `via_aplicacion_code` (FK → `ref.via_aplicacion`), `vet_matricula`, `vet_jurisdiccion_code` (FK → `ref.jurisdiccion_sanitaria`), `establecimiento_renspa`, `proxima_dosis_at`, `firmado_at`, `firma_hash` (Ley 25.506 placeholder). Helpers en `lib/sanitary-vocab.ts`. Legacy events sin `tipo_evento_code` siguen funcionando como antes; el form `/vet/eventos/nuevo` los populará cuando se reescriba al orden del PDF Res. 580/2014.
 - **Append-only. Never edit, never delete. Correct by adding a new event.**
 
 ### `Reminder`
@@ -691,6 +711,39 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - **k-anonymity for small cells.** Any aggregate that would expose fewer than `k` pets in a region (default `k=5`) is suppressed or rolled up to the next coarser jurisdiction level. Prevents accidental re-identification in sparse data.
 - **Authorized actors (vet portal, gov portal, when they exist) see PII within their legitimate scope only**, gated by Postgres Row Level Security. The data layer enforces tier visibility, not just the app code.
 - **Owner-facing RLS lives in `db/rls.sql`.** It enables RLS on the seven core tables (`profiles`, `pets`, `ownerships`, `pet_events`, `reminders`, `attachments`, `notifications`) and locks every PostgREST read/write to the authenticated owner. `pet_events` has no UPDATE or DELETE policy — the append-only rule (`AGENTS.md → Core principles #2`) is enforced both by code discipline and by RLS. Apply via Supabase Studio (same pattern as `db/welfare_rls.sql` and `db/organizations_rls.sql`); do not use `pnpm db:push`, which would propose dropping unmodeled policies. Server-side reads via Drizzle bypass RLS by design — the public credential page at `/p/{public_token}` continues to work because its server component goes through Drizzle, not supabase-js. Verify the policies via `pnpm rls:smoke`, which runs two test accounts against PostgREST and asserts isolation end-to-end.
+
+## PII baseline & subject rights (Ley 25.326)
+
+Compliance PR 1 (2026-05-28) ancla las bases de la Ley 25.326 al schema:
+
+- **Schema `pii`** con helper `pii.apply_baseline(tbl regclass)` que añade 5 columnas estándar a cualquier tabla con datos personales: `created_by`, `updated_by`, `purpose` (`data_purpose` enum), `deleted_at`, `retention_until`. Aplicado a **`profiles`, `pets`, `pet_identifications`, `custody_disputes`**. `pet_events` queda afuera porque es append-only por trigger (soft-delete no aplica semánticamente).
+- **`data_purpose` enum** (8 valores) — ata cada fila PII a su base legal (Ley 25.326 art. 4°): `identidad_mascota`, `salud_animal`, `notificacion_zoonosis`, `reunificacion_perdida`, `control_poblacional`, `razas_peligrosas`, `auditoria_legal`, `consentimiento_marketing`.
+- **RPCs en `migrations/0059`** (SECURITY DEFINER, GRANT a `authenticated`):
+  - `export_subject_data(p_user_id uuid) → jsonb` — Ley 25.326 art. 14 (derecho de acceso). Devuelve perfil + mascotas + identificaciones + eventos del sujeto. Auth: self o admin institucional.
+  - `erase_subject_data(p_user_id, p_reason) → void` — Ley 25.326 art. 16 (derecho de supresión). Soft-delete + hash de PII; eventos sanitarios preservados por conservación obligatoria de norma SENASA / Ley 14.072.
+- **UI** en `/cuenta/privacidad` — botones "Descargar mis datos" (JSON download) y "Eliminar mi cuenta" (con motivo). Disclaimer explica qué se conserva por norma.
+- **Audit log** registra cada llamada con la cita normativa: `subject_data_exported` (art. 14), `subject_erasure` (art. 16).
+- **`<html lang="es-AR">`** + `prefers-reduced-motion` + biome a11y rules a level error documentan el baseline WCAG 2.1 AA (Ley 26.653, Disp. ONTI 6/2019). Audit de contraste en `docs/a11y/contrast-audit.md`.
+
+**Pendiente (sprint propio):**
+- `lib/audit/log.ts` wrapper que registra `purpose` en cada mutación PII.
+- Consent checkboxes granulares por `data_purpose` en `/registro`.
+- RLS soft-delete policies sobre cada tabla PII (defense in depth).
+
+## SENASA reference vocabularies
+
+Schema `ref.*` (compliance PR 3, migration 0060) ancla los vocabularios SENASA en tablas referenciables por foreign key — cuando se homologue la LSUCyF digital con SENASA, el export es directo sin ETL.
+
+| Tabla | Filas seeded | Norma |
+| --- | --- | --- |
+| `ref.tipo_evento_sanitario` | 17 codes — 5 vacunas + 2 desparasitaciones + cirugía + esterilización + observación antirrábica + mordedura + defunción + transferencia + extravío/recuperación + consulta clínica + REV | Res. SENASA 580/2014, 80/2025, LSUCyF 2022 |
+| `ref.via_aplicacion` | 6 (`sc`/`im`/`iv`/`vo`/`top`/`in`) | ICAR |
+| `ref.jurisdiccion_sanitaria` | 4 sembradas (CABA, BA, Santa Fe, Córdoba); las 20 restantes ISO 3166-2:AR son research follow-up | Decreto-Ley 9.686/1981 (CVPBA), Ley 14.072 (CVPCABA) |
+| `ref.identification_kind_norma` | 4 — bridge cada `pet_identifications.kind` a su Res. SENASA / Ord. CABA correspondiente | PR 0 + Res. SENASA 284/2024 |
+
+Helpers en `lib/sanitary-vocab.ts`: `tipoEventoLabel`, `tipoEventoNorma`, `requiresLote`, `requiresVia`, `notificableEno`. El test `__tests__/sanitary-vocab.test.ts` pinea el TS mirror contra el DB seed en cada CI.
+
+`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up.
 
 ## Feature inventory
 
