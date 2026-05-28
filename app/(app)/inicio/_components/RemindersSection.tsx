@@ -7,7 +7,8 @@
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
 import { ReminderCard } from "@/components/poncho/ReminderCard";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
-import Link from "next/link";
+
+import { ReminderActions } from "./ReminderActions";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.
@@ -61,7 +62,6 @@ const BANNER_TONE: Record<ActiveReminderRow["variant"], string> = {
 
 function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
   const tone = BANNER_TONE[reminder.variant] ?? BANNER_TONE.upcoming;
-  const registerHref = `/mis-mascotas/${reminder.petToken}?sheet=vacuna&text=${encodeURIComponent(reminder.title)}`;
   return (
     <section
       aria-labelledby="single-reminder-heading"
@@ -72,16 +72,14 @@ function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
           {reminder.title} de {reminder.petName}{" "}
           {buildStatusText(reminder.daysUntilDue).toLowerCase()}
         </p>
-        <p className="mt-0.5 text-xs text-gob-text-muted">
-          Programable desde el sheet de Vacuna · {formatDueAt(reminder.dueAt)}
-        </p>
+        <p className="mt-0.5 text-xs text-gob-text-muted">Vence el {formatDueAt(reminder.dueAt)}</p>
       </div>
-      <Link
-        href={registerHref}
-        className="inline-flex shrink-0 items-center justify-center rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white no-underline hover:bg-gob-primary-hover"
-      >
-        Registrar
-      </Link>
+      <ReminderActions
+        reminderId={reminder.reminderId}
+        petToken={reminder.petToken}
+        title={reminder.title}
+        variant="banner"
+      />
     </section>
   );
 }
@@ -129,6 +127,14 @@ export function RemindersSection({
                 petName={r.petName}
                 statusText={buildStatusText(r.daysUntilDue)}
                 dueAt={`Vence el ${formatDueAt(r.dueAt)}`}
+                actions={
+                  <ReminderActions
+                    reminderId={r.reminderId}
+                    petToken={r.petToken}
+                    title={r.title}
+                    variant="row"
+                  />
+                }
               />
             </li>
           ))}
@@ -148,6 +154,14 @@ export function RemindersSection({
                     petName={r.petName}
                     statusText={buildStatusText(r.daysUntilDue)}
                     dueAt={`Vence el ${formatDueAt(r.dueAt)}`}
+                    actions={
+                      <ReminderActions
+                        reminderId={r.reminderId}
+                        petToken={r.petToken}
+                        title={r.title}
+                        variant="row"
+                      />
+                    }
                   />
                 </li>
               ))}
