@@ -10,12 +10,19 @@
 //     else's user_id (NON-admin caller raises 'forbidden').
 
 import { createClient } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, ownerships, pets, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
+
+// We call the RPCs via raw SQL (drizzle/postgres-js) instead of the supabase
+// client. PostgREST has a schema cache that doesn't always pick up new
+// functions added by post-startup migrations (PGRST202 in CI). Drizzle hits
+// the DB directly so cache freshness is irrelevant. The auth.uid() guard
+// inside the RPC is exercised by setting `request.jwt.claims` in the
+// session, which is what PostgREST normally does.
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -25,6 +32,27 @@ const OTHER_EMAIL = "sr-other@dim-test.local";
 const PASS = "SubjRights_2026!";
 
 const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
+
+async function callRpcAs<T>(
+  callerUserId: string | null,
+  fnSql: ReturnType<typeof sql>,
+): Promise<{ data: T | null; error: { code?: string; message: string } | null }> {
+  // set_config(..., true) is transaction-scoped, and the postgres-js pool
+  // may pick a different connection per execute() call. Wrap the setup +
+  // RPC in one transaction so auth.uid() sees the spoofed claim.
+  try {
+    const result = await db.transaction(async (tx) => {
+      const claims = callerUserId ? JSON.stringify({ sub: callerUserId }) : "";
+      await tx.execute(sql`SELECT set_config('request.jwt.claims', ${claims}, true)`);
+      const rows = (await tx.execute(fnSql)) as unknown as Array<Record<string, unknown>>;
+      return rows[0] ? (Object.values(rows[0])[0] as T) : null;
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    const e = err as { code?: string; message?: string };
+    return { data: null, error: { code: e.code, message: e.message ?? "unknown" } };
+  }
+}
 
 let ownerUserId: string;
 let otherUserId: string;
@@ -61,12 +89,6 @@ async function resetProfilePIIToFresh(userId: string, displayName: string) {
     .where(eq(profiles.id, userId));
 }
 
-async function userSupabase(email: string) {
-  const c = createClient(SUPABASE_URL, "sb_publishable_AB4Iz8X5pNH6Mh3MhT4xjA_yegwhI03");
-  const { error } = await c.auth.signInWithPassword({ email, password: PASS });
-  if (error) throw new Error(`signIn ${email}: ${error.message}`);
-  return c;
-}
 
 beforeAll(async () => {
   ownerUserId = await ensureUser(OWNER_EMAIL);
@@ -109,8 +131,10 @@ afterAll(async () => {
 
 describe("export_subject_data RPC", () => {
   it("returns the owner's profile + pets + identifications + events when called by themselves", async () => {
-    const supa = await userSupabase(OWNER_EMAIL);
-    const { data, error } = await supa.rpc("export_subject_data", { p_user_id: ownerUserId });
+    const { data, error } = await callRpcAs<Record<string, unknown>>(
+      ownerUserId,
+      sql`SELECT public.export_subject_data(${ownerUserId}::uuid) AS result`,
+    );
 
     expect(error).toBeNull();
     expect(data).toBeDefined();
@@ -121,7 +145,6 @@ describe("export_subject_data RPC", () => {
     expect(Array.isArray(payload.pets)).toBe(true);
     expect((payload.pets as unknown[]).length).toBeGreaterThan(0);
 
-    // Audit log row recorded.
     const audits = await db
       .select()
       .from(auditLog)
@@ -130,10 +153,12 @@ describe("export_subject_data RPC", () => {
   });
 
   it("refuses to export another user's data for a non-admin caller", async () => {
-    const supa = await userSupabase(OTHER_EMAIL);
-    const { error } = await supa.rpc("export_subject_data", { p_user_id: ownerUserId });
+    const { error } = await callRpcAs(
+      otherUserId,
+      sql`SELECT public.export_subject_data(${ownerUserId}::uuid) AS result`,
+    );
     expect(error).not.toBeNull();
-    // SQLSTATE 42501 = insufficient_privilege
+    // SQLSTATE 42501 = insufficient_privilege (raised by the RPC).
     expect(error?.code).toBe("42501");
   });
 });
@@ -142,11 +167,10 @@ describe("export_subject_data RPC", () => {
 
 describe("erase_subject_data RPC", () => {
   it("soft-deletes the profile, hashes PII, and writes an audit row when called by the subject", async () => {
-    const supa = await userSupabase(OWNER_EMAIL);
-    const { error } = await supa.rpc("erase_subject_data", {
-      p_user_id: ownerUserId,
-      p_reason: "test cleanup",
-    });
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'test cleanup'::text) AS result`,
+    );
     expect(error).toBeNull();
 
     const [row] = await db
