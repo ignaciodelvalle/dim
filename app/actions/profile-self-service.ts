@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { PRIVACY_PREF_KEYS, type PrivacyPrefKey } from "@/lib/privacy-prefs";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -385,15 +386,6 @@ export async function govtSelfDeactivateAction(input?: {
 // One toggle changes one row at a time, optimistic UI lives in the client
 // wrapper. No cross-table side effects.
 // ---------------------------------------------------------------------------
-
-export const PRIVACY_PREF_KEYS = [
-  "discloseNameCredential",
-  "disclosePhoneCredential",
-  "allowOrgContact",
-  "allowLostAlertsInZone",
-] as const;
-
-export type PrivacyPrefKey = (typeof PRIVACY_PREF_KEYS)[number];
 
 export type UpdatePrivacyPrefResult = { error: string } | { ok: true };
 

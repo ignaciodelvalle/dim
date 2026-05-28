@@ -5,7 +5,8 @@
 // revalidates /cuenta so the toggle reflects the persisted value on next
 // paint without any client-side state.
 
-import { type PrivacyPrefKey, updatePrivacyPrefAction } from "@/app/actions/profile-self-service";
+import { updatePrivacyPrefAction } from "@/app/actions/profile-self-service";
+import type { PrivacyPrefKey } from "@/lib/privacy-prefs";
 
 type PrivacyPrefs = Record<PrivacyPrefKey, boolean>;
 
