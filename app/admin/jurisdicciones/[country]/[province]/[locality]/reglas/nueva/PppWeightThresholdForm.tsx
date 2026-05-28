@@ -7,8 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
-import { Checkbox } from "@/components/poncho";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -51,21 +50,21 @@ export function PppWeightThresholdForm({
         vacío para no aplicar threshold (solo regla de razas).
       </p>
 
-      <div className="space-y-1.5">
-        <label htmlFor="kg" className={labelClass}>
-          Peso mínimo (kg)
-        </label>
-        <input
-          id="kg"
-          name="kg"
-          type="number"
-          min={0}
-          max={200}
-          step="0.1"
-          defaultValue={initialKg ?? ""}
-          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-        />
-      </div>
+      <Field label="Peso mínimo (kg)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="kg"
+            type="number"
+            min={0}
+            max={200}
+            step="0.1"
+            defaultValue={initialKg ?? ""}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <Checkbox name="appliesIfBreedNotPPP" defaultChecked={initialAppliesIfBreedNotPPP}>
         Aplicar el threshold incluso a razas NO listadas en{" "}
@@ -73,18 +72,18 @@ export function PppWeightThresholdForm({
         solo agrega una segunda condición a las razas ya consideradas PPP.
       </Checkbox>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas internas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          defaultValue={initialNotes}
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-        />
-      </div>
+      <Field label="Notas internas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            defaultValue={initialNotes}
+            rows={3}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
       {state.error && (

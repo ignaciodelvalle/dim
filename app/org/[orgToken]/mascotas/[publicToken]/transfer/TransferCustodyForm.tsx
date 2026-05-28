@@ -1,6 +1,7 @@
 "use client";
 
 import { type TransferCustodyFormState, transferCustodyAction } from "@/app/actions/transfer";
+import { Field, Select, Textarea } from "@/components/poncho";
 import { useActionState } from "react";
 
 const initialState: TransferCustodyFormState = { error: null };
@@ -28,28 +29,31 @@ export function TransferCustodyForm({
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gob-text-muted">
           Destino
         </h2>
-        <label className="block space-y-1">
-          <span className="text-sm">Organización destino *</span>
-          <select
-            name="destinationOrgId"
-            required
-            defaultValue=""
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
-          >
-            <option value="" disabled>
-              Elegí una organización…
-            </option>
-            {destinations.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.displayName}
+        <Field
+          label="Organización destino"
+          required
+          help="Solo organizaciones verificadas. Si la que buscás no aparece, primero tiene que verificarse."
+        >
+          {({ id, describedBy, invalid }) => (
+            <Select
+              id={id}
+              name="destinationOrgId"
+              required
+              defaultValue=""
+              aria-describedby={describedBy}
+              invalid={invalid}
+            >
+              <option value="" disabled>
+                Elegí una organización…
               </option>
-            ))}
-          </select>
-          <span className="block text-xs text-gob-text-muted">
-            Solo organizaciones verificadas. Si la que buscás no aparece, primero tiene que
-            verificarse.
-          </span>
-        </label>
+              {destinations.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.displayName}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
 
         <fieldset className="space-y-2">
           <legend className="text-sm">Rol en el destino</legend>
@@ -79,16 +83,19 @@ export function TransferCustodyForm({
           </label>
         </fieldset>
 
-        <label className="block space-y-1">
-          <span className="text-sm">Notas</span>
-          <textarea
-            name="notes"
-            rows={3}
-            maxLength={500}
-            placeholder="Motivo, condiciones especiales, contacto en el destino…"
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
-          />
-        </label>
+        <Field label="Notas">
+          {({ id, describedBy, invalid }) => (
+            <Textarea
+              id={id}
+              name="notes"
+              rows={3}
+              maxLength={500}
+              placeholder="Motivo, condiciones especiales, contacto en el destino…"
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </Field>
       </section>
 
       <p className="text-xs rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { ProfessionalCloseResult } from "@/app/actions/bite";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Select, Textarea } from "@/components/poncho";
 
 type FormAction = (formData: FormData) => Promise<ProfessionalCloseResult>;
 
@@ -25,35 +25,43 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       }}
       className="space-y-4"
     >
-      <div className="space-y-1.5">
-        <label htmlFor="outcome" className={labelClass}>
-          Outcome<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select id="outcome" name="outcome" required defaultValue="" className={inputClass}>
-          <option value="" disabled>
-            Elegí outcome
-          </option>
-          <option value="negative">Negativo — animal sano tras observación</option>
-          <option value="positive_rabies">
-            POSITIVO — rabia confirmada o fuertemente sospechada
-          </option>
-          <option value="dead">Fallecido — fallecimiento durante la observación</option>
-          <option value="lost_to_followup">Sin seguimiento — animal perdido o sin contacto</option>
-        </select>
-      </div>
+      <Field label="Outcome" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="outcome"
+            required
+            defaultValue=""
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="" disabled>
+              Elegí outcome
+            </option>
+            <option value="negative">Negativo — animal sano tras observación</option>
+            <option value="positive_rabies">
+              POSITIVO — rabia confirmada o fuertemente sospechada
+            </option>
+            <option value="dead">Fallecido — fallecimiento durante la observación</option>
+            <option value="lost_to_followup">
+              Sin seguimiento — animal perdido o sin contacto
+            </option>
+          </Select>
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="closureNotes" className={labelClass}>
-          Notas de cierre
-        </label>
-        <textarea
-          id="closureNotes"
-          name="closureNotes"
-          rows={4}
-          placeholder="Ej: confirmación clínica negativa tras examen y sin síntomas a día 10."
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas de cierre">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="closureNotes"
+            rows={4}
+            placeholder="Ej: confirmación clínica negativa tras examen y sin síntomas a día 10."
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {error && (
         <p className="text-sm text-gob-danger " role="alert">
