@@ -25,6 +25,7 @@ import { HelpPanel } from "./HelpPanel";
 import { LocationPanel } from "./LocationPanel";
 import { OrgHero } from "./OrgHero";
 import { ServicesPanel } from "./ServicesPanel";
+import { ContactarSheet } from "./sheets/ContactarSheet";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,14 @@ export default async function RefugioPage({
 
         <HelpPanel org={org} isAuthed={isAuthed} />
       </div>
+
+      {/* Sheets — read ?sheet=... from URL and self-mount. */}
+      <ContactarSheet
+        orgToken={orgToken}
+        orgDisplayName={org.displayName}
+        orgEmail={org.email}
+        orgPhone={org.phone}
+      />
     </main>
   );
 }

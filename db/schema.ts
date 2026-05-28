@@ -706,6 +706,41 @@ export const organizations = pgTable(
   }),
 );
 
+// Inbound contact messages from anonymous visitors to the public
+// refugio profile (handoff P2-8). Server actions write here under
+// rate-limit guards; reads gated to org members via RLS (added in
+// the migration). No email/PII validation beyond format — the
+// inquirer is anonymous by design.
+export const orgContactMessages = pgTable(
+  "org_contact_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    inquirerName: text("inquirer_name"),
+    inquirerEmail: text("inquirer_email").notNull(),
+    message: text("message").notNull(),
+    /** First IP from X-Forwarded-For — used for daily rate-limit cohort. */
+    submitterIp: text("submitter_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (table) => ({
+    orgIdx: index("org_contact_messages_org_idx").on(table.organizationId),
+    createdAtIdx: index("org_contact_messages_created_at_idx").on(table.createdAt),
+    messageLengthCheck: check(
+      "org_contact_messages_message_length_check",
+      sql`length(${table.message}) <= 500`,
+    ),
+    emailLengthCheck: check(
+      "org_contact_messages_email_length_check",
+      sql`length(${table.inquirerEmail}) <= 254`,
+    ),
+  }),
+);
+
 // Coverage zones for each org — used to target lost-pet broadcasts and to
 // filter adoption listings by region. Multiple rows per org allowed.
 export const organizationCoverage = pgTable(
