@@ -17,12 +17,11 @@ import { useRef, useState, useTransition } from "react";
 
 import { deactivateAdminAction } from "@/app/actions/admin-institutional";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { Checkbox } from "@/components/poncho";
 import { canDeactivateAdmin } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import { createClient } from "@/lib/supabase/client";
-
-const MOTIVO_MIN = 30;
 
 type Target = {
   id: string;
@@ -266,39 +265,6 @@ function DeactivateAdminForm({
           Cancelar
         </button>
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Shared form primitives
-// ---------------------------------------------------------------------------
-
-function MotivoField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const len = value.trim().length;
-  const tooShort = len < MOTIVO_MIN;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <label
-          htmlFor="deactivate-admin-motivo"
-          className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
-        >
-          Motivo (minimo {MOTIVO_MIN} caracteres)
-        </label>
-        <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-gob-danger " : "text-gob-text-muted "}`}
-        >
-          {len}/{MOTIVO_MIN}
-        </span>
-      </div>
-      <textarea
-        id="deactivate-admin-motivo"
-        rows={3}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-gob-border  bg-white  px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gob-primary "
-      />
     </div>
   );
 }
