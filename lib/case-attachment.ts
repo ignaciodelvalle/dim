@@ -189,6 +189,14 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
     compatibleWith: ["outbreak_investigation"],
     opensKind: "outbreak_investigation",
   },
+  // Disease reports power /gob KPI tiles (handoff P4-3) but don't open
+  // or attach to a case today — outbreak_signal is the case-opening
+  // event. A future "spike detector" worker may attach disease_reported
+  // rows to outbreak_investigation cases; for now, never.
+  disease_reported: {
+    mode: "never",
+    compatibleWith: [],
+  },
 
   // ---------------------------------------------------------------------
   // Non-owner reporting flow (3) — bridged from welfare_reports
