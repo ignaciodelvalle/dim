@@ -1634,6 +1634,13 @@ export const AUDIT_LOG_ACTIONS = [
   // Owner-initiated custody dispute (chip/tatuaje claim wizard, P3-1).
   // Payload: { dispute_public_token, pet_id, attachments_count }.
   "claim_dispute_submitted",
+  // Pet transfer (owner → owner) — P3-2 handshake actions.
+  // Payload varies per action; transfer_public_token + pet_id are always present.
+  "pet_transfer_initiated",
+  "pet_transfer_accepted",
+  "pet_transfer_rejected",
+  "pet_transfer_cancelled",
+  "pet_transfer_expired",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -2866,3 +2873,77 @@ export const eventNotificationOutbox = pgTable(
 
 export type EventNotificationOutbox = typeof eventNotificationOutbox.$inferSelect;
 export type NewEventNotificationOutbox = typeof eventNotificationOutbox.$inferInsert;
+
+// ============================================================================
+// Pet transfers (owner → owner) — handoff P3-2
+// ============================================================================
+// Owner-to-owner handshake for pet custody transfer. Created by the current
+// owner, accepted/rejected by the recipient. Expires 7 days after creation
+// via /api/cron/expire-pet-transfers.
+//
+// to_owner_id is nullable until the recipient signs up + accepts. Lookup at
+// accept-time goes through to_owner_email → auth.users.email.
+
+export const PET_TRANSFER_STATUSES = [
+  "pending",
+  "accepted",
+  "rejected",
+  "expired",
+  "cancelled",
+] as const;
+export type PetTransferStatus = (typeof PET_TRANSFER_STATUSES)[number];
+
+export const PET_TRANSFER_REASONS = ["sale", "gift", "inheritance", "other"] as const;
+export type PetTransferReason = (typeof PET_TRANSFER_REASONS)[number];
+
+export const petTransfers = pgTable(
+  "pet_transfers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicToken: text("public_token").notNull().unique(),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    fromOwnerId: uuid("from_owner_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    toOwnerId: uuid("to_owner_id").references(() => profiles.id, { onDelete: "set null" }),
+    toOwnerEmail: text("to_owner_email").notNull(),
+    status: text("status").notNull().default("pending").$type<PetTransferStatus>(),
+    reason: text("reason").$type<PetTransferReason | null>(),
+    note: text("note"),
+    initiatedAt: timestamp("initiated_at", { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    petTransfersStatusValid: check(
+      "pet_transfers_status_valid",
+      sql`${table.status} in ('pending','accepted','rejected','expired','cancelled')`,
+    ),
+    petTransfersReasonValid: check(
+      "pet_transfers_reason_valid",
+      sql`${table.reason} is null or ${table.reason} in ('sale','gift','inheritance','other')`,
+    ),
+    petTransfersExpiryAfterInit: check(
+      "pet_transfers_expiry_after_init",
+      sql`${table.expiresAt} > ${table.initiatedAt}`,
+    ),
+    // At most one pending transfer per pet — concurrent transfers would race
+    // on ownership transition. Partial unique index, not a CHECK, so closed
+    // transfers (accepted/rejected/expired/cancelled) don't block re-tries.
+    onePendingPerPet: uniqueIndex("pet_transfers_one_pending_per_pet")
+      .on(table.petId)
+      .where(sql`status = 'pending'`),
+    fromOwnerIdx: index("pet_transfers_from_owner_idx").on(table.fromOwnerId),
+    toOwnerIdx: index("pet_transfers_to_owner_idx").on(table.toOwnerId),
+    toEmailIdx: index("pet_transfers_to_email_idx").on(table.toOwnerEmail),
+    statusIdx: index("pet_transfers_status_idx").on(table.status, table.expiresAt),
+  }),
+);
+
+export type PetTransfer = typeof petTransfers.$inferSelect;
+export type NewPetTransfer = typeof petTransfers.$inferInsert;
