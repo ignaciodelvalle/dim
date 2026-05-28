@@ -21,7 +21,7 @@ export function DniVerifyForm({ next }: { next: string }) {
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+      <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
         DNI verificado. Redirigiendo...
       </p>
     );
@@ -58,7 +58,7 @@ export function DniVerifyForm({ next }: { next: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Verificando..." : "Verificar DNI"}
       </button>

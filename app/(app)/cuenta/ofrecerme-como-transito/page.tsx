@@ -12,9 +12,9 @@ export default async function OfrecermeComoTransitoPage() {
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   if (!profile) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-2xl mx-auto pt-10">
-          <p className="text-sm text-red-600">No se encontró tu perfil.</p>
+          <p className="text-sm text-gob-danger">No se encontró tu perfil.</p>
         </div>
       </main>
     );
@@ -33,13 +33,13 @@ export default async function OfrecermeComoTransitoPage() {
     : [];
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text ">
             Ofrecerme como hogar de tránsito
           </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-2 text-sm text-gob-text-gray ">
             Inscribite en el pool de voluntarios. Los refugios cerca tuyo te van a poder proponer
             tránsitos según tus preferencias.
           </p>
@@ -116,28 +116,19 @@ function PreCheckChecklist({
   ];
 
   return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-3">
-      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+    <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-3">
+      <p className="text-sm font-medium text-gob-warning-text ">
         Antes de inscribirte como voluntario necesitamos lo siguiente:
       </p>
       <ul className="space-y-2 text-sm">
         {items.map((item) => (
           <li key={item.label} className="flex items-start gap-2">
-            <span
-              className={
-                item.ok
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-amber-700 dark:text-amber-300"
-              }
-            >
+            <span className={item.ok ? "text-gob-success " : "text-gob-warning-text "}>
               {item.ok ? "✓" : "○"}
             </span>
-            <span className="flex-1 text-neutral-800 dark:text-neutral-200">{item.label}</span>
+            <span className="flex-1 text-gob-text ">{item.label}</span>
             {item.cta && (
-              <Link
-                href={item.cta.href}
-                className="text-amber-900 dark:text-amber-100 underline text-xs"
-              >
+              <Link href={item.cta.href} className="text-gob-warning-text  underline text-xs">
                 {item.cta.text}
               </Link>
             )}

@@ -65,18 +65,14 @@ export default async function BuscarTurnosPage({
   // Render empty state when service_kind is missing.
   if (!serviceKind) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-2xl mx-auto pt-10 space-y-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Buscar turno
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Indicá qué servicio buscás.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Buscar turno</h1>
+          <p className="text-sm text-gob-text-gray ">Indicá qué servicio buscás.</p>
           <ServiceKindSelector />
           <Link
             href="/mis-mascotas"
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
           >
             ← Volver a mis mascotas
           </Link>
@@ -166,15 +162,13 @@ export default async function BuscarTurnosPage({
   const locationLabel = locality ? locality : province ? province : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <header className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             {kindDef?.label ?? serviceKind}
           </h1>
-          {locationLabel && (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">{locationLabel}</p>
-          )}
+          {locationLabel && <p className="text-sm text-gob-text-muted ">{locationLabel}</p>}
         </header>
 
         {/* Search form — allows refining filters */}
@@ -187,7 +181,7 @@ export default async function BuscarTurnosPage({
         />
 
         {offeringsWithSlots.length === 0 ? (
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 py-6">
+          <p className="text-sm text-gob-text-gray  py-6">
             {locationLabel
               ? `Sin servicios disponibles en ${locationLabel}. Probá otra localidad.`
               : "No hay turnos disponibles para este servicio en los próximos 7 días."}
@@ -206,18 +200,16 @@ export default async function BuscarTurnosPage({
               return (
                 <li
                   key={offering.id}
-                  className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden"
+                  className="border border-gob-border  rounded-xl overflow-hidden"
                 >
                   <Link
                     href={`/turnos/buscar/${offering.publicToken}`}
-                    className="block px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                    className="block px-4 py-3 hover:bg-gob-surface-alt  transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5">
-                        <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                          {offering.displayName}
-                        </p>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        <p className="font-medium text-gob-text ">{offering.displayName}</p>
+                        <p className="text-xs text-gob-text-muted ">
                           {providerLabel}
                           {offering.priceArs !== null
                             ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
@@ -237,7 +229,7 @@ export default async function BuscarTurnosPage({
                           />
                         )}
                     </div>
-                    <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400">
+                    <p className="mt-2 text-xs text-gob-success ">
                       {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
                       {slots.length === 1 ? "" : "s"} en los próximos 7 días →
                     </p>
@@ -250,7 +242,7 @@ export default async function BuscarTurnosPage({
 
         <Link
           href="/mis-mascotas"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
         >
           ← Volver a mis mascotas
         </Link>
@@ -266,15 +258,13 @@ export default async function BuscarTurnosPage({
 function ServiceKindSelector() {
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-        ¿Qué servicio buscás?
-      </p>
+      <p className="text-sm font-medium text-gob-text-gray ">¿Qué servicio buscás?</p>
       <ul className="space-y-2">
         {SERVICE_KINDS.map((kind) => (
           <li key={kind.code}>
             <Link
               href={`/turnos/buscar?service_kind=${kind.code}`}
-              className="block px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-sm text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+              className="block px-4 py-2.5 rounded-lg border border-gob-border  text-sm text-gob-text  hover:bg-gob-surface-alt  transition-colors"
             >
               {kind.label}
             </Link>
@@ -303,17 +293,14 @@ function SearchFilters({
     <form method="GET" className="space-y-3">
       <div className="flex flex-wrap gap-2 items-end">
         <div className="space-y-1">
-          <label
-            htmlFor="service_kind_sel"
-            className="text-xs text-neutral-500 dark:text-neutral-400"
-          >
+          <label htmlFor="service_kind_sel" className="text-xs text-gob-text-muted ">
             Servicio
           </label>
           <select
             id="service_kind_sel"
             name="service_kind"
             defaultValue={currentServiceKind}
-            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
+            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
           >
             {kinds.map((k) => (
               <option key={k.code} value={k.code}>
@@ -323,7 +310,7 @@ function SearchFilters({
           </select>
         </div>
         <div className="space-y-1">
-          <label htmlFor="locality_inp" className="text-xs text-neutral-500 dark:text-neutral-400">
+          <label htmlFor="locality_inp" className="text-xs text-gob-text-muted ">
             Localidad
           </label>
           <input
@@ -332,11 +319,11 @@ function SearchFilters({
             type="text"
             defaultValue={currentLocality}
             placeholder="Ej: Palermo"
-            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 w-40"
+            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text  w-40"
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="province_inp" className="text-xs text-neutral-500 dark:text-neutral-400">
+          <label htmlFor="province_inp" className="text-xs text-gob-text-muted ">
             Provincia
           </label>
           <input
@@ -345,12 +332,12 @@ function SearchFilters({
             type="text"
             defaultValue={currentProvince}
             placeholder="Ej: Buenos Aires"
-            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 w-40"
+            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text  w-40"
           />
         </div>
         <button
           type="submit"
-          className="text-sm px-4 py-1.5 rounded bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+          className="text-sm px-4 py-1.5 rounded bg-gob-primary  text-white  hover:bg-gob-primary  transition-colors"
         >
           Buscar
         </button>
@@ -358,10 +345,7 @@ function SearchFilters({
       {/* Fase 10: additional filters — fecha_desde + solo_gratis */}
       <div className="flex flex-wrap gap-4 items-end">
         <div className="space-y-1">
-          <label
-            htmlFor="fecha_desde_inp"
-            className="text-xs text-neutral-500 dark:text-neutral-400"
-          >
+          <label htmlFor="fecha_desde_inp" className="text-xs text-gob-text-muted ">
             Desde
           </label>
           <input
@@ -369,16 +353,16 @@ function SearchFilters({
             name="fecha_desde"
             type="date"
             defaultValue={currentFechaDesde}
-            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
+            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer pb-0.5">
+        <label className="flex items-center gap-2 text-sm text-gob-text-gray  cursor-pointer pb-0.5">
           <input
             type="checkbox"
             name="solo_gratis"
             value="true"
             defaultChecked={currentSoloGratis}
-            className="rounded border-neutral-300 dark:border-neutral-700"
+            className="rounded border-gob-border-strong "
           />
           Solo campañas gratuitas
         </label>

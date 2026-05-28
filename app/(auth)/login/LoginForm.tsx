@@ -15,15 +15,15 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
         type="button"
         disabled
         title="Próximamente: integración con Mi Argentina"
-        className="w-full px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 cursor-not-allowed"
+        className="w-full px-4 py-3 rounded-lg border border-gob-border-strong  text-sm text-gob-text-muted  cursor-not-allowed"
       >
         Conectar con Mi Argentina (próximamente)
       </button>
 
-      <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-500">
-        <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+      <div className="flex items-center gap-3 text-xs text-gob-text-muted ">
+        <div className="flex-1 h-px bg-gob-surface-alt " />
         <span>o</span>
-        <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+        <div className="flex-1 h-px bg-gob-surface-alt " />
       </div>
 
       <form action={formAction} className="space-y-4">
@@ -58,7 +58,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Ingresando..." : "Iniciar sesión"}
         </button>

@@ -45,32 +45,32 @@ type CapabilityState =
 const STATE_BADGE: Record<CapabilityState["kind"], { label: string; className: string }> = {
   granted: {
     label: "Concedido",
-    className: "text-emerald-700 dark:text-emerald-400",
+    className: "text-gob-success ",
   },
   pending: {
     label: "Pendiente",
-    className: "text-amber-700 dark:text-amber-400",
+    className: "text-gob-warning-text ",
   },
   denied: {
     label: "Denegado",
-    className: "text-red-700 dark:text-red-400",
+    className: "text-gob-danger ",
   },
   revoked: {
     label: "Revocado",
-    className: "text-red-700 dark:text-red-400",
+    className: "text-gob-danger ",
   },
   none: {
     label: "No concedido",
-    className: "text-neutral-500",
+    className: "text-gob-text-muted",
   },
 };
 
 const STATE_DOT: Record<CapabilityState["kind"], string> = {
-  granted: "bg-emerald-500",
-  pending: "bg-amber-500",
-  denied: "bg-red-500",
-  revoked: "bg-red-500",
-  none: "bg-neutral-300 dark:bg-neutral-700",
+  granted: "bg-gob-success",
+  pending: "bg-gob-warning",
+  denied: "bg-gob-danger",
+  revoked: "bg-gob-danger",
+  none: "bg-gob-border-strong ",
 };
 
 export default async function OrgDashboardPage({
@@ -172,47 +172,35 @@ export default async function OrgDashboardPage({
   };
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="min-h-screen bg-white ">
       {/* Cross-portal nav rail */}
-      <nav className="border-b border-neutral-200 dark:border-neutral-800 px-6 py-2">
-        <div className="max-w-3xl mx-auto flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
-          <Link
-            href="/mis-mascotas"
-            className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
+      <nav className="border-b border-gob-border  px-6 py-2">
+        <div className="max-w-3xl mx-auto flex items-center gap-4 text-sm text-gob-text-gray ">
+          <Link href="/mis-mascotas" className="hover:text-gob-text  transition-colors">
             Mis mascotas
           </Link>
-          <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+          <span className="text-gob-border-strong " aria-hidden>
             ·
           </span>
-          <Link
-            href="/cuenta"
-            className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-          >
+          <Link href="/cuenta" className="hover:text-gob-text  transition-colors">
             Mi cuenta
           </Link>
           {userRole === "admin" && (
             <>
-              <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+              <span className="text-gob-border-strong " aria-hidden>
                 ·
               </span>
-              <Link
-                href="/admin"
-                className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-              >
+              <Link href="/admin" className="hover:text-gob-text  transition-colors">
                 Admin
               </Link>
             </>
           )}
           {(userRole === "govt" || userRole === "admin") && (
             <>
-              <span className="text-neutral-300 dark:text-neutral-700" aria-hidden>
+              <span className="text-gob-border-strong " aria-hidden>
                 ·
               </span>
-              <Link
-                href="/gob"
-                className="hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
-              >
+              <Link href="/gob" className="hover:text-gob-text  transition-colors">
                 Gobierno
               </Link>
             </>
@@ -223,16 +211,16 @@ export default async function OrgDashboardPage({
       <div className="p-6">
         <div className="max-w-3xl mx-auto space-y-8">
           <header className="space-y-2">
-            <p className="text-xs uppercase tracking-wider text-neutral-500">
+            <p className="text-xs uppercase tracking-wider text-gob-text-muted">
               Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
             </p>
             <h1 className="text-3xl font-semibold">{organization.displayName}</h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               Estás actuando como <strong>{ROLE_LABELS[membership.role] ?? membership.role}</strong>
               {membership.title ? ` — ${membership.title}` : ""}.
             </p>
             {!organization.verified && (
-              <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
                 Organización pendiente de verificación. Los eventos que registres se marcarán como
                 no verificados hasta que la documentación sea aprobada.
               </p>
@@ -244,28 +232,24 @@ export default async function OrgDashboardPage({
           <section aria-label="Pendientes del refugio" className="grid grid-cols-3 gap-3">
             <Link
               href={`/org/${orgToken}/casos`}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+              className="rounded-lg border border-gob-border  p-3 text-center hover:bg-gob-surface-alt  transition"
             >
               <p className="text-2xl font-semibold tabular-nums">{counts.openCases}</p>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">Casos abiertos</p>
+              <p className="text-xs text-gob-text-gray  mt-1">Casos abiertos</p>
             </Link>
             <Link
               href={`/org/${orgToken}/transferencias/recibidas`}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+              className="rounded-lg border border-gob-border  p-3 text-center hover:bg-gob-surface-alt  transition"
             >
               <p className="text-2xl font-semibold tabular-nums">{counts.pendingTransfers}</p>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                Transferencias pendientes
-              </p>
+              <p className="text-xs text-gob-text-gray  mt-1">Transferencias pendientes</p>
             </Link>
             <Link
               href={`/org/${orgToken}/voluntarios/propuestas`}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+              className="rounded-lg border border-gob-border  p-3 text-center hover:bg-gob-surface-alt  transition"
             >
               <p className="text-2xl font-semibold tabular-nums">{counts.pendingFosterProposals}</p>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                Propuestas de tránsito
-              </p>
+              <p className="text-xs text-gob-text-gray  mt-1">Propuestas de tránsito</p>
             </Link>
           </section>
 
@@ -274,10 +258,10 @@ export default async function OrgDashboardPage({
               {canReadHeld && (
                 <Link
                   href={`/org/${orgToken}/mascotas`}
-                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                 >
                   <p className="text-sm font-semibold">Animales en custodia</p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                  <p className="text-xs text-gob-text-gray  mt-1">
                     Listado de animales bajo custodia activa de la organización.
                   </p>
                 </Link>
@@ -285,10 +269,10 @@ export default async function OrgDashboardPage({
               {canIntake && (
                 <Link
                   href={`/org/${orgToken}/intake`}
-                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                 >
                   <p className="text-sm font-semibold">Registrar ingreso</p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                  <p className="text-xs text-gob-text-gray  mt-1">
                     Dar de alta un animal que entra a custodia del refugio.
                   </p>
                 </Link>
@@ -296,10 +280,10 @@ export default async function OrgDashboardPage({
               {canReviewAdoptions && (
                 <Link
                   href={`/org/${orgToken}/checkins`}
-                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                 >
                   <p className="text-sm font-semibold">Check-ins post-adopción</p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                  <p className="text-xs text-gob-text-gray  mt-1">
                     Seguimiento de los adoptantes en las ventanas pactadas.
                   </p>
                 </Link>
@@ -308,28 +292,28 @@ export default async function OrgDashboardPage({
                 <>
                   <Link
                     href={`/org/${orgToken}/voluntarios`}
-                    className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                    className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                   >
                     <p className="text-sm font-semibold">Pool de voluntarios</p>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    <p className="text-xs text-gob-text-gray  mt-1">
                       Buscar voluntarios y proponer tránsitos.
                     </p>
                   </Link>
                   <Link
                     href={`/org/${orgToken}/voluntarios/propuestas`}
-                    className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                    className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                   >
                     <p className="text-sm font-semibold">Propuestas emitidas</p>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    <p className="text-xs text-gob-text-gray  mt-1">
                       Estado de las propuestas de tránsito que enviaste.
                     </p>
                   </Link>
                   <Link
                     href={`/org/${orgToken}/transitos`}
-                    className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                    className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                   >
                     <p className="text-sm font-semibold">Tránsitos activos</p>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                    <p className="text-xs text-gob-text-gray  mt-1">
                       Mascotas con tránsito en curso (pool, miembro o vecino).
                     </p>
                   </Link>
@@ -338,10 +322,10 @@ export default async function OrgDashboardPage({
               {canIntake && (
                 <Link
                   href={`/org/${orgToken}/pets/no-aptas`}
-                  className="rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
                 >
                   <p className="text-sm font-semibold">Mascotas no aptas para adopción</p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                  <p className="text-xs text-gob-text-gray  mt-1">
                     Animales marcados como no aptos, agrupados por motivo.
                   </p>
                 </Link>
@@ -354,21 +338,21 @@ export default async function OrgDashboardPage({
               <h2 className="text-lg font-semibold">Tus permisos</h2>
               <div className="flex items-center gap-2">
                 {isAdmin && (
-                  <span className="text-xs rounded-full bg-neutral-900 px-2 py-0.5 text-white dark:bg-white dark:text-neutral-900">
+                  <span className="text-xs rounded-full bg-gob-primary px-2 py-0.5 text-white  ">
                     Admin · todos los permisos
                   </span>
                 )}
                 {canDecideRequests && (
                   <Link
                     href={`/org/${orgToken}/admin/permisos`}
-                    className="text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                    className="text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                   >
                     Revisar solicitudes
                   </Link>
                 )}
               </div>
             </div>
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
               {CAPABILITY_CATALOG.map((entry) => {
                 const state = stateFor(entry.capability);
                 const badge = STATE_BADGE[state.kind];
@@ -384,13 +368,11 @@ export default async function OrgDashboardPage({
                     <div className="flex-1 min-w-0 space-y-1">
                       <p className="text-sm font-medium">
                         {entry.label}
-                        <span className="ml-2 text-xs text-neutral-500">{entry.capability}</span>
+                        <span className="ml-2 text-xs text-gob-text-muted">{entry.capability}</span>
                       </p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                        {entry.description}
-                      </p>
+                      <p className="text-xs text-gob-text-gray ">{entry.description}</p>
                       {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
-                        <p className="text-xs italic text-neutral-500">Motivo: {state.reason}</p>
+                        <p className="text-xs italic text-gob-text-muted">Motivo: {state.reason}</p>
                       )}
                       {showRequestForm && (
                         <div className="pt-1">

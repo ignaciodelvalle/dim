@@ -59,7 +59,7 @@ export default function LocationMap({ lat, lng }: Props) {
   return (
     <div
       ref={containerRef}
-      className="w-full h-64 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-800"
+      className="w-full h-64 rounded-lg overflow-hidden border border-gob-border "
       aria-label={`Mapa con marcador en latitud ${lat}, longitud ${lng}`}
     />
   );

@@ -43,7 +43,7 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
       {/* Sub-kind */}
       <div className="space-y-1.5">
         <label htmlFor="subKind" className={labelClass}>
-          Tipo<span className="text-red-500 ml-0.5">*</span>
+          Tipo<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <select
           id="subKind"
@@ -64,7 +64,7 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
       {/* Title */}
       <div className="space-y-1.5">
         <label htmlFor="title" className={labelClass}>
-          Título / nombre<span className="text-red-500 ml-0.5">*</span>
+          Título / nombre<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="title"
@@ -107,7 +107,7 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
       {/* Date */}
       <div className="space-y-1.5">
         <label htmlFor="occurredAt" className={labelClass}>
-          Fecha<span className="text-red-500 ml-0.5">*</span>
+          Fecha<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="occurredAt"
@@ -133,8 +133,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
         />
       </div>
 
-      <details className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-        <summary className="text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+      <details className="rounded-lg border border-gob-border  p-3">
+        <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
           Ubicación (opcional)
         </summary>
         <div className="mt-3">
@@ -145,7 +145,7 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -153,7 +153,7 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Guardar información clínica"}
       </button>

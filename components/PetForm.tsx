@@ -251,7 +251,7 @@ export function PetForm({
                 ))}
               </datalist>
               {breedIsDangerous && (
-                <div className="mt-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-900 dark:text-amber-200">
+                <div className="mt-2 p-3 rounded-lg border border-gob-warning  bg-gob-warning/10  text-xs text-gob-warning-text ">
                   Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
                   Ley Provincial 14.107). Vas a tener que registrarte en el registro provincial
                   correspondiente. MiMAR marcará tu mascota con la flag oficial y te avisará en
@@ -357,7 +357,7 @@ export function PetForm({
 
           {/* SECTION: Documentos (placeholder) */}
           <Section title="Documentos y certificaciones">
-            <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center text-sm text-neutral-500 dark:text-neutral-500">
+            <div className="rounded-lg border border-dashed border-gob-border-strong  p-4 text-center text-sm text-gob-text-muted ">
               Pasaporte de viaje, certificado de perro de servicio, otros.
               <br />
               <span className="text-xs">Próximamente</span>
@@ -366,14 +366,14 @@ export function PetForm({
 
           {/* SECTION: Smart devices */}
           <Section title="Dispositivos conectados">
-            <div className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-center space-y-3">
-              <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            <div className="rounded-lg border border-dashed border-gob-border-strong  p-4 text-center space-y-3">
+              <p className="text-sm text-gob-text-gray ">
                 Cámaras, comederos automáticos, collares GPS, sensores.
               </p>
               <button
                 type="button"
                 disabled
-                className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-lg border border-gob-border-strong  text-sm text-gob-text-muted  disabled:cursor-not-allowed"
               >
                 Conectar dispositivo (próximamente)
               </button>
@@ -409,13 +409,13 @@ export function PetForm({
                 name="emergencyInfoVisible"
                 value="true"
                 defaultChecked={!!existingPet?.emergencyInfoVisible}
-                className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+                className="mt-0.5 rounded border-gob-border-strong  text-gob-text  focus:ring-gob-primary "
               />
               <span className="space-y-0.5">
-                <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+                <span className="block text-sm text-gob-text ">
                   Mostrar aviso de emergencia médica en la credencial pública
                 </span>
-                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+                <span className="block text-xs text-gob-text-gray ">
                   Aparece en la página pública sin revelar tu nombre ni datos sensibles.
                 </span>
               </span>
@@ -429,7 +429,7 @@ export function PetForm({
               name="permanentConditions"
               value={Array.from(conditions).join(",")}
             />
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3">
+            <p className="text-xs text-gob-text-gray  mb-3">
               Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora,
               médica). Esto ayuda a otros veterinarios y, si decidís compartirla, a personas que
               quieran adoptarla.
@@ -442,7 +442,7 @@ export function PetForm({
                 if (codes.length === 0) return null;
                 return (
                   <fieldset key={group.id} className="space-y-1">
-                    <legend className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    <legend className="text-xs font-medium uppercase tracking-wide text-gob-text-muted">
                       {group.label}
                     </legend>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
@@ -455,11 +455,9 @@ export function PetForm({
                             type="checkbox"
                             checked={conditions.has(code)}
                             onChange={() => toggleCondition(code)}
-                            className="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+                            className="rounded border-gob-border-strong  text-gob-text  focus:ring-gob-primary "
                           />
-                          <span className="text-neutral-800 dark:text-neutral-200">
-                            {permanentConditionLabel(code)}
-                          </span>
+                          <span className="text-gob-text ">{permanentConditionLabel(code)}</span>
                         </label>
                       ))}
                     </div>
@@ -480,7 +478,7 @@ export function PetForm({
                   maxLength={120}
                   value={conditionsOther}
                   onChange={(e) => setConditionsOther(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
                 />
               </div>
             )}
@@ -495,13 +493,13 @@ export function PetForm({
                 checked={discloseConditions}
                 onChange={(e) => setDiscloseConditions(e.target.checked)}
                 disabled={conditions.size === 0}
-                className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50 disabled:opacity-50"
+                className="mt-0.5 rounded border-gob-border-strong  text-gob-text  focus:ring-gob-primary  disabled:opacity-50"
               />
               <span className="space-y-0.5">
-                <span className="block text-sm text-neutral-900 dark:text-neutral-50">
+                <span className="block text-sm text-gob-text ">
                   Compartir estas condiciones en superficies públicas
                 </span>
-                <span className="block text-xs text-neutral-600 dark:text-neutral-400">
+                <span className="block text-xs text-gob-text-gray ">
                   Cuando está marcado, las condiciones se muestran en la credencial pública y en{" "}
                   /adoptar si el refugio publica al pet en adopción. Sin esto quedan privadas.
                 </span>
@@ -512,7 +510,7 @@ export function PetForm({
       )}
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -520,7 +518,7 @@ export function PetForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending
           ? (pendingLabel ?? "Guardando...")
@@ -560,7 +558,7 @@ function CustodyKindToggle({
         />
       </div>
       {value === "foster_in_transit" && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+        <p className="text-xs text-gob-text-gray  px-3 py-2 rounded-lg bg-gob-surface-alt  border border-gob-border ">
           Vas a poder llevarle la libreta sanitaria mientras la cuidás. La información viaja con la
           mascota si aparece su familia o pasa a un refugio. Si más adelante la adoptás formalmente,
           vas a poder convertirla en tuya desde su perfil.
@@ -588,12 +586,12 @@ function CustodyOptionCard({
       aria-pressed={checked}
       className={
         checked
-          ? "text-left px-4 py-3 rounded-lg border-2 border-neutral-900 dark:border-neutral-50 bg-neutral-50 dark:bg-neutral-900 transition-colors"
-          : "text-left px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+          ? "text-left px-4 py-3 rounded-lg border-2 border-gob-border-strong  bg-gob-surface-alt  transition-colors"
+          : "text-left px-4 py-3 rounded-lg border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
       }
     >
-      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">{title}</p>
-      <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">{description}</p>
+      <p className="text-sm font-medium text-gob-text ">{title}</p>
+      <p className="text-xs text-gob-text-gray  mt-1">{description}</p>
     </button>
   );
 }
@@ -629,19 +627,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <details
-      open={defaultOpen}
-      className="group rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
-    >
-      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-neutral-900 dark:text-neutral-50 flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-lg">
+    <details open={defaultOpen} className="group rounded-lg border border-gob-border  bg-white ">
+      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gob-text  flex items-center justify-between hover:bg-gob-surface-alt  rounded-lg">
         <span>{title}</span>
-        <span className="text-neutral-400 dark:text-neutral-600 group-open:rotate-90 transition-transform">
-          ›
-        </span>
+        <span className="text-gob-text-muted  group-open:rotate-90 transition-transform">›</span>
       </summary>
-      <div className="p-4 pt-2 space-y-4 border-t border-neutral-200 dark:border-neutral-800">
-        {children}
-      </div>
+      <div className="p-4 pt-2 space-y-4 border-t border-gob-border ">{children}</div>
     </details>
   );
 }
@@ -678,19 +669,15 @@ function AgeFields({
           className={inputClass}
         />
       </div>
-      <p className="text-xs text-neutral-500 dark:text-neutral-500">
-        Si no sabés exacto, una estimación está bien.
-      </p>
+      <p className="text-xs text-gob-text-muted ">Si no sabés exacto, una estimación está bien.</p>
     </div>
   );
 }
 
 function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
   return (
-    <div className="space-y-3 pt-3 border-t border-neutral-100 dark:border-neutral-900">
-      <p className="text-xs text-neutral-500 dark:text-neutral-500 uppercase tracking-wider">
-        Microchip
-      </p>
+    <div className="space-y-3 pt-3 border-t border-gob-border-strong ">
+      <p className="text-xs text-gob-text-muted  uppercase tracking-wider">Microchip</p>
       <Field
         id="microchipId"
         name="microchipId"
@@ -762,14 +749,14 @@ function CheckboxGroup({
         {options.map((opt) => (
           <label
             key={opt}
-            className="flex items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200 cursor-pointer"
+            className="flex items-center gap-2 text-sm text-gob-text  cursor-pointer"
           >
             <input
               type="checkbox"
               name={name}
               value={opt}
               defaultChecked={defaultValues.includes(opt)}
-              className="rounded border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+              className="rounded border-gob-border-strong  text-gob-text  focus:ring-gob-primary "
             />
             <span>{opt}</span>
           </label>
@@ -799,7 +786,7 @@ function PhotoField({
       <span className={labelClass}>Foto (opcional)</span>
       <label
         htmlFor="photo"
-        className="flex items-center gap-4 p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+        className="flex items-center gap-4 p-3 rounded-lg border border-dashed border-gob-border-strong  cursor-pointer hover:bg-gob-surface-alt  transition-colors"
       >
         {preview ? (
           <img
@@ -808,15 +795,13 @@ function PhotoField({
             className="w-20 h-20 rounded-lg object-cover shrink-0"
           />
         ) : (
-          <div className="w-20 h-20 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-400 dark:text-neutral-600 text-xs text-center px-2 shrink-0">
+          <div className="w-20 h-20 rounded-lg bg-gob-surface-alt  flex items-center justify-center text-gob-text-muted  text-xs text-center px-2 shrink-0">
             Sin foto
           </div>
         )}
-        <div className="flex-1 text-sm text-neutral-600 dark:text-neutral-400">
+        <div className="flex-1 text-sm text-gob-text-gray ">
           {preview ? "Cambiar foto" : "Tocá para elegir una foto"}
-          <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
-            JPG o PNG, hasta 5 MB
-          </p>
+          <p className="text-xs text-gob-text-muted  mt-1">JPG o PNG, hasta 5 MB</p>
         </div>
       </label>
       <input
@@ -857,7 +842,7 @@ function Field({
     <div className="space-y-1.5">
       <label htmlFor={id} className={labelClass}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-gob-danger ml-0.5">*</span>}
       </label>
       <input
         id={id}
@@ -898,7 +883,7 @@ function SelectField({
     <div className="space-y-1.5">
       <label htmlFor={id} className={labelClass}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-gob-danger ml-0.5">*</span>}
       </label>
       <select
         id={id}

@@ -35,13 +35,11 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
         type="button"
         onClick={submit}
         disabled={pending}
-        className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+        className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   hover:bg-gob-danger/10  disabled:opacity-50"
       >
         {pending ? "Retirando..." : "Retirar disputa"}
       </button>
-      {error && (
-        <output className="block text-sm text-red-600 dark:text-red-400 mt-2">{error}</output>
-      )}
+      {error && <output className="block text-sm text-gob-danger  mt-2">{error}</output>}
     </div>
   );
 }

@@ -33,12 +33,12 @@ export default async function OrgTransitosPage({
 
   if (orgPets.length === 0) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-3xl mx-auto pt-10">
           <header className="mb-4">
             <h1 className="text-2xl font-semibold">Tránsitos activos</h1>
           </header>
-          <p className="text-sm text-neutral-500">No tenés mascotas en custodia.</p>
+          <p className="text-sm text-gob-text-muted">No tenés mascotas en custodia.</p>
         </div>
       </main>
     );
@@ -97,25 +97,20 @@ export default async function OrgTransitosPage({
   const petMap = new Map(orgPets.map((p) => [p.id, p]));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto pt-10 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Tránsitos activos
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Tránsitos activos</h1>
+          <p className="mt-2 text-sm text-gob-text-gray ">
             Mascotas que tu organización tiene en custodia y que están bajo el cuidado de alguien
             (voluntario pool, miembro de la org o vecino).
           </p>
         </header>
 
         {fosters.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-6 text-center">
+          <p className="text-sm text-gob-text-muted py-6 text-center">
             Ninguna de tus mascotas tiene tránsito activo.{" "}
-            <Link
-              href={`/org/${orgToken}/voluntarios`}
-              className="underline hover:text-neutral-900 dark:hover:text-neutral-50"
-            >
+            <Link href={`/org/${orgToken}/voluntarios`} className="underline hover:text-gob-text ">
               Buscar voluntarios
             </Link>
           </p>
@@ -132,15 +127,17 @@ export default async function OrgTransitosPage({
               return (
                 <li
                   key={ownership.id}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-2"
+                  className="rounded-lg border border-gob-border-strong  p-4 space-y-2"
                 >
                   <div className="flex items-baseline justify-between gap-3">
                     <div className="space-y-1">
-                      <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                      <p className="font-medium text-gob-text ">
                         {pet.name}{" "}
-                        <span className="text-neutral-500 font-normal">→ {foster.displayName}</span>
+                        <span className="text-gob-text-muted font-normal">
+                          → {foster.displayName}
+                        </span>
                       </p>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-gob-text-muted">
                         {pet.species} · tipo: <KindBadge kind={kind} /> · iniciado{" "}
                         {new Date(ownership.startedAt).toLocaleDateString("es-AR", {
                           day: "numeric",
@@ -148,10 +145,7 @@ export default async function OrgTransitosPage({
                           year: "numeric",
                         })}
                         {ownership.allowCoFoster && (
-                          <span className="text-emerald-700 dark:text-emerald-300">
-                            {" "}
-                            · acepta co-foster
-                          </span>
+                          <span className="text-gob-success "> · acepta co-foster</span>
                         )}
                       </p>
                     </div>

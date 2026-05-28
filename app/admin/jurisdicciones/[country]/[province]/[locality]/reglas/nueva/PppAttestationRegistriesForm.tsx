@@ -67,17 +67,15 @@ export function PppAttestationRegistriesForm({
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-gob-text-gray ">
         Lista de registros oficiales en los que el dueño debe registrar (atestar) a su mascota PPP.
         Marcá required en los obligatorios.
       </p>
 
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          Registros configurados
-        </legend>
+        <legend className="text-sm font-medium text-gob-text ">Registros configurados</legend>
         {registries.length === 0 && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs text-gob-text-muted ">
             Aún no agregaste registros. Sin registros la regla equivale al default (ninguno
             requerido).
           </p>
@@ -85,28 +83,28 @@ export function PppAttestationRegistriesForm({
         {registries.map((r, i) => (
           <div
             key={r.id}
-            className="flex items-start gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3"
+            className="flex items-start gap-2 rounded-lg border border-gob-border  p-3"
           >
             <input type="hidden" name="registryId" value={r.id} />
             <input type="hidden" name="registryLabel" value={r.label} />
             <input type="hidden" name="registryRequired" value={r.required ? "true" : "false"} />
             <div className="flex-1 text-sm">
-              <p className="font-medium text-neutral-900 dark:text-neutral-50">{r.label}</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-500">
+              <p className="font-medium text-gob-text ">{r.label}</p>
+              <p className="text-xs text-gob-text-muted ">
                 <span className="font-mono">{r.id}</span> · {r.required ? "Required" : "Optional"}
               </p>
             </div>
             <button
               type="button"
               onClick={() => toggleRequired(r.id)}
-              className="text-xs underline underline-offset-4 text-neutral-700 dark:text-neutral-300"
+              className="text-xs underline underline-offset-4 text-gob-text-gray "
             >
               {r.required ? "Hacer opcional" : "Marcar required"}
             </button>
             <button
               type="button"
               onClick={() => removeRegistry(r.id)}
-              className="text-xs underline underline-offset-4 text-red-600 dark:text-red-400"
+              className="text-xs underline underline-offset-4 text-gob-danger "
             >
               Quitar
             </button>
@@ -116,24 +114,22 @@ export function PppAttestationRegistriesForm({
         ))}
       </fieldset>
 
-      <fieldset className="space-y-2 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-3">
-        <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          Agregar registro
-        </legend>
+      <fieldset className="space-y-2 rounded-lg border border-dashed border-gob-border-strong  p-3">
+        <legend className="text-sm font-medium text-gob-text ">Agregar registro</legend>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <input
             type="text"
             placeholder="ID (caba_4078, prov_14107…)"
             value={newId}
             onChange={(e) => setNewId(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
           />
           <input
             type="text"
             placeholder="Label visible"
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
           />
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -147,7 +143,7 @@ export function PppAttestationRegistriesForm({
         <button
           type="button"
           onClick={addRegistry}
-          className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4"
+          className="text-sm text-gob-text-gray  underline underline-offset-4"
         >
           + Agregar registro
         </button>
@@ -162,15 +158,13 @@ export function PppAttestationRegistriesForm({
           name="notes"
           defaultValue={initialNotes}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
       </div>
 
-      {state.warning && (
-        <p className="text-sm text-amber-700 dark:text-amber-300">{state.warning}</p>
-      )}
+      {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -178,7 +172,7 @@ export function PppAttestationRegistriesForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 transition-colors"
       >
         {isPending ? "Guardando…" : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </button>

@@ -53,11 +53,11 @@ export function ResetCredentialsButton({
         type="button"
         onClick={handleReset}
         disabled={pending}
-        className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors disabled:opacity-50"
+        className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt  transition-colors disabled:opacity-50"
       >
         {pending ? "Generando link..." : "Resetear credentials"}
       </button>
-      {error && <p className="text-[10px] text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-[10px] text-gob-danger ">{error}</p>}
     </div>
   );
 

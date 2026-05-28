@@ -47,14 +47,14 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
         <button
           type="button"
           onClick={() => setMode("pass")}
-          className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+          className="px-3 py-1.5 rounded text-sm bg-gob-success text-white font-medium hover:bg-gob-success"
         >
           Pasar a triage
         </button>
         <button
           type="button"
           onClick={() => setMode("spam")}
-          className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30"
+          className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   font-medium hover:bg-gob-danger/10 "
         >
           Confirmar como spam
         </button>
@@ -69,21 +69,21 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
       : "Por qué confirmás que es spam — pattern observado, frecuencia, etc. (mínimo 10).";
   const buttonClass =
     mode === "pass"
-      ? "bg-emerald-600 text-white hover:bg-emerald-700"
-      : "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:bg-neutral-800";
+      ? "bg-gob-success text-white hover:bg-gob-success"
+      : "bg-gob-primary  text-white  hover:bg-gob-primary";
 
   return (
-    <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
+    <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
       <p className="text-sm font-medium">{title}</p>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+        className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
       />
-      <p className="text-xs text-neutral-500 tabular-nums">{notes.trim().length} caracteres</p>
-      {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
+      <p className="text-xs text-gob-text-muted tabular-nums">{notes.trim().length} caracteres</p>
+      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
@@ -97,7 +97,7 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded border border-neutral-300 dark:border-neutral-700 text-sm"
+          className="px-4 py-2 rounded border border-gob-border-strong  text-sm"
         >
           Cancelar
         </button>

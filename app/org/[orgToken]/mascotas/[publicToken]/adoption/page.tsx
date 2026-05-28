@@ -21,16 +21,16 @@ export default async function AdoptionPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("adoption.finalize")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Para finalizar adopciones necesitás el permiso{" "}
             <code className="text-xs">adoption.finalize</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -54,15 +54,15 @@ export default async function AdoptionPage({
     .limit(1);
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Animal no disponible</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -102,29 +102,29 @@ export default async function AdoptionPage({
     : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Finalizar adopción: {pet.name}</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Esta acción cierra la custodia del refugio y, si hay un tránsito activo, también lo
             cierra. Queda registrado como evento inmutable en la historia de {pet.name}.
           </p>
         </header>
 
         {!pet.adoptionEligible && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm space-y-1">
-            <p className="text-amber-900 dark:text-amber-100">
+          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-sm space-y-1">
+            <p className="text-gob-warning-text ">
               {pet.adoptionEligible === false
                 ? `Esta mascota está marcada como NO apta para adopción (motivo: ${pet.adoptionIneligibleReason ?? "sin motivo"}).`
                 : "Esta mascota no fue evaluada para adopción todavía."}
             </p>
             <Link
               href={`/org/${orgToken}/mascotas/${publicToken}/eligibility`}
-              className="inline-block underline text-amber-900 dark:text-amber-100"
+              className="inline-block underline text-gob-warning-text "
             >
               Resolver elegibilidad
             </Link>
@@ -137,10 +137,10 @@ export default async function AdoptionPage({
           fosterShortcut={fosterShortcut}
         />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <footer className="pt-4 border-t border-gob-border ">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
+            className="text-sm text-gob-text-gray underline "
           >
             ← Volver al listado
           </Link>

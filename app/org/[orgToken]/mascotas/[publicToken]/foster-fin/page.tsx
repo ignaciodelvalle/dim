@@ -20,15 +20,15 @@ export default async function EndFosterPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("foster.end")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Para cerrar tránsitos necesitás el permiso <code className="text-xs">foster.end</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -51,15 +51,15 @@ export default async function EndFosterPage({
     .limit(1);
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Animal no disponible</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -80,15 +80,13 @@ export default async function EndFosterPage({
     .limit(1);
   if (!fosterRow) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Sin tránsito activo</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
-            {pet.name} no tiene un tránsito activo para cerrar.
-          </p>
+          <p className="text-gob-text-gray ">{pet.name} no tiene un tránsito activo para cerrar.</p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -98,10 +96,10 @@ export default async function EndFosterPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Cerrar tránsito: {pet.name}</h1>
@@ -113,10 +111,10 @@ export default async function EndFosterPage({
           fosterName={fosterRow.fosterDisplayName}
         />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <footer className="pt-4 border-t border-gob-border ">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
+            className="text-sm text-gob-text-gray underline "
           >
             ← Volver al listado
           </Link>

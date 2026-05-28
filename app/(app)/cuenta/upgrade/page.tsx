@@ -37,32 +37,30 @@ export default async function UpgradePage() {
     .limit(1);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Tu rol en MiMAR
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Tu rol en MiMAR</h1>
+          <p className="text-sm text-gob-text-gray ">
             Ampliá tus permisos registrando tu matrícula profesional o creando una organización.
           </p>
         </header>
 
         {/* Soft prereq banner: shown when DNI is not yet verified */}
         {!profile?.dniVerified && (
-          <div className="rounded-lg border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/20 px-4 py-3 flex items-start gap-3">
-            <span className="text-yellow-600 dark:text-yellow-400 text-sm mt-0.5" aria-hidden>
+          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   px-4 py-3 flex items-start gap-3">
+            <span className="text-gob-warning-text  text-sm mt-0.5" aria-hidden>
               ⚠
             </span>
             <div className="space-y-1">
-              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+              <p className="text-sm font-medium text-gob-warning-text ">
                 Te falta verificar tu DNI
               </p>
-              <p className="text-xs text-yellow-700 dark:text-yellow-400">
+              <p className="text-xs text-gob-warning-text ">
                 Necesitás verificar tu identidad antes de enviar cualquier solicitud de rol.{" "}
                 <a
                   href="/cuenta/verificar-dni?next=/cuenta/upgrade"
-                  className="underline underline-offset-2 hover:text-yellow-900 dark:hover:text-yellow-200"
+                  className="underline underline-offset-2 hover:text-gob-warning-text "
                 >
                   Verificar ahora →
                 </a>
@@ -73,28 +71,22 @@ export default async function UpgradePage() {
 
         {/* Card A — Profesional veterinario */}
         {profile?.role === "vet" ? (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-              Profesional veterinario
-            </h2>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Ya sos veterinario verificado en MiMAR.
-            </p>
+          <section className="rounded-lg border border-gob-border  p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-gob-text ">Profesional veterinario</h2>
+            <p className="text-sm text-gob-text-gray ">Ya sos veterinario verificado en MiMAR.</p>
           </section>
         ) : (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
+          <section className="rounded-lg border border-gob-border  p-6 space-y-4">
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-                Profesional veterinario
-              </h2>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              <h2 className="text-lg font-semibold text-gob-text ">Profesional veterinario</h2>
+              <p className="text-sm text-gob-text-gray ">
                 Registrá tu matrícula para que la autoridad de tu localidad la verifique. Una vez
                 aprobada, tu rol pasa a veterinario.
               </p>
             </div>
 
             {latestVetRequest?.status === "pending" ? (
-              <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
                 Solicitud enviada — pendiente de revisión.
                 {profile?.matriculaNumber && (
                   <>
@@ -105,7 +97,7 @@ export default async function UpgradePage() {
               </p>
             ) : latestVetRequest?.status === "rejected" ? (
               <>
-                <div className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 space-y-1">
+                <div className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger    space-y-1">
                   <p>
                     <strong>Tu última solicitud fue rechazada.</strong>
                   </p>
@@ -123,12 +115,10 @@ export default async function UpgradePage() {
         )}
 
         {/* Card B — Crear Organización */}
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 space-y-4">
+        <section className="rounded-lg border border-gob-border  p-6 space-y-4">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-              Crear Organización
-            </h2>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <h2 className="text-lg font-semibold text-gob-text ">Crear Organización</h2>
+            <p className="text-sm text-gob-text-gray ">
               Refugios, clínicas y redes de rescate pueden crear su panel organizacional en MiMAR.
             </p>
           </div>
@@ -136,17 +126,17 @@ export default async function UpgradePage() {
           {adminMembership ? (
             <Link
               href={`/org/${adminMembership.organization.publicToken}`}
-              className="flex items-center justify-between rounded border border-neutral-200 dark:border-neutral-800 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+              className="flex items-center justify-between rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
             >
               <div>
-                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+                <p className="text-sm font-semibold text-gob-text ">
                   Ya administrás una organización
                 </p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
+                <p className="text-xs text-gob-text-gray  mt-0.5">
                   {adminMembership.organization.displayName}
                 </p>
               </div>
-              <span className="text-neutral-400 dark:text-neutral-600" aria-hidden>
+              <span className="text-gob-text-muted " aria-hidden>
                 →
               </span>
             </Link>
@@ -158,7 +148,7 @@ export default async function UpgradePage() {
         <div className="pt-2">
           <Link
             href="/mis-mascotas"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
           >
             ← Volver a mis mascotas
           </Link>

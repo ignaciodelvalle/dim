@@ -37,15 +37,15 @@ export default async function VecinoMatchPage({
 
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Mascota ya no esta perdida</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             {pet.name} ya fue encontrada o su estado cambio. Podes continuar registrando la mascota.
           </p>
           <Link
             href="/mis-mascotas/nueva"
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al registro
           </Link>
@@ -87,11 +87,11 @@ export default async function VecinoMatchPage({
   const ownerFirstName = ownerRow?.displayName?.split(" ")[0] ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-xl mx-auto space-y-6">
         <header className="space-y-1">
           <h1 className="text-3xl font-semibold">Coincidencia de microchip</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             El chip que ingresaste ya esta registrado en MiMAR. Confirma si es el mismo animal.
           </p>
         </header>
@@ -109,11 +109,8 @@ export default async function VecinoMatchPage({
           lastLocationDate={lastLocationDate}
         />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href="/mis-mascotas/nueva"
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border ">
+          <Link href="/mis-mascotas/nueva" className="text-sm text-gob-text-gray underline ">
             Cancelar y volver al registro
           </Link>
         </footer>

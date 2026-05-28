@@ -26,33 +26,27 @@ export function NotificationCard({
   return (
     <article
       className={`border rounded-xl p-4 flex gap-3 transition-colors ${
-        unread
-          ? `${tone.unreadBg} ${tone.unreadBorder}`
-          : "bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+        unread ? `${tone.unreadBg} ${tone.unreadBorder}` : "bg-white  border-gob-border "
       }`}
     >
       <div className={`w-1 self-stretch rounded-full ${tone.bar}`} aria-hidden />
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5 min-w-0">
-            <h3
-              className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-neutral-900 dark:text-neutral-50`}
-            >
+            <h3 className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-gob-text `}>
               {notification.title}
             </h3>
-            <p className="text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+            <p className="text-[11px] uppercase tracking-wider text-gob-text-muted ">
               {notificationSeverityLabel(notification.severity)} · {notification.notificationType}
             </p>
           </div>
-          <time className="text-xs text-neutral-500 dark:text-neutral-500 shrink-0">
+          <time className="text-xs text-gob-text-muted  shrink-0">
             {relativeTime(notification.createdAt)}
           </time>
         </div>
 
         {notification.body && (
-          <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
-            {notification.body}
-          </p>
+          <p className="text-sm text-gob-text-gray  leading-relaxed">{notification.body}</p>
         )}
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -61,7 +55,7 @@ export function NotificationCard({
               href={notification.ctaUrl}
               target={notification.ctaUrl.startsWith("http") ? "_blank" : undefined}
               rel={notification.ctaUrl.startsWith("http") ? "noopener noreferrer" : undefined}
-              className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-gob-primary  text-white  text-xs font-medium hover:bg-gob-primary  transition-colors"
             >
               {notification.ctaLabel}
               {notification.ctaUrl.startsWith("http") && " ↗"}
@@ -70,7 +64,7 @@ export function NotificationCard({
           {relatedPet && (
             <Link
               href={`/mis-mascotas/${relatedPet.publicToken}`}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+              className="px-3 py-1.5 rounded-lg border border-gob-border-strong  text-xs text-gob-text-gray  hover:bg-gob-surface-alt  transition-colors"
             >
               Ver {relatedPet.name}
             </Link>
@@ -79,7 +73,7 @@ export function NotificationCard({
             <form action={markRead}>
               <button
                 type="submit"
-                className="text-xs text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+                className="text-xs text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
               >
                 Marcar como leída
               </button>
@@ -88,7 +82,7 @@ export function NotificationCard({
           <form action={archive}>
             <button
               type="submit"
-              className="text-xs text-neutral-500 dark:text-neutral-500 underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+              className="text-xs text-gob-text-muted  underline underline-offset-4 hover:text-gob-text-gray "
             >
               Archivar
             </button>
@@ -103,27 +97,27 @@ function severityClasses(severity: string) {
   switch (severity) {
     case "warning":
       return {
-        bar: "bg-amber-500",
-        unreadBg: "bg-amber-50 dark:bg-amber-950/20",
-        unreadBorder: "border-amber-200 dark:border-amber-900",
+        bar: "bg-gob-warning",
+        unreadBg: "bg-gob-warning/10 ",
+        unreadBorder: "border-gob-warning ",
       };
     case "urgent":
       return {
-        bar: "bg-red-500",
-        unreadBg: "bg-red-50 dark:bg-red-950/20",
-        unreadBorder: "border-red-200 dark:border-red-900",
+        bar: "bg-gob-danger",
+        unreadBg: "bg-gob-danger/10 ",
+        unreadBorder: "border-gob-danger ",
       };
     case "success":
       return {
-        bar: "bg-green-500",
-        unreadBg: "bg-green-50 dark:bg-green-950/20",
-        unreadBorder: "border-green-200 dark:border-green-900",
+        bar: "bg-gob-success",
+        unreadBg: "bg-gob-success/10 ",
+        unreadBorder: "border-gob-success ",
       };
     default:
       return {
-        bar: "bg-blue-500",
-        unreadBg: "bg-blue-50 dark:bg-blue-950/20",
-        unreadBorder: "border-blue-200 dark:border-blue-900",
+        bar: "bg-gob-info",
+        unreadBg: "bg-gob-info/10 ",
+        unreadBorder: "border-gob-info ",
       };
   }
 }

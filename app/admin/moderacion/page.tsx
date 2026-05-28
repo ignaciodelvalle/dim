@@ -7,10 +7,10 @@ import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
 import { and, desc, isNotNull, isNull } from "drizzle-orm";
 
 const SEVERITY_TONE: Record<string, string> = {
-  critical: "text-red-700 dark:text-red-300",
-  high: "text-orange-700 dark:text-orange-300",
-  medium: "text-amber-700 dark:text-amber-300",
-  low: "text-neutral-600 dark:text-neutral-400",
+  critical: "text-gob-danger ",
+  high: "text-gob-warning-text ",
+  medium: "text-gob-warning-text ",
+  low: "text-gob-text-gray ",
 };
 
 export default async function ModeracionListPage() {
@@ -30,10 +30,8 @@ export default async function ModeracionListPage() {
     <main className="px-6 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Moderación de denuncias
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold text-gob-text ">Moderación de denuncias</h1>
+          <p className="text-sm text-gob-text-gray ">
             Denuncias anónimas que las heurísticas marcaron para revisión antes de entrar a la cola
             de triage. Solo admin las ve. Resolvé pasándolas a triage normal o cerrándolas como
             spam.
@@ -41,7 +39,7 @@ export default async function ModeracionListPage() {
         </header>
 
         {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-8 text-center">
+          <p className="text-sm text-gob-text-muted py-8 text-center">
             No hay denuncias pendientes de moderación.
           </p>
         ) : (
@@ -51,26 +49,26 @@ export default async function ModeracionListPage() {
               return (
                 <li
                   key={r.id}
-                  className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/40 dark:bg-amber-950/20"
+                  className="rounded-lg border border-gob-warning  bg-gob-warning/10/40 "
                 >
                   <Link
                     href={`/admin/moderacion/${r.id}`}
-                    className="block px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
+                    className="block px-4 py-3 hover:bg-gob-warning/10  transition"
                   >
                     <div className="flex items-baseline justify-between gap-3">
                       <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                        <p className="text-sm font-medium text-gob-text ">
                           {welfareReportKindLabel(r.kind)}{" "}
                           <span className={`text-xs ${SEVERITY_TONE[r.severity] ?? ""}`}>
                             · {welfareReportSeverityLabel(r.severity)}
                           </span>
                         </p>
-                        <ul className="text-xs text-amber-800 dark:text-amber-200 space-y-0.5">
+                        <ul className="text-xs text-gob-warning-text  space-y-0.5">
                           {reasons.map((reason) => (
                             <li key={reason}>• {reasonLabel(reason as FlagReason)}</li>
                           ))}
                         </ul>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-600 font-mono">
+                        <p className="text-[10px] text-gob-text-muted  font-mono">
                           {r.referenceCode} ·{" "}
                           {r.flaggedAt &&
                             new Date(r.flaggedAt).toLocaleString("es-AR", {

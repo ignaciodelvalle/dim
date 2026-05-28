@@ -46,25 +46,25 @@ export default async function CrearConsultorioPage() {
   const defaultName = `Consultorio ${profile.displayName}`;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Crear consultorio
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Completá los datos de tu consultorio para empezar a ofrecer servicios en MiMAR.
           </p>
         </header>
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-6">
+        <section className="rounded-lg border border-gob-border  p-6">
           <CrearConsultorioForm defaultName={defaultName} />
         </section>
 
         <div className="pt-2">
           <Link
             href="/cuenta"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
           >
             ← Volver a mi cuenta
           </Link>

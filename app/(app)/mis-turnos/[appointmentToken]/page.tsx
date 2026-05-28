@@ -95,19 +95,17 @@ export default async function AppointmentDetailPage({
     : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href="/mis-turnos"
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
         >
           ← Volver a mis turnos
         </Link>
 
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            {offering.displayName}
-          </h1>
+          <h1 className="text-2xl font-semibold text-gob-text ">{offering.displayName}</h1>
           <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}>
             {statusBadge.label}
           </span>
@@ -118,7 +116,7 @@ export default async function AppointmentDetailPage({
           <DetailRow label="Mascota">
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-300"
+              className="underline underline-offset-4 hover:text-gob-text-gray "
             >
               {pet.name}
             </Link>
@@ -157,23 +155,20 @@ export default async function AppointmentDetailPage({
         {showCheckInQr && qrSvg && (
           <section
             aria-labelledby="checkin-h"
-            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-5 space-y-3"
+            className="rounded-2xl border border-gob-border  bg-white  p-5 space-y-3"
           >
-            <h2
-              id="checkin-h"
-              className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-            >
+            <h2 id="checkin-h" className="text-base font-semibold text-gob-text ">
               Para check-in en la clínica
             </h2>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">
+            <p className="text-xs text-gob-text-gray ">
               Mostrá este QR cuando llegues. Si el escáner no lo lee, dictá el código de abajo.
             </p>
             <div
-              className="mx-auto w-fit p-2 bg-white rounded-lg border border-neutral-200"
+              className="mx-auto w-fit p-2 bg-white rounded-lg border border-gob-border"
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="text-center text-lg font-mono font-bold tracking-widest text-neutral-900 dark:text-neutral-50 select-all">
+            <p className="text-center text-lg font-mono font-bold tracking-widest text-gob-text  select-all">
               {appointmentToken}
             </p>
           </section>
@@ -181,14 +176,14 @@ export default async function AppointmentDetailPage({
 
         {/* Cancellation — Fase 6 */}
         {canCancel && (
-          <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800">
+          <div className="pt-2 border-t border-gob-border ">
             <CancelButton appointmentToken={appointmentToken} />
           </div>
         )}
 
         {appointment.status === "attended" && (
-          <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 p-4">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="rounded-xl border border-gob-info  bg-gob-info/10  p-4">
+            <p className="text-sm text-gob-azul-link ">
               Asististe a este turno. El registro médico quedó guardado en la libreta de {pet.name}.
             </p>
           </div>
@@ -205,10 +200,8 @@ export default async function AppointmentDetailPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-        {label}
-      </dt>
-      <dd className="text-sm text-neutral-900 dark:text-neutral-50 mt-0.5">{children}</dd>
+      <dt className="text-xs text-gob-text-muted  uppercase tracking-wide">{label}</dt>
+      <dd className="text-sm text-gob-text  mt-0.5">{children}</dd>
     </div>
   );
 }
@@ -216,18 +209,18 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   confirmed: {
     label: "Confirmado",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    className: "bg-gob-success/10 text-gob-success  ",
   },
   attended: {
     label: "Asistido",
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+    className: "bg-gob-info/10 text-gob-azul-link  ",
   },
   cancelled: {
     label: "Cancelado",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text  ",
   },
   no_show: {
     label: "No asistió",
-    className: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+    className: "bg-gob-danger/10 text-gob-danger  ",
   },
 };

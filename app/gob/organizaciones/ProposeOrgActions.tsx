@@ -17,7 +17,7 @@ export function ProposeOrgActions({ org }: { org: Org }) {
 
   if (org.verified) {
     return (
-      <p className="text-xs text-neutral-500 dark:text-neutral-500">
+      <p className="text-xs text-gob-text-muted ">
         Ya verificada — sin acciones disponibles desde acá.
       </p>
     );
@@ -25,7 +25,7 @@ export function ProposeOrgActions({ org }: { org: Org }) {
 
   if (submitted) {
     return (
-      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+      <p className="text-xs text-gob-success ">
         Solicitud creada. Va a aparecer en la cola para revisión.
       </p>
     );
@@ -46,11 +46,11 @@ export function ProposeOrgActions({ org }: { org: Org }) {
         type="button"
         onClick={propose}
         disabled={pending}
-        className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:opacity-90 disabled:opacity-50"
+        className="text-xs px-3 py-1.5 rounded-md border border-gob-border  text-gob-text-gray  hover:opacity-90 disabled:opacity-50"
       >
         {pending ? "Creando..." : "Proponer verificación"}
       </button>
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-gob-danger ">{error}</p>}
     </div>
   );
 }

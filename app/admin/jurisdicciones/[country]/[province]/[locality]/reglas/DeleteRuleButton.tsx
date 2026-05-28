@@ -27,7 +27,7 @@ export function DeleteRuleButton({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <button
         type="submit"
-        className="text-sm text-red-600 dark:text-red-400 underline underline-offset-4 hover:text-red-700 dark:hover:text-red-300"
+        className="text-sm text-gob-danger  underline underline-offset-4 hover:text-gob-danger "
       >
         Eliminar
       </button>

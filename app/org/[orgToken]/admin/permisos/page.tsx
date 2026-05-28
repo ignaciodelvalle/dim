@@ -74,44 +74,46 @@ export default async function PermisosPage({
   const approved = rows.filter((r) => r.status === "approved");
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto space-y-8">
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             Administración · {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Solicitudes de permisos</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
           </p>
         </header>
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">
-            Pendientes <span className="text-sm text-neutral-500">({pending.length})</span>
+            Pendientes <span className="text-sm text-gob-text-muted">({pending.length})</span>
           </h2>
           {pending.length === 0 ? (
-            <p className="text-sm text-neutral-500">No hay solicitudes pendientes.</p>
+            <p className="text-sm text-gob-text-muted">No hay solicitudes pendientes.</p>
           ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
               {pending.map((row) => (
                 <li key={row.id} className="px-3 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
                       <p className="text-sm font-medium">
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}
-                        <span className="ml-2 text-xs text-neutral-500">{row.capability}</span>
+                        <span className="ml-2 text-xs text-gob-text-muted">{row.capability}</span>
                       </p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                      <p className="text-xs text-gob-text-gray ">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} ·{" "}
                         {formatDate(row.requestedAt)}
                       </p>
                       {row.requestedReason && (
-                        <p className="text-xs italic text-neutral-500">"{row.requestedReason}"</p>
+                        <p className="text-xs italic text-gob-text-muted">
+                          "{row.requestedReason}"
+                        </p>
                       )}
                     </div>
-                    <span className="text-xs text-amber-700 dark:text-amber-400 shrink-0">
+                    <span className="text-xs text-gob-warning-text  shrink-0">
                       {STATUS_LABELS.pending}
                     </span>
                   </div>
@@ -124,29 +126,30 @@ export default async function PermisosPage({
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">
-            Concedidos activos <span className="text-sm text-neutral-500">({approved.length})</span>
+            Concedidos activos{" "}
+            <span className="text-sm text-gob-text-muted">({approved.length})</span>
           </h2>
           {approved.length === 0 ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-gob-text-muted">
               Ningún permiso concedido fuera del rol admin.
             </p>
           ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
               {approved.map((row) => (
                 <li key={row.id} className="px-3 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
                       <p className="text-sm font-medium">
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}
-                        <span className="ml-2 text-xs text-neutral-500">{row.capability}</span>
+                        <span className="ml-2 text-xs text-gob-text-muted">{row.capability}</span>
                       </p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                      <p className="text-xs text-gob-text-gray ">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} · concedido{" "}
                         {row.decidedAt ? formatDate(row.decidedAt) : "—"}
                       </p>
                     </div>
-                    <span className="text-xs text-emerald-700 dark:text-emerald-400 shrink-0">
+                    <span className="text-xs text-gob-success  shrink-0">
                       {STATUS_LABELS.approved}
                     </span>
                   </div>
@@ -157,11 +160,8 @@ export default async function PermisosPage({
           )}
         </section>
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href={`/org/${orgToken}`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border ">
+          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
             ← Volver al panel
           </Link>
         </footer>

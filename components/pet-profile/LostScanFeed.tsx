@@ -54,13 +54,10 @@ export function LostScanFeed({ items, totalScans, totalFinderMessages, caseHref 
   return (
     <section
       aria-labelledby="lp-feed-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="lp-feed-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="lp-feed-h" className="text-base font-semibold text-gob-text ">
           Actividad del QR
         </h2>
         <Link href={caseHref} className="text-xs font-medium text-gob-azul-link hover:underline">
@@ -74,11 +71,11 @@ export function LostScanFeed({ items, totalScans, totalFinderMessages, caseHref 
       </div>
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
           Aún no hay actividad. Compartí la alerta para que más personas escaneen el QR.
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <ul className="divide-y divide-gob-border ">
           {items.map((it) => (
             <li key={`${it.kind}-${it.id}`}>
               <FeedRow item={it} />
@@ -95,26 +92,22 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
     return (
       <Link
         href={item.href}
-        className="flex items-start gap-3 py-2.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900"
+        className="flex items-start gap-3 py-2.5 transition-colors hover:bg-gob-surface-alt "
       >
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-warning/10 text-gob-warning-text  "
         >
           ✉
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-            Mensaje de {item.finderName}
-          </p>
-          <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="text-sm font-medium text-gob-text ">Mensaje de {item.finderName}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-gob-text-muted ">
             {item.snippet}
             {item.distanceLabel && <span> · {item.distanceLabel} del último punto</span>}
           </p>
         </div>
-        <p className="shrink-0 text-[11px] text-neutral-400 dark:text-neutral-500">
-          {relativeShort(item.at)}
-        </p>
+        <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
       </Link>
     );
   }
@@ -122,30 +115,28 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
     <div className="flex items-start gap-3 py-2.5">
       <span
         aria-hidden
-        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-info/10 text-gob-azul-link  "
       >
         📱
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+        <p className="text-sm font-medium text-gob-text ">
           {item.count > 1 ? `QR escaneado · ${item.count} veces` : "QR escaneado"}
         </p>
-        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="mt-0.5 text-xs text-gob-text-muted ">
           {item.localityLabel ?? "Ubicación desconocida"}
         </p>
       </div>
-      <p className="shrink-0 text-[11px] text-neutral-400 dark:text-neutral-500">
-        {relativeShort(item.at)}
-      </p>
+      <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
     </div>
   );
 }
 
 function CountBox({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-lg bg-neutral-50 px-3 py-2 text-center dark:bg-neutral-900">
-      <p className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">{value}</p>
-      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{label}</p>
+    <div className="rounded-lg bg-gob-surface-alt px-3 py-2 text-center ">
+      <p className="text-xl font-semibold text-gob-text ">{value}</p>
+      <p className="text-[11px] text-gob-text-muted ">{label}</p>
     </div>
   );
 }

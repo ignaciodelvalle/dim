@@ -36,8 +36,7 @@ const INTAKE_REASONS = [
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Microchip", "Identidad", "Estado", "Confirmar"];
 
-const inputCls =
-  "w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2";
+const inputCls = "w-full rounded border border-gob-border-strong  bg-white  px-3 py-2";
 
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
@@ -126,7 +125,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     >
       {/* Step 1 — Microchip */}
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-sm text-gob-text-gray ">
           Si la mascota tiene microchip, ingrésalo. Si el chip coincide con una mascota perdida en
           MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
         </p>
@@ -156,7 +155,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <button
           type="button"
           onClick={() => setStep(2)}
-          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium transition-colors"
+          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium transition-colors"
         >
           {microchipId ? "Continuar (chequearemos el chip al confirmar)" : "Continuar sin chip"}
         </button>
@@ -277,7 +276,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={() => setStep(3)}
           disabled={!name || !species}
-          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium disabled:opacity-50 transition-colors"
+          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium disabled:opacity-50 transition-colors"
         >
           Continuar
         </button>
@@ -317,7 +316,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               />
               <span>
                 <span className="block font-medium">Custodia temporal</span>
-                <span className="block text-xs text-neutral-500">
+                <span className="block text-xs text-gob-text-muted">
                   El animal queda bajo cuidado del refugio hasta que se concrete una adopción.
                 </span>
               </span>
@@ -333,7 +332,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               />
               <span>
                 <span className="block font-medium">Dueño/a permanente</span>
-                <span className="block text-xs text-neutral-500">
+                <span className="block text-xs text-gob-text-muted">
                   El animal queda registrado a nombre de la organización (santuario, decomiso sin
                   rehome, adopción institucional).
                 </span>
@@ -380,7 +379,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={() => setStep(4)}
           disabled={!intakeReason}
-          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium disabled:opacity-50 transition-colors"
+          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium disabled:opacity-50 transition-colors"
         >
           Continuar
         </button>
@@ -388,37 +387,37 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
       {/* Step 4 — Confirmar */}
       <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
-          <p className="font-semibold text-neutral-900 dark:text-neutral-50">Resumen del ingreso</p>
+        <div className="rounded-lg border border-gob-border  p-4 space-y-2 text-sm">
+          <p className="font-semibold text-gob-text ">Resumen del ingreso</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-neutral-500">Nombre</dt>
+            <dt className="text-gob-text-muted">Nombre</dt>
             <dd className="col-span-2">{name || "—"}</dd>
-            <dt className="text-neutral-500">Especie</dt>
+            <dt className="text-gob-text-muted">Especie</dt>
             <dd className="col-span-2">{species || "—"}</dd>
-            <dt className="text-neutral-500">Microchip</dt>
+            <dt className="text-gob-text-muted">Microchip</dt>
             <dd className="col-span-2 font-mono">{microchipId || "(sin chip)"}</dd>
-            <dt className="text-neutral-500">Motivo</dt>
+            <dt className="text-gob-text-muted">Motivo</dt>
             <dd className="col-span-2">
               {INTAKE_REASONS.find((r) => r.value === intakeReason)?.label ?? "—"}
             </dd>
-            <dt className="text-neutral-500">Rol</dt>
+            <dt className="text-gob-text-muted">Rol</dt>
             <dd className="col-span-2">
               {custodyRole === "shelter_custody" ? "Custodia temporal" : "Dueño/a permanente"}
             </dd>
-            <dt className="text-neutral-500">Fecha</dt>
+            <dt className="text-gob-text-muted">Fecha</dt>
             <dd className="col-span-2">{occurredAt}</dd>
           </dl>
         </div>
 
         {state.warning === "CHIP_MATCH_ACTIVE" && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-100">
+          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-xs text-gob-warning-text ">
             El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
             admin antes de continuar.
           </div>
         )}
 
         {state.error && (
-          <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
             {state.error}
           </p>
         )}
@@ -427,7 +426,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="w-full px-4 py-3 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-medium disabled:opacity-50 transition-colors"
+          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium disabled:opacity-50 transition-colors"
         >
           {pending ? "Registrando…" : "Crear ingreso"}
         </button>

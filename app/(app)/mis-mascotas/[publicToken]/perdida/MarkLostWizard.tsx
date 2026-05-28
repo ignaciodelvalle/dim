@@ -189,7 +189,7 @@ export function MarkLostWizard({
               placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
               className={inputClass}
             />
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-gob-text-muted">
               Se guarda en el historial para tu referencia.
             </p>
           </div>
@@ -197,7 +197,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goNext}
-            className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 transition-colors"
           >
             Continuar
           </button>
@@ -206,18 +206,18 @@ export function MarkLostWizard({
         {/* Step 2 — Enriched details (conditional). */}
         {showDetailsStep && (
           <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
-            <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 p-4 space-y-5">
+            <div className="rounded-xl border border-gob-info  bg-gob-info/10  p-4 space-y-5">
               <div className="space-y-0.5">
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                <p className="text-sm font-semibold text-gob-azul-link ">
                   Sin chip ni tatuaje, estos detalles son clave
                 </p>
-                <p className="text-xs text-blue-700 dark:text-blue-400">
+                <p className="text-xs text-gob-azul-link ">
                   Cualquiera que la encuentre sin documentación va a depender de cómo se ve.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
                   Identidad
                 </p>
                 <div className="space-y-1.5">
@@ -249,7 +249,7 @@ export function MarkLostWizard({
               </div>
 
               <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
                   Al momento de perderse
                 </p>
                 <div className="space-y-1.5">
@@ -291,7 +291,7 @@ export function MarkLostWizard({
               </div>
 
               <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
                   Microchip (opcional)
                 </p>
                 <div className="space-y-1.5">
@@ -305,14 +305,14 @@ export function MarkLostWizard({
                     placeholder="Ej: 982000411234567"
                     className={inputClass}
                   />
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-gob-text-muted">
                     Si te acordás que tiene chip pero nunca lo cargaste, ingresalo acá.
                   </p>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
                   Tatuaje (opcional)
                 </p>
                 <div className="space-y-1.5">
@@ -363,7 +363,7 @@ export function MarkLostWizard({
             <button
               type="button"
               onClick={goNext}
-              className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+              className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  transition-colors"
             >
               Continuar
             </button>
@@ -375,12 +375,12 @@ export function MarkLostWizard({
           className={step === totalSteps ? "space-y-5" : "sr-only"}
           aria-hidden={step !== totalSteps}
         >
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 p-4 space-y-4">
+          <div className="rounded-xl border border-gob-border  bg-gob-surface-alt  p-4 space-y-4">
             <div className="space-y-0.5">
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+              <p className="text-sm font-medium text-gob-text ">
                 ¿Qué información mostramos en tu credencial pública mientras esté perdida?
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-gob-text-muted">
                 Podés cambiar esto en cualquier momento mientras la mascota esté perdida.
               </p>
             </div>
@@ -395,13 +395,13 @@ export function MarkLostWizard({
                     type="checkbox"
                     name={toggle.formName}
                     defaultChecked={disclosureDefaults[toggle.name]}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 text-amber-600 focus:ring-amber-600 focus:ring-offset-0"
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong  text-gob-warning-text focus:ring-gob-warning focus:ring-offset-0"
                   />
                   <div className="space-y-0.5 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50 group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+                    <p className="text-sm font-medium text-gob-text  group-hover:text-gob-warning-text  transition-colors">
                       {toggle.label}
                     </p>
-                    <p className="text-xs text-neutral-500">{toggle.description}</p>
+                    <p className="text-xs text-gob-text-muted">{toggle.description}</p>
                   </div>
                 </label>
               ))}
@@ -409,7 +409,7 @@ export function MarkLostWizard({
           </div>
 
           {errorMessage && (
-            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+            <p className="text-sm text-gob-danger " role="alert">
               {errorMessage}
             </p>
           )}
@@ -418,7 +418,7 @@ export function MarkLostWizard({
             type="button"
             onClick={handleSubmit}
             disabled={isPending}
-            className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Marcando..." : "Marcar como perdida"}
           </button>

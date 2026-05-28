@@ -21,17 +21,13 @@ export function PetsGridWidget({ pets }: { pets: DashboardPet[] }) {
     return (
       <section className="space-y-3">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">
-            Mis mascotas
-          </h2>
+          <h2 className="text-lg font-medium text-gob-text ">Mis mascotas</h2>
         </div>
-        <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-8 text-center space-y-3">
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Todavía no cargaste ninguna mascota.
-          </p>
+        <div className="border border-dashed border-gob-border-strong  rounded-xl p-8 text-center space-y-3">
+          <p className="text-sm text-gob-text-gray ">Todavía no cargaste ninguna mascota.</p>
           <Link
             href="/mis-mascotas/nueva"
-            className="inline-block px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium"
+            className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium"
           >
             Agregar mi primera mascota
           </Link>
@@ -46,10 +42,10 @@ export function PetsGridWidget({ pets }: { pets: DashboardPet[] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">Mis mascotas</h2>
+        <h2 className="text-lg font-medium text-gob-text ">Mis mascotas</h2>
         <Link
           href="/mis-mascotas"
-          className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           {hasMore ? `Ver las ${pets.length} →` : "Ver todas →"}
         </Link>

@@ -145,9 +145,9 @@ export function AdoptionListingForm({
               onChange={(e) => setStory(e.target.value)}
               rows={5}
               placeholder="Contá quién es esta mascota, cómo llegó al refugio, qué la hace especial."
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
             />
-            <p className="text-xs text-neutral-500 mt-1 tabular-nums">{story.length} / 5000</p>
+            <p className="text-xs text-gob-text-muted mt-1 tabular-nums">{story.length} / 5000</p>
           </div>
 
           <div>
@@ -160,20 +160,20 @@ export function AdoptionListingForm({
               onChange={(e) => setRequirements(e.target.value)}
               rows={3}
               placeholder="Mayores de edad, entrevista previa, compromiso de castración, etc."
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label htmlFor="age" className="block text-xs text-neutral-500 mb-1">
+              <label htmlFor="age" className="block text-xs text-gob-text-muted mb-1">
                 Edad
               </label>
               <select
                 id="age"
                 value={ageBucket}
                 onChange={(e) => setAgeBucket(e.target.value as AgeBucket | "")}
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_AGE_BUCKETS.map((b) => (
@@ -184,14 +184,14 @@ export function AdoptionListingForm({
               </select>
             </div>
             <div>
-              <label htmlFor="size" className="block text-xs text-neutral-500 mb-1">
+              <label htmlFor="size" className="block text-xs text-gob-text-muted mb-1">
                 Talle
               </label>
               <select
                 id="size"
                 value={sizeEstimate}
                 onChange={(e) => setSizeEstimate(e.target.value as SizeEstimate | "")}
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_SIZE_ESTIMATES.map((s) => (
@@ -202,14 +202,14 @@ export function AdoptionListingForm({
               </select>
             </div>
             <div>
-              <label htmlFor="energy" className="block text-xs text-neutral-500 mb-1">
+              <label htmlFor="energy" className="block text-xs text-gob-text-muted mb-1">
                 Energía
               </label>
               <select
                 id="energy"
                 value={energyLevel}
                 onChange={(e) => setEnergyLevel(e.target.value as EnergyLevel | "")}
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_ENERGY_LEVELS.map((e) => (
@@ -222,9 +222,7 @@ export function AdoptionListingForm({
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              Convivencia
-            </legend>
+            <legend className="text-sm font-medium text-gob-text ">Convivencia</legend>
             <TriState
               label="¿Se lleva bien con chicos?"
               value={goodWithKids}
@@ -244,7 +242,7 @@ export function AdoptionListingForm({
           </fieldset>
 
           <div>
-            <label htmlFor="fee" className="block text-xs text-neutral-500 mb-1">
+            <label htmlFor="fee" className="block text-xs text-gob-text-muted mb-1">
               Aporte de adopción (ARS, opcional)
             </label>
             <input
@@ -254,26 +252,20 @@ export function AdoptionListingForm({
               value={feeArs}
               onChange={(e) => setFeeArs(e.target.value)}
               placeholder="Ej: 15000"
-              className="w-40 px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-40 px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
             />
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="text-xs text-gob-text-muted mt-1">
               Para cubrir vacunas, castración, traslado. Dejá vacío si no aplica.
             </p>
           </div>
 
-          {error && (
-            <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>
-          )}
-          {okMessage && (
-            <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-              {okMessage}
-            </output>
-          )}
+          {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+          {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
 
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50"
+            className="w-full px-4 py-3 rounded bg-gob-primary  text-white  text-sm font-medium disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar y continuar"}
           </button>
@@ -282,43 +274,39 @@ export function AdoptionListingForm({
 
       {/* Step 2 — Status / publish */}
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
-          <p className="font-semibold text-neutral-900 dark:text-neutral-50">
-            Lo que vas a publicar
-          </p>
+        <div className="rounded-lg border border-gob-border  p-4 space-y-2 text-sm">
+          <p className="font-semibold text-gob-text ">Lo que vas a publicar</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-neutral-500">Historia</dt>
+            <dt className="text-gob-text-muted">Historia</dt>
             <dd className="col-span-2">
               {story ? `${story.slice(0, 80)}${story.length > 80 ? "…" : ""}` : "Sin definir"}
             </dd>
-            <dt className="text-neutral-500">Edad</dt>
+            <dt className="text-gob-text-muted">Edad</dt>
             <dd className="col-span-2">
               {ageBucket ? ageBucketLabel(ageBucket as AgeBucket, petSex) : "—"}
             </dd>
-            <dt className="text-neutral-500">Talle</dt>
+            <dt className="text-gob-text-muted">Talle</dt>
             <dd className="col-span-2">
               {sizeEstimate ? sizeLabel(sizeEstimate as SizeEstimate) : "—"}
             </dd>
-            <dt className="text-neutral-500">Energía</dt>
+            <dt className="text-gob-text-muted">Energía</dt>
             <dd className="col-span-2">
               {energyLevel ? energyLabel(energyLevel as EnergyLevel) : "—"}
             </dd>
-            <dt className="text-neutral-500">Aporte</dt>
+            <dt className="text-gob-text-muted">Aporte</dt>
             <dd className="col-span-2">{feeArs || "—"}</dd>
           </dl>
         </div>
 
-        <section className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-            Visibilidad pública
-          </p>
+        <section className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
+          <p className="text-sm font-medium text-gob-text ">Visibilidad pública</p>
           <div className="flex flex-wrap gap-2">
             {!initial.isPublished && (
               <button
                 type="button"
                 onClick={() => runStatus("publish")}
                 disabled={pending || !canPublish}
-                className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+                className="px-3 py-1.5 rounded text-sm bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
                 title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
               >
                 Publicar adopción
@@ -330,7 +318,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("pause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm border border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-300 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm border border-gob-warning text-gob-warning-text   font-medium hover:bg-gob-warning/10  disabled:opacity-50"
                 >
                   Pausar
                 </button>
@@ -338,7 +326,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   font-medium hover:bg-gob-danger/10  disabled:opacity-50"
                 >
                   Despublicar
                 </button>
@@ -350,7 +338,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
                 >
                   Reanudar
                 </button>
@@ -358,31 +346,27 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 font-medium hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   font-medium hover:bg-gob-danger/10  disabled:opacity-50"
                 >
                   Despublicar
                 </button>
               </>
             )}
           </div>
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-gob-text-muted">
             Pausar conserva la historia y el contenido. Despublicar borra el timestamp de
             publicación (los textos siguen guardados para una futura republicación).
           </p>
           {!canPublish && !initial.isPublished && (
-            <p className="text-xs text-amber-700 dark:text-amber-300">
+            <p className="text-xs text-gob-warning-text ">
               Hay bloqueos pendientes (mascota perdida, fallecida, no eligible, en disputa o
               observación antirrábica). Resolvé antes de publicar.
             </p>
           )}
         </section>
 
-        {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
-        {okMessage && (
-          <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-            {okMessage}
-          </output>
-        )}
+        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+        {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
       </section>
     </WizardShell>
   );
@@ -399,7 +383,7 @@ function TriState({
 }) {
   return (
     <div className="flex items-center gap-3 text-sm">
-      <span className="flex-1 text-neutral-700 dark:text-neutral-300">{label}</span>
+      <span className="flex-1 text-gob-text-gray ">{label}</span>
       <div className="flex gap-1">
         {(
           [
@@ -414,8 +398,8 @@ function TriState({
             onClick={() => onChange(opt.v)}
             className={`px-2 py-1 rounded border text-xs ${
               value === opt.v
-                ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-50"
-                : "border-neutral-300 dark:border-neutral-700"
+                ? "bg-gob-primary  text-white  border-gob-border-strong "
+                : "border-gob-border-strong "
             }`}
           >
             {opt.l}

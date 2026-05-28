@@ -51,13 +51,11 @@ export function SignupForm({
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
-            Paso 2 de 2
-          </p>
-          <h2 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">Paso 2 de 2</p>
+          <h2 className="text-xl font-semibold tracking-tight text-gob-text ">
             Cargá tu primera mascota
           </h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto
             después.
           </p>
@@ -70,11 +68,11 @@ export function SignupForm({
           pendingLabel="Creando…"
         />
 
-        <p className="text-center text-xs text-neutral-500 dark:text-neutral-500">
+        <p className="text-center text-xs text-gob-text-muted ">
           Tu cuenta ya está creada. Podés{" "}
           <Link
             href="/mis-mascotas"
-            className="font-medium text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="font-medium text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             cargar tu mascota después desde Mis mascotas
           </Link>{" "}
@@ -86,7 +84,7 @@ export function SignupForm({
 
   return (
     <div className="space-y-5">
-      <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500 text-center">
+      <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted  text-center">
         {intent === "apply" ? "Paso 1 de 1" : "Paso 1 de 2"}
       </p>
 
@@ -94,15 +92,15 @@ export function SignupForm({
         type="button"
         disabled
         title="Próximamente: integración con Mi Argentina"
-        className="w-full px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 dark:text-neutral-500 cursor-not-allowed"
+        className="w-full px-4 py-3 rounded-lg border border-gob-border-strong  text-sm text-gob-text-muted  cursor-not-allowed"
       >
         Conectar con Mi Argentina (próximamente)
       </button>
 
-      <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-500">
-        <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+      <div className="flex items-center gap-3 text-xs text-gob-text-muted ">
+        <div className="flex-1 h-px bg-gob-surface-alt " />
         <span>o</span>
-        <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+        <div className="flex-1 h-px bg-gob-surface-alt " />
       </div>
 
       <form action={authFormAction} className="space-y-4">
@@ -134,7 +132,7 @@ export function SignupForm({
         />
 
         {authState.error && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          <p className="text-sm text-gob-danger " role="alert">
             {authState.error}
           </p>
         )}
@@ -142,7 +140,7 @@ export function SignupForm({
         <button
           type="submit"
           disabled={authPending}
-          className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {authPending ? "Creando cuenta..." : "Continuar"}
         </button>
@@ -184,7 +182,7 @@ function Field({
         minLength={minLength}
         className={inputClass}
       />
-      {hint && <p className="text-xs text-neutral-500 dark:text-neutral-500">{hint}</p>}
+      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
     </div>
   );
 }

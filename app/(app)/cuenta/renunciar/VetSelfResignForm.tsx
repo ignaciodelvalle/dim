@@ -47,15 +47,15 @@ export function VetSelfResignForm() {
       {error && (
         <div
           role="alert"
-          className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-4 py-3"
+          className="rounded-md bg-gob-danger/10  border border-gob-danger  px-4 py-3"
         >
-          <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+          <p className="text-sm text-gob-danger ">{error}</p>
         </div>
       )}
 
       {/* Warning — consequence list (warning-first design) */}
-      <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-5 space-y-3">
-        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+      <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-5 space-y-3">
+        <p className="text-sm font-semibold text-gob-warning-text ">
           Estas son las consecuencias de renunciar:
         </p>
         <ul className="space-y-1.5">
@@ -65,11 +65,8 @@ export function VetSelfResignForm() {
             "Tus mascotas propias siguen siendo tuyas.",
             "Para volver a tener el rol vet, vas a tener que solicitarlo de cero y ser aprobado/a nuevamente.",
           ].map((item) => (
-            <li
-              key={item}
-              className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400"
-            >
-              <span aria-hidden className="mt-0.5 shrink-0 text-amber-500">
+            <li key={item} className="flex items-start gap-2 text-sm text-gob-warning-text ">
+              <span aria-hidden className="mt-0.5 shrink-0 text-gob-warning">
                 •
               </span>
               {item}
@@ -80,14 +77,8 @@ export function VetSelfResignForm() {
 
       {/* Motivo (optional) */}
       <div>
-        <label
-          htmlFor="reason"
-          className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
-        >
-          Motivo{" "}
-          <span className="text-xs font-normal text-neutral-500 dark:text-neutral-500">
-            (opcional)
-          </span>
+        <label htmlFor="reason" className="block text-sm font-medium text-gob-text-gray  mb-1">
+          Motivo <span className="text-xs font-normal text-gob-text-muted ">(opcional)</span>
         </label>
         <textarea
           id="reason"
@@ -95,7 +86,7 @@ export function VetSelfResignForm() {
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           placeholder="Contanos por qué renunciás..."
-          className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50 resize-none"
+          className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary  resize-none"
         />
       </div>
 
@@ -105,9 +96,9 @@ export function VetSelfResignForm() {
           type="checkbox"
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 accent-neutral-900 dark:accent-neutral-50"
+          className="mt-0.5 h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
         />
-        <span className="text-sm text-neutral-700 dark:text-neutral-300">
+        <span className="text-sm text-gob-text-gray ">
           Entiendo y confirmo que quiero renunciar a mi rol de veterinario/a.
         </span>
       </label>
@@ -117,13 +108,13 @@ export function VetSelfResignForm() {
         <button
           type="submit"
           disabled={!confirmed || loading}
-          className="px-5 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2 text-sm bg-gob-danger hover:bg-gob-danger text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Procesando..." : "Renunciar"}
         </button>
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-neutral-300 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+          className="px-5 py-2 text-sm border border-gob-border-strong  rounded-md hover:bg-gob-surface-alt  transition-colors"
         >
           Cancelar
         </a>

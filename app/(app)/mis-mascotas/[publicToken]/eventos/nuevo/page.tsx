@@ -142,21 +142,21 @@ export default async function PickEventPage({
   // Defense in depth: deceased pets can only add notes.
   if (pet.status === "deceased") {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-md mx-auto pt-8 space-y-8">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver al perfil
           </Link>
           <div className="space-y-4">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               Esta mascota está registrada como fallecida. Solo podés agregar notas.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
-              className="inline-block px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+              className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
             >
               + Agregar nota
             </Link>
@@ -167,26 +167,22 @@ export default async function PickEventPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver al perfil
         </Link>
 
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Registrar
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            ¿Qué pasó con {pet.name}?
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Registrar</h1>
+          <p className="text-sm text-gob-text-gray ">¿Qué pasó con {pet.name}?</p>
         </div>
 
         <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
             Registrar en la libreta sanitaria
           </h2>
           <ul className="grid grid-cols-1 gap-2">
@@ -200,7 +196,7 @@ export default async function PickEventPage({
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
             Otros registros
           </h2>
           <ul className="grid grid-cols-1 gap-2">
@@ -230,14 +226,14 @@ function EventOptionRow({
       <li>
         <div
           aria-disabled
-          className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 opacity-50 cursor-not-allowed"
+          className="block border border-gob-border  rounded-xl p-4 opacity-50 cursor-not-allowed"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-neutral-900 dark:text-neutral-50">{option.label}</p>
-              <p className="text-sm text-neutral-500 dark:text-neutral-500">{option.description}</p>
+              <p className="font-medium text-gob-text ">{option.label}</p>
+              <p className="text-sm text-gob-text-muted ">{option.description}</p>
             </div>
-            <span className="text-xs text-neutral-500 dark:text-neutral-500">próximamente</span>
+            <span className="text-xs text-gob-text-muted ">próximamente</span>
           </div>
         </div>
       </li>
@@ -247,14 +243,14 @@ function EventOptionRow({
     <li>
       <Link
         href={href}
-        className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+        className="block border border-gob-border  rounded-xl p-4 hover:bg-gob-surface-alt  transition-colors"
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="font-medium text-neutral-900 dark:text-neutral-50">{option.label}</p>
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">{option.description}</p>
+            <p className="font-medium text-gob-text ">{option.label}</p>
+            <p className="text-sm text-gob-text-muted ">{option.description}</p>
           </div>
-          <span className="text-neutral-400 dark:text-neutral-600" aria-hidden>
+          <span className="text-gob-text-muted " aria-hidden>
             ›
           </span>
         </div>

@@ -32,13 +32,10 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
   return (
     <section
       aria-labelledby="pp-docs-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="pp-docs-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="pp-docs-h" className="text-base font-semibold text-gob-text ">
           Documentos de viaje
         </h2>
         <Link href={uploadHref} className="text-xs font-medium text-gob-azul-link hover:underline">
@@ -46,7 +43,7 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
         </Link>
       </div>
       {docs.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
           Sin documentos cargados. Si viajás, subí pasaporte sanitario o certificado internacional.
         </p>
       ) : (
@@ -56,12 +53,12 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
               {d.href ? (
                 <Link
                   href={d.href}
-                  className="block rounded-lg border border-neutral-200 p-3 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+                  className="block rounded-lg border border-gob-border p-3 transition-colors hover:bg-gob-surface-alt  "
                 >
                   <DocBody d={d} />
                 </Link>
               ) : (
-                <div className="rounded-lg border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+                <div className="rounded-lg border border-dashed border-gob-border-strong p-3 ">
                   <DocBody d={d} />
                 </div>
               )}
@@ -76,13 +73,13 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
 function DocBody({ d }: { d: PetDocRow }) {
   return (
     <>
-      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+      <p className="text-sm font-medium text-gob-text ">
         <span aria-hidden className="mr-1">
           {KIND_ICON[d.kind]}
         </span>
         {d.label}
       </p>
-      <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{d.caption}</p>
+      <p className="mt-0.5 text-xs text-gob-text-muted ">{d.caption}</p>
     </>
   );
 }

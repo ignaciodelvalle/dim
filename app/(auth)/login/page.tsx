@@ -57,20 +57,18 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-white ">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Iniciar sesión
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Iniciar sesión</h1>
+          <p className="text-sm text-gob-text-gray ">
             {intent === "apply"
               ? "Iniciá sesión para continuar con tu postulación."
               : "Bienvenido de vuelta a MiMAR"}
           </p>
         </div>
         <LoginForm returnTo={returnTo} />
-        <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="text-center text-sm text-gob-text-gray ">
           ¿No tenés cuenta?{" "}
           <Link
             href={
@@ -78,7 +76,7 @@ export default async function LoginPage({
                 ? `/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`
                 : "/signup"
             }
-            className="font-medium text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
+            className="font-medium text-gob-text  underline underline-offset-4"
           >
             Crear cuenta
           </Link>

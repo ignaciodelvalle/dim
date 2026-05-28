@@ -79,20 +79,20 @@ export default async function GobServicioDetailPage({
         <div>
           <Link
             href="/gob/servicios"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver a servicios pendientes
           </Link>
         </div>
 
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
             {STATUS_LABELS[offering.status] ?? offering.status}
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             {offering.displayName}
           </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs text-gob-text-muted ">
             <span className="font-mono">{offering.publicToken}</span>
             {location ? ` · ${location}` : ""}
             {" · enviado "}
@@ -104,38 +104,34 @@ export default async function GobServicioDetailPage({
         </header>
 
         <Section title="Proveedor">
-          <p className="text-sm text-neutral-900 dark:text-neutral-50">{providerLabel}</p>
+          <p className="text-sm text-gob-text ">{providerLabel}</p>
           {offering.organizationId && org?.legalName && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">{org.legalName}</p>
+            <p className="text-xs text-gob-text-muted ">{org.legalName}</p>
           )}
         </Section>
 
         <Section title="Servicio">
-          <p className="text-sm text-neutral-900 dark:text-neutral-50">{kindLabel}</p>
+          <p className="text-sm text-gob-text ">{kindLabel}</p>
           {offering.description && (
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-              {offering.description}
-            </p>
+            <p className="text-xs text-gob-text-gray  mt-1">{offering.description}</p>
           )}
         </Section>
 
         <Section title="Detalles">
           <dl className="space-y-1 text-sm">
             <div className="flex gap-3">
-              <dt className="text-neutral-500 dark:text-neutral-500 w-32 shrink-0">Duración</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">
-                {offering.durationMinutes} min
-              </dd>
+              <dt className="text-gob-text-muted  w-32 shrink-0">Duración</dt>
+              <dd className="text-gob-text ">{offering.durationMinutes} min</dd>
             </div>
             <div className="flex gap-3">
-              <dt className="text-neutral-500 dark:text-neutral-500 w-32 shrink-0">Capacidad</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">
+              <dt className="text-gob-text-muted  w-32 shrink-0">Capacidad</dt>
+              <dd className="text-gob-text ">
                 {offering.slotCapacity} turno{offering.slotCapacity === 1 ? "" : "s"} por slot
               </dd>
             </div>
             <div className="flex gap-3">
-              <dt className="text-neutral-500 dark:text-neutral-500 w-32 shrink-0">Precio</dt>
-              <dd className="text-neutral-900 dark:text-neutral-50">
+              <dt className="text-gob-text-muted  w-32 shrink-0">Precio</dt>
+              <dd className="text-gob-text ">
                 {offering.priceArs !== null
                   ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
                   : "Gratuito"}
@@ -143,19 +139,15 @@ export default async function GobServicioDetailPage({
             </div>
             {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
               <div className="flex gap-3">
-                <dt className="text-neutral-500 dark:text-neutral-500 w-32 shrink-0">Especies</dt>
-                <dd className="text-neutral-900 dark:text-neutral-50">
-                  {offering.eligibilitySpecies.join(", ")}
-                </dd>
+                <dt className="text-gob-text-muted  w-32 shrink-0">Especies</dt>
+                <dd className="text-gob-text ">{offering.eligibilitySpecies.join(", ")}</dd>
               </div>
             )}
             {(offering.eligibilityAgeMinMonths !== null ||
               offering.eligibilityAgeMaxMonths !== null) && (
               <div className="flex gap-3">
-                <dt className="text-neutral-500 dark:text-neutral-500 w-32 shrink-0">
-                  Edad elegible
-                </dt>
-                <dd className="text-neutral-900 dark:text-neutral-50">
+                <dt className="text-gob-text-muted  w-32 shrink-0">Edad elegible</dt>
+                <dd className="text-gob-text ">
                   {offering.eligibilityAgeMinMonths !== null
                     ? `desde ${offering.eligibilityAgeMinMonths} meses`
                     : ""}
@@ -178,7 +170,7 @@ export default async function GobServicioDetailPage({
           </Section>
         ) : (
           <Section title="Decisión">
-            <p className="text-sm text-neutral-900 dark:text-neutral-50">
+            <p className="text-sm text-gob-text ">
               {STATUS_LABELS[offering.status] ?? offering.status}
               {offering.reviewedAt &&
                 ` el ${new Date(offering.reviewedAt).toLocaleString("es-AR", {
@@ -187,9 +179,7 @@ export default async function GobServicioDetailPage({
                 })}`}
             </p>
             {offering.rejectionReason && (
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                Motivo: {offering.rejectionReason}
-              </p>
+              <p className="text-xs text-gob-text-gray  mt-1">Motivo: {offering.rejectionReason}</p>
             )}
           </Section>
         )}
@@ -201,12 +191,8 @@ export default async function GobServicioDetailPage({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
-        {title}
-      </h2>
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-1">
-        {children}
-      </div>
+      <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">{title}</h2>
+      <div className="rounded-lg border border-gob-border  p-4 space-y-1">{children}</div>
     </section>
   );
 }

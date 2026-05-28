@@ -59,16 +59,16 @@ export function Tier2PublicView({
 }: Props) {
   return (
     <div className="space-y-6">
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-gob-text-gray ">
         Habilitá temporalmente el Tier 2 de la credencial pública —{" "}
         <strong>sólo la información médicamente relevante</strong>.
       </p>
 
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/30 p-4 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+      <div className="rounded-xl border border-gob-border  bg-gob-surface-alt/60  p-4 text-xs leading-relaxed text-gob-text-gray ">
         Al escanear el QR de la chapita, hoy se ve solo identidad básica (Tier 0). Con esta acción,
         durante el lapso elegido se muestra también vacunas vigentes, antiparasitario reciente,
         esterilización, condiciones permanentes y medicación activa.{" "}
-        <strong className="text-neutral-900 dark:text-neutral-50">
+        <strong className="text-gob-text ">
           No se expone tu contacto, dirección, DNI ni notas privadas.
         </strong>
       </div>
@@ -90,7 +90,7 @@ function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
   return (
     <form action={enableAction} className="space-y-4">
       <fieldset className="space-y-2">
-        <legend className="text-xs uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-500 mb-1.5">
+        <legend className="text-xs uppercase tracking-wider font-semibold text-gob-text-muted  mb-1.5">
           Duración
         </legend>
         {DURATION_CARDS.map((card, idx) => {
@@ -100,8 +100,8 @@ function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
               key={card.id}
               className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
                 card.enabled
-                  ? "cursor-pointer border-neutral-300 dark:border-neutral-700 has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50 dark:has-[:checked]:border-emerald-500 dark:has-[:checked]:bg-emerald-950/30"
-                  : "border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/20 opacity-60 cursor-not-allowed"
+                  ? "cursor-pointer border-gob-border-strong  has-[:checked]:border-gob-success has-[:checked]:bg-gob-success/10  "
+                  : "border-dashed border-gob-border  bg-gob-surface-alt/40  opacity-60 cursor-not-allowed"
               }`}
               title={card.enabled ? undefined : "Próximamente"}
             >
@@ -115,16 +115,14 @@ function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
               />
               <div className="min-w-0 flex-1 space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-                    {card.title}
-                  </span>
+                  <span className="text-sm font-semibold text-gob-text ">{card.title}</span>
                   {!card.enabled && (
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-500 px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-gob-text-muted  px-1.5 py-0.5 rounded-full border border-gob-border-strong ">
                       Próximamente
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">{card.description}</p>
+                <p className="text-xs text-gob-text-gray ">{card.description}</p>
               </div>
             </label>
           );
@@ -133,12 +131,12 @@ function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
 
       <button
         type="submit"
-        className="w-full px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+        className="w-full px-4 py-3 rounded-lg bg-gob-success hover:bg-gob-success text-white font-medium"
       >
         Habilitar Tier 2 por 24 horas
       </button>
 
-      <p className="text-xs text-neutral-500 dark:text-neutral-500 text-center">
+      <p className="text-xs text-gob-text-muted  text-center">
         Vas a poder revocarlo en cualquier momento desde acá.
       </p>
     </form>
@@ -162,15 +160,15 @@ function ActiveStatusCard({
     minute: "2-digit",
   });
   return (
-    <div className="rounded-xl border border-emerald-500 bg-emerald-50/70 dark:border-emerald-600 dark:bg-emerald-950/30 p-4 space-y-3">
+    <div className="rounded-xl border border-gob-success bg-gob-success/10/70   p-4 space-y-3">
       <div className="space-y-1">
-        <p className="text-xs uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-400">
+        <p className="text-xs uppercase tracking-wider font-semibold text-gob-success ">
           Tier 2 activo
         </p>
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+        <p className="text-sm font-medium text-gob-text ">
           Hasta el <strong>{fmt}</strong>
         </p>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-gob-text-gray ">
           Quien escanee el QR ve identidad básica + vacunas vigentes, antiparasitario reciente,
           esterilización, condiciones permanentes y medicación activa.
         </p>
@@ -181,14 +179,14 @@ function ActiveStatusCard({
           href={`/p/${petPublicToken}`}
           target="_blank"
           rel="noreferrer"
-          className="flex-1 text-center px-4 py-2 rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-300 dark:border-emerald-500 text-sm font-medium hover:bg-emerald-100/50 dark:hover:bg-emerald-900/30"
+          className="flex-1 text-center px-4 py-2 rounded-lg border border-gob-success text-gob-success   text-sm font-medium hover:bg-gob-success/10/50 "
         >
           Ver la credencial pública →
         </Link>
         <form action={revokeAction} className="flex-1">
           <button
             type="submit"
-            className="w-full px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200"
+            className="w-full px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary "
           >
             Revocar ahora
           </button>

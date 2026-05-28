@@ -13,23 +13,23 @@ import { findServiceKind } from "@/lib/service-kinds";
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   pending_approval: {
     label: "Pendiente",
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    className: "bg-gob-warning/10 text-gob-warning-text  ",
   },
   approved: {
     label: "Aprobado",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    className: "bg-gob-success/10 text-gob-success  ",
   },
   rejected: {
     label: "Rechazado",
-    className: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+    className: "bg-gob-danger/10 text-gob-danger  ",
   },
   paused: {
     label: "Pausado",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text  ",
   },
   archived: {
     label: "Archivado",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text  ",
   },
 };
 
@@ -50,15 +50,15 @@ export default async function ServiciosPage({
     .orderBy(desc(serviceOfferings.submittedAt));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-wider text-neutral-500">
+            <p className="text-xs uppercase tracking-wider text-gob-text-muted">
               {organization.displayName}
             </p>
             <h1 className="text-3xl font-semibold">Mis servicios</h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               {offerings.length === 0
                 ? "Todavía no hay servicios registrados."
                 : `${offerings.length} servicio${offerings.length === 1 ? "" : "s"} registrado${offerings.length === 1 ? "" : "s"}.`}
@@ -67,7 +67,7 @@ export default async function ServiciosPage({
           {canCreate && (
             <Link
               href={`/org/${orgToken}/servicios/nuevo`}
-              className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm"
+              className="px-4 py-2 rounded bg-gob-primary text-white   text-sm"
             >
               + Crear servicio
             </Link>
@@ -75,7 +75,7 @@ export default async function ServiciosPage({
         </header>
 
         {!canCreate && offerings.length === 0 && (
-          <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
             Para crear servicios necesitás el permiso{" "}
             <code className="text-xs">service_offering.create</code>. Pedíselo a un administrador
             desde el panel.
@@ -83,7 +83,7 @@ export default async function ServiciosPage({
         )}
 
         {offerings.length > 0 && (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded border border-neutral-200 dark:border-neutral-800">
+          <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
             {offerings.map((o) => {
               const kind = findServiceKind(o.serviceKind);
               const badge = STATUS_BADGE[o.status] ?? STATUS_BADGE.pending_approval;
@@ -91,11 +91,11 @@ export default async function ServiciosPage({
                 <li key={o.id}>
                   <Link
                     href={`/org/${orgToken}/servicios/${o.publicToken}`}
-                    className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+                    className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-gob-surface-alt  transition"
                   >
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-sm font-medium">{o.displayName}</p>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-gob-text-muted">
                         {kind?.label ?? o.serviceKind}
                         {o.priceArs !== null
                           ? ` · $${Number(o.priceArs).toLocaleString("es-AR")}`
@@ -116,11 +116,8 @@ export default async function ServiciosPage({
           </ul>
         )}
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href={`/org/${orgToken}`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border ">
+          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
             ← Volver al panel
           </Link>
         </footer>

@@ -13,17 +13,17 @@ import Link from "next/link";
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
-      return "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200";
+      return "bg-gob-success/10  text-gob-success ";
     case "invalid":
     case "duplicate":
-      return "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400";
+      return "bg-gob-surface-alt  text-gob-text-muted ";
     case "in_progress":
-      return "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200";
+      return "bg-gob-info/10  text-gob-azul-link ";
     case "triaged":
-      return "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200";
+      return "bg-gob-warning/10  text-gob-warning-text ";
     default:
       // open
-      return "bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300";
+      return "bg-gob-surface-alt  text-gob-text-gray ";
   }
 }
 
@@ -35,14 +35,12 @@ export default async function MisDenunciasPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="text-center space-y-4">
-          <p className="text-neutral-700 dark:text-neutral-300">
-            Necesitás iniciar sesión para ver tus denuncias.
-          </p>
+          <p className="text-gob-text-gray ">Necesitás iniciar sesión para ver tus denuncias.</p>
           <Link
             href="/login"
-            className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+            className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
           >
             Iniciar sesión
           </Link>
@@ -59,19 +57,17 @@ export default async function MisDenunciasPage() {
     .limit(50);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <header className="space-y-1">
           <Link
             href="/mis-mascotas"
-            className="text-sm text-neutral-500 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-sm text-gob-text-muted  hover:text-gob-text  transition-colors"
           >
             ← Mis mascotas
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Mis denuncias
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">Mis denuncias</h1>
+          <p className="text-sm text-gob-text-gray ">
             {reports.length === 0
               ? "Sin denuncias enviadas."
               : `${reports.length} denuncia${reports.length === 1 ? "" : "s"} enviada${reports.length === 1 ? "" : "s"}.`}
@@ -79,11 +75,11 @@ export default async function MisDenunciasPage() {
         </header>
 
         {reports.length === 0 ? (
-          <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-xl p-10 text-center space-y-3">
-            <p className="text-neutral-700 dark:text-neutral-300">Aún no enviaste denuncias.</p>
+          <div className="border border-dashed border-gob-border-strong  rounded-xl p-10 text-center space-y-3">
+            <p className="text-gob-text-gray ">Aún no enviaste denuncias.</p>
             <Link
               href="/denuncias/nueva"
-              className="inline-block px-5 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+              className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
             >
               Enviar una
             </Link>
@@ -94,10 +90,10 @@ export default async function MisDenunciasPage() {
               <li key={report.id}>
                 <Link
                   href={`/denuncias/${report.id}`}
-                  className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 space-y-2 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
+                  className="block border border-gob-border  rounded-xl p-4 space-y-2 hover:bg-gob-surface-alt  transition-colors"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                    <p className="font-medium text-gob-text ">
                       {welfareReportKindLabel(report.kind)}
                     </p>
                     <div className="flex items-center gap-2 shrink-0">
@@ -106,25 +102,25 @@ export default async function MisDenunciasPage() {
                       >
                         {welfareReportStatusLabel(report.status)}
                       </span>
-                      <span className="text-neutral-400 dark:text-neutral-600 text-sm">›</span>
+                      <span className="text-gob-text-muted  text-sm">›</span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                  <p className="text-xs text-gob-text-muted ">
                     {welfareReportSeverityLabel(report.severity)}
                   </p>
 
-                  <p className="text-xs font-mono tracking-wide text-neutral-500 dark:text-neutral-500">
+                  <p className="text-xs font-mono tracking-wide text-gob-text-muted ">
                     Código {report.referenceCode}
                   </p>
 
-                  <p className="text-sm text-neutral-700 dark:text-neutral-300 line-clamp-3">
+                  <p className="text-sm text-gob-text-gray  line-clamp-3">
                     {report.description.length > 200
                       ? `${report.description.slice(0, 200)}…`
                       : report.description}
                   </p>
 
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-500">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gob-text-muted ">
                     <span>{formatDateTime(report.createdAt)}</span>
                     {(report.jurisdictionProvince || report.jurisdictionLocality) && (
                       <span>

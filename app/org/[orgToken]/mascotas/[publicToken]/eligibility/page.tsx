@@ -19,16 +19,16 @@ export default async function EligibilityPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("intake.create")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Para marcar elegibilidad de adopción necesitás el permiso{" "}
             <code className="text-xs">intake.create</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -54,14 +54,14 @@ export default async function EligibilityPage({
   const pet = petRow.pet;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             {organization.displayName}
           </p>
           <h1 className="text-3xl font-semibold">Elegibilidad para adopción · {pet.name}</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Marcá si este animal está listo para ser adoptado. Si no lo está, indicá el motivo y
             (opcionalmente) hasta cuándo querés que quede bloqueado.
           </p>
@@ -80,11 +80,8 @@ export default async function EligibilityPage({
           }}
         />
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800 text-sm">
-          <Link
-            href={`/org/${orgToken}/mascotas`}
-            className="text-neutral-600 dark:text-neutral-400 underline"
-          >
+        <footer className="pt-4 border-t border-gob-border  text-sm">
+          <Link href={`/org/${orgToken}/mascotas`} className="text-gob-text-gray  underline">
             ← Volver al listado
           </Link>
         </footer>

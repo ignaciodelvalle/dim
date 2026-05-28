@@ -66,16 +66,14 @@ export default async function AdminColaPage({
           {activeType && (
             <Link
               href="/admin/cola"
-              className="inline-flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50 underline underline-offset-4"
+              className="inline-flex items-center gap-1 text-xs text-gob-text-muted  hover:text-gob-text  underline underline-offset-4"
             >
               ← Ver todas las solicitudes
             </Link>
           )}
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            {pageTitle}
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{pageTitle}</h1>
+          <p className="text-sm text-gob-text-gray ">{subtitle}</p>
+          <p className="text-xs text-gob-text-muted ">
             Vista universal — todas las jurisdicciones.
           </p>
         </header>

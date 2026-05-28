@@ -5,11 +5,11 @@
 
 export function ClaimForm() {
   return (
-    <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 p-4">
-      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+    <div className="space-y-3 rounded-lg border border-gob-warning bg-gob-warning/10   p-4">
+      <p className="text-sm font-medium text-gob-warning-text ">
         Reclamo por DNI temporalmente pausado
       </p>
-      <p className="text-sm text-amber-800 dark:text-amber-300">
+      <p className="text-sm text-gob-warning-text ">
         Estamos integrando la verificación de identidad con Mi Argentina para que reclamar tu
         adopción sea seguro. Mientras tanto, si tu refugio te avisó que registró tu adopción a tu
         DNI, escribinos a soporte y te ayudamos a vincular el perfil manualmente.

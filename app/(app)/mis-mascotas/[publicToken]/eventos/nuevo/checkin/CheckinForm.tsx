@@ -40,8 +40,8 @@ export function CheckinForm({
         />
       </div>
 
-      <details className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-        <summary className="text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+      <details className="rounded-lg border border-gob-border  p-3">
+        <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
           Ubicación (opcional)
         </summary>
         <div className="mt-3">
@@ -52,7 +52,7 @@ export function CheckinForm({
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -60,7 +60,7 @@ export function CheckinForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando…" : "Enviar check-in"}
       </button>

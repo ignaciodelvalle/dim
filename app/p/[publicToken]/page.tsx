@@ -380,7 +380,7 @@ export default async function PublicCredentialPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-neutral-50 dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-gob-surface-alt ">
       <ScanLogger publicToken={publicToken} />
       <div className="max-w-md mx-auto pt-8 space-y-6">
         {/* Tier 0+ emergency-info banner — owner-toggled. No PII beyond the
@@ -390,14 +390,14 @@ export default async function PublicCredentialPage({
             Sprint 5 PR-042 / doc 10 §3 punto 4. */}
         {pet.emergencyInfoVisible && (
           <div
-            className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-rose-50/95 backdrop-blur border-b border-rose-200 dark:bg-rose-950/85 dark:border-rose-900/60 text-center md:static md:mx-0 md:-mt-0 md:px-4 md:py-3 md:bg-rose-50 md:border md:rounded-xl md:dark:bg-rose-950/30"
+            className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-gob-danger/10 backdrop-blur border-b border-gob-danger   text-center md:static md:mx-0 md:-mt-0 md:px-4 md:py-3 md:bg-gob-danger/10 md:border md:rounded-xl"
             role="alert"
             data-section="emergency-banner"
           >
-            <p className="text-sm font-medium text-rose-900 dark:text-rose-200">
+            <p className="text-sm font-medium text-gob-danger ">
               Esta mascota requiere atención médica
             </p>
-            <p className="mt-0.5 text-xs text-rose-800 dark:text-rose-300">
+            <p className="mt-0.5 text-xs text-gob-danger ">
               Por favor contactá al dueño escaneando el QR mientras la cuidás.
             </p>
           </div>
@@ -435,12 +435,10 @@ export default async function PublicCredentialPage({
 
         {/* Credential header */}
         <div className="text-center space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">
             MiMAR · Credencial digital
           </p>
-          <p className="text-xs font-mono text-neutral-400 dark:text-neutral-600">
-            {pet.publicToken}
-          </p>
+          <p className="text-xs font-mono text-gob-text-muted ">{pet.publicToken}</p>
         </div>
 
         {/* PPP badge — Ley CABA 4078 / Ley Prov 14.107. Renders when the pet is
@@ -456,21 +454,21 @@ export default async function PublicCredentialPage({
         {showServiceDogBanner && (
           <section
             aria-label="Banner de acceso — perro de asistencia"
-            className="rounded-2xl border-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 p-4 space-y-2"
+            className="rounded-2xl border-2 border-gob-primary bg-gob-primary/10  p-4 space-y-2"
           >
-            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-indigo-800 dark:text-indigo-200">
+            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-gob-primary ">
               Perro de Asistencia
             </p>
-            <p className="text-base font-medium text-indigo-900 dark:text-indigo-100 leading-snug">
+            <p className="text-base font-medium text-gob-primary  leading-snug">
               Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
               establecimiento, espacio privado de acceso público y transporte público.
             </p>
-            <p className="text-xs text-indigo-800 dark:text-indigo-200">
+            <p className="text-xs text-gob-primary ">
               Marco legal: <strong>Arts. 1 y 7, Ley 26.858</strong> · Reg. Decreto 792/2019 ·
               Credencial RUPGA vigente (Res. ANDIS 2588/2022).
             </p>
             {rabiesAtRisk && (
-              <p className="text-xs text-amber-800 dark:text-amber-200 border-t border-indigo-200 dark:border-indigo-900 pt-2 mt-2">
+              <p className="text-xs text-gob-warning-text  border-t border-gob-primary  pt-2 mt-2">
                 Aviso: la vacunación antirrábica figura vencida en el registro. La credencial
                 requiere mantener la vacunación al día (Art. 8, Ley 26.858).
               </p>
@@ -484,10 +482,10 @@ export default async function PublicCredentialPage({
             <img
               src={photoUrl}
               alt={pet.name}
-              className="w-44 h-44 rounded-2xl object-cover ring-4 ring-white dark:ring-neutral-900 shadow-lg"
+              className="w-44 h-44 rounded-2xl object-cover ring-4 ring-white  shadow-lg"
             />
           ) : (
-            <div className="w-44 h-44 rounded-2xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-5xl font-semibold text-neutral-400 dark:text-neutral-600 ring-4 ring-white dark:ring-neutral-900 shadow-lg">
+            <div className="w-44 h-44 rounded-2xl bg-gob-surface-alt  flex items-center justify-center text-5xl font-semibold text-gob-text-muted  ring-4 ring-white  shadow-lg">
               {pet.name.charAt(0).toUpperCase()}
             </div>
           )}
@@ -495,10 +493,8 @@ export default async function PublicCredentialPage({
 
         {/* Pet identity */}
         <div className="text-center space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            {pet.name}
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{pet.name}</h1>
+          <p className="text-sm text-gob-text-gray ">
             {speciesLabel(pet.species)}
             {pet.breed && ` · ${pet.breed}`} · {sexLabel(pet.sex)}
             {ageYears !== null && ` · ${ageYears} año${ageYears === 1 ? "" : "s"}`}
@@ -526,37 +522,33 @@ export default async function PublicCredentialPage({
             professional verified tier. Intentionally silent for self_reported. */}
         {showVaccinationConfidence && latestVaccinationTier && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">Vacunación:</span>
+            <span className="text-xs text-gob-text-muted ">Vacunación:</span>
             <ConfidenceBadge tier={latestVaccinationTier} />
           </div>
         )}
 
         {/* Active pet — the "found" form sits behind a disclosure so a casual
             scan doesn't land on an open form. */}
-        <details className="group border border-neutral-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-neutral-950">
-          <summary className="cursor-pointer select-none px-5 py-4 flex items-center justify-between gap-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 rounded-xl transition-colors">
+        <details className="group border border-gob-border  rounded-xl bg-white ">
+          <summary className="cursor-pointer select-none px-5 py-4 flex items-center justify-between gap-3 hover:bg-gob-surface-alt  rounded-xl transition-colors">
             <div className="text-left space-y-0.5 min-w-0">
-              <p className="font-medium text-neutral-900 dark:text-neutral-50">
-                ¿Encontraste a esta mascota?
-              </p>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                Tocá acá para avisarle al dueño.
-              </p>
+              <p className="font-medium text-gob-text ">¿Encontraste a esta mascota?</p>
+              <p className="text-xs text-gob-text-gray ">Tocá acá para avisarle al dueño.</p>
             </div>
             <span
-              className="text-neutral-400 dark:text-neutral-600 group-open:rotate-90 transition-transform shrink-0"
+              className="text-gob-text-muted  group-open:rotate-90 transition-transform shrink-0"
               aria-hidden
             >
               ›
             </span>
           </summary>
-          <div className="px-5 pb-5 pt-1 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+          <div className="px-5 pb-5 pt-1 border-t border-gob-border  space-y-3">
             <FoundPetForm publicToken={publicToken} />
           </div>
         </details>
 
         {/* Footer */}
-        <p className="text-center text-[10px] uppercase tracking-[0.3em] text-neutral-400 dark:text-neutral-600">
+        <p className="text-center text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">
           Documento de Identificación para Mascotas
         </p>
       </div>
@@ -574,11 +566,9 @@ function Badge({
   tone?: "good" | "warning" | "neutral";
 }) {
   const toneClasses = {
-    good: "text-green-800 dark:text-green-300 bg-green-50 dark:bg-green-950/40 border-green-200 dark:border-green-900",
-    warning:
-      "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900",
-    neutral:
-      "text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800",
+    good: "text-gob-success  bg-gob-success/10  border-gob-success ",
+    warning: "text-gob-warning-text  bg-gob-warning/10  border-gob-warning ",
+    neutral: "text-gob-text-gray  bg-white  border-gob-border ",
   };
   return (
     <div className={`border rounded-lg px-3 py-2 ${toneClasses[tone]}`}>
@@ -599,21 +589,21 @@ function PermanentConditionsBanner({
   if (safe.length === 0) return null;
   const hasOther = safe.includes("otra");
   return (
-    <section className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 px-4 py-3 space-y-2">
-      <p className="text-xs uppercase tracking-wider font-semibold text-indigo-800 dark:text-indigo-200">
+    <section className="rounded-xl border border-gob-primary  bg-gob-primary/10  px-4 py-3 space-y-2">
+      <p className="text-xs uppercase tracking-wider font-semibold text-gob-primary ">
         Necesidades especiales
       </p>
       <div className="flex flex-wrap gap-1.5">
         {safe.map((code) => (
           <span
             key={code}
-            className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-600 text-white"
+            className="text-xs font-medium px-2 py-0.5 rounded-full bg-gob-primary text-white"
           >
             {permanentConditionShortLabel(code)}
           </span>
         ))}
       </div>
-      {hasOther && other && <p className="text-xs text-indigo-900 dark:text-indigo-200">{other}</p>}
+      {hasOther && other && <p className="text-xs text-gob-primary ">{other}</p>}
     </section>
   );
 }

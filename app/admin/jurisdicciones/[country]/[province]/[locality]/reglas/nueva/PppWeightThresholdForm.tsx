@@ -45,7 +45,7 @@ export function PppWeightThresholdForm({
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-gob-text-gray ">
         Define un umbral de peso por sobre el cual el animal se considera PPP por tamaño. Dejá kg
         vacío para no aplicar threshold (solo regla de razas).
       </p>
@@ -62,7 +62,7 @@ export function PppWeightThresholdForm({
           max={200}
           step="0.1"
           defaultValue={initialKg ?? ""}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
       </div>
 
@@ -89,15 +89,13 @@ export function PppWeightThresholdForm({
           name="notes"
           defaultValue={initialNotes}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
       </div>
 
-      {state.warning && (
-        <p className="text-sm text-amber-700 dark:text-amber-300">{state.warning}</p>
-      )}
+      {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -105,7 +103,7 @@ export function PppWeightThresholdForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 transition-colors"
       >
         {isPending ? "Guardando…" : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </button>

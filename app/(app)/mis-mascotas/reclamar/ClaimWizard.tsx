@@ -43,20 +43,16 @@ export function ClaimWizard() {
 
   if (state.phase === "submitted") {
     return (
-      <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-sm dark:border-emerald-800 dark:bg-emerald-950/30">
-        <p className="text-base font-semibold text-emerald-900 dark:text-emerald-100">
-          Reclamo enviado
-        </p>
-        <p className="mt-1 text-emerald-800 dark:text-emerald-200">
+      <section className="rounded-2xl border border-gob-success bg-gob-success/10 p-6 text-sm  ">
+        <p className="text-base font-semibold text-gob-success ">Reclamo enviado</p>
+        <p className="mt-1 text-gob-success ">
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
           una resolución.
         </p>
-        <p className="mt-3 font-mono text-xs text-emerald-800 dark:text-emerald-200">
-          Referencia: {state.disputeToken}
-        </p>
+        <p className="mt-3 font-mono text-xs text-gob-success ">Referencia: {state.disputeToken}</p>
         <Link
           href="/mis-mascotas"
-          className="mt-4 inline-block text-emerald-900 underline underline-offset-2 dark:text-emerald-100"
+          className="mt-4 inline-block text-gob-success underline underline-offset-2 "
         >
           ← Volver a mis mascotas
         </Link>
@@ -78,13 +74,13 @@ export function ClaimWizard() {
             setState({ phase: "result", lookup: result });
           });
         }}
-        className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-950"
+        className="space-y-4 rounded-2xl border border-gob-border bg-white p-5  "
       >
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <legend className="text-sm font-medium text-gob-text ">
             ¿Cómo identificás a la mascota?
           </legend>
-          <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <label className="flex items-center gap-2 text-sm text-gob-text-gray ">
             <input
               type="radio"
               name="kind"
@@ -95,7 +91,7 @@ export function ClaimWizard() {
             />
             Microchip (15 dígitos)
           </label>
-          <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <label className="flex items-center gap-2 text-sm text-gob-text-gray ">
             <input
               type="radio"
               name="kind"
@@ -109,10 +105,7 @@ export function ClaimWizard() {
         </fieldset>
 
         <div className="space-y-1">
-          <label
-            htmlFor="claim-value"
-            className="block text-sm font-medium text-neutral-900 dark:text-neutral-50"
-          >
+          <label htmlFor="claim-value" className="block text-sm font-medium text-gob-text ">
             {state.kind === "microchip" ? "Número de microchip" : "Código del tatuaje"}
           </label>
           <input
@@ -124,12 +117,12 @@ export function ClaimWizard() {
             onChange={(e) => setState({ ...state, value: e.target.value, error: null })}
             placeholder={state.kind === "microchip" ? "123456789012345" : "ABC-1234"}
             required
-            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-gob-primary focus:outline-none focus:ring-1 focus:ring-gob-primary dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
+            className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text focus:border-gob-primary focus:outline-none focus:ring-1 focus:ring-gob-primary   "
           />
         </div>
 
         {state.error && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          <p className="text-sm text-gob-danger " role="alert">
             {state.error}
           </p>
         )}
@@ -184,13 +177,13 @@ export function ClaimWizard() {
           });
         });
       }}
-      className="space-y-4 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm dark:border-amber-800 dark:bg-amber-950/30"
+      className="space-y-4 rounded-2xl border border-gob-warning bg-gob-warning/10 p-5 text-sm  "
     >
       <div className="space-y-1">
-        <p className="text-base font-semibold text-amber-900 dark:text-amber-100">
+        <p className="text-base font-semibold text-gob-warning-text ">
           Iniciar disputa por {state.petName}
         </p>
-        <p className="text-amber-800 dark:text-amber-200">
+        <p className="text-gob-warning-text ">
           Tu reclamo se envía a la autoridad local para revisión. Subí evidencia (foto del chip
           escaneado, libreta sanitaria si la tenés, etc.) y contanos por qué creés que es tu
           mascota.
@@ -198,10 +191,7 @@ export function ClaimWizard() {
       </div>
 
       <div className="space-y-1">
-        <label
-          htmlFor="claim-reason"
-          className="block text-sm font-medium text-amber-900 dark:text-amber-100"
-        >
+        <label htmlFor="claim-reason" className="block text-sm font-medium text-gob-warning-text ">
           ¿Por qué creés que es tuya?
         </label>
         <textarea
@@ -213,15 +203,15 @@ export function ClaimWizard() {
           required
           value={state.reason}
           onChange={(e) => setState({ ...state, reason: e.target.value, error: null })}
-          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-gob-primary focus:outline-none focus:ring-1 focus:ring-gob-primary dark:border-amber-800 dark:bg-neutral-900 dark:text-neutral-50"
+          className="w-full rounded-lg border border-gob-warning bg-white px-3 py-2 text-sm text-gob-text focus:border-gob-primary focus:outline-none focus:ring-1 focus:ring-gob-primary   "
         />
-        <p className="text-xs text-amber-700 dark:text-amber-300">Mínimo 20, máximo 2000.</p>
+        <p className="text-xs text-gob-warning-text ">Mínimo 20, máximo 2000.</p>
       </div>
 
       <div className="space-y-1">
         <label
           htmlFor="claim-evidence"
-          className="block text-sm font-medium text-amber-900 dark:text-amber-100"
+          className="block text-sm font-medium text-gob-warning-text "
         >
           Evidencia (opcional, máx. 5 archivos)
         </label>
@@ -232,12 +222,12 @@ export function ClaimWizard() {
           multiple
           accept="image/*,video/*"
           capture="environment"
-          className="block w-full text-xs text-amber-900 dark:text-amber-200"
+          className="block w-full text-xs text-gob-warning-text "
         />
       </div>
 
       {state.error && (
-        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -246,14 +236,14 @@ export function ClaimWizard() {
         <button
           type="button"
           onClick={() => setState(INITIAL)}
-          className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-800 dark:bg-neutral-900 dark:text-amber-100"
+          className="flex-1 rounded-lg border border-gob-warning bg-white px-3 py-2 text-sm font-medium text-gob-warning-text   "
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={pending || state.reason.trim().length < 20}
-          className="flex-1 rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50"
+          className="flex-1 rounded-lg bg-gob-warning px-3 py-2 text-sm font-medium text-white hover:bg-gob-warning disabled:opacity-50"
         >
           {pending ? "Enviando…" : "Enviar reclamo"}
         </button>
@@ -274,18 +264,18 @@ function ResultStep({
   // Variant A — not found → invite to register
   if (lookup.variant === "not_found") {
     return (
-      <section className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <p className="font-medium text-neutral-900 dark:text-neutral-50">
+      <section className="space-y-3 rounded-2xl border border-gob-border bg-gob-surface-alt p-5 text-sm  ">
+        <p className="font-medium text-gob-text ">
           No encontramos una mascota con ese identificador.
         </p>
-        <p className="text-neutral-700 dark:text-neutral-300">
+        <p className="text-gob-text-gray ">
           Si la mascota es tuya, registrala ahora y le emitimos la credencial.
         </p>
         <div className="flex gap-2 pt-1">
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-50"
+            className="flex-1 rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm font-medium text-gob-text   "
           >
             Buscar otro identificador
           </button>
@@ -303,17 +293,13 @@ function ResultStep({
   // Deceased gate
   if (lookup.variant === "deceased") {
     return (
-      <section className="space-y-2 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm dark:border-red-800 dark:bg-red-950/30">
-        <p className="font-medium text-red-900 dark:text-red-100">
-          Esta mascota figura como fallecida en MiMAR.
-        </p>
-        <p className="text-red-800 dark:text-red-200">
-          Si creés que es un error, contactá a soporte.
-        </p>
+      <section className="space-y-2 rounded-2xl border border-gob-danger bg-gob-danger/10 p-5 text-sm  ">
+        <p className="font-medium text-gob-danger ">Esta mascota figura como fallecida en MiMAR.</p>
+        <p className="text-gob-danger ">Si creés que es un error, contactá a soporte.</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-900 dark:border-red-800 dark:bg-neutral-900 dark:text-red-100"
+          className="mt-2 rounded-lg border border-gob-danger bg-white px-3 py-2 text-sm font-medium text-gob-danger   "
         >
           Volver
         </button>
@@ -324,11 +310,11 @@ function ResultStep({
   // Variant C — pet is marked lost → encourage sighting
   if (lookup.variant === "lost") {
     return (
-      <section className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm dark:border-blue-800 dark:bg-blue-950/30">
-        <p className="font-medium text-blue-900 dark:text-blue-100">
+      <section className="space-y-3 rounded-2xl border border-gob-info bg-gob-info/10 p-5 text-sm  ">
+        <p className="font-medium text-gob-azul-link ">
           {lookup.petName} está reportada como perdida.
         </p>
-        <p className="text-blue-800 dark:text-blue-200">
+        <p className="text-gob-azul-link ">
           Si encontraste esta mascota, podés avisar a quien la busca usando el formulario de
           avistaje en lugar de iniciar un reclamo.
         </p>
@@ -336,13 +322,13 @@ function ResultStep({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm font-medium text-blue-900 dark:border-blue-800 dark:bg-neutral-900 dark:text-blue-100"
+            className="flex-1 rounded-lg border border-gob-info bg-white px-3 py-2 text-sm font-medium text-gob-azul-link   "
           >
             Volver
           </button>
           <Link
             href={`/p/${lookup.petToken}/sighting`}
-            className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+            className="flex-1 rounded-lg bg-gob-info px-3 py-2 text-center text-sm font-medium text-white hover:bg-gob-info"
           >
             Reportar avistaje →
           </Link>
@@ -353,12 +339,12 @@ function ResultStep({
 
   // Variant B — active owner → offer dispute
   return (
-    <section className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm dark:border-amber-800 dark:bg-amber-950/30">
-      <p className="font-medium text-amber-900 dark:text-amber-100">
+    <section className="space-y-3 rounded-2xl border border-gob-warning bg-gob-warning/10 p-5 text-sm  ">
+      <p className="font-medium text-gob-warning-text ">
         {lookup.petName} ya tiene dueño/a registrado/a
         {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.
       </p>
-      <p className="text-amber-800 dark:text-amber-200">
+      <p className="text-gob-warning-text ">
         Si pensás que la mascota es tuya, podés iniciar una disputa. Una autoridad local va a
         revisar la evidencia y decidir.
       </p>
@@ -366,14 +352,14 @@ function ResultStep({
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-800 dark:bg-neutral-900 dark:text-amber-100"
+          className="flex-1 rounded-lg border border-gob-warning bg-white px-3 py-2 text-sm font-medium text-gob-warning-text   "
         >
           Volver
         </button>
         <button
           type="button"
           onClick={() => onClaim(lookup.petToken, lookup.petName)}
-          className="flex-1 rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800"
+          className="flex-1 rounded-lg bg-gob-warning px-3 py-2 text-sm font-medium text-white hover:bg-gob-warning"
         >
           Iniciar disputa
         </button>

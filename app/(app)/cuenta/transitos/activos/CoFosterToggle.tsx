@@ -34,8 +34,8 @@ export function CoFosterToggle({
   }
 
   return (
-    <div className="rounded-lg bg-neutral-50 dark:bg-neutral-900/50 p-3 text-sm">
-      <p className="text-neutral-800 dark:text-neutral-200 mb-2">
+    <div className="rounded-lg bg-gob-surface-alt  p-3 text-sm">
+      <p className="text-gob-text  mb-2">
         ¿Permitís que la organización asigne un co-foster a esta mascota?
       </p>
       <div className="flex gap-2">
@@ -45,8 +45,8 @@ export function CoFosterToggle({
           disabled={pending || current}
           className={`px-3 py-1 rounded text-xs ${
             current
-              ? "bg-emerald-600 text-white"
-              : "border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              ? "bg-gob-success text-white"
+              : "border border-gob-border-strong  hover:bg-gob-surface-alt "
           } disabled:opacity-60`}
         >
           Permitir
@@ -57,14 +57,14 @@ export function CoFosterToggle({
           disabled={pending || !current}
           className={`px-3 py-1 rounded text-xs ${
             !current
-              ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900"
-              : "border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              ? "bg-gob-primary  text-white "
+              : "border border-gob-border-strong  hover:bg-gob-surface-alt "
           } disabled:opacity-60`}
         >
           No permitir
         </button>
       </div>
-      {error && <output className="block text-xs text-red-600 mt-2">{error}</output>}
+      {error && <output className="block text-xs text-gob-danger mt-2">{error}</output>}
     </div>
   );
 }

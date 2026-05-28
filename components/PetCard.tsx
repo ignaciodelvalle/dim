@@ -91,7 +91,7 @@ export function PetCard({
     <li>
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="block border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center gap-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+        className="block border border-gob-border  rounded-xl p-4 flex items-center gap-4 hover:bg-gob-surface-alt  transition-colors"
       >
         <Photo
           status={petStatusToPhotoStatus(pet.status)}
@@ -100,15 +100,15 @@ export function PetCard({
           size="md"
         />
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-neutral-900 dark:text-neutral-50 truncate">
+          <p className="font-medium text-gob-text  truncate">
             {pet.name}
             {isTransit && (
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900 align-middle">
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gob-warning/10  text-gob-warning-text  border border-gob-warning  align-middle">
                 En tránsito
               </span>
             )}
           </p>
-          <p className="text-sm text-neutral-500 dark:text-neutral-500 truncate">
+          <p className="text-sm text-gob-text-muted  truncate">
             {speciesLabel(pet.species)}
             {pet.color && ` · ${pet.color}`}
           </p>
@@ -122,7 +122,7 @@ export function PetCard({
             </div>
           );
         })()}
-        <span className="text-neutral-400 dark:text-neutral-600 shrink-0" aria-hidden>
+        <span className="text-gob-text-muted  shrink-0" aria-hidden>
           ›
         </span>
       </Link>

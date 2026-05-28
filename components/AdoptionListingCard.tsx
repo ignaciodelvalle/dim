@@ -65,12 +65,12 @@ export function AdoptionListingCard({
           {(item.isSterilized || item.microchipId) && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gob-success text-white">
                   {sterilizedLabel}
                 </span>
               )}
               {item.microchipId && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-sky-600 text-white">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gob-info text-white">
                   Con chip
                 </span>
               )}

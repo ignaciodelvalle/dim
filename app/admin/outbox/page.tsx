@@ -68,10 +68,10 @@ export default async function AdminOutboxPage({
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Outbox de notificaciones
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Últimas {rawRows.length} filas del outbox de eventos de notificación ENO/govt. Los items
             en rojo (🔴) están en incumplimiento de SLA.
           </p>
@@ -82,7 +82,7 @@ export default async function AdminOutboxPage({
           <select
             name="status"
             defaultValue={filters.status ?? ""}
-            className="text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           >
             <option value="">Todos los estados</option>
             {STATUS_VALUES.map((s) => (
@@ -95,7 +95,7 @@ export default async function AdminOutboxPage({
           <select
             name="target_kind"
             defaultValue={filters.target_kind ?? ""}
-            className="text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           >
             <option value="">Todos los destinos</option>
             {TARGET_KIND_VALUES.map((k) => (
@@ -108,7 +108,7 @@ export default async function AdminOutboxPage({
           <select
             name="breach"
             defaultValue={filters.breach ?? ""}
-            className="text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           >
             <option value="">Todos (breach o no)</option>
             <option value="yes">Solo incumplimientos SLA</option>
@@ -120,12 +120,12 @@ export default async function AdminOutboxPage({
             name="province"
             defaultValue={filters.province ?? ""}
             placeholder="Provincia (exacta)"
-            className="text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           />
 
           <button
             type="submit"
-            className="text-sm px-3 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:opacity-90"
+            className="text-sm px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90"
           >
             Filtrar
           </button>
@@ -133,7 +133,7 @@ export default async function AdminOutboxPage({
           {hasFilters && (
             <a
               href="/admin/outbox"
-              className="text-xs text-neutral-500 dark:text-neutral-500 underline underline-offset-4"
+              className="text-xs text-gob-text-muted  underline underline-offset-4"
             >
               Limpiar filtros
             </a>
@@ -142,7 +142,7 @@ export default async function AdminOutboxPage({
 
         {/* Table */}
         {rows.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
+          <p className="text-sm text-gob-text-muted ">
             {hasFilters
               ? "No hay items que coincidan con los filtros aplicados."
               : "No hay items en el outbox."}
@@ -151,34 +151,34 @@ export default async function AdminOutboxPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="text-left border-b border-neutral-200 dark:border-neutral-800">
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                <tr className="text-left border-b border-gob-border ">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     SLA
                   </th>
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     Destino
                   </th>
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     Jurisdicción
                   </th>
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     Evento origen
                   </th>
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     Intentos
                   </th>
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     Creado
                   </th>
-                  <th className="pb-2 pr-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 pr-4 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     SLA vence
                   </th>
-                  <th className="pb-2 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  <th className="pb-2 text-xs font-medium text-gob-text-muted uppercase tracking-wider">
                     Acción
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-gob-border ">
                 {rows.map((row) => {
                   const cue = buildBreachCue(row.status, row.slaDueAt);
                   const symbol = BREACH_CUE_SYMBOL[cue];
@@ -190,7 +190,7 @@ export default async function AdminOutboxPage({
                     .join(", ");
 
                   return (
-                    <tr key={row.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
+                    <tr key={row.id} className="hover:bg-gob-surface-alt ">
                       <td className="py-2 pr-4 whitespace-nowrap">
                         <span
                           title={`${buildStatusLabel(row.status)} · ${cue}`}
@@ -199,10 +199,10 @@ export default async function AdminOutboxPage({
                           {symbol}
                         </span>
                       </td>
-                      <td className="py-2 pr-4 whitespace-nowrap text-neutral-700 dark:text-neutral-300">
+                      <td className="py-2 pr-4 whitespace-nowrap text-gob-text-gray ">
                         {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
                       </td>
-                      <td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400 text-xs">
+                      <td className="py-2 pr-4 text-gob-text-gray  text-xs">
                         {jurisdiction || "—"}
                       </td>
                       <td className="py-2 pr-4">
@@ -210,20 +210,18 @@ export default async function AdminOutboxPage({
                             pet_events PK. Linking directly to the outbox detail is cleaner
                             for v1; historial integration can be added when the detail page
                             exposes the event context. */}
-                        <span className="font-mono text-xs text-neutral-500 dark:text-neutral-500">
+                        <span className="font-mono text-xs text-gob-text-muted ">
                           {row.sourceEventId.slice(0, 8)}…
                         </span>
                       </td>
-                      <td className="py-2 pr-4 text-neutral-700 dark:text-neutral-300 text-center">
-                        {row.attempts}
-                      </td>
-                      <td className="py-2 pr-4 text-xs text-neutral-500 whitespace-nowrap">
+                      <td className="py-2 pr-4 text-gob-text-gray  text-center">{row.attempts}</td>
+                      <td className="py-2 pr-4 text-xs text-gob-text-muted whitespace-nowrap">
                         {new Date(row.createdAt).toLocaleString("es-AR", {
                           dateStyle: "short",
                           timeStyle: "short",
                         })}
                       </td>
-                      <td className="py-2 pr-4 text-xs text-neutral-500 whitespace-nowrap">
+                      <td className="py-2 pr-4 text-xs text-gob-text-muted whitespace-nowrap">
                         {new Date(row.slaDueAt).toLocaleString("es-AR", {
                           dateStyle: "short",
                           timeStyle: "short",
@@ -232,7 +230,7 @@ export default async function AdminOutboxPage({
                       <td className="py-2">
                         <Link
                           href={`/admin/outbox/${row.id}`}
-                          className="text-xs underline underline-offset-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-50 whitespace-nowrap"
+                          className="text-xs underline underline-offset-2 text-gob-text-gray  hover:text-gob-text  whitespace-nowrap"
                         >
                           Detalle →
                         </Link>

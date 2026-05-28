@@ -21,20 +21,20 @@ export default async function CapturePage({
   const { pet } = session;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-8 space-y-6">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver a {pet.name}
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Anotar algo de {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Contanos qué pasó. Te llevamos al formulario correcto con los datos que pudimos
             identificar. Si preferís, abajo tenés atajos para los eventos más comunes.
           </p>

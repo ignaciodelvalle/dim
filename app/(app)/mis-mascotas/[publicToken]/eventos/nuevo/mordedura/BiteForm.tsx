@@ -28,7 +28,7 @@ export function BiteForm({
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="space-y-1.5">
         <label htmlFor="occurredAt" className={labelClass}>
-          Fecha del incidente<span className="text-red-500 ml-0.5">*</span>
+          Fecha del incidente<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="occurredAt"
@@ -54,8 +54,8 @@ export function BiteForm({
         />
       </div>
 
-      <details className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-        <summary className="text-sm font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+      <details className="rounded-lg border border-gob-border  p-3">
+        <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
           Provincia y localidad (opcional)
         </summary>
         <div className="mt-3">
@@ -65,7 +65,7 @@ export function BiteForm({
 
       <div className="space-y-1.5">
         <p className={labelClass}>
-          ¿A quién mordió {petName}?<span className="text-red-500 ml-0.5">*</span>
+          ¿A quién mordió {petName}?<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="grid grid-cols-3 gap-2">
           {(
@@ -79,8 +79,8 @@ export function BiteForm({
               key={opt.value}
               className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
                 victimKind === opt.value
-                  ? "border-neutral-900 bg-neutral-50 dark:border-neutral-50 dark:bg-neutral-900"
-                  : "border-neutral-300 dark:border-neutral-700"
+                  ? "border-gob-border-strong bg-gob-surface-alt  "
+                  : "border-gob-border-strong "
               }`}
             >
               <input
@@ -98,15 +98,15 @@ export function BiteForm({
       </div>
 
       {victimKind === "human" && (
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 bg-neutral-50 dark:bg-neutral-900/30">
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <div className="rounded-xl border border-gob-border  p-4 space-y-3 bg-gob-surface-alt ">
+          <p className="text-xs text-gob-text-gray ">
             Estos datos quedan en el registro para denuncia obligatoria si la autoridad sanitaria
             los pide. Opcionales.
           </p>
           <div className="space-y-1.5">
             <label
               htmlFor="victimContactName"
-              className="text-xs uppercase tracking-wider text-neutral-500"
+              className="text-xs uppercase tracking-wider text-gob-text-muted"
             >
               Nombre de la persona
             </label>
@@ -120,7 +120,7 @@ export function BiteForm({
           <div className="space-y-1.5">
             <label
               htmlFor="victimContactPhone"
-              className="text-xs uppercase tracking-wider text-neutral-500"
+              className="text-xs uppercase tracking-wider text-gob-text-muted"
             >
               Teléfono
             </label>
@@ -134,7 +134,7 @@ export function BiteForm({
           <div className="space-y-1.5">
             <label
               htmlFor="victimAgeEstimate"
-              className="text-xs uppercase tracking-wider text-neutral-500"
+              className="text-xs uppercase tracking-wider text-gob-text-muted"
             >
               Edad aproximada
             </label>
@@ -151,7 +151,7 @@ export function BiteForm({
 
       <div className="space-y-1.5">
         <label htmlFor="severity" className={labelClass}>
-          Severidad<span className="text-red-500 ml-0.5">*</span>
+          Severidad<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <select id="severity" name="severity" required defaultValue="" className={inputClass}>
           <option value="" disabled>
@@ -176,15 +176,15 @@ export function BiteForm({
         />
       </div>
 
-      <div className="rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-2">
+      <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
         <label className="flex items-start gap-3 cursor-pointer">
           <input
             type="checkbox"
             name="confirmObservation"
             required
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 text-amber-600 focus:ring-amber-600"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong  text-gob-warning-text focus:ring-gob-warning"
           />
-          <span className="text-sm text-amber-900 dark:text-amber-200">
+          <span className="text-sm text-gob-warning-text ">
             Entiendo que reportar esto inicia un período de observación antirrábica obligatorio de
             10 días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
           </span>
@@ -192,7 +192,7 @@ export function BiteForm({
       </div>
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -200,7 +200,7 @@ export function BiteForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Reportando..." : "Reportar mordedura"}
       </button>

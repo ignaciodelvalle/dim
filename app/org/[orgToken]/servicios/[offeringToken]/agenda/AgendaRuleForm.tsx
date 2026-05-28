@@ -42,7 +42,7 @@ export function AgendaRuleForm({
       <input type="hidden" name="orgToken" value={orgToken} />
 
       {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
           {state.error}
         </p>
       )}
@@ -50,7 +50,7 @@ export function AgendaRuleForm({
       {/* Days of week */}
       <div className="space-y-1">
         <span className="block text-sm font-medium">
-          Días <span className="text-red-500">*</span>
+          Días <span className="text-gob-danger">*</span>
         </span>
         <div className="flex flex-wrap gap-2">
           {WEEKDAYS.map((d) => (
@@ -71,7 +71,7 @@ export function AgendaRuleForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <label htmlFor="startTimeLocal" className="block text-sm font-medium">
-            Hora inicio <span className="text-red-500">*</span>
+            Hora inicio <span className="text-gob-danger">*</span>
           </label>
           <input
             id="startTimeLocal"
@@ -79,12 +79,12 @@ export function AgendaRuleForm({
             type="time"
             required
             defaultValue="08:00"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
           />
         </div>
         <div className="space-y-1">
           <label htmlFor="endTimeLocal" className="block text-sm font-medium">
-            Hora fin <span className="text-red-500">*</span>
+            Hora fin <span className="text-gob-danger">*</span>
           </label>
           <input
             id="endTimeLocal"
@@ -92,7 +92,7 @@ export function AgendaRuleForm({
             type="time"
             required
             defaultValue="12:00"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
           />
         </div>
       </div>
@@ -101,7 +101,7 @@ export function AgendaRuleForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <label htmlFor="effectiveFrom" className="block text-sm font-medium">
-            Válido desde <span className="text-red-500">*</span>
+            Válido desde <span className="text-gob-danger">*</span>
           </label>
           <input
             id="effectiveFrom"
@@ -109,19 +109,21 @@ export function AgendaRuleForm({
             type="date"
             required
             defaultValue={today}
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
           />
         </div>
         <div className="space-y-1">
           <label htmlFor="effectiveUntil" className="block text-sm font-medium">
             Válido hasta{" "}
-            <span className="text-neutral-400 font-normal">(opcional — sin fecha = abierto)</span>
+            <span className="text-gob-text-muted font-normal">
+              (opcional — sin fecha = abierto)
+            </span>
           </label>
           <input
             id="effectiveUntil"
             name="effectiveUntil"
             type="date"
-            className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
+            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
           />
         </div>
       </div>
@@ -130,7 +132,7 @@ export function AgendaRuleForm({
         <button
           type="submit"
           disabled={isPending}
-          className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm disabled:opacity-50"
+          className="px-4 py-2 rounded bg-gob-primary text-white   text-sm disabled:opacity-50"
         >
           {isPending ? "Guardando…" : "Agregar regla"}
         </button>

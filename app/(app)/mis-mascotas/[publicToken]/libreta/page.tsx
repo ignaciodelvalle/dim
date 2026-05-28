@@ -59,12 +59,12 @@ export default async function LibretaPage({
     .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt)));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 print:p-0 print:bg-white">
+    <main className="min-h-screen p-6 bg-white  print:p-0 print:bg-white">
       <div className="max-w-2xl mx-auto pt-6 pb-20 space-y-6 print:max-w-none print:pt-0">
         <div className="flex items-center justify-between gap-4 print:hidden">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver a {pet.name}
           </Link>
@@ -82,7 +82,7 @@ export default async function LibretaPage({
 
         <SharesManager petPublicToken={pet.publicToken} shares={activeShares} />
 
-        <footer className="hidden print:block text-xs text-neutral-500 pt-8">
+        <footer className="hidden print:block text-xs text-gob-text-muted pt-8">
           Generada por MiMAR · {new Date().toLocaleString("es-AR")}
         </footer>
       </div>
@@ -98,9 +98,8 @@ function ViewToggle({
   vista: "agrupada" | "cronologica";
 }) {
   const baseClass = "px-2.5 py-1 rounded-md transition-colors";
-  const activeClass = "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900";
-  const inactiveClass =
-    "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900";
+  const activeClass = "bg-gob-primary  text-white ";
+  const inactiveClass = "text-gob-text-gray  hover:bg-gob-surface-alt ";
   return (
     <div className="flex items-center gap-1 text-xs">
       <Link

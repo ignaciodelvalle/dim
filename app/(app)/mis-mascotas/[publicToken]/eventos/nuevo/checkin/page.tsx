@@ -61,19 +61,19 @@ export default async function PostAdoptionCheckinPage({
 
   if (!openReminder) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-md mx-auto pt-8 space-y-6">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver al perfil
           </Link>
           <div className="space-y-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
               Sin check-ins pendientes
             </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               {pet.name} no tiene un check-in post-adopción pendiente en este momento. Si el refugio
               te pide otro seguimiento más adelante, te vamos a avisar.
             </p>
@@ -86,19 +86,19 @@ export default async function PostAdoptionCheckinPage({
   const boundAction = recordPostAdoptionCheckinAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver al perfil
         </Link>
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Check-in post-adopción
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             El refugio que te confió a {pet.name} está esperando este seguimiento. Llevá un minuto:
             contales cómo está, sumá una foto si querés.
           </p>

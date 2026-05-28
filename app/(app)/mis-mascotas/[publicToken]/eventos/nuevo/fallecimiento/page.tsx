@@ -28,19 +28,19 @@ export default async function NewDeathRecordPage({
   const boundAction = createDeathRecordAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Otro tipo de evento
         </Link>
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Registrar fallecimiento
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Registrá el fallecimiento de {pet.name}. Esta acción actualiza su estado a{" "}
             <strong>fallecida</strong> y queda en el historial permanentemente.
           </p>

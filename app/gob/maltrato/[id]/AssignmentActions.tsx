@@ -53,7 +53,7 @@ export function AssignmentActions({
           type="button"
           onClick={handleAssign}
           disabled={pending}
-          className="px-3 py-1.5 rounded text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="px-3 py-1.5 rounded text-sm font-medium bg-gob-primary text-white hover:bg-gob-primary disabled:opacity-50"
         >
           {pending ? "Procesando..." : "Asignármela"}
         </button>
@@ -68,7 +68,7 @@ export function AssignmentActions({
           type="button"
           onClick={handleUnassign}
           disabled={pending}
-          className="px-3 py-1.5 rounded text-sm font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 disabled:opacity-50"
+          className="px-3 py-1.5 rounded text-sm font-medium border border-gob-border-strong  text-gob-text-gray  hover:bg-gob-surface-alt  disabled:opacity-50"
         >
           {pending ? "Procesando..." : "Desasignar"}
         </button>

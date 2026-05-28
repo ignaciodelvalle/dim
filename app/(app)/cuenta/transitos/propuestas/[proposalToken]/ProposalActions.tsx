@@ -106,7 +106,7 @@ export function ProposalActions({
   // actions to surface beyond the message itself.
   if (okMessage) {
     return (
-      <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+      <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
         {okMessage}
       </p>
     );
@@ -114,10 +114,8 @@ export function ProposalActions({
 
   if (mode === "accept") {
     return (
-      <div className="rounded-lg border border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 p-4 space-y-3">
-        <h3 className="font-medium text-emerald-900 dark:text-emerald-100">
-          Aceptar tránsito de {petName}
-        </h3>
+      <div className="rounded-lg border border-gob-success bg-gob-success/10/50   p-4 space-y-3">
+        <h3 className="font-medium text-gob-success ">Aceptar tránsito de {petName}</h3>
         <label className="flex items-start gap-3 text-sm cursor-pointer">
           <input
             type="checkbox"
@@ -125,7 +123,7 @@ export function ProposalActions({
             onChange={(e) => setAllowCoFoster(e.target.checked)}
             className="h-4 w-4 mt-0.5"
           />
-          <span className="text-neutral-800 dark:text-neutral-200">
+          <span className="text-gob-text ">
             Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo
             después.
           </span>
@@ -135,15 +133,15 @@ export function ProposalActions({
           onChange={(e) => setAcceptNotes(e.target.value)}
           rows={2}
           placeholder="Notas para el refugio (opcional)"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
-        {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
+        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
         <div className="flex gap-2">
           <button
             type="button"
             onClick={accept}
             disabled={pending}
-            className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
           >
             {pending ? "Aceptando..." : "Confirmar aceptación"}
           </button>
@@ -151,7 +149,7 @@ export function ProposalActions({
             type="button"
             onClick={() => setMode("none")}
             disabled={pending}
-            className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700"
+            className="px-4 py-2 rounded-lg border border-gob-border-strong "
           >
             Cancelar
           </button>
@@ -162,8 +160,8 @@ export function ProposalActions({
 
   if (mode === "reject") {
     return (
-      <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
-        <h3 className="font-medium text-neutral-900 dark:text-neutral-50">Rechazar propuesta</h3>
+      <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
+        <h3 className="font-medium text-gob-text ">Rechazar propuesta</h3>
         <div>
           <label htmlFor="reject-reason" className={`${labelClass} mb-1`}>
             Motivo
@@ -172,7 +170,7 @@ export function ProposalActions({
             id="reject-reason"
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value as RejectionReason)}
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
           >
             {REJECTION_REASONS.map((r) => (
               <option key={r.value} value={r.value}>
@@ -186,15 +184,15 @@ export function ProposalActions({
           onChange={(e) => setRejectNotes(e.target.value)}
           rows={2}
           placeholder="Notas (opcional)"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
-        {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
+        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
         <div className="flex gap-2">
           <button
             type="button"
             onClick={reject}
             disabled={pending}
-            className="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary disabled:opacity-50"
           >
             {pending ? "Enviando..." : "Confirmar rechazo"}
           </button>
@@ -202,7 +200,7 @@ export function ProposalActions({
             type="button"
             onClick={() => setMode("none")}
             disabled={pending}
-            className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700"
+            className="px-4 py-2 rounded-lg border border-gob-border-strong "
           >
             Cancelar
           </button>
@@ -216,14 +214,14 @@ export function ProposalActions({
       <button
         type="button"
         onClick={() => setMode("accept")}
-        className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+        className="px-4 py-2 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success"
       >
         Aceptar propuesta
       </button>
       <button
         type="button"
         onClick={() => setMode("reject")}
-        className="px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+        className="px-4 py-2 rounded-lg border border-gob-border-strong  hover:bg-gob-surface-alt "
       >
         Rechazar
       </button>

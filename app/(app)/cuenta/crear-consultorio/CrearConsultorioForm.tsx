@@ -30,16 +30,16 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
 
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 p-4 space-y-2">
-        <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+      <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
+        <p className="text-sm font-medium text-gob-warning-text ">
           Antes de crear tu consultorio, verificá tu DNI.
         </p>
-        <p className="text-xs text-amber-700 dark:text-amber-400">
+        <p className="text-xs text-gob-warning-text ">
           MiMAR requiere que tu identidad esté verificada para crear una organización.
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500 text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-lg bg-gob-warning hover:bg-gob-warning   text-white text-sm font-medium transition-colors"
         >
           Verificar DNI →
         </a>
@@ -85,7 +85,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 transition-colors"
+            className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary transition-colors"
           >
             Continuar
           </button>
@@ -104,7 +104,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 transition-colors"
+            className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary transition-colors"
           >
             Continuar
           </button>
@@ -114,14 +114,14 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
           <div className="space-y-1">
             <p className={labelClass}>Jurisdicción donde ejercés</p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500 mb-2">
+            <p className="text-xs text-gob-text-muted  mb-2">
               Para enrutar la verificación al govt correspondiente.
             </p>
             <LocationFields mode="l1" />
           </div>
 
           {state.error && (
-            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+            <p className="text-sm text-gob-danger " role="alert">
               {state.error}
             </p>
           )}
@@ -129,7 +129,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? "Creando consultorio..." : "Crear consultorio"}
           </button>
@@ -169,7 +169,7 @@ function Field({
         defaultValue={defaultValue}
         className={inputClass}
       />
-      {hint && <p className="text-xs text-neutral-500 dark:text-neutral-500">{hint}</p>}
+      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
     </div>
   );
 }

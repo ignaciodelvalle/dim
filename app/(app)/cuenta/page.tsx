@@ -57,7 +57,7 @@ export default async function CuentaPage() {
     // Should never happen once authenticated, but defensive.
     return (
       <div className="max-w-4xl mx-auto pt-10">
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-gob-danger">
           No se encontró tu perfil. Cerrá sesión e intentá de nuevo.
         </p>
       </div>

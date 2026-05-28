@@ -33,35 +33,35 @@ const RING_BG: Record<PetState, string> = {
 };
 
 const RING_BORDER: Record<PetState, string> = {
-  ok: "ring-neutral-200 dark:ring-neutral-700",
-  info: "ring-blue-500 dark:ring-blue-400",
-  attention: "ring-amber-500 dark:ring-amber-400",
-  urgent: "ring-red-500 dark:ring-red-400",
+  ok: "ring-gob-border-strong ",
+  info: "ring-gob-azul-link ",
+  attention: "ring-gob-warning ",
+  urgent: "ring-gob-danger ",
 };
 
 const BADGE: Record<PetState, string> = {
-  ok: "bg-neutral-200 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-100",
-  info: "bg-blue-500 text-white",
-  attention: "bg-amber-500 text-amber-900",
-  urgent: "bg-red-600 text-white",
+  ok: "bg-gob-surface-alt text-gob-text  ",
+  info: "bg-gob-info text-white",
+  attention: "bg-gob-warning text-gob-warning-text",
+  urgent: "bg-gob-danger text-white",
 };
 
 export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-5 text-center dark:border-neutral-800 dark:bg-neutral-950">
+    <section className="relative overflow-hidden rounded-2xl border border-gob-border bg-white p-5 text-center  ">
       <div
         aria-hidden
-        className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${RING_BG[pet.state]} dark:opacity-30`}
+        className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${RING_BG[pet.state]} `}
       />
 
       <div className="relative mx-auto mb-3 inline-block">
         <span
-          className={`flex h-[148px] w-[148px] items-center justify-center overflow-hidden rounded-full bg-white ring-[5px] dark:bg-neutral-900 ${RING_BORDER[pet.state]}`}
+          className={`flex h-[148px] w-[148px] items-center justify-center overflow-hidden rounded-full bg-white ring-[5px]  ${RING_BORDER[pet.state]}`}
         >
           {pet.photoUrl ? (
             <img src={pet.photoUrl} alt={pet.name} className="h-full w-full object-cover" />
           ) : (
-            <span className="text-6xl font-semibold text-neutral-600 dark:text-neutral-300">
+            <span className="text-6xl font-semibold text-gob-text-gray ">
               {pet.name.charAt(0).toUpperCase()}
             </span>
           )}
@@ -75,10 +75,10 @@ export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
         )}
       </div>
 
-      <h1 className="relative mt-3 text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+      <h1 className="relative mt-3 text-2xl font-semibold tracking-tight text-gob-text ">
         {pet.name}
       </h1>
-      <p className="relative mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+      <p className="relative mt-1 text-sm text-gob-text-muted ">
         {[pet.species, pet.breed, pet.ageLabel, pet.weightLabel].filter(Boolean).join(" · ")}
       </p>
     </section>

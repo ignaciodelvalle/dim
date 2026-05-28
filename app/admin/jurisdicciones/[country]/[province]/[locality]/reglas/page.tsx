@@ -87,42 +87,39 @@ export default async function AdminJurisdiccionReglasPage({
         <div className="space-y-1">
           <Link
             href="/admin/jurisdicciones"
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-muted hover:text-gob-text "
           >
             ← Jurisdicciones
           </Link>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text ">
             Reglas para {jurisdictionLabel(country, province, locality)}
           </h1>
         </div>
 
         <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
             Reglas activas
           </h2>
           {rows.length === 0 && (
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+            <p className="text-sm text-gob-text-muted ">
               Esta jurisdicción no tiene overrides. Toda regla cae a la cascada superior.
             </p>
           )}
           {rows.map(({ rule, updatedBy }) => (
-            <article
-              key={rule.id}
-              className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-2"
-            >
+            <article key={rule.id} className="rounded-xl border border-gob-border  p-4 space-y-2">
               <header className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-neutral-900 dark:text-neutral-50">
+                  <p className="font-semibold text-gob-text ">
                     {RULE_TYPE_LABEL[rule.ruleType as GovtBusinessRuleType]}
                   </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                  <p className="text-xs text-gob-text-muted ">
                     Actualizado {formatDate(rule.updatedAt)} · {updatedBy ?? "Sistema"}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Link
                     href={`/admin/jurisdicciones/${segCountry}/${segProvince}/${segLocality}/reglas/editar/${rule.id}`}
-                    className="text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4"
+                    className="text-sm text-gob-text-gray  underline underline-offset-4"
                   >
                     Editar
                   </Link>
@@ -134,41 +131,35 @@ export default async function AdminJurisdiccionReglasPage({
                   />
                 </div>
               </header>
-              <pre className="text-xs bg-neutral-50 dark:bg-neutral-900 rounded p-3 overflow-x-auto">
+              <pre className="text-xs bg-gob-surface-alt  rounded p-3 overflow-x-auto">
                 {JSON.stringify(rule.rulePayload, null, 2)}
               </pre>
-              {rule.notes && (
-                <p className="text-xs text-neutral-600 dark:text-neutral-400">{rule.notes}</p>
-              )}
+              {rule.notes && <p className="text-xs text-gob-text-gray ">{rule.notes}</p>}
             </article>
           ))}
         </section>
 
         {missingTypes.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-500">
+            <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
               Tipos sin override (usando defaults)
             </h2>
             <ul className="space-y-2">
               {missingTypes.map((t) => (
                 <li
                   key={t}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 p-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gob-border  p-3"
                 >
                   <div>
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                      {RULE_TYPE_LABEL[t]}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
-                      {RULE_TYPE_DESCRIPTION[t]}
-                    </p>
-                    <p className="text-xs text-neutral-400 dark:text-neutral-600 mt-1">
+                    <p className="text-sm font-medium text-gob-text ">{RULE_TYPE_LABEL[t]}</p>
+                    <p className="text-xs text-gob-text-muted ">{RULE_TYPE_DESCRIPTION[t]}</p>
+                    <p className="text-xs text-gob-text-muted  mt-1">
                       Default: {JSON.stringify(BUSINESS_RULES_DEFAULTS[t]).slice(0, 120)}…
                     </p>
                   </div>
                   <Link
                     href={`/admin/jurisdicciones/${segCountry}/${segProvince}/${segLocality}/reglas/nueva?ruleType=${t}`}
-                    className="text-sm text-neutral-900 dark:text-neutral-50 underline underline-offset-4"
+                    className="text-sm text-gob-text  underline underline-offset-4"
                   >
                     Configurar →
                   </Link>

@@ -86,55 +86,43 @@ export default async function ReservarTurnoPage({
   });
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href={`/turnos/buscar/${offeringToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
         >
           ← Volver a los turnos
         </Link>
 
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Confirmar reserva
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Confirmar reserva</h1>
+          <p className="text-sm text-gob-text-gray ">
             Revisá los datos antes de confirmar. La reserva es inmediata.
           </p>
         </div>
 
         {/* Summary card */}
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+        <div className="rounded-xl border border-gob-border  p-4 space-y-3">
           <div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-              Servicio
-            </p>
-            <p className="font-medium text-neutral-900 dark:text-neutral-50">
-              {offering.displayName}
-            </p>
-            <p className="text-xs text-neutral-500">{kindDef?.label ?? offering.serviceKind}</p>
+            <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Servicio</p>
+            <p className="font-medium text-gob-text ">{offering.displayName}</p>
+            <p className="text-xs text-gob-text-muted">{kindDef?.label ?? offering.serviceKind}</p>
           </div>
           <div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-              Prestador
-            </p>
-            <p className="text-sm text-neutral-900 dark:text-neutral-50">{providerLabel}</p>
+            <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Prestador</p>
+            <p className="text-sm text-gob-text ">{providerLabel}</p>
           </div>
           <div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-              Fecha y hora
-            </p>
-            <p className="text-sm text-neutral-900 dark:text-neutral-50 capitalize">
+            <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Fecha y hora</p>
+            <p className="text-sm text-gob-text  capitalize">
               {slotDate} a las {slotTime}
             </p>
           </div>
           {offering.priceArs !== null && (
             <div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-                Precio
-              </p>
-              <p className="text-sm text-neutral-900 dark:text-neutral-50">
+              <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Precio</p>
+              <p className="text-sm text-gob-text ">
                 ${Number(offering.priceArs).toLocaleString("es-AR")}
               </p>
             </div>
@@ -143,13 +131,13 @@ export default async function ReservarTurnoPage({
 
         {/* Booking form */}
         {userPets.length === 0 ? (
-          <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-2">
-            <p className="text-sm text-amber-800 dark:text-amber-200">
+          <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
+            <p className="text-sm text-gob-warning-text ">
               Para reservar un turno necesitás tener al menos una mascota registrada.
             </p>
             <Link
               href="/mis-mascotas/nueva"
-              className="inline-block text-sm text-amber-900 dark:text-amber-100 underline underline-offset-4"
+              className="inline-block text-sm text-gob-warning-text  underline underline-offset-4"
             >
               Registrar mascota →
             </Link>
@@ -183,17 +171,14 @@ function BookingForm({
   return (
     <form action={submit} className="space-y-4">
       <div className="space-y-1">
-        <label
-          htmlFor="pet_select"
-          className="text-sm font-medium text-neutral-700 dark:text-neutral-300"
-        >
+        <label htmlFor="pet_select" className="text-sm font-medium text-gob-text-gray ">
           ¿Para qué mascota es el turno?
         </label>
         <select
           id="pet_select"
           name="petId"
           required
-          className="w-full text-sm border border-neutral-200 dark:border-neutral-700 rounded-lg px-3 py-2 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50"
+          className="w-full text-sm border border-gob-border  rounded-lg px-3 py-2 bg-white  text-gob-text "
         >
           <option value="">Elegí una mascota…</option>
           {userPets.map((pet) => (
@@ -206,7 +191,7 @@ function BookingForm({
 
       <button
         type="submit"
-        className="w-full py-3 rounded-xl bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+        className="w-full py-3 rounded-xl bg-gob-primary  text-white  font-medium hover:bg-gob-primary  transition-colors"
       >
         Confirmar reserva
       </button>

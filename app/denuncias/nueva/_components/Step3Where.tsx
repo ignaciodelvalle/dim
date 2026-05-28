@@ -75,7 +75,7 @@ export function Step3Where({
       <div className="space-y-1.5">
         <label htmlFor="description" className={labelClass}>
           Contanos lo que viste{" "}
-          <span className="text-red-500 ml-0.5" aria-hidden="true">
+          <span className="text-gob-danger ml-0.5" aria-hidden="true">
             *
           </span>
         </label>
@@ -106,7 +106,7 @@ export function Step3Where({
       <fieldset className="space-y-2">
         <legend className={`${labelClass} mb-1`}>
           ¿Cuándo pasó?{" "}
-          <span className="text-red-500 ml-0.5" aria-hidden="true">
+          <span className="text-gob-danger ml-0.5" aria-hidden="true">
             *
           </span>
         </legend>

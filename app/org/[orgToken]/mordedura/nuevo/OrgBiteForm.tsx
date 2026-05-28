@@ -121,7 +121,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
         <div className="space-y-1.5">
           <label htmlFor="petPublicToken" className={labelClass}>
-            Token público de la mascota<span className="text-red-500 ml-0.5">*</span>
+            Token público de la mascota<span className="text-gob-danger ml-0.5">*</span>
           </label>
           <input
             id="petPublicToken"
@@ -132,7 +132,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             placeholder="DIM-XXXX-XXXX"
             className={`${inputClass} font-mono uppercase tracking-wider`}
           />
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="text-xs text-gob-text-muted ">
             El dueño tiene este token en la credencial pública (escaneable o en su perfil).
           </p>
         </div>
@@ -140,7 +140,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={() => setStep(2)}
           disabled={!petPublicToken.trim()}
-          className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 disabled:opacity-50"
+          className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning disabled:opacity-50"
         >
           Continuar
         </button>
@@ -150,7 +150,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
         <div className="space-y-1.5">
           <label htmlFor="occurredAt" className={labelClass}>
-            Fecha del incidente<span className="text-red-500 ml-0.5">*</span>
+            Fecha del incidente<span className="text-gob-danger ml-0.5">*</span>
           </label>
           <input
             id="occurredAt"
@@ -166,7 +166,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={() => setStep(3)}
           disabled={!occurredAt}
-          className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 disabled:opacity-50"
+          className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning disabled:opacity-50"
         >
           Continuar
         </button>
@@ -201,7 +201,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               setLocalityName(result?.localityName ?? "");
             }}
           />
-          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="mt-1 text-xs text-gob-text-muted ">
             Para enrutar el reporte a la autoridad sanitaria correspondiente. Si no la elegís,
             usamos la jurisdicción registrada de la mascota.
           </p>
@@ -209,7 +209,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
         <div className="space-y-1.5">
           <p className={labelClass}>
-            Tipo de víctima<span className="text-red-500 ml-0.5">*</span>
+            Tipo de víctima<span className="text-gob-danger ml-0.5">*</span>
           </p>
           <div className="grid grid-cols-3 gap-2">
             {(
@@ -225,8 +225,8 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
                 onClick={() => setVictimKind(opt.value)}
                 className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
                   victimKind === opt.value
-                    ? "border-neutral-900 bg-neutral-50 dark:border-neutral-50 dark:bg-neutral-900"
-                    : "border-neutral-300 dark:border-neutral-700"
+                    ? "border-gob-border-strong bg-gob-surface-alt  "
+                    : "border-gob-border-strong "
                 }`}
               >
                 {opt.label}
@@ -236,15 +236,15 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         {victimKind === "human" && (
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 bg-neutral-50 dark:bg-neutral-900/30">
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">
+          <div className="rounded-xl border border-gob-border  p-4 space-y-3 bg-gob-surface-alt ">
+            <p className="text-xs text-gob-text-gray ">
               Datos de contacto opcionales — para denuncia obligatoria a autoridad sanitaria si
               corresponde.
             </p>
             <div className="space-y-1.5">
               <label
                 htmlFor="victimContactName"
-                className="text-xs uppercase tracking-wider text-neutral-500"
+                className="text-xs uppercase tracking-wider text-gob-text-muted"
               >
                 Nombre
               </label>
@@ -259,7 +259,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             <div className="space-y-1.5">
               <label
                 htmlFor="victimContactPhone"
-                className="text-xs uppercase tracking-wider text-neutral-500"
+                className="text-xs uppercase tracking-wider text-gob-text-muted"
               >
                 Teléfono
               </label>
@@ -274,7 +274,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             <div className="space-y-1.5">
               <label
                 htmlFor="victimAgeEstimate"
-                className="text-xs uppercase tracking-wider text-neutral-500"
+                className="text-xs uppercase tracking-wider text-gob-text-muted"
               >
                 Edad aproximada
               </label>
@@ -292,7 +292,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
         <div className="space-y-1.5">
           <label htmlFor="severity" className={labelClass}>
-            Severidad<span className="text-red-500 ml-0.5">*</span>
+            Severidad<span className="text-gob-danger ml-0.5">*</span>
           </label>
           <select
             id="severity"
@@ -330,9 +330,9 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               type="checkbox"
               checked={vetInvolved}
               onChange={(e) => setVetInvolved(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong "
             />
-            <span className="text-sm text-neutral-900 dark:text-neutral-50">
+            <span className="text-sm text-gob-text ">
               Intervino un profesional veterinario en el incidente o atención posterior.
             </span>
           </label>
@@ -356,7 +356,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={() => setStep(4)}
           disabled={!severity}
-          className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 disabled:opacity-50"
+          className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning disabled:opacity-50"
         >
           Continuar
         </button>
@@ -364,15 +364,15 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
       {/* Step 4 — Confirmar + submit */}
       <section className={step === 4 ? "space-y-4" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-2">
+        <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={confirmObservation}
               onChange={(e) => setConfirmObservation(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 dark:border-neutral-600 text-amber-600 focus:ring-amber-600"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong  text-gob-warning-text focus:ring-gob-warning"
             />
-            <span className="text-sm text-amber-900 dark:text-amber-200">
+            <span className="text-sm text-gob-warning-text ">
               Entiendo que esto inicia un período de observación antirrábica obligatorio de 10 días
               (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987) y se notifica al dueño y a la autoridad
               sanitaria correspondiente.
@@ -381,7 +381,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         {state.error && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          <p className="text-sm text-gob-danger " role="alert">
             {state.error}
           </p>
         )}
@@ -390,7 +390,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={submit}
           disabled={pending || !confirmObservation}
-          className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {pending ? "Reportando..." : "Confirmar mordedura"}
         </button>

@@ -16,10 +16,10 @@ export default async function AdminDashboardPage() {
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Panel de administración
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Gestión de cuentas institucionales: govts y admins del sistema.
           </p>
         </header>
@@ -61,17 +61,17 @@ export default async function AdminDashboardPage() {
           />
         </section>
 
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
-          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+        <section className="rounded-lg border border-gob-border  p-4 space-y-2">
+          <h2 className="text-sm font-semibold text-gob-text ">
             Cola de solicitudes y búsqueda de usuarios
           </h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Las operaciones de aprobación, rechazo, propuestas de rol y revocaciones viven en el
             panel de gobierno.
           </p>
           <Link
             href="/gob"
-            className="inline-block text-sm text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             Ir a Gobierno (cola, usuarios, organizaciones) →
           </Link>
@@ -109,14 +109,12 @@ function Card({
   cta: { href: string; label: string };
 }) {
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
-        {label}
-      </p>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">{description}</p>
+    <div className="rounded-lg border border-gob-border  p-4 space-y-2">
+      <p className="text-xs uppercase tracking-wider text-gob-text-muted ">{label}</p>
+      <p className="text-sm text-gob-text-gray ">{description}</p>
       <Link
         href={cta.href}
-        className="inline-block text-xs text-neutral-700 dark:text-neutral-300 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+        className="inline-block text-xs text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
       >
         {cta.label} →
       </Link>
