@@ -480,6 +480,7 @@ export type ExpirePetTransfersResult = { expired: number };
  * Per-row notifications to sender. Called from
  * /api/cron/expire-pet-transfers on a daily schedule.
  */
+// @no-auth-required: invoked only from /api/cron/expire-pet-transfers, which gates on CRON_SECRET.
 export async function expirePetTransfersOnce(): Promise<ExpirePetTransfersResult> {
   const now = new Date();
   const stale = await db
