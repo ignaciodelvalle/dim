@@ -1,8 +1,8 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { diseasesForSpecies, findDisease } from "@/lib/diseases";
-import { inputClass, labelClass } from "@/lib/form-classes";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -52,58 +52,58 @@ export function DeathRecordForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="cause" className={labelClass}>
-          Causa<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select
-          id="cause"
-          name="cause"
-          required
-          className={inputClass}
-          value={cause}
-          onChange={(e) => {
-            setCause(e.target.value);
-            setSelectedDiseaseCode("");
-          }}
-        >
-          <option value="">— Seleccioná —</option>
-          <option value="known">Conocida</option>
-          <option value="unknown">Desconocida</option>
-          <option value="natural">Natural / vejez</option>
-          <option value="disease">Enfermedad</option>
-          <option value="accident">Accidente</option>
-          <option value="euthanasia">Eutanasia</option>
-          <option value="sudden">Repentina</option>
-          <option value="violent">Violenta</option>
-          <option value="other">Otra</option>
-        </select>
-      </div>
+      <Field label="Causa" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="cause"
+            required
+            value={cause}
+            onChange={(e) => {
+              setCause(e.target.value);
+              setSelectedDiseaseCode("");
+            }}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">— Seleccioná —</option>
+            <option value="known">Conocida</option>
+            <option value="unknown">Desconocida</option>
+            <option value="natural">Natural / vejez</option>
+            <option value="disease">Enfermedad</option>
+            <option value="accident">Accidente</option>
+            <option value="euthanasia">Eutanasia</option>
+            <option value="sudden">Repentina</option>
+            <option value="violent">Violenta</option>
+            <option value="other">Otra</option>
+          </Select>
+        )}
+      </Field>
 
       {cause === "disease" && (
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <label htmlFor="diseaseCode" className={labelClass}>
-              Enfermedad<span className="text-gob-danger ml-0.5">*</span>
-            </label>
-            <select
-              id="diseaseCode"
-              name="diseaseCode"
-              className={inputClass}
-              value={selectedDiseaseCode}
-              onChange={(e) => setSelectedDiseaseCode(e.target.value)}
-            >
-              <option value="">Seleccionar enfermedad</option>
-              {diseaseOptions.map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-            {isReportableDisease && (
-              <p className="text-xs text-gob-warning-text ">Reportable a autoridad sanitaria</p>
+          <Field label="Enfermedad" required>
+            {({ id, describedBy, invalid }) => (
+              <Select
+                id={id}
+                name="diseaseCode"
+                value={selectedDiseaseCode}
+                onChange={(e) => setSelectedDiseaseCode(e.target.value)}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              >
+                <option value="">Seleccionar enfermedad</option>
+                {diseaseOptions.map((d) => (
+                  <option key={d.code} value={d.code}>
+                    {d.label}
+                  </option>
+                ))}
+              </Select>
             )}
-          </div>
+          </Field>
+          {isReportableDisease && (
+            <p className="text-xs text-gob-warning-text">Reportable a autoridad sanitaria</p>
+          )}
 
           <div className="flex items-center gap-2">
             <input
@@ -113,25 +113,24 @@ export function DeathRecordForm({
               value="true"
               className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
             />
-            <label htmlFor="confirmedByLab" className={labelClass}>
+            <label htmlFor="confirmedByLab" className="text-sm font-medium text-gob-text">
               Confirmado por laboratorio
             </label>
           </div>
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <label htmlFor="causeDetail" className={labelClass}>
-          Detalles de la causa
-        </label>
-        <textarea
-          id="causeDetail"
-          name="causeDetail"
-          rows={2}
-          placeholder="Detalles, si querés agregar"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Detalles de la causa">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="causeDetail"
+            rows={2}
+            placeholder="Detalles, si querés agregar"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <div className="flex items-center gap-2">
         <input
@@ -141,23 +140,22 @@ export function DeathRecordForm({
           value="true"
           className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
         />
-        <label htmlFor="confirmedByVet" className={labelClass}>
+        <label htmlFor="confirmedByVet" className="text-sm font-medium text-gob-text">
           Confirmado por veterinario/a
         </label>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="vetName" className={labelClass}>
-          Nombre del veterinario/a
-        </label>
-        <input
-          id="vetName"
-          name="vetName"
-          type="text"
-          placeholder="Dra. López, Dr. García..."
-          className={inputClass}
-        />
-      </div>
+      <Field label="Nombre del veterinario/a">
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="vetName"
+            type="text"
+            placeholder="Dra. López, Dr. García..."
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <fieldset className="space-y-3 rounded-lg border border-gob-border  p-3">
         <legend className="px-1 text-sm font-medium text-gob-text ">
@@ -177,28 +175,29 @@ export function DeathRecordForm({
             }}
             className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
           />
-          <label htmlFor="deathAtClinic" className={labelClass}>
+          <label htmlFor="deathAtClinic" className="text-sm font-medium text-gob-text">
             Falleció durante una estadía en la veterinaria
           </label>
         </div>
 
         {deathAtClinic && (
           <>
-            <div className="space-y-1.5">
-              <label htmlFor="clinicName" className={labelClass}>
-                Nombre de la clínica
-              </label>
-              <input
-                id="clinicName"
-                name="clinicName"
-                type="text"
-                placeholder="Clínica Veterinaria…"
-                className={inputClass}
-              />
-            </div>
+            <Field label="Nombre de la clínica">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  name="clinicName"
+                  type="text"
+                  placeholder="Clínica Veterinaria…"
+                  aria-describedby={describedBy}
+                />
+              )}
+            </Field>
 
             <div className="space-y-1.5">
-              <span className={labelClass}>¿El veterinario logró contactarte?</span>
+              <span className="block text-sm font-medium text-gob-text">
+                ¿El veterinario logró contactarte?
+              </span>
               <div className="space-y-1.5">
                 {[
                   { value: "yes", label: "Sí, me contactaron" },
@@ -229,7 +228,7 @@ export function DeathRecordForm({
                   value="true"
                   className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
                 />
-                <label htmlFor="vetDecidedAlone" className={labelClass}>
+                <label htmlFor="vetDecidedAlone" className="text-sm font-medium text-gob-text">
                   El veterinario decidió la disposición sin poder contactarme
                 </label>
               </div>
@@ -246,40 +245,40 @@ export function DeathRecordForm({
           value="true"
           className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
         />
-        <label htmlFor="ownerToPrivateCrematorium" className={labelClass}>
+        <label htmlFor="ownerToPrivateCrematorium" className="text-sm font-medium text-gob-text">
           Llevé el cuerpo a un crematorio privado por mi cuenta
         </label>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="dispositionMethod" className={labelClass}>
-          Método de disposición
-        </label>
-        <select
-          id="dispositionMethod"
-          name="dispositionMethod"
-          className={inputClass}
-          value={disposition}
-          onChange={(e) => setDisposition(e.target.value)}
-        >
-          <option value="">—</option>
-          <optgroup label="Recomendadas">
-            <option value="cremation_collective">Cremación colectiva</option>
-            <option value="cremation_individual_ashes">
-              Cremación individual (cenizas al propietario)
-            </option>
-            <option value="authorized_cemetery">Cementerio de animales autorizado</option>
-          </optgroup>
-          <optgroup label="No recomendadas">
-            <option value="owner_burial">Sepultura por el propietario</option>
-            <option value="household_waste">Residuos no especiales (basura)</option>
-          </optgroup>
-          <optgroup label="Otras">
-            <option value="rendering">Reciclaje sanitario</option>
-            <option value="unknown">No sé</option>
-          </optgroup>
-        </select>
-      </div>
+      <Field label="Método de disposición">
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="dispositionMethod"
+            value={disposition}
+            onChange={(e) => setDisposition(e.target.value)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">—</option>
+            <optgroup label="Recomendadas">
+              <option value="cremation_collective">Cremación colectiva</option>
+              <option value="cremation_individual_ashes">
+                Cremación individual (cenizas al propietario)
+              </option>
+              <option value="authorized_cemetery">Cementerio de animales autorizado</option>
+            </optgroup>
+            <optgroup label="No recomendadas">
+              <option value="owner_burial">Sepultura por el propietario</option>
+              <option value="household_waste">Residuos no especiales (basura)</option>
+            </optgroup>
+            <optgroup label="Otras">
+              <option value="rendering">Reciclaje sanitario</option>
+              <option value="unknown">No sé</option>
+            </optgroup>
+          </Select>
+        )}
+      </Field>
 
       {showOwnerBurialHint && (
         <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-3 text-sm text-gob-warning-text ">
@@ -296,45 +295,43 @@ export function DeathRecordForm({
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <label htmlFor="facility" className={labelClass}>
-          {facilityHint.label}
-        </label>
-        <input
-          id="facility"
-          name="facility"
-          type="text"
-          placeholder={facilityHint.placeholder}
-          className={inputClass}
-        />
-      </div>
+      <Field label={facilityHint.label}>
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="facility"
+            type="text"
+            placeholder={facilityHint.placeholder}
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Fecha<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={defaults?.occurredAt ?? today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? ""}
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 
