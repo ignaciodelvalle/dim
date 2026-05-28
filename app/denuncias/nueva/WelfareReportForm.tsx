@@ -15,8 +15,7 @@ import { useActionState, useRef, useState } from "react";
 
 import type { WelfareReportFormState } from "@/app/actions/welfare";
 import { LocationFields } from "@/components/LocationFields";
-import { Radio } from "@/components/poncho";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Radio, Select, Textarea } from "@/components/poncho";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -32,8 +31,6 @@ type FormAction = (
   prev: WelfareReportFormState,
   formData: FormData,
 ) => Promise<WelfareReportFormState>;
-
-const FIELD_CLASS = "space-y-1.5";
 
 const MAX_EVIDENCE_FILES = 5;
 const MAX_EVIDENCE_BYTES = 25 * 1024 * 1024;
@@ -150,58 +147,58 @@ export function WelfareReportForm({
       )}
 
       {/* Kind */}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="kind" className={labelClass}>
-          Tipo de situación<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select id="kind" name="kind" required className={inputClass}>
-          <option value="">Seleccioná una opción</option>
-          {WELFARE_REPORT_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {welfareReportKindLabel(k)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Tipo de situación" required>
+        {({ id, describedBy, invalid }) => (
+          <Select id={id} name="kind" required aria-describedby={describedBy} invalid={invalid}>
+            <option value="">Seleccioná una opción</option>
+            {WELFARE_REPORT_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {welfareReportKindLabel(k)}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
       {/* Severity */}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="severity" className={labelClass}>
-          Gravedad<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select id="severity" name="severity" required className={inputClass}>
-          <option value="">Seleccioná una opción</option>
-          {WELFARE_REPORT_SEVERITIES.map((s) => (
-            <option key={s} value={s}>
-              {welfareReportSeverityLabel(s)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Gravedad" required>
+        {({ id, describedBy, invalid }) => (
+          <Select id={id} name="severity" required aria-describedby={describedBy} invalid={invalid}>
+            <option value="">Seleccioná una opción</option>
+            {WELFARE_REPORT_SEVERITIES.map((s) => (
+              <option key={s} value={s}>
+                {welfareReportSeverityLabel(s)}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
       {/* Description */}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="description" className={labelClass}>
-          ¿Qué pasó?<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          rows={5}
-          required
-          minLength={20}
-          placeholder="Contá lo que viste con detalle: cuándo, dónde, quiénes están involucrados, qué condición está el animal…"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className={inputClass}
-        />
-        <p className="text-xs text-gob-text-muted">{description.length} caracteres (mínimo 20)</p>
-      </div>
+      <Field label="¿Qué pasó?" required help={`${description.length} caracteres (mínimo 20)`}>
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="description"
+            rows={5}
+            required
+            minLength={20}
+            placeholder="Contá lo que viste con detalle: cuándo, dónde, quiénes están involucrados, qué condición está el animal…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {/* Subject kind */}
-      <fieldset className={FIELD_CLASS}>
-        <legend className={labelClass}>
-          ¿Sobre quién?<span className="text-gob-danger ml-0.5">*</span>
+      <fieldset className="mb-7">
+        <legend className="mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">
+          ¿Sobre quién?
+          <span className="ml-1 text-gob-danger" aria-hidden="true">
+            *
+          </span>
         </legend>
         <div className="space-y-2 mt-1">
           {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
@@ -220,132 +217,131 @@ export function WelfareReportForm({
 
       {/* Conditional subject fields */}
       {subjectKind === "registered_pet" && (
-        <div className={FIELD_CLASS}>
-          <label htmlFor="subjectPetToken" className={labelClass}>
-            Código MiMAR de la mascota
-          </label>
-          <input
-            id="subjectPetToken"
-            name="subjectPetToken"
-            type="text"
-            placeholder="Ej: DIM-XXXX-XXXX"
-            className={inputClass}
-          />
-        </div>
+        <Field label="Código MiMAR de la mascota">
+          {({ id, describedBy }) => (
+            <Input
+              id={id}
+              name="subjectPetToken"
+              type="text"
+              placeholder="Ej: DIM-XXXX-XXXX"
+              aria-describedby={describedBy}
+            />
+          )}
+        </Field>
       )}
 
       {subjectKind !== "registered_pet" && (
-        <div className={FIELD_CLASS}>
-          <label htmlFor="subjectDescription" className={labelClass}>
-            {subjectKind === "unowned_animal"
+        <Field
+          label={
+            subjectKind === "unowned_animal"
               ? "Descripción del animal"
               : subjectKind === "location"
                 ? "Descripción del lugar"
-                : "Descripción de la situación"}
-            <span className="text-gob-danger ml-0.5">*</span>
-          </label>
-          <textarea
-            id="subjectDescription"
-            name="subjectDescription"
-            rows={3}
-            required
-            placeholder={
-              subjectKind === "unowned_animal"
-                ? "Describí al animal: especie aproximada, color, tamaño…"
-                : subjectKind === "location"
-                  ? "Describí el lugar: dirección, características…"
-                  : "Describí la situación…"
-            }
-            className={inputClass}
-          />
-        </div>
+                : "Descripción de la situación"
+          }
+          required
+        >
+          {({ id, describedBy, invalid }) => (
+            <Textarea
+              id={id}
+              name="subjectDescription"
+              rows={3}
+              required
+              placeholder={
+                subjectKind === "unowned_animal"
+                  ? "Describí al animal: especie aproximada, color, tamaño…"
+                  : subjectKind === "location"
+                    ? "Describí el lugar: dirección, características…"
+                    : "Describí la situación…"
+              }
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </Field>
       )}
 
       {/* Observed symptoms (optional) */}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="observedSymptoms" className={labelClass}>
-          ¿Notaste síntomas en el animal? (opcional)
-        </label>
-        <textarea
-          id="observedSymptoms"
-          name="observedSymptoms"
-          rows={3}
-          placeholder="Ej: baboso, agresivo, débil, cojeando, con heridas, etc."
-          className={inputClass}
-        />
-      </div>
+      <Field label="¿Notaste síntomas en el animal?">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="observedSymptoms"
+            rows={3}
+            placeholder="Ej: baboso, agresivo, débil, cojeando, con heridas, etc."
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       {/* Location */}
       <LocationFields mode="l2" />
 
       {/* Occurred at */}
-      <div className={FIELD_CLASS}>
-        <label htmlFor="occurredAt" className={labelClass}>
-          ¿Cuándo pasó o desde cuándo viene pasando?
-        </label>
-        <input id="occurredAt" name="occurredAt" type="date" className={inputClass} />
-      </div>
-
-      {/* Evidence (multimedia) */}
-      <div className={FIELD_CLASS}>
-        <span className={labelClass}>Evidencia (opcional)</span>
-        <p className="text-xs text-gob-text-muted">
-          Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF)
-          y videos (MP4, WebM, MOV).
-        </p>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-          className="text-sm text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-gob-border-strong file:bg-white file:text-gob-text-gray file:text-sm file:cursor-pointer hover:file:bg-gob-surface-alt"
-        />
-
-        {evidenceError && (
-          <p className="text-sm text-gob-danger" role="alert">
-            {evidenceError}
-          </p>
+      <Field label="¿Cuándo pasó o desde cuándo viene pasando?">
+        {({ id, describedBy }) => (
+          <Input id={id} name="occurredAt" type="date" aria-describedby={describedBy} />
         )}
+      </Field>
 
-        {evidenceFiles.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs text-gob-text-muted">
-              {evidenceFiles.length} de {MAX_EVIDENCE_FILES} archivos seleccionados
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {evidenceFiles.map((entry, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: stable list, no reordering
-                <div key={i} className="relative group">
-                  {entry.objectUrl ? (
-                    <img
-                      src={entry.objectUrl}
-                      alt={entry.file.name}
-                      className="w-full aspect-square object-cover rounded-lg border border-gob-border"
-                    />
-                  ) : (
-                    <div className="w-full aspect-square rounded-lg border border-gob-border bg-gob-surface-alt flex flex-col items-center justify-center gap-1 p-2">
-                      <span className="text-2xl select-none">▶</span>
-                      <p className="text-xs text-gob-text-muted text-center truncate w-full">
-                        {entry.file.name}
-                      </p>
+      {/* Evidence (multimedia) — file input stays native (file:* classes), Field
+          handles label/id/help wiring; evidenceError surfaces as the field error. */}
+      <Field
+        label="Evidencia"
+        help={`Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`}
+        error={evidenceError ?? undefined}
+      >
+        {({ id }) => (
+          <>
+            <input
+              ref={fileInputRef}
+              id={id}
+              type="file"
+              multiple
+              accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
+              onChange={(e) => handleFilesSelected(e.target.files)}
+              className="text-sm text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-gob-border-strong file:bg-white file:text-gob-text-gray file:text-sm file:cursor-pointer hover:file:bg-gob-surface-alt"
+            />
+
+            {evidenceFiles.length > 0 && (
+              <div className="space-y-2 mt-2">
+                <p className="text-xs text-gob-text-muted">
+                  {evidenceFiles.length} de {MAX_EVIDENCE_FILES} archivos seleccionados
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {evidenceFiles.map((entry, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: stable list, no reordering
+                    <div key={i} className="relative group">
+                      {entry.objectUrl ? (
+                        <img
+                          src={entry.objectUrl}
+                          alt={entry.file.name}
+                          className="w-full aspect-square object-cover rounded-lg border border-gob-border"
+                        />
+                      ) : (
+                        <div className="w-full aspect-square rounded-lg border border-gob-border bg-gob-surface-alt flex flex-col items-center justify-center gap-1 p-2">
+                          <span className="text-2xl select-none">▶</span>
+                          <p className="text-xs text-gob-text-muted text-center truncate w-full">
+                            {entry.file.name}
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeEvidence(i)}
+                        aria-label={`Quitar ${entry.file.name}`}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gob-primary text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
                     </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removeEvidence(i)}
-                    aria-label={`Quitar ${entry.file.name}`}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gob-primary text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                  >
-                    ×
-                  </button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
+          </>
         )}
-      </div>
+      </Field>
 
       {/* Optional contact (collapsible) */}
       <div className="border border-gob-border rounded-lg">
@@ -363,30 +359,28 @@ export function WelfareReportForm({
               No es obligatorio. Dejás tus datos solo si querés que te contactemos sobre esta
               denuncia.
             </p>
-            <div className={FIELD_CLASS}>
-              <label htmlFor="reporterContactEmail" className={labelClass}>
-                Email de contacto
-              </label>
-              <input
-                id="reporterContactEmail"
-                name="reporterContactEmail"
-                type="email"
-                placeholder="tu@email.com"
-                className={inputClass}
-              />
-            </div>
-            <div className={FIELD_CLASS}>
-              <label htmlFor="reporterContactPhone" className={labelClass}>
-                Teléfono de contacto
-              </label>
-              <input
-                id="reporterContactPhone"
-                name="reporterContactPhone"
-                type="tel"
-                placeholder="+54 11 1234-5678"
-                className={inputClass}
-              />
-            </div>
+            <Field label="Email de contacto">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  name="reporterContactEmail"
+                  type="email"
+                  placeholder="tu@email.com"
+                  aria-describedby={describedBy}
+                />
+              )}
+            </Field>
+            <Field label="Teléfono de contacto">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  name="reporterContactPhone"
+                  type="tel"
+                  placeholder="+54 11 1234-5678"
+                  aria-describedby={describedBy}
+                />
+              )}
+            </Field>
           </div>
         )}
       </div>
