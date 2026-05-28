@@ -1,6 +1,7 @@
 "use client";
 
 import { type FinalizeAdoptionFormState, finalizeAdoptionAction } from "@/app/actions/adoption";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { useActionState, useState } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
@@ -51,38 +52,41 @@ export function FinalizeAdoptionForm({
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gob-text-muted">
             Adoptante
           </h2>
-          <label className="block space-y-1">
-            <span className="text-sm">DNI *</span>
-            <input
-              name="adopterDni"
-              required={!useFosterShortcut}
-              inputMode="numeric"
-              placeholder="12345678"
-              className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
-            />
-            <span className="block text-xs text-gob-text-muted">
-              Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil
-              preliminar que podrá reclamar más adelante.
-            </span>
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="block space-y-1">
-              <span className="text-sm">Nombre completo *</span>
-              <input
-                name="adopterDisplayName"
+          <Field
+            label="DNI"
+            required
+            help="Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil preliminar que podrá reclamar más adelante."
+          >
+            {({ id, describedBy, invalid }) => (
+              <Input
+                id={id}
+                name="adopterDni"
                 required={!useFosterShortcut}
-                maxLength={200}
-                className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
+                inputMode="numeric"
+                placeholder="12345678"
+                aria-describedby={describedBy}
+                invalid={invalid}
               />
-            </label>
-            <label className="block space-y-1">
-              <span className="text-sm">Teléfono</span>
-              <input
-                name="adopterPhone"
-                maxLength={30}
-                className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
-              />
-            </label>
+            )}
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Nombre completo" required>
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  name="adopterDisplayName"
+                  required={!useFosterShortcut}
+                  maxLength={200}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                />
+              )}
+            </Field>
+            <Field label="Teléfono">
+              {({ id, describedBy }) => (
+                <Input id={id} name="adopterPhone" maxLength={30} aria-describedby={describedBy} />
+              )}
+            </Field>
           </div>
         </section>
       )}
@@ -91,42 +95,49 @@ export function FinalizeAdoptionForm({
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gob-text-muted">
           Seguimiento
         </h2>
-        <label className="block space-y-1">
-          <span className="text-sm">Meses de seguimiento post-adopción</span>
-          <input
-            name="followupMonths"
-            type="number"
-            min={0}
-            max={36}
-            defaultValue={6}
-            className="rounded border border-gob-border-strong  bg-white  px-3 py-2"
-          />
-          <span className="block text-xs text-gob-text-muted">
-            Generará recordatorios de check-in con el adoptante (default: 6).
-          </span>
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm">Notas del contrato</span>
-          <textarea
-            name="notes"
-            rows={3}
-            maxLength={500}
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
-            placeholder="Condiciones especiales, observaciones, referencia al contrato firmado…"
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm">Contrato firmado (PDF o imagen)</span>
-          <input
-            name="contract"
-            type="file"
-            accept="application/pdf,image/*"
-            className="block w-full text-sm text-gob-text-gray  file:mr-3 file:rounded file:border-0 file:bg-gob-primary file:px-3 file:py-1.5 file:text-white  "
-          />
-          <span className="block text-xs text-gob-text-muted">
-            Opcional. Si lo subís, queda enlazado al evento de adopción y al expediente del animal.
-          </span>
-        </label>
+        <Field
+          label="Meses de seguimiento post-adopción"
+          help="Generará recordatorios de check-in con el adoptante (default: 6)."
+        >
+          {({ id, describedBy }) => (
+            <Input
+              id={id}
+              name="followupMonths"
+              type="number"
+              min={0}
+              max={36}
+              defaultValue={6}
+              aria-describedby={describedBy}
+            />
+          )}
+        </Field>
+        <Field label="Notas del contrato">
+          {({ id, describedBy }) => (
+            <Textarea
+              id={id}
+              name="notes"
+              rows={3}
+              maxLength={500}
+              placeholder="Condiciones especiales, observaciones, referencia al contrato firmado…"
+              aria-describedby={describedBy}
+            />
+          )}
+        </Field>
+        <Field
+          label="Contrato firmado (PDF o imagen)"
+          help="Si lo subís, queda enlazado al evento de adopción y al expediente del animal."
+        >
+          {({ id, describedBy }) => (
+            <input
+              id={id}
+              name="contract"
+              type="file"
+              accept="application/pdf,image/*"
+              aria-describedby={describedBy}
+              className="block w-full text-sm text-gob-text-gray  file:mr-3 file:rounded file:border-0 file:bg-gob-primary file:px-3 file:py-1.5 file:text-white  "
+            />
+          )}
+        </Field>
       </section>
 
       {state.error && (
