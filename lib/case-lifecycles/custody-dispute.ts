@@ -28,6 +28,8 @@ export const custodyDisputeLifecycle: CaseLifecycle = {
   terminalEvents: ["custody_dispute_resolved"],
   cronCloseRoute: null,
   cronCloseScheduleHours: 24,
-  manualOpenAllowed: false,
+  // Owners can self-raise via /mis-mascotas/reclamar (P3-1, 2026-05-28).
+  // Govt/admin still adjudicate resolution.
+  manualOpenAllowed: true,
   reopenAllowed: false,
 };

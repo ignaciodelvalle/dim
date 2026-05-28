@@ -1078,15 +1078,19 @@ const adoptionApplicationResolved = z
   )
   .strict();
 
-// Custody dispute raised — admin or govt flags the pet as subject to external
-// legal proceedings (parental divorce, succession, criminal seizure pending
-// return). Sets `pets.in_custody_dispute = true` via dual-write from the
-// future server action. Downstream features (transfers, finalize, scheduling)
-// will optionally honor the flag when their flows are designed.
+// Custody dispute raised — flags the pet as subject to an ownership dispute.
+// Sets `pets.in_custody_dispute = true` via dual-write from the server action.
+//
+// Raised by:
+//   - admin/govt: external legal proceedings (divorce, succession, seizure)
+//   - owner:      self-raised claim via /mis-mascotas/reclamar (P3-1, 2026-05-28).
+//                 Triggered when a user submits the claim wizard's variant B
+//                 (chip/tatuaje match → existing active owner). Govt/admin
+//                 still adjudicates resolution via custody_dispute_resolved.
 const custodyDisputeRaised = z
   .object(
     withVersion({
-      raised_by_role: z.enum(["admin", "govt"]),
+      raised_by_role: z.enum(["admin", "govt", "owner"]),
       raised_by_user_id: z.string().uuid(),
       external_proceeding_reference: z.string().nullable(),
       reason: z.string(),

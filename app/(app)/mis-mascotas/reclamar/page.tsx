@@ -1,24 +1,16 @@
-// Stub-profile claim page. Lets a user who recently signed up for DIM vincular
-// their auth account with a "stub" profile a refugio created at adoption time
-// (DNI-keyed). After the claim, the pets registered to the stub appear in the
-// user's /mis-mascotas listing.
+// Pet claim wizard — chip/tatuaje cross-check + disputa (handoff P3-1).
+//
+// Three-step flow. See app/actions/pet-claim.ts for variants and the
+// custody_dispute integration. The legacy DNI stub claim lives at
+// /reclamar-dni (renamed in this PR).
 
-import { db, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { eq } from "drizzle-orm";
 import Link from "next/link";
-import { ClaimForm } from "./ClaimForm";
+
+import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { ClaimWizard } from "./ClaimWizard";
 
 export default async function ClaimPage() {
-  const { user } = await requireUserOrRedirect();
-
-  const [profile] = await db
-    .select({ dniNumber: profiles.dniNumber })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-
-  const alreadyHasDni = !!profile?.dniNumber;
+  await requireUserOrRedirect();
 
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
@@ -32,22 +24,31 @@ export default async function ClaimPage() {
 
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Reclamar adopción
+            Reclamar una mascota
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            ¿El refugio te registró como adoptante con tu DNI antes de que abrieras tu cuenta?
-            Ingresá tu DNI y vinculamos las mascotas a tu perfil.
+            Si tu mascota ya está registrada por su microchip o tatuaje, podés vincularla a tu
+            cuenta — o iniciar una disputa si figura a nombre de otra persona.
           </p>
         </header>
 
-        {alreadyHasDni ? (
-          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            Tu perfil ya tiene un DNI registrado. Si esperás reclamar una mascota con otro DNI,
-            contactá al refugio o a soporte.
-          </div>
-        ) : (
-          <ClaimForm />
-        )}
+        <ClaimWizard />
+
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+          <p className="font-medium text-neutral-800 dark:text-neutral-200">
+            ¿Te adoptó un refugio?
+          </p>
+          <p className="mt-1">
+            Si te registraron por DNI durante la adopción,{" "}
+            <Link
+              href="/mis-mascotas/reclamar-dni"
+              className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50"
+            >
+              reclamá por DNI acá
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     </main>
   );
