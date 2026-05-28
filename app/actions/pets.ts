@@ -21,7 +21,16 @@
 // Lost & Found Fase 7: microchipId is validated against ISO 11784/11785 (15
 // digits) before the cross-check and before any insert.
 
-import { type Pet, attachments, db, notifications, ownerships, petEvents, pets } from "@/db";
+import {
+  type Pet,
+  attachments,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  petIdentifications,
+  pets,
+} from "@/db";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -472,6 +481,36 @@ export async function createPetAction(
           recordedByUserId: user.id,
           authorRole: "owner",
           payload: microchipEventPayload,
+        });
+
+        // Double-write to pet_identifications (compliance PR 0). The legacy
+        // `pets.microchip_id` column stays this sprint; migration 0057 drops
+        // it. Both writes share the same tx, so partial state is impossible.
+        const chipImplantSite = (() => {
+          switch (parsed.microchipLocation) {
+            case "interscapular_left":
+            case "interscapular_right":
+            case "interscapular":
+              return "interescapular" as const;
+            case "neck_left":
+              return "lateral_cuello_izq" as const;
+            case "neck_right":
+              return "lateral_cuello_der" as const;
+            default:
+              return parsed.microchipLocation ? ("otro" as const) : null;
+          }
+        })();
+        await tx.insert(petIdentifications).values({
+          petId: newPet.id,
+          kind: "microchip_iso",
+          code: parsed.microchipId,
+          recordedAt: (parsed.microchipImplantedAt ?? now.toISOString().slice(0, 10)) as string,
+          recordedByUserId: user.id,
+          isoCountryCode: parsed.microchipId.slice(0, 3),
+          isoManufacturerCode: parsed.microchipId.slice(3, 7),
+          isoNationalId: parsed.microchipId.slice(7, 15),
+          isoCompliant: true,
+          implantationSite: chipImplantSite,
         });
       }
 

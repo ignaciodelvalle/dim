@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-import { attachments, db, petEvents, pets } from "@/db";
+import { attachments, db, petEvents, petIdentifications, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import {
@@ -110,6 +110,21 @@ export async function createTattooForUser(
           updatedAt: now,
         })
         .where(eq(pets.id, petId));
+
+      // Double-write to pet_identifications (compliance PR 0). Legacy
+      // columns above stay this sprint; migration 0057 drops them. Both
+      // writes share this tx — no partial state.
+      await tx.insert(petIdentifications).values({
+        petId,
+        kind: "tattoo",
+        code: normalizedCode,
+        recordedAt: recordedAtIso ?? now.toISOString().slice(0, 10),
+        recordedByUserId: userId,
+        recordedByLabel: input.recordedBy,
+        photoId: attachment.id,
+        tattooLocation: input.location,
+        tattooDescription: input.description,
+      });
 
       return { ok: true as const, eventId: event.id };
     });
