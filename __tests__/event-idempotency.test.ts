@@ -34,6 +34,19 @@ function makeEvent(overrides: Partial<PetEvent> = {}): PetEvent {
     locationLng: null,
     caseId: null,
     clientIdempotencyKey: KEY_A,
+    // SENASA alignment columns (compliance PR 3, migration 0061). Nullable
+    // on legacy rows.
+    tipoEventoCode: null,
+    loteBiologico: null,
+    laboratorio: null,
+    vencimientoBiologico: null,
+    viaAplicacionCode: null,
+    vetMatricula: null,
+    vetJurisdiccionCode: null,
+    establecimientoRenspa: null,
+    proximaDosisAt: null,
+    firmadoAt: null,
+    firmaHash: null,
     createdAt: new Date("2026-05-22T10:00:00Z"),
     ...overrides,
   };

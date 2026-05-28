@@ -21,6 +21,7 @@ import {
   jsonb,
   numeric,
   pgEnum,
+  pgSchema,
   pgTable,
   smallint,
   text,
@@ -1030,6 +1031,22 @@ export const petEvents = pgTable(
     // key IS NOT NULL enforces last-stable-wins idempotency: ON CONFLICT
     // DO NOTHING + fetch-existing returns the original row silently.
     clientIdempotencyKey: uuid("client_idempotency_key"),
+    // SENASA alignment (compliance PR 3, migration 0061). All nullable —
+    // populated by the new sanitary event form; legacy rows stay NULL.
+    // FK to ref.* tables in the migration; declared here as plain text
+    // because Drizzle declares FKs per-column and the ref schema lives
+    // out of band.
+    tipoEventoCode: text("tipo_evento_code"),
+    loteBiologico: text("lote_biologico"),
+    laboratorio: text("laboratorio"),
+    vencimientoBiologico: date("vencimiento_biologico"),
+    viaAplicacionCode: text("via_aplicacion_code"),
+    vetMatricula: text("vet_matricula"),
+    vetJurisdiccionCode: text("vet_jurisdiccion_code"),
+    establecimientoRenspa: text("establecimiento_renspa"),
+    proximaDosisAt: date("proxima_dosis_at"),
+    firmadoAt: timestamp("firmado_at", { withTimezone: true }),
+    firmaHash: text("firma_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -1042,6 +1059,10 @@ export const petEvents = pgTable(
     idempotencyIdx: uniqueIndex("pet_events_idempotency_idx")
       .on(table.petId, table.eventType, table.clientIdempotencyKey)
       .where(sql`client_idempotency_key is not null`),
+    // SENASA alignment partial index (compliance PR 3, migration 0061).
+    tipoEventoCodeIdx: index("pet_events_tipo_evento_code_idx")
+      .on(table.tipoEventoCode)
+      .where(sql`${table.tipoEventoCode} IS NOT NULL`),
   }),
 );
 
@@ -3163,3 +3184,45 @@ export const petIdentifications = pgTable(
 
 export type PetIdentification = typeof petIdentifications.$inferSelect;
 export type NewPetIdentification = typeof petIdentifications.$inferInsert;
+
+// ============================================================================
+// SENASA reference vocabularies (compliance PR 3, migration 0060)
+// ============================================================================
+// Tablas semi-estáticas en schema `ref.*` referenciadas por pet_events
+// (tipo_evento_code, via_aplicacion_code, vet_jurisdiccion_code) y por
+// pet_identifications.kind ↔ norma. Sembradas en la migración; el app code
+// las lee sólo (no las muta) por lo que la tabla `ref.*` queda fuera del
+// flujo append-only de pet_events.
+
+export const refSchema = pgSchema("ref");
+
+export const refTipoEventoSanitario = refSchema.table("tipo_evento_sanitario", {
+  code: text("code").primaryKey(),
+  labelEs: text("label_es").notNull(),
+  normaOrigen: text("norma_origen").notNull(),
+  requiereLote: boolean("requiere_lote").notNull().default(false),
+  requiereVia: boolean("requiere_via").notNull().default(false),
+  notificableEno: boolean("notificable_eno").notNull().default(false),
+});
+
+export const refViaAplicacion = refSchema.table("via_aplicacion", {
+  code: text("code").primaryKey(),
+  labelEs: text("label_es").notNull(),
+});
+
+export const refJurisdiccionSanitaria = refSchema.table("jurisdiccion_sanitaria", {
+  code: text("code").primaryKey(),
+  labelEs: text("label_es").notNull(),
+  colegioVeterinario: text("colegio_veterinario"),
+});
+
+export const refIdentificationKindNorma = refSchema.table("identification_kind_norma", {
+  kind: identificationKindEnum("kind").primaryKey(),
+  normaOrigen: text("norma_origen").notNull(),
+  estandarTecnico: text("estandar_tecnico"),
+});
+
+export type RefTipoEventoSanitario = typeof refTipoEventoSanitario.$inferSelect;
+export type RefViaAplicacion = typeof refViaAplicacion.$inferSelect;
+export type RefJurisdiccionSanitaria = typeof refJurisdiccionSanitaria.$inferSelect;
+export type RefIdentificationKindNorma = typeof refIdentificationKindNorma.$inferSelect;
