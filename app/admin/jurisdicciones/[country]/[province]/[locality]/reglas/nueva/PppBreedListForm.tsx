@@ -7,8 +7,8 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
-import { labelClass } from "@/lib/form-classes";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -88,18 +88,17 @@ export function PppBreedListForm({
         </div>
       </fieldset>
 
+      {/* Inline add-breed row: label-less compact layout — Field not used (rule #2) */}
       <div className="space-y-1.5">
-        <label htmlFor="customBreed" className={labelClass}>
-          Agregar raza no estándar
-        </label>
+        <p className="text-[0.88em] font-semibold text-gob-text-muted">Agregar raza no estándar</p>
         <div className="flex gap-2">
-          <input
+          <Input
             id="customBreed"
             type="text"
             value={customBreed}
             onChange={(e) => setCustomBreed(e.target.value)}
             placeholder="Boxer, Cimarrón Uruguayo…"
-            className="flex-1 px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+            className="flex-1"
           />
           <button
             type="button"
@@ -111,18 +110,18 @@ export function PppBreedListForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas internas (visible solo a admin/govt)
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          defaultValue={initialNotes}
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-        />
-      </div>
+      <Field label="Notas internas (visible solo a admin/govt)">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            defaultValue={initialNotes}
+            rows={3}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
       {state.error && (

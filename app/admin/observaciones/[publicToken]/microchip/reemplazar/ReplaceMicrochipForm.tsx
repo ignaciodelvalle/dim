@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { useActionState, useState } from "react";
 
 const initialState: EventFormState = { error: null };
@@ -51,7 +51,7 @@ export function ReplaceMicrochipForm({
       </div>
 
       <div className="space-y-1.5">
-        <p className={labelClass}>
+        <p className="text-[0.88em] font-semibold text-gob-text-muted">
           Motivo del reemplazo<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
@@ -74,59 +74,69 @@ export function ReplaceMicrochipForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="newChipNumber" className={labelClass}>
-          Nuevo número de microchip
-        </label>
-        <input
-          id="newChipNumber"
-          name="newChipNumber"
-          type="text"
-          placeholder="985141004321456"
-          className={inputClass}
-        />
-        <p className="text-xs text-gob-text-muted ">
-          Dejalo vacío para revocar sin reemplazar (válido para fraude, falla del dispositivo o
-          solicitud del dueño/a).
-        </p>
-      </div>
+      <Field
+        label="Nuevo número de microchip"
+        help="Dejalo vacío para revocar sin reemplazar (válido para fraude, falla del dispositivo o solicitud del dueño/a)."
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="newChipNumber"
+            type="text"
+            placeholder="985141004321456"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="replacedBy" className={labelClass}>
-          Realizado por (opcional)
-        </label>
-        <input id="replacedBy" name="replacedBy" type="text" className={inputClass} />
-      </div>
+      <Field label="Realizado por">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="replacedBy"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="replacedAt" className={labelClass}>
-          Fecha del reemplazo<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="replacedAt"
-          name="replacedAt"
-          type="date"
-          required
-          defaultValue={today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha del reemplazo" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="replacedAt"
+            type="date"
+            required
+            defaultValue={today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas{isFraud && <span className="text-gob-danger ml-0.5">*</span>}
-          {!isFraud && " (opcional, máx. 300 caracteres)"}
-          {isFraud && " — obligatorio para fraude detectado (máx. 300 caracteres)"}
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          required={isFraud}
-          maxLength={300}
-          className={inputClass}
-        />
-      </div>
+      <Field
+        label="Notas"
+        required={isFraud}
+        help={
+          isFraud
+            ? "Obligatorio para fraude detectado (máx. 300 caracteres)."
+            : "Opcional — máx. 300 caracteres."
+        }
+      >
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={4}
+            required={isFraud}
+            maxLength={300}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {isFraud && (
         <div className="rounded-lg border border-gob-danger  bg-gob-danger/10  px-4 py-3 text-sm text-gob-danger ">

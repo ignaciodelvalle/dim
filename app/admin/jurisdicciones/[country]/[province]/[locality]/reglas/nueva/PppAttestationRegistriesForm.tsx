@@ -7,8 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
-import { Checkbox } from "@/components/poncho";
-import { labelClass } from "@/lib/form-classes";
+import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -117,20 +116,19 @@ export function PppAttestationRegistriesForm({
 
       <fieldset className="space-y-2 rounded-lg border border-dashed border-gob-border-strong  p-3">
         <legend className="text-sm font-medium text-gob-text ">Agregar registro</legend>
+        {/* Inline add-registry row: compact grid alongside Checkbox — Field not used (rule #2) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input
+          <Input
             type="text"
             placeholder="ID (caba_4078, prov_14107…)"
             value={newId}
             onChange={(e) => setNewId(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
           />
-          <input
+          <Input
             type="text"
             placeholder="Label visible"
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
           />
           <Checkbox checked={newRequired} onChange={() => setNewRequired((v) => !v)}>
             Required
@@ -145,18 +143,18 @@ export function PppAttestationRegistriesForm({
         </button>
       </fieldset>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas internas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          defaultValue={initialNotes}
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-        />
-      </div>
+      <Field label="Notas internas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            defaultValue={initialNotes}
+            rows={3}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
       {state.error && (
