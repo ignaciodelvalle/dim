@@ -75,6 +75,7 @@ import { lt, sql } from "drizzle-orm";
 export type RateLimitConfig = {
   maxPerMinute?: number;
   maxPerHour?: number;
+  maxPerDay?: number;
 };
 
 export class RateLimitError extends Error {
@@ -105,6 +106,12 @@ export async function enforceRateLimit(
     const windowStart = Math.floor(now / 3_600_000) * 3_600_000;
     const key = `${endpoint}:${identifier}:hour:${windowStart}`;
     await consumeOrThrow(key, new Date(windowStart + 3_600_000), config.maxPerHour);
+  }
+
+  if (config.maxPerDay !== undefined) {
+    const windowStart = Math.floor(now / 86_400_000) * 86_400_000;
+    const key = `${endpoint}:${identifier}:day:${windowStart}`;
+    await consumeOrThrow(key, new Date(windowStart + 86_400_000), config.maxPerDay);
   }
 }
 
