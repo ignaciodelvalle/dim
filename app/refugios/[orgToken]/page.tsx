@@ -25,7 +25,12 @@ import { HelpPanel } from "./HelpPanel";
 import { LocationPanel } from "./LocationPanel";
 import { OrgHero } from "./OrgHero";
 import { ServicesPanel } from "./ServicesPanel";
+import { ComoLlegarSheet } from "./sheets/ComoLlegarSheet";
+import { CompartirOrgSheet } from "./sheets/CompartirOrgSheet";
+import { ConsultaSinTurnoSheet } from "./sheets/ConsultaSinTurnoSheet";
 import { ContactarSheet } from "./sheets/ContactarSheet";
+import { DonarSheet } from "./sheets/DonarSheet";
+import { VerificacionInfoSheet } from "./sheets/VerificacionInfoSheet";
 
 export const dynamic = "force-dynamic";
 
@@ -110,13 +115,32 @@ export default async function RefugioPage({
         <HelpPanel org={org} isAuthed={isAuthed} />
       </div>
 
-      {/* Sheets — read ?sheet=... from URL and self-mount. */}
+      {/* Sheets — read ?sheet=... from URL and self-mount. Each sheet
+          checks its own searchParams.sheet === id, so they can be all
+          mounted unconditionally; React renders only the one that's open. */}
       <ContactarSheet
         orgToken={orgToken}
         orgDisplayName={org.displayName}
         orgEmail={org.email}
         orgPhone={org.phone}
       />
+      <CompartirOrgSheet orgToken={orgToken} orgDisplayName={org.displayName} />
+      <VerificacionInfoSheet
+        verifiedByName={org.verifiedBy?.displayName ?? null}
+        verifiedAt={org.verifiedAt}
+      />
+      <ConsultaSinTurnoSheet
+        orgDisplayName={org.displayName}
+        orgEmail={org.email}
+        orgPhone={org.phone}
+        jurisdictionLabel={localityLabel}
+      />
+      <ComoLlegarSheet
+        orgDisplayName={org.displayName}
+        latitude={org.latitude}
+        longitude={org.longitude}
+      />
+      <DonarSheet orgDisplayName={org.displayName} methods={org.donationMethods} />
     </main>
   );
 }
