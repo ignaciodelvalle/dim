@@ -4,8 +4,7 @@ import { useActionState, useState } from "react";
 
 import type { BiteFormState } from "@/app/actions/bite";
 import { LocationFields } from "@/components/LocationFields";
-import { Checkbox } from "@/components/poncho";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Checkbox, Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
 const initialState: BiteFormState = { error: null };
@@ -27,33 +26,32 @@ export function BiteForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Fecha del incidente<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          max={today}
-          defaultValue={today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha del incidente" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            max={today}
+            defaultValue={today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="locationDescription" className={labelClass}>
-          Lugar
-        </label>
-        <input
-          id="locationDescription"
-          name="locationDescription"
-          type="text"
-          placeholder="Ej: Plaza Italia, esquina Cerviño"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Lugar">
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            name="locationDescription"
+            type="text"
+            placeholder="Ej: Plaza Italia, esquina Cerviño"
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <details className="rounded-lg border border-gob-border  p-3">
         <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
@@ -65,8 +63,11 @@ export function BiteForm({
       </details>
 
       <div className="space-y-1.5">
-        <p className={labelClass}>
-          ¿A quién mordió {petName}?<span className="text-gob-danger ml-0.5">*</span>
+        <p className="block text-[0.88em] font-semibold text-gob-text-muted">
+          ¿A quién mordió {petName}?
+          <span className="ml-1 text-gob-danger" aria-hidden="true">
+            *
+          </span>
         </p>
         <div className="grid grid-cols-3 gap-2">
           {(
@@ -111,12 +112,7 @@ export function BiteForm({
             >
               Nombre de la persona
             </label>
-            <input
-              id="victimContactName"
-              name="victimContactName"
-              type="text"
-              className={inputClass}
-            />
+            <Input id="victimContactName" name="victimContactName" type="text" />
           </div>
           <div className="space-y-1.5">
             <label
@@ -125,12 +121,7 @@ export function BiteForm({
             >
               Teléfono
             </label>
-            <input
-              id="victimContactPhone"
-              name="victimContactPhone"
-              type="tel"
-              className={inputClass}
-            />
+            <Input id="victimContactPhone" name="victimContactPhone" type="tel" />
           </div>
           <div className="space-y-1.5">
             <label
@@ -139,43 +130,47 @@ export function BiteForm({
             >
               Edad aproximada
             </label>
-            <input
+            <Input
               id="victimAgeEstimate"
               name="victimAgeEstimate"
               type="text"
               placeholder="Ej: niño, adulto, mayor"
-              className={inputClass}
             />
           </div>
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <label htmlFor="severity" className={labelClass}>
-          Severidad<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <select id="severity" name="severity" required defaultValue="" className={inputClass}>
-          <option value="" disabled>
-            Elegí una opción
-          </option>
-          <option value="minor">Leve — sin sangrado, rasguño</option>
-          <option value="moderate">Moderada — sangrado, requiere atención</option>
-          <option value="severe">Grave — heridas profundas, hospital</option>
-        </select>
-      </div>
+      <Field label="Severidad" required>
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="severity"
+            required
+            defaultValue=""
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="" disabled>
+              Elegí una opción
+            </option>
+            <option value="minor">Leve — sin sangrado, rasguño</option>
+            <option value="moderate">Moderada — sangrado, requiere atención</option>
+            <option value="severe">Grave — heridas profundas, hospital</option>
+          </Select>
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="context" className={labelClass}>
-          Contexto
-        </label>
-        <textarea
-          id="context"
-          name="context"
-          rows={3}
-          placeholder="Ej: estaba jugando con el perro del vecino y se asustó cuando lo abrazaron."
-          className={inputClass}
-        />
-      </div>
+      <Field label="Contexto">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            name="context"
+            rows={3}
+            placeholder="Ej: estaba jugando con el perro del vecino y se asustó cuando lo abrazaron."
+            aria-describedby={describedBy}
+          />
+        )}
+      </Field>
 
       <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
         <Checkbox name="confirmObservation" required labelClassName="text-gob-warning-text!">
