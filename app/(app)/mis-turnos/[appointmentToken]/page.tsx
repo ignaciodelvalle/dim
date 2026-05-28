@@ -6,6 +6,7 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import QRCode from "qrcode";
 
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
@@ -79,6 +80,20 @@ export default async function AppointmentDetailPage({
   const statusBadge = STATUS_BADGE[appointment.status] ?? STATUS_BADGE.confirmed;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
+  // QR check-in (handoff P4-9 / D10). Encodes the appointment token so
+  // the clinic's check-in flow can resolve it via a single scan. The
+  // alphanumeric code below the QR is the fallback when the scanner
+  // can't read a screen (glare, small phone, etc).
+  const showCheckInQr = appointment.status === "confirmed";
+  const qrSvg = showCheckInQr
+    ? await QRCode.toString(`mimar://appointment/${appointmentToken}`, {
+        type: "svg",
+        margin: 1,
+        width: 180,
+        errorCorrectionLevel: "M",
+      })
+    : null;
+
   return (
     <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
       <div className="max-w-md mx-auto pt-8 space-y-8">
@@ -136,6 +151,33 @@ export default async function AppointmentDetailPage({
             <DetailRow label="Teléfono contacto">{provider.phone}</DetailRow>
           )}
         </dl>
+
+        {/* QR check-in card (handoff P4-9 / D10). Only visible while the
+            appointment is confirmed (not after attended/cancelled). */}
+        {showCheckInQr && qrSvg && (
+          <section
+            aria-labelledby="checkin-h"
+            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-5 space-y-3"
+          >
+            <h2
+              id="checkin-h"
+              className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
+            >
+              Para check-in en la clínica
+            </h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              Mostrá este QR cuando llegues. Si el escáner no lo lee, dictá el código de abajo.
+            </p>
+            <div
+              className="mx-auto w-fit p-2 bg-white rounded-lg border border-neutral-200"
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
+              dangerouslySetInnerHTML={{ __html: qrSvg }}
+            />
+            <p className="text-center text-lg font-mono font-bold tracking-widest text-neutral-900 dark:text-neutral-50 select-all">
+              {appointmentToken}
+            </p>
+          </section>
+        )}
 
         {/* Cancellation — Fase 6 */}
         {canCancel && (
