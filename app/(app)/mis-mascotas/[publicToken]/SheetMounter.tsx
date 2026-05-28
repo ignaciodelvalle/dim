@@ -49,6 +49,7 @@ import type { Pet } from "@/db";
 
 import { ShareLibretaSheet } from "./_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "./_tier2-public/Tier2PublicView";
+import { TransferSenderForm } from "./_transfer/TransferSenderForm";
 
 type MarkLostData = {
   discloseFirstNameWhenLost: boolean;
@@ -198,7 +199,7 @@ export function SheetMounter({
   if (sheet === "transferir-mascota") {
     return (
       <Sheet id="transferir-mascota" title="Transferir mascota" open onClose={close}>
-        <TransferStub petName={petName} />
+        <TransferStub petName={petName} petToken={petToken} />
       </Sheet>
     );
   }
@@ -310,27 +311,9 @@ function MarkFoundConfirmation({
 }
 
 // ---------------------------------------------------------------------------
-// TransferStub — placeholder for the future transfer flow
+// TransferStub — owner→owner handshake form (P3-2)
 // ---------------------------------------------------------------------------
 
-function TransferStub({ petName }: { petName: string }) {
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        La transferencia le traspasa la titularidad de {petName} a otro usuario de dim. El receptor
-        recibe una invitación y debe aceptarla — la libreta sanitaria completa viaja con la mascota.
-      </p>
-      <p className="text-xs text-neutral-500 dark:text-neutral-500">
-        Una vez iniciada la transferencia podés cancelarla mientras el receptor no haya aceptado.
-      </p>
-      <button
-        type="button"
-        disabled
-        title="Próximamente"
-        className="w-full px-4 py-3 rounded-lg border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
-      >
-        Próximamente
-      </button>
-    </div>
-  );
+function TransferStub({ petName, petToken }: { petName: string; petToken: string }) {
+  return <TransferSenderForm petName={petName} petToken={petToken} />;
 }
