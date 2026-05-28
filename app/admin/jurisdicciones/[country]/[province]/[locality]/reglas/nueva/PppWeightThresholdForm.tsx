@@ -7,6 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import { Checkbox } from "@/components/poncho";
 import { inputClass, labelClass } from "@/lib/form-classes";
 
 const initialState: BusinessRuleFormState = { error: null };
@@ -66,19 +67,11 @@ export function PppWeightThresholdForm({
         />
       </div>
 
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="appliesIfBreedNotPPP"
-          defaultChecked={initialAppliesIfBreedNotPPP}
-          className="mt-1"
-        />
-        <span>
-          Aplicar el threshold incluso a razas NO listadas en{" "}
-          <span className="font-mono text-xs">ppp_breed_list</span>. Si está desactivado, el
-          threshold solo agrega una segunda condición a las razas ya consideradas PPP.
-        </span>
-      </label>
+      <Checkbox name="appliesIfBreedNotPPP" defaultChecked={initialAppliesIfBreedNotPPP}>
+        Aplicar el threshold incluso a razas NO listadas en{" "}
+        <span className="font-mono text-xs">ppp_breed_list</span>. Si está desactivado, el threshold
+        solo agrega una segunda condición a las razas ya consideradas PPP.
+      </Checkbox>
 
       <div className="space-y-1.5">
         <label htmlFor="notes" className={labelClass}>

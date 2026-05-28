@@ -17,6 +17,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { deactivateGovtAction } from "@/app/actions/admin-institutional";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { Checkbox } from "@/components/poncho";
 import { createClient } from "@/lib/supabase/client";
 
 const MOTIVO_MIN = 30;
@@ -223,18 +224,12 @@ function DeactivateGovtForm({
         )}
       </div>
 
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={confirm}
-          onChange={(e) => setConfirm(e.target.checked)}
-          className="mt-0.5 shrink-0"
-        />
+      <Checkbox checked={confirm} onChange={(e) => setConfirm(e.target.checked)}>
         <span className="text-xs text-gob-danger ">
           Confirmo que quiero desactivar la cuenta de {target.displayName} y revocar todas sus
           localidades activas. Esta accion genera un registro permanente en el audit log.
         </span>
-      </label>
+      </Checkbox>
 
       {error && <p className="text-xs text-gob-danger ">{error}</p>}
 
