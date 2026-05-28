@@ -120,7 +120,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                       setExpiresInDays(opt.days);
                       if (opt.days !== null) setNoExpiryConfirmed(false);
                     }}
-                    className="accent-neutral-900 "
+                    className="accent-gob-primary "
                   />
                   <span className="text-xs">{opt.label}</span>
                 </label>
@@ -132,7 +132,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                   type="checkbox"
                   checked={noExpiryConfirmed}
                   onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
-                  className="accent-neutral-900 "
+                  className="accent-gob-primary "
                 />
                 <span className="text-xs text-gob-warning-text ">
                   Confirmo que este enlace no vence nunca

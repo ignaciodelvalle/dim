@@ -55,7 +55,7 @@ export function ReplaceMicrochipForm({
                 name="reason"
                 value={r.value}
                 required
-                className="mt-0.5 accent-neutral-900 "
+                className="mt-0.5 accent-gob-primary "
               />
               <span className="space-y-0.5">
                 <span className="block text-sm text-gob-text ">{r.label}</span>

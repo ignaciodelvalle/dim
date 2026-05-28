@@ -35,12 +35,12 @@ export function SterilizationForm({
               name="procedure"
               value="castration"
               required
-              className="accent-neutral-900 "
+              className="accent-gob-primary "
             />
             <span className="text-sm text-gob-text ">Castración</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="procedure" value="spay" className="accent-neutral-900 " />
+            <input type="radio" name="procedure" value="spay" className="accent-gob-primary " />
             <span className="text-sm text-gob-text ">Ovariectomía</span>
           </label>
         </div>

@@ -111,7 +111,7 @@ export function DeathRecordForm({
               name="confirmedByLab"
               type="checkbox"
               value="true"
-              className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
+              className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
             />
             <label htmlFor="confirmedByLab" className={labelClass}>
               Confirmado por laboratorio
@@ -139,7 +139,7 @@ export function DeathRecordForm({
           name="confirmedByVet"
           type="checkbox"
           value="true"
-          className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
+          className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
         />
         <label htmlFor="confirmedByVet" className={labelClass}>
           Confirmado por veterinario/a
@@ -175,7 +175,7 @@ export function DeathRecordForm({
               setDeathAtClinic(e.target.checked);
               if (!e.target.checked) setVetContactedOwner("");
             }}
-            className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
+            className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
           />
           <label htmlFor="deathAtClinic" className={labelClass}>
             Falleció durante una estadía en la veterinaria
@@ -212,7 +212,7 @@ export function DeathRecordForm({
                       value={opt.value}
                       checked={vetContactedOwner === opt.value}
                       onChange={(e) => setVetContactedOwner(e.target.value)}
-                      className="h-4 w-4 border-gob-border-strong  accent-neutral-900 "
+                      className="h-4 w-4 border-gob-border-strong  accent-gob-primary "
                     />
                     <span>{opt.label}</span>
                   </label>
@@ -227,7 +227,7 @@ export function DeathRecordForm({
                   name="vetDecidedAlone"
                   type="checkbox"
                   value="true"
-                  className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
+                  className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
                 />
                 <label htmlFor="vetDecidedAlone" className={labelClass}>
                   El veterinario decidió la disposición sin poder contactarme
@@ -244,7 +244,7 @@ export function DeathRecordForm({
           name="ownerToPrivateCrematorium"
           type="checkbox"
           value="true"
-          className="h-4 w-4 rounded border-gob-border-strong  accent-neutral-900 "
+          className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
         />
         <label htmlFor="ownerToPrivateCrematorium" className={labelClass}>
           Llevé el cuerpo a un crematorio privado por mi cuenta
