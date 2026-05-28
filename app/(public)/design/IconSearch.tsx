@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon, type IconName, iconNames } from "@/components/Icon";
+import { Field, Input } from "@/components/poncho";
 import { useMemo, useState } from "react";
 
 /**
@@ -27,24 +28,29 @@ export function IconSearch() {
     }
   }
 
+  const resultsHelp = query
+    ? `${results.length} resultado${results.length === 1 ? "" : "s"}`
+    : `Mostrando los primeros 60 (de ${iconNames.length})`;
+
   return (
     <div>
-      <label htmlFor="icon-search" className="block text-sm text-gob-text-muted mb-2">
-        Buscar entre {iconNames.length} íconos icono-arg
-      </label>
-      <input
-        id="icon-search"
-        type="search"
-        placeholder="ej: vacuna, hospital, marcador…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="w-full max-w-md rounded-md border-2 border-gob-border px-4 py-2 text-base focus:border-gob-primary"
-      />
-      <p className="mt-2 text-sm text-gob-text-muted">
-        {query
-          ? `${results.length} resultado${results.length === 1 ? "" : "s"}`
-          : `Mostrando los primeros 60 (de ${iconNames.length})`}
-      </p>
+      <Field
+        label={`Buscar entre ${iconNames.length} íconos icono-arg`}
+        help={resultsHelp}
+        optional={false}
+      >
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            type="search"
+            placeholder="ej: vacuna, hospital, marcador…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-describedby={describedBy}
+            className="max-w-md"
+          />
+        )}
+      </Field>
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
         {results.map((name) => (

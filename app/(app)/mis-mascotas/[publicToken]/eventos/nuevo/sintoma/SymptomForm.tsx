@@ -1,7 +1,7 @@
 "use client";
 
 import type { SymptomFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 
@@ -23,44 +23,49 @@ export function SymptomForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="freeText" className={labelClass}>
-          ¿Qué estás viendo?<span className="text-red-500 ml-0.5">*</span>
-        </label>
-        <textarea
-          id="freeText"
-          name="freeText"
-          required
-          rows={5}
-          placeholder={`Ej: hace dos días que ${petName} vomita y está decaída. Hoy no quiso comer.`}
-          className={inputClass}
-        />
-      </div>
+      <Field label="¿Qué estás viendo?" required error={state.error ?? undefined}>
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="freeText"
+            required
+            rows={5}
+            placeholder={`Ej: hace dos días que ${petName} vomita y está decaída. Hoy no quiso comer.`}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="severity" className={labelClass}>
-          ¿Cuán grave te parece?
-        </label>
-        <select id="severity" name="severity" defaultValue="" className={inputClass}>
-          <option value="">No sé / prefiero no decir</option>
-          <option value="mild">Leve</option>
-          <option value="moderate">Moderado</option>
-          <option value="severe">Grave</option>
-        </select>
-      </div>
+      <Field label="¿Cuán grave te parece?">
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="severity"
+            defaultValue=""
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">No sé / prefiero no decir</option>
+            <option value="mild">Leve</option>
+            <option value="moderate">Moderado</option>
+            <option value="severe">Grave</option>
+          </Select>
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="onsetAt" className={labelClass}>
-          ¿Desde cuándo notás esto?
-        </label>
-        <input id="onsetAt" name="onsetAt" type="date" max={today} className={inputClass} />
-      </div>
-
-      {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-          {state.error}
-        </p>
-      )}
+      <Field label="¿Desde cuándo notás esto?">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="onsetAt"
+            type="date"
+            max={today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <button
         type="submit"

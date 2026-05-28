@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -32,56 +32,55 @@ export function NoteForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="text" className={labelClass}>
-          Nota<span className="text-red-500 ml-0.5">*</span>
-        </label>
-        <textarea
-          id="text"
-          name="text"
-          rows={5}
-          required
-          defaultValue={defaults?.text ?? ""}
-          placeholder="¿Qué observaste?"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Nota" required error={state.error ?? undefined}>
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="text"
+            rows={5}
+            required
+            defaultValue={defaults?.text ?? ""}
+            placeholder="¿Qué observaste?"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="category" className={labelClass}>
-          Categoría
-        </label>
-        <select id="category" name="category" defaultValue="" className={inputClass}>
-          <option value="">No especificar</option>
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Categoría">
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="category"
+            defaultValue=""
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">No especificar</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
-          Fecha<span className="text-red-500 ml-0.5">*</span>
-        </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={defaults?.occurredAt ?? today}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Fecha" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
-
-      {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
-          {state.error}
-        </p>
-      )}
 
       <button
         type="submit"

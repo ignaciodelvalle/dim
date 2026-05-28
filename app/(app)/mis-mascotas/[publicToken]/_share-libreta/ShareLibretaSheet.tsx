@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 
+import { Field, Input } from "@/components/poncho";
+
 // The action receives the full input including petPublicToken; callers
 // bind (or wrap) it so the component only supplies expiresInDays + label.
 type CreateShareInput = {
@@ -92,23 +94,19 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
       </p>
 
       {/* Label field */}
-      <div className="space-y-1.5">
-        <label
-          htmlFor="share-label"
-          className="text-xs uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-500"
-        >
-          Para qué es este link{" "}
-          <span className="normal-case font-normal tracking-normal">(opcional)</span>
-        </label>
-        <input
-          id="share-label"
-          name="label"
-          type="text"
-          placeholder="Ej: Vet de cabecera, Guardería, Viaje"
-          maxLength={80}
-          className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-50 placeholder:text-neutral-400 dark:placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        />
-      </div>
+      <Field label="Para qué es este link">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="label"
+            type="text"
+            placeholder="Ej: Vet de cabecera, Guardería, Viaje"
+            maxLength={80}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {/* Duration radio */}
       <fieldset className="space-y-2">
