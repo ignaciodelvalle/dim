@@ -19,6 +19,7 @@ import {
   profiles,
 } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { createClient } from "@/lib/supabase/server";
 
 // Inputs ------------------------------------------------------------------
@@ -124,7 +125,7 @@ export async function upsertFosterVolunteerAction(
             userId: user.id,
             status: input.status,
             availableSlots: input.mode === "enroll" ? 1 : 0,
-            jurisdictionProvince: input.jurisdictionProvince ?? null,
+            jurisdictionProvince: canonicalProvinceNameForStorage(input.jurisdictionProvince),
             jurisdictionLocality: input.jurisdictionLocality ?? null,
             acceptsDogs: input.acceptsDogs,
             acceptsCats: input.acceptsCats,

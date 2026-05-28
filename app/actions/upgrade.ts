@@ -15,6 +15,7 @@ import {
 import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { getActiveMemberships } from "@/lib/capabilities";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
@@ -488,11 +489,13 @@ export async function createOrganizationAction(
     phone: String(formData.get("phone") ?? "").trim() || null,
     // LocationFields (l1) submits the ISO code as `provinceCode` + the display
     // name as `localityName`. Legacy free-text inputs submitted these under
-    // `jurisdictionProvince` / `jurisdictionLocality`. Accept both during the
-    // sprint 4 migration window — the action canonicalizes downstream.
+    // `jurisdictionProvince` / `jurisdictionLocality`. canonicalProvinceNameForStorage
+    // accepts any shape and returns the canonical display name (lib/jurisdiction-canonical.ts).
     jurisdictionProvince:
-      String(formData.get("provinceCode") ?? "").trim() ||
-      String(formData.get("jurisdictionProvince") ?? "").trim(),
+      canonicalProvinceNameForStorage(
+        String(formData.get("provinceCode") ?? "").trim() ||
+          String(formData.get("jurisdictionProvince") ?? "").trim(),
+      ) ?? "",
     jurisdictionLocality:
       String(formData.get("localityName") ?? "").trim() ||
       String(formData.get("jurisdictionLocality") ?? "").trim(),
@@ -526,8 +529,10 @@ export async function createClinicAction(
     email: String(formData.get("email") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim() || null,
     jurisdictionProvince:
-      String(formData.get("provinceCode") ?? "").trim() ||
-      String(formData.get("jurisdictionProvince") ?? "").trim(),
+      canonicalProvinceNameForStorage(
+        String(formData.get("provinceCode") ?? "").trim() ||
+          String(formData.get("jurisdictionProvince") ?? "").trim(),
+      ) ?? "",
     jurisdictionLocality:
       String(formData.get("localityName") ?? "").trim() ||
       String(formData.get("jurisdictionLocality") ?? "").trim(),

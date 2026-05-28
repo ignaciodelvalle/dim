@@ -26,12 +26,12 @@ import {
   welfareReports,
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { provinceByCode } from "@/lib/ar-provincias";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { signalWelfareReport } from "@/lib/authority";
 import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
@@ -108,14 +108,17 @@ export async function createWelfareReportAction(
   // about a general location may legitimately omit them.
   const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
   const localityNameRaw = String(formData.get("localityName") ?? "").trim();
-  const provinceName = provinceByCode(provinceCodeRaw)?.name ?? null;
+  // Canonical display name for storage (see lib/jurisdiction-canonical.ts).
+  // INDEC canonicalization is only used for the locality — the province
+  // stays as PROVINCES[i].name to keep govt dashboards and rollups aligned.
+  const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
   const jurisdictionCanonical = provinceName
     ? await tryResolveCanonicalJurisdiction({
         rawProvince: provinceName,
         rawLocality: localityNameRaw,
       })
     : null;
-  const jurisdictionProvince: string | null = jurisdictionCanonical?.province || provinceName;
+  const jurisdictionProvince: string | null = provinceName;
   const jurisdictionLocality: string | null =
     jurisdictionCanonical?.locality || localityNameRaw || null;
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
@@ -548,14 +551,17 @@ export async function createOrgWelfareReportAction(
   const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
   const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
   const localityNameRaw = String(formData.get("localityName") ?? "").trim();
-  const provinceName = provinceByCode(provinceCodeRaw)?.name ?? null;
+  // Canonical display name for storage (see lib/jurisdiction-canonical.ts).
+  // INDEC canonicalization is only used for the locality — the province
+  // stays as PROVINCES[i].name to keep govt dashboards and rollups aligned.
+  const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
   const jurisdictionCanonical = provinceName
     ? await tryResolveCanonicalJurisdiction({
         rawProvince: provinceName,
         rawLocality: localityNameRaw,
       })
     : null;
-  const jurisdictionProvince: string | null = jurisdictionCanonical?.province || provinceName;
+  const jurisdictionProvince: string | null = provinceName;
   const jurisdictionLocality: string | null =
     jurisdictionCanonical?.locality || localityNameRaw || null;
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
