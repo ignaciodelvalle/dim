@@ -17,6 +17,7 @@ import { useState, useTransition } from "react";
 
 import { type ReportBiteFromOrgFormState, reportBiteFromOrgAction } from "@/app/actions/bite";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { Checkbox } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { inputClass, labelClass } from "@/lib/form-classes";
@@ -325,17 +326,9 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         <div className="space-y-1.5">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={vetInvolved}
-              onChange={(e) => setVetInvolved(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong "
-            />
-            <span className="text-sm text-gob-text ">
-              Intervino un profesional veterinario en el incidente o atención posterior.
-            </span>
-          </label>
+          <Checkbox checked={vetInvolved} onChange={(e) => setVetInvolved(e.target.checked)}>
+            Intervino un profesional veterinario en el incidente o atención posterior.
+          </Checkbox>
         </div>
 
         <div className="space-y-1.5">
@@ -365,19 +358,16 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       {/* Step 4 — Confirmar + submit */}
       <section className={step === 4 ? "space-y-4" : "sr-only"} aria-hidden={step !== 4}>
         <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={confirmObservation}
-              onChange={(e) => setConfirmObservation(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong  text-gob-warning-text focus:ring-gob-warning"
-            />
+          <Checkbox
+            checked={confirmObservation}
+            onChange={(e) => setConfirmObservation(e.target.checked)}
+          >
             <span className="text-sm text-gob-warning-text ">
               Entiendo que esto inicia un período de observación antirrábica obligatorio de 10 días
               (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987) y se notifica al dueño y a la autoridad
               sanitaria correspondiente.
             </span>
-          </label>
+          </Checkbox>
         </div>
 
         {state.error && (
