@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReminderFormState } from "@/app/actions/reminders";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { vaccinesForSpecies } from "@/lib/lookups";
 import { useActionState } from "react";
 
@@ -21,46 +21,52 @@ export function ScheduleVaccineForm({
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="space-y-1.5">
-        <label htmlFor="vaccineName" className={labelClass}>
-          Vacuna<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="vaccineName"
-          name="vaccineName"
-          type="text"
-          required
-          list="schedule-vaccine-options"
-          placeholder="Empezá a tipear o elegí…"
-          autoComplete="off"
-          className={inputClass}
-        />
-        <datalist id="schedule-vaccine-options">
-          {vaccines.map((v) => (
-            <option key={v.name} value={v.name} />
-          ))}
-        </datalist>
-      </div>
+      <Field label="Vacuna" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="vaccineName"
+            type="text"
+            required
+            list="schedule-vaccine-options"
+            placeholder="Empezá a tipear o elegí…"
+            autoComplete="off"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+      <datalist id="schedule-vaccine-options">
+        {vaccines.map((v) => (
+          <option key={v.name} value={v.name} />
+        ))}
+      </datalist>
 
-      <div className="space-y-1.5">
-        <label htmlFor="dueAt" className={labelClass}>
-          Fecha estimada<span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input id="dueAt" name="dueAt" type="date" required className={inputClass} />
-      </div>
+      <Field label="Fecha estimada" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="dueAt"
+            type="date"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="description" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          rows={3}
-          placeholder="Cualquier detalle (clínica habitual, dosis, etc.)"
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="description"
+            rows={3}
+            placeholder="Cualquier detalle (clínica habitual, dosis, etc.)"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {state.error && (
         <p className="text-sm text-gob-danger " role="alert">

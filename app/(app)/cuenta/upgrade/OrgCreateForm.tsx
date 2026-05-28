@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import { type UpgradeFormState, createOrganizationAction } from "@/app/actions/upgrade";
 import { LocationFields } from "@/components/LocationFields";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Select } from "@/components/poncho";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -42,63 +42,101 @@ export function OrgCreateForm() {
   return (
     <form action={formAction} className="space-y-4">
       <Field
-        id="name"
-        name="name"
-        type="text"
         label="Nombre de la organización"
-        hint="Nombre público que verán los demás usuarios."
         required
-      />
+        help="Nombre público que verán los demás usuarios."
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="name"
+            type="text"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
       <Field
-        id="legalName"
-        name="legalName"
-        type="text"
         label="Razón social"
-        hint="Nombre legal completo (ej: Asoc. Civil Refugio El Campito)."
         required
-      />
+        help="Nombre legal completo (ej: Asoc. Civil Refugio El Campito)."
+      >
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="legalName"
+            type="text"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="orgType" className={labelClass}>
-          Tipo de organización
-        </label>
-        <select id="orgType" name="orgType" required className={inputClass}>
-          <option value="">Seleccioná un tipo</option>
-          {ORG_TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field label="Tipo de organización" required>
+        {({ id, describedBy, invalid }) => (
+          <Select id={id} name="orgType" required aria-describedby={describedBy} invalid={invalid}>
+            <option value="">Seleccioná un tipo</option>
+            {ORG_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
 
-      <Field id="email" name="email" type="email" label="Correo electrónico de contacto" required />
-      <Field
-        id="cuit"
-        name="cuit"
-        type="text"
-        label="CUIT (opcional)"
-        hint="11 dígitos sin guiones. Ej: 30712345678"
-      />
-      <Field id="phone" name="phone" type="tel" label="Teléfono (opcional)" />
+      <Field label="Correo electrónico de contacto" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="email"
+            type="email"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
+      <Field label="CUIT" help="11 dígitos sin guiones. Ej: 30712345678">
+        {({ id, describedBy, invalid }) => (
+          <Input id={id} name="cuit" type="text" aria-describedby={describedBy} invalid={invalid} />
+        )}
+      </Field>
+
+      <Field label="Teléfono">
+        {({ id, describedBy, invalid }) => (
+          <Input id={id} name="phone" type="tel" aria-describedby={describedBy} invalid={invalid} />
+        )}
+      </Field>
+
       {/* Jurisdiction — L1 (province + locality) per AGENTS.md "Design rules"
             rule #1. LocationFields submits `provinceCode` and `localityName`;
             the createOrganizationAction reads those keys plus the legacy
             `jurisdictionProvince` / `jurisdictionLocality` aliases for
             backward compatibility. */}
       <div className="space-y-1">
-        <p className={labelClass}>Jurisdicción</p>
+        <p className="block mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">Jurisdicción</p>
         <p className="text-xs text-gob-text-muted  mb-2">
           Para enrutar la verificación al govt correspondiente.
         </p>
         <LocationFields mode="l1" />
       </div>
-      <Field
-        id="personeriaJuridicaNumber"
-        name="personeriaJuridicaNumber"
-        type="text"
-        label="Número de personería jurídica (opcional)"
-      />
+
+      <Field label="Número de personería jurídica">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="personeriaJuridicaNumber"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       {state.error && (
         <p className="text-sm text-gob-danger " role="alert">
@@ -114,31 +152,5 @@ export function OrgCreateForm() {
         {pending ? "Creando organización..." : "Crear organización"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  hint,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-      </label>
-      <input id={id} name={name} type={type} required={required} className={inputClass} />
-      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
-    </div>
   );
 }
