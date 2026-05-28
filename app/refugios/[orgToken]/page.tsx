@@ -22,6 +22,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AboutPanel } from "./AboutPanel";
 import { AdoptionPanel } from "./AdoptionPanel";
 import { HelpPanel } from "./HelpPanel";
+import { LocationPanel } from "./LocationPanel";
 import { OrgHero } from "./OrgHero";
 import { ServicesPanel } from "./ServicesPanel";
 
@@ -102,6 +103,8 @@ export default async function RefugioPage({
         />
 
         <ServicesPanel orgToken={orgToken} offerings={offerings} />
+
+        <LocationPanel org={org} localityLabel={localityLabel} />
 
         <HelpPanel org={org} isAuthed={isAuthed} />
       </div>
