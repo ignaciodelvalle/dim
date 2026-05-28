@@ -67,10 +67,8 @@ export default async function AdminAuditoriaPage({
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Auditoría global
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Auditoría global</h1>
+          <p className="text-sm text-gob-text-gray ">
             Últimas {entries.length} entradas del registro de auditoría (todas las acciones de
             autoridad).
           </p>
@@ -82,18 +80,18 @@ export default async function AdminAuditoriaPage({
             name="action"
             defaultValue={actionFilter ?? ""}
             placeholder="Filtrar por acción"
-            className="text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           />
           <button
             type="submit"
-            className="text-sm px-3 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:opacity-90"
+            className="text-sm px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90"
           >
             Filtrar
           </button>
           {(actionFilter || actorFilter) && (
             <a
               href="/admin/auditoria"
-              className="text-xs text-neutral-500 dark:text-neutral-500 underline underline-offset-4"
+              className="text-xs text-gob-text-muted  underline underline-offset-4"
             >
               Limpiar filtros
             </a>
@@ -101,21 +99,19 @@ export default async function AdminAuditoriaPage({
         </form>
 
         {entries.length === 0 ? (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
-            No hay entradas que coincidan.
-          </p>
+          <p className="text-sm text-gob-text-muted ">No hay entradas que coincidan.</p>
         ) : (
           <ul className="space-y-2">
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-start justify-between gap-3"
+                className="rounded-lg border border-gob-border  px-4 py-3 flex items-start justify-between gap-3"
               >
                 <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  <p className="text-sm font-medium text-gob-text ">
                     {ACTION_LABELS[entry.action] ?? entry.action}
                   </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                  <p className="text-xs text-gob-text-muted ">
                     {namesById.get(entry.actorUserId) ?? "Desconocido"}
                     {entry.approvalRequestId && (
                       <>
@@ -126,7 +122,7 @@ export default async function AdminAuditoriaPage({
                     )}
                   </p>
                 </div>
-                <time className="text-xs text-neutral-400 dark:text-neutral-600 whitespace-nowrap">
+                <time className="text-xs text-gob-text-muted  whitespace-nowrap">
                   {new Date(entry.performedAt).toLocaleString("es-AR", {
                     dateStyle: "short",
                     timeStyle: "short",

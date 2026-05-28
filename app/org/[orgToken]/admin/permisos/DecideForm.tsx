@@ -25,8 +25,8 @@ export function DecideForm({
     const isOpen = showReason === decision;
     const baseClass =
       tone === "approve"
-        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-        : "bg-red-600 text-white hover:bg-red-700";
+        ? "bg-gob-success text-white hover:bg-gob-success"
+        : "bg-gob-danger text-white hover:bg-gob-danger";
     if (!isOpen) {
       return (
         <button
@@ -47,7 +47,7 @@ export function DecideForm({
           rows={2}
           maxLength={500}
           placeholder="Motivo (opcional)"
-          className="text-xs w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2"
+          className="text-xs w-full rounded border border-gob-border-strong  bg-white  p-2"
         />
         <div className="flex items-center gap-2">
           <button
@@ -60,7 +60,7 @@ export function DecideForm({
           <button
             type="button"
             onClick={() => setShowReason(null)}
-            className="text-xs px-2 py-1 rounded text-neutral-600 dark:text-neutral-400 hover:underline"
+            className="text-xs px-2 py-1 rounded text-gob-text-gray  hover:underline"
           >
             Cancelar
           </button>
@@ -80,7 +80,7 @@ export function DecideForm({
         )}
         {approved && renderAction("revoked", "Revocar", "deny")}
       </div>
-      {state.error && <p className="text-xs text-red-600 dark:text-red-400">{state.error}</p>}
+      {state.error && <p className="text-xs text-gob-danger ">{state.error}</p>}
     </div>
   );
 }

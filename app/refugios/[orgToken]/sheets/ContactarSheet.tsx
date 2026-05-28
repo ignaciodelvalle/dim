@@ -103,7 +103,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
 
             <div className="space-y-1.5">
               <label htmlFor="inquirerEmail" className={labelClass}>
-                Tu email <span className="text-red-500 ml-0.5">*</span>
+                Tu email <span className="text-gob-danger ml-0.5">*</span>
               </label>
               <input
                 id="inquirerEmail"
@@ -122,7 +122,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
 
             <div className="space-y-1.5">
               <label htmlFor="message" className={labelClass}>
-                Mensaje <span className="text-red-500 ml-0.5">*</span>
+                Mensaje <span className="text-gob-danger ml-0.5">*</span>
               </label>
               <textarea
                 id="message"

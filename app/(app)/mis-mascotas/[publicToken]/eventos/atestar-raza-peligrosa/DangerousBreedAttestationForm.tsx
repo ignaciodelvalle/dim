@@ -36,7 +36,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
     <form action={formAction} className="space-y-5">
       <fieldset className="space-y-3">
         <legend className={labelClass}>
-          Registro<span className="text-red-500 ml-0.5">*</span>
+          Registro<span className="text-gob-danger ml-0.5">*</span>
         </legend>
         {REGISTRY_OPTIONS.map((opt) => (
           <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
@@ -47,15 +47,11 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
               required
               checked={registry === opt.value}
               onChange={(e) => setRegistry(e.target.value)}
-              className="mt-1 h-4 w-4 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-50 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+              className="mt-1 h-4 w-4 border-gob-border-strong  text-gob-text  focus:ring-gob-primary "
             />
             <span className="space-y-0.5">
-              <span className="block text-sm text-neutral-900 dark:text-neutral-50">
-                {opt.label}
-              </span>
-              <span className="block text-xs text-neutral-600 dark:text-neutral-400">
-                {opt.help}
-              </span>
+              <span className="block text-sm text-gob-text ">{opt.label}</span>
+              <span className="block text-xs text-gob-text-gray ">{opt.help}</span>
             </span>
           </label>
         ))}
@@ -76,7 +72,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
 
       <div className="space-y-1.5">
         <label htmlFor="attestedAt" className={labelClass}>
-          Fecha de atestación<span className="text-red-500 ml-0.5">*</span>
+          Fecha de atestación<span className="text-gob-danger ml-0.5">*</span>
         </label>
         <input
           id="attestedAt"
@@ -104,7 +100,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -112,7 +108,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar atestación"}
       </button>

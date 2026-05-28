@@ -54,65 +54,65 @@ export function VaccinationAttendanceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-          Nombre de la vacuna <span className="text-red-500">*</span>
+        <label className="block text-xs font-medium text-gob-text-gray  mb-1">
+          Nombre de la vacuna <span className="text-gob-danger">*</span>
         </label>
         <input
           name="vaccine_name"
           type="text"
           required
           placeholder="Ej: Antirrábica"
-          className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          <label className="block text-xs font-medium text-gob-text-gray  mb-1">
             Marca / laboratorio
           </label>
           <input
             name="brand"
             type="text"
             placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+          <label className="block text-xs font-medium text-gob-text-gray  mb-1">
             Lote / número de batch
           </label>
           <input
             name="batch"
             type="text"
             placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+        <label className="block text-xs font-medium text-gob-text-gray  mb-1">
           Administrado por
         </label>
         <input
           name="administered_by"
           type="text"
           placeholder="Nombre del profesional (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+        <label className="block text-xs font-medium text-gob-text-gray  mb-1">
           Próxima dosis (fecha)
         </label>
         <input
           name="next_due_at"
           type="date"
-          className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
         />
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+        <p className="text-xs text-gob-text-muted  mt-1">
           Si se completa, se crea un recordatorio automático para el dueño.
         </p>
       </div>
@@ -120,7 +120,7 @@ export function VaccinationAttendanceForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-2 rounded-md bg-gob-success text-white text-sm font-medium hover:bg-gob-success disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Guardando…" : submitLabel}
       </button>

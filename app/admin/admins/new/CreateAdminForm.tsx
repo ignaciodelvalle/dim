@@ -76,10 +76,7 @@ export function CreateAdminForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
-          >
+          <label htmlFor="email" className="block text-sm font-medium text-gob-text-gray  mb-1">
             Email
           </label>
           <input
@@ -89,14 +86,14 @@ export function CreateAdminForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="nuevo.admin@dim.gob.ar"
-            className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           />
         </div>
 
         <div>
           <label
             htmlFor="displayName"
-            className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+            className="block text-sm font-medium text-gob-text-gray  mb-1"
           >
             Nombre de display
           </label>
@@ -108,14 +105,14 @@ export function CreateAdminForm() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Admin MiMAR"
             maxLength={100}
-            className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+            className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
           />
         </div>
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-4 py-3">
-          <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+        <div className="rounded-md bg-gob-danger/10  border border-gob-danger  px-4 py-3">
+          <p className="text-sm text-gob-danger ">{error}</p>
         </div>
       )}
 
@@ -123,13 +120,13 @@ export function CreateAdminForm() {
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2 text-sm bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2 text-sm bg-gob-primary  text-white  rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Creando..." : "Crear cuenta admin"}
         </button>
         <a
           href="/admin/admins"
-          className="px-5 py-2 text-sm border border-neutral-300 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-900"
+          className="px-5 py-2 text-sm border border-gob-border-strong  rounded-md hover:bg-gob-surface-alt "
         >
           Cancelar
         </a>

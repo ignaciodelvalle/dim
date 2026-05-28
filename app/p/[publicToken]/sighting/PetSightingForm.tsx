@@ -26,7 +26,7 @@ export function PetSightingForm({
 
   if (state.ok) {
     return (
-      <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 p-4 text-sm text-emerald-900 dark:text-emerald-200">
+      <div className="rounded-lg border border-gob-success  bg-gob-success/10  p-4 text-sm text-gob-success ">
         <p className="font-medium">¡Gracias!</p>
         <p className="mt-1 text-xs">
           Le avisamos al dueño/a con el punto que marcaste. Cualquier detalle más puede ayudar.
@@ -48,10 +48,7 @@ export function PetSightingForm({
       />
 
       <div className="space-y-1">
-        <label
-          htmlFor="sightedAt"
-          className="block text-xs font-medium text-neutral-800 dark:text-neutral-200"
-        >
+        <label htmlFor="sightedAt" className="block text-xs font-medium text-gob-text ">
           ¿Cuándo la viste?
         </label>
         <input
@@ -59,15 +56,12 @@ export function PetSightingForm({
           name="sightedAt"
           type="datetime-local"
           defaultValue={todayLocalIso}
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
       </div>
 
       <div className="space-y-1">
-        <label
-          htmlFor="description"
-          className="block text-xs font-medium text-neutral-800 dark:text-neutral-200"
-        >
+        <label htmlFor="description" className="block text-xs font-medium text-gob-text ">
           Algún detalle (opcional)
         </label>
         <textarea
@@ -76,12 +70,12 @@ export function PetSightingForm({
           rows={3}
           maxLength={500}
           placeholder="Color del collar, dirección de paso, hora exacta, comportamiento…"
-          className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
         />
       </div>
 
       {state.error && (
-        <p className="text-xs text-red-700 dark:text-red-400" role="alert">
+        <p className="text-xs text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -89,7 +83,7 @@ export function PetSightingForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-amber-600 dark:bg-amber-500 text-white text-sm font-medium hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white text-sm font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando..." : "Avisar al dueño/a"}
       </button>

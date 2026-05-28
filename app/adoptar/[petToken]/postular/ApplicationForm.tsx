@@ -146,7 +146,7 @@ export function ApplicationForm({
           type="button"
           onClick={() => setStep(2)}
           disabled={!housingType}
-          className="w-full px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 disabled:opacity-60"
+          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success disabled:opacity-60"
         >
           Continuar
         </button>
@@ -170,7 +170,7 @@ export function ApplicationForm({
         <button
           type="button"
           onClick={() => setStep(3)}
-          className="w-full px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700"
+          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success"
         >
           Continuar
         </button>
@@ -206,7 +206,7 @@ export function ApplicationForm({
         <button
           type="button"
           onClick={() => setStep(4)}
-          className="w-full px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700"
+          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success"
         >
           Continuar
         </button>
@@ -293,7 +293,7 @@ export function ApplicationForm({
           type="button"
           onClick={submit}
           disabled={pending || !profileSharingConsent}
-          className="w-full px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 disabled:opacity-60"
+          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success disabled:opacity-60"
         >
           {pending ? "Enviando postulación..." : "Enviar postulación"}
         </button>

@@ -95,8 +95,8 @@ export function JurisdictionFilterBar({
               aria-pressed={active}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 active
-                  ? "bg-blue-700 text-white dark:bg-blue-500"
-                  : "bg-white text-neutral-700 ring-1 ring-neutral-200 hover:bg-neutral-50 dark:bg-neutral-900 dark:text-neutral-300 dark:ring-neutral-700 dark:hover:bg-neutral-800"
+                  ? "bg-gob-info text-white "
+                  : "bg-white text-gob-text-gray ring-1 ring-gob-border-strong hover:bg-gob-surface-alt    "
               }`}
             >
               {RANGE_LABELS[r]}
@@ -149,9 +149,9 @@ function FilterSelect({
 }) {
   return (
     <label className="inline-flex items-center gap-2 text-xs">
-      <span className="text-neutral-500 dark:text-neutral-400">{label}</span>
+      <span className="text-gob-text-muted ">{label}</span>
       <select
-        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="rounded-md border border-gob-border bg-white px-2 py-1 text-xs text-gob-text    focus:outline-none focus:ring-2 focus:ring-gob-azul-link"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >

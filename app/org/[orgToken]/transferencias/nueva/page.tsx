@@ -52,18 +52,18 @@ export default async function OrgTransferenciaNuevaPage({
 
   if (!hasPermission) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-2xl mx-auto pt-10 space-y-4">
           <Link
             href={`/org/${orgToken}/transferencias`}
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-muted hover:text-gob-text "
           >
             ← Volver a transferencias
           </Link>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text ">
             Nueva propuesta de transferencia
           </h1>
-          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="rounded-lg border border-gob-warning bg-gob-warning/10 p-4 text-sm text-gob-warning-text   ">
             Solo roles <strong>admin</strong> o <strong>coordinator</strong> de la organización
             pueden iniciar transferencias. Tu rol actual es{" "}
             <strong>{membership?.role ?? "—"}</strong>.
@@ -75,18 +75,18 @@ export default async function OrgTransferenciaNuevaPage({
 
   if (!petToken) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-2xl mx-auto pt-10 space-y-4">
           <Link
             href={`/org/${orgToken}/transferencias`}
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-muted hover:text-gob-text "
           >
             ← Volver a transferencias
           </Link>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text ">
             Nueva propuesta de transferencia
           </h1>
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+          <div className="rounded-lg border border-gob-border bg-gob-surface-alt p-4 text-sm text-gob-text-gray   ">
             Para proponer una transferencia tenés que entrar desde el perfil de la mascota:
             <span className="font-mono"> /org/{orgToken}/mascotas/[publicToken]</span>.
           </div>
@@ -112,18 +112,18 @@ export default async function OrgTransferenciaNuevaPage({
 
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-2xl mx-auto pt-10 space-y-4">
           <Link
             href={`/org/${orgToken}/transferencias`}
-            className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="text-sm text-gob-text-muted hover:text-gob-text "
           >
             ← Volver a transferencias
           </Link>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text ">
             Nueva propuesta de transferencia
           </h1>
-          <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+          <div className="rounded-lg border border-gob-danger bg-gob-danger/10 p-4 text-sm text-gob-danger   ">
             No encontramos una mascota con ese token bajo custodia activa de{" "}
             {organization.displayName}.
           </div>
@@ -165,20 +165,20 @@ export default async function OrgTransferenciaNuevaPage({
   }));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-xl mx-auto pt-10 space-y-6">
         <Link
           href={`/org/${orgToken}/transferencias`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver a transferencias
         </Link>
 
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
             Transferir {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Proponer la transferencia de custodia desde {organization.displayName} a otra
             organización verificada.
           </p>

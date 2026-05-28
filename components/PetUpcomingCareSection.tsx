@@ -99,13 +99,10 @@ export function PetUpcomingCareSection({
   return (
     <section
       aria-labelledby="pp-cuidados-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="pp-cuidados-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="pp-cuidados-h" className="text-base font-semibold text-gob-text ">
           Cuidados próximos
         </h2>
         {hasMore && (
@@ -118,20 +115,18 @@ export function PetUpcomingCareSection({
         )}
       </div>
 
-      <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <ul className="divide-y divide-gob-border ">
         {visible.map((item) => (
           <li key={item.id} className="flex items-center gap-3 py-2.5">
             <span
               aria-hidden
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-sm dark:bg-neutral-800"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-surface-alt text-sm "
             >
               {kindIcon[item.kind]}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                {item.label}
-              </span>
-              <span className="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">
+              <span className="block text-sm font-medium text-gob-text ">{item.label}</span>
+              <span className="mt-0.5 block text-xs text-gob-text-muted ">
                 {formatDueAt(item.dueAt)}
               </span>
             </span>

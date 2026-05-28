@@ -71,19 +71,19 @@ export default async function NewPregnancyPage({
   const endedAction = recordPregnancyEndedAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Otro tipo de evento
         </Link>
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             {phase === "started" ? "Registrar embarazo" : "Cerrar embarazo"}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             {phase === "started"
               ? `Vamos a abrir un seguimiento de embarazo para ${pet.name}.`
               : `Registrar el cierre del embarazo activo de ${pet.name}.`}
@@ -109,21 +109,21 @@ function BlockedShell({
   showEndedLink?: boolean;
 }) {
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-6">
         <Link
           href={`/mis-mascotas/${publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Otro tipo de evento
         </Link>
-        <p className="text-sm rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+        <p className="text-sm rounded-lg border border-gob-warning bg-gob-warning/10 px-4 py-3 text-gob-warning-text   ">
           {message}
         </p>
         {showEndedLink && (
           <Link
             href={`/mis-mascotas/${publicToken}/eventos/nuevo/embarazo?phase=ended`}
-            className="inline-block px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
+            className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
           >
             Registrar cierre del embarazo
           </Link>

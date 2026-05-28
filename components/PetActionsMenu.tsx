@@ -10,11 +10,9 @@ import { type PetActionsMenuInput, deriveActionItems } from "./PetActionsMenu.he
 export type { PetActionsMenuInput };
 
 const VARIANT_CLASSES: Record<"primary" | "default" | "danger", string> = {
-  primary:
-    "bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600",
-  default:
-    "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-900",
-  danger: "bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
+  primary: "bg-gob-success text-white hover:bg-gob-success  ",
+  default: "border border-gob-border bg-white text-gob-text-gray hover:bg-gob-surface-alt    ",
+  danger: "bg-gob-warning text-white hover:bg-gob-warning  ",
 };
 
 export function PetActionsMenu(props: PetActionsMenuInput) {
@@ -25,12 +23,9 @@ export function PetActionsMenu(props: PetActionsMenuInput) {
   return (
     <section
       aria-labelledby="pp-actions-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
-      <h2
-        id="pp-actions-h"
-        className="mb-3 text-base font-semibold text-neutral-900 dark:text-neutral-50"
-      >
+      <h2 id="pp-actions-h" className="mb-3 text-base font-semibold text-gob-text ">
         Acciones
       </h2>
       <ul className="flex flex-col gap-2">

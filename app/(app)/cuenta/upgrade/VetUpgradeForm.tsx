@@ -12,7 +12,7 @@ export function VetUpgradeForm() {
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+      <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
         Solicitud enviada — pendiente de revisión por el equipo de MiMAR.
       </p>
     );
@@ -21,17 +21,17 @@ export function VetUpgradeForm() {
   // Prerequisite missing: render CTA card instead of the form + generic error.
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 p-4 space-y-2">
-        <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+      <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
+        <p className="text-sm font-medium text-gob-warning-text ">
           Antes de enviar tu solicitud, verificá tu DNI.
         </p>
-        <p className="text-xs text-amber-700 dark:text-amber-400">
+        <p className="text-xs text-gob-warning-text ">
           MiMAR requiere que tu identidad esté verificada para procesar solicitudes de rol
           profesional.
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500 text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-lg bg-gob-warning hover:bg-gob-warning   text-white text-sm font-medium transition-colors"
         >
           Verificar DNI →
         </a>
@@ -91,7 +91,7 @@ export function VetUpgradeForm() {
       />
 
       {state.error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="text-sm text-gob-danger " role="alert">
           {state.error}
         </p>
       )}
@@ -99,7 +99,7 @@ export function VetUpgradeForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-3 rounded-lg bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Enviando solicitud..." : "Enviar solicitud de verificación"}
       </button>
@@ -137,7 +137,7 @@ function Field({
         inputMode={inputMode}
         className={inputClass}
       />
-      {hint && <p className="text-xs text-neutral-500 dark:text-neutral-500">{hint}</p>}
+      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
     </div>
   );
 }

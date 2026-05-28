@@ -53,13 +53,10 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
   return (
     <section
       aria-labelledby="lp-share-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2
-          id="lp-share-h"
-          className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-        >
+        <h2 id="lp-share-h" className="text-base font-semibold text-gob-text ">
           Compartir alerta
         </h2>
         <button
@@ -78,7 +75,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
           href={posterHref}
           target="_blank"
           rel="noreferrer"
-          className="flex flex-col items-center gap-1 rounded-lg bg-neutral-50 p-3 text-xs font-medium text-neutral-700 transition-colors hover:bg-red-50 hover:text-red-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-red-950/30 dark:hover:text-red-200"
+          className="flex flex-col items-center gap-1 rounded-lg bg-gob-surface-alt p-3 text-xs font-medium text-gob-text-gray transition-colors hover:bg-gob-danger/10 hover:text-gob-danger    "
         >
           <span aria-hidden className="text-xl">
             🖨
@@ -90,7 +87,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
         <button
           type="button"
           onClick={nativeShare}
-          className="mt-2 w-full rounded-lg bg-neutral-100 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          className="mt-2 w-full rounded-lg bg-gob-surface-alt px-3 py-2 text-xs font-medium text-gob-text-gray hover:bg-gob-surface-alt   "
         >
           Compartir con otras apps…
         </button>
@@ -112,7 +109,7 @@ function ShareButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1 rounded-lg bg-neutral-50 p-3 text-xs font-medium text-neutral-700 transition-colors hover:bg-red-50 hover:text-red-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-red-950/30 dark:hover:text-red-200"
+      className="flex flex-col items-center gap-1 rounded-lg bg-gob-surface-alt p-3 text-xs font-medium text-gob-text-gray transition-colors hover:bg-gob-danger/10 hover:text-gob-danger    "
     >
       <span aria-hidden className="text-xl">
         {icon}

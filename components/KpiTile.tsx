@@ -52,25 +52,25 @@ interface PlainProps extends BaseProps {
 export type KpiTileProps = PlainProps | TargetProps | DeltaProps;
 
 const TONE_FRAME: Record<KpiTileTone, string> = {
-  neutral: "bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50",
-  info: "bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100",
-  success: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100",
-  warning: "bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100",
-  danger: "bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-100",
+  neutral: "bg-gob-surface-alt  text-gob-text ",
+  info: "bg-gob-info/10  text-gob-azul-link ",
+  success: "bg-gob-success/10  text-gob-success ",
+  warning: "bg-gob-warning/10  text-gob-warning-text ",
+  danger: "bg-gob-danger/10  text-gob-danger ",
 };
 
 const TONE_LABEL: Record<KpiTileTone, string> = {
-  neutral: "text-neutral-600 dark:text-neutral-400",
-  info: "text-blue-700 dark:text-blue-300",
-  success: "text-emerald-700 dark:text-emerald-300",
-  warning: "text-amber-800 dark:text-amber-300",
-  danger: "text-red-700 dark:text-red-300",
+  neutral: "text-gob-text-gray ",
+  info: "text-gob-azul-link ",
+  success: "text-gob-success ",
+  warning: "text-gob-warning-text ",
+  danger: "text-gob-danger ",
 };
 
 const DELTA_COLOR: Record<Direction, string> = {
-  up: "text-emerald-700 dark:text-emerald-300",
-  down: "text-red-700 dark:text-red-300",
-  flat: "text-neutral-600 dark:text-neutral-400",
+  up: "text-gob-success ",
+  down: "text-gob-danger ",
+  flat: "text-gob-text-gray ",
 };
 
 export function KpiTile(props: KpiTileProps) {
@@ -103,7 +103,7 @@ export function KpiTile(props: KpiTileProps) {
     return (
       <Link
         href={props.href}
-        className="block h-full w-full rounded-xl transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-950"
+        className="block h-full w-full rounded-xl transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-gob-azul-link focus:ring-offset-2 "
       >
         {inner}
       </Link>
@@ -118,16 +118,15 @@ function TargetBar({
   tone,
 }: { current: number; target: number; tone: KpiTileTone }) {
   const pct = Math.max(0, Math.min(100, target === 0 ? 0 : (current / target) * 100));
-  const trackBg =
-    tone === "neutral" ? "bg-neutral-200 dark:bg-neutral-800" : "bg-white/30 dark:bg-black/20";
+  const trackBg = tone === "neutral" ? "bg-gob-surface-alt " : "bg-white/30 ";
   const fillBg =
     tone === "danger"
-      ? "bg-red-600 dark:bg-red-400"
+      ? "bg-gob-danger "
       : tone === "warning"
-        ? "bg-amber-600 dark:bg-amber-400"
+        ? "bg-gob-warning "
         : tone === "success"
-          ? "bg-emerald-600 dark:bg-emerald-400"
-          : "bg-blue-700 dark:bg-blue-400";
+          ? "bg-gob-success "
+          : "bg-gob-info ";
   return (
     <div className="space-y-1">
       <div

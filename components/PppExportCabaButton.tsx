@@ -58,7 +58,7 @@ export function PppExportCabaButton({ petPublicToken }: Props) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border border-amber-400 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border border-gob-warning  bg-gob-warning/10  text-gob-warning-text  hover:bg-gob-warning/30  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? (
           <>
@@ -107,13 +107,13 @@ export function PppExportCabaButton({ petPublicToken }: Props) {
         )}
       </button>
 
-      {error && <p className="text-[10px] text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-[10px] text-gob-danger ">{error}</p>}
       {success && (
-        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+        <p className="text-[10px] text-gob-success ">
           PDF generado. Se abrió en una nueva pestaña. El link expira en 24 horas.
         </p>
       )}
-      <p className="text-[10px] text-amber-700 dark:text-amber-400">
+      <p className="text-[10px] text-gob-warning-text ">
         Documento para presentar en la comuna o registro RUPPPA de CABA (Ley 4078).
       </p>
     </div>

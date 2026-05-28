@@ -13,28 +13,23 @@ import { findServiceKind } from "@/lib/service-kinds";
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   pending_approval: {
     label: "Pendiente de aprobación",
-    className:
-      "text-amber-800 bg-amber-50 border-amber-300 dark:text-amber-200 dark:bg-amber-950/30 dark:border-amber-800",
+    className: "text-gob-warning-text bg-gob-warning/10 border-gob-warning   ",
   },
   approved: {
     label: "Aprobado",
-    className:
-      "text-emerald-800 bg-emerald-50 border-emerald-300 dark:text-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800",
+    className: "text-gob-success bg-gob-success/10 border-gob-success   ",
   },
   rejected: {
     label: "Rechazado",
-    className:
-      "text-red-800 bg-red-50 border-red-300 dark:text-red-200 dark:bg-red-950/30 dark:border-red-800",
+    className: "text-gob-danger bg-gob-danger/10 border-gob-danger   ",
   },
   paused: {
     label: "Pausado",
-    className:
-      "text-neutral-800 bg-neutral-50 border-neutral-300 dark:text-neutral-200 dark:bg-neutral-900 dark:border-neutral-700",
+    className: "text-gob-text bg-gob-surface-alt border-gob-border-strong   ",
   },
   archived: {
     label: "Archivado",
-    className:
-      "text-neutral-600 bg-neutral-50 border-neutral-200 dark:text-neutral-400 dark:bg-neutral-950 dark:border-neutral-800",
+    className: "text-gob-text-gray bg-gob-surface-alt border-gob-border   ",
   },
 };
 
@@ -72,14 +67,14 @@ export default async function OfferingDetailPage({
   const statusConfig = STATUS_LABELS[offering.status] ?? STATUS_LABELS.pending_approval;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             {organization.displayName} · Servicios
           </p>
           <h1 className="text-3xl font-semibold">{offering.displayName}</h1>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-gob-text-muted">
             {kind?.label ?? offering.serviceKind} · Enviado el {formatDate(offering.submittedAt)}
           </p>
         </header>
@@ -112,7 +107,7 @@ export default async function OfferingDetailPage({
         </div>
 
         {/* Details grid */}
-        <section className="rounded border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+        <section className="rounded border border-gob-border  divide-y divide-gob-border ">
           <Row label="Token público" value={offering.publicToken} mono />
           <Row label="Tipo de servicio" value={kind?.label ?? offering.serviceKind} />
           <Row
@@ -163,17 +158,17 @@ export default async function OfferingDetailPage({
           <div>
             <Link
               href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
-              className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm"
+              className="inline-block px-4 py-2 rounded bg-gob-primary text-white   text-sm"
             >
               Configurar agenda →
             </Link>
           </div>
         )}
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+        <footer className="pt-4 border-t border-gob-border ">
           <Link
             href={`/org/${orgToken}/servicios`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
+            className="text-sm text-gob-text-gray underline "
           >
             ← Volver a mis servicios
           </Link>
@@ -194,7 +189,7 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
-      <dt className="text-xs text-neutral-500 shrink-0 w-36">{label}</dt>
+      <dt className="text-xs text-gob-text-muted shrink-0 w-36">{label}</dt>
       <dd className={`text-sm flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );

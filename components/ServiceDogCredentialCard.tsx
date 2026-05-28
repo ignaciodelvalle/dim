@@ -34,8 +34,8 @@ export function ServiceDogCredentialCard({
   const expiringSoon = isExpiringWithin(serviceDog.credentialExpiryDate, 30);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-emerald-300 bg-white shadow-sm dark:border-emerald-700 dark:bg-neutral-900">
-      <header className="flex items-baseline justify-between gap-3 bg-emerald-600 px-4 py-2 text-white dark:bg-emerald-800">
+    <section className="overflow-hidden rounded-2xl border border-gob-success bg-white shadow-sm  ">
+      <header className="flex items-baseline justify-between gap-3 bg-gob-success px-4 py-2 text-white ">
         <h2 className="text-xs font-semibold uppercase tracking-wider">
           Credencial de perro de asistencia
         </h2>
@@ -48,53 +48,47 @@ export function ServiceDogCredentialCard({
           <img
             src={photoUrl}
             alt={petName}
-            className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-emerald-100 dark:ring-emerald-900"
+            className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-gob-success "
           />
         ) : (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-3xl dark:bg-emerald-950">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gob-success/10 text-3xl ">
             🦮
           </div>
         )}
         <dl className="flex-1 space-y-0.5 text-xs">
           <dt className="sr-only">Nombre</dt>
-          <dd className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
-            {petName}
-          </dd>
+          <dd className="text-base font-semibold text-gob-text ">{petName}</dd>
           <dt className="sr-only">Tipo</dt>
-          <dd className="text-sm text-emerald-800 dark:text-emerald-200">
+          <dd className="text-sm text-gob-success ">
             {SERVICE_TYPE_LABELS[serviceDog.serviceType] ?? serviceDog.serviceType}
           </dd>
           {microchipId ? (
             <>
-              <dt className="mt-2 text-neutral-500 dark:text-neutral-400">Microchip</dt>
-              <dd className="font-mono text-neutral-700 dark:text-neutral-300">{microchipId}</dd>
+              <dt className="mt-2 text-gob-text-muted ">Microchip</dt>
+              <dd className="font-mono text-gob-text-gray ">{microchipId}</dd>
             </>
           ) : null}
           {serviceDog.rupgaCredential ? (
             <>
-              <dt className="mt-1 text-neutral-500 dark:text-neutral-400">RUPGA</dt>
-              <dd className="font-mono text-neutral-700 dark:text-neutral-300">
-                {serviceDog.rupgaCredential}
-              </dd>
+              <dt className="mt-1 text-gob-text-muted ">RUPGA</dt>
+              <dd className="font-mono text-gob-text-gray ">{serviceDog.rupgaCredential}</dd>
             </>
           ) : null}
-          <dt className="mt-1 text-neutral-500 dark:text-neutral-400">Centro de entrenamiento</dt>
-          <dd className="text-neutral-700 dark:text-neutral-300">{serviceDog.trainingCenter}</dd>
+          <dt className="mt-1 text-gob-text-muted ">Centro de entrenamiento</dt>
+          <dd className="text-gob-text-gray ">{serviceDog.trainingCenter}</dd>
           {serviceDog.credentialIssueDate ? (
             <>
-              <dt className="mt-1 text-neutral-500 dark:text-neutral-400">Emitida</dt>
-              <dd className="text-neutral-700 dark:text-neutral-300">
-                {formatDate(serviceDog.credentialIssueDate)}
-              </dd>
+              <dt className="mt-1 text-gob-text-muted ">Emitida</dt>
+              <dd className="text-gob-text-gray ">{formatDate(serviceDog.credentialIssueDate)}</dd>
             </>
           ) : null}
           {serviceDog.credentialExpiryDate ? (
             <>
-              <dt className="mt-1 text-neutral-500 dark:text-neutral-400">Vence</dt>
-              <dd className="text-neutral-700 dark:text-neutral-300">
+              <dt className="mt-1 text-gob-text-muted ">Vence</dt>
+              <dd className="text-gob-text-gray ">
                 {formatDate(serviceDog.credentialExpiryDate)}
                 {expiringSoon ? (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
+                  <span className="ml-2 inline-flex items-center rounded-full bg-gob-warning/10 px-2 py-0.5 text-[10px] font-medium text-gob-warning-text  ">
                     Renovar pronto
                   </span>
                 ) : null}
@@ -104,24 +98,24 @@ export function ServiceDogCredentialCard({
         </dl>
       </div>
 
-      <div className="border-t border-emerald-100 bg-emerald-50/60 px-4 py-3 text-[11px] text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+      <div className="border-t border-gob-success bg-gob-success/10/60 px-4 py-3 text-[11px] text-gob-success   ">
         Esta credencial habilita el acceso, deambulación y permanencia de la mascota en todos los
         espacios públicos y privados de uso público, conforme a la Ley 26.858.
       </div>
 
-      <div className="border-t border-emerald-100 px-4 py-2 dark:border-emerald-900">
+      <div className="border-t border-gob-success px-4 py-2 ">
         <Link
           href={`/mis-mascotas/${petPublicToken}/asistencia`}
-          className="text-xs font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
+          className="text-xs font-medium text-gob-success hover:text-gob-success  "
         >
           Gestionar credencial →
         </Link>
       </div>
 
-      <div className="border-t border-emerald-100 px-4 py-2 dark:border-emerald-900">
+      <div className="border-t border-gob-success px-4 py-2 ">
         <Link
           href={buildPresentarHref(petPublicToken)}
-          className="text-xs font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
+          className="text-xs font-medium text-gob-success hover:text-gob-success  "
         >
           Presentar credencial →
         </Link>

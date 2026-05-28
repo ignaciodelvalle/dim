@@ -38,7 +38,7 @@ export function LostModeBanner({
   return (
     <section
       role="alert"
-      className="relative overflow-hidden rounded-2xl bg-red-700 p-4 text-white shadow-sm"
+      className="relative overflow-hidden rounded-2xl bg-gob-danger p-4 text-white shadow-sm"
     >
       <div
         aria-hidden
@@ -49,7 +49,7 @@ export function LostModeBanner({
         }}
       />
       <div className="relative flex items-center gap-3">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-red-800 ring-[3px] ring-white">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-gob-danger ring-[3px] ring-white">
           {petPhotoUrl ? (
             <img src={petPhotoUrl} alt="" className="h-full w-full object-cover" />
           ) : (
@@ -71,7 +71,7 @@ export function LostModeBanner({
         <form action={markFoundAction}>
           <button
             type="submit"
-            className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-semibold text-red-800 transition-colors hover:bg-red-50"
+            className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-semibold text-gob-danger transition-colors hover:bg-gob-danger/10"
           >
             Marcar {feminineEnding(petName, "encontrada", "encontrado")}
           </button>

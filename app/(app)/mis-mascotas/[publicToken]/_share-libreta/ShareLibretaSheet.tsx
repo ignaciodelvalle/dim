@@ -59,27 +59,23 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
     const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/libreta/compartir/${state.shareToken}`;
     return (
       <div className="space-y-6">
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          El link está listo para compartir.
-        </p>
+        <p className="text-sm text-gob-text-gray ">El link está listo para compartir.</p>
 
-        <div className="rounded-xl border border-emerald-500 bg-emerald-50/70 dark:border-emerald-600 dark:bg-emerald-950/30 p-4 space-y-3">
-          <p className="text-xs uppercase tracking-wider font-semibold text-emerald-700 dark:text-emerald-400">
+        <div className="rounded-xl border border-gob-success bg-gob-success/10/70   p-4 space-y-3">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gob-success ">
             Link generado
           </p>
-          <p className="text-sm font-mono break-all text-neutral-900 dark:text-neutral-50">
-            {shareUrl}
-          </p>
+          <p className="text-sm font-mono break-all text-gob-text ">{shareUrl}</p>
           <button
             type="button"
             onClick={() => navigator.clipboard.writeText(shareUrl)}
-            className="w-full px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium"
+            className="w-full px-4 py-2 rounded-lg bg-gob-success hover:bg-gob-success text-white text-sm font-medium"
           >
             Copiar link
           </button>
         </div>
 
-        <p className="text-xs text-neutral-500 dark:text-neutral-500 text-center">
+        <p className="text-xs text-gob-text-muted  text-center">
           Podés ver y revocar todos tus links compartidos desde la libreta de {petName}.
         </p>
       </div>
@@ -88,7 +84,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
 
   return (
     <form action={formAction} className="space-y-5">
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-gob-text-gray ">
         Generá un link privado para que otra persona vea la libreta sanitaria de {petName}. Podés
         revocarlo en cualquier momento.
       </p>
@@ -110,13 +106,13 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
 
       {/* Duration radio */}
       <fieldset className="space-y-2">
-        <legend className="text-xs uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-500 mb-1.5">
+        <legend className="text-xs uppercase tracking-wider font-semibold text-gob-text-muted  mb-1.5">
           Vencimiento
         </legend>
         {DURATION_OPTIONS.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-3 rounded-xl border border-neutral-300 dark:border-neutral-700 px-4 py-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50 dark:has-[:checked]:border-emerald-500 dark:has-[:checked]:bg-emerald-950/30"
+            className="flex items-center gap-3 rounded-xl border border-gob-border-strong  px-4 py-3 cursor-pointer has-[:checked]:border-gob-success has-[:checked]:bg-gob-success/10  "
           >
             <input
               type="radio"
@@ -125,21 +121,17 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
               defaultChecked={opt.value === "7"}
               className="h-4 w-4"
             />
-            <span className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              {opt.label}
-            </span>
+            <span className="text-sm font-medium text-gob-text ">{opt.label}</span>
           </label>
         ))}
       </fieldset>
 
-      {state.status === "error" && (
-        <p className="text-sm text-red-600 dark:text-red-400">{state.message}</p>
-      )}
+      {state.status === "error" && <p className="text-sm text-gob-danger ">{state.message}</p>}
 
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium"
+        className="w-full px-4 py-3 rounded-lg bg-gob-success hover:bg-gob-success disabled:opacity-60 text-white font-medium"
       >
         {isPending ? "Generando…" : "Generar link"}
       </button>

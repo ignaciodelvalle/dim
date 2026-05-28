@@ -23,30 +23,26 @@ export default async function PropuestasInboxPage() {
   const past = proposals.filter((p) => p.proposal.status !== "pending");
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto pt-10 space-y-8">
         <header>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Propuestas de tránsito
-          </h1>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Propuestas de tránsito</h1>
+          <p className="mt-2 text-sm text-gob-text-gray ">
             Los refugios te proponen cuidar mascotas que tienen en custodia. Tenés 7 días para
             responder antes de que la propuesta expire.
           </p>
         </header>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">Activas</h2>
+          <h2 className="text-lg font-medium text-gob-text ">Activas</h2>
           {active.length === 0 && (
-            <p className="text-sm text-neutral-500 dark:text-neutral-500">
-              No tenés propuestas pendientes.
-            </p>
+            <p className="text-sm text-gob-text-muted ">No tenés propuestas pendientes.</p>
           )}
           <ul className="space-y-2">
             {active.map(({ proposal, pet, org }) => (
               <li
                 key={proposal.id}
-                className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                className="rounded-lg border border-gob-border-strong  p-4 hover:bg-gob-surface-alt  transition-colors"
               >
                 <Link
                   href={`/cuenta/transitos/propuestas/${proposal.publicToken}`}
@@ -54,13 +50,11 @@ export default async function PropuestasInboxPage() {
                 >
                   <div className="flex items-baseline justify-between">
                     <div>
-                      <p className="font-medium text-neutral-900 dark:text-neutral-50">
+                      <p className="font-medium text-gob-text ">
                         {org.displayName}{" "}
-                        <span className="text-neutral-500 dark:text-neutral-500 font-normal">
-                          → {pet.name}
-                        </span>
+                        <span className="text-gob-text-muted  font-normal">→ {pet.name}</span>
                       </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1">
+                      <p className="text-xs text-gob-text-muted  mt-1">
                         Especie: {pet.species}
                         {proposal.proposedDurationWeeks &&
                           ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
@@ -71,7 +65,7 @@ export default async function PropuestasInboxPage() {
                         })}
                       </p>
                     </div>
-                    <span className="text-xs text-neutral-400">→</span>
+                    <span className="text-xs text-gob-text-muted">→</span>
                   </div>
                 </Link>
               </li>
@@ -81,20 +75,15 @@ export default async function PropuestasInboxPage() {
 
         {past.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">Historial</h2>
+            <h2 className="text-lg font-medium text-gob-text ">Historial</h2>
             <ul className="space-y-2">
               {past.map(({ proposal, pet, org }) => (
-                <li
-                  key={proposal.id}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-sm"
-                >
-                  <p className="text-neutral-700 dark:text-neutral-300">
+                <li key={proposal.id} className="rounded-lg border border-gob-border  p-3 text-sm">
+                  <p className="text-gob-text-gray ">
                     {org.displayName} · {pet.name} ·{" "}
                     <span
                       className={
-                        proposal.status === "accepted"
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-neutral-500"
+                        proposal.status === "accepted" ? "text-gob-success " : "text-gob-text-muted"
                       }
                     >
                       {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??

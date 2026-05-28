@@ -67,9 +67,9 @@ function LibretaGroupSection({
 }) {
   return (
     <section>
-      <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50 mb-3">
+      <h2 className="text-lg font-semibold text-gob-text  mb-3">
         {LIBRETA_GROUP_LABELS[group]}{" "}
-        <span className="text-sm font-normal text-neutral-500">({events.length})</span>
+        <span className="text-sm font-normal text-gob-text-muted">({events.length})</span>
       </h2>
       <ul className="space-y-1">
         {events.map((event) => (
@@ -94,10 +94,10 @@ function LibretaEntry({ event, publicToken: _publicToken }: { event: Event; publ
   const senasaNorma = tipoEventoNorma(event.tipoEventoCode);
   const isEnoNotifiable = notificableEno(event.tipoEventoCode);
   return (
-    <li className="flex items-baseline justify-between gap-3 py-2 border-b border-neutral-100 dark:border-neutral-900 last:border-b-0">
+    <li className="flex items-baseline justify-between gap-3 py-2 border-b border-gob-border-strong  last:border-b-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <p className="text-sm font-medium text-gob-text ">
             {senasaLabel ?? summary.primary ?? event.eventType}
           </p>
           <ConfidenceBadge tier={confidenceTier} />
@@ -113,17 +113,11 @@ function LibretaEntry({ event, publicToken: _publicToken }: { event: Event; publ
         {senasaNorma && (
           <p className="text-[11px] text-gob-text-muted mt-0.5 font-mono">{senasaNorma}</p>
         )}
-        {summary.secondary && (
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">{summary.secondary}</p>
-        )}
-        {event.notes && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-1 italic">
-            {event.notes}
-          </p>
-        )}
+        {summary.secondary && <p className="text-xs text-gob-text-gray ">{summary.secondary}</p>}
+        {event.notes && <p className="text-xs text-gob-text-muted  mt-1 italic">{event.notes}</p>}
       </div>
       <time
-        className="text-xs text-neutral-500 dark:text-neutral-500 tabular-nums whitespace-nowrap"
+        className="text-xs text-gob-text-muted  tabular-nums whitespace-nowrap"
         dateTime={occurredIso}
       >
         {formatDate(event.occurredAt)}
@@ -156,11 +150,9 @@ function ChronologicalView({
 
 function EmptyLibreta() {
   return (
-    <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-10 text-center">
-      <p className="text-neutral-700 dark:text-neutral-300">
-        Todavía no hay registros en esta libreta.
-      </p>
-      <p className="text-sm text-neutral-500 dark:text-neutral-500 mt-1">
+    <div className="rounded-xl border border-dashed border-gob-border-strong  p-10 text-center">
+      <p className="text-gob-text-gray ">Todavía no hay registros en esta libreta.</p>
+      <p className="text-sm text-gob-text-muted  mt-1">
         Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá.
       </p>
     </div>

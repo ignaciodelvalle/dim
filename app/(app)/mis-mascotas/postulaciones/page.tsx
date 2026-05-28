@@ -176,26 +176,23 @@ export default async function MisPostulacionesPage({
     }));
 
   return (
-    <main className="min-h-screen bg-white dark:bg-neutral-950">
+    <main className="min-h-screen bg-white ">
       <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
-        <Link
-          href="/mis-mascotas"
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
-        >
+        <Link href="/mis-mascotas" className="text-sm text-gob-text-muted hover:text-gob-text ">
           ← Mis mascotas
         </Link>
 
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Mis postulaciones para adoptar
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Acá ves el estado de tus postulaciones. El refugio te contacta por email cuando avanza.
           </p>
         </header>
 
         {justSubmittedId && (
-          <output className="block rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 p-4 text-sm text-emerald-900 dark:text-emerald-200">
+          <output className="block rounded-lg border border-gob-success bg-gob-success/10   p-4 text-sm text-gob-success ">
             ¡Postulación enviada! El refugio la recibió y te va a contactar por mail. Mientras tanto
             podés seguir viendo otras mascotas en{" "}
             <Link href="/adoptar" className="underline">
@@ -206,13 +203,13 @@ export default async function MisPostulacionesPage({
         )}
 
         {applications.length === 0 ? (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+          <div className="rounded-lg border border-gob-border  px-6 py-10 text-center space-y-2">
+            <p className="text-sm font-medium text-gob-text ">
               Todavía no te postulaste para adoptar.
             </p>
             <Link
               href="/adoptar"
-              className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+              className="inline-block px-4 py-2 rounded-lg bg-gob-success text-white text-sm font-medium hover:bg-gob-success"
             >
               Ver mascotas en adopción
             </Link>
@@ -237,21 +234,15 @@ function ApplicationCard({ app, highlight }: { app: ApplicationRow; highlight: b
   return (
     <li
       className={`rounded-lg border p-4 space-y-2 ${
-        highlight
-          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700"
-          : "border-neutral-200 dark:border-neutral-800"
+        highlight ? "border-gob-success bg-gob-success/10  " : "border-gob-border "
       }`}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
-          {app.petName}
-        </h2>
+        <h2 className="text-base font-semibold text-gob-text ">{app.petName}</h2>
         <StatusBadge status={app.status} />
       </div>
-      <p className="text-xs text-neutral-600 dark:text-neutral-400">
-        Refugio: {app.orgDisplayName}
-      </p>
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-gob-text-gray ">Refugio: {app.orgDisplayName}</p>
+      <p className="text-xs text-gob-text-muted">
         Enviada el {app.submittedAt.toLocaleDateString("es-AR")}
         {app.decisionAt && (
           <>
@@ -268,23 +259,23 @@ function StatusBadge({ status }: { status: ApplicationStatus }) {
   const map: Record<ApplicationStatus, { label: string; cls: string }> = {
     pending: {
       label: "En revisión",
-      cls: "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-300",
+      cls: "border-gob-warning text-gob-warning-text  ",
     },
     approved: {
       label: "Aprobada",
-      cls: "border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300",
+      cls: "border-gob-success text-gob-success  ",
     },
     finalized_to_me: {
       label: "¡Finalizada!",
-      cls: "border-emerald-500 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200",
+      cls: "border-gob-success bg-gob-success/10 text-gob-success   ",
     },
     auto_rejected: {
       label: "Cerrada",
-      cls: "border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400",
+      cls: "border-gob-border-strong text-gob-text-gray  ",
     },
     rejected: {
       label: "No avanzó",
-      cls: "border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400",
+      cls: "border-gob-border-strong text-gob-text-gray  ",
     },
   };
   const { label, cls } = map[status];
@@ -296,7 +287,7 @@ function StatusBadge({ status }: { status: ApplicationStatus }) {
 function StatusBody({ status, app }: { status: ApplicationStatus; app: ApplicationRow }) {
   if (status === "pending") {
     return (
-      <p className="text-xs text-neutral-700 dark:text-neutral-300">
+      <p className="text-xs text-gob-text-gray ">
         El refugio está revisando tu postulación.
         {app.stillListed && (
           <>
@@ -313,14 +304,14 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "approved") {
     return (
-      <p className="text-xs text-emerald-800 dark:text-emerald-300">
+      <p className="text-xs text-gob-success ">
         El refugio aprobó tu postulación. Coordinan los próximos pasos por email.
       </p>
     );
   }
   if (status === "finalized_to_me") {
     return (
-      <p className="text-xs text-emerald-800 dark:text-emerald-300">
+      <p className="text-xs text-gob-success ">
         ¡Adoptaste a {app.petName}! Mirá su libreta digital en{" "}
         <Link href="/mis-mascotas" className="underline">
           Mis mascotas
@@ -331,7 +322,7 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "auto_rejected") {
     return (
-      <p className="text-xs text-neutral-700 dark:text-neutral-300">
+      <p className="text-xs text-gob-text-gray ">
         {app.petName} encontró hogar con otra postulación. Sabemos que es decepcionante. Mirá{" "}
         <Link href={`/adoptar?org=${app.orgPublicToken}`} className="underline">
           otras mascotas de {app.orgDisplayName}
@@ -345,7 +336,7 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
     );
   }
   return (
-    <p className="text-xs text-neutral-700 dark:text-neutral-300">
+    <p className="text-xs text-gob-text-gray ">
       El refugio no avanzó con esta postulación.{" "}
       <Link href="/adoptar" className="underline">
         Ver otras en adopción

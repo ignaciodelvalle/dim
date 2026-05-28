@@ -58,10 +58,10 @@ export default async function GobReglasPage() {
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="space-y-1">
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold text-gob-text ">
             Reglas que aplican a tu jurisdicción
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Vista de solo lectura. La administración de reglas la hace el admin nacional desde{" "}
             <Link href="/admin/jurisdicciones" className="underline underline-offset-4">
               /admin/jurisdicciones
@@ -73,26 +73,24 @@ export default async function GobReglasPage() {
         {groups.map((g, idx) => (
           <section
             key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}
-            className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden"
+            className="rounded-2xl border border-gob-border  overflow-hidden"
           >
-            <div className="px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-              <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+            <div className="px-4 py-3 bg-gob-surface-alt  border-b border-gob-border ">
+              <h2 className="text-sm font-semibold text-gob-text ">
                 AR · {g.scope.province ?? "(nivel país)"} ·{" "}
                 {g.scope.locality ?? "(toda la provincia)"}
               </h2>
             </div>
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            <ul className="divide-y divide-gob-border ">
               {g.resolved.map(({ ruleType, payload, source }) => (
                 <li key={ruleType} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium text-neutral-900 dark:text-neutral-50 text-sm">
+                    <p className="font-medium text-gob-text  text-sm">
                       {RULE_TYPE_LABEL[ruleType]}
                     </p>
-                    <span className="text-xs text-neutral-500 dark:text-neutral-500">
-                      {SOURCE_LABEL[source]}
-                    </span>
+                    <span className="text-xs text-gob-text-muted ">{SOURCE_LABEL[source]}</span>
                   </div>
-                  <pre className="text-xs bg-neutral-50 dark:bg-neutral-900 rounded p-3 overflow-x-auto">
+                  <pre className="text-xs bg-gob-surface-alt  rounded p-3 overflow-x-auto">
                     {JSON.stringify(payload, null, 2)}
                   </pre>
                 </li>

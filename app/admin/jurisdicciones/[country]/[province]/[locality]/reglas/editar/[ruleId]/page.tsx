@@ -53,15 +53,13 @@ export default async function EditRulePage({
       <div className="max-w-2xl mx-auto space-y-6">
         <Link
           href={`/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`}
-          className="text-sm text-neutral-500"
+          className="text-sm text-gob-text-muted"
         >
           ← Volver
         </Link>
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Editar regla
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Editar regla</h1>
+          <p className="text-sm text-gob-text-gray ">
             {country} · {province ?? "(nivel país)"} · {locality ?? "(toda la provincia)"}
           </p>
         </header>

@@ -20,18 +20,16 @@ const ROLE_LABELS: Record<string, string> = {
 function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
   const roleLabel = ROLE_LABELS[role] ?? role;
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-4">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver al perfil
         </Link>
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-          Perro de asistencia · {pet.name}
-        </h1>
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+        <h1 className="text-2xl font-semibold text-gob-text ">Perro de asistencia · {pet.name}</h1>
+        <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 text-sm text-gob-warning-text  space-y-2">
           <p className="font-medium">
             La credencial de perro de asistencia (Ley 26.858) se registra solo bajo dueño legal
             permanente.
@@ -56,11 +54,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  vigente: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200",
-  pendiente_verificacion: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200",
-  en_entrenamiento: "bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300",
-  vencida: "bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-200",
-  revocada: "bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-200",
+  vigente: "bg-gob-success/10  text-gob-success ",
+  pendiente_verificacion: "bg-gob-warning/10  text-gob-warning-text ",
+  en_entrenamiento: "bg-gob-surface-alt  text-gob-text-gray ",
+  vencida: "bg-gob-danger/10  text-gob-danger ",
+  revocada: "bg-gob-danger/10  text-gob-danger ",
 };
 
 export default async function AsistenciaPage({
@@ -103,20 +101,20 @@ export default async function AsistenciaPage({
     .limit(1);
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-6">
         <Link
           href={`/mis-mascotas/${publicToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver al perfil
         </Link>
 
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-2xl font-semibold text-gob-text ">
             Perro de asistencia · {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Marco legal: <strong>Ley 26.858</strong> (acceso, deambulación y permanencia) ·
             Reglamentación: Decreto 792/2019 · Registro: <strong>RUPGA</strong> (ANDIS, Res.
             2588/2022).
@@ -124,18 +122,16 @@ export default async function AsistenciaPage({
         </header>
 
         {pet.species !== "dog" && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-100">
+          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-sm text-gob-warning-text ">
             Ley 26.858 reconoce este derecho de acceso solo para perros. Esta sección no aplica a{" "}
             <strong>{pet.species}</strong>.
           </div>
         )}
 
         {serviceDog && (
-          <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-2">
+          <div className="rounded-lg border border-gob-border-strong  p-4 space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                Estado de la credencial
-              </p>
+              <p className="text-sm font-medium text-gob-text ">Estado de la credencial</p>
               <span
                 className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                   STATUS_TONE[serviceDog.credentialStatus] ?? ""
@@ -144,7 +140,7 @@ export default async function AsistenciaPage({
                 {STATUS_LABELS[serviceDog.credentialStatus] ?? serviceDog.credentialStatus}
               </span>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">
+            <p className="text-xs text-gob-text-muted ">
               {serviceDog.inService ? "En servicio activo." : "Retirado del servicio."} Visibilidad
               pública del banner:{" "}
               <strong>
@@ -153,12 +149,12 @@ export default async function AsistenciaPage({
               .
             </p>
             {serviceDog.credentialStatus === "revocada" && serviceDog.revocationReason && (
-              <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+              <p className="text-xs text-gob-danger  mt-1">
                 Motivo de revocación: {serviceDog.revocationReason}
               </p>
             )}
             {serviceDog.credentialStatus === "vigente" && (
-              <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+              <p className="text-xs text-gob-success  mt-1">
                 Tu banner público está activo cuando elijas mostrarlo. Lo podés presentar en la
                 puerta de un local, transporte o servicio público.
               </p>
@@ -166,7 +162,7 @@ export default async function AsistenciaPage({
           </div>
         )}
 
-        <section className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 p-4 text-xs text-blue-900 dark:text-blue-100 space-y-1">
+        <section className="rounded-lg border border-gob-info bg-gob-info/10   p-4 text-xs text-gob-azul-link  space-y-1">
           <p className="font-medium">Sobre tu privacidad (Ley 25.326)</p>
           <p>
             Registrar a tu perro como de asistencia revela información sobre tu discapacidad, que es

@@ -19,16 +19,16 @@ export default async function AdoptarOrgPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("adoption.listing.manage")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Para publicar adopciones necesitás el permiso{" "}
             <code className="text-xs">adoption.listing.manage</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al listado
           </Link>
@@ -81,31 +81,31 @@ export default async function AdoptarOrgPage({
   const isPaused = pet.adoptionListedAt !== null && pet.adoptionListingPausedAt !== null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-6">
         <Link
           href={`/org/${orgToken}/mascotas`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver al listado
         </Link>
 
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
             {organization.displayName}
           </p>
-          <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold text-gob-text ">
             Publicar en adopción · {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Esto controla la aparición de {pet.name} en <code className="text-xs">/adoptar</code> +
             ficha pública.
           </p>
         </header>
 
-        <section className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-2">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">Estado actual</p>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        <section className="rounded-lg border border-gob-border-strong  p-4 space-y-2">
+          <p className="text-sm font-medium text-gob-text ">Estado actual</p>
+          <p className="text-sm text-gob-text-gray ">
             {isPublished
               ? "Publicada y visible en /adoptar."
               : isPaused
@@ -115,16 +115,14 @@ export default async function AdoptarOrgPage({
         </section>
 
         {!canPublish && (
-          <section className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 space-y-2">
-            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-              Bloqueos para publicar
-            </p>
-            <ul className="text-xs text-amber-900 dark:text-amber-100 space-y-1 list-disc pl-5">
+          <section className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
+            <p className="text-sm font-medium text-gob-warning-text ">Bloqueos para publicar</p>
+            <ul className="text-xs text-gob-warning-text  space-y-1 list-disc pl-5">
               {blockingReasons.map((r) => (
                 <li key={r}>{r}</li>
               ))}
             </ul>
-            <p className="text-xs text-amber-800 dark:text-amber-200 pt-1">
+            <p className="text-xs text-gob-warning-text  pt-1">
               Podés igual editar la historia y los requisitos para tenerlos listos cuando la mascota
               califique.
             </p>

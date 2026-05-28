@@ -81,23 +81,21 @@ export function ProposeReturnForm({
       >
         {/* Step 1 — Identidad */}
         <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4">
-            <p className="text-xs uppercase tracking-wider text-neutral-500">Vas a devolver</p>
-            <p className="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-              {petName ?? "Esta mascota"}
-            </p>
-            <p className="mt-2 text-xs text-neutral-500">
+          <div className="rounded-lg border border-gob-border  p-4">
+            <p className="text-xs uppercase tracking-wider text-gob-text-muted">Vas a devolver</p>
+            <p className="mt-1 text-lg font-semibold text-gob-text ">{petName ?? "Esta mascota"}</p>
+            <p className="mt-2 text-xs text-gob-text-muted">
               Token: <span className="font-mono">{petPublicToken}</span>
             </p>
           </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Confirmá que esta es la mascota correcta. Si tenés acceso al chip o foto del dueño, te
             recomendamos hacer el cross-check antes de continuar.
           </p>
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+            className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success"
           >
             Continuar
           </button>
@@ -105,18 +103,18 @@ export function ProposeReturnForm({
 
         {/* Step 2 — Entrega */}
         <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
-          <p className="text-sm text-neutral-700 dark:text-neutral-300">
+          <p className="text-sm text-gob-text-gray ">
             Coordiná lugar y momento de entrega con el dueño antes de enviar la propuesta. Podés
             anotar detalles abajo (opcional) — el dueño los ve cuando recibe la notificación.
           </p>
-          <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-100">
+          <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-3 text-xs text-gob-warning-text ">
             Sugerencia: si no es posible reunirse, dejá un teléfono o canal de contacto en las notas
             de la próxima pantalla.
           </div>
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+            className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success"
           >
             Continuar
           </button>
@@ -125,10 +123,7 @@ export function ProposeReturnForm({
         {/* Step 3 — Confirmar + notes */}
         <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
           <div className="space-y-1">
-            <label
-              htmlFor="notes"
-              className="block text-sm font-medium text-neutral-700 dark:text-neutral-300"
-            >
+            <label htmlFor="notes" className="block text-sm font-medium text-gob-text-gray ">
               Notas para el dueño (opcional)
             </label>
             <textarea
@@ -137,12 +132,12 @@ export function ProposeReturnForm({
               rows={4}
               maxLength={1000}
               placeholder="Ej: El animal está en buen estado, coordinamos horario de búsqueda…"
-              className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500 resize-y"
+              className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm placeholder:text-gob-text-muted focus:outline-none focus:ring-2 focus:ring-gob-primary resize-y"
             />
           </div>
 
           {state.error && (
-            <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+            <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
               {state.error}
             </p>
           )}
@@ -150,7 +145,7 @@ export function ProposeReturnForm({
           <button
             type="submit"
             disabled={isPending}
-            className="w-full px-4 py-3 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+            className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
           >
             {isPending ? "Enviando…" : "Confirmar propuesta"}
           </button>

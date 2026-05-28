@@ -25,7 +25,7 @@ export function EndFosterForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <p className="text-sm text-neutral-700 dark:text-neutral-300">
+      <p className="text-sm text-gob-text-gray ">
         Vas a cerrar el tránsito{fosterName ? ` de ${fosterName}` : ""}. El animal vuelve a figurar
         solo en custodia del refugio. Esta acción queda en el historial como evento inmutable.
       </p>
@@ -53,13 +53,13 @@ export function EndFosterForm({
           name="reason"
           rows={3}
           maxLength={500}
-          className="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+          className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
           placeholder="Notas para el historial. El tránsito recibe el mensaje."
         />
       </label>
 
       {state.error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
           {state.error}
         </p>
       )}
@@ -67,7 +67,7 @@ export function EndFosterForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+        className="px-4 py-2 rounded bg-gob-danger text-white hover:bg-gob-danger disabled:opacity-50"
       >
         {isPending ? "Cerrando…" : "Cerrar tránsito"}
       </button>

@@ -73,18 +73,18 @@ export function MatchConfirmationCard({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-4 space-y-1">
-        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+      <div className="rounded-xl border border-gob-warning bg-gob-warning/10   p-4 space-y-1">
+        <p className="text-sm font-semibold text-gob-warning-text ">
           Posible coincidencia detectada
         </p>
-        <p className="text-sm text-amber-700 dark:text-amber-400">
+        <p className="text-sm text-gob-warning-text ">
           El microchip ya figura en MiMAR asociado a la siguiente mascota.
         </p>
       </div>
 
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <div className="rounded-xl border border-gob-border  overflow-hidden">
         {petPhotoUrl && (
-          <div className="aspect-video overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+          <div className="aspect-video overflow-hidden bg-gob-surface-alt ">
             <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
           </div>
         )}
@@ -92,31 +92,29 @@ export function MatchConfirmationCard({
         <div className="p-4 space-y-3">
           <div>
             <h2 className="text-2xl font-semibold">{petName}</h2>
-            {speciesLine && (
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">{speciesLine}</p>
-            )}
-            {details && <p className="text-sm text-neutral-500 dark:text-neutral-500">{details}</p>}
+            {speciesLine && <p className="text-sm text-gob-text-gray ">{speciesLine}</p>}
+            {details && <p className="text-sm text-gob-text-muted ">{details}</p>}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gob-danger/10 text-gob-danger  ">
               Perdida
             </span>
           </div>
 
           {ownerFirstName && (
             <p className="text-sm">
-              <span className="text-neutral-500">Dueno/a: </span>
+              <span className="text-gob-text-muted">Dueno/a: </span>
               <span className="font-medium">{ownerFirstName}</span>
             </p>
           )}
 
           {lastLocationText && (
             <p className="text-sm">
-              <span className="text-neutral-500">Ultima ubicacion conocida: </span>
+              <span className="text-gob-text-muted">Ultima ubicacion conocida: </span>
               <span>{lastLocationText}</span>
               {lastLocationDate && (
-                <span className="text-neutral-400 ml-1">
+                <span className="text-gob-text-muted ml-1">
                   ({new Date(lastLocationDate).toLocaleDateString("es-AR")})
                 </span>
               )}
@@ -126,7 +124,7 @@ export function MatchConfirmationCard({
       </div>
 
       {error && (
-        <p className="text-sm rounded border border-red-300 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
           {error}
         </p>
       )}
@@ -136,7 +134,7 @@ export function MatchConfirmationCard({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 px-4 py-3 rounded-lg bg-green-700 text-white font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
         </button>
@@ -144,13 +142,13 @@ export function MatchConfirmationCard({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 px-4 py-3 rounded-lg border border-amber-400 bg-amber-50 text-amber-900 font-medium hover:bg-amber-100 disabled:opacity-50 dark:border-amber-600 dark:bg-amber-950/20 dark:text-amber-200 dark:hover:bg-amber-950/40 transition-colors"
+          className="flex-1 px-4 py-3 rounded-lg border border-gob-warning bg-gob-warning/10 text-gob-warning-text font-medium hover:bg-gob-warning/10 disabled:opacity-50     transition-colors"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>
       </div>
 
-      <p className="text-xs text-neutral-500 dark:text-neutral-500">
+      <p className="text-xs text-gob-text-muted ">
         Si es la misma mascota, se notificara al dueno/a para coordinar la devolucion. Si no es la
         misma, esta accion queda registrada y podes continuar el ingreso normalmente.
       </p>

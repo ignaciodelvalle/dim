@@ -20,23 +20,23 @@ const ROLE_PRIORITY: Record<string, number> = {
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   owner: {
     label: "Dueño",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    className: "bg-gob-success/10 text-gob-success  ",
   },
   shelter_custody: {
     label: "En custodia",
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    className: "bg-gob-warning/10 text-gob-warning-text  ",
   },
   foster: {
     label: "Tránsito",
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+    className: "bg-gob-info/10 text-gob-azul-link  ",
   },
   co_owner: {
     label: "Co-dueño",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text  ",
   },
   caretaker: {
     label: "Caretaker",
-    className: "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-300",
+    className: "bg-gob-surface-alt text-gob-text  ",
   },
 };
 
@@ -77,16 +77,16 @@ export default async function OrgMascotasPage({
 
   if (!canRead) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950 flex items-center justify-center">
+      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-neutral-700 dark:text-neutral-300">
+          <p className="text-gob-text-gray ">
             Para ver el listado de animales necesitás el permiso{" "}
             <code className="text-xs">pet.read_held</code>.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
           >
             Volver al panel
           </Link>
@@ -180,15 +180,15 @@ export default async function OrgMascotasPage({
   const recentlyTransferred = sp.transferido ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-wider text-neutral-500">
+            <p className="text-xs uppercase tracking-wider text-gob-text-muted">
               {organization.displayName}
             </p>
             <h1 className="text-3xl font-semibold">Animales en custodia</h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               {cards.length === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."
                 : `${cards.length} animal${cards.length === 1 ? "" : "es"} bajo custodia activa.`}
@@ -197,7 +197,7 @@ export default async function OrgMascotasPage({
           {canIntake && (
             <Link
               href={`/org/${orgToken}/intake`}
-              className="px-4 py-2 rounded bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm"
+              className="px-4 py-2 rounded bg-gob-primary text-white   text-sm"
             >
               Registrar ingreso
             </Link>
@@ -205,28 +205,28 @@ export default async function OrgMascotasPage({
         </header>
 
         {recentlyCreated && (
-          <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
             Ingreso registrado. Token público: <code>{recentlyCreated}</code>.
           </p>
         )}
         {recentlyFostered && (
-          <p className="text-sm rounded border border-blue-300 bg-blue-50 px-3 py-2 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+          <p className="text-sm rounded border border-gob-info bg-gob-info/10 px-3 py-2 text-gob-azul-link   ">
             Tránsito asignado para <code>{recentlyFostered}</code>.
           </p>
         )}
         {recentlyFosterEnded && (
-          <p className="text-sm rounded border border-neutral-300 bg-neutral-50 px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+          <p className="text-sm rounded border border-gob-border-strong bg-gob-surface-alt px-3 py-2 text-gob-text   ">
             Tránsito cerrado para <code>{recentlyFosterEnded}</code>.
           </p>
         )}
         {recentlyTransferred && (
-          <p className="text-sm rounded border border-neutral-300 bg-neutral-50 px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+          <p className="text-sm rounded border border-gob-border-strong bg-gob-surface-alt px-3 py-2 text-gob-text   ">
             Custodia transferida para <code>{recentlyTransferred}</code>. El animal sale del listado
             y aparece en el destino.
           </p>
         )}
         {recentlyAdopted && (
-          <p className="text-sm rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
             Adopción finalizada para <code>{recentlyAdopted}</code>. El animal pasa a un nuevo dueño
             y sale del listado de custodia.
           </p>
@@ -242,17 +242,14 @@ export default async function OrgMascotasPage({
             const showFosterCta =
               canAssignFoster && ownershipRole === "shelter_custody" && !hasFoster;
             return (
-              <li
-                key={pet.id}
-                className="rounded border border-neutral-200 dark:border-neutral-800 p-3 space-y-2"
-              >
+              <li key={pet.id} className="rounded border border-gob-border  p-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <Link
                     href={`/mis-mascotas/${pet.publicToken}`}
                     className="flex-1 min-w-0 hover:underline"
                   >
                     <p className="text-base font-semibold">{pet.name}</p>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                    <p className="text-xs text-gob-text-gray ">
                       {speciesLabel(pet.species)}
                       {pet.breed ? ` · ${pet.breed}` : ""}
                       {pet.color ? ` · ${pet.color}` : ""}
@@ -271,13 +268,13 @@ export default async function OrgMascotasPage({
                     )}
                   </div>
                 </div>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-gob-text-muted">
                   {ageInfo} · ingreso{" "}
                   {new Date(startedAt).toLocaleDateString("es-AR", {
                     dateStyle: "medium",
                   })}
                 </p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-gob-text-muted">
                   <code>{pet.publicToken}</code>
                 </p>
                 {(() => {
@@ -302,7 +299,7 @@ export default async function OrgMascotasPage({
                       {showFosterCta && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/foster`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           Asignar tránsito
                         </Link>
@@ -310,7 +307,7 @@ export default async function OrgMascotasPage({
                       {canEndFoster && hasFoster && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/foster-fin`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           Cerrar tránsito
                         </Link>
@@ -318,7 +315,7 @@ export default async function OrgMascotasPage({
                       {canIntake && ownershipRole === "shelter_custody" && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           {pet.adoptionEligible === true
                             ? "Apta ✓"
@@ -330,7 +327,7 @@ export default async function OrgMascotasPage({
                       {canManageAdoptionListing && ownershipRole === "shelter_custody" && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoptar`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           {pet.adoptionListedAt && !pet.adoptionListingPausedAt
                             ? "Publicada ✓"
@@ -342,7 +339,7 @@ export default async function OrgMascotasPage({
                       {canFinalizeAdoption && ownershipRole === "shelter_custody" && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
-                          className="inline-block text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                          className="inline-block text-xs px-2 py-1 rounded bg-gob-success text-white hover:bg-gob-success"
                         >
                           Finalizar adopción
                         </Link>
@@ -350,7 +347,7 @@ export default async function OrgMascotasPage({
                       {showReturnToOwnerCta && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/devolver-al-dueno`}
-                          className="inline-block text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                          className="inline-block text-xs px-2 py-1 rounded bg-gob-info text-white hover:bg-gob-info"
                         >
                           Devolver al dueno
                         </Link>
@@ -358,7 +355,7 @@ export default async function OrgMascotasPage({
                       {showTransferCta && (
                         <Link
                           href={`/org/${orgToken}/mascotas/${pet.publicToken}/transfer`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           Transferir
                         </Link>
@@ -371,11 +368,8 @@ export default async function OrgMascotasPage({
           })}
         </ul>
 
-        <footer className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <Link
-            href={`/org/${orgToken}`}
-            className="text-sm text-neutral-600 underline dark:text-neutral-400"
-          >
+        <footer className="pt-4 border-t border-gob-border ">
+          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
             ← Volver al panel
           </Link>
         </footer>

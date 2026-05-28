@@ -28,7 +28,7 @@ interface Props {
 export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", height = 70 }: Props) {
   if (samples.length < 2) {
     return (
-      <section className="rounded-xl border border-dashed border-neutral-300 p-4 text-center text-sm text-neutral-500 dark:border-neutral-700">
+      <section className="rounded-xl border border-dashed border-gob-border-strong p-4 text-center text-sm text-gob-text-muted ">
         Cargá al menos dos pesos para ver la curva.
       </section>
     );
@@ -58,16 +58,16 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
       : `${trendPct > 0 ? "↑" : "↓"} ${Math.abs(trendPct).toFixed(0)}%`;
   const trendColor =
     Math.abs(trendPct) < 0.5
-      ? "text-neutral-500 dark:text-neutral-400"
+      ? "text-gob-text-muted "
       : trendPct > 0
-        ? "text-emerald-700 dark:text-emerald-300"
-        : "text-amber-700 dark:text-amber-300";
+        ? "text-gob-success "
+        : "text-gob-warning-text ";
 
   return (
-    <section aria-label={title} className="rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900">
+    <section aria-label={title} className="rounded-xl bg-gob-surface-alt p-3 ">
       <header className="mb-1 flex items-baseline justify-between text-xs">
-        <span className="text-neutral-500 dark:text-neutral-400">{title}</span>
-        <span className="font-semibold text-neutral-900 dark:text-neutral-50">
+        <span className="text-gob-text-muted ">{title}</span>
+        <span className="font-semibold text-gob-text ">
           {last.kg.toLocaleString("es-AR", { maximumFractionDigits: 2 })} kg{" "}
           <span className={`ml-1 font-medium ${trendColor}`}>{trendLabel}</span>
         </span>
@@ -96,7 +96,7 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
           fill="#0F6E56"
         />
       </svg>
-      <footer className="mt-1 flex items-baseline justify-between text-[10px] text-neutral-400 dark:text-neutral-500">
+      <footer className="mt-1 flex items-baseline justify-between text-[10px] text-gob-text-muted ">
         <span>{first.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
         <span>{last.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
       </footer>

@@ -300,7 +300,7 @@ export default async function AdoptarFichaPage({
                 .map((code: PermanentCondition) => (
                   <li
                     key={code}
-                    className="text-sm font-medium px-3 py-1 rounded-full bg-indigo-100 text-indigo-900"
+                    className="text-sm font-medium px-3 py-1 rounded-full bg-gob-primary/10 text-gob-primary"
                   >
                     {permanentConditionLabel(code)}
                   </li>

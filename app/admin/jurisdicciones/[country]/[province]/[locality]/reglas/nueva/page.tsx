@@ -37,11 +37,11 @@ export default async function NewRulePage({
         <div className="max-w-2xl mx-auto space-y-4">
           <Link
             href={`/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`}
-            className="text-sm text-neutral-500"
+            className="text-sm text-gob-text-muted"
           >
             ← Volver
           </Link>
-          <p className="text-sm rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
+          <p className="text-sm rounded-lg border border-gob-warning bg-gob-warning/10 p-4 text-gob-warning-text">
             Falta ?ruleType= en la URL.
           </p>
         </div>
@@ -54,15 +54,13 @@ export default async function NewRulePage({
       <div className="max-w-2xl mx-auto space-y-6">
         <Link
           href={`/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`}
-          className="text-sm text-neutral-500"
+          className="text-sm text-gob-text-muted"
         >
           ← Volver
         </Link>
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Nueva regla
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Nueva regla</h1>
+          <p className="text-sm text-gob-text-gray ">
             {country} · {province ?? "(nivel país)"} · {locality ?? "(toda la provincia)"}
           </p>
         </header>

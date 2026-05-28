@@ -169,7 +169,7 @@ export function LocalityPickerAcross({
       <input type="hidden" name={name} value={localityNameValue} />
       <input type="hidden" name={`${name}IndecId`} value={indecIdValue} />
       {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-lg">
+        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gob-border  bg-white  shadow-lg">
           {results.map((r, i) => (
             <li key={r.indecId ?? `${r.provinceCode}-${r.localitySlug}-${r.departmentName ?? "x"}`}>
               <button
@@ -179,13 +179,11 @@ export function LocalityPickerAcross({
                   handleSelect(r);
                 }}
                 className={`block w-full text-left px-3 py-2 ${
-                  i === activeIdx
-                    ? "bg-neutral-100 dark:bg-neutral-800"
-                    : "hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                  i === activeIdx ? "bg-gob-surface-alt " : "hover:bg-gob-surface-alt "
                 }`}
               >
-                <p className="text-sm text-neutral-900 dark:text-neutral-50">{r.localityName}</p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                <p className="text-sm text-gob-text ">{r.localityName}</p>
+                <p className="text-xs text-gob-text-muted ">
                   {r.departmentName ? `${r.departmentName}, ` : ""}
                   {r.provinceName}
                 </p>
@@ -195,12 +193,12 @@ export function LocalityPickerAcross({
         </ul>
       )}
       {pending && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gob-text-muted">
           …
         </span>
       )}
       {showNoResults && (
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+        <p className="text-xs text-gob-text-muted  mt-1">
           Sin resultados.{" "}
           <a
             href={`mailto:ignaciodelvalle2014@gmail.com?subject=MiMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
@@ -211,7 +209,7 @@ export function LocalityPickerAcross({
         </p>
       )}
       {errored && (
-        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+        <p className="text-xs text-gob-warning-text  mt-1">
           No pudimos buscar localidades ahora. Probá de nuevo en un momento.
         </p>
       )}

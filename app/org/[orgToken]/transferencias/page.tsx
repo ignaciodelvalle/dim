@@ -62,67 +62,61 @@ export default async function OrgTransferenciasSalientesPage({
   const handshakeRows = rows;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto pt-10 space-y-6">
         <Link
           href={`/org/${orgToken}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="text-sm text-gob-text-muted hover:text-gob-text "
         >
           ← Volver al panel
         </Link>
 
         <header className="flex items-baseline justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
               Transferencias salientes
             </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               Propuestas que {organization.displayName} envió a otras organizaciones.
             </p>
           </div>
           <Link
             href={`/org/${orgToken}/transferencias/nueva`}
-            className="inline-flex items-center rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
+            className="inline-flex items-center rounded-md bg-gob-success px-3 py-1.5 text-sm font-medium text-white hover:bg-gob-success"
           >
             + Nueva propuesta
           </Link>
         </header>
 
-        <nav className="text-xs text-neutral-500 dark:text-neutral-400 flex gap-3">
-          <span className="font-medium text-neutral-900 dark:text-neutral-50">Salientes</span>
-          <Link
-            href={`/org/${orgToken}/transferencias/recibidas`}
-            className="hover:text-neutral-900 dark:hover:text-neutral-50"
-          >
+        <nav className="text-xs text-gob-text-muted  flex gap-3">
+          <span className="font-medium text-gob-text ">Salientes</span>
+          <Link href={`/org/${orgToken}/transferencias/recibidas`} className="hover:text-gob-text ">
             Entrantes →
           </Link>
         </nav>
 
         {handshakeRows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center text-sm text-neutral-500">
+          <p className="rounded-lg border border-dashed border-gob-border-strong  p-8 text-center text-sm text-gob-text-muted">
             Todavía no propusiste ninguna transferencia.
           </p>
         ) : (
           <ul className="space-y-3">
             {handshakeRows.map((r) => (
-              <li
-                key={r.caseId}
-                className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2"
-              >
+              <li key={r.caseId} className="rounded-lg border border-gob-border  p-4 space-y-2">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                    <p className="text-sm font-medium text-gob-text ">
                       {r.petName ?? "(sin pet)"}{" "}
-                      <span className="font-mono text-xs text-neutral-400 dark:text-neutral-600">
+                      <span className="font-mono text-xs text-gob-text-muted ">
                         · {r.publicCode}
                       </span>
                     </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                    <p className="text-xs text-gob-text-muted ">
                       Abierta el {formatDate(r.openedAt)}
                       {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
                     </p>
                   </div>
-                  <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                  <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-gob-surface-alt text-gob-text-gray  ">
                     {r.status === "closed" && r.closedReason
                       ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
                       : (STATUS_LABEL[r.status] ?? r.status)}
@@ -130,7 +124,7 @@ export default async function OrgTransferenciasSalientesPage({
                 </div>
                 <Link
                   href={`/casos/${r.publicCode}`}
-                  className="inline-block text-xs underline text-neutral-700 dark:text-neutral-300 hover:text-neutral-900"
+                  className="inline-block text-xs underline text-gob-text-gray  hover:text-gob-text"
                 >
                   Ver caso →
                 </Link>

@@ -61,16 +61,16 @@ export function Tier2MedicalView({
   return (
     <section
       aria-labelledby="tier2-h"
-      className="rounded-2xl border-2 border-emerald-500 dark:border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/30 p-4 space-y-4"
+      className="rounded-2xl border-2 border-gob-success  bg-gob-success/10/70  p-4 space-y-4"
     >
       <header className="space-y-0.5">
-        <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-emerald-700 dark:text-emerald-400">
+        <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-gob-success ">
           Información médica · habilitada por el dueño
         </p>
-        <h2 id="tier2-h" className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
+        <h2 id="tier2-h" className="text-base font-semibold text-gob-text ">
           Resumen médico vigente
         </h2>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="text-xs text-gob-text-gray ">
           Visible hasta el <strong>{untilLabel}</strong>.
         </p>
       </header>
@@ -98,7 +98,7 @@ export function Tier2MedicalView({
 
       {activeMedications.length > 0 && (
         <Block label="Medicación activa">
-          <ul className="text-sm text-neutral-900 dark:text-neutral-100 space-y-0.5">
+          <ul className="text-sm text-gob-text  space-y-0.5">
             {activeMedications.map((drug) => (
               <li key={drug}>· {drug}</li>
             ))}
@@ -108,13 +108,11 @@ export function Tier2MedicalView({
 
       {conditionLabels.length > 0 && (
         <Block label="Condiciones permanentes">
-          <p className="text-sm text-neutral-900 dark:text-neutral-100">
-            {conditionLabels.join(" · ")}
-          </p>
+          <p className="text-sm text-gob-text ">{conditionLabels.join(" · ")}</p>
         </Block>
       )}
 
-      <p className="text-[11px] text-neutral-500 dark:text-neutral-500">
+      <p className="text-[11px] text-gob-text-muted ">
         Esta vista no expone contacto del dueño, dirección, ni notas privadas.
       </p>
     </section>
@@ -134,27 +132,27 @@ function Stat({
 }) {
   const toneClass =
     tone === "danger"
-      ? "text-red-600 dark:text-red-400"
+      ? "text-gob-danger "
       : tone === "warning"
-        ? "text-amber-600 dark:text-amber-400"
+        ? "text-gob-warning-text "
         : tone === "ok"
-          ? "text-emerald-700 dark:text-emerald-400"
-          : "text-neutral-600 dark:text-neutral-400";
+          ? "text-gob-success "
+          : "text-gob-text-gray ";
   return (
-    <div className="rounded-lg bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 px-3 py-2">
-      <dt className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-500">
+    <div className="rounded-lg bg-white  border border-gob-border  px-3 py-2">
+      <dt className="text-[10px] uppercase tracking-wider font-semibold text-gob-text-muted ">
         {label}
       </dt>
       <dd className={`text-2xl font-semibold leading-tight ${toneClass}`}>{value}</dd>
-      <p className="text-xs text-neutral-600 dark:text-neutral-400">{sub}</p>
+      <p className="text-xs text-gob-text-gray ">{sub}</p>
     </div>
   );
 }
 
 function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-1">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 dark:text-neutral-500">
+    <div className="rounded-lg bg-white  border border-gob-border  px-3 py-2 space-y-1">
+      <p className="text-[10px] uppercase tracking-wider font-semibold text-gob-text-muted ">
         {label}
       </p>
       {children}

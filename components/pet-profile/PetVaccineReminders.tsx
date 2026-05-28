@@ -34,10 +34,10 @@ export function PetVaccineReminders({ reminders, vaccinesHref, scheduleHref }: P
   return (
     <section
       aria-labelledby="pp-vac-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="pp-vac-h" className="text-base font-semibold text-neutral-900 dark:text-neutral-50">
+        <h2 id="pp-vac-h" className="text-base font-semibold text-gob-text ">
           Próximas vacunas
         </h2>
         <Link
@@ -49,11 +49,11 @@ export function PetVaccineReminders({ reminders, vaccinesHref, scheduleHref }: P
       </div>
 
       {sorted.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
           Sin vacunas pendientes. Buen trabajo.
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <ul className="divide-y divide-gob-border ">
           {sorted.map((r) => (
             <ReminderRow key={r.id} reminder={r} href={scheduleHref(r)} />
           ))}
@@ -70,10 +70,10 @@ function ReminderRow({ reminder, href }: { reminder: VaccineReminder; href: stri
   const soon = !overdue && diffDays <= SOON_DAYS;
 
   const pillClass = overdue
-    ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200"
+    ? "bg-gob-danger/10 text-gob-danger  "
     : soon
-      ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
+      ? "bg-gob-warning/10 text-gob-warning-text  "
+      : "bg-gob-surface-alt text-gob-text-gray  ";
 
   const pillText = overdue
     ? `vencida hace ${Math.abs(diffDays)} d.`
@@ -92,10 +92,8 @@ function ReminderRow({ reminder, href }: { reminder: VaccineReminder; href: stri
         <span>{pillText}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">{reminder.name}</p>
-        {reminder.subtitle && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">{reminder.subtitle}</p>
-        )}
+        <p className="text-sm font-medium text-gob-text ">{reminder.name}</p>
+        {reminder.subtitle && <p className="text-xs text-gob-text-muted ">{reminder.subtitle}</p>}
       </div>
       <Link
         href={href}

@@ -53,10 +53,10 @@ interface Props {
 function SkeletonRow() {
   return (
     <div className="flex items-center gap-3 py-2.5 animate-pulse">
-      <div className="h-8 w-8 shrink-0 rounded-lg bg-neutral-200 dark:bg-neutral-700" />
+      <div className="h-8 w-8 shrink-0 rounded-lg bg-gob-surface-alt " />
       <div className="flex-1 space-y-1.5">
-        <div className="h-3 w-1/2 rounded bg-neutral-200 dark:bg-neutral-700" />
-        <div className="h-2 w-1/3 rounded bg-neutral-100 dark:bg-neutral-800" />
+        <div className="h-3 w-1/2 rounded bg-gob-surface-alt " />
+        <div className="h-2 w-1/3 rounded bg-gob-surface-alt " />
       </div>
     </div>
   );
@@ -81,7 +81,7 @@ function EventRow({
   return (
     <Link
       href={href}
-      className="flex items-start gap-3 py-2.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900"
+      className="flex items-start gap-3 py-2.5 transition-colors hover:bg-gob-surface-alt "
     >
       {signedUrl ? (
         <img
@@ -93,19 +93,15 @@ function EventRow({
       ) : (
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-sm dark:bg-neutral-800"
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-surface-alt text-sm "
         >
           •
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-          {label}
-        </span>
+        <span className="block text-sm font-medium text-gob-text ">{label}</span>
       </span>
-      <span className="shrink-0 text-[11px] text-neutral-400 dark:text-neutral-500">
-        {dateLabel}
-      </span>
+      <span className="shrink-0 text-[11px] text-gob-text-muted ">{dateLabel}</span>
     </Link>
   );
 }
@@ -137,23 +133,20 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
   return (
     <section
       aria-labelledby="pp-timeline-h"
-      className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-2xl border border-gob-border bg-white p-4  "
     >
       <details onToggle={handleToggle as unknown as React.ToggleEventHandler<HTMLDetailsElement>}>
         <summary className="flex cursor-pointer list-none items-center justify-between">
-          <h2
-            id="pp-timeline-h"
-            className="text-base font-semibold text-neutral-900 dark:text-neutral-50"
-          >
+          <h2 id="pp-timeline-h" className="text-base font-semibold text-gob-text ">
             Últimos eventos · {events.length}
           </h2>
           <div className="flex items-center gap-2">
             {latest && (
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+              <span className="rounded-full bg-gob-surface-alt px-2 py-0.5 text-xs text-gob-text-gray  ">
                 {formatTimelineDate(latest.occurredAt)}
               </span>
             )}
-            <span aria-hidden className="text-xs text-neutral-400 dark:text-neutral-600">
+            <span aria-hidden className="text-xs text-gob-text-muted ">
               ▸
             </span>
           </div>
@@ -169,7 +162,7 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
               ))}
             </ul>
           ) : (
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <ul className="divide-y divide-gob-border ">
               {events.map((ev) => (
                 <li key={ev.id}>
                   <EventRow
@@ -182,7 +175,7 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
             </ul>
           )}
 
-          <div className="mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+          <div className="mt-3 border-t border-gob-border-strong pt-3 ">
             <Link
               href={fullHistoryHref}
               className="text-xs font-medium text-gob-azul-link hover:underline"

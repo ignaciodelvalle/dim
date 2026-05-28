@@ -133,11 +133,9 @@ export function ServiceDogForm({
   return (
     <div className="space-y-4">
       {isVigente && initial?.inService && (
-        <div className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 space-y-3">
-          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-            Banner público de acceso
-          </p>
-          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
+          <p className="text-sm font-medium text-gob-text ">Banner público de acceso</p>
+          <p className="text-xs text-gob-text-gray ">
             Cuando lo activás, el banner aparece en{" "}
             <code className="font-mono">/p/{petPublicToken}</code> con el texto del derecho de
             acceso (Arts. 1 y 7, Ley 26.858). Podés mostrarlo en la puerta de un local o transporte.
@@ -149,8 +147,8 @@ export function ServiceDogForm({
               disabled={pending || initial.publicVisibility === "full_banner"}
               className={`px-3 py-1 rounded text-sm ${
                 initial.publicVisibility === "full_banner"
-                  ? "bg-emerald-600 text-white"
-                  : "border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                  ? "bg-gob-success text-white"
+                  : "border border-gob-border-strong  hover:bg-gob-surface-alt "
               } disabled:opacity-60`}
             >
               Activar banner público
@@ -161,8 +159,8 @@ export function ServiceDogForm({
               disabled={pending || initial.publicVisibility === "private_only"}
               className={`px-3 py-1 rounded text-sm ${
                 initial.publicVisibility === "private_only"
-                  ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900"
-                  : "border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                  ? "bg-gob-primary  text-white "
+                  : "border border-gob-border-strong  hover:bg-gob-surface-alt "
               } disabled:opacity-60`}
             >
               Mantener privado
@@ -187,7 +185,7 @@ export function ServiceDogForm({
               id="service-type"
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value as ServiceDogType)}
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
             >
               {SERVICE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -195,7 +193,7 @@ export function ServiceDogForm({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="text-xs text-gob-text-muted mt-1">
               Las 5 categorías ANDIS habilitan el banner público. "Otro" guarda los datos pero no
               renderiza banner (Res. ANDIS 2588/2022).
             </p>
@@ -212,9 +210,9 @@ export function ServiceDogForm({
               value={trainingCenter}
               onChange={(e) => setTrainingCenter(e.target.value)}
               placeholder="Ej: Bocalan Argentina, IGDF/ADI miembro"
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
             />
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="text-xs text-gob-text-muted mt-1">
               ANDIS reconoce centros miembros de IGDF (International Guide Dog Federation) o ADI
               (Assistance Dogs International).
             </p>
@@ -230,7 +228,7 @@ export function ServiceDogForm({
                 type="date"
                 value={trainingCertDate}
                 onChange={(e) => setTrainingCertDate(e.target.value)}
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
               />
             </div>
             <div>
@@ -243,7 +241,7 @@ export function ServiceDogForm({
                 value={rupgaCredential}
                 onChange={(e) => setRupgaCredential(e.target.value)}
                 placeholder="Si ya tenés"
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm font-mono"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm font-mono"
               />
             </div>
           </div>
@@ -258,7 +256,7 @@ export function ServiceDogForm({
                 type="date"
                 value={credentialIssueDate}
                 onChange={(e) => setCredentialIssueDate(e.target.value)}
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
               />
             </div>
             <div>
@@ -270,7 +268,7 @@ export function ServiceDogForm({
                 type="date"
                 value={credentialExpiryDate}
                 onChange={(e) => setCredentialExpiryDate(e.target.value)}
-                className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
               />
             </div>
           </div>
@@ -284,23 +282,19 @@ export function ServiceDogForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-sm"
+              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
             />
           </div>
         </fieldset>
 
-        {error && <output className="block text-sm text-red-600 dark:text-red-400">{error}</output>}
-        {okMessage && (
-          <output className="block text-sm text-emerald-700 dark:text-emerald-300">
-            {okMessage}
-          </output>
-        )}
+        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+        {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
 
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"
             disabled={pending || isRevoked}
-            className="px-4 py-2 rounded bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium disabled:opacity-50"
+            className="px-4 py-2 rounded bg-gob-primary  text-white  text-sm font-medium disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar datos"}
           </button>
@@ -309,7 +303,7 @@ export function ServiceDogForm({
               type="button"
               onClick={submitForVerification}
               disabled={pending}
-              className="px-4 py-2 rounded bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+              className="px-4 py-2 rounded bg-gob-success text-white text-sm font-medium hover:bg-gob-success disabled:opacity-50"
             >
               Solicitar verificación
             </button>
@@ -319,7 +313,7 @@ export function ServiceDogForm({
               type="button"
               onClick={retire}
               disabled={pending}
-              className="px-4 py-2 rounded border border-red-300 text-red-700 dark:border-red-800 dark:text-red-300 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
+              className="px-4 py-2 rounded border border-gob-danger text-gob-danger   text-sm hover:bg-gob-danger/10  disabled:opacity-50"
             >
               Retirar del servicio
             </button>

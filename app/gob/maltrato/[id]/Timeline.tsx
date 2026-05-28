@@ -4,18 +4,18 @@ import type { TimelineEvent } from "@/lib/govt-dashboards";
 
 // Dot color per event kind — maps to a Tailwind background class.
 const KIND_DOT: Record<string, string> = {
-  created: "bg-neutral-400",
-  triaged: "bg-blue-500",
-  assigned: "bg-indigo-500",
-  in_progress: "bg-indigo-500",
-  closed: "bg-emerald-500",
-  invalid: "bg-neutral-500",
-  duplicate: "bg-neutral-500",
-  pet_event: "bg-sky-400",
+  created: "bg-gob-border-strong",
+  triaged: "bg-gob-info",
+  assigned: "bg-gob-primary",
+  in_progress: "bg-gob-primary",
+  closed: "bg-gob-success",
+  invalid: "bg-gob-border-strong",
+  duplicate: "bg-gob-border-strong",
+  pet_event: "bg-gob-info",
 };
 
 function kindDot(kind: string): string {
-  return KIND_DOT[kind] ?? "bg-neutral-400";
+  return KIND_DOT[kind] ?? "bg-gob-border-strong";
 }
 
 type TimelineProps = {
@@ -34,24 +34,22 @@ export function Timeline({ events }: TimelineProps) {
   }
 
   return (
-    <ol className="relative border-l border-neutral-200 dark:border-neutral-700 space-y-6 pl-6">
+    <ol className="relative border-l border-gob-border  space-y-6 pl-6">
       {events.map((event) => (
         <li key={event.id} className="relative">
           {/* Timeline dot */}
           <span
-            className={`absolute -left-[1.65rem] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-neutral-950 ${kindDot(event.kind)}`}
+            className={`absolute -left-[1.65rem] top-1 w-3 h-3 rounded-full border-2 border-white  ${kindDot(event.kind)}`}
             aria-hidden="true"
           />
           <div className="space-y-0.5">
-            <p className="text-xs text-neutral-400 dark:text-neutral-500 tabular-nums">
+            <p className="text-xs text-gob-text-muted  tabular-nums">
               {formatDateTime(event.occurredAt)}
               {event.actorName && (
-                <span className="ml-1 text-neutral-500 dark:text-neutral-400">
-                  · {event.actorName}
-                </span>
+                <span className="ml-1 text-gob-text-muted ">· {event.actorName}</span>
               )}
             </p>
-            <p className="text-sm text-neutral-800 dark:text-neutral-200">{event.summary}</p>
+            <p className="text-sm text-gob-text ">{event.summary}</p>
           </div>
         </li>
       ))}

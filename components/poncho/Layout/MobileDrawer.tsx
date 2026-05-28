@@ -98,7 +98,7 @@ export function MobileDrawer({ nav, brandTitle = "MiMAR" }: Props) {
                 >
                   <span className="flex-1">{item.label}</span>
                   {item.badge != null && item.badge > 0 && (
-                    <span className="inline-flex items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    <span className="inline-flex items-center justify-center rounded-full bg-gob-danger px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                       {item.badge}
                     </span>
                   )}

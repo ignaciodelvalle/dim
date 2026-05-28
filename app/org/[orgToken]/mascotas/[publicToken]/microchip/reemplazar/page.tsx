@@ -19,21 +19,16 @@ export default async function ReplaceMicrochipVetPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("event.write")) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-md mx-auto pt-8 space-y-4">
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Permiso requerido
-          </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <h1 className="text-2xl font-semibold text-gob-text ">Permiso requerido</h1>
+          <p className="text-sm text-gob-text-gray ">
             Para registrar eventos de identificación necesitás el permiso{" "}
-            <code className="text-xs bg-neutral-100 dark:bg-neutral-900 px-1 rounded">
-              event.write
-            </code>
-            .
+            <code className="text-xs bg-gob-surface-alt  px-1 rounded">event.write</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver a mascotas
           </Link>
@@ -63,19 +58,19 @@ export default async function ReplaceMicrochipVetPage({
 
   if (!pet.microchipId) {
     return (
-      <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+      <main className="min-h-screen p-6 bg-white ">
         <div className="max-w-md mx-auto pt-8 space-y-8">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
           >
             ← Volver a mascotas
           </Link>
           <div className="space-y-4">
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
               Reemplazar microchip — {pet.name}
             </h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <p className="text-sm text-gob-text-gray ">
               {pet.name} no tiene microchip registrado todavía.
             </p>
           </div>
@@ -85,22 +80,22 @@ export default async function ReplaceMicrochipVetPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-md mx-auto pt-8 space-y-8">
         <Link
           href={`/org/${orgToken}/mascotas`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver a mascotas
         </Link>
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs uppercase tracking-wider text-gob-text-muted ">
             {organization.displayName}
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
             Reemplazar microchip — {pet.name}
           </h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-gob-text-gray ">
             Registrá el cambio de chip. Si detectás un duplicado, se abre un caso de investigación
             automáticamente.
           </p>

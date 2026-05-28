@@ -27,14 +27,10 @@ const STATUS_LABELS: Record<string, string> = {
 type StatusVariant = "pending" | "approved" | "rejected" | "withdrawn";
 
 const STATUS_CLASSES: Record<StatusVariant, string> = {
-  pending:
-    "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
-  approved:
-    "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
-  rejected:
-    "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
-  withdrawn:
-    "bg-neutral-100 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-500 border-neutral-200 dark:border-neutral-700",
+  pending: "bg-gob-warning/10  text-gob-warning-text  border-gob-warning ",
+  approved: "bg-gob-success/10  text-gob-success  border-gob-success ",
+  rejected: "bg-gob-danger/10  text-gob-danger  border-gob-danger ",
+  withdrawn: "bg-gob-surface-alt  text-gob-text-muted  border-gob-border ",
 };
 
 // ---------------------------------------------------------------------------
@@ -72,15 +68,15 @@ export default async function SolicitudesPage({
   const totalCount = allRequests.length;
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         {/* Header */}
         <header className="space-y-1">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
               Mis solicitudes
             </h1>
-            <span className="text-sm font-medium text-neutral-500 dark:text-neutral-500">
+            <span className="text-sm font-medium text-gob-text-muted ">
               {totalCount === 0
                 ? "ninguna"
                 : totalCount === 1
@@ -92,10 +88,8 @@ export default async function SolicitudesPage({
 
         {/* Empty state — no requests at all */}
         {totalCount === 0 && (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-8 text-center">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              No mandaste solicitudes todavía.
-            </p>
+          <div className="rounded-lg border border-gob-border  p-8 text-center">
+            <p className="text-sm text-gob-text-gray ">No mandaste solicitudes todavía.</p>
           </div>
         )}
 
@@ -124,9 +118,7 @@ export default async function SolicitudesPage({
 
         {/* Requests list */}
         {totalCount > 0 && filtered.length === 0 && (
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
-            No hay solicitudes con ese filtro.
-          </p>
+          <p className="text-sm text-gob-text-muted ">No hay solicitudes con ese filtro.</p>
         )}
 
         {filtered.length > 0 && (
@@ -139,20 +131,17 @@ export default async function SolicitudesPage({
               ) as StatusVariant;
 
               return (
-                <li
-                  key={req.id}
-                  className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3"
-                >
+                <li key={req.id} className="rounded-lg border border-gob-border  p-4 space-y-3">
                   {/* Top row — type badge + status badge */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gob-surface-alt  text-gob-text-gray  border-gob-border ">
                       {REQUEST_TYPE_LABELS[req.type] ?? req.type}
                     </span>
                     <StatusBadge status={statusVariant} />
                   </div>
 
                   {/* Dates */}
-                  <div className="text-xs text-neutral-500 dark:text-neutral-500 space-y-0.5">
+                  <div className="text-xs text-gob-text-muted  space-y-0.5">
                     <p>
                       Enviada el{" "}
                       {req.createdAt.toLocaleDateString("es-AR", {
@@ -175,8 +164,8 @@ export default async function SolicitudesPage({
 
                   {/* Rejection reason */}
                   {req.status === "rejected" && req.decisionNotes && (
-                    <div className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 px-3 py-2">
-                      <p className="text-xs text-red-700 dark:text-red-400">
+                    <div className="rounded-md bg-gob-danger/10  border border-gob-danger  px-3 py-2">
+                      <p className="text-xs text-gob-danger ">
                         <span className="font-medium">Motivo:</span> {req.decisionNotes}
                       </p>
                     </div>
@@ -194,7 +183,7 @@ export default async function SolicitudesPage({
         <div className="pt-2">
           <Link
             href="/cuenta"
-            className="text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors"
+            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
           >
             ← Volver a mi cuenta
           </Link>
@@ -232,8 +221,8 @@ function FilterPill({
       href={href}
       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
         active
-          ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 border-transparent"
-          : "bg-white dark:bg-neutral-950 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500"
+          ? "bg-gob-primary  text-white  border-transparent"
+          : "bg-white  text-gob-text-gray  border-gob-border  hover:border-gob-border-strong "
       }`}
       aria-current={active ? "page" : undefined}
     >
@@ -252,7 +241,7 @@ function WithdrawForm({ requestId }: { requestId: string }) {
     <form action={handleWithdraw}>
       <button
         type="submit"
-        className="inline-flex items-center px-3 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-950 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+        className="inline-flex items-center px-3 py-1.5 rounded-md border border-gob-border-strong  text-xs font-medium text-gob-text-gray  bg-white  hover:bg-gob-surface-alt  transition-colors"
       >
         Retirar solicitud
       </button>

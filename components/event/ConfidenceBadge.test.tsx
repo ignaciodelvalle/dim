@@ -13,12 +13,11 @@ import { describe, expect, it } from "vitest";
 // Mirrors TIER_STYLES in ConfidenceBadge.tsx. If styles drift, this test
 // catches it by asserting the mapping is exhaustive.
 const TIER_STYLES: Record<ConfidenceTier, string> = {
-  institutional_verified:
-    "bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
-  professional_verified: "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100",
-  corroborated: "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100",
-  self_reported: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
-  unverified: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500",
+  institutional_verified: "bg-gob-success/10 text-gob-success  ",
+  professional_verified: "bg-gob-info/10 text-gob-azul-link  ",
+  corroborated: "bg-gob-warning/10 text-gob-warning-text  ",
+  self_reported: "bg-gob-surface-alt text-gob-text-gray  ",
+  unverified: "bg-gob-surface-alt text-gob-text-muted  ",
 };
 
 const ALL_TIERS: ConfidenceTier[] = [
@@ -77,13 +76,13 @@ describe("ConfidenceBadge style contract", () => {
   });
 
   it("higher-trust tiers use more prominent colors than self_reported/unverified", () => {
-    // Institutional uses emerald (green), which is semantically positive
-    expect(TIER_STYLES.institutional_verified).toContain("emerald");
-    // Professional uses blue
-    expect(TIER_STYLES.professional_verified).toContain("blue");
-    // Lower tiers use neutral
-    expect(TIER_STYLES.self_reported).toContain("neutral");
-    expect(TIER_STYLES.unverified).toContain("neutral");
+    // Institutional uses success (green), semantically positive
+    expect(TIER_STYLES.institutional_verified).toContain("gob-success");
+    // Professional uses info / azul-link
+    expect(TIER_STYLES.professional_verified).toContain("gob-info");
+    // Lower tiers fade onto the neutral surface
+    expect(TIER_STYLES.self_reported).toContain("gob-surface-alt");
+    expect(TIER_STYLES.unverified).toContain("gob-surface-alt");
   });
 });
 

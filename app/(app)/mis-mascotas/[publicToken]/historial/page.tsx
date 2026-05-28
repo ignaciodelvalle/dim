@@ -50,11 +50,11 @@ export default async function PetHistorialPage({
   }));
 
   return (
-    <main className="min-h-screen p-6 bg-white dark:bg-neutral-950">
+    <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-neutral-600 dark:text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-50"
+          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver a {pet.name}
         </Link>
@@ -66,12 +66,8 @@ export default async function PetHistorialPage({
         />
 
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-            {pet.name}
-          </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-500">
-            Historial completo de {pet.name}
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{pet.name}</h1>
+          <p className="text-sm text-gob-text-muted ">Historial completo de {pet.name}</p>
         </div>
 
         <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />

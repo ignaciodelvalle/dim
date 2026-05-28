@@ -51,7 +51,7 @@ export function TransferSenderForm({
       }}
       className="space-y-4"
     >
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="text-sm text-gob-text-gray ">
         Le traspasás la titularidad de {petName} a otro usuario. El receptor recibe una invitación y
         debe aceptarla — la libreta sanitaria viaja con la mascota.
       </p>
@@ -108,7 +108,7 @@ export function TransferSenderForm({
         )}
       </Field>
 
-      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+      <p className="text-xs text-gob-text-muted ">
         La propuesta vence en 7 días. Mientras esté pendiente podés cancelarla.
       </p>
 

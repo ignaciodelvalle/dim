@@ -73,9 +73,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
   return (
     <section className="space-y-4 print:hidden">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-          Compartir libreta
-        </h2>
+        <h2 className="text-sm font-semibold text-gob-text ">Compartir libreta</h2>
         {!creating && (
           <button
             type="button"
@@ -83,7 +81,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               setCreating(true);
               setCopiedToken(null);
             }}
-            className="text-xs px-3 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:opacity-90 transition-opacity"
+            className="text-xs px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90 transition-opacity"
           >
             Nuevo enlace
           </button>
@@ -92,12 +90,9 @@ export function SharesManager({ petPublicToken, shares }: Props) {
 
       {/* Create form */}
       {creating && (
-        <form
-          action={createAction}
-          className="space-y-3 rounded-lg border border-neutral-200 dark:border-neutral-800 p-4"
-        >
+        <form action={createAction} className="space-y-3 rounded-lg border border-gob-border  p-4">
           <div className="space-y-1">
-            <label className="text-xs text-neutral-600 dark:text-neutral-400" htmlFor="share-label">
+            <label className="text-xs text-gob-text-gray " htmlFor="share-label">
               Etiqueta (opcional)
             </label>
             <input
@@ -107,12 +102,12 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej: Para Dra. Perez"
-              className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-50"
+              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
             />
           </div>
 
           <fieldset className="space-y-1">
-            <legend className="text-xs text-neutral-600 dark:text-neutral-400">Duracion</legend>
+            <legend className="text-xs text-gob-text-gray ">Duracion</legend>
             <div className="flex flex-wrap gap-2">
               {DURATION_OPTIONS.map((opt) => (
                 <label key={String(opt.days)} className="flex items-center gap-1.5 cursor-pointer">
@@ -125,7 +120,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                       setExpiresInDays(opt.days);
                       if (opt.days !== null) setNoExpiryConfirmed(false);
                     }}
-                    className="accent-neutral-900 dark:accent-neutral-50"
+                    className="accent-neutral-900 "
                   />
                   <span className="text-xs">{opt.label}</span>
                 </label>
@@ -137,32 +132,32 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                   type="checkbox"
                   checked={noExpiryConfirmed}
                   onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
-                  className="accent-neutral-900 dark:accent-neutral-50"
+                  className="accent-neutral-900 "
                 />
-                <span className="text-xs text-amber-700 dark:text-amber-400">
+                <span className="text-xs text-gob-warning-text ">
                   Confirmo que este enlace no vence nunca
                 </span>
               </label>
             )}
           </fieldset>
 
-          {createError && <p className="text-xs text-red-600 dark:text-red-400">{createError}</p>}
+          {createError && <p className="text-xs text-gob-danger ">{createError}</p>}
 
           {newShareToken && (
             <div className="space-y-1">
-              <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+              <p className="text-xs text-gob-success  font-medium">
                 Enlace generado. Copia y envialo.
               </p>
               <div className="flex items-center gap-2">
                 <input
                   readOnly
                   value={buildShareUrl(newShareToken)}
-                  className="flex-1 text-xs font-mono rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-3 py-1.5 focus:outline-none"
+                  className="flex-1 text-xs font-mono rounded-md border border-gob-border  bg-gob-surface-alt  px-3 py-1.5 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => copyToClipboard(newShareToken)}
-                  className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
                 >
                   {copiedToken === newShareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -174,7 +169,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
             <button
               type="submit"
               disabled={createPending || (expiresInDays === null && !noExpiryConfirmed)}
-              className="text-xs px-3 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {createPending ? "Creando..." : "Crear enlace"}
             </button>
@@ -186,7 +181,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 setExpiresInDays(30);
                 setNoExpiryConfirmed(false);
               }}
-              className="text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
             >
               Cancelar
             </button>
@@ -200,13 +195,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
           {shares.map((share) => (
             <li
               key={share.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2.5"
+              className="flex items-start justify-between gap-3 rounded-lg border border-gob-border  px-3 py-2.5"
             >
               <div className="space-y-0.5 min-w-0">
-                <p className="text-xs font-medium text-neutral-900 dark:text-neutral-50 truncate">
+                <p className="text-xs font-medium text-gob-text  truncate">
                   {share.label ?? "Sin etiqueta"}
                 </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-500">
+                <p className="text-[10px] text-gob-text-muted ">
                   {share.expiresAt
                     ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR")}`
                     : "Sin vencimiento"}
@@ -222,7 +217,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 <button
                   type="button"
                   onClick={() => copyToClipboard(share.shareToken)}
-                  className="text-[10px] px-2 py-1 rounded border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  className="text-[10px] px-2 py-1 rounded border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
                 >
                   {copiedToken === share.shareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -232,7 +227,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                     type="submit"
                     disabled={revokePending && revokingId === share.id}
                     onClick={() => setRevokingId(share.id)}
-                    className="text-[10px] px-2 py-1 rounded border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors disabled:opacity-50"
+                    className="text-[10px] px-2 py-1 rounded border border-gob-danger  text-gob-danger  hover:bg-gob-danger/10  transition-colors disabled:opacity-50"
                   >
                     Revocar
                   </button>
@@ -243,13 +238,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
         </ul>
       ) : (
         !creating && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+          <p className="text-xs text-gob-text-muted ">
             No hay enlaces activos. Crea uno para compartir la libreta.
           </p>
         )
       )}
 
-      {revokeError && <p className="text-xs text-red-600 dark:text-red-400">{revokeError}</p>}
+      {revokeError && <p className="text-xs text-gob-danger ">{revokeError}</p>}
     </section>
   );
 }
