@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/tattoo";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
 import { useActionState } from "react";
 
@@ -15,78 +15,96 @@ export function TattooForm({ action }: { action: FormAction }) {
 
   return (
     <form action={formAction} className="space-y-5">
+      <Field label="Código del tatuaje" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="tattooCode"
+            type="text"
+            required
+            placeholder="Ej: K9-2014-A"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
+      <Field label="Ubicación en el cuerpo">
+        {({ id, describedBy, invalid }) => (
+          <Select
+            id={id}
+            name="locationOnBody"
+            defaultValue=""
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">Sin especificar</option>
+            {TATTOO_LOCATIONS.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
+
       <Field
-        id="tattooCode"
-        name="tattooCode"
-        type="text"
-        label="Código del tatuaje"
+        label="Descripción / origen del tatuaje"
+        help="Opcional. Texto libre para anotar de dónde viene el tatuaje."
+      >
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="description"
+            rows={3}
+            placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
+      <Field label="Fecha del tatuaje (aproximada)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="recordedAt"
+            type="date"
+            defaultValue={today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
+      <Field label="Tatuado por (criadero / vet / campaña)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="recordedBy"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Foto del tatuaje"
         required
-        placeholder="Ej: K9-2014-A"
-      />
-
-      <div className="space-y-1.5">
-        <label htmlFor="locationOnBody" className={labelClass}>
-          Ubicación en el cuerpo
-        </label>
-        <select id="locationOnBody" name="locationOnBody" className={inputClass} defaultValue="">
-          <option value="">Sin especificar</option>
-          {TATTOO_LOCATIONS.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-1.5">
-        <label htmlFor="description" className={labelClass}>
-          Descripción / origen del tatuaje
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          rows={3}
-          placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
-          className={inputClass}
-        />
-        <p className="text-xs text-gob-text-muted ">
-          Opcional. Texto libre para anotar de dónde viene el tatuaje.
-        </p>
-      </div>
-
-      <Field
-        id="recordedAt"
-        name="recordedAt"
-        type="date"
-        label="Fecha del tatuaje (aproximada)"
-        defaultValue={today}
-      />
-
-      <Field
-        id="recordedBy"
-        name="recordedBy"
-        type="text"
-        label="Tatuado por (criadero / vet / campaña)"
-      />
-
-      <div className="space-y-1.5">
-        <label htmlFor="attachment" className={labelClass}>
-          Foto del tatuaje
-          <span className="text-gob-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="attachment"
-          name="attachment"
-          type="file"
-          accept="image/*"
-          required
-          className="block w-full text-sm text-gob-text-gray  file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gob-surface-alt  file:text-gob-text  hover:file:bg-gob-surface-alt  file:cursor-pointer"
-        />
-        <p className="text-xs text-gob-text-muted ">
-          Imagen de hasta 5 MB. Es lo que permite a quien encuentre a tu mascota verificar
-          visualmente que coincide con el código.
-        </p>
-      </div>
+        help="Imagen de hasta 5 MB. Es lo que permite a quien encuentre a tu mascota verificar visualmente que coincide con el código."
+      >
+        {({ id }) => (
+          <input
+            id={id}
+            name="attachment"
+            type="file"
+            accept="image/*"
+            required
+            className="block w-full text-sm text-gob-text-gray  file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gob-surface-alt  file:text-gob-text  hover:file:bg-gob-surface-alt  file:cursor-pointer"
+          />
+        )}
+      </Field>
 
       {state.error && (
         <p className="text-sm text-gob-danger " role="alert">
@@ -102,41 +120,5 @@ export function TattooForm({ action }: { action: FormAction }) {
         {isPending ? "Guardando..." : "Registrar tatuaje"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  defaultValue,
-  placeholder,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        className={inputClass}
-      />
-    </div>
   );
 }
