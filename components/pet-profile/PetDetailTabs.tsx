@@ -25,6 +25,13 @@ export function PetDetailTabs({ petPublicToken, historialCount }: Props) {
       isActive: pathname.startsWith(`${base}/libreta`),
     },
     {
+      // D9 — Vacunas as a 4th tab + the existing /vacunas sub-page kept
+      // as a deep-link target. Double-entry by design (handoff P4-8).
+      href: `${base}/vacunas`,
+      label: "Vacunas",
+      isActive: pathname.startsWith(`${base}/vacunas`),
+    },
+    {
       href: `${base}/historial`,
       label: historialCount !== undefined ? `Historial ${historialCount}` : "Historial",
       isActive: pathname.startsWith(`${base}/historial`),
