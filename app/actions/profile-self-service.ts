@@ -372,3 +372,61 @@ export async function govtSelfDeactivateAction(input?: {
   }
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Privacy preferences — handoff P3-3
+//
+// Four boolean columns already live on profiles (added in P1-2):
+//   - discloseNameCredential
+//   - disclosePhoneCredential
+//   - allowOrgContact
+//   - allowLostAlertsInZone
+//
+// One toggle changes one row at a time, optimistic UI lives in the client
+// wrapper. No cross-table side effects.
+// ---------------------------------------------------------------------------
+
+export const PRIVACY_PREF_KEYS = [
+  "discloseNameCredential",
+  "disclosePhoneCredential",
+  "allowOrgContact",
+  "allowLostAlertsInZone",
+] as const;
+
+export type PrivacyPrefKey = (typeof PRIVACY_PREF_KEYS)[number];
+
+export type UpdatePrivacyPrefResult = { error: string } | { ok: true };
+
+export async function updatePrivacyPrefForUser(
+  userId: string,
+  key: PrivacyPrefKey,
+  next: boolean,
+): Promise<UpdatePrivacyPrefResult> {
+  if (!PRIVACY_PREF_KEYS.includes(key)) {
+    return { error: "INVALID_KEY" };
+  }
+
+  const updated = await db
+    .update(profiles)
+    .set({ [key]: next, updatedAt: new Date() })
+    .where(eq(profiles.id, userId))
+    .returning({ id: profiles.id });
+
+  if (updated.length < 1) {
+    return { error: "NOT_FOUND" };
+  }
+
+  return { ok: true };
+}
+
+export async function updatePrivacyPrefAction(
+  key: PrivacyPrefKey,
+  next: boolean,
+): Promise<UpdatePrivacyPrefResult> {
+  const { user } = await requireUserOrRedirect();
+  const result = await updatePrivacyPrefForUser(user.id, key, next);
+  if ("ok" in result) {
+    revalidatePath("/cuenta");
+  }
+  return result;
+}
