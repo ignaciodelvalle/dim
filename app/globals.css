@@ -93,17 +93,37 @@
   --color-warning: #e7ba61;
   --color-info: #2897d4;
   --color-border: #dddddd;
-  --color-ring: #37bbed;
+  /* Focus ring — Poncho v2 amarillo maíz (#FFCE1C). Switched from celeste
+   * #37bbed in PR-F to match the official gob.ar identity. The color
+   * contrast against #fff is sub-AA (1.5:1), so SC 1.4.11 compliance is
+   * carried by geometry: 3px outline + 2px offset is a non-color cue
+   * (size > 2x WCAG minimum). Audit: docs/a11y/contrast-audit.md. */
+  --color-ring: #ffce1c;
 
-  /* Focus ring — WCAG 2.1 AA non-color indicator requirement (handoff
-   * compliance PR 2). Decomposed into color/width/offset triple so themes
-   * can tweak one axis without redefining the shorthand.
-   * Contrast: #37bbed on #ffffff ratio 2.9:1 — below AA 3:1 for non-text,
-   * but the 3px outline width + offset provide the required non-color cue.
-   * Audit reference: docs/a11y/contrast-audit.md */
+  /* Focus ring tokens (compliance PR 2 / Poncho PR-F). Decomposed into
+   * color/width/offset so themes can tweak one axis. */
   --focus-ring-color: var(--color-ring);
   --focus-ring-width: 3px;
   --focus-ring-offset: 2px;
+
+  /* Radius scale (Poncho PR-F). Three levels aligned with Poncho _forms.scss
+   * (10px for inputs / framed fieldsets), _buttons.scss + DIM cards (16px
+   * for panels/sheets/modals), and the canonical pill (9999px for buttons
+   * and badges). Existing rounded-* utilities continue to work; use these
+   * tokens for new code so themes can resize the scale globally. */
+  --radius-input: 10px;
+  --radius-card: 16px;
+  --radius-pill: 9999px;
+
+  /* Z-index scale (Poncho PR-F). Explicit values prevent silent z-index
+   * wars between overlays. Layered: stripe (chrome) < header < drawer <
+   * sheet < toast < tooltip. */
+  --z-stripe: 30;
+  --z-header: 40;
+  --z-drawer: 45;
+  --z-sheet: 50;
+  --z-toast: 60;
+  --z-tooltip: 70;
 
   /* Tipos */
   --text-base: 16px;
@@ -129,7 +149,9 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  font-weight: 500; /* Poncho usa medium como peso de cuerpo */
+  /* Poncho v2 usa weight default (400) en body. El medium queda para .lead
+   * y labels (handoff PR-F decision). */
+  font-weight: 400;
   line-height: var(--leading-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
