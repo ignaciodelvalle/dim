@@ -361,12 +361,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           <Checkbox
             checked={confirmObservation}
             onChange={(e) => setConfirmObservation(e.target.checked)}
+            labelClassName="text-gob-warning-text!"
           >
-            <span className="text-sm text-gob-warning-text ">
-              Entiendo que esto inicia un período de observación antirrábica obligatorio de 10 días
-              (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987) y se notifica al dueño y a la autoridad
-              sanitaria correspondiente.
-            </span>
+            Entiendo que esto inicia un período de observación antirrábica obligatorio de 10 días
+            (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987) y se notifica al dueño y a la autoridad
+            sanitaria correspondiente.
           </Checkbox>
         </div>
 

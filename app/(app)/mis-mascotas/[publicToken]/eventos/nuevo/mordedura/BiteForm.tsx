@@ -178,11 +178,9 @@ export function BiteForm({
       </div>
 
       <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
-        <Checkbox name="confirmObservation" required>
-          <span className="text-sm text-gob-warning-text ">
-            Entiendo que reportar esto inicia un período de observación antirrábica obligatorio de
-            10 días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
-          </span>
+        <Checkbox name="confirmObservation" required labelClassName="text-gob-warning-text!">
+          Entiendo que reportar esto inicia un período de observación antirrábica obligatorio de 10
+          días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
         </Checkbox>
       </div>
 

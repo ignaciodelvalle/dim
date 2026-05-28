@@ -237,11 +237,13 @@ function DeactivateAdminForm({
         )}
       </div>
 
-      <Checkbox checked={confirm} onChange={(e) => setConfirm(e.target.checked)}>
-        <span className="text-xs text-gob-danger ">
-          Confirmo que quiero desactivar la cuenta de {target.displayName}. Esta accion genera un
-          registro permanente en el audit log.
-        </span>
+      <Checkbox
+        checked={confirm}
+        onChange={(e) => setConfirm(e.target.checked)}
+        labelClassName="text-xs! text-gob-danger!"
+      >
+        Confirmo que quiero desactivar la cuenta de {target.displayName}. Esta accion genera un
+        registro permanente en el audit log.
       </Checkbox>
 
       {error && <p className="text-xs text-gob-danger ">{error}</p>}

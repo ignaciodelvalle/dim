@@ -131,10 +131,9 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               <Checkbox
                 checked={noExpiryConfirmed}
                 onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
+                labelClassName="text-xs! text-gob-warning-text!"
               >
-                <span className="text-xs text-gob-warning-text ">
-                  Confirmo que este enlace no vence nunca
-                </span>
+                Confirmo que este enlace no vence nunca
               </Checkbox>
             )}
           </fieldset>

@@ -204,11 +204,13 @@ function RevokeLocalityForm({
         )}
       </div>
 
-      <Checkbox checked={confirm} onChange={(e) => setConfirm(e.target.checked)}>
-        <span className="text-xs text-gob-warning-text ">
-          Confirmo que quiero revocar la localidad {localityLabel}. Esta accion genera un registro
-          permanente en el audit log.
-        </span>
+      <Checkbox
+        checked={confirm}
+        onChange={(e) => setConfirm(e.target.checked)}
+        labelClassName="text-xs! text-gob-warning-text!"
+      >
+        Confirmo que quiero revocar la localidad {localityLabel}. Esta accion genera un registro
+        permanente en el audit log.
       </Checkbox>
 
       {error && <p className="text-xs text-gob-danger ">{error}</p>}

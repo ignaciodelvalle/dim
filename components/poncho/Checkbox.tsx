@@ -22,9 +22,18 @@ import { type InputHTMLAttributes, type ReactNode, useId } from "react";
 export type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
   invalid?: boolean;
   children: ReactNode;
+  /** Extra classes for the label text span — e.g. to tint confirmation copy with a warning/danger color. */
+  labelClassName?: string;
 };
 
-export function Checkbox({ invalid, children, className, id: idProp, ...rest }: CheckboxProps) {
+export function Checkbox({
+  invalid,
+  children,
+  className,
+  labelClassName,
+  id: idProp,
+  ...rest
+}: CheckboxProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
   return (
@@ -36,7 +45,9 @@ export function Checkbox({ invalid, children, className, id: idProp, ...rest }: 
         className={`mt-0.5 h-4 w-4 accent-gob-primary ${className ?? ""}`.trim()}
         {...rest}
       />
-      <span className="text-sm text-gob-text leading-tight">{children}</span>
+      <span className={`text-sm text-gob-text leading-tight ${labelClassName ?? ""}`.trim()}>
+        {children}
+      </span>
     </label>
   );
 }
