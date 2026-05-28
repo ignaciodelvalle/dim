@@ -11,6 +11,7 @@ import {
   type LibretaGroupKey,
   libretaConfidenceTier,
 } from "@/lib/libreta-sanitaria";
+import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/sanitary-vocab";
 
 type Event = {
   id: string;
@@ -22,6 +23,9 @@ type Event = {
   authorRole: string;
   authorVerified: boolean;
   authorOrganizationId: string | null;
+  // SENASA alignment (compliance PR 3). Optional — populated by the new
+  // sanitary event form; legacy rows are null.
+  tipoEventoCode?: string | null;
 };
 
 type Props = {
@@ -86,15 +90,29 @@ function LibretaEntry({ event, publicToken: _publicToken }: { event: Event; publ
     authorOrganizationId: event.authorOrganizationId,
     payload: (event.payload ?? {}) as Record<string, unknown>,
   });
+  const senasaLabel = tipoEventoLabel(event.tipoEventoCode);
+  const senasaNorma = tipoEventoNorma(event.tipoEventoCode);
+  const isEnoNotifiable = notificableEno(event.tipoEventoCode);
   return (
     <li className="flex items-baseline justify-between gap-3 py-2 border-b border-neutral-100 dark:border-neutral-900 last:border-b-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-            {summary.primary ?? event.eventType}
+            {senasaLabel ?? summary.primary ?? event.eventType}
           </p>
           <ConfidenceBadge tier={confidenceTier} />
+          {isEnoNotifiable && (
+            <span
+              className="inline-flex items-center rounded-full bg-gob-warning/15 text-gob-warning-text px-2 py-0.5 text-[10px] font-medium border border-gob-warning/40"
+              title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
+            >
+              ENO
+            </span>
+          )}
         </div>
+        {senasaNorma && (
+          <p className="text-[11px] text-gob-text-muted mt-0.5 font-mono">{senasaNorma}</p>
+        )}
         {summary.secondary && (
           <p className="text-xs text-neutral-600 dark:text-neutral-400">{summary.secondary}</p>
         )}
