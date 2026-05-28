@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -24,66 +24,91 @@ export function MicrochipForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <Field
-        id="chipNumber"
-        name="chipNumber"
-        type="text"
-        label="Número de microchip"
-        required
-        defaultValue={defaults?.chipNumber ?? undefined}
-        placeholder="985141004321456"
-      />
+      <Field label="Número de microchip" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="chipNumber"
+            type="text"
+            required
+            defaultValue={defaults?.chipNumber ?? undefined}
+            placeholder="985141004321456"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="countryCode"
-        name="countryCode"
-        type="text"
-        label="Código de país (ISO 3166-1 alfa-2)"
-        defaultValue="AR"
-        placeholder="AR"
-      />
+      <Field label="Código de país (ISO 3166-1 alfa-2)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="countryCode"
+            type="text"
+            defaultValue="AR"
+            placeholder="AR"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="occurredAt"
-        name="occurredAt"
-        type="date"
-        label="Fecha de implantación"
-        required
-        defaultValue={defaults?.occurredAt ?? today}
-      />
+      <Field label="Fecha de implantación" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="implantedBy"
-        name="implantedBy"
-        type="text"
-        label="Implantado por (veterinario/a)"
-      />
+      <Field label="Implantado por (veterinario/a)">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="implantedBy"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="locationOnBody"
-        name="locationOnBody"
-        type="text"
-        label="Ubicación en el cuerpo"
-        placeholder="lomo entre los omóplatos"
-      />
+      <Field label="Ubicación en el cuerpo">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="locationOnBody"
+            type="text"
+            placeholder="lomo entre los omóplatos"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? ""}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -96,41 +121,5 @@ export function MicrochipForm({
         {isPending ? "Guardando..." : "Registrar microchip"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  defaultValue,
-  placeholder,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        className={inputClass}
-      />
-    </div>
   );
 }

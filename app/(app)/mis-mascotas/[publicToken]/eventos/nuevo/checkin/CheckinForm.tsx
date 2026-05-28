@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import type { CheckinFormState } from "@/app/actions/checkin";
 import { LocationFields } from "@/components/LocationFields";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
 import { AttachmentField } from "../AttachmentField";
@@ -26,19 +26,19 @@ export function CheckinForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          ¿Cómo está?
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={5}
-          defaultValue={defaults?.notes ?? ""}
-          placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
-          className={inputClass}
-        />
-      </div>
+      <Field label="¿Cómo está?">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={5}
+            defaultValue={defaults?.notes ?? ""}
+            placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <details className="rounded-lg border border-gob-border  p-3">
         <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
@@ -52,7 +52,7 @@ export function CheckinForm({
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}

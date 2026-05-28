@@ -3,8 +3,7 @@
 import { useActionState } from "react";
 
 import type { EventFormState } from "@/app/actions/events";
-import { Radio } from "@/components/poncho";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Field, Input, Radio, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { AttachmentField } from "../AttachmentField";
 
@@ -26,18 +25,23 @@ export function DewormingForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <Field
-        id="product"
-        name="product"
-        type="text"
-        label="Producto"
-        required
-        defaultValue={defaults?.product ?? undefined}
-        placeholder="Frontline, Advocate, Milbemax..."
-      />
+      <Field label="Producto" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="product"
+            type="text"
+            required
+            defaultValue={defaults?.product ?? undefined}
+            placeholder="Frontline, Advocate, Milbemax..."
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <div className="space-y-1.5">
-        <p className={labelClass}>
+        <p className="block mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">
           Tipo<span className="text-gob-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
@@ -53,39 +57,49 @@ export function DewormingForm({
         </div>
       </div>
 
-      <Field
-        id="occurredAt"
-        name="occurredAt"
-        type="date"
-        label="Fecha de aplicación"
-        required
-        defaultValue={defaults?.occurredAt ?? today}
-      />
+      <Field label="Fecha de aplicación" required>
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="occurredAt"
+            type="date"
+            required
+            defaultValue={defaults?.occurredAt ?? today}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <Field
-        id="nextDueAt"
-        name="nextDueAt"
-        type="date"
-        label="Próxima dosis (opcional — crea recordatorio)"
-      />
+      <Field label="Próxima dosis" help="Opcional — crea un recordatorio automático.">
+        {({ id, describedBy, invalid }) => (
+          <Input
+            id={id}
+            name="nextDueAt"
+            type="date"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
-      <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
-          Notas
-        </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          defaultValue={defaults?.notes ?? ""}
-          className={inputClass}
-        />
-      </div>
+      <Field label="Notas">
+        {({ id, describedBy, invalid }) => (
+          <Textarea
+            id={id}
+            name="notes"
+            rows={3}
+            defaultValue={defaults?.notes ?? ""}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </Field>
 
       <AttachmentField />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-gob-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -98,41 +112,5 @@ export function DewormingForm({
         {isPending ? "Guardando..." : "Registrar antiparasitario"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  defaultValue,
-  placeholder,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required && <span className="text-gob-danger ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        className={inputClass}
-      />
-    </div>
   );
 }
