@@ -286,15 +286,15 @@ export type ActiveZoonosisKpi = {
   /** Pets with an active rabies observation (rabies_observation_status='in_progress'). */
   rabies: number;
   /**
-   * Leptospirosis cases.
-   * TODO(L-followup): no dedicated event type or case_kind exists yet. Returns 0
-   * until a `lepto_observation_started` event or equivalent is introduced.
+   * Leptospirosis cases — disease_reported events with disease='lepto'
+   * in the last 30 days, scoped to the actor's jurisdiction(s).
+   * Handoff P4-3.
    */
   lepto: number;
   /**
-   * Hidatidosis cases.
-   * TODO(L-followup): no dedicated event type or case_kind exists yet. Returns 0
-   * until a `hidat_observation_started` event or equivalent is introduced.
+   * Hidatidosis cases — disease_reported events with disease='hidatidosis'
+   * in the last 30 days, scoped to the actor's jurisdiction(s).
+   * Handoff P4-3.
    */
   hidat: number;
   /**
@@ -315,10 +315,27 @@ export async function fetchActiveZoonosis(
   const now = Date.now();
   const since7d = new Date(now - 7 * DAY_MS);
   const since14d = new Date(now - 14 * DAY_MS);
+  const since30d = new Date(now - 30 * DAY_MS);
 
   const petsScope = petsScopeClause(actor, jurisdictions);
   const eventsScope = petEventsScopeClause(actor, jurisdictions);
   const casesScope = casesScopeClause(actor, jurisdictions);
+
+  // Disease reports (handoff P4-3) — scoped + last 30 days, split by
+  // the payload.disease discriminator.
+  const leptoConditions = [
+    eq(petEvents.eventType, "disease_reported"),
+    sql`(${petEvents.payload}->>'disease') = ${"lepto"}`,
+    gte(petEvents.occurredAt, since30d),
+  ];
+  if (eventsScope) leptoConditions.push(sql`(${eventsScope})`);
+
+  const hidatConditions = [
+    eq(petEvents.eventType, "disease_reported"),
+    sql`(${petEvents.payload}->>'disease') = ${"hidatidosis"}`,
+    gte(petEvents.occurredAt, since30d),
+  ];
+  if (eventsScope) hidatConditions.push(sql`(${eventsScope})`);
 
   // 1. Pets with active rabies observation (status column on pets table).
   const rabiesConditions = [sql`${pets.rabiesObservationStatus} = ${"in_progress"}`];
@@ -343,30 +360,42 @@ export async function fetchActiveZoonosis(
   ];
   if (eventsScope) startedLastWeekConditions.push(sql`(${eventsScope})`);
 
-  const [rabiesRows, biteCaseRows, thisWeekRows, lastWeekRows] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(pets)
-      .where(and(...rabiesConditions)),
-    db
-      .select({ n: count() })
-      .from(cases)
-      .where(and(...biteCaseConditions)),
-    db
-      .select({ n: count() })
-      .from(petEvents)
-      .where(and(...startedThisWeekConditions)),
-    db
-      .select({ n: count() })
-      .from(petEvents)
-      .where(and(...startedLastWeekConditions)),
-  ]);
+  const [rabiesRows, biteCaseRows, thisWeekRows, lastWeekRows, leptoRows, hidatRows] =
+    await Promise.all([
+      db
+        .select({ n: count() })
+        .from(pets)
+        .where(and(...rabiesConditions)),
+      db
+        .select({ n: count() })
+        .from(cases)
+        .where(and(...biteCaseConditions)),
+      db
+        .select({ n: count() })
+        .from(petEvents)
+        .where(and(...startedThisWeekConditions)),
+      db
+        .select({ n: count() })
+        .from(petEvents)
+        .where(and(...startedLastWeekConditions)),
+      db
+        .select({ n: count() })
+        .from(petEvents)
+        .where(and(...leptoConditions)),
+      db
+        .select({ n: count() })
+        .from(petEvents)
+        .where(and(...hidatConditions)),
+    ]);
 
   const rabies = rabiesRows[0]?.n ?? 0;
   // Deduplicate: bite cases include active rabies obs; use the larger of the two
   // as the total (a bite_incident case is opened alongside each rabies obs).
   const biteCases = biteCaseRows[0]?.n ?? 0;
-  const total = Math.max(rabies, biteCases);
+  const lepto = leptoRows[0]?.n ?? 0;
+  const hidat = hidatRows[0]?.n ?? 0;
+  // Total = active rabies/bite cases + the disease report counts.
+  const total = Math.max(rabies, biteCases) + lepto + hidat;
 
   const thisWeek = thisWeekRows[0]?.n ?? 0;
   const lastWeek = lastWeekRows[0]?.n ?? 0;
@@ -375,8 +404,8 @@ export async function fetchActiveZoonosis(
   return {
     count: total,
     rabies,
-    lepto: 0, // TODO(L-followup): no lepto event type exists yet
-    hidat: 0, // TODO(L-followup): no hidat event type exists yet
+    lepto,
+    hidat,
     deltaWeek,
   };
 }

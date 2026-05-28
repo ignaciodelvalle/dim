@@ -314,6 +314,11 @@ export const EVENT_TYPES = [
   "adoption_eligibility_set",
   // Surveillance — emitted when symptom_observed triggers a reportable disease match.
   "outbreak_signal",
+  // Generic disease report — laboratory-confirmed or clinically-suspected
+  // case of a reportable zoonosis. payload.disease is the discriminator
+  // (lepto | hidatidosis | other) so new zoonoses don't need a new
+  // event_type entry. Powers /gob/* KPI tiles (handoff P4-3).
+  "disease_reported",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

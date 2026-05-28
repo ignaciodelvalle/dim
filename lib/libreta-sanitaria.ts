@@ -87,6 +87,9 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // Surveillance — system signal, not pet medical history. Owner must not see this
   // in their libreta (per spec D1: owner sees no disease names).
   "outbreak_signal",
+  // Govt-side disease surveillance entry. Owner-visible only when payload says so
+  // (D1 stigma model) and never as part of the libreta proper.
+  "disease_reported",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

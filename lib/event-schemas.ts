@@ -656,6 +656,26 @@ const rabiesObservationEnded = z
 // them via `payload->>'incident_type'`. The `dog_attack` value is deprecated
 // (kept for back-compat with historical rows); new writers should use
 // `bite_suffered` for the unambiguous semantics.
+// Generic reportable-disease event (handoff P4-3). One row per
+// laboratory-confirmed or clinically-suspected zoonosis case. The
+// `disease` discriminator carries the specific pathogen so /gob KPI
+// tiles can count without introducing a new event_type per disease.
+//
+// confirmed_by_lab=true means lab corroboration; false means clinical
+// suspicion only. date_of_onset is ISO-date (YYYY-MM-DD) of the first
+// observed clinical signs.
+const diseaseReported = z
+  .object(
+    withVersion({
+      disease: z.enum(["lepto", "hidatidosis", "other"]),
+      confirmed_by_lab: z.boolean(),
+      date_of_onset: z.string(),
+      // Free-form clinical note. Limit kept generous; the column is text.
+      clinical_notes: z.string().max(2000).nullable().optional(),
+    }),
+  )
+  .strict();
+
 const incidentReported = z
   .object(
     withVersion({
@@ -1286,6 +1306,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   maltreatment_reported: maltreatmentReported,
   symptom_observed: symptomObserved,
   outbreak_signal: outbreakSignal,
+  disease_reported: diseaseReported,
   shelter_intake_recorded: shelterIntakeRecorded,
   foster_assigned: fosterAssigned,
   foster_ended: fosterEnded,
