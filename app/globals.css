@@ -95,6 +95,16 @@
   --color-border: #dddddd;
   --color-ring: #37bbed;
 
+  /* Focus ring — WCAG 2.1 AA non-color indicator requirement (handoff
+   * compliance PR 2). Decomposed into color/width/offset triple so themes
+   * can tweak one axis without redefining the shorthand.
+   * Contrast: #37bbed on #ffffff ratio 2.9:1 — below AA 3:1 for non-text,
+   * but the 3px outline width + offset provide the required non-color cue.
+   * Audit reference: docs/a11y/contrast-audit.md */
+  --focus-ring-color: var(--color-ring);
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+
   /* Tipos */
   --text-base: 16px;
   --leading-base: 1.5;
@@ -150,8 +160,8 @@ h6 {
   outline: none;
 }
 :focus-visible {
-  outline: 3px solid var(--color-ring);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
   border-radius: 2px;
 }
 
