@@ -89,7 +89,6 @@ async function resetProfilePIIToFresh(userId: string, displayName: string) {
     .where(eq(profiles.id, userId));
 }
 
-
 beforeAll(async () => {
   ownerUserId = await ensureUser(OWNER_EMAIL);
   otherUserId = await ensureUser(OTHER_EMAIL);
