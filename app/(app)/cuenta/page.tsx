@@ -5,6 +5,8 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
+import { PrivacySection } from "./_components/PrivacySection";
+
 // Role display labels — Argentine Spanish, gendered in context where possible.
 const ROLE_LABELS: Record<string, string> = {
   owner: "Dueño/a",
@@ -154,6 +156,16 @@ export default async function CuentaPage() {
           ) : null}
         </div>
       </section>
+
+      {/* Privacy controls — D3-3 */}
+      <PrivacySection
+        prefs={{
+          discloseNameCredential: profile.discloseNameCredential,
+          disclosePhoneCredential: profile.disclosePhoneCredential,
+          allowOrgContact: profile.allowOrgContact,
+          allowLostAlertsInZone: profile.allowLostAlertsInZone,
+        }}
+      />
 
       {/* Vet onboarding banner — shown only when the vet has no clinic yet */}
       {vetNeedsClinic && (
