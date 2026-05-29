@@ -251,7 +251,7 @@ export async function reportFinderInPossessionAction(
       occurredAt: new Date(),
       recordedAt: new Date(),
       recordedByUserId,
-      authorRole: "scanner",
+      authorRole: "finder",
       authorVerified,
       payload,
       caseId: openCase?.id ?? null,
