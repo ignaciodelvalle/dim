@@ -1,7 +1,7 @@
 "use client";
 
 import { type FinalizeAdoptionFormState, finalizeAdoptionAction } from "@/app/actions/adoption";
-import { Field, Input, Textarea } from "@/components/poncho";
+import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
 import { useActionState, useState } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
@@ -23,24 +23,19 @@ export function FinalizeAdoptionForm({
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
       {fosterShortcut && (
         <section className="rounded-lg border border-gob-success bg-gob-success/10   p-4 space-y-3">
-          <div className="flex items-start gap-3">
-            <input
-              id="use-foster-shortcut"
-              type="checkbox"
-              checked={useFosterShortcut}
-              onChange={(e) => setUseFosterShortcut(e.target.checked)}
-              className="h-4 w-4 mt-0.5"
-            />
-            <label htmlFor="use-foster-shortcut" className="text-sm cursor-pointer">
-              <strong className="block text-gob-success ">
-                Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
-              </strong>
-              <span className="text-gob-success  text-xs block mt-1">
-                El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos el
-                paso de pedirte el DNI.
-              </span>
-            </label>
-          </div>
+          <Checkbox
+            id="use-foster-shortcut"
+            checked={useFosterShortcut}
+            onChange={(e) => setUseFosterShortcut(e.target.checked)}
+          >
+            <strong className="block text-gob-success ">
+              Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
+            </strong>
+            <span className="text-gob-success  text-xs block mt-1">
+              El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos el
+              paso de pedirte el DNI.
+            </span>
+          </Checkbox>
           {useFosterShortcut && (
             <input type="hidden" name="adopterUserId" value={fosterShortcut.adopterUserId} />
           )}
