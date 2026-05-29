@@ -17,7 +17,6 @@ import { useState, useTransition } from "react";
 import { proposeCrossOrgTransferAction } from "@/app/actions/cross-org-transfer";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
-import { labelClass } from "@/lib/form-classes";
 
 interface ReceiverOption {
   id: string;
@@ -137,7 +136,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       {/* Step 2 — Destino */}
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
         <div>
-          <label htmlFor="receiverOrgId" className={`${labelClass} mb-1`}>
+          <label htmlFor="receiverOrgId" className="block text-sm font-medium text-gob-text mb-1">
             Organización destinataria
           </label>
           <select
@@ -172,7 +171,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       {/* Step 3 — Razón + notas */}
       <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
         <div>
-          <label htmlFor="reason" className={`${labelClass} mb-1`}>
+          <label htmlFor="reason" className="block text-sm font-medium text-gob-text mb-1">
             Motivo de la transferencia
           </label>
           <select
@@ -192,7 +191,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         <div>
-          <label htmlFor="notes" className={`${labelClass} mb-1`}>
+          <label htmlFor="notes" className="block text-sm font-medium text-gob-text mb-1">
             Notas{reasonRequiresNotes ? " (obligatorias)" : " (opcional)"}
           </label>
           <textarea

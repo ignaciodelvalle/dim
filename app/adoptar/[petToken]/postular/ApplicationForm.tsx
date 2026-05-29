@@ -20,7 +20,6 @@ import { useState, useTransition } from "react";
 import { submitAdoptionApplicationAction } from "@/app/actions/adoption-applications";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
-import { labelClass } from "@/lib/form-classes";
 
 type HousingType = "casa_con_patio" | "casa_sin_patio" | "departamento" | "otro";
 
@@ -155,7 +154,7 @@ export function ApplicationForm({
       {/* Step 2 — Otros animales */}
       <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
         <div>
-          <label htmlFor="other-pets" className={`${labelClass} mb-1`}>
+          <label htmlFor="other-pets" className="block text-sm font-medium text-gob-text mb-1">
             ¿Tenés otras mascotas? <span className="text-gob-text-muted">(opcional)</span>
           </label>
           <textarea
@@ -179,7 +178,7 @@ export function ApplicationForm({
       {/* Step 3 — Tu día a día */}
       <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
         <div>
-          <label htmlFor="daily-routine" className={`${labelClass} mb-1`}>
+          <label htmlFor="daily-routine" className="block text-sm font-medium text-gob-text mb-1">
             Cómo es tu día a día <span className="text-gob-text-muted">(opcional)</span>
           </label>
           <textarea
@@ -192,7 +191,7 @@ export function ApplicationForm({
           />
         </div>
         <div>
-          <label htmlFor="notes" className={`${labelClass} mb-1`}>
+          <label htmlFor="notes" className="block text-sm font-medium text-gob-text mb-1">
             Algo más que quieras contar <span className="text-gob-text-muted">(opcional)</span>
           </label>
           <textarea

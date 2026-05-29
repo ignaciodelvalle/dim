@@ -32,7 +32,6 @@ import {
   energyLabel,
   sizeLabel,
 } from "@/lib/adoption-listing";
-import { labelClass } from "@/lib/form-classes";
 
 type Initial = {
   isPublished: boolean;
@@ -136,7 +135,7 @@ export function AdoptionListingForm({
       <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
         <form onSubmit={saveContent} className="space-y-4">
           <div>
-            <label htmlFor="story" className={`${labelClass} mb-1`}>
+            <label htmlFor="story" className="block text-sm font-medium text-gob-text mb-1">
               Historia
             </label>
             <textarea
@@ -151,7 +150,7 @@ export function AdoptionListingForm({
           </div>
 
           <div>
-            <label htmlFor="requirements" className={`${labelClass} mb-1`}>
+            <label htmlFor="requirements" className="block text-sm font-medium text-gob-text mb-1">
               Requisitos para adoptar
             </label>
             <textarea
