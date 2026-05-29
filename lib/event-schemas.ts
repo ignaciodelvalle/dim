@@ -616,9 +616,7 @@ const noteAdded = z
           provinceName: z.string().nullable(),
         })
         .optional(),
-      petCondition: z
-        .enum(["bien", "herida", "asustada", "necesita_vet_urgente"])
-        .optional(),
+      petCondition: z.enum(["bien", "herida", "asustada", "necesita_vet_urgente"]).optional(),
       canKeepUntil: z.string().nullable().optional(),
       canKeepIndefinite: z.boolean().optional(),
       message: z.string().max(500).nullable().optional(),

@@ -92,7 +92,7 @@ let capturedNotificationInsert: Record<string, unknown> | null = null;
 // Controls whether the idempotency query returns an existing event.
 let idempotencyReturnEvent = false;
 
-function buildMockDb(petStatus: string = "lost") {
+function buildMockDb(petStatus = "lost") {
   let selectCallCount = 0;
 
   const selectChain = {
@@ -335,7 +335,12 @@ describe("reportFinderInPossessionAction — P0e", () => {
       "@/app/p/[publicToken]/encontre/action"
     );
     const { finderPhone: _dropped, ...noPhone } = BASE_FIELDS;
-    const fd = makeFormData({ finderName: "Ana", localityName: "La Plata", petCondition: "bien", canKeepIndefinite: "true" });
+    const fd = makeFormData({
+      finderName: "Ana",
+      localityName: "La Plata",
+      petCondition: "bien",
+      canKeepIndefinite: "true",
+    });
 
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
@@ -350,7 +355,12 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const { reportFinderInPossessionAction } = await import(
       "@/app/p/[publicToken]/encontre/action"
     );
-    const fd = makeFormData({ finderName: "Ana", finderPhone: "1111", petCondition: "bien", canKeepIndefinite: "true" });
+    const fd = makeFormData({
+      finderName: "Ana",
+      finderPhone: "1111",
+      petCondition: "bien",
+      canKeepIndefinite: "true",
+    });
 
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 

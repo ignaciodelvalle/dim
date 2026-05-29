@@ -154,10 +154,8 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-gob-text ">Avistaje reportado</p>
           <p className="mt-0.5 text-xs text-gob-text-muted ">
-            {item.localityLabel ?? (item.description ?? "Sin descripción")}
-            {item.localityLabel && item.description && (
-              <span> · {item.description}</span>
-            )}
+            {item.localityLabel ?? item.description ?? "Sin descripción"}
+            {item.localityLabel && item.description && <span> · {item.description}</span>}
             {osmHref && (
               <a
                 href={osmHref}

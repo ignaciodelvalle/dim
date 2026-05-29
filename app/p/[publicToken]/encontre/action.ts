@@ -69,9 +69,8 @@ export async function reportFinderInPossessionAction(
   const canKeepUntilRaw = String(formData.get("canKeepUntil") ?? "").trim();
   const canKeepIndefinite = String(formData.get("canKeepIndefinite") ?? "") === "true";
   const message = String(formData.get("message") ?? "").trim();
-  const photoFile = formData.get("photoNow") instanceof File
-    ? (formData.get("photoNow") as File)
-    : null;
+  const photoFile =
+    formData.get("photoNow") instanceof File ? (formData.get("photoNow") as File) : null;
 
   // Validation.
   const finderName = rawFinderName ? rawFinderName.slice(0, 80) : "";
@@ -136,9 +135,7 @@ export async function reportFinderInPossessionAction(
   // when both are provided. The schema's finderContact is a single text field.
   const primaryContact = finderPhone ?? finderEmail ?? "";
   const finderContact =
-    finderPhone && finderEmail
-      ? `${finderPhone} / ${finderEmail}`
-      : primaryContact;
+    finderPhone && finderEmail ? `${finderPhone} / ${finderEmail}` : primaryContact;
 
   // Idempotency: skip insert when an identical finder_in_possession event for
   // (petId, finderContact) already exists in the last 5 minutes.
@@ -170,7 +167,11 @@ export async function reportFinderInPossessionAction(
   let photoWarning: string | null = null;
   if (photoFile && photoFile.size > 0) {
     const adminSupabase = createAdminClient();
-    const uploadResult = await uploadAttachmentIfPresent(adminSupabase, photoFile, "event-attachments");
+    const uploadResult = await uploadAttachmentIfPresent(
+      adminSupabase,
+      photoFile,
+      "event-attachments",
+    );
     if (uploadResult.error) {
       console.warn("[finder-possession] Photo upload failed (non-fatal):", uploadResult.error);
       photoWarning = "No se pudo subir la foto, pero el aviso fue registrado igual.";
@@ -228,7 +229,7 @@ export async function reportFinderInPossessionAction(
       provinceName: provinceName || null,
     },
     petCondition: petCondition as "bien" | "herida" | "asustada" | "necesita_vet_urgente",
-    canKeepUntil: canKeepIndefinite ? null : canKeepUntil?.toISOString() ?? null,
+    canKeepUntil: canKeepIndefinite ? null : (canKeepUntil?.toISOString() ?? null),
     canKeepIndefinite,
     message: safeMessage || null,
   });
@@ -246,21 +247,18 @@ export async function reportFinderInPossessionAction(
   });
 
   // Notification to owner.
-  const locationDisplay = provinceName
-    ? `${localityName}, ${provinceName}`
-    : localityName;
+  const locationDisplay = provinceName ? `${localityName}, ${provinceName}` : localityName;
 
-  const contactDisplay = finderPhone && finderEmail
-    ? `${finderPhone} / ${finderEmail}`
-    : finderPhone ?? finderEmail ?? finderContact;
+  const contactDisplay =
+    finderPhone && finderEmail
+      ? `${finderPhone} / ${finderEmail}`
+      : (finderPhone ?? finderEmail ?? finderContact);
 
   const isUrgent = petCondition === "necesita_vet_urgente";
 
   const notifBody = [
     `${finderName} dice que tiene a ${pet.name} en ${locationDisplay}.`,
-    isUrgent
-      ? `URGENTE: necesita atención veterinaria.`
-      : `Estado: ${petCondition}.`,
+    isUrgent ? "URGENTE: necesita atención veterinaria." : `Estado: ${petCondition}.`,
     `Contactalo/a al ${contactDisplay}.`,
     safeMessage ? `Mensaje: "${safeMessage}".` : null,
     canKeepIndefinite

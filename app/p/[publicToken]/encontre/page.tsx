@@ -13,9 +13,9 @@
 // Logged-in prefill: getUser() without redirect. If logged in, prefill
 // name/phone/email from the profile row.
 
+import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, eq, isNull } from "drizzle-orm";
 
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { petPhotoUrl } from "@/lib/storage";
@@ -50,12 +50,10 @@ export default async function FinderInPossessionPage({
     return (
       <main className="min-h-screen bg-white px-4 py-10">
         <div className="mx-auto max-w-md space-y-4 text-center">
-          <h1 className="text-2xl font-semibold text-gob-text">
-            Esta mascota no está perdida
-          </h1>
+          <h1 className="text-2xl font-semibold text-gob-text">Esta mascota no está perdida</h1>
           <p className="text-sm text-gob-text-gray">
-            El formulario de "la tengo conmigo" sólo está disponible mientras la
-            mascota está marcada como perdida.
+            El formulario de "la tengo conmigo" sólo está disponible mientras la mascota está
+            marcada como perdida.
           </p>
           <Link
             href={`/p/${publicToken}`}
@@ -112,8 +110,8 @@ export default async function FinderInPossessionPage({
               El dueño/a prefiere ser contactado/a directamente
             </h1>
             <p className="text-sm text-gob-text-gray">
-              Para avisarle que encontraste a {pet.name}, comunicate por los medios que
-              el dueño/a habilitó:
+              Para avisarle que encontraste a {pet.name}, comunicate por los medios que el dueño/a
+              habilitó:
             </p>
           </header>
 
@@ -144,8 +142,8 @@ export default async function FinderInPossessionPage({
             </ul>
           ) : (
             <p className="text-sm text-gob-text-gray">
-              El dueño/a no habilitó información de contacto pública. Mirá el perfil
-              para ver si hay otro medio de contacto.
+              El dueño/a no habilitó información de contacto pública. Mirá el perfil para ver si hay
+              otro medio de contacto.
             </p>
           )}
 
@@ -208,9 +206,7 @@ export default async function FinderInPossessionPage({
     .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
     .limit(1);
 
-  const ownerFirstName = ownerRow?.displayName
-    ? ownerRow.displayName.trim().split(/\s+/)[0]
-    : null;
+  const ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;
 
   return (
     <main className="min-h-screen bg-gob-warning/10 px-4 py-6">
@@ -237,9 +233,7 @@ export default async function FinderInPossessionPage({
               </div>
             )}
             <div>
-              <h1 className="text-xl font-semibold text-gob-text">
-                La tengo conmigo: {pet.name}
-              </h1>
+              <h1 className="text-xl font-semibold text-gob-text">La tengo conmigo: {pet.name}</h1>
               {ownerFirstName && (
                 <p className="text-xs text-gob-text-gray mt-0.5">
                   {ownerFirstName} está esperando que la encuentren.
@@ -249,8 +243,8 @@ export default async function FinderInPossessionPage({
           </div>
 
           <p className="text-sm text-gob-text-gray">
-            Completá el formulario y le avisamos al dueño/a al instante para que
-            coordinen el encuentro.
+            Completá el formulario y le avisamos al dueño/a al instante para que coordinen el
+            encuentro.
           </p>
         </header>
 

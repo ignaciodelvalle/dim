@@ -69,9 +69,7 @@ export async function reportPetSightingAction(
   const rawFinderContact = String(formData.get("finderContact") ?? "").trim();
   const finderName = rawFinderName ? rawFinderName.slice(0, 80) : null;
   const finderContact = rawFinderContact ? rawFinderContact.slice(0, 120) : null;
-  const photoFile = formData.get("photo") instanceof File
-    ? (formData.get("photo") as File)
-    : null;
+  const photoFile = formData.get("photo") instanceof File ? (formData.get("photo") as File) : null;
 
   const lat = latRaw ? Number.parseFloat(latRaw) : Number.NaN;
   const lng = lngRaw ? Number.parseFloat(lngRaw) : Number.NaN;
