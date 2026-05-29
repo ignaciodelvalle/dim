@@ -187,6 +187,8 @@ export type LostPetRow = {
   petPublicToken: string;
   petName: string;
   species: string;
+  /** Current pet status. Used to show a status badge when displaying non-lost rows. */
+  petStatus: string;
   province: string | null;
   locality: string | null;
   markedLostAt: Date | null;
@@ -195,12 +197,27 @@ export type LostPetRow = {
   ownerDisplayName: string | null;
 };
 
+/** Valid values for the `status` filter. `null` / `undefined` defaults to `'lost'`. */
+export const PET_STATUS_VALUES = ["active", "lost", "deceased"] as const;
+export type PetStatusFilter = (typeof PET_STATUS_VALUES)[number] | "all";
+
 export async function fetchLostPets(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  filters: { since?: Date; species?: string } = {},
+  filters: {
+    since?: Date;
+    species?: string;
+    status?: PetStatusFilter | null;
+    q?: string | null;
+  } = {},
 ): Promise<LostPetRow[]> {
-  const conditions = [eq(pets.status, "lost")];
+  // Default to 'lost' only — preserves backward-compat for metrics and
+  // any other caller that omits the status filter.
+  const statusFilter = filters.status ?? "lost";
+  const conditions =
+    statusFilter === "all"
+      ? [sql`${pets.status} IN ('active', 'lost', 'deceased')`]
+      : [eq(pets.status, statusFilter)];
   if (filters.species) conditions.push(eq(pets.species, filters.species));
 
   // Govt scope filters on the pet's own jurisdiction columns. Pets without a
@@ -221,6 +238,7 @@ export async function fetchLostPets(
       petPublicToken: pets.publicToken,
       petName: pets.name,
       species: pets.species,
+      petStatus: pets.status,
       province: pets.jurisdictionProvince,
       locality: pets.jurisdictionLocality,
     })
@@ -284,6 +302,8 @@ export async function fetchLostPets(
   for (const r of activeOwnerRows) ownerMap.set(r.petId, r.displayName);
 
   const sinceFloor = filters.since?.getTime() ?? null;
+  // Normalised query for post-fetch search (case-insensitive, matches petName OR ownerDisplayName).
+  const qLower = filters.q ? filters.q.toLowerCase() : null;
 
   return baseRows
     .map((r): LostPetRow => {
@@ -293,6 +313,7 @@ export async function fetchLostPets(
         petPublicToken: r.petPublicToken,
         petName: r.petName,
         species: r.species,
+        petStatus: r.petStatus,
         province: r.province,
         locality: r.locality,
         markedLostAt: meta?.occurredAt ?? null,
@@ -301,7 +322,16 @@ export async function fetchLostPets(
         ownerDisplayName: ownerMap.get(r.petId) ?? null,
       };
     })
-    .filter((r) => (sinceFloor === null ? true : (r.markedLostAt?.getTime() ?? 0) >= sinceFloor))
+    .filter((r) => {
+      if (sinceFloor !== null && (r.markedLostAt?.getTime() ?? 0) < sinceFloor) return false;
+      // Text search: match against pet name or owner display name.
+      if (qLower) {
+        const nameMatch = r.petName.toLowerCase().includes(qLower);
+        const ownerMatch = r.ownerDisplayName?.toLowerCase().includes(qLower) ?? false;
+        if (!nameMatch && !ownerMatch) return false;
+      }
+      return true;
+    })
     .sort((a, b) => (b.markedLostAt?.getTime() ?? 0) - (a.markedLostAt?.getTime() ?? 0));
 }
 

@@ -214,7 +214,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(payload.kind).toBe("finder_in_possession");
     expect(payload.finderName).toBe("Ana González");
     expect(payload.finderContact).toBe("11-5555-0001");
-    expect(capturedPetEventInsert?.authorRole).toBe("scanner");
+    expect(capturedPetEventInsert?.authorRole).toBe("finder");
     expect(capturedPetEventInsert?.recordedByUserId).toBeNull();
     expect(capturedPetEventInsert?.authorVerified).toBe(false);
 
