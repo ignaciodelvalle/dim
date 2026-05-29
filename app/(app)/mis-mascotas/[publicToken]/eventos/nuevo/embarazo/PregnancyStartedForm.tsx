@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import type { PregnancyFormState } from "@/app/actions/pregnancy";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input, Textarea } from "@/components/poncho";
 
 const initialState: PregnancyFormState = { error: null };
 
@@ -20,31 +20,23 @@ export function PregnancyStartedForm({ action }: { action: FormAction }) {
       </p>
 
       <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
+        <label htmlFor="occurredAt" className="block text-sm font-medium text-gob-text">
           Fecha estimada de inicio<span className="text-gob-danger ml-0.5">*</span>
         </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={today}
-          className={inputClass}
-        />
+        <Input id="occurredAt" name="occurredAt" type="date" required defaultValue={today} />
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="weeksAtDiagnosis" className={labelClass}>
+        <label htmlFor="weeksAtDiagnosis" className="block text-sm font-medium text-gob-text">
           Semanas estimadas al diagnóstico
         </label>
-        <input
+        <Input
           id="weeksAtDiagnosis"
           name="weeksAtDiagnosis"
           type="number"
           min={0}
           max={12}
           placeholder="0–12 (opcional)"
-          className={inputClass}
         />
         <p className="text-xs text-gob-text-muted ">
           Si tu vet te dio una estimación, ingresala. Sino dejalo vacío.
@@ -52,29 +44,22 @@ export function PregnancyStartedForm({ action }: { action: FormAction }) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="vetConsulted" className={labelClass}>
+        <label htmlFor="vetConsulted" className="block text-sm font-medium text-gob-text">
           Veterinario consultado
         </label>
-        <input
+        <Input
           id="vetConsulted"
           name="vetConsulted"
           type="text"
           placeholder="Dr. García · Clínica Veterinaria X"
-          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
+        <label htmlFor="notes" className="block text-sm font-medium text-gob-text">
           Notas adicionales
         </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          placeholder="Detalles que quieras recordar…"
-          className={inputClass}
-        />
+        <Textarea id="notes" name="notes" rows={3} placeholder="Detalles que quieras recordar…" />
       </div>
 
       {state.error && (

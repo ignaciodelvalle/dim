@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 
 import type { PregnancyFormState } from "@/app/actions/pregnancy";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input, Textarea } from "@/components/poncho";
 
 const initialState: PregnancyFormState = { error: null };
 
@@ -27,21 +27,14 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
   return (
     <form action={formAction} className="space-y-5">
       <div className="space-y-1.5">
-        <label htmlFor="occurredAt" className={labelClass}>
+        <label htmlFor="occurredAt" className="block text-sm font-medium text-gob-text">
           Fecha del cierre<span className="text-gob-danger ml-0.5">*</span>
         </label>
-        <input
-          id="occurredAt"
-          name="occurredAt"
-          type="date"
-          required
-          defaultValue={today}
-          className={inputClass}
-        />
+        <Input id="occurredAt" name="occurredAt" type="date" required defaultValue={today} />
       </div>
 
       <fieldset className="space-y-2">
-        <legend className={labelClass}>
+        <legend className="block text-sm font-medium text-gob-text">
           Resultado<span className="text-gob-danger ml-0.5">*</span>
         </legend>
         {OUTCOMES.map((o) => (
@@ -61,10 +54,10 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
 
       {outcome === "live_birth" && (
         <div className="space-y-1.5">
-          <label htmlFor="liveBirthsCount" className={labelClass}>
+          <label htmlFor="liveBirthsCount" className="block text-sm font-medium text-gob-text">
             Cantidad de crías nacidas vivas<span className="text-gob-danger ml-0.5">*</span>
           </label>
-          <input
+          <Input
             id="liveBirthsCount"
             name="liveBirthsCount"
             type="number"
@@ -72,35 +65,27 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
             max={20}
             required={outcome === "live_birth"}
             placeholder="1–20"
-            className={inputClass}
           />
         </div>
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="vetConsulted" className={labelClass}>
+        <label htmlFor="vetConsulted" className="block text-sm font-medium text-gob-text">
           Veterinario que asistió
         </label>
-        <input
+        <Input
           id="vetConsulted"
           name="vetConsulted"
           type="text"
           placeholder="Dr. García · Clínica Veterinaria X"
-          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
+        <label htmlFor="notes" className="block text-sm font-medium text-gob-text">
           Notas adicionales
         </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          placeholder="Detalles que quieras recordar…"
-          className={inputClass}
-        />
+        <Textarea id="notes" name="notes" rows={3} placeholder="Detalles que quieras recordar…" />
       </div>
 
       <p className="text-xs rounded-lg border border-gob-border bg-gob-surface-alt px-4 py-3 text-gob-text-gray   ">
