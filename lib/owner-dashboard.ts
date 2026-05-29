@@ -1025,6 +1025,8 @@ export type NotificationCategoryCounts = {
   adoption: number;
   welfare: number;
   admin: number;
+  perdidas: number;
+  perdidasUrgent: number;
 };
 
 /**
@@ -1036,13 +1038,14 @@ export async function fetchNotificationCategoryCounts(
 ): Promise<NotificationCategoryCounts> {
   const rows = await db.execute<{
     category: string | null;
+    severity: string | null;
     n: string;
   }>(sql`
-    SELECT category, COUNT(*)::text AS n
+    SELECT category, severity, COUNT(*)::text AS n
     FROM notifications
     WHERE user_id = ${userId}
       AND archived_at IS NULL
-    GROUP BY category
+    GROUP BY category, severity
   `);
 
   const counts: NotificationCategoryCounts = {
@@ -1052,6 +1055,8 @@ export async function fetchNotificationCategoryCounts(
     adoption: 0,
     welfare: 0,
     admin: 0,
+    perdidas: 0,
+    perdidasUrgent: 0,
   };
 
   for (const r of rows) {
@@ -1063,6 +1068,10 @@ export async function fetchNotificationCategoryCounts(
     else if (cat === "adoption") counts.adoption += n;
     else if (cat === "welfare") counts.welfare += n;
     else if (cat === "admin") counts.admin += n;
+    else if (cat === "perdidas") {
+      counts.perdidas += n;
+      if (r.severity === "urgent") counts.perdidasUrgent += n;
+    }
     // null category → counted in 'all' only (already added above)
   }
 
