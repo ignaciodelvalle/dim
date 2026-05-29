@@ -599,6 +599,13 @@ const noteAdded = z
         .enum(["comportamiento", "dieta", "grooming", "estado_de_animo", "otro", "system"])
         .nullable(),
       text: z.string(),
+      // Discriminator for structured note kinds (P0c+). All optional so that
+      // existing {category, text} notes continue to validate without changes.
+      // P0d will populate finderName/finderContact; P0e will populate photoStoragePath.
+      kind: z.enum(["sighting", "finder_in_possession"]).optional(),
+      finderName: z.string().max(120).nullable().optional(),
+      finderContact: z.string().max(160).nullable().optional(),
+      photoStoragePath: z.string().nullable().optional(),
     }),
   )
   .strict();
