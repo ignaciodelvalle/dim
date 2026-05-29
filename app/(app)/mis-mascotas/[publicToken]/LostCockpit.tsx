@@ -67,7 +67,6 @@ export async function LostCockpit({
   const posterHref = `/mis-mascotas/${pet.publicToken}/cartel`;
   const publicHref = `/p/${pet.publicToken}`;
   const editLastSeenHref = `/mis-mascotas/${pet.publicToken}/perdida`;
-  const addSightingHref = `/mis-mascotas/${pet.publicToken}/avistamiento/nuevo`;
   const caseHref = episode ? `/casos/${episode.publicCode}` : `/mis-mascotas/${pet.publicToken}`;
 
   return (
@@ -112,7 +111,7 @@ export async function LostCockpit({
             at={episode.openedAt}
             note={episode.ownerNote}
             editHref={editLastSeenHref}
-            addSightingHref={addSightingHref}
+            publicUrl={publicUrl}
             sightingsCount={episode.sightingsCount}
           />
         )}

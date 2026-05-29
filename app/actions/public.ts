@@ -91,6 +91,7 @@ export async function notifyOwnerOfFoundPetAction(
     title: `Alguien encontró a ${pet.name}`,
     body,
     severity: "urgent",
+    category: "perdidas",
     relatedPetId: pet.id,
     ctaLabel: "Ver mascota",
     ctaUrl: `/mis-mascotas/${pet.publicToken}`,

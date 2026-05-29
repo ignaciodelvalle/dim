@@ -310,3 +310,63 @@ describe("fetchNotificationCategoryCounts — excludes archived notifications", 
     expect(rows.every((r) => r.archivedAt === null)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// T7: perdidas category — counts under 'perdidas' and 'all'; urgent sub-count
+// ---------------------------------------------------------------------------
+
+describe("fetchNotificationCategoryCounts — perdidas category", () => {
+  const EMAIL = "nbc-perdidas@dim-test.local";
+  const PASS = "NbcPerdidas_2026!";
+  let userId: string;
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, PASS);
+    await clearNotifications(userId); // remove welcome notification from trigger
+    // 2 perdidas urgent + 1 perdidas non-urgent + 1 health (control)
+    await db.insert(notifications).values({
+      userId,
+      notificationType: "pet_found_report",
+      title: "Avistaje 1",
+      severity: "urgent",
+      category: "perdidas",
+    });
+    await db.insert(notifications).values({
+      userId,
+      notificationType: "pet_found_report",
+      title: "Avistaje 2",
+      severity: "urgent",
+      category: "perdidas",
+    });
+    await db.insert(notifications).values({
+      userId,
+      notificationType: "pet_found_report",
+      title: "Avistaje 3",
+      severity: "info",
+      category: "perdidas",
+    });
+    await insertNotification({ userId, category: "health" });
+  });
+
+  afterAll(() => cleanupUser(userId));
+
+  it("perdidas notifications count under perdidas and all", async () => {
+    const counts = await fetchNotificationCategoryCounts(userId);
+    expect(counts.all).toBe(4);
+    expect(counts.perdidas).toBe(3);
+    expect(counts.health).toBe(1);
+    expect(counts.custody).toBe(0);
+  });
+
+  it("perdidasUrgent reflects only urgent severity rows", async () => {
+    const counts = await fetchNotificationCategoryCounts(userId);
+    expect(counts.perdidasUrgent).toBe(2);
+  });
+
+  it("filter perdidas returns only perdidas rows", async () => {
+    const rows = await fetchNotificationsByCategory(userId, "perdidas");
+    expect(rows.length).toBe(3);
+    expect(rows.every((r) => r.category === "perdidas")).toBe(true);
+  });
+});
