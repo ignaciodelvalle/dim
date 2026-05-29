@@ -22,9 +22,11 @@ import { useRef, useState, useTransition } from "react";
 
 import type { DisclosurePrefsInput, EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
+import { Input } from "@/components/poncho/Input";
+import { Select } from "@/components/poncho/Select";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
+import { Textarea } from "@/components/poncho/Textarea";
 import { WizardShell } from "@/components/poncho/Wizard";
-import { inputClass, labelClass } from "@/lib/form-classes";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -179,15 +181,14 @@ export function MarkLostWizard({
           />
 
           <div className="space-y-1.5">
-            <label htmlFor="reason" className={labelClass}>
+            <label htmlFor="reason" className="block text-sm font-medium text-gob-text">
               Detalles (opcional)
             </label>
-            <textarea
+            <Textarea
               id="reason"
               name="reason"
               rows={3}
               placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
-              className={inputClass}
             />
             <p className="text-xs text-gob-text-muted">
               Se guarda en el historial para tu referencia.
@@ -221,29 +222,33 @@ export function MarkLostWizard({
                   Identidad
                 </p>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_color" className={labelClass}>
+                  <label
+                    htmlFor="enriched_color"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Color y pelaje
                   </label>
-                  <input
+                  <Input
                     id="enriched_color"
                     name="enriched_color"
                     type="text"
                     defaultValue={petColor ?? ""}
                     placeholder="Ej: marrón con manchas blancas en el pecho"
-                    className={inputClass}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_distinguishing_features" className={labelClass}>
+                  <label
+                    htmlFor="enriched_distinguishing_features"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Marcas o características distintivas
                   </label>
-                  <textarea
+                  <Textarea
                     id="enriched_distinguishing_features"
                     name="enriched_distinguishing_features"
                     rows={2}
                     defaultValue={petDistinguishingFeatures ?? ""}
                     placeholder="Ej: mancha negra en la oreja derecha, cola corta, cicatriz en el lomo"
-                    className={inputClass}
                   />
                 </div>
               </div>
@@ -253,39 +258,45 @@ export function MarkLostWizard({
                   Al momento de perderse
                 </p>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_accessories_when_lost" className={labelClass}>
+                  <label
+                    htmlFor="enriched_accessories_when_lost"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Accesorios que llevaba
                   </label>
-                  <input
+                  <Input
                     id="enriched_accessories_when_lost"
                     name="enriched_accessories_when_lost"
                     type="text"
                     placeholder="Ej: collar rojo con placa, campera azul"
-                    className={inputClass}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_behavior_notes" className={labelClass}>
+                  <label
+                    htmlFor="enriched_behavior_notes"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Comportamiento y temperamento
                   </label>
-                  <textarea
+                  <Textarea
                     id="enriched_behavior_notes"
                     name="enriched_behavior_notes"
                     rows={2}
                     placeholder="Ej: se asusta de los autos, responde a su nombre"
-                    className={inputClass}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_last_seen_context" className={labelClass}>
+                  <label
+                    htmlFor="enriched_last_seen_context"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Contexto del último avistaje
                   </label>
-                  <textarea
+                  <Textarea
                     id="enriched_last_seen_context"
                     name="enriched_last_seen_context"
                     rows={2}
                     placeholder="Ej: salió por la puerta cuando abrimos el portón"
-                    className={inputClass}
                   />
                 </div>
               </div>
@@ -295,15 +306,17 @@ export function MarkLostWizard({
                   Microchip (opcional)
                 </p>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_microchip_id" className={labelClass}>
+                  <label
+                    htmlFor="enriched_microchip_id"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Número de microchip
                   </label>
-                  <input
+                  <Input
                     id="enriched_microchip_id"
                     name="enriched_microchip_id"
                     type="text"
                     placeholder="Ej: 982000411234567"
-                    className={inputClass}
                   />
                   <p className="text-xs text-gob-text-muted">
                     Si te acordás que tiene chip pero nunca lo cargaste, ingresalo acá.
@@ -316,25 +329,29 @@ export function MarkLostWizard({
                   Tatuaje (opcional)
                 </p>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_tattoo_code" className={labelClass}>
+                  <label
+                    htmlFor="enriched_tattoo_code"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Código del tatuaje
                   </label>
-                  <input
+                  <Input
                     id="enriched_tattoo_code"
                     name="enriched_tattoo_code"
                     type="text"
                     placeholder="Ej: K9-2014-A"
-                    className={inputClass}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_tattoo_location" className={labelClass}>
+                  <label
+                    htmlFor="enriched_tattoo_location"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Ubicación
                   </label>
-                  <select
+                  <Select
                     id="enriched_tattoo_location"
                     name="enriched_tattoo_location"
-                    className={inputClass}
                     defaultValue=""
                   >
                     <option value="">Seleccionar</option>
@@ -343,18 +360,20 @@ export function MarkLostWizard({
                         {l.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="enriched_tattoo_description" className={labelClass}>
+                  <label
+                    htmlFor="enriched_tattoo_description"
+                    className="block text-sm font-medium text-gob-text"
+                  >
                     Descripción (opcional)
                   </label>
-                  <textarea
+                  <Textarea
                     id="enriched_tattoo_description"
                     name="enriched_tattoo_description"
                     rows={2}
                     placeholder="Ej: campaña de castración 2018"
-                    className={inputClass}
                   />
                 </div>
               </div>
