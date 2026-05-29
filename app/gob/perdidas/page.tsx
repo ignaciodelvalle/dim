@@ -1,5 +1,8 @@
+import { Suspense } from "react";
+
 import {
   EmptyState,
+  Input,
   JurisdictionSwitcher,
   MapChoropleth,
   MetricCard,
@@ -7,11 +10,15 @@ import {
   PanelBody,
   PanelHeader,
   PeriodPicker,
+  type TabItem,
+  Tabs,
+  TabsContent,
 } from "@/components/poncho";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type LostPetRow,
   PROVINCE_ISO_MAP,
+  type PetStatusFilter,
   fetchLostPets,
   fetchPerdidasMetrics,
 } from "@/lib/govt-dashboards";
@@ -53,6 +60,20 @@ function aggregateLostByProvince(
   }));
 }
 
+const VALID_STATUSES: PetStatusFilter[] = ["all", "lost", "active", "deceased"];
+
+function parseStatusFilter(raw: string | undefined): PetStatusFilter {
+  if (!raw) return "lost";
+  return (VALID_STATUSES as string[]).includes(raw) ? (raw as PetStatusFilter) : "lost";
+}
+
+const STATUS_TABS: TabItem[] = [
+  { value: "lost", label: "Perdidas" },
+  { value: "active", label: "Recuperadas" },
+  { value: "deceased", label: "Fallecidas" },
+  { value: "all", label: "Todas" },
+];
+
 export default async function GobPerdidasPage({
   searchParams,
 }: {
@@ -61,9 +82,8 @@ export default async function GobPerdidasPage({
     from?: string;
     to?: string;
     species?: string;
-    // TODO(E3-followup): status filter (active/recovered/all chips) and search
-    // are not yet forwarded to fetchLostPets — the fetcher always returns
-    // status='lost' pets. Extend fetchLostPets when the follow-up lands.
+    status?: string;
+    q?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -73,10 +93,12 @@ export default async function GobPerdidasPage({
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const species = sp.species || undefined;
+  const statusFilter = parseStatusFilter(sp.status);
+  const q = sp.q?.trim() || undefined;
 
   const [metrics, lostPets] = await Promise.all([
     fetchPerdidasMetrics(actor, jurisdictions),
-    fetchLostPets(actor, jurisdictions, { since, species }),
+    fetchLostPets(actor, jurisdictions, { since, species, status: statusFilter, q }),
   ]);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
@@ -92,7 +114,6 @@ export default async function GobPerdidasPage({
   const choroplethData = aggregateLostByProvince(lostPets);
 
   const panelMapId = "panel-perdidas-mapa-titulo";
-  const panelListId = "panel-perdidas-lista-titulo";
 
   return (
     <main className="px-6 py-8">
@@ -138,36 +159,97 @@ export default async function GobPerdidasPage({
           />
         </div>
 
-        {/* Map + list panels */}
-        <div className="grid lg:grid-cols-2 gap-4">
-          <Panel aria-labelledby={panelMapId}>
-            <PanelHeader title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
-            <PanelBody>
-              <MapChoropleth data={choroplethData} />
-            </PanelBody>
-          </Panel>
+        {/* Map panel */}
+        <Panel aria-labelledby={panelMapId}>
+          <PanelHeader title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
+          <PanelBody>
+            <MapChoropleth data={choroplethData} />
+          </PanelBody>
+        </Panel>
 
-          <Panel aria-labelledby={panelListId}>
-            <PanelHeader
-              title={<span id={panelListId}>Mascotas perdidas ({lostPets.length})</span>}
-            />
-            <PanelBody>
-              {lostPets.length === 0 ? (
-                <EmptyState
-                  icon="search"
-                  title="No hay episodios activos"
-                  description="No hay mascotas perdidas en este período para tu cobertura."
-                />
-              ) : (
-                <ul className="space-y-2">
-                  {lostPets.map((p) => (
-                    <LostPetRowComponent key={p.petId} pet={p} />
-                  ))}
-                </ul>
-              )}
-            </PanelBody>
-          </Panel>
-        </div>
+        {/* Search form */}
+        <form action="/gob/perdidas" method="get" className="flex items-center gap-2">
+          {/* Preserve other active searchParams so the form doesn't reset period/species */}
+          {sp.period && <input type="hidden" name="period" value={sp.period} />}
+          {sp.species && <input type="hidden" name="species" value={sp.species} />}
+          {sp.status && <input type="hidden" name="status" value={sp.status} />}
+          <Input
+            type="search"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Buscar por nombre de mascota o dueño/a"
+            className="flex-1"
+            aria-label="Buscar mascotas"
+          />
+          <button
+            type="submit"
+            className="text-sm px-3 py-1.5 rounded-md bg-gob-primary text-white hover:opacity-90 whitespace-nowrap"
+          >
+            Buscar
+          </button>
+          {q && (
+            <a
+              href={`/gob/perdidas${sp.status ? `?status=${sp.status}` : ""}`}
+              className="text-sm text-gob-text-gray hover:text-gob-text underline underline-offset-2 whitespace-nowrap"
+            >
+              Limpiar
+            </a>
+          )}
+        </form>
+
+        {/* Status tabs + list panel */}
+        <Suspense>
+          <Tabs
+            paramKey="status"
+            defaultValue="lost"
+            tabs={STATUS_TABS}
+            aria-label="Filtrar por estado"
+          >
+            {STATUS_TABS.map((tab) => {
+              const panelListId = `panel-perdidas-lista-${tab.value}`;
+              return (
+                <TabsContent key={tab.value} value={tab.value}>
+                  <Panel aria-labelledby={panelListId} className="mt-4">
+                    <PanelHeader
+                      title={
+                        <span id={panelListId}>
+                          {tab.value === "lost" && "Mascotas perdidas"}
+                          {tab.value === "active" && "Mascotas recuperadas"}
+                          {tab.value === "deceased" && "Mascotas fallecidas"}
+                          {tab.value === "all" && "Todas las mascotas"} ({lostPets.length})
+                          {q && (
+                            <span className="ml-2 text-xs font-normal text-gob-text-muted">
+                              — búsqueda: &ldquo;{q}&rdquo;
+                            </span>
+                          )}
+                        </span>
+                      }
+                    />
+                    <PanelBody>
+                      {lostPets.length === 0 ? (
+                        <EmptyState
+                          icon="search"
+                          title="Sin resultados"
+                          description={
+                            q
+                              ? `No se encontraron mascotas para "${q}" con el estado seleccionado.`
+                              : "No hay mascotas con este estado en el período para tu cobertura."
+                          }
+                        />
+                      ) : (
+                        <ul className="space-y-2">
+                          {lostPets.map((p) => (
+                            <LostPetRowComponent key={p.petId} pet={p} />
+                          ))}
+                        </ul>
+                      )}
+                    </PanelBody>
+                  </Panel>
+                </TabsContent>
+              );
+            })}
+          </Tabs>
+        </Suspense>
       </div>
     </main>
   );

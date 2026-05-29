@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/poncho";
+import { Badge, type BadgeProps } from "@/components/poncho";
 import type { LostPetRow as LostPetRowData } from "@/lib/govt-dashboards";
 
 type LostPetRowProps = {
@@ -22,11 +22,26 @@ function formatRelative(date: Date | null): string {
   return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  lost: "Perdida",
+  active: "Activa",
+  deceased: "Fallecida",
+};
+
+const STATUS_VARIANT: Record<string, BadgeProps["variant"]> = {
+  lost: "warning",
+  active: "success",
+  deceased: "neutral",
+};
+
 /**
- * Compact row for a single lost pet in the /gob/perdidas list panel.
- * Mirrors the inline <li> from the original page.tsx but as an extractable component.
+ * Compact row for a single pet in the /gob/perdidas list panel.
+ * Shows a status badge when the row is not in 'lost' status.
  */
 export function LostPetRow({ pet }: LostPetRowProps) {
+  const statusLabel = STATUS_LABEL[pet.petStatus] ?? pet.petStatus;
+  const statusVariant = STATUS_VARIANT[pet.petStatus] ?? "neutral";
+
   return (
     <li className="rounded-lg border border-gob-border  px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -34,6 +49,7 @@ export function LostPetRow({ pet }: LostPetRowProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-gob-text ">{pet.petName}</p>
             <Badge variant="neutral">{pet.species}</Badge>
+            <Badge variant={statusVariant}>{statusLabel}</Badge>
           </div>
           <p className="text-xs text-gob-text-muted ">
             {pet.locality ?? "—"}, {pet.province ?? "—"}
