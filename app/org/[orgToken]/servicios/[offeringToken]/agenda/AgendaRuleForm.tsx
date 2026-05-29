@@ -4,7 +4,7 @@
 // Uses useActionState for progressive enhancement.
 
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
-import { Checkbox } from "@/components/poncho";
+import { Checkbox, Input } from "@/components/poncho";
 import { useActionState } from "react";
 
 const WEEKDAYS = [
@@ -73,27 +73,19 @@ export function AgendaRuleForm({
           <label htmlFor="startTimeLocal" className="block text-sm font-medium">
             Hora inicio <span className="text-gob-danger">*</span>
           </label>
-          <input
+          <Input
             id="startTimeLocal"
             name="startTimeLocal"
             type="time"
             required
             defaultValue="08:00"
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
           />
         </div>
         <div className="space-y-1">
           <label htmlFor="endTimeLocal" className="block text-sm font-medium">
             Hora fin <span className="text-gob-danger">*</span>
           </label>
-          <input
-            id="endTimeLocal"
-            name="endTimeLocal"
-            type="time"
-            required
-            defaultValue="12:00"
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
-          />
+          <Input id="endTimeLocal" name="endTimeLocal" type="time" required defaultValue="12:00" />
         </div>
       </div>
 
@@ -103,13 +95,12 @@ export function AgendaRuleForm({
           <label htmlFor="effectiveFrom" className="block text-sm font-medium">
             Válido desde <span className="text-gob-danger">*</span>
           </label>
-          <input
+          <Input
             id="effectiveFrom"
             name="effectiveFrom"
             type="date"
             required
             defaultValue={today}
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
           />
         </div>
         <div className="space-y-1">
@@ -119,12 +110,7 @@ export function AgendaRuleForm({
               (opcional — sin fecha = abierto)
             </span>
           </label>
-          <input
-            id="effectiveUntil"
-            name="effectiveUntil"
-            type="date"
-            className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary"
-          />
+          <Input id="effectiveUntil" name="effectiveUntil" type="date" />
         </div>
       </div>
 
