@@ -67,7 +67,7 @@ export function PosterPreview({
     <>
       {/* @page rule scoped to this component's mount lifetime so it is removed
           on client-side navigation and does not leak to other routes (e.g. libreta). */}
-      <style>{`@page { size: A4 portrait; margin: 1cm; }`}</style>
+      <style>{"@page { size: A4 portrait; margin: 1cm; }"}</style>
 
       {/* ── Print controls (hidden when printing) ── */}
       <header className="no-print print:hidden bg-white border-b border-gob-border py-4 px-6 flex flex-wrap items-center gap-3 mb-6">
@@ -121,9 +121,7 @@ export function PosterPreview({
         </div>
 
         {/* Pet name */}
-        <h1 className="text-center text-4xl font-black tracking-tight text-gob-text">
-          {petName}
-        </h1>
+        <h1 className="text-center text-4xl font-black tracking-tight text-gob-text">{petName}</h1>
 
         {/* Identity line */}
         {identityParts && (
@@ -196,9 +194,7 @@ export function PosterPreview({
             dangerouslySetInnerHTML={{ __html: qrSvg }}
             data-testid="qr-container"
           />
-          <p className="text-xs text-gob-text-gray text-center">
-            Escaneá para más info
-          </p>
+          <p className="text-xs text-gob-text-gray text-center">Escaneá para más info</p>
         </div>
 
         {/* Extra text — inline-editable, local state only */}

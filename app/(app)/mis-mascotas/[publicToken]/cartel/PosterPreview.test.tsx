@@ -31,7 +31,8 @@ const BASE_PROPS = {
   ownerFirstName: "María",
   ownerPhone: "+5491100000000",
   locationDisclosed: true,
-  qrSvg: '<svg data-testid="qr" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>',
+  qrSvg:
+    '<svg data-testid="qr" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>',
 };
 
 describe("<PosterPreview> — structural invariants", () => {
@@ -56,13 +57,7 @@ describe("<PosterPreview> — structural invariants", () => {
 
 describe("<PosterPreview> — disclosure: phone NOT disclosed", () => {
   it("omits phone when ownerPhone is null", () => {
-    const html = render(
-      <PosterPreview
-        {...BASE_PROPS}
-        ownerPhone={null}
-        ownerFirstName="María"
-      />,
-    );
+    const html = render(<PosterPreview {...BASE_PROPS} ownerPhone={null} ownerFirstName="María" />);
     // Phone number should not appear.
     expect(html).not.toContain("+5491100000000");
     // But the first name (which IS disclosed) should still appear.
@@ -70,13 +65,7 @@ describe("<PosterPreview> — disclosure: phone NOT disclosed", () => {
   });
 
   it("omits contact block entirely when both ownerFirstName and ownerPhone are null", () => {
-    const html = render(
-      <PosterPreview
-        {...BASE_PROPS}
-        ownerFirstName={null}
-        ownerPhone={null}
-      />,
-    );
+    const html = render(<PosterPreview {...BASE_PROPS} ownerFirstName={null} ownerPhone={null} />);
     // The 📞 Contacto label should not appear when there's no contact info.
     expect(html).not.toContain("Contacto:");
   });
@@ -85,11 +74,7 @@ describe("<PosterPreview> — disclosure: phone NOT disclosed", () => {
 describe("<PosterPreview> — disclosure: last location NOT disclosed", () => {
   it("omits location section when locationDisclosed is false", () => {
     const html = render(
-      <PosterPreview
-        {...BASE_PROPS}
-        locationDisclosed={false}
-        placeName="Parque Centenario"
-      />,
+      <PosterPreview {...BASE_PROPS} locationDisclosed={false} placeName="Parque Centenario" />,
     );
     // Even if placeName is provided, it must NOT appear when not disclosed.
     expect(html).not.toContain("Parque Centenario");
@@ -98,11 +83,7 @@ describe("<PosterPreview> — disclosure: last location NOT disclosed", () => {
 
   it("shows location section when locationDisclosed is true and placeName is set", () => {
     const html = render(
-      <PosterPreview
-        {...BASE_PROPS}
-        locationDisclosed={true}
-        placeName="Parque Centenario"
-      />,
+      <PosterPreview {...BASE_PROPS} locationDisclosed={true} placeName="Parque Centenario" />,
     );
     expect(html).toContain("Parque Centenario");
     expect(html).toContain("Última vez vista");
@@ -112,11 +93,7 @@ describe("<PosterPreview> — disclosure: last location NOT disclosed", () => {
 describe("<PosterPreview> — disclosure: ownerFirstName null but phone present", () => {
   it("renders phone without crashing when ownerFirstName is null", () => {
     const html = render(
-      <PosterPreview
-        {...BASE_PROPS}
-        ownerFirstName={null}
-        ownerPhone="+5491155551234"
-      />,
+      <PosterPreview {...BASE_PROPS} ownerFirstName={null} ownerPhone="+5491155551234" />,
     );
     // Contact block still renders with the phone only — no crash, name absent.
     expect(html).toContain("+5491155551234");
@@ -144,9 +121,7 @@ describe("<PosterPreview> — optional fields omitted when null", () => {
   });
 
   it("omits señas line when distinguishingFeatures is null", () => {
-    const html = render(
-      <PosterPreview {...BASE_PROPS} distinguishingFeatures={null} />,
-    );
+    const html = render(<PosterPreview {...BASE_PROPS} distinguishingFeatures={null} />);
     expect(html).not.toContain("Señas:");
   });
 
