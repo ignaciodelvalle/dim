@@ -143,13 +143,13 @@ export default async function NotificacionesPage({
   const unreadCount = rows.filter((r) => r.notification.readAt === null).length;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <div className="min-h-screen p-6 bg-white">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         <Link
-          href="/mis-mascotas"
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+          href="/inicio"
+          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
         >
-          ← Mis mascotas
+          ← Volver a inicio
         </Link>
 
         <header className="flex items-end justify-between gap-4">
@@ -234,6 +234,6 @@ export default async function NotificacionesPage({
           </ul>
         )}
       </div>
-    </main>
+    </div>
   );
 }

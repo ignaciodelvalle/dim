@@ -185,8 +185,11 @@ export default async function AdoptarFichaPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <div className="max-w-4xl mx-auto px-6 py-10 pb-32 md:pb-10 space-y-8">
-        <Link href="/adoptar" className="text-sm text-gob-text-muted hover:text-gob-text">
-          ← Volver a /adoptar
+        <Link
+          href="/adoptar"
+          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
+        >
+          ← Volver al listado
         </Link>
 
         {/* Gallery */}

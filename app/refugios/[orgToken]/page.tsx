@@ -186,9 +186,9 @@ export default async function RefugioPage({
 
           <Link
             href="/adoptar"
-            className="inline-block text-sm text-gob-text-muted hover:text-gob-text"
+            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
           >
-            ← Volver a /adoptar
+            ← Volver a adopciones
           </Link>
 
           <OrgHero org={org} localityLabel={localityLabel} />

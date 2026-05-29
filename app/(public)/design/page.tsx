@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { Button } from "@/components/poncho";
 import { IconSearch } from "./IconSearch";
 
@@ -151,6 +153,8 @@ function SwatchCard({ s }: { s: Swatch }) {
 }
 
 export default function DesignPage() {
+  if (process.env.NODE_ENV === "production") redirect("/");
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       {/* Header */}
