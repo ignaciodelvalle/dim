@@ -13,15 +13,30 @@
 //
 // Rate-limited by (IP, publicToken) per 5 minutes to mitigate abuse. The
 // matching limiter for the "I found her" form lives in app/actions/public.ts.
+//
+// P0d additions: optional photo upload, finderName, finderContact.
+// Photo is uploaded to the "event-attachments" bucket via uploadAttachmentIfPresent.
+// A failed upload is non-fatal — the sighting is still recorded without the photo.
+// P0g: EXIF metadata (including GPS) is stripped from finder photos via sharp
+// before upload. Non-fatal: falls back to original if sharp throws.
+// P0g: photo also inserted into the attachments table (linked to the event) so
+// the historial / eventos / EventTimeline surfaces can render it for free.
 
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { cases, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { makeMemoryRateLimiter } from "@/lib/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { uploadAttachmentIfPresent } from "@/lib/uploads";
 
-export type SightingActionState = { ok: boolean; error: string | null };
+export type SightingActionState = {
+  ok: boolean;
+  error: string | null;
+  /** Non-fatal warning shown when photo upload failed but sighting was saved. */
+  warning?: string | null;
+};
 
 const sightingLimiter = makeMemoryRateLimiter(5 * 60 * 1000);
 
@@ -50,6 +65,13 @@ export async function reportPetSightingAction(
   const lngRaw = String(formData.get("locationLng") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const sightedAtIso = String(formData.get("sightedAt") ?? "").trim();
+
+  // P0d: optional finder identity + photo.
+  const rawFinderName = String(formData.get("finderName") ?? "").trim();
+  const rawFinderContact = String(formData.get("finderContact") ?? "").trim();
+  const finderName = rawFinderName ? rawFinderName.slice(0, 80) : null;
+  const finderContact = rawFinderContact ? rawFinderContact.slice(0, 120) : null;
+  const photoFile = formData.get("photo") instanceof File ? (formData.get("photo") as File) : null;
 
   const lat = latRaw ? Number.parseFloat(latRaw) : Number.NaN;
   const lng = lngRaw ? Number.parseFloat(lngRaw) : Number.NaN;
@@ -88,10 +110,37 @@ export async function reportPetSightingAction(
     ? safeDescription
     : `Alguien reportó haber visto a ${pet.name} cerca de este punto.`;
 
+  // P0d/P0g: upload photo if present. Non-fatal — sighting is recorded even when upload fails.
+  // Uses the service-role admin client because this action is anonymous (@no-auth-required)
+  // and the event-attachments bucket's RLS grants INSERT only to authenticated roles.
+  // The admin client bypasses RLS so anonymous finders can attach photos.
+  // P0g: stripMetadata:true strips EXIF GPS + camera metadata via sharp before upload.
+  let photoStoragePath: string | null = null;
+  let photoMimeType: string | null = null;
+  let photoSize: number | null = null;
+  let photoWarning: string | null = null;
+  if (photoFile && photoFile.size > 0) {
+    const supabase = createAdminClient();
+    const uploadResult = await uploadAttachmentIfPresent(supabase, photoFile, "event-attachments", {
+      stripMetadata: true,
+    });
+    if (uploadResult.error) {
+      console.warn("[pet-sighting] Photo upload failed (non-fatal):", uploadResult.error);
+      photoWarning = "No se pudo subir la foto, pero el avistaje fue registrado igual.";
+    } else {
+      photoStoragePath = uploadResult.uploadedPath;
+      photoMimeType = uploadResult.mimeType;
+      photoSize = uploadResult.size;
+    }
+  }
+
   const payload = validateEventPayload("note_added", {
     category: "otro" as const,
     text: noteText,
     kind: "sighting" as const,
+    finderName: finderName ?? undefined,
+    finderContact: finderContact ?? undefined,
+    photoStoragePath: photoStoragePath ?? undefined,
   });
 
   // Resolve the open lost_pet_episode case so the sighting event is associated
@@ -109,26 +158,51 @@ export async function reportPetSightingAction(
     )
     .limit(1);
 
-  await db.insert(petEvents).values({
-    petId: pet.id,
-    eventType: "note_added",
-    occurredAt,
-    recordedAt: new Date(),
-    recordedByUserId: null,
-    authorRole: "scanner",
-    authorVerified: false,
-    payload,
-    locationLat: lat.toString(),
-    locationLng: lng.toString(),
-    // Associate with the open case when available (pet is in active lost mode).
-    // caseId stays null if no open case exists (guard above already blocked
-    // non-lost pets, but we keep the null path for safety).
-    caseId: openCase?.id ?? null,
-  });
+  const [insertedEvent] = await db
+    .insert(petEvents)
+    .values({
+      petId: pet.id,
+      eventType: "note_added",
+      occurredAt,
+      recordedAt: new Date(),
+      recordedByUserId: null,
+      authorRole: "scanner",
+      authorVerified: false,
+      payload,
+      locationLat: lat.toString(),
+      locationLng: lng.toString(),
+      // Associate with the open case when available (pet is in active lost mode).
+      // caseId stays null if no open case exists (guard above already blocked
+      // non-lost pets, but we keep the null path for safety).
+      caseId: openCase?.id ?? null,
+    })
+    .returning({ id: petEvents.id });
+
+  // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
+  // surfaces render the photo for free (they read attachments, not the payload JSONB).
+  // uploadedByUserId is null: anonymous sighting — no authenticated user.
+  // Mirror pattern from app/actions/events.ts (checkin, vaccination, etc.).
+  if (photoStoragePath && insertedEvent) {
+    await db.insert(attachments).values({
+      petId: pet.id,
+      eventId: insertedEvent.id,
+      uploadedByUserId: null,
+      storagePath: photoStoragePath,
+      mimeType: photoMimeType ?? "image/jpeg",
+      fileSize: photoSize ?? 0,
+    });
+  }
 
   const bodyParts = [
     `Alguien reportó haber visto a ${pet.name} cerca de un punto.`,
     safeDescription ? `Mensaje: "${safeDescription}".` : null,
+    finderName && finderContact
+      ? `📞 ${finderName} dejó ${finderContact}.`
+      : finderContact
+        ? `📞 Contacto: ${finderContact}.`
+        : finderName
+          ? `Reportado por ${finderName}.`
+          : null,
     "Mirá el detalle en su perfil.",
   ].filter(Boolean);
 
@@ -144,5 +218,5 @@ export async function reportPetSightingAction(
     ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
   });
 
-  return { ok: true, error: null };
+  return { ok: true, error: null, warning: photoWarning };
 }

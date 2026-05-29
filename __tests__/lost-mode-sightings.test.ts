@@ -95,6 +95,8 @@ beforeAll(async () => {
   // Insert 3 sighting note_added events AFTER episodeOpenedAt.
   const sightingBase = {
     petId,
+    // Scope to the open case — production (reportPetSightingAction) sets this,
+    // and fetchLostEpisodeForPet counts sightings via eq(petEvents.caseId, ...).
     caseId,
     eventType: "note_added" as const,
     recordedAt: new Date(),

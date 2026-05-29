@@ -58,7 +58,10 @@ export default async function PetSightingPage({
     <main className="min-h-screen bg-gob-warning/10  px-4 py-6">
       <div className="mx-auto max-w-md space-y-5">
         <header className="space-y-1">
-          <Link href={`/p/${publicToken}`} className="text-xs text-gob-text-gray  underline">
+          <Link
+            href={`/p/${publicToken}`}
+            className="text-sm text-gob-text underline underline-offset-4"
+          >
             ← Volver al perfil
           </Link>
           <h1 className="text-2xl font-semibold text-gob-text ">La vi cerca de acá</h1>
@@ -70,6 +73,7 @@ export default async function PetSightingPage({
         <section className="rounded-2xl bg-white  p-4">
           <PetSightingForm
             publicToken={publicToken}
+            petName={pet.name}
             biasProvince={pet.jurisdictionProvince}
             biasLocality={pet.jurisdictionLocality}
           />
