@@ -15,7 +15,7 @@ import {
   type PublicLookupResult,
   lookupPetForDenunciaAction,
 } from "@/app/actions/pet-lookup-public";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input, Textarea } from "@/components/poncho";
 
 const LOOKUP_DEBOUNCE_MS = 300;
 const LOOKUP_MIN_LEN = 8;
@@ -117,17 +117,17 @@ export function Step4Subject({
       {subjectKind === "registered_pet" && (
         <div className="space-y-3 rounded-xl border border-gob-border p-4">
           <div className="space-y-1.5">
-            <label htmlFor="subjectPetToken" className={labelClass}>
+            <label htmlFor="subjectPetToken" className="block text-sm font-medium text-gob-text">
               Código MiMAR o microchip (opcional)
             </label>
-            <input
+            <Input
               id="subjectPetToken"
               name="subjectPetToken"
               type="text"
               placeholder="Ej: DIM-XXXX-XXXX o 15 dígitos del chip"
               value={subjectPetToken}
               onChange={(e) => onSubjectPetTokenChange(e.target.value)}
-              className={`${inputClass} font-mono uppercase`}
+              className="font-mono uppercase"
               autoCapitalize="characters"
             />
             <p className="text-xs text-gob-text-muted">
@@ -136,17 +136,16 @@ export function Step4Subject({
             <PetLookupPreview query={subjectPetToken} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="subjectDescription" className={labelClass}>
+            <label htmlFor="subjectDescription" className="block text-sm font-medium text-gob-text">
               Descripción del animal
             </label>
-            <textarea
+            <Textarea
               id="subjectDescription"
               name="subjectDescription"
               rows={3}
               placeholder="Especie, color, tamaño, señas particulares…"
               value={subjectDescription}
               onChange={(e) => onSubjectDescriptionChange(e.target.value)}
-              className={inputClass}
             />
           </div>
         </div>
@@ -154,34 +153,32 @@ export function Step4Subject({
 
       {subjectKind === "unowned_animal" && (
         <div className="space-y-1.5">
-          <label htmlFor="subjectDescription" className={labelClass}>
+          <label htmlFor="subjectDescription" className="block text-sm font-medium text-gob-text">
             Describí al animal
           </label>
-          <textarea
+          <Textarea
             id="subjectDescription"
             name="subjectDescription"
             rows={3}
             placeholder="Especie, color, tamaño, señas particulares…"
             value={subjectDescription}
             onChange={(e) => onSubjectDescriptionChange(e.target.value)}
-            className={inputClass}
           />
         </div>
       )}
 
       {subjectKind === "location" && (
         <div className="space-y-1.5">
-          <label htmlFor="subjectDescription" className={labelClass}>
+          <label htmlFor="subjectDescription" className="block text-sm font-medium text-gob-text">
             Describí el lugar o situación
           </label>
-          <textarea
+          <Textarea
             id="subjectDescription"
             name="subjectDescription"
             rows={3}
             placeholder="Dirección, edificio, características…"
             value={subjectDescription}
             onChange={(e) => onSubjectDescriptionChange(e.target.value)}
-            className={inputClass}
           />
         </div>
       )}

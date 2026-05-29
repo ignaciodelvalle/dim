@@ -6,7 +6,7 @@
 // - Textarea for description (maps to welfareReports.description).
 
 import { LocationFields } from "@/components/LocationFields";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Textarea } from "@/components/poncho";
 
 export type WhenOption = "now" | "today_yesterday" | "several_days_ago";
 
@@ -73,13 +73,13 @@ export function Step3Where({
 
       {/* Description first — most important field */}
       <div className="space-y-1.5">
-        <label htmlFor="description" className={labelClass}>
+        <label htmlFor="description" className="block text-sm font-medium text-gob-text">
           Contanos lo que viste{" "}
           <span className="text-gob-danger ml-0.5" aria-hidden="true">
             *
           </span>
         </label>
-        <textarea
+        <Textarea
           id="description"
           name="description"
           rows={5}
@@ -87,7 +87,6 @@ export function Step3Where({
           placeholder="Describí la situación: qué pasó, cómo estaba el animal, dónde exactamente…"
           value={description}
           onChange={(e) => onDescriptionChange(e.target.value)}
-          className={inputClass}
           aria-required="true"
           aria-describedby="description-hint"
         />
@@ -104,7 +103,7 @@ export function Step3Where({
 
       {/* When */}
       <fieldset className="space-y-2">
-        <legend className={`${labelClass} mb-1`}>
+        <legend className="block text-sm font-medium text-gob-text mb-1">
           ¿Cuándo pasó?{" "}
           <span className="text-gob-danger ml-0.5" aria-hidden="true">
             *
@@ -143,7 +142,9 @@ export function Step3Where({
           rule #1). Fields are uncontrolled; the wizard reads them via
           FormData at submit. */}
       <div className="space-y-1.5">
-        <p className={`${labelClass} mb-2`}>Lugar (opcional pero muy útil)</p>
+        <p className="block text-sm font-medium text-gob-text mb-2">
+          Lugar (opcional pero muy útil)
+        </p>
         <LocationFields mode="l2" allowAnonymous />
       </div>
 

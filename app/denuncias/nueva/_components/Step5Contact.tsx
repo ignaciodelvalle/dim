@@ -5,7 +5,7 @@
 // Evidence uploader deferred — TODO(M-followup): add optional evidence expander after
 // contact choice is made (plan Step 5 / DenunciaStepEvidence.tsx).
 
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input } from "@/components/poncho";
 
 export type ContactMode = "anonymous" | "with_contact";
 
@@ -107,32 +107,36 @@ export function Step5Contact({
             podamos avisarte si avanza la denuncia.
           </p>
           <div className="space-y-1.5">
-            <label htmlFor="reporterContactPhone" className={labelClass}>
+            <label
+              htmlFor="reporterContactPhone"
+              className="block text-sm font-medium text-gob-text"
+            >
               Teléfono (preferido)
             </label>
-            <input
+            <Input
               id="reporterContactPhone"
               name="reporterContactPhone"
               type="tel"
               placeholder="+54 11 1234-5678"
               value={contactPhone}
               onChange={(e) => onContactPhoneChange(e.target.value)}
-              className={inputClass}
               autoComplete="tel"
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="reporterContactEmail" className={labelClass}>
+            <label
+              htmlFor="reporterContactEmail"
+              className="block text-sm font-medium text-gob-text"
+            >
               Email (alternativo)
             </label>
-            <input
+            <Input
               id="reporterContactEmail"
               name="reporterContactEmail"
               type="email"
               placeholder="tu@email.com"
               value={contactEmail}
               onChange={(e) => onContactEmailChange(e.target.value)}
-              className={inputClass}
               autoComplete="email"
             />
           </div>
