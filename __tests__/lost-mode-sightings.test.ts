@@ -12,8 +12,8 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
 import { openCase } from "@/lib/case-helpers";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -95,6 +95,7 @@ beforeAll(async () => {
   // Insert 3 sighting note_added events AFTER episodeOpenedAt.
   const sightingBase = {
     petId,
+    caseId,
     eventType: "note_added" as const,
     recordedAt: new Date(),
     authorRole: "scanner" as const,
