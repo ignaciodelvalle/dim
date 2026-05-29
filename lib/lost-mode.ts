@@ -213,6 +213,12 @@ export async function fetchLostScanEvents(
       r.locationLat !== null && r.locationLat !== undefined ? String(r.locationLat) : null;
     const lng =
       r.locationLng !== null && r.locationLng !== undefined ? String(r.locationLng) : null;
+    // P0g: extract photoStoragePath and finderContact from the payload so the
+    // cockpit feed can surface them (photo thumbnail + contact info).
+    const photoStoragePath =
+      typeof p.photoStoragePath === "string" && p.photoStoragePath ? p.photoStoragePath : null;
+    const finderContact =
+      typeof p.finderContact === "string" && p.finderContact ? p.finderContact : null;
     return {
       kind: "sighting",
       id: r.id,
@@ -221,6 +227,8 @@ export async function fetchLostScanEvents(
       localityLabel: null,
       lat: lat && lat !== "null" ? lat : null,
       lng: lng && lng !== "null" ? lng : null,
+      photoStoragePath,
+      finderContact,
     };
   });
 
