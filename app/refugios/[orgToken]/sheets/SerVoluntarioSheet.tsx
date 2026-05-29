@@ -13,9 +13,10 @@
 import { useActionState, useEffect } from "react";
 
 import { type SubmitOrgContactState, submitOrgContactAction } from "@/app/actions/org-contact";
+import { Input } from "@/components/poncho/Input";
 import { Sheet } from "@/components/poncho/Sheet";
 import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Textarea } from "@/components/poncho/Textarea";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface Props {
@@ -67,47 +68,47 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
         ) : (
           <form action={formAction} className="space-y-4">
             <div className="space-y-1.5">
-              <label htmlFor="vol-inquirerName" className={labelClass}>
+              <label htmlFor="vol-inquirerName" className="block text-sm font-medium text-gob-text">
                 Tu nombre <span className="text-gob-text-muted text-xs">(opcional)</span>
               </label>
-              <input
+              <Input
                 id="vol-inquirerName"
                 name="inquirerName"
                 type="text"
                 maxLength={100}
                 autoComplete="name"
-                className={inputClass}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="vol-inquirerEmail" className={labelClass}>
+              <label
+                htmlFor="vol-inquirerEmail"
+                className="block text-sm font-medium text-gob-text"
+              >
                 Tu email <span className="text-gob-danger ml-0.5">*</span>
               </label>
-              <input
+              <Input
                 id="vol-inquirerEmail"
                 name="inquirerEmail"
                 type="email"
                 required
                 maxLength={254}
                 autoComplete="email"
-                className={inputClass}
                 placeholder="vos@ejemplo.com"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="vol-message" className={labelClass}>
+              <label htmlFor="vol-message" className="block text-sm font-medium text-gob-text">
                 Contales en qué te interesa ayudar <span className="text-gob-danger ml-0.5">*</span>
               </label>
-              <textarea
+              <Textarea
                 id="vol-message"
                 name="message"
                 required
                 rows={5}
                 maxLength={500}
                 placeholder="Ej: tengo auto y puedo hacer traslados los sábados; ayudo con eventos; quiero pasear perros…"
-                className={inputClass}
               />
               <p className="text-xs text-gob-text-muted">Máximo 500 caracteres.</p>
             </div>

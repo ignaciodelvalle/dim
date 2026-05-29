@@ -13,9 +13,10 @@
 import { useActionState, useEffect } from "react";
 
 import { type SubmitOrgContactState, submitOrgContactAction } from "@/app/actions/org-contact";
+import { Input } from "@/components/poncho/Input";
 import { Sheet } from "@/components/poncho/Sheet";
 import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Textarea } from "@/components/poncho/Textarea";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface Props {
@@ -88,31 +89,29 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
         ) : (
           <form action={formAction} className="space-y-4">
             <div className="space-y-1.5">
-              <label htmlFor="inquirerName" className={labelClass}>
+              <label htmlFor="inquirerName" className="block text-sm font-medium text-gob-text">
                 Tu nombre <span className="text-gob-text-muted text-xs">(opcional)</span>
               </label>
-              <input
+              <Input
                 id="inquirerName"
                 name="inquirerName"
                 type="text"
                 maxLength={100}
                 autoComplete="name"
-                className={inputClass}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="inquirerEmail" className={labelClass}>
+              <label htmlFor="inquirerEmail" className="block text-sm font-medium text-gob-text">
                 Tu email <span className="text-gob-danger ml-0.5">*</span>
               </label>
-              <input
+              <Input
                 id="inquirerEmail"
                 name="inquirerEmail"
                 type="email"
                 required
                 maxLength={254}
                 autoComplete="email"
-                className={inputClass}
                 placeholder="vos@ejemplo.com"
               />
               <p className="text-xs text-gob-text-muted">
@@ -121,17 +120,16 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="message" className={labelClass}>
+              <label htmlFor="message" className="block text-sm font-medium text-gob-text">
                 Mensaje <span className="text-gob-danger ml-0.5">*</span>
               </label>
-              <textarea
+              <Textarea
                 id="message"
                 name="message"
                 required
                 rows={5}
                 maxLength={500}
                 placeholder="Contales por qué los contactás…"
-                className={inputClass}
               />
               <p className="text-xs text-gob-text-muted">Máximo 500 caracteres.</p>
             </div>

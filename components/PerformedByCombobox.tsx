@@ -19,7 +19,7 @@
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { searchVetsAndClinicsAction } from "@/app/actions/performed-by";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input } from "@/components/poncho";
 import type { PerformedBySuggestion, SearchJurisdiction } from "@/lib/performed-by-search";
 
 const MIN_QUERY_LEN = 2;
@@ -165,7 +165,7 @@ export function PerformedByCombobox({
 
   return (
     <div className="space-y-1">
-      <label htmlFor={inputId} className={labelClass}>
+      <label htmlFor={inputId} className="block text-sm font-medium text-gob-text">
         {label}
       </label>
 
@@ -202,7 +202,7 @@ export function PerformedByCombobox({
         </div>
       ) : (
         <div className="relative">
-          <input
+          <Input
             id={inputId}
             type="text"
             value={query}
@@ -219,7 +219,6 @@ export function PerformedByCombobox({
             }}
             placeholder={placeholder ?? "Buscar veterinario o clínica…"}
             required={required}
-            className={inputClass}
             aria-autocomplete="list"
             aria-expanded={open}
           />

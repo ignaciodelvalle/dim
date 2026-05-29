@@ -20,8 +20,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
+import { Input } from "@/components/poncho";
 import type { LocalitySearchResult } from "@/lib/ar-localidades";
-import { inputClass } from "@/lib/form-classes";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
@@ -138,7 +138,7 @@ export function LocalityPickerAcross({
 
   return (
     <div className="relative">
-      <input
+      <Input
         id={id}
         type="text"
         value={query}
@@ -155,7 +155,6 @@ export function LocalityPickerAcross({
         }}
         placeholder={placeholder}
         required={required}
-        className={inputClass}
         aria-autocomplete="list"
         aria-expanded={open}
       />

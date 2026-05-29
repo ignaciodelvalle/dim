@@ -38,8 +38,8 @@ import {
   reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { Input } from "@/components/poncho";
 import { type Province, provinceByName } from "@/lib/ar-provincias";
-import { inputClass, labelClass } from "@/lib/form-classes";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
@@ -273,7 +273,7 @@ export function LocationFields({
       {/* L1 — cross-province locality autocomplete, single input. */}
       {!isL2 && (
         <div className="space-y-1.5">
-          <label htmlFor="localityName" className={labelClass}>
+          <label htmlFor="localityName" className="block text-sm font-medium text-gob-text">
             Localidad
           </label>
           <LocalityPickerAcross
@@ -293,18 +293,17 @@ export function LocationFields({
       {isL2 && (
         <>
           <div className="space-y-1.5">
-            <label htmlFor={addressInputName} className={labelClass}>
+            <label htmlFor={addressInputName} className="block text-sm font-medium text-gob-text">
               Dirección o referencia
             </label>
             <div className="relative">
-              <input
+              <Input
                 id={addressInputName}
                 name={addressInputName}
                 type="text"
                 value={addressText}
                 onChange={(e) => setAddressText(e.target.value)}
                 placeholder="Empezá a tipear: calle y altura, esquina, plaza…"
-                className={inputClass}
                 aria-busy={geocodeLoading !== "none"}
               />
               {geocodeLoading !== "none" && (
@@ -345,7 +344,7 @@ export function LocationFields({
 
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <p className={labelClass}>Ajuste fino</p>
+              <p className="block text-sm font-medium text-gob-text">Ajuste fino</p>
               {showPrimaryLocateButton ? null : (
                 <button
                   type="button"
