@@ -28,6 +28,7 @@ import {
   withdrawFosterVolunteerAction,
 } from "@/app/actions/foster-volunteers";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { Checkbox } from "@/components/poncho";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { provinceByName } from "@/lib/ar-provincias";
 import { labelClass } from "@/lib/form-classes";
@@ -393,6 +394,9 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
   );
 }
 
+// Thin adapter over the Poncho <Checkbox>: keeps the ergonomic boolean onChange
+// the wizard's controlled state expects, while delegating all styling to the
+// design-system primitive.
 function CheckboxRow({
   label,
   checked,
@@ -403,15 +407,9 @@ function CheckboxRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-3 text-sm cursor-pointer">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-gob-border-strong"
-      />
-      <span className="text-gob-text ">{label}</span>
-    </label>
+    <Checkbox checked={checked} onChange={(e) => onChange(e.target.checked)}>
+      {label}
+    </Checkbox>
   );
 }
 

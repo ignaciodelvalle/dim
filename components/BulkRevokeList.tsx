@@ -336,19 +336,15 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
               )}
             </div>
 
-            <label className="flex items-start gap-2 text-xs text-gob-text-gray ">
-              <input
-                type="checkbox"
-                checked={confirm}
-                onChange={(e) => setConfirm(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Confirmo que esta revocación afecta a {selectedItems.length}{" "}
-                {targetKindLabel(targetKind, selectedItems.length)} y entiendo que cada afectado va
-                a recibir una notificación con el motivo.
-              </span>
-            </label>
+            <Checkbox
+              checked={confirm}
+              onChange={(e) => setConfirm(e.target.checked)}
+              labelClassName="text-xs! text-gob-text-gray!"
+            >
+              Confirmo que esta revocación afecta a {selectedItems.length}{" "}
+              {targetKindLabel(targetKind, selectedItems.length)} y entiendo que cada afectado va a
+              recibir una notificación con el motivo.
+            </Checkbox>
 
             {error && <p className="text-sm text-gob-danger ">{error}</p>}
 

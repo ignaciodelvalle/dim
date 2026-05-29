@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { Checkbox } from "@/components/poncho";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -157,27 +158,31 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
       </div>
 
       <div className="flex flex-wrap gap-3 text-xs items-center pt-1">
-        <CheckBox
+        <FilterCheckbox
           name="con_chicos"
           checked={filters.goodWithKids === true}
           label="Convive bien con chicos"
         />
-        <CheckBox
+        <FilterCheckbox
           name="con_perros"
           checked={filters.goodWithDogs === true}
           label="Convive bien con perros"
         />
-        <CheckBox
+        <FilterCheckbox
           name="con_gatos"
           checked={filters.goodWithCats === true}
           label="Convive bien con gatos"
         />
-        <CheckBox
+        <FilterCheckbox
           name="sin_patio"
           checked={filters.needsYard === false}
           label="Sin patio requerido"
         />
-        <CheckBox name="con_chip" checked={filters.hasMicrochip === true} label="Con microchip" />
+        <FilterCheckbox
+          name="con_chip"
+          checked={filters.hasMicrochip === true}
+          label="Con microchip"
+        />
       </div>
 
       <div className="flex justify-end gap-2 pt-1">
@@ -200,7 +205,10 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
   );
 }
 
-function CheckBox({
+// Thin adapter over the Poncho <Checkbox> for the compact (text-xs) filter bar:
+// keeps the terse name/checked/label call-site API and the bar's muted register
+// via labelClassName, while delegating the control styling to the primitive.
+function FilterCheckbox({
   name,
   checked,
   label,
@@ -210,15 +218,13 @@ function CheckBox({
   label: string;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 cursor-pointer">
-      <input
-        type="checkbox"
-        name={name}
-        value="true"
-        defaultChecked={checked}
-        className="h-3.5 w-3.5"
-      />
-      <span className="text-gob-text-gray">{label}</span>
-    </label>
+    <Checkbox
+      name={name}
+      value="true"
+      defaultChecked={checked}
+      labelClassName="text-xs! text-gob-text-gray!"
+    >
+      {label}
+    </Checkbox>
   );
 }
