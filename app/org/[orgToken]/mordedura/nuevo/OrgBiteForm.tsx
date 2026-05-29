@@ -17,10 +17,9 @@ import { useState, useTransition } from "react";
 
 import { type ReportBiteFromOrgFormState, reportBiteFromOrgAction } from "@/app/actions/bite";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { Checkbox } from "@/components/poncho";
+import { Checkbox, Input, Select, Textarea } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
-import { inputClass, labelClass } from "@/lib/form-classes";
 
 type FormAction = (
   prev: ReportBiteFromOrgFormState,
@@ -121,17 +120,17 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       {/* Step 1 — Mascota */}
       <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
         <div className="space-y-1.5">
-          <label htmlFor="petPublicToken" className={labelClass}>
+          <label htmlFor="petPublicToken" className="block text-sm font-medium text-gob-text">
             Token público de la mascota<span className="text-gob-danger ml-0.5">*</span>
           </label>
-          <input
+          <Input
             id="petPublicToken"
             type="text"
             required
             value={petPublicToken}
             onChange={(e) => setPetPublicToken(e.target.value)}
             placeholder="DIM-XXXX-XXXX"
-            className={`${inputClass} font-mono uppercase tracking-wider`}
+            className="font-mono uppercase tracking-wider"
           />
           <p className="text-xs text-gob-text-muted ">
             El dueño tiene este token en la credencial pública (escaneable o en su perfil).
@@ -150,17 +149,16 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       {/* Step 2 — Cuándo */}
       <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
         <div className="space-y-1.5">
-          <label htmlFor="occurredAt" className={labelClass}>
+          <label htmlFor="occurredAt" className="block text-sm font-medium text-gob-text">
             Fecha del incidente<span className="text-gob-danger ml-0.5">*</span>
           </label>
-          <input
+          <Input
             id="occurredAt"
             type="date"
             required
             max={today}
             value={occurredAt}
             onChange={(e) => setOccurredAt(e.target.value)}
-            className={inputClass}
           />
         </div>
         <button
@@ -176,21 +174,20 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       {/* Step 3 — Víctima + contexto */}
       <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
         <div className="space-y-1.5">
-          <label htmlFor="locationDescription" className={labelClass}>
+          <label htmlFor="locationDescription" className="block text-sm font-medium text-gob-text">
             Lugar
           </label>
-          <input
+          <Input
             id="locationDescription"
             type="text"
             value={locationDescription}
             onChange={(e) => setLocationDescription(e.target.value)}
             placeholder="Ej: Plaza Italia, esquina Cerviño"
-            className={inputClass}
           />
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="bite-locality" className={labelClass}>
+          <label htmlFor="bite-locality" className="block text-sm font-medium text-gob-text">
             Jurisdicción del incidente
           </label>
           <LocalityPickerAcross
@@ -209,7 +206,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         <div className="space-y-1.5">
-          <p className={labelClass}>
+          <p className="block text-sm font-medium text-gob-text">
             Tipo de víctima<span className="text-gob-danger ml-0.5">*</span>
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -249,12 +246,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               >
                 Nombre
               </label>
-              <input
+              <Input
                 id="victimContactName"
                 type="text"
                 value={victimContactName}
                 onChange={(e) => setVictimContactName(e.target.value)}
-                className={inputClass}
               />
             </div>
             <div className="space-y-1.5">
@@ -264,12 +260,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               >
                 Teléfono
               </label>
-              <input
+              <Input
                 id="victimContactPhone"
                 type="tel"
                 value={victimContactPhone}
                 onChange={(e) => setVictimContactPhone(e.target.value)}
-                className={inputClass}
               />
             </div>
             <div className="space-y-1.5">
@@ -279,28 +274,26 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               >
                 Edad aproximada
               </label>
-              <input
+              <Input
                 id="victimAgeEstimate"
                 type="text"
                 value={victimAgeEstimate}
                 onChange={(e) => setVictimAgeEstimate(e.target.value)}
                 placeholder="Ej: niño, adulto, mayor"
-                className={inputClass}
               />
             </div>
           </div>
         )}
 
         <div className="space-y-1.5">
-          <label htmlFor="severity" className={labelClass}>
+          <label htmlFor="severity" className="block text-sm font-medium text-gob-text">
             Severidad<span className="text-gob-danger ml-0.5">*</span>
           </label>
-          <select
+          <Select
             id="severity"
             value={severity}
             onChange={(e) => setSeverity(e.target.value)}
             required
-            className={inputClass}
           >
             <option value="" disabled>
               Elegí una opción
@@ -308,20 +301,19 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             <option value="minor">Leve — sin sangrado, rasguño</option>
             <option value="moderate">Moderada — sangrado, requiere atención</option>
             <option value="severe">Grave — heridas profundas, hospital</option>
-          </select>
+          </Select>
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="injuriesSummary" className={labelClass}>
+          <label htmlFor="injuriesSummary" className="block text-sm font-medium text-gob-text">
             Resumen clínico de las heridas
           </label>
-          <textarea
+          <Textarea
             id="injuriesSummary"
             value={injuriesSummary}
             onChange={(e) => setInjuriesSummary(e.target.value)}
             rows={2}
             placeholder="Ej: laceración profunda en antebrazo izquierdo, requirió sutura."
-            className={inputClass}
           />
         </div>
 
@@ -332,16 +324,15 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="context" className={labelClass}>
+          <label htmlFor="context" className="block text-sm font-medium text-gob-text">
             Contexto adicional
           </label>
-          <textarea
+          <Textarea
             id="context"
             value={context}
             onChange={(e) => setContext(e.target.value)}
             rows={3}
             placeholder="Ej: el animal estaba suelto sin correa en plaza pública."
-            className={inputClass}
           />
         </div>
 
