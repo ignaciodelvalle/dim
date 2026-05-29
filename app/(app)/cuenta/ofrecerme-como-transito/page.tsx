@@ -35,6 +35,7 @@ export default async function OfrecermeComoTransitoPage() {
   return (
     <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
+        <Link href="/cuenta" className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4">← Volver a mi cuenta</Link>
         <header>
           <h1 className="text-2xl font-semibold text-gob-text ">
             Ofrecerme como hogar de tránsito

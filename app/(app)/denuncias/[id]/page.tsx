@@ -162,6 +162,13 @@ export default async function WelfareReportDetailPage({
           </div>
         </header>
 
+        {/* Integration-pending notice — shown prominently below the header */}
+        <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  px-5 py-4 text-sm text-gob-warning-text  leading-relaxed">
+          Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
+          canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
+          enviado cuando la integración esté disponible.
+        </div>
+
         {/* Description */}
         <section className="space-y-2">
           <SectionLabel>¿Qué pasó?</SectionLabel>
@@ -271,12 +278,6 @@ export default async function WelfareReportDetailPage({
           </section>
         )}
 
-        {/* Integration-pending notice */}
-        <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  px-5 py-4 text-sm text-gob-warning-text  leading-relaxed">
-          Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
-          canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
-          enviado cuando la integración esté disponible.
-        </div>
       </div>
     </main>
   );

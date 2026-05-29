@@ -1,4 +1,5 @@
 import { and, count, eq, isNull, ne } from "drizzle-orm";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { db, govtAssignments, profiles } from "@/db";
@@ -72,6 +73,7 @@ export default async function DesactivarPage() {
   return (
     <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
+        <Link href="/cuenta" className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4">← Volver a mi cuenta</Link>
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
             Desactivar mi cuenta
