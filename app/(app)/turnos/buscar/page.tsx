@@ -17,11 +17,11 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { Checkbox } from "@/components/poncho";
-
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/service-kinds";
+
+import { SearchFiltersForm } from "./SearchFiltersForm";
 
 export default async function BuscarTurnosPage({
   searchParams,
@@ -174,7 +174,7 @@ export default async function BuscarTurnosPage({
         </header>
 
         {/* Search form — allows refining filters */}
-        <SearchFilters
+        <SearchFiltersForm
           currentServiceKind={serviceKind}
           currentProvince={province}
           currentLocality={locality}
@@ -274,94 +274,5 @@ function ServiceKindSelector() {
         ))}
       </ul>
     </div>
-  );
-}
-
-function SearchFilters({
-  currentServiceKind,
-  currentProvince,
-  currentLocality,
-  currentFechaDesde,
-  currentSoloGratis,
-}: {
-  currentServiceKind: string;
-  currentProvince: string;
-  currentLocality: string;
-  currentFechaDesde: string;
-  currentSoloGratis: boolean;
-}) {
-  const kinds = SERVICE_KINDS;
-  return (
-    <form method="GET" className="space-y-3">
-      <div className="flex flex-wrap gap-2 items-end">
-        <div className="space-y-1">
-          <label htmlFor="service_kind_sel" className="text-xs text-gob-text-muted ">
-            Servicio
-          </label>
-          <select
-            id="service_kind_sel"
-            name="service_kind"
-            defaultValue={currentServiceKind}
-            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
-          >
-            {kinds.map((k) => (
-              <option key={k.code} value={k.code}>
-                {k.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="locality_inp" className="text-xs text-gob-text-muted ">
-            Localidad
-          </label>
-          <input
-            id="locality_inp"
-            name="locality"
-            type="text"
-            defaultValue={currentLocality}
-            placeholder="Ej: Palermo"
-            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text  w-40"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="province_inp" className="text-xs text-gob-text-muted ">
-            Provincia
-          </label>
-          <input
-            id="province_inp"
-            name="province"
-            type="text"
-            defaultValue={currentProvince}
-            placeholder="Ej: Buenos Aires"
-            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text  w-40"
-          />
-        </div>
-        <button
-          type="submit"
-          className="text-sm px-4 py-1.5 rounded bg-gob-primary  text-white  hover:bg-gob-primary  transition-colors"
-        >
-          Buscar
-        </button>
-      </div>
-      {/* Fase 10: additional filters — fecha_desde + solo_gratis */}
-      <div className="flex flex-wrap gap-4 items-end">
-        <div className="space-y-1">
-          <label htmlFor="fecha_desde_inp" className="text-xs text-gob-text-muted ">
-            Desde
-          </label>
-          <input
-            id="fecha_desde_inp"
-            name="fecha_desde"
-            type="date"
-            defaultValue={currentFechaDesde}
-            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
-          />
-        </div>
-        <Checkbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>
-          Solo campañas gratuitas
-        </Checkbox>
-      </div>
-    </form>
   );
 }
