@@ -38,6 +38,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petTransfers,
   pets,
   profiles,
   reminders,
@@ -1260,4 +1261,56 @@ function humanizeApprovalRequestType(type: string): string {
     default:
       return `Solicitud de aprobación (${type})`;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Count helpers for /mis-mascotas "Más acciones" badges
+// ---------------------------------------------------------------------------
+
+/**
+ * Count the user's adoption applications in pending state.
+ *
+ * Mirrors the predicate in /mis-mascotas/postulaciones/page.tsx exactly:
+ *   - event_type = 'adoption_application_submitted'
+ *   - payload->>'applicant_user_id' = userId
+ *   - no later 'adoption_application_resolved' for the same application
+ *   - no 'adoption_finalized' for this pet WHERE adopter_user_id = userId
+ *     (a finalization to a DIFFERENT adopter does NOT remove the application
+ *     from the list, so it must not remove it from the count either)
+ */
+export async function countPendingApplications(userId: string): Promise<number> {
+  const [row] = await db.execute<{ n: string }>(sql`
+    SELECT COUNT(*)::text AS n
+    FROM pet_events e
+    WHERE e.event_type = 'adoption_application_submitted'
+      AND e.payload->>'applicant_user_id' = ${userId}
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events r
+        WHERE r.pet_id = e.pet_id
+          AND r.event_type = 'adoption_application_resolved'
+          AND r.payload->>'application_event_id' = e.id::text
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events f
+        WHERE f.pet_id = e.pet_id
+          AND f.event_type = 'adoption_finalized'
+          AND f.payload->>'adopter_user_id' = ${userId}
+      )
+  `);
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Count pending ownership transfers awaiting acceptance by this user.
+ *
+ * Mirrors the petTransfers table: status = 'pending' AND toOwnerId = userId.
+ * toOwnerId is nullable (set once the recipient signs up); we only count
+ * rows where the identity is already resolved.
+ */
+export async function countPendingTransfers(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(petTransfers)
+    .where(and(eq(petTransfers.toOwnerId, userId), eq(petTransfers.status, "pending")));
+  return row?.n ?? 0;
 }
