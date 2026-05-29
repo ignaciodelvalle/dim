@@ -172,7 +172,7 @@ export async function createLibretaShareAction(
 
   const result = await createLibretaShareForUser(user.id, input);
   if ("shareToken" in result) {
-    revalidatePath(`/mis-mascotas/${input.petPublicToken}/libreta`);
+    revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
   }
   return result;
 }
@@ -200,7 +200,7 @@ export async function revokeLibretaShareAction(
         .from(pets)
         .where(eq(pets.id, shareRow.petId))
         .limit(1);
-      if (pet) revalidatePath(`/mis-mascotas/${pet.publicToken}/libreta`);
+      if (pet) revalidatePath(`/mis-mascotas/${pet.publicToken}`);
     }
   }
   return result;

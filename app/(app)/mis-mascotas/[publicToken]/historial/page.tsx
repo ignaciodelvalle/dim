@@ -1,11 +1,8 @@
-import { PetDetailTabs } from "@/components/pet-profile/PetDetailTabs";
-import { attachments, db, petEvents } from "@/db";
-import { excludeSelfScansClause } from "@/lib/events";
-import { requireOwnedPetByToken } from "@/lib/pets";
-import { eventAttachmentSignedUrl } from "@/lib/storage";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import Link from "next/link";
-import { EventTimeline } from "../EventTimeline";
+// Permanent redirect — /mis-mascotas/[publicToken]/historial is now an in-page
+// tab at /mis-mascotas/[publicToken]?tab=historial. Existing links and bookmarks
+// are preserved via HTTP 308 Permanent Redirect.
+
+import { permanentRedirect } from "next/navigation";
 
 export default async function PetHistorialPage({
   params,
@@ -13,65 +10,5 @@ export default async function PetHistorialPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
-  const session = await requireOwnedPetByToken(publicToken);
-  const { pet } = session;
-
-  // Fetch events newest-first (same order as the detail page used to).
-  // Self-scans are filtered at the DB layer — see lib/events.excludeSelfScansClause.
-  const events = await db
-    .select()
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
-    .orderBy(desc(petEvents.occurredAt));
-
-  // Per-event attachments with signed URLs.
-  const eventIds = events.map((e) => e.id);
-  const eventAttachmentRows =
-    eventIds.length > 0
-      ? await db.select().from(attachments).where(inArray(attachments.eventId, eventIds))
-      : [];
-
-  // We need the supabase client for signed URL generation.
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-
-  const eventAttachmentUrls = new Map<string, string>();
-  await Promise.all(
-    eventAttachmentRows.map(async (a) => {
-      if (!a.eventId) return;
-      const url = await eventAttachmentSignedUrl(supabase, a.storagePath);
-      if (url) eventAttachmentUrls.set(a.eventId, url);
-    }),
-  );
-
-  const eventsWithAttachments = events.map((e) => ({
-    ...e,
-    attachmentUrl: eventAttachmentUrls.get(e.id) ?? null,
-  }));
-
-  return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-6 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver a {pet.name}
-        </Link>
-
-        {/* Visual tab-bar linking Resumen ↔ Libreta ↔ Historial */}
-        <PetDetailTabs
-          petPublicToken={pet.publicToken}
-          historialCount={eventsWithAttachments.length}
-        />
-
-        <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{pet.name}</h1>
-          <p className="text-sm text-gob-text-muted ">Historial completo de {pet.name}</p>
-        </div>
-
-        <EventTimeline events={eventsWithAttachments} publicToken={pet.publicToken} />
-      </div>
-    </main>
-  );
+  permanentRedirect(`/mis-mascotas/${publicToken}?tab=historial`);
 }

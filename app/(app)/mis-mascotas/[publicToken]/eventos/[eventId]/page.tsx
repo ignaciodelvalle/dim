@@ -72,7 +72,7 @@ export default async function EventDetailPage({
     <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-2xl mx-auto pt-6 space-y-6">
         <Link
-          href={`/mis-mascotas/${pet.publicToken}/historial`}
+          href={`/mis-mascotas/${pet.publicToken}?tab=historial`}
           className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
         >
           ← Volver al historial de {pet.name}
