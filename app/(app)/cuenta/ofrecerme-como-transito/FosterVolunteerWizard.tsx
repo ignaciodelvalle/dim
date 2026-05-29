@@ -31,7 +31,6 @@ import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { Checkbox } from "@/components/poncho";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { provinceByName } from "@/lib/ar-provincias";
-import { labelClass } from "@/lib/form-classes";
 
 type InitialState = {
   status: "active" | "paused" | "withdrawn";
@@ -219,7 +218,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             </div>
 
             <div>
-              <label htmlFor="fv-locality" className={labelClass}>
+              <label htmlFor="fv-locality" className="block text-sm font-medium text-gob-text">
                 Localidad
               </label>
               <LocalityPickerAcross
@@ -240,7 +239,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="fv-max-duration" className={labelClass}>
+              <label htmlFor="fv-max-duration" className="block text-sm font-medium text-gob-text">
                 Duración máxima (semanas)
               </label>
               <input
@@ -360,7 +359,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             </fieldset>
 
             <div>
-              <label htmlFor="fv-notes" className={labelClass}>
+              <label htmlFor="fv-notes" className="block text-sm font-medium text-gob-text">
                 Notas para el refugio
               </label>
               <textarea
