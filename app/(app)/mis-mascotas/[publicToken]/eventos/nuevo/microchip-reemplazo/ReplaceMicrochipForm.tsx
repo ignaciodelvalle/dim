@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { Field, Input, Textarea } from "@/components/poncho";
+import { Field, Input, Radio, Textarea } from "@/components/poncho";
 import { useActionState } from "react";
 
 const initialState: EventFormState = { error: null };
@@ -44,16 +44,9 @@ export function ReplaceMicrochipForm({
         </p>
         <div className="flex flex-col gap-2">
           {OWNER_REASONS.map((r) => (
-            <label key={r.value} className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="reason"
-                value={r.value}
-                required
-                className="mt-0.5 accent-gob-primary "
-              />
-              <span className="text-sm text-gob-text ">{r.label}</span>
-            </label>
+            <Radio key={r.value} name="reason" value={r.value} required>
+              {r.label}
+            </Radio>
           ))}
         </div>
       </div>

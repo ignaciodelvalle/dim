@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
+import { Radio } from "@/components/poncho";
 import { inputClass, labelClass } from "@/lib/form-classes";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../nuevo/AttachmentField";
@@ -39,21 +40,19 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
           Registro<span className="text-gob-danger ml-0.5">*</span>
         </legend>
         {REGISTRY_OPTIONS.map((opt) => (
-          <label key={opt.value} className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="registry"
-              value={opt.value}
-              required
-              checked={registry === opt.value}
-              onChange={(e) => setRegistry(e.target.value)}
-              className="mt-1 h-4 w-4 border-gob-border-strong  text-gob-text  focus:ring-gob-primary "
-            />
+          <Radio
+            key={opt.value}
+            name="registry"
+            value={opt.value}
+            required
+            checked={registry === opt.value}
+            onChange={(e) => setRegistry(e.target.value)}
+          >
             <span className="space-y-0.5">
-              <span className="block text-sm text-gob-text ">{opt.label}</span>
-              <span className="block text-xs text-gob-text-gray ">{opt.help}</span>
+              {opt.label}
+              <span className="block text-xs! text-gob-text-gray!">{opt.help}</span>
             </span>
-          </label>
+          </Radio>
         ))}
       </fieldset>
 

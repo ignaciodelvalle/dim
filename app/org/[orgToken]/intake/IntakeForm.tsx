@@ -22,6 +22,7 @@
 import { useState, useTransition } from "react";
 
 import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
+import { Radio } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
 
@@ -304,40 +305,34 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
         <fieldset className="space-y-1">
           <legend className="text-sm">Rol de la organización</legend>
-          <div className="flex flex-col gap-2 text-sm">
-            <label className="flex items-start gap-2">
-              <input
-                type="radio"
-                name="custodyRole"
-                value="shelter_custody"
-                checked={custodyRole === "shelter_custody"}
-                onChange={() => setCustodyRole("shelter_custody")}
-                className="mt-1"
-              />
-              <span>
+          <div className="flex flex-col gap-2">
+            <Radio
+              name="custodyRole"
+              value="shelter_custody"
+              checked={custodyRole === "shelter_custody"}
+              onChange={() => setCustodyRole("shelter_custody")}
+            >
+              <span className="space-y-0.5">
                 <span className="block font-medium">Custodia temporal</span>
-                <span className="block text-xs text-gob-text-muted">
+                <span className="block text-xs! text-gob-text-muted!">
                   El animal queda bajo cuidado del refugio hasta que se concrete una adopción.
                 </span>
               </span>
-            </label>
-            <label className="flex items-start gap-2">
-              <input
-                type="radio"
-                name="custodyRole"
-                value="owner"
-                checked={custodyRole === "owner"}
-                onChange={() => setCustodyRole("owner")}
-                className="mt-1"
-              />
-              <span>
+            </Radio>
+            <Radio
+              name="custodyRole"
+              value="owner"
+              checked={custodyRole === "owner"}
+              onChange={() => setCustodyRole("owner")}
+            >
+              <span className="space-y-0.5">
                 <span className="block font-medium">Dueño/a permanente</span>
-                <span className="block text-xs text-gob-text-muted">
+                <span className="block text-xs! text-gob-text-muted!">
                   El animal queda registrado a nombre de la organización (santuario, decomiso sin
                   rehome, adopción institucional).
                 </span>
               </span>
-            </label>
+            </Radio>
           </div>
         </fieldset>
 
