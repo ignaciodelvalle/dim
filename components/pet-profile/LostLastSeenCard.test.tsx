@@ -43,16 +43,12 @@ describe("<LostLastSeenCard>", () => {
   });
 
   it("shows sightings count when > 0", () => {
-    const html = renderToStaticMarkup(
-      <LostLastSeenCard {...baseProps} sightingsCount={3} />,
-    );
+    const html = renderToStaticMarkup(<LostLastSeenCard {...baseProps} sightingsCount={3} />);
     expect(html).toContain("3 avistamientos");
   });
 
   it("shows singular form for exactly 1 sighting", () => {
-    const html = renderToStaticMarkup(
-      <LostLastSeenCard {...baseProps} sightingsCount={1} />,
-    );
+    const html = renderToStaticMarkup(<LostLastSeenCard {...baseProps} sightingsCount={1} />);
     expect(html).toContain("1 avistamiento");
     expect(html).not.toContain("avistamientos");
   });
