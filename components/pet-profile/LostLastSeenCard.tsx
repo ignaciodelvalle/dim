@@ -3,19 +3,25 @@
 // copy the public credential link so they can share it with whoever spotted
 // the pet.
 //
-// In v1 the map is a static preview (gradient + pin). When MapLibre is
-// wired into this surface, swap the gradient div for a `<StaticMap>`
-// component centered on lat/lng with a single marker. The Last-known
-// location lives on the `cases` row as `primary_location_lat/lng` and
-// the caption text comes from the case's opening event payload.
+// When the mark-lost event included GPS coordinates (owner dropped a pin in
+// LocationFields), a small embedded MapLibre map replaces the placeholder
+// gradient. The map is loaded via next/dynamic (ssr: false) exactly as
+// denuncias/[id]/page.tsx does — maplibre-gl must not run on the server.
 //
 // Sightings are reported by finders via the public credential (/p/{token}).
 // The owner-side add-sighting route was removed (P0a) — owners share the
 // public link instead.
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 
 import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
+
+const LocationMap = dynamic(() => import("@/components/LocationMap"), {
+  loading: () => (
+    <div className="w-full h-40 rounded-xl border border-gob-border bg-gob-surface-alt animate-pulse" />
+  ),
+});
 
 interface Props {
   /** Pretty address line. e.g. "Plaza Italia" */
@@ -32,6 +38,15 @@ interface Props {
   publicUrl: string;
   /** Number of sightings logged after the original drop. */
   sightingsCount: number;
+  /**
+   * Precise latitude from the mark-lost event (numeric string from Drizzle).
+   * When present together with lastSeenLng, renders a live mini-map.
+   */
+  lastSeenLat?: string | null;
+  /**
+   * Precise longitude from the mark-lost event.
+   */
+  lastSeenLng?: string | null;
 }
 
 export function LostLastSeenCard({
@@ -42,7 +57,13 @@ export function LostLastSeenCard({
   editHref,
   publicUrl,
   sightingsCount,
+  lastSeenLat,
+  lastSeenLng,
 }: Props) {
+  const lat = lastSeenLat ? Number(lastSeenLat) : null;
+  const lng = lastSeenLng ? Number(lastSeenLng) : null;
+  const hasCoords = lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng);
+
   return (
     <section
       aria-labelledby="lp-loc-h"
@@ -59,27 +80,49 @@ export function LostLastSeenCard({
         </h2>
       </div>
 
-      <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-gob-success/10 to-gob-info/10  ">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span aria-hidden className="text-4xl drop-shadow">
-            📍
-          </span>
+      {hasCoords ? (
+        <div className="relative overflow-hidden rounded-xl">
+          <div className="h-40 w-full overflow-hidden rounded-xl">
+            <LocationMap lat={lat} lng={lng} />
+          </div>
+          <Link
+            href={editHref}
+            className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white "
+          >
+            Editar
+          </Link>
+          <div className="mt-2 rounded-lg border border-gob-border px-3 py-2 text-xs text-gob-text-gray  ">
+            <p>
+              <span className="font-semibold text-gob-text ">{placeName}</span>
+              <span className="text-gob-text-muted "> · {localityLabel}</span>
+              <span className="text-gob-text-muted "> · {formatWhen(at)}</span>
+            </p>
+            {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
+          </div>
         </div>
-        <Link
-          href={editHref}
-          className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white "
-        >
-          Editar
-        </Link>
-        <div className="absolute inset-x-2 bottom-2 rounded-lg bg-white/95 px-3 py-2 text-xs text-gob-text-gray shadow-sm  ">
-          <p>
-            <span className="font-semibold text-gob-text ">{placeName}</span>
-            <span className="text-gob-text-muted "> · {localityLabel}</span>
-            <span className="text-gob-text-muted "> · {formatWhen(at)}</span>
-          </p>
-          {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
+      ) : (
+        <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-gob-success/10 to-gob-info/10  ">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span aria-hidden className="text-4xl drop-shadow">
+              📍
+            </span>
+          </div>
+          <Link
+            href={editHref}
+            className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white "
+          >
+            Editar
+          </Link>
+          <div className="absolute inset-x-2 bottom-2 rounded-lg bg-white/95 px-3 py-2 text-xs text-gob-text-gray shadow-sm  ">
+            <p>
+              <span className="font-semibold text-gob-text ">{placeName}</span>
+              <span className="text-gob-text-muted "> · {localityLabel}</span>
+              <span className="text-gob-text-muted "> · {formatWhen(at)}</span>
+            </p>
+            {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
+          </div>
         </div>
-      </div>
+      )}
 
       <p className="mt-3 text-xs text-gob-text-muted">
         Si te avisaron por afuera, mandales el link de la credencial para que reporten el avistaje

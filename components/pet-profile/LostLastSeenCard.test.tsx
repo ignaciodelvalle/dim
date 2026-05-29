@@ -68,4 +68,20 @@ describe("<LostLastSeenCard>", () => {
     expect(html).toContain("/mis-mascotas/abc123/perdida");
     expect(html).toContain("Editar");
   });
+
+  it("still renders place name and edit link when coords are provided", () => {
+    const html = renderToStaticMarkup(
+      <LostLastSeenCard {...baseProps} lastSeenLat="-34.603722" lastSeenLng="-58.381592" />,
+    );
+    expect(html).toContain("Plaza Italia");
+    expect(html).toContain("Editar");
+  });
+
+  it("falls back to gradient placeholder when coords are absent", () => {
+    const html = renderToStaticMarkup(
+      <LostLastSeenCard {...baseProps} lastSeenLat={null} lastSeenLng={null} />,
+    );
+    expect(html).toContain("Plaza Italia");
+    expect(html).toContain("Editar");
+  });
 });

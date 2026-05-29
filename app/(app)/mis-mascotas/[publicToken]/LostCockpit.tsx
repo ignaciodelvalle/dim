@@ -113,6 +113,8 @@ export async function LostCockpit({
             editHref={editLastSeenHref}
             publicUrl={publicUrl}
             sightingsCount={episode.sightingsCount}
+            lastSeenLat={episode.lastSeenLat}
+            lastSeenLng={episode.lastSeenLng}
           />
         )}
 
