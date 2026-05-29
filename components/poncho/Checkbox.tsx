@@ -14,6 +14,12 @@
 //
 //   <Checkbox name="terms" required>Acepto los términos</Checkbox>
 //
+// Sin `children` el control es label-less: renderiza sólo el <input> (un <label>
+// vacío no aporta nombre accesible). Pasá `aria-label` para nombrarlo — útil en
+// selectores de fila de una lista, donde el contenido vive al lado del input:
+//
+//   <Checkbox checked={sel} onChange={toggle} aria-label="Seleccionar fila" />
+//
 // El prop `invalid` setea aria-invalid="true" — útil cuando un Fieldset
 // padre tiene error y querés que cada control herede el estado visual.
 
@@ -21,7 +27,8 @@ import { type InputHTMLAttributes, type ReactNode, useId } from "react";
 
 export type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
   invalid?: boolean;
-  children: ReactNode;
+  /** Label content. Omití para un control label-less (pasá `aria-label` en su lugar). */
+  children?: ReactNode;
   /** Extra classes for the label text span — e.g. to tint confirmation copy with a warning/danger color. */
   labelClassName?: string;
 };
@@ -36,15 +43,21 @@ export function Checkbox({
 }: CheckboxProps) {
   const generatedId = useId();
   const id = idProp ?? generatedId;
+  const input = (
+    <input
+      id={id}
+      type="checkbox"
+      aria-invalid={invalid || undefined}
+      className={`mt-0.5 h-4 w-4 shrink-0 accent-gob-primary ${className ?? ""}`.trim()}
+      {...rest}
+    />
+  );
+  // Label-less: a wrapping <label> with no text gives no accessible name, so
+  // render just the input — the caller supplies aria-label and adjacent content.
+  if (children == null) return input;
   return (
     <label htmlFor={id} className="flex items-start gap-2 cursor-pointer">
-      <input
-        id={id}
-        type="checkbox"
-        aria-invalid={invalid || undefined}
-        className={`mt-0.5 h-4 w-4 shrink-0 accent-gob-primary ${className ?? ""}`.trim()}
-        {...rest}
-      />
+      {input}
       <span className={`text-sm text-gob-text leading-tight ${labelClassName ?? ""}`.trim()}>
         {children}
       </span>

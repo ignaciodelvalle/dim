@@ -20,6 +20,7 @@ import { useId, useRef, useState, useTransition } from "react";
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN } from "@/components/MotivoField";
+import { Checkbox } from "@/components/poncho";
 import { createClient } from "@/lib/supabase/client";
 
 export interface BulkRevokableItem {
@@ -78,12 +79,11 @@ export function BulkRevokeList<T extends BulkRevokableItem>({
             <li key={item.id} className="rounded-lg border border-gob-border  px-4 py-3">
               <div className="flex items-start gap-3">
                 {revocable ? (
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selected.has(item.id)}
                     onChange={() => toggle(item.id)}
                     aria-label={`Seleccionar ${item.label} para revocación masiva`}
-                    className="mt-1.5 h-4 w-4 shrink-0 rounded border-gob-border-strong "
+                    className="mt-1.5"
                   />
                 ) : (
                   <div className="mt-1.5 h-4 w-4 shrink-0" aria-hidden />
