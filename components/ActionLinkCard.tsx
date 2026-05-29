@@ -4,8 +4,8 @@
 // Renders as a full-bleed Link card with an optional badge count.
 // When hideWhenZero is true and badge is 0 or null, renders nothing.
 
-import Link from "next/link";
 import { Icon, type IconName } from "@/components/Icon";
+import Link from "next/link";
 
 export type ActionLinkCardProps = {
   href: string;

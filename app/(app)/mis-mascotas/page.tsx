@@ -2,10 +2,7 @@ import { ActionLinkCard } from "@/components/ActionLinkCard";
 import { PetCard } from "@/components/PetCard";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import {
-  countPendingApplications,
-  fetchActiveReminders,
-} from "@/lib/owner-dashboard";
+import { countPendingApplications, fetchActiveReminders } from "@/lib/owner-dashboard";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
@@ -33,17 +30,16 @@ export default async function MisMascotasPage({
   // Pets where this user is the *current* custodian (any role), with the
   // primary photo and the ownership role for the "En tránsito" badge.
   // NotificationBell moved to /inicio (PR #208) so the unread query lives there now.
-  const [ownedPets, activeReminders, pendingApplicationsCount] =
-    await Promise.all([
-      db
-        .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
-        .from(pets)
-        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
-      fetchActiveReminders(user.id),
-      countPendingApplications(user.id),
-    ]);
+  const [ownedPets, activeReminders, pendingApplicationsCount] = await Promise.all([
+    db
+      .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
+    fetchActiveReminders(user.id),
+    countPendingApplications(user.id),
+  ]);
 
   // Build a map from petId → highest-priority reminder variant for the pet badge.
   // activeReminders is already sorted by priority (overdue_critical first), so

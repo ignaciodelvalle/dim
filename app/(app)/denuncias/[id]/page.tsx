@@ -277,7 +277,6 @@ export default async function WelfareReportDetailPage({
             </div>
           </section>
         )}
-
       </div>
     </main>
   );
