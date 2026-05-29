@@ -48,6 +48,9 @@ type Props = {
   required?: boolean;
   /** Called on every successful pick — useful for parent state. */
   onSelect?: (selected: LocalitySearchResult | null) => void;
+  /** Called on every raw input change (typing without picking). Lets the
+   * parent track free-text input and reset any derived province. */
+  onQueryChange?: (query: string) => void;
   /** Placeholder copy override. */
   placeholder?: string;
 };
@@ -58,6 +61,7 @@ export function LocalityPickerAcross({
   name = "localityName",
   required,
   onSelect,
+  onQueryChange,
   placeholder = "Ej: Palermo, La Plata, Mendoza…",
 }: Props) {
   const [query, setQuery] = useState(defaultValue?.localityName ?? "");
@@ -145,6 +149,7 @@ export function LocalityPickerAcross({
         onChange={(e) => {
           setQuery(e.target.value);
           setSelected(null);
+          onQueryChange?.(e.target.value);
         }}
         onKeyDown={handleKey}
         onFocus={() => {

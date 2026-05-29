@@ -46,6 +46,14 @@ export function SearchFiltersForm({
     }
   }
 
+  // Free-text typing (no dropdown pick): submit the typed locality and clear
+  // the derived province — it can't be inferred from raw text, and keeping a
+  // previously-picked province would submit a stale value.
+  function handleQueryChange(query: string) {
+    setPickedLocality(query);
+    setPickedProvince("");
+  }
+
   return (
     <form method="GET" className="space-y-3">
       <div className="flex flex-wrap gap-2 items-end">
@@ -86,6 +94,7 @@ export function SearchFiltersForm({
               }}
               placeholder="Ej: Palermo, La Plata…"
               onSelect={handleSelect}
+              onQueryChange={handleQueryChange}
             />
           </div>
         </div>
