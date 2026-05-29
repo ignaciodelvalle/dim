@@ -10,7 +10,6 @@ import {
   upsertServiceDogAction,
 } from "@/app/actions/service-dog";
 import type { PetServiceDog, ServiceDogType } from "@/db";
-import { labelClass } from "@/lib/form-classes";
 
 const SERVICE_TYPE_OPTIONS: { value: ServiceDogType; label: string; bannerEligible: boolean }[] = [
   { value: "guia", label: "Guía (discapacidad visual)", bannerEligible: true },
@@ -178,7 +177,7 @@ export function ServiceDogForm({
       >
         <fieldset disabled={isRevoked} className="space-y-4 disabled:opacity-50">
           <div>
-            <label htmlFor="service-type" className={`${labelClass} mb-1`}>
+            <label htmlFor="service-type" className="block text-sm font-medium text-gob-text mb-1">
               Tipo de servicio
             </label>
             <select
@@ -200,7 +199,10 @@ export function ServiceDogForm({
           </div>
 
           <div>
-            <label htmlFor="training-center" className={`${labelClass} mb-1`}>
+            <label
+              htmlFor="training-center"
+              className="block text-sm font-medium text-gob-text mb-1"
+            >
               Centro de entrenamiento *
             </label>
             <input
@@ -220,7 +222,10 @@ export function ServiceDogForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="training-cert-date" className={`${labelClass} mb-1`}>
+              <label
+                htmlFor="training-cert-date"
+                className="block text-sm font-medium text-gob-text mb-1"
+              >
                 Fecha del certificado del centro
               </label>
               <input
@@ -232,7 +237,10 @@ export function ServiceDogForm({
               />
             </div>
             <div>
-              <label htmlFor="rupga-credential" className={`${labelClass} mb-1`}>
+              <label
+                htmlFor="rupga-credential"
+                className="block text-sm font-medium text-gob-text mb-1"
+              >
                 Número RUPGA
               </label>
               <input
@@ -248,7 +256,7 @@ export function ServiceDogForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="cred-issue" className={`${labelClass} mb-1`}>
+              <label htmlFor="cred-issue" className="block text-sm font-medium text-gob-text mb-1">
                 Emisión de la credencial
               </label>
               <input
@@ -260,7 +268,7 @@ export function ServiceDogForm({
               />
             </div>
             <div>
-              <label htmlFor="cred-expiry" className={`${labelClass} mb-1`}>
+              <label htmlFor="cred-expiry" className="block text-sm font-medium text-gob-text mb-1">
                 Vencimiento de la credencial
               </label>
               <input
@@ -274,7 +282,7 @@ export function ServiceDogForm({
           </div>
 
           <div>
-            <label htmlFor="sd-notes" className={`${labelClass} mb-1`}>
+            <label htmlFor="sd-notes" className="block text-sm font-medium text-gob-text mb-1">
               Notas (opcional)
             </label>
             <textarea

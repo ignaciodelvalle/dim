@@ -1,8 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { Radio } from "@/components/poncho";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input, Radio, Textarea } from "@/components/poncho";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../nuevo/AttachmentField";
 
@@ -36,7 +35,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
   return (
     <form action={formAction} className="space-y-5">
       <fieldset className="space-y-3">
-        <legend className={labelClass}>
+        <legend className="block text-sm font-medium text-gob-text">
           Registro<span className="text-gob-danger ml-0.5">*</span>
         </legend>
         {REGISTRY_OPTIONS.map((opt) => (
@@ -57,43 +56,29 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
       </fieldset>
 
       <div className="space-y-1.5">
-        <label htmlFor="registryId" className={labelClass}>
+        <label htmlFor="registryId" className="block text-sm font-medium text-gob-text">
           Nº de registro / expediente (opcional)
         </label>
-        <input
+        <Input
           id="registryId"
           name="registryId"
           type="text"
           placeholder="Si tenés el número a mano"
-          className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="attestedAt" className={labelClass}>
+        <label htmlFor="attestedAt" className="block text-sm font-medium text-gob-text">
           Fecha de atestación<span className="text-gob-danger ml-0.5">*</span>
         </label>
-        <input
-          id="attestedAt"
-          name="attestedAt"
-          type="date"
-          required
-          defaultValue={today}
-          className={inputClass}
-        />
+        <Input id="attestedAt" name="attestedAt" type="date" required defaultValue={today} />
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="notes" className={labelClass}>
+        <label htmlFor="notes" className="block text-sm font-medium text-gob-text">
           Notas
         </label>
-        <textarea
-          id="notes"
-          name="notes"
-          rows={3}
-          placeholder="Detalles, si querés agregar"
-          className={inputClass}
-        />
+        <Textarea id="notes" name="notes" rows={3} placeholder="Detalles, si querés agregar" />
       </div>
 
       <AttachmentField />
