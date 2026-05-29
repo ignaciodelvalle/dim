@@ -71,7 +71,7 @@ export function PetReminders({
               + Programar
             </Link>
             <Link
-              href={`/mis-mascotas/${petToken}/vacunas`}
+              href={`/mis-mascotas/${petToken}?tab=vacunas`}
               className="text-gob-info underline-offset-4 hover:underline"
             >
               Ver libreta →

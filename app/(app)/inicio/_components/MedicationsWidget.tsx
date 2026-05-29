@@ -21,7 +21,7 @@ export function MedicationsWidget({ medications }: { medications: OngoingMedicat
           {medications.map((m) => (
             <li key={m.eventId}>
               <Link
-                href={`/mis-mascotas/${m.petPublicToken}/historial`}
+                href={`/mis-mascotas/${m.petPublicToken}?tab=historial`}
                 className="block border border-gob-border  rounded-xl p-4 hover:bg-gob-surface-alt  transition-colors"
               >
                 <p className="text-sm font-medium text-gob-text  truncate">{m.drugName}</p>
