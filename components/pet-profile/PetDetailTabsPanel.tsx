@@ -11,9 +11,13 @@
 //   Historial is always deferred (heaviest query: O(N) events + signing).
 // - Resumen panel receives its pre-rendered content as a React node from
 //   the server page (eager, zero client cost).
+// - Print: libreta-print.css is imported here so it's only applied when
+//   this component (and thus the Libreta tab) is rendered. The tab nav
+//   carries print:hidden so it's absent from printed output.
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { EventTimeline } from "@/app/(app)/mis-mascotas/[publicToken]/EventTimeline";
 import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
 import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
@@ -64,18 +68,43 @@ function TabErrorState({ message }: { message: string }) {
 function LibretaPanel({
   data,
   petPublicToken,
+  vista,
+  onVistaChange,
 }: {
   data: LibretaTabData;
   petPublicToken: string;
+  vista: "agrupada" | "cronologica";
+  onVistaChange: (v: "agrupada" | "cronologica") => void;
 }) {
   return (
     <div className="space-y-6 pt-6">
-      {data.accessPath === "org" && data.organizationDisplayName && (
-        <div className="rounded border border-gob-info/30 bg-gob-info/10 px-3 py-2 text-sm text-gob-text">
-          Estás viendo la libreta de {data.pet.name} como miembro de{" "}
-          <strong>{data.organizationDisplayName}</strong>. Vista de solo lectura.
-        </div>
-      )}
+      {/* View toggle — Por sección / Cronológica */}
+      <div className="flex items-center justify-end gap-1 text-xs print:hidden">
+        <button
+          type="button"
+          onClick={() => onVistaChange("agrupada")}
+          className={[
+            "px-2.5 py-1 rounded-md transition-colors",
+            vista === "agrupada"
+              ? "bg-gob-primary text-white"
+              : "text-gob-text-gray hover:bg-gob-surface-alt",
+          ].join(" ")}
+        >
+          Por sección
+        </button>
+        <button
+          type="button"
+          onClick={() => onVistaChange("cronologica")}
+          className={[
+            "px-2.5 py-1 rounded-md transition-colors",
+            vista === "cronologica"
+              ? "bg-gob-primary text-white"
+              : "text-gob-text-gray hover:bg-gob-surface-alt",
+          ].join(" ")}
+        >
+          Cronológica
+        </button>
+      </div>
 
       <LibretaIdentityHeader
         pet={data.pet}
@@ -83,16 +112,20 @@ function LibretaPanel({
         ownerFirstName={data.ownerFirstName}
       />
 
-      {/* View toggle is removed in-page: defaults to grouped view */}
       <LibretaSanitariaView
         groupedEvents={data.groupedEvents}
         publicToken={petPublicToken}
-        vista="agrupada"
+        vista={vista}
       />
 
       {data.accessPath === "owner" && (
         <SharesManager petPublicToken={petPublicToken} shares={data.activeShares} />
       )}
+
+      {/* Print footer — hidden on screen, shown when printing the Libreta tab */}
+      <footer className="hidden print:block text-xs text-gob-text-muted pt-8 border-t border-gob-border">
+        Generada por MiMAR · {new Date().toLocaleString("es-AR")}
+      </footer>
     </div>
   );
 }
@@ -168,6 +201,12 @@ type Props = {
   resumenContent: ReactNode;
   /** Active tab resolved from searchParams on the server. */
   initialTab: TabKey;
+  /**
+   * Whether the current viewer is the pet owner. When false (org-path),
+   * Libreta and Historial tabs are hidden and deep-links to them fall back
+   * to Resumen — matching old route gating (requireOwnedPetByToken).
+   */
+  isOwner: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -179,11 +218,27 @@ export function PetDetailTabsPanel({
   historialCount,
   resumenContent,
   initialTab,
+  isOwner,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  // Clamp the initial tab: org-path users cannot access libreta/historial.
+  const clampTab = useCallback(
+    (tab: TabKey): TabKey => {
+      if (!isOwner && (tab === "libreta" || tab === "historial")) return "resumen";
+      return tab;
+    },
+    [isOwner],
+  );
+
+  const [activeTab, setActiveTab] = useState<TabKey>(() => clampTab(initialTab));
+
+  // Vista toggle for the Libreta panel: synced to ?vista= searchParam.
+  const vistaParam = searchParams.get("vista");
+  const [vista, setVista] = useState<"agrupada" | "cronologica">(
+    vistaParam === "cronologica" ? "cronologica" : "agrupada",
+  );
 
   // Deferred data stores — null = not yet fetched, "loading" = in-flight.
   const [libretaData, setLibretaData] = useState<LibretaTabData | null>(null);
@@ -199,14 +254,33 @@ export function PetDetailTabsPanel({
   const fetchedRef = useRef<Set<TabKey>>(new Set());
 
   // Sync tab from searchParam changes (back/forward nav).
+  // Also sync ?vista= for the libreta toggle.
   useEffect(() => {
     const tabParam = searchParams.get("tab") as TabKey | null;
     const resolved: TabKey =
       tabParam && ["resumen", "libreta", "vacunas", "historial"].includes(tabParam)
         ? tabParam
         : "resumen";
-    setActiveTab(resolved);
-  }, [searchParams]);
+    setActiveTab(clampTab(resolved));
+    const vp = searchParams.get("vista");
+    setVista(vp === "cronologica" ? "cronologica" : "agrupada");
+  }, [searchParams, clampTab]);
+
+  // Handle ?vista= toggle from the LibretaPanel buttons.
+  // Updates URL searchParam and local state.
+  const handleVistaChange = useCallback(
+    (v: "agrupada" | "cronologica") => {
+      setVista(v);
+      const params = new URLSearchParams(searchParams.toString());
+      if (v === "agrupada") {
+        params.delete("vista");
+      } else {
+        params.set("vista", v);
+      }
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   // On mount: check for hash fragment and activate that tab.
   // Runs once — router and searchParams are stable across the mount lifecycle.
@@ -217,18 +291,21 @@ export function PetDetailTabsPanel({
     const hash = window.location.hash.slice(1);
     const tabFromHash = HASH_TO_TAB[hash];
     if (tabFromHash && tabFromHash !== "resumen") {
-      // Update URL to use ?tab= and scroll the tab bar into view.
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", tabFromHash);
-      router.replace(`?${params.toString()}`, { scroll: false });
-      // Scroll the tab-bar section into view after a short tick.
-      requestAnimationFrame(() => {
-        document
-          .querySelector("[data-section='pet-detail-tabs']")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      const clamped = clampTab(tabFromHash);
+      if (clamped === tabFromHash) {
+        // Update URL to use ?tab= and scroll the tab bar into view.
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("tab", clamped);
+        router.replace(`?${params.toString()}`, { scroll: false });
+        // Scroll the tab-bar section into view after a short tick.
+        requestAnimationFrame(() => {
+          document
+            .querySelector("[data-section='pet-detail-tabs']")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     }
-  }, [router, searchParams]);
+  }, [router, searchParams, clampTab]);
 
   // Fetch deferred data on tab activation.
   const fetchTabData = useCallback(
@@ -290,7 +367,14 @@ export function PetDetailTabsPanel({
         if (loadingTab === "libreta") return <TabLoadingSkeleton />;
         if (libretaError) return <TabErrorState message={libretaError} />;
         if (!libretaData) return <TabLoadingSkeleton />;
-        return <LibretaPanel data={libretaData} petPublicToken={petPublicToken} />;
+        return (
+          <LibretaPanel
+            data={libretaData}
+            petPublicToken={petPublicToken}
+            vista={vista}
+            onVistaChange={handleVistaChange}
+          />
+        );
       }
 
       case "vacunas": {
@@ -314,11 +398,14 @@ export function PetDetailTabsPanel({
 
   return (
     <div>
-      <PetDetailTabs
-        petPublicToken={petPublicToken}
-        historialCount={historialCount}
-        activeTab={activeTab}
-      />
+      <div className="print:hidden">
+        <PetDetailTabs
+          petPublicToken={petPublicToken}
+          historialCount={historialCount}
+          activeTab={activeTab}
+          isOwner={isOwner}
+        />
+      </div>
       <div id="tab-panel" role="tabpanel">
         {renderPanel()}
       </div>

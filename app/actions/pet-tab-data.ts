@@ -68,6 +68,8 @@ export async function getLibretaTabData(
 ): Promise<{ ok: true; data: LibretaTabData } | { ok: false; error: string }> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
+  // Libreta is owner-only — matches old /libreta route (requireOwnedPetByToken).
+  if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
 
   const { user, pet, accessPath, organization } = access;
 
@@ -191,6 +193,8 @@ export async function getHistorialTabData(
 ): Promise<{ ok: true; data: HistorialTabData } | { ok: false; error: string }> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
+  // Historial is owner-only — matches old /historial route (requireOwnedPetByToken).
+  if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
 
   const { pet } = access;
 

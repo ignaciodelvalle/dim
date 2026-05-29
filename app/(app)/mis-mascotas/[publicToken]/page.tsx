@@ -100,6 +100,7 @@ import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
 import { SheetMounter } from "./SheetMounter";
@@ -297,14 +298,20 @@ export default async function PetDetailPage({
   const { publicToken } = await params;
   const sp = await searchParams;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
-  const activeTab: TabKey =
-    tabParam === "libreta" || tabParam === "vacunas" || tabParam === "historial"
-      ? tabParam
-      : "resumen";
 
   const access = await requirePetAccess(publicToken);
   if (!access.ok) notFound();
   const { supabase, user, pet, accessPath, organization } = access;
+
+  const isOwner = accessPath === "owner";
+
+  // Clamp tab: org-path viewers can only see resumen/vacunas.
+  const activeTab: TabKey = (() => {
+    if (tabParam === "vacunas") return "vacunas";
+    if (tabParam === "libreta") return isOwner ? "libreta" : "resumen";
+    if (tabParam === "historial") return isOwner ? "historial" : "resumen";
+    return "resumen";
+  })();
 
   // Photo: separate small query indexed on primaryPhotoId, only if set.
   const [photo] = pet.primaryPhotoId
@@ -721,134 +728,139 @@ export default async function PetDetailPage({
 
       {/* In-page tabs — Resumen / Libreta / Vacunas / Historial.
             PetDetailTabsPanel is a client component; the resumen content is
-            rendered server-side and passed as an RSC node (composition pattern). */}
-      <PetDetailTabsPanel
-        petPublicToken={pet.publicToken}
-        historialCount={historialCount}
-        initialTab={activeTab}
-        resumenContent={
-          <div className="space-y-4">
-            {/* §4.9 (6) Achievements row + credentials */}
-            <div data-section="achievements">
-              <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
-            </div>
+            rendered server-side and passed as an RSC node (composition pattern).
+            Suspense boundary is required because PetDetailTabsPanel uses
+            useSearchParams() — Next 15 needs a boundary or it bails static rendering. */}
+      <Suspense fallback={<div className="h-12 bg-gob-surface-alt rounded animate-pulse" />}>
+        <PetDetailTabsPanel
+          petPublicToken={pet.publicToken}
+          historialCount={historialCount}
+          initialTab={activeTab}
+          isOwner={isOwner}
+          resumenContent={
+            <div className="space-y-4">
+              {/* §4.9 (6) Achievements row + credentials */}
+              <div data-section="achievements">
+                <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
+              </div>
 
-            {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
-            <div data-section="current-state">
-              <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
-            </div>
+              {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
+              <div data-section="current-state">
+                <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+              </div>
 
-            {/* §4.9 (8) Cuidados próximos — consolidates reminders + appointments + meds */}
-            <div data-section="upcoming-care">
-              <PetUpcomingCareSection
-                reminders={petActiveReminders}
-                appointments={upcomingAppointments}
-                medicationDoses={pendingMedicationReminders.map((r) => ({
-                  reminderId: r.id,
-                  drugName: r.title,
-                  dueAt: r.dueAt,
-                }))}
-                petToken={pet.publicToken}
-              />
-            </div>
+              {/* §4.9 (8) Cuidados próximos — consolidates reminders + appointments + meds */}
+              <div data-section="upcoming-care">
+                <PetUpcomingCareSection
+                  reminders={petActiveReminders}
+                  appointments={upcomingAppointments}
+                  medicationDoses={pendingMedicationReminders.map((r) => ({
+                    reminderId: r.id,
+                    drugName: r.title,
+                    dueAt: r.dueAt,
+                  }))}
+                  petToken={pet.publicToken}
+                />
+              </div>
 
-            {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
+              {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
                   signTimelineAttachmentsForPet is bound to the pet's publicToken so
                   the client component receives a (eventIds) => Promise<…> signer
                   that satisfies the SignerFn type without server-only imports. */}
-            <div data-section="health-timeline">
-              <PetHealthTimeline
-                recentFive={recentFive}
-                fullHistoryHref={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-                signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
+              <div data-section="health-timeline">
+                <PetHealthTimeline
+                  recentFive={recentFive}
+                  fullHistoryHref={`/mis-mascotas/${pet.publicToken}?tab=historial`}
+                  signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
+                />
+              </div>
+
+              {/* §4.9 (10) Actions menu — replaces inline action buttons */}
+              <div data-section="actions-menu">
+                <PetActionsMenu
+                  pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
+                  accessPath={accessPath === "org" ? "org" : "owner"}
+                  ownershipRole={ownershipRole}
+                  hasPendingReturnProposal={false}
+                />
+              </div>
+
+              {/* Auxiliary cards — below PetActionsMenu per design §5 */}
+
+              {/* v2 Emergency card */}
+              <PetEmergencyCard
+                editHref="/cuenta/editar"
+                vet={
+                  viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
+                    ? {
+                        name: viewerContacts.preferredVetName,
+                        role: "Vet de cabecera",
+                        phone: viewerContacts.preferredVetPhone,
+                      }
+                    : null
+                }
+                emergencyContact={
+                  viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
+                    ? {
+                        name: viewerContacts.emergencyContactName,
+                        role: "Contacto emergencia",
+                        phone: viewerContacts.emergencyContactPhone,
+                      }
+                    : null
+                }
+                alerts={[]}
               />
-            </div>
 
-            {/* §4.9 (10) Actions menu — replaces inline action buttons */}
-            <div data-section="actions-menu">
-              <PetActionsMenu
-                pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
-                accessPath={accessPath === "org" ? "org" : "owner"}
-                ownershipRole={ownershipRole}
-                hasPendingReturnProposal={false}
+              {/* Medication doses — preserved (needed until MedicationDosesSection is refactored) */}
+              <MedicationDosesSection
+                pet={pet}
+                reminders={pendingMedicationReminders}
+                sourceEvents={medicationSourceEvents}
               />
-            </div>
 
-            {/* Auxiliary cards — below PetActionsMenu per design §5 */}
+              {/* v2 Weight sparkline */}
+              <PetWeightChart samples={weightHistory} />
 
-            {/* v2 Emergency card */}
-            <PetEmergencyCard
-              editHref="/cuenta/editar"
-              vet={
-                viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
-                  ? {
-                      name: viewerContacts.preferredVetName,
-                      role: "Vet de cabecera",
-                      phone: viewerContacts.preferredVetPhone,
-                    }
-                  : null
-              }
-              emergencyContact={
-                viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
-                  ? {
-                      name: viewerContacts.emergencyContactName,
-                      role: "Contacto emergencia",
-                      phone: viewerContacts.emergencyContactPhone,
-                    }
-                  : null
-              }
-              alerts={[]}
-            />
+              <section>
+                <Link
+                  href={`/mis-mascotas/${pet.publicToken}?tab=libreta`}
+                  className="block w-full text-center px-4 py-3 rounded-lg border border-gob-border text-sm font-medium text-gob-text-gray hover:bg-gob-surface-alt transition-colors"
+                >
+                  Ver libreta completa →
+                </Link>
+              </section>
 
-            {/* Medication doses — preserved (needed until MedicationDosesSection is refactored) */}
-            <MedicationDosesSection
-              pet={pet}
-              reminders={pendingMedicationReminders}
-              sourceEvents={medicationSourceEvents}
-            />
-
-            {/* v2 Weight sparkline */}
-            <PetWeightChart samples={weightHistory} />
-
-            <section>
-              <Link
-                href={`/mis-mascotas/${pet.publicToken}?tab=libreta`}
-                className="block w-full text-center px-4 py-3 rounded-lg border border-gob-border text-sm font-medium text-gob-text-gray hover:bg-gob-surface-alt transition-colors"
-              >
-                Ver libreta completa →
-              </Link>
-            </section>
-
-            {/* v2 Credential card */}
-            <PetCredentialCard
-              publicToken={pet.publicToken}
-              qrUrl={`/p/${pet.publicToken}.png`}
-              publicHref={`/p/${pet.publicToken}`}
-            />
-
-            {/* §4.20 placeholder — owner-only, captures demand for physical QR tag */}
-            {physicalTagInterest ? (
-              <PhysicalTagInterestCard
-                petPublicToken={pet.publicToken}
-                petName={pet.name}
-                initialInterested={physicalTagInterest.interested}
-                initialRequestedAt={physicalTagInterest.requestedAt}
+              {/* v2 Credential card */}
+              <PetCredentialCard
+                publicToken={pet.publicToken}
+                qrUrl={`/p/${pet.publicToken}.png`}
+                publicHref={`/p/${pet.publicToken}`}
               />
-            ) : null}
 
-            {/* v2 Tracking placeholder */}
-            <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+              {/* §4.20 placeholder — owner-only, captures demand for physical QR tag */}
+              {physicalTagInterest ? (
+                <PhysicalTagInterestCard
+                  petPublicToken={pet.publicToken}
+                  petName={pet.name}
+                  initialInterested={physicalTagInterest.interested}
+                  initialRequestedAt={physicalTagInterest.requestedAt}
+                />
+              ) : null}
 
-            {/* v2 Travel docs — TODO(spec-later): wire from pet_attachments or
+              {/* v2 Tracking placeholder */}
+              <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+
+              {/* v2 Travel docs — TODO(spec-later): wire from pet_attachments or
                   attachments with kind in ('passport','intl_cert') once the table
                   decision lands. See docs/superpowers/plans/2026-05-27-spec-later-tracker.md#travel-docs. */}
-            <PetTravelDocs
-              uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
-              docs={[]}
-            />
-          </div>
-        }
-      />
+              <PetTravelDocs
+                uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
+                docs={[]}
+              />
+            </div>
+          }
+        />
+      </Suspense>
 
       {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
             Renders nothing when the param is absent or unknown.

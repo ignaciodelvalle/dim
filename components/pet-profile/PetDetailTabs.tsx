@@ -10,12 +10,18 @@ type Props = {
   historialCount?: number;
   /** The currently active tab. */
   activeTab: TabKey;
+  /**
+   * Whether the current viewer is the pet owner. When false (org-path),
+   * Libreta and Historial tabs are not rendered — matching old route gating.
+   */
+  isOwner?: boolean;
 };
 
 export function PetDetailTabs({
   petPublicToken: _petPublicToken,
   historialCount,
   activeTab,
+  isOwner = true,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,12 +39,17 @@ export function PetDetailTabs({
 
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "resumen", label: "Resumen" },
-    { key: "libreta", label: "Libreta" },
+    // Libreta and Historial are owner-only — org-path viewers see only Resumen + Vacunas.
+    ...(isOwner ? [{ key: "libreta" as TabKey, label: "Libreta" }] : []),
     { key: "vacunas", label: "Vacunas" },
-    {
-      key: "historial",
-      label: historialCount !== undefined ? `Historial ${historialCount}` : "Historial",
-    },
+    ...(isOwner
+      ? [
+          {
+            key: "historial" as TabKey,
+            label: historialCount !== undefined ? `Historial ${historialCount}` : "Historial",
+          },
+        ]
+      : []),
   ];
 
   return (
