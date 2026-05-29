@@ -1,9 +1,9 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { withdrawApprovalRequestAction } from "@/app/actions/approval-requests";
 import { approvalRequests, db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { WithdrawButton } from "./WithdrawButton";
 
 // ---------------------------------------------------------------------------
 // Display labels
@@ -68,7 +68,7 @@ export default async function SolicitudesPage({
   const totalCount = allRequests.length;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <div className="min-h-screen p-6 bg-white">
       <div className="max-w-2xl mx-auto pt-10 space-y-8">
         {/* Header */}
         <header className="space-y-1">
@@ -172,7 +172,7 @@ export default async function SolicitudesPage({
                   )}
 
                   {/* Withdraw button — only for pending requests */}
-                  {req.status === "pending" && <WithdrawForm requestId={req.id} />}
+                  {req.status === "pending" && <WithdrawButton requestId={req.id} />}
                 </li>
               );
             })}
@@ -183,13 +183,13 @@ export default async function SolicitudesPage({
         <div className="pt-2">
           <Link
             href="/cuenta"
-            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
+            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
           >
             ← Volver a mi cuenta
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -228,23 +228,5 @@ function FilterPill({
     >
       {label}
     </Link>
-  );
-}
-
-function WithdrawForm({ requestId }: { requestId: string }) {
-  async function handleWithdraw() {
-    "use server";
-    await withdrawApprovalRequestAction(requestId);
-  }
-
-  return (
-    <form action={handleWithdraw}>
-      <button
-        type="submit"
-        className="inline-flex items-center px-3 py-1.5 rounded-md border border-gob-border-strong  text-xs font-medium text-gob-text-gray  bg-white  hover:bg-gob-surface-alt  transition-colors"
-      >
-        Retirar solicitud
-      </button>
-    </form>
   );
 }

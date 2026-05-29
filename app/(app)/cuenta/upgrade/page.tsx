@@ -37,7 +37,7 @@ export default async function UpgradePage() {
     .limit(1);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <div className="min-h-screen p-6 bg-white">
       <div className="max-w-2xl mx-auto pt-10 space-y-10">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Tu rol en MiMAR</h1>
@@ -147,13 +147,13 @@ export default async function UpgradePage() {
 
         <div className="pt-2">
           <Link
-            href="/mis-mascotas"
-            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
+            href="/cuenta"
+            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
           >
-            ← Volver a mis mascotas
+            ← Volver a mi cuenta
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
