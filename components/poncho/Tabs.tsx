@@ -40,6 +40,8 @@ export type TabItem = {
   value: string;
   label: string;
   icon?: IconName;
+  /** Optional count badge. Rendered in danger (red) tone when > 0. */
+  badge?: number;
 };
 
 export type TabsProps = {
@@ -106,6 +108,19 @@ export function Tabs({
               >
                 {tab.icon && <Icon name={tab.icon} size="1em" decorative />}
                 {tab.label}
+                {tab.badge !== undefined && (
+                  <span
+                    className={[
+                      "ml-1 rounded-full px-1.5 py-0.5 text-xs font-semibold leading-none",
+                      tab.badge > 0
+                        ? "bg-gob-danger text-white"
+                        : "bg-gob-border text-gob-text-gray",
+                    ].join(" ")}
+                    aria-label={`${tab.badge} urgente${tab.badge !== 1 ? "s" : ""}`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             );
           })}

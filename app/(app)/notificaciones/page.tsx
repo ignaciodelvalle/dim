@@ -64,10 +64,11 @@ function groupNotifications(rows: NotificationRow[]): Group[] {
 // Category definitions
 // ---------------------------------------------------------------------------
 
-type Category = "all" | "health" | "custody" | "adoption" | "welfare" | "admin";
+type Category = "all" | "perdidas" | "health" | "custody" | "adoption" | "welfare" | "admin";
 
 const CATEGORY_LABELS: Record<Category, string> = {
   all: "Todas",
+  perdidas: "Pérdidas",
   health: "Salud",
   custody: "Custodia",
   adoption: "Adopciones",
@@ -77,6 +78,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
 
 const EMPTY_CATEGORY_TITLES: Record<Category, string> = {
   all: "Sin notificaciones",
+  perdidas: "Sin avistajes ni reportes de mascotas perdidas",
   health: "Sin notificaciones de salud",
   custody: "Sin notificaciones de custodia",
   adoption: "Sin notificaciones de adopciones",
@@ -84,7 +86,20 @@ const EMPTY_CATEGORY_TITLES: Record<Category, string> = {
   admin: "Sin notificaciones de sistema",
 };
 
-const CATEGORY_ORDER: Category[] = ["all", "health", "custody", "adoption", "welfare", "admin"];
+const EMPTY_CATEGORY_DESCRIPTIONS: Partial<Record<Category, string>> = {
+  perdidas:
+    "Te avisamos acá cuando alguien reporte un avistaje de tus mascotas perdidas.",
+};
+
+const CATEGORY_ORDER: Category[] = [
+  "all",
+  "perdidas",
+  "custody",
+  "health",
+  "adoption",
+  "welfare",
+  "admin",
+];
 
 // ---------------------------------------------------------------------------
 // Page
@@ -99,7 +114,8 @@ export default async function NotificacionesPage({
   const { cat } = await searchParams;
 
   const activeCat: Category =
-    cat && ["all", "health", "custody", "adoption", "welfare", "admin"].includes(cat)
+    cat &&
+    ["all", "perdidas", "health", "custody", "adoption", "welfare", "admin"].includes(cat)
       ? (cat as Category)
       : "all";
 
@@ -109,6 +125,7 @@ export default async function NotificacionesPage({
   // Build tab definitions — hide tabs with count 0 (except "Todas").
   const countByCategory: Record<Category, number> = {
     all: counts.all,
+    perdidas: counts.perdidas,
     health: counts.health,
     custody: counts.custody,
     adoption: counts.adoption,
@@ -120,6 +137,7 @@ export default async function NotificacionesPage({
     (cat) => ({
       value: cat,
       label: `${CATEGORY_LABELS[cat]} (${countByCategory[cat]})`,
+      badge: cat === "perdidas" && counts.perdidasUrgent > 0 ? counts.perdidasUrgent : undefined,
     }),
   );
 
@@ -193,7 +211,10 @@ export default async function NotificacionesPage({
         {rows.length === 0 ? (
           <EmptyState
             title={EMPTY_CATEGORY_TITLES[activeCat]}
-            description="Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."
+            description={
+              EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
+              "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."
+            }
           />
         ) : (
           <ul className="space-y-3">
