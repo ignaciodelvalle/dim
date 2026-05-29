@@ -29,6 +29,17 @@ export type LostEpisode = {
   ownerNote: string | null;
   /** Number of sightings logged after the original open (approximation). */
   sightingsCount: number;
+  /**
+   * Precise latitude from the status_changed event row (locationLat column).
+   * Null when the owner did not drop a pin at mark-lost time.
+   * Stored as numeric string by Drizzle — parse with Number() before use.
+   */
+  lastSeenLat: string | null;
+  /**
+   * Precise longitude from the status_changed event row (locationLng column).
+   * Null when the owner did not drop a pin at mark-lost time.
+   */
+  lastSeenLng: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -72,6 +83,8 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
   const [originEvent] = await db
     .select({
       payload: petEvents.payload,
+      locationLat: petEvents.locationLat,
+      locationLng: petEvents.locationLng,
     })
     .from(petEvents)
     .where(
@@ -91,6 +104,18 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
       : null;
   const ownerNote =
     typeof payload.reason === "string" && payload.reason.trim() ? payload.reason.trim() : null;
+
+  // Coords from the event row — set when the owner dropped a pin in
+  // LocationFields at mark-lost time. Drizzle returns numeric columns as
+  // strings; callers parse with Number() before passing to map components.
+  const lastSeenLat =
+    originEvent?.locationLat !== null && originEvent?.locationLat !== undefined
+      ? String(originEvent.locationLat)
+      : null;
+  const lastSeenLng =
+    originEvent?.locationLng !== null && originEvent?.locationLng !== undefined
+      ? String(originEvent.locationLng)
+      : null;
 
   // Real sightings count: note_added events scoped to this case via caseId.
   // Belt-and-suspenders: also require occurredAt >= openedAt in case any legacy
@@ -116,6 +141,8 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
     placeName,
     ownerNote,
     sightingsCount: sightingsResult?.total ?? 0,
+    lastSeenLat,
+    lastSeenLng,
   };
 }
 
