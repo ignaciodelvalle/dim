@@ -1,7 +1,7 @@
-import Link from "next/link";
-
 // LostLastSeenCard — shows the last-known location pin + caption with a
-// quick "edit" affordance and a CTA to add a fresh sighting.
+// quick "edit" affordance, a helper note for the owner, and a button to
+// copy the public credential link so they can share it with whoever spotted
+// the pet.
 //
 // In v1 the map is a static preview (gradient + pin). When MapLibre is
 // wired into this surface, swap the gradient div for a `<StaticMap>`
@@ -9,9 +9,13 @@ import Link from "next/link";
 // location lives on the `cases` row as `primary_location_lat/lng` and
 // the caption text comes from the case's opening event payload.
 //
-// Adding a sighting opens an `add-sighting` event on the case — which
-// updates the pin but does NOT mutate the case row (events are
-// append-only). The latest sighting wins for display.
+// Sightings are reported by finders via the public credential (/p/{token}).
+// The owner-side add-sighting route was removed (P0a) — owners share the
+// public link instead.
+
+import Link from "next/link";
+
+import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
 
 interface Props {
   /** Pretty address line. e.g. "Plaza Italia" */
@@ -24,8 +28,8 @@ interface Props {
   note?: string | null;
   /** Page to edit the last-seen location (LocationFields). */
   editHref: string;
-  /** Page to log a sighting (separate from edit — events are append-only). */
-  addSightingHref: string;
+  /** Full public credential URL — passed to the copy button. */
+  publicUrl: string;
   /** Number of sightings logged after the original drop. */
   sightingsCount: number;
 }
@@ -36,7 +40,7 @@ export function LostLastSeenCard({
   at,
   note,
   editHref,
-  addSightingHref,
+  publicUrl,
   sightingsCount,
 }: Props) {
   return (
@@ -53,12 +57,6 @@ export function LostLastSeenCard({
             </span>
           )}
         </h2>
-        <Link
-          href={addSightingHref}
-          className="text-xs font-medium text-gob-azul-link hover:underline"
-        >
-          + Agregar avistamiento
-        </Link>
       </div>
 
       <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-gob-success/10 to-gob-info/10  ">
@@ -82,6 +80,12 @@ export function LostLastSeenCard({
           {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
         </div>
       </div>
+
+      <p className="mt-3 text-xs text-gob-text-muted">
+        Si te avisaron por afuera, mandales el link de la credencial para que reporten el avistaje
+        desde ahí.
+      </p>
+      <CopyPublicLinkButton publicUrl={publicUrl} />
     </section>
   );
 }
