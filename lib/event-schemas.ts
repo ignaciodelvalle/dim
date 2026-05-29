@@ -606,6 +606,22 @@ const noteAdded = z
       finderName: z.string().max(80).nullable().optional(),
       finderContact: z.string().max(120).nullable().optional(),
       photoStoragePath: z.string().nullable().optional(),
+      // P0e finder-in-possession extended fields. Optional so that plain notes
+      // and sighting notes continue to validate without changes. kind=finder_in_possession
+      // rows MUST include these; enforcement is at the action layer (server-side checks).
+      location: z
+        .object({
+          localityName: z.string(),
+          provinceCode: z.string().nullable(),
+          provinceName: z.string().nullable(),
+        })
+        .optional(),
+      petCondition: z
+        .enum(["bien", "herida", "asustada", "necesita_vet_urgente"])
+        .optional(),
+      canKeepUntil: z.string().nullable().optional(),
+      canKeepIndefinite: z.boolean().optional(),
+      message: z.string().max(500).nullable().optional(),
     }),
   )
   .strict();
