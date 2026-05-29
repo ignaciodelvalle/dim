@@ -160,7 +160,9 @@ export default async function InicioPage() {
               <li key={appointment.publicToken} className="flex items-center gap-3 py-2.5">
                 <DateChip date={new Date(slot.startsAt)} />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-gob-text">{pet.name} · {offering.displayName}</p>
+                  <p className="font-medium text-gob-text">
+                    {pet.name} · {offering.displayName}
+                  </p>
                   <p className="text-xs text-gob-text-muted">
                     {new Date(slot.startsAt).toLocaleTimeString("es-AR", {
                       hour: "2-digit",
