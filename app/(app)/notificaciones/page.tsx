@@ -87,8 +87,7 @@ const EMPTY_CATEGORY_TITLES: Record<Category, string> = {
 };
 
 const EMPTY_CATEGORY_DESCRIPTIONS: Partial<Record<Category, string>> = {
-  perdidas:
-    "Te avisamos acá cuando alguien reporte un avistaje de tus mascotas perdidas.",
+  perdidas: "Te avisamos acá cuando alguien reporte un avistaje de tus mascotas perdidas.",
 };
 
 const CATEGORY_ORDER: Category[] = [
@@ -114,8 +113,7 @@ export default async function NotificacionesPage({
   const { cat } = await searchParams;
 
   const activeCat: Category =
-    cat &&
-    ["all", "perdidas", "health", "custody", "adoption", "welfare", "admin"].includes(cat)
+    cat && ["all", "perdidas", "health", "custody", "adoption", "welfare", "admin"].includes(cat)
       ? (cat as Category)
       : "all";
 
