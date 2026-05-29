@@ -55,6 +55,13 @@ describe("<Checkbox>", () => {
     expect(html).toMatch(/\brequired(\s|=|>|\/)/);
     expect(html).toMatch(/\bchecked(\s|=|>|\/)/);
   });
+
+  it("renders label-less (no <label> wrapper) when children is omitted, keeping aria-label", () => {
+    const html = render(<Checkbox name="row" aria-label="Seleccionar fila" />);
+    expect(html).not.toContain("<label");
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('aria-label="Seleccionar fila"');
+  });
 });
 
 describe("<Radio>", () => {
@@ -69,6 +76,13 @@ describe("<Radio>", () => {
     const labelMatch = html.match(/<label[^>]*for="([^"]+)"/);
     const inputMatch = html.match(/<input[^>]*id="([^"]+)"/);
     expect(labelMatch?.[1]).toBe(inputMatch?.[1]);
+  });
+
+  it("renders label-less (no <label> wrapper) when children is omitted", () => {
+    const html = render(<Radio name="row" value="a" aria-label="Opción A" />);
+    expect(html).not.toContain("<label");
+    expect(html).toContain('type="radio"');
+    expect(html).toContain('aria-label="Opción A"');
   });
 
   it("two radios with the same name remain selectable as a group (distinct ids)", () => {

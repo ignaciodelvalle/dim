@@ -16,6 +16,7 @@ import {
   bulkApproveRequestsAction,
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
+import { Checkbox } from "@/components/poncho";
 
 export type QueueItem = {
   publicToken: string;
@@ -118,12 +119,12 @@ export function BulkApprovalQueueList({
                 isSelected ? "border-gob-border-strong  bg-gob-surface-alt " : "border-gob-border "
               }`}
             >
-              <input
+              <Checkbox
                 id={`row-${item.publicToken}`}
-                type="checkbox"
                 checked={isSelected}
                 onChange={() => toggle(item.publicToken)}
-                className="mt-1 h-4 w-4"
+                aria-label={`Seleccionar solicitud de ${item.applicantName} (${item.typeLabel})`}
+                className="mt-1"
               />
               <Link
                 href={`${detailUrlPrefix}/${item.publicToken}`}
