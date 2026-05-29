@@ -9,7 +9,6 @@ import {
 } from "@/app/actions/foster-proposals";
 import { Checkbox } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { labelClass } from "@/lib/form-classes";
 
 const REJECTION_REASONS = [
   { value: "capacity", label: "No tengo capacity ahora" },
@@ -156,7 +155,7 @@ export function ProposalActions({
       <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
         <h3 className="font-medium text-gob-text ">Rechazar propuesta</h3>
         <div>
-          <label htmlFor="reject-reason" className={`${labelClass} mb-1`}>
+          <label htmlFor="reject-reason" className="block text-sm font-medium text-gob-text mb-1">
             Motivo
           </label>
           <select

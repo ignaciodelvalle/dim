@@ -15,8 +15,8 @@ import { useActionState, useRef, useState } from "react";
 
 import { type UpgradeFormState, createClinicAction } from "@/app/actions/upgrade";
 import { LocationFields } from "@/components/LocationFields";
+import { Input } from "@/components/poncho";
 import { WizardShell } from "@/components/poncho/Wizard";
-import { inputClass, labelClass } from "@/lib/form-classes";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -113,7 +113,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         {/* Step 3 — Ubicación L1 */}
         <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
           <div className="space-y-1">
-            <p className={labelClass}>Jurisdicción donde ejercés</p>
+            <p className="block text-sm font-medium text-gob-text">Jurisdicción donde ejercés</p>
             <p className="text-xs text-gob-text-muted  mb-2">
               Para enrutar la verificación al govt correspondiente.
             </p>
@@ -158,17 +158,10 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
+      <label htmlFor={id} className="block text-sm font-medium text-gob-text">
         {label}
       </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        className={inputClass}
-      />
+      <Input id={id} name={name} type={type} required={required} defaultValue={defaultValue} />
       {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
     </div>
   );

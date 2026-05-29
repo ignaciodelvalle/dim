@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import { type UpgradeFormState, requestVetUpgradeAction } from "@/app/actions/upgrade";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input } from "@/components/poncho";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -126,17 +126,10 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
+      <label htmlFor={id} className="block text-sm font-medium text-gob-text">
         {label}
       </label>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        inputMode={inputMode}
-        className={inputClass}
-      />
+      <Input id={id} name={name} type={type} required={required} inputMode={inputMode} />
       {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
     </div>
   );

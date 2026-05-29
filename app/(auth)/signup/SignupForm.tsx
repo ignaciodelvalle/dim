@@ -3,7 +3,7 @@
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
 import { createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
-import { inputClass, labelClass } from "@/lib/form-classes";
+import { Input } from "@/components/poncho";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
@@ -170,17 +170,16 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className={labelClass}>
+      <label htmlFor={id} className="block text-sm font-medium text-gob-text">
         {label}
       </label>
-      <input
+      <Input
         id={id}
         name={name}
         type={type}
         autoComplete={autoComplete}
         required={required}
         minLength={minLength}
-        className={inputClass}
       />
       {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
     </div>
