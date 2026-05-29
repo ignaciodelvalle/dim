@@ -9,8 +9,8 @@
 //   - Collapsible contact group (finderName + finderContact)
 //   - a11y/contrast fixes: submit button text-black, back link bumped up
 
-import { useActionState } from "react";
 import Link from "next/link";
+import { useActionState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
 
@@ -40,9 +40,7 @@ export function PetSightingForm({
           <p className="mt-1 text-xs">
             Le avisamos al dueño/a con el punto que marcaste. Cualquier detalle más puede ayudar.
           </p>
-          {state.warning && (
-            <p className="mt-2 text-xs text-gob-warning-text">{state.warning}</p>
-          )}
+          {state.warning && <p className="mt-2 text-xs text-gob-warning-text">{state.warning}</p>}
         </div>
         <Link
           href={`/p/${publicToken}`}

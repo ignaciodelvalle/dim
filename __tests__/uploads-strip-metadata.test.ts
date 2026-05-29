@@ -58,9 +58,14 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
 
-    const result = await uploadAttachmentIfPresent(supabase as Parameters<typeof uploadAttachmentIfPresent>[0], file, "event-attachments", {
-      stripMetadata: true,
-    });
+    const result = await uploadAttachmentIfPresent(
+      supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
+      file,
+      "event-attachments",
+      {
+        stripMetadata: true,
+      },
+    );
 
     expect(result.error).toBeNull();
     expect(result.uploadedPath).toBeTruthy();
@@ -71,7 +76,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     // The upload call should have received the PROCESSED buffer (sharp's
     // output), not the original bytes — this guards against a regression
     // where the pre-sharp buffer is uploaded by mistake.
-    const [, uploadedBody] = (supabase.uploadMock.mock.calls[0] as unknown) as [string, unknown];
+    const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
     expect(Buffer.isBuffer(uploadedBody)).toBe(true);
     expect(uploadedBody).toEqual(Buffer.from("processed-bytes"));
     // And the reported size reflects the stored (processed) buffer.
@@ -84,16 +89,21 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
 
-    const result = await uploadAttachmentIfPresent(supabase as Parameters<typeof uploadAttachmentIfPresent>[0], file, "event-attachments", {
-      stripMetadata: false,
-    });
+    const result = await uploadAttachmentIfPresent(
+      supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
+      file,
+      "event-attachments",
+      {
+        stripMetadata: false,
+      },
+    );
 
     expect(result.error).toBeNull();
     expect(result.uploadedPath).toBeTruthy();
     // sharp should NOT have been called.
     expect(mockSharpInstance).not.toHaveBeenCalled();
     // The upload call should have received the original File object.
-    const [, uploadedBody] = (supabase.uploadMock.mock.calls[0] as unknown) as [string, unknown];
+    const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
     expect(uploadedBody).toBe(file);
   });
 
@@ -103,11 +113,15 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
 
-    const result = await uploadAttachmentIfPresent(supabase as Parameters<typeof uploadAttachmentIfPresent>[0], file, "event-attachments");
+    const result = await uploadAttachmentIfPresent(
+      supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
+      file,
+      "event-attachments",
+    );
 
     expect(result.error).toBeNull();
     expect(mockSharpInstance).not.toHaveBeenCalled();
-    const [, uploadedBody] = (supabase.uploadMock.mock.calls[0] as unknown) as [string, unknown];
+    const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
     expect(uploadedBody).toBe(file);
   });
 
@@ -117,9 +131,14 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     const supabase = makeSupabaseClient();
     const file = makeFile("pdf content", "doc.pdf", "application/pdf");
 
-    const result = await uploadAttachmentIfPresent(supabase as Parameters<typeof uploadAttachmentIfPresent>[0], file, "event-attachments", {
-      stripMetadata: true,
-    });
+    const result = await uploadAttachmentIfPresent(
+      supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
+      file,
+      "event-attachments",
+      {
+        stripMetadata: true,
+      },
+    );
 
     expect(result.error).toBeTruthy();
     expect(result.uploadedPath).toBeNull();
@@ -136,15 +155,20 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     const supabase = makeSupabaseClient();
     const file = makeFile("corrupt-image-data", "bad.jpg", "image/jpeg");
 
-    const result = await uploadAttachmentIfPresent(supabase as Parameters<typeof uploadAttachmentIfPresent>[0], file, "event-attachments", {
-      stripMetadata: true,
-    });
+    const result = await uploadAttachmentIfPresent(
+      supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
+      file,
+      "event-attachments",
+      {
+        stripMetadata: true,
+      },
+    );
 
     // Non-fatal: upload should still succeed with the original file.
     expect(result.error).toBeNull();
     expect(result.uploadedPath).toBeTruthy();
     // Upload body is the original File (not a Buffer).
-    const [, uploadedBody] = (supabase.uploadMock.mock.calls[0] as unknown) as [string, unknown];
+    const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
     expect(uploadedBody).toBe(file);
   });
 });

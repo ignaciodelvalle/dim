@@ -14,10 +14,7 @@ import { useActionState, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
 
-import {
-  type FinderInPossessionState,
-  reportFinderInPossessionAction,
-} from "./action";
+import { type FinderInPossessionState, reportFinderInPossessionAction } from "./action";
 
 const initialState: FinderInPossessionState = { ok: false, error: null };
 
@@ -63,9 +60,7 @@ export function FinderInPossessionForm({
           <p className="mt-1 text-xs">
             Le avisamos al dueño/a con urgencia. Vas a recibir noticias pronto.
           </p>
-          {state.warning && (
-            <p className="mt-2 text-xs text-gob-warning-text">{state.warning}</p>
-          )}
+          {state.warning && <p className="mt-2 text-xs text-gob-warning-text">{state.warning}</p>}
         </div>
         <Link
           href={`/p/${publicToken}`}
@@ -113,12 +108,8 @@ export function FinderInPossessionForm({
       {/* Logged-in banner */}
       {loggedIn && prefill?.displayName && (
         <div className="rounded-lg border border-gob-primary bg-gob-primary/5 px-4 py-3 text-sm text-gob-primary">
-          Estás enviando como{" "}
-          <span className="font-medium">{prefill.displayName}</span>.{" "}
-          <Link
-            href="/api/auth/signout"
-            className="underline underline-offset-4 hover:opacity-80"
-          >
+          Estás enviando como <span className="font-medium">{prefill.displayName}</span>.{" "}
+          <Link href="/api/auth/signout" className="underline underline-offset-4 hover:opacity-80">
             ¿No sos vos? Salí de la sesión.
           </Link>
         </div>
@@ -179,9 +170,7 @@ export function FinderInPossessionForm({
 
       {/* Current location — L1 */}
       <div className="space-y-1.5">
-        <p className={labelClass}>
-          ¿Dónde la tenés ahora?{requiredMark}
-        </p>
+        <p className={labelClass}>¿Dónde la tenés ahora?{requiredMark}</p>
         <LocationFields
           mode="l1"
           biasProvince={biasProvince}
@@ -192,9 +181,7 @@ export function FinderInPossessionForm({
 
       {/* Pet condition */}
       <fieldset className="space-y-2">
-        <legend className={`${labelClass} mb-1`}>
-          ¿Cómo está la mascota?{requiredMark}
-        </legend>
+        <legend className={`${labelClass} mb-1`}>¿Cómo está la mascota?{requiredMark}</legend>
         {PET_CONDITIONS.map(({ value, label, urgent }) => (
           <label
             key={value}
@@ -234,10 +221,7 @@ export function FinderInPossessionForm({
         </label>
         {!canKeepIndefinite && (
           <div className="space-y-1.5">
-            <label
-              htmlFor="canKeepUntil"
-              className="block text-xs font-medium text-gob-text-gray"
-            >
+            <label htmlFor="canKeepUntil" className="block text-xs font-medium text-gob-text-gray">
               Hasta cuándo (fecha y hora)
             </label>
             <input

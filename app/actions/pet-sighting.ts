@@ -71,9 +71,7 @@ export async function reportPetSightingAction(
   const rawFinderContact = String(formData.get("finderContact") ?? "").trim();
   const finderName = rawFinderName ? rawFinderName.slice(0, 80) : null;
   const finderContact = rawFinderContact ? rawFinderContact.slice(0, 120) : null;
-  const photoFile = formData.get("photo") instanceof File
-    ? (formData.get("photo") as File)
-    : null;
+  const photoFile = formData.get("photo") instanceof File ? (formData.get("photo") as File) : null;
 
   const lat = latRaw ? Number.parseFloat(latRaw) : Number.NaN;
   const lng = lngRaw ? Number.parseFloat(lngRaw) : Number.NaN;
@@ -160,22 +158,25 @@ export async function reportPetSightingAction(
     )
     .limit(1);
 
-  const [insertedEvent] = await db.insert(petEvents).values({
-    petId: pet.id,
-    eventType: "note_added",
-    occurredAt,
-    recordedAt: new Date(),
-    recordedByUserId: null,
-    authorRole: "scanner",
-    authorVerified: false,
-    payload,
-    locationLat: lat.toString(),
-    locationLng: lng.toString(),
-    // Associate with the open case when available (pet is in active lost mode).
-    // caseId stays null if no open case exists (guard above already blocked
-    // non-lost pets, but we keep the null path for safety).
-    caseId: openCase?.id ?? null,
-  }).returning({ id: petEvents.id });
+  const [insertedEvent] = await db
+    .insert(petEvents)
+    .values({
+      petId: pet.id,
+      eventType: "note_added",
+      occurredAt,
+      recordedAt: new Date(),
+      recordedByUserId: null,
+      authorRole: "scanner",
+      authorVerified: false,
+      payload,
+      locationLat: lat.toString(),
+      locationLng: lng.toString(),
+      // Associate with the open case when available (pet is in active lost mode).
+      // caseId stays null if no open case exists (guard above already blocked
+      // non-lost pets, but we keep the null path for safety).
+      caseId: openCase?.id ?? null,
+    })
+    .returning({ id: petEvents.id });
 
   // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
   // surfaces render the photo for free (they read attachments, not the payload JSONB).

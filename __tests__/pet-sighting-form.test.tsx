@@ -104,11 +104,7 @@ describe("<PetSightingForm> — initial state (form render)", () => {
 
 describe("<PetSightingForm> — success state", () => {
   beforeEach(() => {
-    mockUseActionState.mockReturnValue([
-      { ok: true as const, error: null },
-      formActionStub,
-      false,
-    ]);
+    mockUseActionState.mockReturnValue([{ ok: true as const, error: null }, formActionStub, false]);
   });
 
   it("renders the success message", () => {

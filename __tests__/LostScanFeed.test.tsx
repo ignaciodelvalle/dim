@@ -17,7 +17,9 @@ import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostSc
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeSightingItem(overrides: Partial<Extract<ScanFeedItem, { kind: "sighting" }>> = {}): ScanFeedItem {
+function makeSightingItem(
+  overrides: Partial<Extract<ScanFeedItem, { kind: "sighting" }>> = {},
+): ScanFeedItem {
   return {
     kind: "sighting",
     id: "test-sighting-id",
@@ -84,7 +86,9 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
   });
 
   it("renders nothing for photo/contact when neither is set", () => {
-    const items = [makeSightingItem({ finderContact: null, photoStoragePath: null, photoUrl: null })];
+    const items = [
+      makeSightingItem({ finderContact: null, photoStoragePath: null, photoUrl: null }),
+    ];
     const html = renderFeed(items);
 
     expect(html).not.toContain("📞");

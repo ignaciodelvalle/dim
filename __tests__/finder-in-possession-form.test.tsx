@@ -58,8 +58,7 @@ vi.mock("@/components/LocationFields", () => ({
     mode,
   }: {
     mode: string;
-  }) =>
-    React.createElement("div", { "data-testid": "location-fields", "data-mode": mode }),
+  }) => React.createElement("div", { "data-testid": "location-fields", "data-mode": mode }),
 }));
 
 import { FinderInPossessionForm } from "@/app/p/[publicToken]/encontre/FinderInPossessionForm";
@@ -152,7 +151,12 @@ describe("<FinderInPossessionForm> — logged-in prefill", () => {
       <FinderInPossessionForm
         {...BASE_PROPS}
         loggedIn
-        prefill={{ displayName: "María García", name: "María García", phone: "11-0000", email: "m@g.com" }}
+        prefill={{
+          displayName: "María García",
+          name: "María García",
+          phone: "11-0000",
+          email: "m@g.com",
+        }}
       />,
     );
     expect(html).toContain("Estás enviando como");
@@ -173,11 +177,7 @@ describe("<FinderInPossessionForm> — logged-in prefill", () => {
 
 describe("<FinderInPossessionForm> — success state", () => {
   beforeEach(() => {
-    mockUseActionState.mockReturnValue([
-      { ok: true as const, error: null },
-      formActionStub,
-      false,
-    ]);
+    mockUseActionState.mockReturnValue([{ ok: true as const, error: null }, formActionStub, false]);
     mockUseState.mockImplementation((initialValue: unknown) => [initialValue, vi.fn()]);
   });
 
