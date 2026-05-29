@@ -4,6 +4,7 @@
 // Uses useActionState for progressive enhancement.
 
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
+import { Checkbox } from "@/components/poncho";
 import { useActionState } from "react";
 
 const WEEKDAYS = [
@@ -54,15 +55,14 @@ export function AgendaRuleForm({
         </span>
         <div className="flex flex-wrap gap-2">
           {WEEKDAYS.map((d) => (
-            <label key={d.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                name="daysOfWeek"
-                value={d.value}
-                defaultChecked={defaultDays?.includes(d.value) ?? d.value <= 5}
-              />
+            <Checkbox
+              key={d.value}
+              name="daysOfWeek"
+              value={d.value}
+              defaultChecked={defaultDays?.includes(d.value) ?? d.value <= 5}
+            >
               {d.label}
-            </label>
+            </Checkbox>
           ))}
         </div>
       </div>

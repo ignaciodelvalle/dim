@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/events";
-import { Field, Input, Select, Textarea } from "@/components/poncho";
+import { Checkbox, Field, Input, Radio, Select, Textarea } from "@/components/poncho";
 import { diseasesForSpecies, findDisease } from "@/lib/diseases";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useActionState, useState } from "react";
@@ -105,18 +105,9 @@ export function DeathRecordForm({
             <p className="text-xs text-gob-warning-text">Reportable a autoridad sanitaria</p>
           )}
 
-          <div className="flex items-center gap-2">
-            <input
-              id="confirmedByLab"
-              name="confirmedByLab"
-              type="checkbox"
-              value="true"
-              className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
-            />
-            <label htmlFor="confirmedByLab" className="text-sm font-medium text-gob-text">
-              Confirmado por laboratorio
-            </label>
-          </div>
+          <Checkbox name="confirmedByLab" value="true">
+            Confirmado por laboratorio
+          </Checkbox>
         </div>
       )}
 
@@ -132,18 +123,9 @@ export function DeathRecordForm({
         )}
       </Field>
 
-      <div className="flex items-center gap-2">
-        <input
-          id="confirmedByVet"
-          name="confirmedByVet"
-          type="checkbox"
-          value="true"
-          className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
-        />
-        <label htmlFor="confirmedByVet" className="text-sm font-medium text-gob-text">
-          Confirmado por veterinario/a
-        </label>
-      </div>
+      <Checkbox name="confirmedByVet" value="true">
+        Confirmado por veterinario/a
+      </Checkbox>
 
       <Field label="Nombre del veterinario/a">
         {({ id, describedBy }) => (
@@ -162,23 +144,17 @@ export function DeathRecordForm({
           ¿Falleció en una veterinaria?
         </legend>
 
-        <div className="flex items-center gap-2">
-          <input
-            id="deathAtClinic"
-            name="deathAtClinic"
-            type="checkbox"
-            value="true"
-            checked={deathAtClinic}
-            onChange={(e) => {
-              setDeathAtClinic(e.target.checked);
-              if (!e.target.checked) setVetContactedOwner("");
-            }}
-            className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
-          />
-          <label htmlFor="deathAtClinic" className="text-sm font-medium text-gob-text">
-            Falleció durante una estadía en la veterinaria
-          </label>
-        </div>
+        <Checkbox
+          name="deathAtClinic"
+          value="true"
+          checked={deathAtClinic}
+          onChange={(e) => {
+            setDeathAtClinic(e.target.checked);
+            if (!e.target.checked) setVetContactedOwner("");
+          }}
+        >
+          Falleció durante una estadía en la veterinaria
+        </Checkbox>
 
         {deathAtClinic && (
           <>
@@ -204,51 +180,31 @@ export function DeathRecordForm({
                   { value: "no", label: "No, no lograron contactarme" },
                   { value: "not_applicable", label: "No aplica" },
                 ].map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="vetContactedOwner"
-                      value={opt.value}
-                      checked={vetContactedOwner === opt.value}
-                      onChange={(e) => setVetContactedOwner(e.target.value)}
-                      className="h-4 w-4 border-gob-border-strong  accent-gob-primary "
-                    />
-                    <span>{opt.label}</span>
-                  </label>
+                  <Radio
+                    key={opt.value}
+                    name="vetContactedOwner"
+                    value={opt.value}
+                    checked={vetContactedOwner === opt.value}
+                    onChange={(e) => setVetContactedOwner(e.target.value)}
+                  >
+                    {opt.label}
+                  </Radio>
                 ))}
               </div>
             </div>
 
             {showVetDecidedAlone && (
-              <div className="flex items-center gap-2">
-                <input
-                  id="vetDecidedAlone"
-                  name="vetDecidedAlone"
-                  type="checkbox"
-                  value="true"
-                  className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
-                />
-                <label htmlFor="vetDecidedAlone" className="text-sm font-medium text-gob-text">
-                  El veterinario decidió la disposición sin poder contactarme
-                </label>
-              </div>
+              <Checkbox name="vetDecidedAlone" value="true">
+                El veterinario decidió la disposición sin poder contactarme
+              </Checkbox>
             )}
           </>
         )}
       </fieldset>
 
-      <div className="flex items-center gap-2">
-        <input
-          id="ownerToPrivateCrematorium"
-          name="ownerToPrivateCrematorium"
-          type="checkbox"
-          value="true"
-          className="h-4 w-4 rounded border-gob-border-strong  accent-gob-primary "
-        />
-        <label htmlFor="ownerToPrivateCrematorium" className="text-sm font-medium text-gob-text">
-          Llevé el cuerpo a un crematorio privado por mi cuenta
-        </label>
-      </div>
+      <Checkbox name="ownerToPrivateCrematorium" value="true">
+        Llevé el cuerpo a un crematorio privado por mi cuenta
+      </Checkbox>
 
       <Field label="Método de disposición">
         {({ id, describedBy, invalid }) => (
