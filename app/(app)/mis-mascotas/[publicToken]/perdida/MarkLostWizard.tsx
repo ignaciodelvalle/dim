@@ -136,7 +136,7 @@ export function MarkLostWizard({
 
   if (submitted) {
     const profileHref = `/mis-mascotas/${petPublicToken}`;
-    const printHref = `/p/${petPublicToken}?print=true`;
+    const printHref = `/mis-mascotas/${petPublicToken}/cartel`;
     const shareText = `${petName} está perdida — ayudanos a encontrarla. Su perfil público:`;
     const shareUrl = `https://wa.me/?text=${encodeURIComponent(
       `${shareText} ${typeof window !== "undefined" ? window.location.origin : ""}/p/${petPublicToken}`,

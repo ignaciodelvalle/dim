@@ -1,7 +1,8 @@
+import { ActionLinkCard } from "@/components/ActionLinkCard";
 import { PetCard } from "@/components/PetCard";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { fetchActiveReminders } from "@/lib/owner-dashboard";
+import { countPendingApplications, fetchActiveReminders } from "@/lib/owner-dashboard";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
@@ -29,7 +30,7 @@ export default async function MisMascotasPage({
   // Pets where this user is the *current* custodian (any role), with the
   // primary photo and the ownership role for the "En tránsito" badge.
   // NotificationBell moved to /inicio (PR #208) so the unread query lives there now.
-  const [ownedPets, activeReminders] = await Promise.all([
+  const [ownedPets, activeReminders, pendingApplicationsCount] = await Promise.all([
     db
       .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
       .from(pets)
@@ -37,6 +38,7 @@ export default async function MisMascotasPage({
       .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
       .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
     fetchActiveReminders(user.id),
+    countPendingApplications(user.id),
   ]);
 
   // Build a map from petId → highest-priority reminder variant for the pet badge.
@@ -94,6 +96,36 @@ export default async function MisMascotasPage({
             ))}
           </ul>
         )}
+
+        <section className="mt-10 pt-8 border-t border-gob-border">
+          <h2 className="text-sm font-medium text-gob-text-muted uppercase tracking-wide mb-4">
+            Más acciones
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <ActionLinkCard
+              href="/mis-mascotas/reclamar"
+              icon="qr"
+              title="Reclamar mascota existente"
+              description="Tu mascota ya tiene chapita o microchip registrado"
+            />
+            <ActionLinkCard
+              href="/mis-mascotas/postulaciones"
+              icon="corazon"
+              title="Mis postulaciones"
+              description="Adopciones a las que te postulaste"
+              badge={pendingApplicationsCount > 0 ? pendingApplicationsCount : null}
+            />
+            {/*
+             * "Transferencias pendientes" card intentionally removed.
+             * countPendingTransfers (petTransfers table, toOwnerId=user) works
+             * correctly, but there is no hub route that lists all incoming
+             * transfers — only /transferencias/[transferToken] (detail page per
+             * token, reached via email magic-link or notification).
+             * Shipping a badge that links to an unrelated page (/cuenta/memberships)
+             * is a dead-end. Re-add this card once a transfers hub route exists.
+             */}
+          </div>
+        </section>
       </div>
     </main>
   );

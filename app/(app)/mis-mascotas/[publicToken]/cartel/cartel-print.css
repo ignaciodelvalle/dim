@@ -1,0 +1,26 @@
+/* NOTE: @page rule deliberately absent — it is injected by <PosterPreview> via a
+   mounted <style> element so it is removed on client-side navigation. See PosterPreview.tsx.
+   (libreta-print.css follows the same pattern — no @page rule here.) */
+
+@media print {
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  button,
+  a[href]:not([href^="#"]) {
+    display: none !important;
+  }
+
+  /* Grayscale mode — toggled by the B&W button adding class .print-bw to <body>
+     or via the Tailwind print:grayscale on the poster wrapper. */
+  .print-bw * {
+    filter: grayscale(100%) !important;
+  }
+}

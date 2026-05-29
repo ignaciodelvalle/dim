@@ -12,7 +12,7 @@ export type { PetActionsMenuInput };
 const VARIANT_CLASSES: Record<"primary" | "default" | "danger", string> = {
   primary: "bg-gob-success text-white hover:bg-gob-success  ",
   default: "border border-gob-border bg-white text-gob-text-gray hover:bg-gob-surface-alt    ",
-  danger: "bg-gob-warning text-white hover:bg-gob-warning  ",
+  danger: "border border-gob-danger bg-white text-gob-danger hover:bg-gob-danger/10",
 };
 
 export function PetActionsMenu(props: PetActionsMenuInput) {

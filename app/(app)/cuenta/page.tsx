@@ -215,6 +215,11 @@ export default async function CuentaPage() {
               description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
             />
           )}
+          <ActionCard
+            href="/cuenta/privacidad"
+            label="Privacidad y derechos"
+            description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
+          />
           {profile.role === "owner" && profile.accountType === "personal" && (
             <>
               <ActionCard

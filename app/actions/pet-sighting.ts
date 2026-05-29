@@ -138,6 +138,7 @@ export async function reportPetSightingAction(
     title: `Avistaje de ${pet.name}`,
     body: bodyParts.join(" "),
     severity: "urgent",
+    category: "perdidas",
     relatedPetId: pet.id,
     ctaLabel: "Ver mascota",
     ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
