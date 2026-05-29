@@ -6,8 +6,9 @@
 // Distinct from notifyOwnerOfFoundPetAction: the finder does NOT have the
 // pet, they just spotted it. We capture lat/lng + an optional description
 // and emit:
-//   - pet_event note_added (category=otro, text prefixed "[Avistaje]") so
-//     the owner sees the sighting in the timeline.
+//   - pet_event note_added (category=otro, kind="sighting", raw description
+//     text) so the owner sees the sighting in the timeline and sightingsCount
+//     can be derived from payload->>'kind' = 'sighting'.
 //   - notification (severity=urgent) to the owner.
 //
 // Rate-limited by (IP, publicToken) per 5 minutes to mitigate abuse. The
@@ -16,7 +17,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { db, notifications, ownerships, petEvents, pets } from "@/db";
+import { cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { makeMemoryRateLimiter } from "@/lib/rate-limit";
 
@@ -84,13 +85,29 @@ export async function reportPetSightingAction(
   }
 
   const noteText = safeDescription
-    ? `[Avistaje] ${safeDescription}`
-    : `[Avistaje] Alguien reportó haber visto a ${pet.name} cerca de este punto.`;
+    ? safeDescription
+    : `Alguien reportó haber visto a ${pet.name} cerca de este punto.`;
 
   const payload = validateEventPayload("note_added", {
     category: "otro" as const,
     text: noteText,
+    kind: "sighting" as const,
   });
+
+  // Resolve the open lost_pet_episode case so the sighting event is associated
+  // with it. This scopes sightingsCount by caseId and prevents counting sightings
+  // from a prior lost episode if the pet was lost→found→lost again.
+  const [openCase] = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "lost_pet_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
 
   await db.insert(petEvents).values({
     petId: pet.id,
@@ -103,6 +120,10 @@ export async function reportPetSightingAction(
     payload,
     locationLat: lat.toString(),
     locationLng: lng.toString(),
+    // Associate with the open case when available (pet is in active lost mode).
+    // caseId stays null if no open case exists (guard above already blocked
+    // non-lost pets, but we keep the null path for safety).
+    caseId: openCase?.id ?? null,
   });
 
   const bodyParts = [

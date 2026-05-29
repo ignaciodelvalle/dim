@@ -403,10 +403,11 @@ export default async function PetDetailPage({
   // Runs before the heavy fetchPetEventsForProfileV2 / weight / reminder queries
   // since those are irrelevant when the pet is lost.
   if (pet.status === "lost") {
-    const [episode, scans] = await Promise.all([
-      fetchLostEpisodeForPet(pet.id),
-      fetchLostScanEvents(pet.id),
-    ]);
+    // Fetch episode first so we can pass its caseId to the scan feed query.
+    // This scopes sighting rows to the current episode and prevents cross-episode
+    // pollution when a pet was lost→found→lost again.
+    const episode = await fetchLostEpisodeForPet(pet.id);
+    const scans = await fetchLostScanEvents(pet.id, undefined, episode?.id ?? undefined);
 
     const heroPet = {
       name: pet.name,

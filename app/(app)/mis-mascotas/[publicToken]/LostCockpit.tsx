@@ -116,11 +116,11 @@ export async function LostCockpit({
           />
         )}
 
-        {/* (5) QR scan feed */}
+        {/* (5) Unified activity feed — QR scans + sightings */}
         <LostScanFeed
           items={scans}
-          totalScans={scans.length}
-          totalFinderMessages={0}
+          totalScans={scans.filter((s) => s.kind === "scan").length}
+          totalSightings={episode?.sightingsCount ?? 0}
           caseHref={caseHref}
         />
 

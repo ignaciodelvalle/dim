@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { LOST_SCAN_FEED_CAP } from "@/lib/lost-mode";
+
 // LostScanFeed — unified feed of QR scans and finder messages for an
 // active lost_pet_episode case.
 //
@@ -38,19 +40,32 @@ export type ScanFeedItem =
       distanceLabel?: string;
       /** Where to open the finder message. */
       href: string;
+    }
+  | {
+      kind: "sighting";
+      id: string;
+      at: Date;
+      /** Truncated (~80 chars) description from the note_added payload.text. */
+      description: string | null;
+      /** Best-effort locality label (future: reverse-geocode). */
+      localityLabel: string | null;
+      /** Decimal lat from pet_events.location_lat (string in DB). */
+      lat: string | null;
+      /** Decimal lng from pet_events.location_lng (string in DB). */
+      lng: string | null;
     };
 
 interface Props {
   items: ScanFeedItem[];
   /** Total scan count for the header strip (since case opened). */
   totalScans: number;
-  /** Total unread finder messages count. */
-  totalFinderMessages: number;
+  /** Total sightings count (since case opened). */
+  totalSightings: number;
   /** Link to the case audit. */
   caseHref: string;
 }
 
-export function LostScanFeed({ items, totalScans, totalFinderMessages, caseHref }: Props) {
+export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Props) {
   return (
     <section
       aria-labelledby="lp-feed-h"
@@ -58,7 +73,7 @@ export function LostScanFeed({ items, totalScans, totalFinderMessages, caseHref 
     >
       <div className="mb-3 flex items-baseline justify-between">
         <h2 id="lp-feed-h" className="text-base font-semibold text-gob-text ">
-          Actividad del QR
+          Actividad
         </h2>
         <Link href={caseHref} className="text-xs font-medium text-gob-azul-link hover:underline">
           Ver caso →
@@ -67,21 +82,28 @@ export function LostScanFeed({ items, totalScans, totalFinderMessages, caseHref 
 
       <div className="mb-3 grid grid-cols-2 gap-2">
         <CountBox value={totalScans} label="escaneos" />
-        <CountBox value={totalFinderMessages} label="mensajes de finder" />
+        <CountBox value={totalSightings} label="avistajes" />
       </div>
 
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
-          Aún no hay actividad. Compartí la alerta para que más personas escaneen el QR.
+          Cuando alguien escanee la chapita o reporte un avistaje, vas a verlo acá.
         </p>
       ) : (
-        <ul className="divide-y divide-gob-border ">
-          {items.map((it) => (
-            <li key={`${it.kind}-${it.id}`}>
-              <FeedRow item={it} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="divide-y divide-gob-border ">
+            {items.map((it) => (
+              <li key={`${it.kind}-${it.id}`}>
+                <FeedRow item={it} />
+              </li>
+            ))}
+          </ul>
+          {items.length >= LOST_SCAN_FEED_CAP && (
+            <p className="mt-2 text-xs text-gob-text-muted">
+              Mostrando los {LOST_SCAN_FEED_CAP} más recientes.
+            </p>
+          )}
+        </>
       )}
     </section>
   );
@@ -111,6 +133,42 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
       </Link>
     );
   }
+
+  if (item.kind === "sighting") {
+    const osmHref =
+      item.lat && item.lng
+        ? `https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lng}&zoom=16`
+        : null;
+    return (
+      <div className="flex items-start gap-3 py-2.5">
+        <span
+          aria-hidden
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-success/10 text-gob-success  "
+        >
+          👀
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gob-text ">Avistaje reportado</p>
+          <p className="mt-0.5 text-xs text-gob-text-muted ">
+            {item.localityLabel ?? item.description ?? "Sin descripción"}
+            {item.localityLabel && item.description && <span> · {item.description}</span>}
+            {osmHref && (
+              <a
+                href={osmHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-1 text-gob-azul-link hover:underline"
+              >
+                Ver en mapa
+              </a>
+            )}
+          </p>
+        </div>
+        <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start gap-3 py-2.5">
       <span
