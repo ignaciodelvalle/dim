@@ -99,11 +99,13 @@ export const ownershipRoleEnum = pgEnum("ownership_role", [
 // `owner` in v1 self-serve flows.
 // `scanner` is for credential_scanned events when an anonymous or non-owner user
 // loads the public credential page.
+// `finder` is for finder_in_possession events submitted via /p/[token]/encontre.
 // `shelter` activates when refugios author events on pets they hold in custody.
 // `vet`, `govt`, `system` activate in later phases.
 export const authorRoleEnum = pgEnum("author_role", [
   "owner",
   "scanner",
+  "finder",
   "vet",
   "shelter",
   "govt",
