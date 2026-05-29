@@ -407,7 +407,20 @@ export default async function PetDetailPage({
     // This scopes sighting rows to the current episode and prevents cross-episode
     // pollution when a pet was lost→found→lost again.
     const episode = await fetchLostEpisodeForPet(pet.id);
-    const scans = await fetchLostScanEvents(pet.id, undefined, episode?.id ?? undefined);
+    const rawScans = await fetchLostScanEvents(pet.id, undefined, episode?.id ?? undefined);
+
+    // P0g: resolve signed URLs for sighting items that have a photoStoragePath.
+    // event-attachments is a private bucket so thumbnails need short-lived signed URLs.
+    // We use the SSR supabase client (owner is authenticated at this point).
+    const scans = await Promise.all(
+      rawScans.map(async (item) => {
+        if (item.kind === "sighting" && item.photoStoragePath) {
+          const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
+          return { ...item, photoUrl: url };
+        }
+        return item;
+      }),
+    );
 
     const heroPet = {
       name: pet.name,

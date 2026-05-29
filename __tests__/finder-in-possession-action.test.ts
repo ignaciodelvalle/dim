@@ -88,6 +88,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 let capturedPetEventInsert: Record<string, unknown> | null = null;
 let capturedNotificationInsert: Record<string, unknown> | null = null;
+let capturedAttachmentInsert: Record<string, unknown> | null = null;
+
+const INSERTED_EVENT_ID = "evt-p0e-0000-0000-000000000001";
 
 // Controls whether the idempotency query returns an existing event.
 let idempotencyReturnEvent = false;
@@ -119,12 +122,20 @@ function buildMockDb(petStatus: string = "lost") {
     }),
   };
 
+  // insertChain supports .values().returning() (petEvents) and .values() alone
+  // (notifications, attachments).
   const insertChain = {
     values: vi.fn((data: Record<string, unknown>) => {
-      if ("payload" in data) capturedPetEventInsert = data;
-      else capturedNotificationInsert = data;
+      if ("payload" in data) {
+        capturedPetEventInsert = data;
+      } else if ("storagePath" in data) {
+        capturedAttachmentInsert = data;
+      } else {
+        capturedNotificationInsert = data;
+      }
       return insertChain;
     }),
+    returning: vi.fn(async () => [{ id: INSERTED_EVENT_ID }]),
   };
 
   mockDb.select = vi.fn(() => selectChain);
@@ -144,6 +155,7 @@ vi.mock("@/db", () => ({
   notifications: {},
   cases: {},
   profiles: {},
+  attachments: {},
 }));
 
 vi.mock("drizzle-orm", async (importOriginal) => {
@@ -169,6 +181,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
   beforeEach(() => {
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
+    capturedAttachmentInsert = null;
     idempotencyReturnEvent = false;
     mockRateLimitCheck.mockReturnValue({ allowed: true });
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
@@ -457,6 +470,80 @@ describe("reportFinderInPossessionAction — P0e", () => {
     await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(capturedPetEventInsert?.caseId).toBe(CASE_ID);
+  });
+
+  // --- P0g: attachments table integration ---
+
+  it("P0g: inserts an attachments row linked to the event when photo upload succeeds", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    capturedAttachmentInsert = null;
+    mockUpload.mockResolvedValue({
+      uploadedPath: "finder-photo-abc.jpg",
+      mimeType: "image/jpeg",
+      size: 4000,
+      error: null,
+    });
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/p/[publicToken]/encontre/action"
+    );
+    const photo = new File(["fake-image-bytes"], "luna-now.jpg", { type: "image/jpeg" });
+    const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    expect(capturedAttachmentInsert).not.toBeNull();
+    const att = capturedAttachmentInsert as unknown as Record<string, unknown>;
+    expect(att.eventId).toBe(INSERTED_EVENT_ID);
+    expect(att.petId).toBe(PET_ID);
+    expect(att.storagePath).toBe("finder-photo-abc.jpg");
+    // Anonymous (no logged-in user): uploadedByUserId must be null.
+    expect(att.uploadedByUserId).toBeNull();
+  });
+
+  it("P0g: sets uploadedByUserId on attachment when finder is logged in", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    capturedAttachmentInsert = null;
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: FINDER_USER_ID, email: "ana@test.com" } },
+      error: null,
+    });
+    mockUpload.mockResolvedValue({
+      uploadedPath: "finder-photo-loggedin.jpg",
+      mimeType: "image/jpeg",
+      size: 3000,
+      error: null,
+    });
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/p/[publicToken]/encontre/action"
+    );
+    const photo = new File(["fake-image-bytes"], "now.jpg", { type: "image/jpeg" });
+    const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
+
+    await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect((capturedAttachmentInsert as unknown as Record<string, unknown>).uploadedByUserId).toBe(FINDER_USER_ID);
+  });
+
+  it("P0g: does NOT insert an attachments row when no photo is provided", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    capturedAttachmentInsert = null;
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/p/[publicToken]/encontre/action"
+    );
+    const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    expect(capturedAttachmentInsert).toBeNull();
   });
 
   // --- Contact concatenation ---

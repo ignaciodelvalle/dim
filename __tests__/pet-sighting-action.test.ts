@@ -67,28 +67,19 @@ vi.mock("@/lib/rate-limit", () => ({
 // Captured insert calls so tests can inspect the payload.
 let capturedPetEventInsert: Record<string, unknown> | null = null;
 let capturedNotificationInsert: Record<string, unknown> | null = null;
+let capturedAttachmentInsert: Record<string, unknown> | null = null;
 
-function makeDbChain(limitResult: unknown[]) {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-  const fns = ["select", "from", "where", "innerJoin", "limit", "values", "returning"];
-  for (const fn of fns) {
-    chain[fn] = vi.fn(() => chain);
-  }
-  chain.limit = vi.fn(async () => limitResult);
-
-  return chain;
-}
+const INSERTED_EVENT_ID = "evt-0000-0000-0000-000000000001";
 
 // We need the DB to return:
 //   - pet (status=lost, id, name)
 //   - owner (userId)
 //   - openCase (id)
-//   - insert petEvents
+//   - insert petEvents (with .returning())
 //   - insert notifications
+//   - insert attachments
 
 const mockDb = {
-  // select().from().where().limit() → three sequential calls for pet, owner, case
-  _callCount: 0,
   select: vi.fn(),
   insert: vi.fn(),
 };
@@ -116,13 +107,20 @@ function buildMockDb() {
     }),
   };
 
+  // insertChain supports both .values().returning() (petEvents) and
+  // .values() alone (notifications, attachments).
   const insertChain = {
     values: vi.fn((data: Record<string, unknown>) => {
-      // Store last inserted values for assertions.
-      if ("payload" in data) capturedPetEventInsert = data;
-      else capturedNotificationInsert = data;
+      if ("payload" in data) {
+        capturedPetEventInsert = data;
+      } else if ("storagePath" in data) {
+        capturedAttachmentInsert = data;
+      } else {
+        capturedNotificationInsert = data;
+      }
       return insertChain;
     }),
+    returning: vi.fn(async () => [{ id: INSERTED_EVENT_ID }]),
   };
 
   mockDb.select = vi.fn(() => selectChain);
@@ -136,6 +134,7 @@ vi.mock("@/db", () => ({
   petEvents: {},
   notifications: {},
   cases: {},
+  attachments: {},
 }));
 
 // Silence drizzle-orm helpers — the action uses `and`, `eq`, `isNull`.
@@ -164,6 +163,7 @@ describe("reportPetSightingAction — P0d payload fields", () => {
   beforeEach(() => {
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
+    capturedAttachmentInsert = null;
     mockUpload.mockReset();
     mockUpload.mockResolvedValue({
       uploadedPath: "abc123.jpg",
@@ -293,5 +293,50 @@ describe("reportPetSightingAction — P0d payload fields", () => {
     const payload = capturedPetEventInsert?.payload as Record<string, unknown> | undefined;
     expect((payload?.finderName as string).length).toBeLessThanOrEqual(80);
     expect((payload?.finderContact as string).length).toBeLessThanOrEqual(120);
+  });
+
+  // P0g: attachments table integration.
+
+  it("P0g: inserts an attachments row linked to the event when photo upload succeeds", async () => {
+    vi.resetModules();
+    buildMockDb();
+    capturedAttachmentInsert = null;
+    mockUpload.mockResolvedValue({
+      uploadedPath: "abc123.jpg",
+      mimeType: "image/jpeg",
+      size: 5000,
+      error: null,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const photo = new File(["fake-image-bytes"], "luna.jpg", { type: "image/jpeg" });
+    const fd = makeFormData({ ...BASE_LOCATION, photo });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // An attachment row must have been inserted.
+    expect(capturedAttachmentInsert).not.toBeNull();
+    const att = capturedAttachmentInsert as unknown as Record<string, unknown>;
+    expect(att.eventId).toBe(INSERTED_EVENT_ID);
+    expect(att.petId).toBe(PET_ID);
+    expect(att.storagePath).toBe("abc123.jpg");
+    // Anonymous sighting: uploadedByUserId must be null.
+    expect(att.uploadedByUserId).toBeNull();
+  });
+
+  it("P0g: does NOT insert an attachments row when no photo is provided", async () => {
+    vi.resetModules();
+    buildMockDb();
+    capturedAttachmentInsert = null;
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const fd = makeFormData({ ...BASE_LOCATION });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    expect(capturedAttachmentInsert).toBeNull();
   });
 });

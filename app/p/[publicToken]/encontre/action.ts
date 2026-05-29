@@ -14,14 +14,15 @@
 //
 // Photo upload uses service-role admin client (anonymous action, bucket RLS
 // requires authenticated; same pattern as /sighting P0d).
-// TODO(privacy): strip EXIF GPS from finder photos before upload (no image-
-// processing dep in this repo — sharp/jimp absent from package.json; add when
-// privacy reqs land).
+// P0g: EXIF metadata (including GPS) is stripped from finder photos via sharp
+// before upload. Non-fatal: falls back to original if sharp throws.
+// P0g: photo also inserted into the attachments table (linked to the event) so
+// the historial / eventos / EventTimeline surfaces can render it for free.
 
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { cases, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { makeMemoryRateLimiter } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -166,16 +167,23 @@ export async function reportFinderInPossessionAction(
   // Optional photo upload. Non-fatal on failure.
   // Uses service-role admin client: anonymous action, RLS grants INSERT only to
   // authenticated; admin client bypasses RLS.
+  // P0g: stripMetadata:true strips EXIF GPS + camera metadata via sharp before upload.
   let photoStoragePath: string | null = null;
+  let photoMimeType: string | null = null;
+  let photoSize: number | null = null;
   let photoWarning: string | null = null;
   if (photoFile && photoFile.size > 0) {
     const adminSupabase = createAdminClient();
-    const uploadResult = await uploadAttachmentIfPresent(adminSupabase, photoFile, "event-attachments");
+    const uploadResult = await uploadAttachmentIfPresent(adminSupabase, photoFile, "event-attachments", {
+      stripMetadata: true,
+    });
     if (uploadResult.error) {
       console.warn("[finder-possession] Photo upload failed (non-fatal):", uploadResult.error);
       photoWarning = "No se pudo subir la foto, pero el aviso fue registrado igual.";
     } else {
       photoStoragePath = uploadResult.uploadedPath;
+      photoMimeType = uploadResult.mimeType;
+      photoSize = uploadResult.size;
     }
   }
 
@@ -233,7 +241,7 @@ export async function reportFinderInPossessionAction(
     message: safeMessage || null,
   });
 
-  await db.insert(petEvents).values({
+  const [insertedEvent] = await db.insert(petEvents).values({
     petId: pet.id,
     eventType: "note_added",
     occurredAt: new Date(),
@@ -243,7 +251,22 @@ export async function reportFinderInPossessionAction(
     authorVerified,
     payload,
     caseId: openCase?.id ?? null,
-  });
+  }).returning({ id: petEvents.id });
+
+  // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
+  // surfaces render the photo for free (they read attachments, not the payload JSONB).
+  // uploadedByUserId: use recordedByUserId when the finder is logged in, null for anon.
+  // Mirror pattern from app/actions/events.ts (checkin, vaccination, etc.).
+  if (photoStoragePath && insertedEvent) {
+    await db.insert(attachments).values({
+      petId: pet.id,
+      eventId: insertedEvent.id,
+      uploadedByUserId: recordedByUserId,
+      storagePath: photoStoragePath,
+      mimeType: photoMimeType ?? "image/jpeg",
+      fileSize: photoSize ?? 0,
+    });
+  }
 
   // Notification to owner.
   const locationDisplay = provinceName

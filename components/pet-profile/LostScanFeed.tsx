@@ -57,6 +57,8 @@ export type ScanFeedItem =
       photoStoragePath?: string | null;
       /** P0d: finder contact (phone or email) if they left one. */
       finderContact?: string | null;
+      /** P0g: pre-resolved signed URL for the photo (set by the server page). */
+      photoUrl?: string | null;
     };
 
 interface Props {
@@ -169,12 +171,26 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
               </a>
             )}
           </p>
-          {/* P0d: photo/contact indicators — minimal version (no signed URL, deferred to P0e). */}
-          {(item.photoStoragePath || item.finderContact) && (
+          {/* P0g: photo thumbnail when a signed URL is available; falls back to
+              text indicator when only the storage path is known; omitted when no photo. */}
+          {item.photoUrl ? (
+            <div className="mt-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.photoUrl}
+                alt="Foto adjunta al avistaje"
+                loading="lazy"
+                className="h-20 w-20 rounded-lg object-cover"
+              />
+            </div>
+          ) : item.photoStoragePath ? (
             <p className="mt-1 text-xs text-gob-text-muted">
-              {item.photoStoragePath && <span>📷 foto adjunta</span>}
-              {item.photoStoragePath && item.finderContact && <span> · </span>}
-              {item.finderContact && <span>📞 {item.finderContact}</span>}
+              <span>📷 foto adjunta</span>
+            </p>
+          ) : null}
+          {item.finderContact && (
+            <p className="mt-1 text-xs text-gob-text-muted">
+              <span>📞 {item.finderContact}</span>
             </p>
           )}
         </div>
