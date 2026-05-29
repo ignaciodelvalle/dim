@@ -1,7 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { createClient } from "@/lib/supabase/server";
-
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -12,8 +9,24 @@ export type UploadResult = {
   error: string | null;
 };
 
+// Accept any Supabase client that exposes a `.storage` property — covers both
+// the cookie-bound SSR client (@supabase/ssr) and the service-role admin
+// client (@supabase/supabase-js). Anonymous server actions need the admin
+// client to bypass the `to authenticated` RLS policy on the bucket.
+type SupabaseStorageClient = {
+  storage: {
+    from(bucket: string): {
+      upload(
+        path: string,
+        file: File,
+        options?: { contentType?: string },
+      ): Promise<{ error: { message: string } | null }>;
+    };
+  };
+};
+
 export async function uploadAttachmentIfPresent(
-  supabase: SupabaseServerClient,
+  supabase: SupabaseStorageClient,
   file: File | null,
   bucket: string,
 ): Promise<UploadResult> {

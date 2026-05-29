@@ -603,8 +603,8 @@ const noteAdded = z
       // existing {category, text} notes continue to validate without changes.
       // P0d will populate finderName/finderContact; P0e will populate photoStoragePath.
       kind: z.enum(["sighting", "finder_in_possession"]).optional(),
-      finderName: z.string().max(120).nullable().optional(),
-      finderContact: z.string().max(160).nullable().optional(),
+      finderName: z.string().max(80).nullable().optional(),
+      finderContact: z.string().max(120).nullable().optional(),
       photoStoragePath: z.string().nullable().optional(),
     }),
   )

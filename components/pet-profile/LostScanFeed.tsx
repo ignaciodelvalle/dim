@@ -53,6 +53,10 @@ export type ScanFeedItem =
       lat: string | null;
       /** Decimal lng from pet_events.location_lng (string in DB). */
       lng: string | null;
+      /** P0d: storage path set when the finder attached a photo. */
+      photoStoragePath?: string | null;
+      /** P0d: finder contact (phone or email) if they left one. */
+      finderContact?: string | null;
     };
 
 interface Props {
@@ -165,6 +169,14 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
               </a>
             )}
           </p>
+          {/* P0d: photo/contact indicators — minimal version (no signed URL, deferred to P0e). */}
+          {(item.photoStoragePath || item.finderContact) && (
+            <p className="mt-1 text-xs text-gob-text-muted">
+              {item.photoStoragePath && <span>📷 foto adjunta</span>}
+              {item.photoStoragePath && item.finderContact && <span> · </span>}
+              {item.finderContact && <span>📞 {item.finderContact}</span>}
+            </p>
+          )}
         </div>
         <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
       </div>
