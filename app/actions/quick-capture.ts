@@ -31,6 +31,7 @@ export type QuickCaptureResult = {
  * @param publicToken  The pet's publicToken (e.g. "DIM-3K4F-9P2X").
  * @param text         Raw free-text from the EventCatcher textarea.
  */
+// @no-auth-required: pure text→URL transformation; reads no data. publicToken is caller-provided and only used to construct the navigation deeplink path.
 export async function quickCaptureAction(
   publicToken: string,
   text: string,
