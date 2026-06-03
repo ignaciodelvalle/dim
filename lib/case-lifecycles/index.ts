@@ -10,10 +10,13 @@ import { adoptionApplicationLifecycle } from "./adoption-application";
 import { adoptionListingLifecycle } from "./adoption-listing";
 import { biteIncidentLifecycle } from "./bite-incident";
 import { custodyDisputeLifecycle } from "./custody-dispute";
+import { custodyEpisodeLifecycle } from "./custody-episode";
 import { custodyTransferHandshakeLifecycle } from "./custody-transfer-handshake";
 import { fosterPlacementLifecycle } from "./foster-placement";
+import { fosterProposalLifecycle } from "./foster-proposal";
 import { lostPetEpisodeLifecycle } from "./lost-pet-episode";
 import { microchipRemediationLifecycle } from "./microchip-remediation";
+import { outbreakInvestigationLifecycle } from "./outbreak-investigation";
 import type { CaseLifecycle } from "./types";
 import { welfareDenunciaLifecycle } from "./welfare-denuncia";
 
@@ -29,13 +32,15 @@ const LIFECYCLES: Partial<Record<CaseKind, CaseLifecycle>> = {
   foster_placement: fosterPlacementLifecycle,
   custody_transfer_handshake: custodyTransferHandshakeLifecycle,
   microchip_remediation: microchipRemediationLifecycle,
-  // Deferred kinds have no lifecycle declaration. getLifecycle returns null.
+  // Previously deferred — now activated:
+  foster_proposal: fosterProposalLifecycle,
+  custody_episode: custodyEpisodeLifecycle,
+  outbreak_investigation: outbreakInvestigationLifecycle,
 };
 
 /**
- * Resolve the lifecycle for a kind. Returns null for deferred kinds
- * (custody_episode, foster_proposal, outbreak_investigation) — those are
- * accepted by the schema but their behaviour isn't formalized yet.
+ * Resolve the lifecycle for a kind. Returns null only for kinds not yet
+ * registered (currently none — all CASE_KINDS have a lifecycle entry).
  */
 export function getLifecycle(kind: CaseKind): CaseLifecycle | null {
   return LIFECYCLES[kind] ?? null;

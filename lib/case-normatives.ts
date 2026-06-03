@@ -194,14 +194,55 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // Deferred kinds — empty entries so the coverage test passes. Add real
-  // laws when the kind gets a lifecycle.
-  // -------------------------------------------------------------------------
-  { kind: "custody_episode", jurisdiction: { country: "AR" }, laws: [] },
   { kind: "custody_transfer_handshake", jurisdiction: { country: "AR" }, laws: [] },
+
+  // -------------------------------------------------------------------------
+  // foster_proposal — internal workflow, no specific legal framework
+  // -------------------------------------------------------------------------
   { kind: "foster_proposal", jurisdiction: { country: "AR" }, laws: [] },
-  { kind: "outbreak_investigation", jurisdiction: { country: "AR" }, laws: [] },
+
+  // -------------------------------------------------------------------------
+  // custody_episode — decomiso spec DC10 + Ley 14.346 for seizure cases
+  // -------------------------------------------------------------------------
+  {
+    kind: "custody_episode",
+    jurisdiction: { country: "AR" },
+    laws: [
+      {
+        id: "ley_nacional_14346_1954_custody",
+        label: "Ley Nacional 14.346 (1954)",
+        scope: "Malos tratos y actos de crueldad — fundamento legal del decomiso",
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // outbreak_investigation — attachment spec §6, same notif-obligatoria
+  // framework as bite_incident (attachment spec §7.8 cross-ref)
+  // -------------------------------------------------------------------------
+  {
+    kind: "outbreak_investigation",
+    jurisdiction: { country: "AR" },
+    laws: [
+      {
+        id: "ley_15465_60_decreto_3640_64",
+        label: "Ley 15.465/60 + Decreto 3640/64",
+        scope:
+          "Enfermedades de notificación obligatoria nacional; base del sistema de vigilancia epidemiológica",
+      },
+    ],
+  },
+  {
+    kind: "outbreak_investigation",
+    jurisdiction: { country: "AR", province: "Buenos Aires" },
+    laws: [
+      {
+        id: "ley_5325_1948_pba",
+        label: "Ley 5325/1948 PBA",
+        scope: "Denuncia obligatoria de enfermedades transmisibles dentro de 24hs",
+      },
+    ],
+  },
   {
     kind: "microchip_remediation",
     jurisdiction: { country: "AR" },

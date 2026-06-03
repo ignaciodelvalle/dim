@@ -36,7 +36,10 @@ import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
+import {
+  JurisdictionValidationError,
+  resolveCanonicalJurisdiction,
+} from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import {
@@ -279,16 +282,23 @@ export async function createPetAction(
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
 
-  // Canonicalize jurisdiction against the INDEC catalog when it resolves;
-  // on a miss we keep the trimmed input so registrations from uncatalogued
-  // localities (CABA barrios pending import, etc.) still land.
+  // Canonicalize jurisdiction strictly — both province and locality must appear
+  // in the INDEC catalog (CABA barrios are available after db:bootstrap import).
+  // Returns a validation error for crafted requests that bypass LocalityPickerAcross.
   if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
-    const canonical = await tryResolveCanonicalJurisdiction({
-      rawProvince: parsed.jurisdictionProvince,
-      rawLocality: parsed.jurisdictionLocality,
-    });
-    parsed.jurisdictionProvince = canonical.province;
-    parsed.jurisdictionLocality = canonical.locality;
+    try {
+      const canonical = await resolveCanonicalJurisdiction({
+        rawProvince: parsed.jurisdictionProvince,
+        rawLocality: parsed.jurisdictionLocality,
+      });
+      parsed.jurisdictionProvince = canonical.province.name;
+      parsed.jurisdictionLocality = canonical.locality.localityName;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      throw err;
+    }
   }
 
   // Lost & Found Fase 7 — validate chip format (ISO 11784/11785, 15 digits).
@@ -664,14 +674,21 @@ export async function updatePetAction(
   const { parsed, error: parseError } = parsePetForm(formData);
   if (parseError) return { error: parseError };
 
-  // Canonicalize jurisdiction (tolerant — same posture as createPetAction).
+  // Canonicalize jurisdiction strictly (same posture as createPetAction).
   if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
-    const canonical = await tryResolveCanonicalJurisdiction({
-      rawProvince: parsed.jurisdictionProvince,
-      rawLocality: parsed.jurisdictionLocality,
-    });
-    parsed.jurisdictionProvince = canonical.province;
-    parsed.jurisdictionLocality = canonical.locality;
+    try {
+      const canonical = await resolveCanonicalJurisdiction({
+        rawProvince: parsed.jurisdictionProvince,
+        rawLocality: parsed.jurisdictionLocality,
+      });
+      parsed.jurisdictionProvince = canonical.province.name;
+      parsed.jurisdictionLocality = canonical.locality.localityName;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      throw err;
+    }
   }
 
   const photoFile = formData.get("photo") as File | null;
