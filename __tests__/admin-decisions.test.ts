@@ -144,7 +144,7 @@ describe("approveRequestForAuthority — role_upgrade_vet", () => {
       matriculaNumber: "MN-A1000",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-AdminCase",
+      operationalLocality: "Coghlan",
     });
     expect(submit.ok).toBe(true);
 
@@ -228,7 +228,7 @@ describe("approveRequestForAuthority — organization_verification", () => {
       cuit: "30766554433",
       email: "fase2@refugio.test",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Almagro-AdminCase",
+      jurisdictionLocality: "Almagro",
     });
     expect("ok" in created && created.ok).toBe(true);
     const orgId = (created as { organizationId: string }).organizationId;
@@ -273,7 +273,7 @@ describe("rejectRequestForAuthority", () => {
       matriculaNumber: "MN-R2000",
       matriculaJurisdiccion: "Buenos Aires",
       operationalProvince: "Buenos Aires",
-      operationalLocality: "RejectCase",
+      operationalLocality: "Mar del Plata",
     });
     expect(submit.ok).toBe(true);
 
@@ -351,7 +351,7 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
       matriculaNumber: "MN-OUT1000",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Scope-OutOfReach",
+      operationalLocality: "Colegiales",
     });
     // vetApplicantId already has role='vet' from earlier test — that
     // blocks the new submission. Skip if so.
@@ -363,7 +363,7 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
       .where(
         and(
           eq(approvalRequests.applicantUserId, vetApplicantId),
-          eq(approvalRequests.jurisdictionLocality, "Scope-OutOfReach"),
+          eq(approvalRequests.jurisdictionLocality, "Colegiales"),
         ),
       )
       .limit(1);
