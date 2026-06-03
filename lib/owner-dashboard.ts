@@ -1303,14 +1303,27 @@ export async function countPendingApplications(userId: string): Promise<number> 
 /**
  * Count pending ownership transfers awaiting acceptance by this user.
  *
- * Mirrors the petTransfers table: status = 'pending' AND toOwnerId = userId.
- * toOwnerId is nullable (set once the recipient signs up); we only count
- * rows where the identity is already resolved.
+ * Handles both cases:
+ *   1. toOwnerId is already resolved (registered user) → match by UUID.
+ *   2. toOwnerId is NULL (recipient not yet registered) → match by email.
+ *
+ * The dual OR mirrors the inbox query in /transferencias and the guard in
+ * acceptPetTransferAction / rejectPetTransferAction.
  */
-export async function countPendingTransfers(userId: string): Promise<number> {
+export async function countPendingTransfers(userId: string, email: string): Promise<number> {
+  const normalizedEmail = email.toLowerCase();
+  // Include the email branch only when the caller has a non-empty email
+  // (defense-in-depth: phone-only / OAuth-without-email accounts must not
+  // match rows with an empty toOwnerEmail).
+  const recipientMatch = normalizedEmail
+    ? or(
+        eq(petTransfers.toOwnerId, userId),
+        and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, normalizedEmail)),
+      )
+    : eq(petTransfers.toOwnerId, userId);
   const [row] = await db
     .select({ n: count() })
     .from(petTransfers)
-    .where(and(eq(petTransfers.toOwnerId, userId), eq(petTransfers.status, "pending")));
+    .where(and(eq(petTransfers.status, "pending"), recipientMatch));
   return row?.n ?? 0;
 }
