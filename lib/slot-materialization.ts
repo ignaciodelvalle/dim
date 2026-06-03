@@ -44,7 +44,12 @@ function localToUtc(dateStr: string, timeStr: string, timezone: string): Date {
   // Construct an ISO-ish string and parse it with the offset from Intl.
   // We use the "temporal anchor" trick: format a known UTC time to the target
   // tz and subtract the diff.
-  const candidateIso = `${dateStr}T${timeStr}:00`;
+  //
+  // The Postgres `time` column is returned by postgres-js as "HH:MM:SS". We
+  // accept both "HH:MM" and "HH:MM:SS" — normalise to "HH:MM" before appending
+  // the seconds literal so the ISO string is always well-formed.
+  const hhmm = timeStr.length > 5 ? timeStr.slice(0, 5) : timeStr;
+  const candidateIso = `${dateStr}T${hhmm}:00`;
   // Parse as if it were UTC.
   const naiveUtcMs = Date.parse(`${candidateIso}Z`);
 
