@@ -2,7 +2,11 @@ import { ActionLinkCard } from "@/components/ActionLinkCard";
 import { PetCard } from "@/components/PetCard";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { countPendingApplications, fetchActiveReminders } from "@/lib/owner-dashboard";
+import {
+  countPendingApplications,
+  countPendingTransfers,
+  fetchActiveReminders,
+} from "@/lib/owner-dashboard";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
@@ -15,7 +19,7 @@ export default async function MisMascotasPage({
 }: {
   searchParams: Promise<{ reclamado?: string; as?: string }>;
 }) {
-  const { user } = await requireUserOrRedirect();
+  const { supabase, user } = await requireUserOrRedirect();
 
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   const params = await searchParams;
@@ -27,19 +31,24 @@ export default async function MisMascotasPage({
     redirect(await resolveVetLanding(user.id));
   }
 
+  const { data: authData } = await supabase.auth.getUser();
+  const userEmail = (authData?.user?.email ?? "").toLowerCase();
+
   // Pets where this user is the *current* custodian (any role), with the
   // primary photo and the ownership role for the "En tránsito" badge.
   // NotificationBell moved to /inicio (PR #208) so the unread query lives there now.
-  const [ownedPets, activeReminders, pendingApplicationsCount] = await Promise.all([
-    db
-      .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
-      .from(pets)
-      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
-    fetchActiveReminders(user.id),
-    countPendingApplications(user.id),
-  ]);
+  const [ownedPets, activeReminders, pendingApplicationsCount, pendingTransfersCount] =
+    await Promise.all([
+      db
+        .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
+        .from(pets)
+        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
+      fetchActiveReminders(user.id),
+      countPendingApplications(user.id),
+      countPendingTransfers(user.id, userEmail),
+    ]);
 
   // Build a map from petId → highest-priority reminder variant for the pet badge.
   // activeReminders is already sorted by priority (overdue_critical first), so
@@ -115,15 +124,14 @@ export default async function MisMascotasPage({
               description="Adopciones a las que te postulaste"
               badge={pendingApplicationsCount > 0 ? pendingApplicationsCount : null}
             />
-            {/*
-             * "Transferencias pendientes" card intentionally removed.
-             * countPendingTransfers (petTransfers table, toOwnerId=user) works
-             * correctly, but there is no hub route that lists all incoming
-             * transfers — only /transferencias/[transferToken] (detail page per
-             * token, reached via email magic-link or notification).
-             * Shipping a badge that links to an unrelated page (/cuenta/memberships)
-             * is a dead-end. Re-add this card once a transfers hub route exists.
-             */}
+            <ActionLinkCard
+              href="/transferencias"
+              icon="transferencia"
+              title="Transferencias pendientes"
+              description="Mascotas que alguien quiere transferirte"
+              badge={pendingTransfersCount > 0 ? pendingTransfersCount : null}
+              hideWhenZero
+            />
           </div>
         </section>
       </div>
