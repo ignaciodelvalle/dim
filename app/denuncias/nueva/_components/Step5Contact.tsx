@@ -290,7 +290,7 @@ export function Step5Contact({
                   type="button"
                   onClick={() => removeEvidence(i)}
                   aria-label={`Quitar ${entry.file.name}`}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gob-text text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 >
                   ×
                 </button>
