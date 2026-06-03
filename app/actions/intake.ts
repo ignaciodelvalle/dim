@@ -25,6 +25,7 @@ import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { requireCapability } from "@/lib/capabilities";
+import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
@@ -356,6 +357,27 @@ export async function createIntakeAction(
         payload: registeredPayload,
       });
 
+      // Cases system: open a custody_episode for every org intake so the
+      // custody period has a first-class entry in /casos. The lifecycle's
+      // opensEvents = shelter_intake_recorded with no sub-condition, so all
+      // intake reasons (rescue / surrender / seizure / stray_found / other)
+      // open a case. Close transitions (custody_transferred, adoption_finalized,
+      // death_recorded) are wired separately and are out of scope here —
+      // cases stay open until then.
+      const custodyCase = await openCase(
+        {
+          kind: "custody_episode",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: newPet.id,
+          jurisdictionProvince: parsed.jurisdictionProvince,
+          jurisdictionLocality: parsed.jurisdictionLocality,
+          openedByUserId: user.id,
+          openedByOrganizationId: organization.id,
+          openedReason: `auto: org intake reason=${parsed.intakeReason}`,
+        },
+        tx,
+      );
+
       const intakePayload = validateEventPayload("shelter_intake_recorded", {
         intake_reason: parsed.intakeReason,
         intake_condition: parsed.intakeCondition,
@@ -371,6 +393,7 @@ export async function createIntakeAction(
         authorOrganizationId: organization.id,
         authorVerified,
         payload: intakePayload,
+        caseId: custodyCase.id,
       });
 
       // Heads-up notification to the user who recorded the intake. This is a
