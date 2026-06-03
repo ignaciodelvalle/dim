@@ -26,10 +26,10 @@
 //             provinceCode (→ jurisdictionProvince server-side), localityName,
 //             locationLat, locationLng
 //   Step 4 → subjectKind, subjectPetToken (→ subjectPetId server-side), subjectDescription
-//   Step 5 → reporterContactEmail, reporterContactPhone (empty strings if anonymous)
+//   Step 5 → reporterContactEmail, reporterContactPhone (empty strings if anonymous),
+//             attachment entries (evidence files appended from WizardState.evidenceFiles)
 //
-// Anti-spam: honeypot field included.
-// TODO(M-followup): add dwell-time measurement client-side before submit.
+// Anti-spam: honeypot field included. Dwell-time measured from mount to submit.
 
 import { useRef, useState } from "react";
 
@@ -46,7 +46,7 @@ import {
 } from "./_components/Step2Severity";
 import { Step3Where, type WhenOption, resolveOccurredAt } from "./_components/Step3Where";
 import { Step4Subject, type SubjectKindWizard } from "./_components/Step4Subject";
-import { type ContactMode, Step5Contact } from "./_components/Step5Contact";
+import { type ContactMode, type EvidenceFile, Step5Contact } from "./_components/Step5Contact";
 
 const TOTAL_STEPS = 5;
 const STEP_LABELS = ["Qué pasó", "Gravedad", "Dónde", "Quién", "Cerrar"];
@@ -62,6 +62,8 @@ type WizardState = {
   contactMode: ContactMode | null;
   contactEmail: string;
   contactPhone: string;
+  evidenceFiles: EvidenceFile[];
+  evidenceError: string | null;
 };
 
 const INITIAL_STATE: WizardState = {
@@ -75,6 +77,8 @@ const INITIAL_STATE: WizardState = {
   contactMode: null,
   contactEmail: "",
   contactPhone: "",
+  evidenceFiles: [],
+  evidenceError: null,
 };
 
 export function DenunciaWizard() {
@@ -214,11 +218,18 @@ export function DenunciaWizard() {
         formData.delete("reporterContactPhone");
       }
 
+      // Step 5 — evidence files (lifted from WizardState; no DOM file input to capture)
+      // Delete any stale attachment entries from the DOM then append from state.
+      formData.delete("attachment");
+      for (const entry of wizState.evidenceFiles) {
+        formData.append("attachment", entry.file);
+      }
+
       // Honeypot — must be empty
       formData.set("_hp", "");
 
       // Dwell time — millisecond delta from mount to submit. Server uses
-      // this to silent-reject obvious bots (handoff P4-2d).
+      // this to silent-reject obvious bots.
       formData.set("dwellTimeMs", String(Date.now() - mountedAt.current));
 
       const result = await createWelfareReportAction({ error: null }, formData);
@@ -411,9 +422,13 @@ export function DenunciaWizard() {
             contactMode={wizState.contactMode}
             contactEmail={wizState.contactEmail}
             contactPhone={wizState.contactPhone}
+            evidenceFiles={wizState.evidenceFiles}
+            evidenceError={wizState.evidenceError}
             onContactModeChange={(contactMode) => updateState({ contactMode })}
             onContactEmailChange={(contactEmail) => updateState({ contactEmail })}
             onContactPhoneChange={(contactPhone) => updateState({ contactPhone })}
+            onEvidenceFilesChange={(evidenceFiles) => updateState({ evidenceFiles })}
+            onEvidenceErrorChange={(evidenceError) => updateState({ evidenceError })}
             onSubmit={handleSubmit}
             isPending={isPending}
             error={submitError}

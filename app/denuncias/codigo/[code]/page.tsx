@@ -15,6 +15,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DescargarComprobante } from "./DescargarComprobante";
+
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
     <div className="w-full h-64 rounded-lg border border-gob-border bg-gob-surface-alt animate-pulse" />
@@ -101,6 +103,20 @@ export default async function WelfareReportByCodePage({
 
   return (
     <main className="p-6 bg-white">
+      {/* Print styles: hide nav chrome, show only the comprobante section */}
+      <style
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: static print CSS, no user input
+        dangerouslySetInnerHTML={{
+          __html: `
+@media print {
+  body > *:not(main) { display: none !important; }
+  main > div > *:not([data-comprobante]) { display: none !important; }
+  [data-comprobante] { display: block !important; }
+  [data-comprobante] * { color: #000 !important; border-color: #ccc !important; background: #fff !important; }
+}
+          `.trim(),
+        }}
+      />
       <div className="max-w-2xl mx-auto pt-6 space-y-8">
         {/* Back link */}
         <Link
@@ -112,7 +128,10 @@ export default async function WelfareReportByCodePage({
 
         {/* Fresh submission confirmation banner */}
         {nueva === "1" && (
-          <div className="rounded-xl border border-gob-success/30 bg-gob-success/10 px-5 py-5 space-y-3">
+          <div
+            data-comprobante
+            className="rounded-xl border border-gob-success/30 bg-gob-success/10 px-5 py-5 space-y-3"
+          >
             <p className="text-sm font-semibold text-gob-success">
               Tu denuncia fue registrada. Gracias por animarte a denunciar.
             </p>
@@ -121,9 +140,9 @@ export default async function WelfareReportByCodePage({
               {report.referenceCode}
             </p>
             <p className="text-xs text-gob-success leading-relaxed">
-              Guardá este código. Es la única forma de volver a esta denuncia sin sesión. Sacale
-              screenshot o imprimí esta página.
+              Guardá este código. Es la única forma de volver a esta denuncia sin sesión.
             </p>
+            <DescargarComprobante />
           </div>
         )}
 

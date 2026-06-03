@@ -1,21 +1,48 @@
 "use client";
 
-// Step 5 — Cerrar: anónima vs con contacto + submit.
+// Step 5 — Cerrar: anónima vs con contacto + evidencia + submit.
 // Two cards: "Anónima" (submit immediately) vs "Con contacto" (collect email/phone then submit).
-// Evidence uploader deferred — TODO(M-followup): add optional evidence expander after
-// contact choice is made (plan Step 5 / DenunciaStepEvidence.tsx).
+// Evidence uploader: optional multi-file input with client-side mime/size/count validation
+// and image preview thumbnails. Files are lifted into WizardState (evidenceFiles) so the
+// wizard's handleSubmit can append them to FormData before calling createWelfareReportAction.
+
+import { useRef } from "react";
 
 import { Input } from "@/components/poncho";
 
 export type ContactMode = "anonymous" | "with_contact";
 
+export type EvidenceFile = {
+  file: File;
+  /** Object URL for image previews; null for video files. */
+  objectUrl: string | null;
+};
+
+const MAX_EVIDENCE_FILES = 5;
+const MAX_EVIDENCE_BYTES = 25 * 1024 * 1024; // 25 MB
+const ALLOWED_EVIDENCE_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+]);
+
 type Step5ContactProps = {
   contactMode: ContactMode | null;
   contactEmail: string;
   contactPhone: string;
+  evidenceFiles: EvidenceFile[];
+  evidenceError: string | null;
   onContactModeChange: (mode: ContactMode) => void;
   onContactEmailChange: (email: string) => void;
   onContactPhoneChange: (phone: string) => void;
+  onEvidenceFilesChange: (files: EvidenceFile[]) => void;
+  onEvidenceErrorChange: (error: string | null) => void;
   onSubmit: () => void;
   isPending: boolean;
   error?: string | null;
@@ -25,19 +52,68 @@ export function Step5Contact({
   contactMode,
   contactEmail,
   contactPhone,
+  evidenceFiles,
+  evidenceError,
   onContactModeChange,
   onContactEmailChange,
   onContactPhoneChange,
+  onEvidenceFilesChange,
+  onEvidenceErrorChange,
   onSubmit,
   isPending,
   error,
 }: Step5ContactProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const canSubmitAnonymous = contactMode === "anonymous";
   const canSubmitWithContact =
     contactMode === "with_contact" &&
     (contactEmail.trim().length > 0 || contactPhone.trim().length > 0);
 
   const canSubmit = canSubmitAnonymous || canSubmitWithContact;
+
+  function handleFilesSelected(incoming: FileList | null) {
+    if (!incoming || incoming.length === 0) return;
+    onEvidenceErrorChange(null);
+
+    const newFiles = Array.from(incoming);
+    const combined = [...evidenceFiles.map((e) => e.file), ...newFiles];
+
+    if (combined.length > MAX_EVIDENCE_FILES) {
+      onEvidenceErrorChange(`Solo podés adjuntar hasta ${MAX_EVIDENCE_FILES} archivos en total.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    for (const f of newFiles) {
+      if (!ALLOWED_EVIDENCE_MIME.has(f.type)) {
+        onEvidenceErrorChange(
+          `Tipo de archivo no soportado: "${f.name}". Solo imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`,
+        );
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      if (f.size > MAX_EVIDENCE_BYTES) {
+        onEvidenceErrorChange(`El archivo "${f.name}" supera el límite de 25 MB.`);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    }
+
+    const added: EvidenceFile[] = newFiles.map((f) => ({
+      file: f,
+      objectUrl: f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
+    }));
+    onEvidenceFilesChange([...evidenceFiles, ...added]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeEvidence(index: number) {
+    const entry = evidenceFiles[index];
+    if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
+    onEvidenceFilesChange(evidenceFiles.filter((_, i) => i !== index));
+    onEvidenceErrorChange(null);
+  }
 
   return (
     <section className="space-y-5">
@@ -150,27 +226,79 @@ export function Step5Contact({
         </div>
       )}
 
-      {/* Evidence uploader (handoff P4-2b). Multi-file, image/video.
-          The wizard's FormData captures these via formRef + getAll('attachment');
-          welfare.ts already calls uploadWelfareEvidence on those entries. */}
-      <details className="rounded-xl border border-dashed border-gob-border p-4">
-        <summary className="cursor-pointer text-sm font-medium text-gob-text">
-          📎 Sumar fotos o videos <span className="text-gob-text-muted">(opcional)</span>
-        </summary>
-        <div className="mt-3 space-y-2">
-          <input
-            type="file"
-            name="attachment"
-            multiple
-            accept="image/*,video/*"
-            capture="environment"
-            className="block w-full text-xs text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-gob-surface-alt file:text-gob-text file:cursor-pointer"
-          />
-          <p className="text-xs text-gob-text-muted">
-            Hasta 5 archivos, 25 MB cada uno. Fotos o videos de lo que viste.
-          </p>
+      {/* Evidence uploader — multi-file with client-side validation.
+          Files are lifted into WizardState.evidenceFiles and appended to FormData
+          in DenunciaWizard.handleSubmit. The file input is cleared after each
+          selection to allow incremental adds (same pattern as WelfareReportForm). */}
+      <div className="space-y-3 rounded-xl border border-dashed border-gob-border p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gob-text">
+            📎 Sumar fotos o videos{" "}
+            <span className="font-normal text-gob-text-muted">(opcional)</span>
+          </span>
+          {evidenceFiles.length > 0 && (
+            <span className="text-xs text-gob-text-muted">
+              {evidenceFiles.length}/{MAX_EVIDENCE_FILES}
+            </span>
+          )}
         </div>
-      </details>
+
+        <p className="text-xs text-gob-text-muted">
+          Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF)
+          y videos (MP4, WebM, MOV).
+        </p>
+
+        {/* File input — cleared after each selection to allow incremental adds */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
+          capture="environment"
+          onChange={(e) => handleFilesSelected(e.target.files)}
+          className="block w-full text-xs text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-gob-surface-alt file:text-gob-text file:cursor-pointer"
+        />
+
+        {evidenceError && (
+          <p className="text-xs text-gob-danger" role="alert">
+            {evidenceError}
+          </p>
+        )}
+
+        {evidenceFiles.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {evidenceFiles.map((entry, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: stable list, no reordering
+              <div key={i} className="relative group">
+                {entry.objectUrl ? (
+                  <img
+                    src={entry.objectUrl}
+                    alt={entry.file.name}
+                    className="w-full aspect-square object-cover rounded-lg border border-gob-border"
+                  />
+                ) : (
+                  <div className="w-full aspect-square rounded-lg border border-gob-border bg-gob-surface-alt flex flex-col items-center justify-center gap-1 p-2">
+                    <span className="text-2xl select-none" aria-hidden="true">
+                      ▶
+                    </span>
+                    <p className="text-xs text-gob-text-muted text-center truncate w-full">
+                      {entry.file.name}
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeEvidence(i)}
+                  aria-label={`Quitar ${entry.file.name}`}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {error && (
         <p
