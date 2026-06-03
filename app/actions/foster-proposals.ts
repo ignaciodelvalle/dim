@@ -450,7 +450,7 @@ export async function acceptFosterProposalAction(
         // directly; pre-migration rows fall back to the open-case query).
         const proposalCaseId =
           proposal.caseId ??
-          (await findOpenCaseForPetAndKind(pet.id, "foster_proposal"))?.id ??
+          (await findOpenCaseForPetAndKind(pet.id, "foster_proposal", tx))?.id ??
           null;
 
         const acceptedPayload = validateEventPayload("foster_proposal_resolved", {
@@ -551,7 +551,9 @@ export async function acceptFosterProposalAction(
 
             // Resolve case_id for this cascade-cancelled proposal.
             const otherCaseId =
-              p.caseId ?? (await findOpenCaseForPetAndKind(p.petId, "foster_proposal"))?.id ?? null;
+              p.caseId ??
+              (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ??
+              null;
 
             const cancelPayload = validateEventPayload("foster_proposal_resolved", {
               proposal_public_token: p.publicToken,
@@ -687,7 +689,7 @@ export async function rejectFosterProposalAction(
       // Cases system: resolve case_id and close.
       const proposalCaseId =
         proposal.caseId ??
-        (await findOpenCaseForPetAndKind(proposal.petId, "foster_proposal"))?.id ??
+        (await findOpenCaseForPetAndKind(proposal.petId, "foster_proposal", tx))?.id ??
         null;
 
       const payload = validateEventPayload("foster_proposal_resolved", {
@@ -791,7 +793,7 @@ export async function cancelFosterProposalAction(
       // Cases system: resolve case_id and close.
       const proposalCaseId =
         proposal.caseId ??
-        (await findOpenCaseForPetAndKind(proposal.petId, "foster_proposal"))?.id ??
+        (await findOpenCaseForPetAndKind(proposal.petId, "foster_proposal", tx))?.id ??
         null;
 
       const payload = validateEventPayload("foster_proposal_resolved", {

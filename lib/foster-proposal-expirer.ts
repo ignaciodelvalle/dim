@@ -91,7 +91,7 @@ export async function expireFosterProposals(): Promise<ExpireFosterProposalsStat
         // rows fall back to the open-case query). The recheck above confirmed the
         // proposal is still pending, so the case is still open.
         const proposalCaseId =
-          p.caseId ?? (await findOpenCaseForPetAndKind(p.petId, "foster_proposal"))?.id ?? null;
+          p.caseId ?? (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ?? null;
 
         const payload = validateEventPayload("foster_proposal_resolved", {
           proposal_public_token: p.publicToken,
