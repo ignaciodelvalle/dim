@@ -35,7 +35,7 @@ const INTAKE_REASONS = [
 ] as const;
 
 const TOTAL_STEPS = 4;
-const STEP_LABELS = ["Microchip", "Identidad", "Estado", "Confirmar"];
+const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 
 const inputCls = "w-full rounded border border-gob-border-strong  bg-white  px-3 py-2";
 
@@ -58,6 +58,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [distinguishingFeatures, setDistinguishingFeatures] = useState("");
   const [microchipId, setMicrochipId] = useState("");
   const [microchipCountryCode, setMicrochipCountryCode] = useState("858");
+  const [tattooCode, setTattooCode] = useState("");
   const [intakeReason, setIntakeReason] = useState("");
   const [custodyRole, setCustodyRole] = useState<"shelter_custody" | "owner">("shelter_custody");
   const [occurredAt, setOccurredAt] = useState(today);
@@ -77,12 +78,17 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     if (distinguishingFeatures) fd.set("distinguishingFeatures", distinguishingFeatures);
     if (microchipId) fd.set("microchipId", microchipId);
     if (microchipCountryCode) fd.set("microchipCountryCode", microchipCountryCode);
+    if (tattooCode) fd.set("tattooCode", tattooCode);
     fd.set("intakeReason", intakeReason);
     fd.set("custodyRole", custodyRole);
     fd.set("occurredAt", occurredAt);
     if (intakeCondition) fd.set("intakeCondition", intakeCondition);
     if (rescueJurisdiction) fd.set("rescueJurisdiction", rescueJurisdiction);
     fd.set("noRedirect", "1");
+    // Thread bypass tokens from previous server responses so re-submits skip
+    // already-acknowledged warnings (chip force, tattoo ack).
+    if (state.forceToken) fd.set("forceToken", state.forceToken);
+    if (state.tattooAckToken) fd.set("tattooAckToken", state.tattooAckToken);
     startTransition(async () => {
       const result = await action({ error: null }, fd);
       setState(result);
@@ -124,11 +130,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       stepLabels={STEP_LABELS}
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
-      {/* Step 1 — Microchip */}
+      {/* Step 1 — Identificación */}
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
         <p className="text-sm text-gob-text-gray ">
-          Si la mascota tiene microchip, ingrésalo. Si el chip coincide con una mascota perdida en
-          MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
+          Si la mascota tiene microchip o tatuaje, ingrésalos. Si el chip coincide con una mascota
+          perdida en MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
@@ -153,6 +159,20 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
         </div>
+        <label className="block space-y-1">
+          <span className="text-sm">Código de tatuaje</span>
+          <input
+            type="text"
+            value={tattooCode}
+            onChange={(e) => setTattooCode(e.target.value)}
+            maxLength={60}
+            placeholder="Ej: K9-2014, A1B2"
+            className={inputCls}
+          />
+          <span className="text-xs text-gob-text-muted">
+            Opcional. Se verificará contra registros existentes antes de guardar.
+          </span>
+        </label>
         <button
           type="button"
           onClick={() => setStep(2)}
@@ -391,6 +411,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             <dd className="col-span-2">{species || "—"}</dd>
             <dt className="text-gob-text-muted">Microchip</dt>
             <dd className="col-span-2 font-mono">{microchipId || "(sin chip)"}</dd>
+            <dt className="text-gob-text-muted">Tatuaje</dt>
+            <dd className="col-span-2 font-mono">{tattooCode || "(sin tatuaje)"}</dd>
             <dt className="text-gob-text-muted">Motivo</dt>
             <dd className="col-span-2">
               {INTAKE_REASONS.find((r) => r.value === intakeReason)?.label ?? "—"}
@@ -408,6 +430,29 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-xs text-gob-warning-text ">
             El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
             admin antes de continuar.
+          </div>
+        )}
+
+        {state.warning === "TATTOO_MATCH_POSSIBLE" && state.matchedPetToken && (
+          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-xs text-gob-warning-text  space-y-2">
+            <p>
+              <strong>Posible coincidencia por tatuaje.</strong> El código que ingresaste coincide
+              con una mascota ya registrada en MiMAR. Verificá con la foto antes de continuar.
+            </p>
+            <p>
+              <a
+                href={`/p/${state.matchedPetToken}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-medium"
+              >
+                Ver credencial pública de la mascota coincidente
+              </a>
+            </p>
+            <p className="text-gob-text-muted">
+              Si confirmás que son animales distintos, hacé clic en &ldquo;Crear ingreso&rdquo; para
+              continuar.
+            </p>
           </div>
         )}
 
