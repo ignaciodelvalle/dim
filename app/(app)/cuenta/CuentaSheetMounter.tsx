@@ -74,7 +74,10 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   }
 
   if (sheet === "solicitar-upgrade-vet") {
-    if (role === "vet") return null; // already a vet — sheet doesn't apply
+    // Owner-only: matches the trigger card's visibility. Without this, a
+    // govt/admin could deep-link the sheet and submit a vet-upgrade request
+    // (the server action only rejects role === "vet", not other non-owners).
+    if (role !== "owner") return null;
     return (
       <Sheet
         id="solicitar-upgrade-vet"
