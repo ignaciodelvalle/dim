@@ -18,7 +18,8 @@ export const CASE_KINDS = [
   "adoption_application",
   "custody_dispute",
   "foster_placement",
-  // Deferred — schema accepts, lifecycle TBD. See attachment spec §6 +
+  // Previously deferred — now activated in feat/deferred-case-kind-lifecycles.
+  // Full lifecycles in lib/case-lifecycles/. See attachment spec §6 +
   // lifecycles spec §16.
   "custody_episode",
   "custody_transfer_handshake",

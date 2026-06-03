@@ -5,7 +5,10 @@
 //   - kind + statusValues + phases are declared correctly.
 //   - opensEvents points to the right event_type.
 //   - terminalEvents closes the case.
-//   - Cron is wired (7-day expiry, daily cadence).
+//   - cronCloseRoute is null: proposeFosterAction does not yet open a cases
+//     row, so no cron close can be wired (lands with the case-opening action).
+//   - phases contains only genuine open-state subdivisions (lifecycles spec L1).
+//     accepted / rejected / cancelled / expired are closed outcomes, not phases.
 //   - manualOpenAllowed=false (proposal must come through foster_proposed event).
 //   - reopenAllowed=false (declined proposals open new cases, never reopen old).
 //   - No escalated status (proposals are either pending or resolved).
@@ -29,13 +32,17 @@ describe("foster_proposal lifecycle — declaration", () => {
     expect(lifecycle?.statusValues).not.toContain("merged");
   });
 
-  it("declares all expected phases", () => {
+  it("declares pending_response as the only open phase (lifecycles spec L1)", () => {
     const phases = lifecycle?.phases ?? [];
+    // pending_response is the sole subdivision of status='open'.
     expect(phases).toContain("pending_response");
-    expect(phases).toContain("accepted");
-    expect(phases).toContain("rejected");
-    expect(phases).toContain("cancelled");
-    expect(phases).toContain("expired");
+    // Closed outcomes must NOT appear as phases (they are discriminated by
+    // closed_reason / payload.outcome, not by the phases array).
+    expect(phases).not.toContain("accepted");
+    expect(phases).not.toContain("rejected");
+    expect(phases).not.toContain("cancelled");
+    expect(phases).not.toContain("expired");
+    expect(phases).toHaveLength(1);
   });
 
   it("opens on foster_proposed event", () => {
@@ -53,9 +60,12 @@ describe("foster_proposal lifecycle — declaration", () => {
     expect(lifecycle?.terminalEvents).toHaveLength(1);
   });
 
-  it("has auto-close cron (expire-foster-proposals, daily)", () => {
-    expect(lifecycle?.cronCloseRoute).toBe("/api/cron/expire-foster-proposals");
-    expect(lifecycle?.cronCloseScheduleHours).toBe(24);
+  it("has no auto-close cron (case-opening action not yet wired)", () => {
+    // proposeFosterAction does not INSERT a cases row, so there is no cases
+    // row for the cron to close. cronCloseRoute lands with the foster_proposed
+    // case-opening action implementation.
+    expect(lifecycle?.cronCloseRoute).toBeNull();
+    expect(lifecycle?.cronCloseScheduleHours).toBe(0);
   });
 
   it("does not allow manual open (must come from foster_proposed event)", () => {

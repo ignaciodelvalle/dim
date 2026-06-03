@@ -37,8 +37,10 @@ export const outbreakInvestigationLifecycle: CaseLifecycle = {
     },
   ],
   terminalEvents: [], // closed manually via case action
+  // No auto-close cron — outbreak investigations are legally sensitive and
+  // may run for weeks (ENO pipeline spec marks brote cron as v2 out-of-scope).
   cronCloseRoute: null,
-  cronCloseScheduleHours: 24,
+  cronCloseScheduleHours: 0,
   manualOpenAllowed: true,
   reopenAllowed: false,
 };

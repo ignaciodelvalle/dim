@@ -50,6 +50,7 @@ describe("outbreak_investigation lifecycle — declaration", () => {
 
   it("has no auto-close cron (brote linkage is v2 per ENO pipeline spec)", () => {
     expect(lifecycle?.cronCloseRoute).toBeNull();
+    expect(lifecycle?.cronCloseScheduleHours).toBe(0);
   });
 
   it("allows manual open (govt can open from external lab report without signal)", () => {
