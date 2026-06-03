@@ -73,18 +73,21 @@ Vet portal (`/pro`), government portal (`/gob`), owner-facing forms for the rest
 
 ## Local development
 
-Requires Node 20+, pnpm, and Docker Desktop running.
+Requires **Node ≥ 22.13**, **pnpm**, and **Docker Desktop** running (the local Supabase stack runs in Docker).
 
 ```bash
 pnpm install
-pnpm db:start          # start the local Supabase stack (Postgres + Auth + Storage in Docker)
-pnpm db:push           # apply the Drizzle schema to local Postgres
-pnpm dev               # Next.js on http://localhost:3000
+pnpm db:start          # local Supabase (Postgres + Auth + Storage) in Docker
+# copy .env.local.example → .env.local, then fill in the values from `pnpm db:status`
+pnpm db:bootstrap      # schema + migrations + triggers + RLS + storage + seeds (one command)
+pnpm dev               # http://localhost:3000
 ```
 
-You'll also need to apply `db/triggers.sql` and `db/storage.sql` once via Supabase Studio's SQL Editor (<http://localhost:54323>).
+`db:bootstrap` is idempotent and refuses to run against a non-local database. It replaces the older manual flow (`db:push` plus pasting `db/triggers.sql` and `db/storage.sql` into Supabase Studio).
 
-Environment template lives at [`.env.local.example`](./.env.local.example). Copy to `.env.local` and fill in the values printed by `pnpm db:status`.
+The env template lives at [`.env.local.example`](./.env.local.example) — copy it to `.env.local` and fill in the values printed by `pnpm db:status` (Studio is at <http://localhost:54323>).
+
+New to the project? Read **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the branching model, commit convention, and the pre-PR checklist.
 
 ## Project layout
 

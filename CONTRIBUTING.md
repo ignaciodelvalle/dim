@@ -4,13 +4,17 @@ Thanks for jumping in. DIM is a Next.js + Drizzle + Postgres / Supabase app, eve
 
 ## Quickstart
 
+Requires **Node ≥ 22.13**, **pnpm**, and **Docker Desktop** running.
+
 ```bash
 pnpm install
-pnpm db:start          # spins up local Supabase via Docker (Docker Desktop must be running)
-pnpm db:push           # apply schema to the local DB
-pnpm seed:test         # seed deterministic test users + a couple of pets
+pnpm db:start          # local Supabase via Docker
+# copy .env.local.example → .env.local, fill values from `pnpm db:status`
+pnpm db:bootstrap      # schema + migrations + triggers + RLS + storage + seeds (one command)
 pnpm dev               # http://localhost:3000
 ```
+
+`db:bootstrap` is idempotent and localhost-only. Prefer it for a fresh setup — it applies the triggers, RLS, and storage policies that `db:push` alone does not. (Granular alternative: `pnpm db:push` + `pnpm seed:test`, then paste `db/triggers.sql` / `db/storage.sql` into Studio.)
 
 If any of these fail, fix that first — they're the floor everything else builds on.
 
