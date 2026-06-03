@@ -23,6 +23,7 @@ import {
   profiles,
 } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { ageMonthsFromDob, computeMatch } from "@/lib/foster-matching";
 import { generatePrefixedToken } from "@/lib/publicToken";
@@ -258,6 +259,22 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
 
   try {
     await db.transaction(async (tx) => {
+      // Cases system (migration 0068): open the foster_proposal case first so
+      // the proposal row + pet event can both carry its case_id.
+      const caseRow = await openCase(
+        {
+          kind: "foster_proposal",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          openedByUserId: user.id,
+          openedByOrganizationId: organization.id,
+          jurisdictionProvince: pet.jurisdictionProvince,
+          jurisdictionLocality: pet.jurisdictionLocality,
+          openedReason: `Foster proposal to volunteer ${input.volunteerUserId} by org ${organization.id}`,
+        },
+        tx,
+      );
+
       await tx.insert(fosterProposals).values({
         publicToken,
         organizationId: organization.id,
@@ -270,6 +287,7 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
         matchWarnings: warningMessages,
         expiresAt,
         status: "pending",
+        caseId: caseRow.id,
         createdAt: now,
         updatedAt: now,
       });
@@ -290,6 +308,7 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
         authorOrganizationId: organization.id,
         authorVerified: organization.verified,
         payload,
+        caseId: caseRow.id,
       });
 
       pendingNotifications.push({
@@ -427,6 +446,13 @@ export async function acceptFosterProposalAction(
           })
           .where(eq(fosterProposals.id, proposal.id));
 
+        // Cases system: resolve the case_id for this proposal (new rows have it
+        // directly; pre-migration rows fall back to the open-case query).
+        const proposalCaseId =
+          proposal.caseId ??
+          (await findOpenCaseForPetAndKind(pet.id, "foster_proposal"))?.id ??
+          null;
+
         const acceptedPayload = validateEventPayload("foster_proposal_resolved", {
           proposal_public_token: proposal.publicToken,
           outcome: "accepted",
@@ -448,6 +474,7 @@ export async function acceptFosterProposalAction(
             authorOrganizationId: null,
             authorVerified: false,
             payload: acceptedPayload,
+            caseId: proposalCaseId,
           },
           {
             petId: pet.id,
@@ -459,8 +486,17 @@ export async function acceptFosterProposalAction(
             authorOrganizationId: proposal.organizationId,
             authorVerified: true,
             payload: assignedPayload,
+            caseId: proposalCaseId,
           },
         ]);
+
+        // Close the foster_proposal case (accepted = resolved).
+        if (proposalCaseId) {
+          await closeCase(
+            { caseId: proposalCaseId, reason: "resolved", closedByUserId: user.id },
+            tx,
+          );
+        }
 
         if (input.allowCoFoster) {
           const coFosterPayload = validateEventPayload("foster_co_foster_allowed", {
@@ -513,6 +549,10 @@ export async function acceptFosterProposalAction(
               })
               .where(eq(fosterProposals.id, p.id));
 
+            // Resolve case_id for this cascade-cancelled proposal.
+            const otherCaseId =
+              p.caseId ?? (await findOpenCaseForPetAndKind(p.petId, "foster_proposal"))?.id ?? null;
+
             const cancelPayload = validateEventPayload("foster_proposal_resolved", {
               proposal_public_token: p.publicToken,
               outcome: "cancelled",
@@ -529,7 +569,16 @@ export async function acceptFosterProposalAction(
               authorOrganizationId: null,
               authorVerified: false,
               payload: cancelPayload,
+              caseId: otherCaseId,
             });
+
+            // Close the case for this cascade-cancelled proposal.
+            if (otherCaseId) {
+              await closeCase(
+                { caseId: otherCaseId, reason: "cancelled", closedByUserId: user.id },
+                tx,
+              );
+            }
 
             // Notify the affected org coordinators.
             const otherOrgIds = await getOrgFosterCoordinatorUserIds(p.organizationId);
@@ -635,6 +684,12 @@ export async function rejectFosterProposalAction(
         })
         .where(eq(fosterProposals.id, proposal.id));
 
+      // Cases system: resolve case_id and close.
+      const proposalCaseId =
+        proposal.caseId ??
+        (await findOpenCaseForPetAndKind(proposal.petId, "foster_proposal"))?.id ??
+        null;
+
       const payload = validateEventPayload("foster_proposal_resolved", {
         proposal_public_token: proposal.publicToken,
         outcome: "rejected",
@@ -651,7 +706,16 @@ export async function rejectFosterProposalAction(
         authorOrganizationId: null,
         authorVerified: false,
         payload,
+        caseId: proposalCaseId,
       });
+
+      // Rejected = resolved (volunteer declined, org can re-propose).
+      if (proposalCaseId) {
+        await closeCase(
+          { caseId: proposalCaseId, reason: "resolved", closedByUserId: user.id },
+          tx,
+        );
+      }
 
       const orgIds = await getOrgFosterCoordinatorUserIds(proposal.organizationId);
       for (const uid of orgIds) {
@@ -724,6 +788,12 @@ export async function cancelFosterProposalAction(
         })
         .where(eq(fosterProposals.id, proposal.id));
 
+      // Cases system: resolve case_id and close.
+      const proposalCaseId =
+        proposal.caseId ??
+        (await findOpenCaseForPetAndKind(proposal.petId, "foster_proposal"))?.id ??
+        null;
+
       const payload = validateEventPayload("foster_proposal_resolved", {
         proposal_public_token: proposal.publicToken,
         outcome: "cancelled",
@@ -740,7 +810,16 @@ export async function cancelFosterProposalAction(
         authorOrganizationId: proposal.organizationId,
         authorVerified: true,
         payload,
+        caseId: proposalCaseId,
       });
+
+      // Org cancelled the proposal.
+      if (proposalCaseId) {
+        await closeCase(
+          { caseId: proposalCaseId, reason: "cancelled", closedByUserId: user.id },
+          tx,
+        );
+      }
 
       // Notify volunteer.
       pendingNotifications.push({

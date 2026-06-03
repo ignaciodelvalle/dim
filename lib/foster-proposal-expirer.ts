@@ -18,6 +18,7 @@ import {
   organizationMemberships,
   petEvents,
 } from "@/db";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 export type ExpireFosterProposalsStats = {
@@ -86,6 +87,12 @@ export async function expireFosterProposals(): Promise<ExpireFosterProposalsStat
           .set({ status: "expired", updatedAt: now })
           .where(eq(fosterProposals.id, p.id));
 
+        // Cases system: resolve case_id (new rows have it directly; pre-migration
+        // rows fall back to the open-case query). The recheck above confirmed the
+        // proposal is still pending, so the case is still open.
+        const proposalCaseId =
+          p.caseId ?? (await findOpenCaseForPetAndKind(p.petId, "foster_proposal"))?.id ?? null;
+
         const payload = validateEventPayload("foster_proposal_resolved", {
           proposal_public_token: p.publicToken,
           outcome: "expired",
@@ -100,7 +107,13 @@ export async function expireFosterProposals(): Promise<ExpireFosterProposalsStat
           authorOrganizationId: p.organizationId,
           authorVerified: false,
           payload,
+          caseId: proposalCaseId,
         });
+
+        // Auto-expired = auto_expired closed reason.
+        if (proposalCaseId) {
+          await closeCase({ caseId: proposalCaseId, reason: "auto_expired" }, tx);
+        }
 
         await tx.insert(notifications).values({
           userId: p.volunteerUserId,

@@ -13,12 +13,10 @@
 // cancelled / expired) are discriminated by closed_reason/payload — they are
 // NOT phases; they describe a closed case.
 //
-// Cron close: NOT wired yet. The cron /api/cron/expire-foster-proposals already
-// exists and marks foster_proposals rows expired, but proposeFosterAction does
-// NOT open a cases row (no INSERT cases in the transaction). cronCloseRoute is
-// set to null until the case-opening action is implemented and a case_id column
-// is linked to foster_proposals, at which point the cron can look up and close
-// the cases row.
+// Cron close: /api/cron/expire-foster-proposals. proposeFosterAction opens a
+// cases row and writes its id to foster_proposals.case_id (migration 0068).
+// The expirer cron resolves case_id from the proposal row (or falls back to
+// findOpenCaseForPetAndKind) and calls closeCase with reason='auto_expired'.
 //
 // No reopen — if a volunteer declines, the org opens a new proposal.
 
@@ -37,11 +35,8 @@ export const fosterProposalLifecycle: CaseLifecycle = {
     },
   ],
   terminalEvents: ["foster_proposal_resolved"],
-  // cronCloseRoute is null because proposeFosterAction does not yet open a
-  // cases row. The cron wiring lands together with the case-opening action
-  // (foster_proposed → INSERT cases). See comment above.
-  cronCloseRoute: null,
-  cronCloseScheduleHours: 0,
+  cronCloseRoute: "/api/cron/expire-foster-proposals",
+  cronCloseScheduleHours: 24,
   manualOpenAllowed: false,
   reopenAllowed: false,
 };
