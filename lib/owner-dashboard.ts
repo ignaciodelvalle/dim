@@ -1312,17 +1312,18 @@ export async function countPendingApplications(userId: string): Promise<number> 
  */
 export async function countPendingTransfers(userId: string, email: string): Promise<number> {
   const normalizedEmail = email.toLowerCase();
+  // Include the email branch only when the caller has a non-empty email
+  // (defense-in-depth: phone-only / OAuth-without-email accounts must not
+  // match rows with an empty toOwnerEmail).
+  const recipientMatch = normalizedEmail
+    ? or(
+        eq(petTransfers.toOwnerId, userId),
+        and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, normalizedEmail)),
+      )
+    : eq(petTransfers.toOwnerId, userId);
   const [row] = await db
     .select({ n: count() })
     .from(petTransfers)
-    .where(
-      and(
-        eq(petTransfers.status, "pending"),
-        or(
-          eq(petTransfers.toOwnerId, userId),
-          and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, normalizedEmail)),
-        ),
-      ),
-    );
+    .where(and(eq(petTransfers.status, "pending"), recipientMatch));
   return row?.n ?? 0;
 }

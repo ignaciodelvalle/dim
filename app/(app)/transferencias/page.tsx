@@ -33,6 +33,16 @@ export default async function TransferenciasHubPage() {
   const { data: authData } = await supabase.auth.getUser();
   const callerEmail = (authData?.user?.email ?? "").toLowerCase();
 
+  // Recipient match predicate: always match by toOwnerId; include the email
+  // branch only when callerEmail is non-empty (defense-in-depth against
+  // phone-only / OAuth-without-email accounts where email could be "").
+  const recipientMatch = callerEmail
+    ? or(
+        eq(petTransfers.toOwnerId, user.id),
+        and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, callerEmail)),
+      )
+    : eq(petTransfers.toOwnerId, user.id);
+
   // Active: pending transfers where the caller is the intended recipient.
   // Dual OR: resolved recipients (toOwnerId set) OR unregistered recipients
   // (toOwnerId NULL but email matches).
@@ -47,15 +57,7 @@ export default async function TransferenciasHubPage() {
     .from(petTransfers)
     .innerJoin(pets, eq(pets.id, petTransfers.petId))
     .leftJoin(profiles, eq(profiles.id, petTransfers.fromOwnerId))
-    .where(
-      and(
-        eq(petTransfers.status, "pending"),
-        or(
-          eq(petTransfers.toOwnerId, user.id),
-          and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, callerEmail)),
-        ),
-      ),
-    )
+    .where(and(eq(petTransfers.status, "pending"), recipientMatch))
     .orderBy(desc(petTransfers.initiatedAt));
 
   // History: resolved transfers.  Once accepted/rejected the toOwnerId is
@@ -72,15 +74,7 @@ export default async function TransferenciasHubPage() {
     .from(petTransfers)
     .innerJoin(pets, eq(pets.id, petTransfers.petId))
     .leftJoin(profiles, eq(profiles.id, petTransfers.fromOwnerId))
-    .where(
-      and(
-        inArray(petTransfers.status, [...HISTORY_STATUSES]),
-        or(
-          eq(petTransfers.toOwnerId, user.id),
-          and(isNull(petTransfers.toOwnerId), eq(petTransfers.toOwnerEmail, callerEmail)),
-        ),
-      ),
-    )
+    .where(and(inArray(petTransfers.status, [...HISTORY_STATUSES]), recipientMatch))
     .orderBy(desc(petTransfers.respondedAt));
 
   return (
