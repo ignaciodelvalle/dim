@@ -4,8 +4,17 @@
 // are fast unit tests. They cover the same text patterns that the
 // event-capture-matcher tests exercise but verify the action's full
 // output contract: the resolved navigation URL.
+//
+// Route-shape note: tests for event types whose registry entry may change
+// (e.g. note/weight/medication/symptom moving from /eventos/nuevo/... to
+// ?sheet=... URLs) do NOT assert the literal path string. Instead they
+// assert that the action's output equals what buildCaptureDeeplink returns
+// for that intent — proving the action correctly delegates to the registry
+// regardless of how the registry routes the event type.
 
 import { quickCaptureAction } from "@/app/actions/quick-capture";
+import { matchCaptureIntent } from "@/lib/event-capture-matcher";
+import { buildCaptureDeeplink } from "@/lib/event-capture-registry";
 import { describe, expect, it } from "vitest";
 
 const TOKEN = "DIM-TEST-9X2F";
@@ -35,9 +44,13 @@ describe("quickCaptureAction — matched patterns", () => {
     expect(url).toMatch(/occurredAt=\d{4}-\d{2}-\d{2}/);
   });
 
-  it("peso text resolves to the weight form with kg prefilled", async () => {
-    const url = await resolve("pesa 12.5 kg");
-    expect(url).toContain(`/mis-mascotas/${TOKEN}/eventos/nuevo/peso`);
+  it("peso text delegates to the registry for the weight event URL", async () => {
+    const text = "pesa 12.5 kg";
+    const url = await resolve(text);
+    const match = matchCaptureIntent(text);
+    const expected = buildCaptureDeeplink(match!.eventType, TOKEN, match!.slots);
+    expect(url).toBe(expected);
+    // Slot sanity: the kg value must be captured and forwarded.
     expect(url).toContain("kg=12.5");
   });
 
@@ -66,9 +79,13 @@ describe("quickCaptureAction — matched patterns", () => {
     expect(url).toContain(`/mis-mascotas/${TOKEN}/eventos/nuevo/fallecimiento`);
   });
 
-  it("nota text resolves to the note form and places body in text slot", async () => {
-    const url = await resolve("anotar: comió bien hoy");
-    expect(url).toContain(`/mis-mascotas/${TOKEN}/eventos/nuevo/nota`);
+  it("nota text delegates to the registry for the note event URL", async () => {
+    const text = "anotar: comió bien hoy";
+    const url = await resolve(text);
+    const match = matchCaptureIntent(text);
+    const expected = buildCaptureDeeplink(match!.eventType, TOKEN, match!.slots);
+    expect(url).toBe(expected);
+    // Slot sanity: the note body must be forwarded via the text param.
     expect(url).toContain("text=");
   });
 
