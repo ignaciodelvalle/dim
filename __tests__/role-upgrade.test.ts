@@ -135,7 +135,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
       matriculaNumber: "MN-12345",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-NoGovt",
+      operationalLocality: "Balvanera",
       especialidad: "Clínica",
       anosExperiencia: 5,
     });
@@ -165,7 +165,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
     expect(req.status).toBe("pending");
     expect(req.targetUserId).toBe(userId);
     expect(req.jurisdictionProvince).toBe("CABA");
-    expect(req.jurisdictionLocality).toBe("Palermo-NoGovt");
+    expect(req.jurisdictionLocality).toBe("Balvanera");
     expect(req.publicToken).toMatch(/^APR-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
     const payload = req.payload as { matricula_number: string; payload_version: number };
     expect(payload.matricula_number).toBe("MN-12345");
@@ -182,7 +182,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
       );
     expect(applicantNotifs.length).toBeGreaterThan(0);
 
-    // No govt covers Palermo-NoGovt → admin gets the authority notification.
+    // No govt is assigned to CABA/Balvanera → admin gets the authority notification.
     const adminNotifs = await db
       .select()
       .from(notifications)
@@ -200,7 +200,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
       matriculaNumber: "MN-99999",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-NoGovt",
+      operationalLocality: "Balvanera",
     });
     expect(result.error).toMatch(/solicitud pendiente/i);
 
@@ -241,7 +241,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
       matriculaNumber: "MN-77777",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-NoGovt",
+      operationalLocality: "Balvanera",
     });
     expect(result.ok).toBe(true);
 
@@ -331,7 +331,7 @@ describe("createOrganizationForUser (Fase 1)", () => {
       cuit: "30712345678",
       email: "test@refugio.test",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Palermo-NoGovt",
+      jurisdictionLocality: "Balvanera",
     });
     expect(result.error).toBeNull();
     expect(result.ok).toBe(true);
@@ -343,7 +343,7 @@ describe("createOrganizationForUser (Fase 1)", () => {
     expect(org.verified).toBe(false);
     expect(org.status).toBe("active");
     expect(org.jurisdictionProvince).toBe("CABA");
-    expect(org.jurisdictionLocality).toBe("Palermo-NoGovt");
+    expect(org.jurisdictionLocality).toBe("Balvanera");
 
     const [membership] = await db
       .select()
@@ -372,7 +372,7 @@ describe("createOrganizationForUser (Fase 1)", () => {
       .limit(1);
     expect(req).toBeDefined();
     expect(req.status).toBe("pending");
-    expect(req.jurisdictionLocality).toBe("Palermo-NoGovt");
+    expect(req.jurisdictionLocality).toBe("Balvanera");
 
     const adminNotifs = await db
       .select()
@@ -395,7 +395,7 @@ describe("createOrganizationForUser (Fase 1)", () => {
       orgType: "clinic",
       email: "dup@refugio.test",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Palermo-NoGovt",
+      jurisdictionLocality: "Balvanera",
     });
     expect(result.error).toMatch(/Ya administrás una organización/);
 
@@ -417,7 +417,7 @@ describe("createOrganizationForUser (Fase 1)", () => {
       cuit: "30712345678", // same as userId's org
       email: "otro@refugio.test",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Palermo-NoGovt",
+      jurisdictionLocality: "Balvanera",
     });
     expect(result.error).toMatch(/Ya existe una organización con ese CUIT/);
   });
@@ -455,7 +455,7 @@ describe("DNI prerequisite enforcement", () => {
       matriculaNumber: "MN-PREREQ",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-NoGovt",
+      operationalLocality: "Balvanera",
     });
     expect(result.error).not.toBeNull();
     expect(result.missingPrereq).toBe("dni");
@@ -470,7 +470,7 @@ describe("DNI prerequisite enforcement", () => {
       orgType: "shelter",
       email: "prereq@test.test",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Palermo-NoGovt",
+      jurisdictionLocality: "Balvanera",
     });
     expect(result.error).not.toBeNull();
     expect(result.missingPrereq).toBe("dni");

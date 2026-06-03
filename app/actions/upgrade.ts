@@ -16,7 +16,10 @@ import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { getActiveMemberships } from "@/lib/capabilities";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
+import {
+  JurisdictionValidationError,
+  resolveCanonicalJurisdiction,
+} from "@/lib/jurisdiction-validation";
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken } from "@/lib/unique-token";
@@ -155,15 +158,23 @@ export async function requestVetUpgradeForUser(
 
   const matricula = input.matriculaNumber.trim();
   const matriculaJur = input.matriculaJurisdiccion.trim();
-  // Canonicalize operational jurisdiction against the INDEC catalog when
-  // it resolves; on a catalog miss we keep the trimmed input so submissions
-  // from yet-uncatalogued localities (notably CABA barrios) still land.
-  const opJurisdiction = await tryResolveCanonicalJurisdiction({
-    rawProvince: input.operationalProvince,
-    rawLocality: input.operationalLocality,
-  });
-  const opProvince = opJurisdiction.province;
-  const opLocality = opJurisdiction.locality;
+  // Canonicalize operational jurisdiction strictly against the INDEC catalog.
+  // validateVetInput already guarantees both fields are non-empty (2-60 chars).
+  let opProvince: string;
+  let opLocality: string;
+  try {
+    const opJurisdiction = await resolveCanonicalJurisdiction({
+      rawProvince: input.operationalProvince,
+      rawLocality: input.operationalLocality,
+    });
+    opProvince = opJurisdiction.province.name;
+    opLocality = opJurisdiction.locality.localityName;
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const especialidad = input.especialidad?.trim() || null;
   const anosExperiencia =
     typeof input.anosExperiencia === "number" && Number.isFinite(input.anosExperiencia)
@@ -341,12 +352,23 @@ export async function createOrganizationForUser(
     generateApprovalRequestToken,
   );
   const cuit = input.cuit ? input.cuit.replace(/-/g, "") : null;
-  const orgJurisdiction = await tryResolveCanonicalJurisdiction({
-    rawProvince: input.jurisdictionProvince,
-    rawLocality: input.jurisdictionLocality,
-  });
-  const province = orgJurisdiction.province;
-  const locality = orgJurisdiction.locality;
+  // Canonicalize org jurisdiction strictly against the INDEC catalog.
+  // validateOrgInput already guarantees both fields are non-empty (2-60 chars).
+  let province: string;
+  let locality: string;
+  try {
+    const orgJurisdiction = await resolveCanonicalJurisdiction({
+      rawProvince: input.jurisdictionProvince,
+      rawLocality: input.jurisdictionLocality,
+    });
+    province = orgJurisdiction.province.name;
+    locality = orgJurisdiction.locality.localityName;
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   let organizationId: string;
 
   let payload: unknown;

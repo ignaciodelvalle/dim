@@ -6,10 +6,10 @@
 //
 // Scope clause pattern mirrors lib/govt-dashboards.ts.
 
-import { and, count, countDistinct, gte, inArray, lt, not, sql } from "drizzle-orm";
+import { and, count, countDistinct, gte, inArray, lt, not, sql, sum } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
-import { cases, db, petEvents, pets, welfareReports } from "@/db";
+import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from "@/db";
 
 export type DashboardActor = { role: "admin" | "govt" };
 export type DashboardJurisdiction = { province: string; locality: string };
@@ -216,11 +216,42 @@ export type BitesPer10kKpi = {
   reports: number;
 };
 
-// v1 population estimate: 3_000_000 for admin / universal scope. For scoped
-// govt views, derive a rough estimate from distinct localities * 50_000.
-// TODO(L-followup): replace with census data from a jurisdictions table.
-const ADMIN_POPULATION_ESTIMATE = 3_000_000;
-const LOCALITY_POPULATION_ESTIMATE = 50_000;
+/**
+ * Fetch the census-based population for the given jurisdictions.
+ *
+ * For admin (universal) scope: sum ALL rows in jurisdictions_census.
+ * For scoped govt views: sum only the provinces present in the viewer's
+ *   jurisdictions list (deduplicated — multiple localities in the same
+ *   province count only once).
+ *
+ * Falls back to 0 when the table is empty or a province has no census row;
+ * callers must guard against division by zero before using the result.
+ */
+async function fetchCensusPopulation(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<number> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return 0;
+
+  if (actor.role === "admin") {
+    // Sum the entire census table for the national total.
+    const rows = await db
+      .select({ total: sum(jurisdictionsCensus.population) })
+      .from(jurisdictionsCensus);
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  // Scoped: deduplicate to unique province names, then sum those rows.
+  const uniqueProvinces = [...new Set(jurisdictions.map((j) => j.province))];
+  if (uniqueProvinces.length === 0) return 0;
+
+  const rows = await db
+    .select({ total: sum(jurisdictionsCensus.population) })
+    .from(jurisdictionsCensus)
+    .where(inArray(jurisdictionsCensus.provinceName, uniqueProvinces));
+
+  return Number(rows[0]?.total ?? 0);
+}
 
 export async function fetchBitesPer10k(
   actor: DashboardActor,
@@ -249,7 +280,7 @@ export async function fetchBitesPer10k(
     lt(petEvents.occurredAt, since12m),
   ];
 
-  const [currentRows, prevRows] = await Promise.all([
+  const [currentRows, prevRows, population] = await Promise.all([
     db
       .select({ n: count() })
       .from(petEvents)
@@ -258,16 +289,15 @@ export async function fetchBitesPer10k(
       .select({ n: count() })
       .from(petEvents)
       .where(and(...prevConditions)),
+    fetchCensusPopulation(actor, jurisdictions),
   ]);
 
   const reports = currentRows[0]?.n ?? 0;
   const prevReports = prevRows[0]?.n ?? 0;
 
-  const population =
-    actor.role === "admin"
-      ? ADMIN_POPULATION_ESTIMATE
-      : jurisdictions.length * LOCALITY_POPULATION_ESTIMATE;
-
+  // Guard: if no census row exists for this jurisdiction, rate is 0 rather than
+  // throwing a division-by-zero. This keeps the KPI card functional even before
+  // the census table is fully seeded in a new environment.
   const rate = population === 0 ? 0 : Math.round((reports / (population / 10_000)) * 10) / 10;
   const prevRate =
     population === 0 ? 0 : Math.round((prevReports / (population / 10_000)) * 10) / 10;

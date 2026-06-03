@@ -28,7 +28,10 @@ import { requireCapability } from "@/lib/capabilities";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
-import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
+import {
+  JurisdictionValidationError,
+  resolveCanonicalJurisdiction,
+} from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
@@ -164,17 +167,24 @@ export async function createIntakeAction(
   const { parsed, error: parseError } = parseIntakeForm(formData);
   if (parseError || !parsed) return { error: parseError ?? "Datos inválidos." };
 
-  // Canonicalize the pet's jurisdiction against the INDEC catalog (tolerant
-  // variant). The intake form sets jurisdiction from the shared
-  // LocationFields component; we normalize here so org-side intakes
-  // converge on the same spelling as owner-side registrations.
+  // Canonicalize the pet's jurisdiction strictly against the INDEC catalog.
+  // The intake form uses LocationFields (forces a catalog selection); this
+  // validates crafted/bypassed requests and ensures org-side intakes converge
+  // on the same canonical spelling as owner-side registrations.
   if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
-    const canonical = await tryResolveCanonicalJurisdiction({
-      rawProvince: parsed.jurisdictionProvince,
-      rawLocality: parsed.jurisdictionLocality,
-    });
-    parsed.jurisdictionProvince = canonical.province;
-    parsed.jurisdictionLocality = canonical.locality;
+    try {
+      const canonical = await resolveCanonicalJurisdiction({
+        rawProvince: parsed.jurisdictionProvince,
+        rawLocality: parsed.jurisdictionLocality,
+      });
+      parsed.jurisdictionProvince = canonical.province.name;
+      parsed.jurisdictionLocality = canonical.locality.localityName;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      throw err;
+    }
   }
 
   // Lost & Found Fase 7 — validate chip format (ISO 11784/11785, 15 digits)

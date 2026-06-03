@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 
 // EventCatcher v3 — the home-screen entry point for logging a pet event.
 //
@@ -17,10 +17,14 @@ import { useRef, useState } from "react";
 //   - "Mis mascotas" list moved off the home; the pet picker IS the pet
 //     list now. Use the second-tap to navigate to the full profile.
 //
-// The free-text → parsed event matcher still lives at
-// `/mis-mascotas/{token}/anotar`. EventCatcher passes pet + text + kind in
-// the URL so the matcher pre-fills on landing.
+// The free-text → parsed event matcher has moved to a server action
+// (`app/actions/quick-capture.ts`). EventCatcher calls it on submit and
+// navigates directly to the resolved form URL. When no pattern matches,
+// it falls back to `/anotar?text=...` so the CaptureBox page can surface
+// the "no reconocemos eso" UI. Kind-based quick chips still use
+// buildAnotarUrl → /anotar?kind=... (no text parsing needed).
 
+import { quickCaptureAction } from "@/app/actions/quick-capture";
 import { Button } from "@/components/poncho";
 import type { EventType } from "@/db/schema";
 
@@ -94,7 +98,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
   const visiblePets = pets.filter((p) => p.status !== "deceased").slice(0, 8);
   const [activeId, setActiveId] = useState<string | undefined>(visiblePets[0]?.id);
   const [text, setText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const lastTapRef = useRef<{ id: string; at: number }>({ id: "", at: 0 });
 
   const active = visiblePets.find((p) => p.id === activeId);
@@ -114,7 +118,6 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
   }
 
   function go(href: string) {
-    setSubmitting(true);
     router.push(href);
   }
 
@@ -139,9 +142,15 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
 
   function onSubmit() {
     if (!active || text.trim().length < 3) return;
-    const url =
-      `/mis-mascotas/${active.publicToken}/anotar` + `?text=${encodeURIComponent(text.trim())}`;
-    go(url);
+    const token = active.publicToken;
+    const trimmed = text.trim();
+    startTransition(async () => {
+      const { url } = await quickCaptureAction(token, trimmed);
+      // If the action matched a pattern, go straight to the form. Otherwise
+      // fall back to /anotar?text=... so CaptureBox can surface the
+      // "no reconocemos eso" UI — identical to the previous behavior.
+      go(url ?? `/mis-mascotas/${token}/anotar?text=${encodeURIComponent(trimmed)}`);
+    });
   }
 
   function onQuick(kind: EventType) {
@@ -191,7 +200,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
             key={k}
             type="button"
             onClick={() => onQuick(k)}
-            disabled={!active || submitting}
+            disabled={!active || isPending}
             className="rounded-md border border-gob-border bg-white px-3 py-2 text-sm font-medium text-gob-text-gray transition-colors hover:bg-gob-surface-alt disabled:bg-gob-surface-alt disabled:text-gob-text-muted"
           >
             {QUICK_LABELS[k]}
@@ -202,9 +211,9 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
           variant="success"
           size="md"
           onClick={onSubmit}
-          disabled={!active || text.trim().length < 3 || submitting}
+          disabled={!active || text.trim().length < 3 || isPending}
         >
-          {submitting ? "Abriendo…" : "Anotar"}
+          {isPending ? "Abriendo…" : "Anotar"}
         </Button>
       </div>
 
