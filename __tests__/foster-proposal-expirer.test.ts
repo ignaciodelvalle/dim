@@ -233,4 +233,48 @@ describe("expireFosterProposals", () => {
       .where(eq(fosterProposals.id, rejected.id));
     expect(row.status).toBe("rejected");
   });
+
+  it("recovery — proposals that survived a partial prior run are picked up on the next run", async () => {
+    // Simulate a partial prior run: two stale pending proposals exist. The
+    // prior run expired one (we update it manually) but did not reach the
+    // second (simulating a crash or per-row error mid-batch). The next full
+    // run must pick up and expire the surviving pending one.
+    await db.delete(fosterProposals).where(eq(fosterProposals.petId, petId));
+
+    const alreadyExpired = await insertProposal({ status: "pending", expiresAtMsFromNow: -3000 });
+    const survivingPending = await insertProposal({ status: "pending", expiresAtMsFromNow: -3000 });
+
+    // Simulate the partial prior run: manually flip the first proposal to
+    // 'expired' (as if a previous cron run succeeded for it but crashed before
+    // reaching the second).
+    await db
+      .update(fosterProposals)
+      .set({ status: "expired", updatedAt: new Date() })
+      .where(eq(fosterProposals.id, alreadyExpired.id));
+
+    // The surviving proposal is still pending. Run the handler — it should
+    // find exactly 1 candidate (the surviving one) and expire it.
+    const stats = await expireFosterProposals();
+    expect(stats.candidates).toBe(1);
+    expect(stats.expired).toBe(1);
+    expect(stats.errors).toBe(0);
+
+    const [survivingRow] = await db
+      .select({ status: fosterProposals.status })
+      .from(fosterProposals)
+      .where(eq(fosterProposals.id, survivingPending.id));
+    expect(survivingRow.status).toBe("expired");
+
+    // The already-expired row must still be 'expired' — not double-processed.
+    const [alreadyRow] = await db
+      .select({ status: fosterProposals.status })
+      .from(fosterProposals)
+      .where(eq(fosterProposals.id, alreadyExpired.id));
+    expect(alreadyRow.status).toBe("expired");
+
+    // Cleanup events emitted by expireFosterProposals.
+    await withMutationOverride(async (tx) => {
+      await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+    });
+  });
 });
