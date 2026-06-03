@@ -187,14 +187,16 @@ describe("materializeAllActiveSlots", () => {
 
     const second = await materializeAllActiveSlots();
     expect(second.rulesProcessed).toBeGreaterThanOrEqual(1);
-    // Second run must insert 0 new slots for this offering (all conflicts).
-    expect(second.slotsInserted).toBe(0);
 
     const [countAfterSecond] = await db
       .select({ n: count() })
       .from(timeSlots)
       .where(eq(timeSlots.serviceOfferingId, offeringId));
-    // The total count must be identical — no duplicates.
+    // The per-offering slot count must be identical after the second run — no
+    // duplicates for THIS offering. We intentionally avoid asserting
+    // `slotsInserted === 0` because that is a global counter across all active
+    // offerings in the DB and can be non-zero due to other offerings or a
+    // day-boundary insertion, causing false failures.
     expect(countAfterSecond.n).toBe(slotsAfterFirst);
   });
 
