@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { db, organizationMemberships, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
+import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { PrivacySection } from "./_components/PrivacySection";
 
 // Role display labels — Argentine Spanish, gendered in context where possible.
@@ -129,7 +131,7 @@ export default async function CuentaPage() {
               <span className="text-sm text-gob-text-muted">
                 DNI no provisto —{" "}
                 <Link
-                  href="/cuenta/verificar-dni"
+                  href="?sheet=verificar-dni"
                   className="underline underline-offset-2 text-gob-text-gray hover:text-gob-text"
                 >
                   Verificar ahora
@@ -193,8 +195,9 @@ export default async function CuentaPage() {
         <h2 className="text-base font-semibold text-gob-text">Acciones rápidas</h2>
 
         <div className="space-y-2">
+          {/* editar-perfil — opens inline sheet (?sheet=editar-perfil) */}
           <ActionCard
-            href="/cuenta/editar"
+            href="?sheet=editar-perfil"
             label="Editar mi información"
             description="Nombre, teléfono y foto de perfil"
           />
@@ -209,8 +212,9 @@ export default async function CuentaPage() {
             description="Estado de tus solicitudes de rol"
           />
           {profile.role === "owner" && (
+            /* solicitar-upgrade-vet — opens inline sheet (?sheet=solicitar-upgrade-vet) */
             <ActionCard
-              href="/cuenta/upgrade"
+              href="?sheet=solicitar-upgrade-vet"
               label="Convertirme en profesional / organización"
               description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
             />
@@ -245,13 +249,15 @@ export default async function CuentaPage() {
             </>
           )}
           {profile.role === "vet" && (
+            /* renunciar-rol — opens inline sheet (?sheet=renunciar-rol) */
             <ActionCard
-              href="/cuenta/renunciar"
+              href="?sheet=renunciar-rol"
               label="Renunciar a rol veterinario"
               description="Volvés a rol dueño/a"
             />
           )}
           {profile.role === "govt" && profile.accountType === "institutional" && (
+            // desactivar — stays as full page (needs per-locality coverage data)
             <ActionCard
               href="/cuenta/desactivar"
               label="Desactivar mi cuenta"
@@ -270,6 +276,25 @@ export default async function CuentaPage() {
           ← Volver a mis mascotas
         </Link>
       </div>
+
+      {/* Sheet mounter — driven by ?sheet=<id> URL param.
+          Renders nothing when the param is absent or unknown.
+          Suspense is required because CuentaSheetMounter uses useSearchParams. */}
+      <Suspense>
+        <CuentaSheetMounter
+          initialProfile={{
+            displayName: profile.displayName ?? "",
+            phone: profile.phone ?? "",
+            avatarUrl: profile.avatarUrl ?? "",
+            preferredVetName: profile.preferredVetName ?? "",
+            preferredVetPhone: profile.preferredVetPhone ?? "",
+            emergencyContactName: profile.emergencyContactName ?? "",
+            emergencyContactPhone: profile.emergencyContactPhone ?? "",
+          }}
+          role={profile.role}
+          dniVerified={profile.dniVerified}
+        />
+      </Suspense>
     </div>
   );
 }
