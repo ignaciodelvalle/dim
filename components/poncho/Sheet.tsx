@@ -48,13 +48,13 @@ export function Sheet({ id, title, open, onClose, size = "md", children }: Sheet
     >
       <Drawer.Portal>
         {/* Overlay */}
-        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Drawer.Overlay className="fixed inset-0 z-[var(--z-drawer)] bg-black/40" />
 
         {/* Content */}
         <Drawer.Content
           aria-labelledby={`sheet-title-${id}`}
           className={[
-            "fixed bottom-0 right-0 z-50 flex flex-col",
+            "fixed bottom-0 right-0 z-[var(--z-sheet)] flex flex-col",
             "h-[85dvh] w-full",
             // Desktop: right-drawer constrained width, full height
             `md:top-0 md:h-full ${widthClass}`,
