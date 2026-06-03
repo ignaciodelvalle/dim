@@ -3228,3 +3228,29 @@ export type RefTipoEventoSanitario = typeof refTipoEventoSanitario.$inferSelect;
 export type RefViaAplicacion = typeof refViaAplicacion.$inferSelect;
 export type RefJurisdiccionSanitaria = typeof refJurisdiccionSanitaria.$inferSelect;
 export type RefIdentificationKindNorma = typeof refIdentificationKindNorma.$inferSelect;
+
+// ============================================================================
+// jurisdictions_census — INDEC Censo 2022 province-level population totals
+// ============================================================================
+// Static reference table for official Argentine census populations.
+// Keyed by province_name (canonical display name) so it joins directly
+// with jurisdiction_province on pets, cases, welfare_reports, etc.
+// See lib/jurisdiction-canonical.ts for the canonical name list.
+//
+// Migration 0067_jurisdictions_census.sql seeds the 24 INDEC 2022 rows.
+// Source: INDEC, Censo Nacional de Población, Hogares y Viviendas 2022
+// https://www.indec.gob.ar/indec/web/Nivel4-Tema-2-41-165
+
+export const jurisdictionsCensus = pgTable("jurisdictions_census", {
+  /** Canonical province display name — same value as jurisdiction_province on pets/cases/welfare_reports. */
+  provinceName: text("province_name").primaryKey(),
+  /** Total provincial population per official census release. */
+  population: integer("population").notNull(),
+  /** Four-digit census year (e.g. 2022). */
+  censusYear: smallint("census_year").notNull(),
+  /** Human-readable source citation. */
+  source: text("source").notNull(),
+});
+
+export type JurisdictionCensus = typeof jurisdictionsCensus.$inferSelect;
+export type NewJurisdictionCensus = typeof jurisdictionsCensus.$inferInsert;

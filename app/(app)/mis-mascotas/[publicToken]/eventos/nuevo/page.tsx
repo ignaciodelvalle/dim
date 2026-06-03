@@ -155,7 +155,7 @@ export default async function PickEventPage({
               Esta mascota está registrada como fallecida. Solo podés agregar notas.
             </p>
             <Link
-              href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
+              href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}
               className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
             >
               + Agregar nota
@@ -217,10 +217,19 @@ function EventOptionRow({
   option: EventOption;
   pet: { publicToken: string };
 }) {
+  // Kinds that are now handled by URL-driven sheets on the pet profile page.
+  const SHEET_SLUGS: Record<string, string> = {
+    nota: "nota",
+    "medicacion-inicio": "medicacion",
+    peso: "peso",
+    sintoma: "sintoma",
+  };
   const href =
     option.slug === "estado"
       ? `/mis-mascotas/${pet.publicToken}/perdida`
-      : (option.href ?? `/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`);
+      : option.slug in SHEET_SLUGS
+        ? `/mis-mascotas/${pet.publicToken}?sheet=${SHEET_SLUGS[option.slug]}`
+        : (option.href ?? `/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`);
   if (!option.enabled) {
     return (
       <li>
