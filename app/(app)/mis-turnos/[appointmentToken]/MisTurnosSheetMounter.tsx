@@ -14,7 +14,7 @@ import { Sheet } from "@/components/poncho";
 import { Button } from "@/components/poncho/Button";
 import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 
 import { cancelAppointmentByOwnerAction } from "@/app/actions/booking";
 
@@ -58,15 +58,15 @@ function CancelarTurnoConfirmation({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit() {
+    setError(null);
     startTransition(async () => {
       const result = await action();
       if ("error" in result) {
-        // Surface error inline — no browser alert.
-        // Close the sheet and let the page re-validate on the next render.
-        console.error("[cancelar-turno]", result.error);
-        onCancel();
+        // Show the error inline — keep the sheet open so the user can retry.
+        setError(result.error);
         return;
       }
       // Refresh so status badge + cancel button update, then close sheet.
@@ -80,6 +80,11 @@ function CancelarTurnoConfirmation({
       <p className="text-sm text-gob-text-gray">
         ¿Seguro que querés cancelar este turno? Esta acción no se puede deshacer.
       </p>
+      {error && (
+        <p className="text-sm text-gob-danger" role="alert">
+          {error}
+        </p>
+      )}
       <div className="flex gap-3">
         <Button type="button" variant="danger" size="md" loading={pending} onClick={handleSubmit}>
           Sí, cancelar
