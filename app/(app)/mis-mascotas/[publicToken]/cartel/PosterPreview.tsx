@@ -50,7 +50,6 @@ export function PosterPreview({
   qrSvg,
 }: PosterPreviewProps) {
   const [grayscale, setGrayscale] = useState(false);
-  const [reward, setReward] = useState("");
   const [extraText, setExtraText] = useState("");
 
   const identityParts = [species, breed, sex, age].filter(Boolean).join(" · ");
@@ -157,20 +156,6 @@ export function PosterPreview({
             )}
           </div>
         )}
-
-        {/* Reward — inline-editable, local state only */}
-        <div className="border border-dashed border-gob-warning rounded-xl p-3 space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gob-warning-text">
-            💰 Recompensa
-          </p>
-          <textarea
-            value={reward}
-            onChange={(e) => setReward(e.target.value)}
-            placeholder="Escribí aquí el monto o descripción de la recompensa (solo visible en este cartel impreso)"
-            rows={2}
-            className="w-full text-sm text-gob-text bg-transparent resize-none focus:outline-none placeholder:text-gob-text-muted"
-          />
-        </div>
 
         {/* Owner contact */}
         {(ownerFirstName || ownerPhone) && (
