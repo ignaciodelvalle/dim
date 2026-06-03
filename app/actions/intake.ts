@@ -15,6 +15,11 @@
 //
 // Lost & Found Fase 7: microchipId is validated against ISO 11784/11785 (15
 // digits) before the cross-check so malformed chip strings never reach the DB.
+//
+// Tattoo match (D2): if tattooCode is provided, a cross-check is performed
+// after the chip check. On a match, returns TATTOO_MATCH_POSSIBLE advisory
+// with a tattooAckToken. Re-submitting with a valid tattooAckToken proceeds.
+// Never auto-merges; always "posible coincidencia, verificá con foto".
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
@@ -27,6 +32,8 @@ import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
+import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";
+import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/unique-token";
 import { redirect } from "next/navigation";
 
@@ -35,9 +42,13 @@ export type IntakeFormState = {
   // Present when a chip cross-check found an active match (WARN state).
   // The UI should show the conflict details and offer a "continue anyway" path
   // backed by the forceToken.
-  warning?: "CHIP_MATCH_ACTIVE";
+  warning?: "CHIP_MATCH_ACTIVE" | "TATTOO_MATCH_POSSIBLE";
   matchedPetToken?: string;
+  // Chip bypass token — bound to the microchip code, expires in 15 min.
   forceToken?: string;
+  // Tattoo advisory ack token — bound to the normalized tattoo code, expires in 15 min.
+  // Re-submitting with a valid tattooAckToken skips the tattoo cross-check.
+  tattooAckToken?: string;
   // Optional success flag. Default success path is a redirect to the org
   // mascotas list. The intake wizard (sprint 4 PR-030) passes noRedirect=1
   // so it can render its own SuccessScreen with the new pet's name + token.
@@ -105,6 +116,13 @@ function parseIntakeForm(formData: FormData) {
   const breed = String(formData.get("breed") ?? "").trim() || null;
   const microchipId = String(formData.get("microchipId") ?? "").trim() || null;
 
+  // Tattoo code — stored normalized (trim + uppercase + collapse whitespace).
+  // Pass raw input to lookupByTattoo (it normalizes internally). For the
+  // pets row write we normalize here to keep the DB consistent with
+  // every other writer (createTattooForUser pattern).
+  const tattooCodeRaw = String(formData.get("tattooCode") ?? "").trim();
+  const tattooCode = tattooCodeRaw ? normalizeTattooCode(tattooCodeRaw) : null;
+
   return {
     parsed: {
       name,
@@ -119,6 +137,7 @@ function parseIntakeForm(formData: FormData) {
       microchipCountryCode: microchipId
         ? String(formData.get("microchipCountryCode") ?? "").trim() || null
         : null,
+      tattooCode,
       jurisdictionProvince:
         provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null,
       jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
@@ -207,11 +226,31 @@ export async function createIntakeAction(
     }
   }
 
-  // TODO(tattoo-match-intake-field): tatuaje cross-check (D2 closed 2026-05-22).
-  // lib/tattoo-lookup.ts exports lookupByTattoo, mirroring the chip check above.
-  // Wire it here when the intake form surfaces a `tattooCode` field. Surface
-  // must be "posible coincidencia, verificá con foto" — never auto-merge, since
-  // tattoo codes collide across registries. See plan Chunk B.5.
+  // Tattoo cross-check (D2) — advisory only, never auto-merge.
+  // Tattoo codes collide across registries; we surface a warning and require
+  // visual verification ("posible coincidencia, verificá con foto").
+  // On re-submit with a valid tattooAckToken the check is skipped — the
+  // operator has asserted the animals are different after photo review.
+  if (parsed.tattooCode) {
+    const tattooAckToken = String(formData.get("tattooAckToken") ?? "").trim();
+    const ackValid = tattooAckToken
+      ? validateTattooAckToken(parsed.tattooCode, tattooAckToken)
+      : false;
+
+    if (!ackValid) {
+      const tattooMatch = await lookupByTattoo(parsed.tattooCode);
+      if (tattooMatch && tattooMatch.pet.status !== "deceased") {
+        // Advisory: surface the possible match so the operator can photo-verify.
+        return {
+          error: null,
+          warning: "TATTOO_MATCH_POSSIBLE",
+          matchedPetToken: tattooMatch.pet.publicToken,
+          tattooAckToken: generateTattooAckToken(parsed.tattooCode),
+        };
+      }
+    }
+    // Ack token valid, or no match (or only deceased match) → proceed.
+  }
 
   const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
   const now = new Date();
@@ -247,6 +286,7 @@ export async function createIntakeAction(
           distinguishingFeatures: parsed.distinguishingFeatures,
           microchipId: parsed.microchipId,
           microchipCountryCode: parsed.microchipCountryCode,
+          tattooCode: parsed.tattooCode,
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
           potentiallyDangerousBreed: potentiallyDangerousBreed,
