@@ -9,7 +9,7 @@
 //   3. tryResolveCanonicalJurisdiction — soft fallback (kept for service-offerings)
 //   4. CABA barrios round-trip: "CABA" + "Palermo" resolves, canonical name is preserved
 
-import { count as countFn, isNull } from "drizzle-orm";
+import { and, count as countFn, eq, isNull } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
@@ -32,10 +32,9 @@ beforeAll(async () => {
   const [caba] = await db
     .select({ count: countFn() })
     .from(arLocalities)
-    .where(isNull(arLocalities.removedAt));
-  // CABA barrios are present when the catalog has AR-C rows from caba_open_data.
-  // We re-use the total check above as a proxy — bootstrap imports both.
-  cabaBarriosPopulated = catalogPopulated;
+    .where(and(eq(arLocalities.provinceCode, "AR-C"), isNull(arLocalities.removedAt)));
+  // CABA barrios (48 barrios, Ley CABA 1.777) are present only after bootstrap step 4.
+  cabaBarriosPopulated = Number(caba?.count ?? 0) > 0;
 });
 
 // ---------------------------------------------------------------------------
