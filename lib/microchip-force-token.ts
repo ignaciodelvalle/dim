@@ -30,7 +30,12 @@ function getSigningKey(): string {
   if (process.env.MICROCHIP_FORCE_SECRET) return process.env.MICROCHIP_FORCE_SECRET;
   // Fallback: derive from SUPABASE_SERVICE_ROLE_KEY (always present in app env).
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY;
-  // Last resort for tests where neither var is set.
+  // Last resort for tests where neither var is set — fail closed in production.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "MICROCHIP_FORCE_SECRET (or SUPABASE_SERVICE_ROLE_KEY) must be set in production.",
+    );
+  }
   return "dim-dev-fallback-key-not-for-production";
 }
 

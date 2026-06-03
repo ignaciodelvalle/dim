@@ -23,12 +23,25 @@ const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 function getSigningKey(): string {
   if (process.env.TATTOO_ACK_SECRET) return process.env.TATTOO_ACK_SECRET;
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("TATTOO_ACK_SECRET (or SUPABASE_SERVICE_ROLE_KEY) must be set in production.");
+  }
   return "dim-dev-fallback-key-not-for-production";
 }
 
 /** Generate a signed acknowledgement token for the given tattoo code. */
 export function generateTattooAckToken(tattooCode: string): string {
-  const ts = Date.now().toString();
+  return generateTattooAckTokenAtTime(tattooCode, Date.now());
+}
+
+/**
+ * Test-only: generate a token whose timestamp is set to `atMs`.
+ * Produces a valid MAC over the old timestamp so TTL tests exercise the
+ * expiry path rather than the MAC-mismatch path.
+ * @internal
+ */
+export function generateTattooAckTokenAtTime(tattooCode: string, atMs: number): string {
+  const ts = atMs.toString();
   const key = getSigningKey();
   const mac = createHmac("sha256", key).update(`tattoo:${tattooCode}:${ts}`).digest("hex");
   return `${Buffer.from(mac, "hex").toString("base64url")}.${ts}`;

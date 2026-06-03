@@ -14,8 +14,12 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, pets } from "@/db";
-import { generateForceToken } from "@/lib/microchip-force-token";
-import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";
+import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
+import {
+  generateTattooAckToken,
+  generateTattooAckTokenAtTime,
+  validateTattooAckToken,
+} from "@/lib/tattoo-ack-token";
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { withMutationOverride } from "../_helpers/db-overrides";
 
@@ -48,13 +52,13 @@ describe("tattoo-ack-token: generateTattooAckToken / validateTattooAckToken", ()
     expect(validateTattooAckToken("K9-ANY", "abc.notanumber")).toBe(false);
   });
 
-  it("expired token (simulated) fails validation", () => {
+  it("expired token (TTL path) fails validation", () => {
+    // generateTattooAckTokenAtTime produces a correctly-MACed token whose
+    // timestamp is in the past, so rejection is due to TTL — not MAC mismatch.
     const code = "TATTOO-EXPIRE-TEST";
     const sixteenMinutesAgo = Date.now() - 16 * 60 * 1000;
-    const freshToken = generateTattooAckToken(code);
-    const dotIdx = freshToken.lastIndexOf(".");
-    const macPart = freshToken.slice(0, dotIdx);
-    const expiredToken = `${macPart}.${sixteenMinutesAgo}`;
+    const expiredToken = generateTattooAckTokenAtTime(code, sixteenMinutesAgo);
+    // The MAC is valid for the old timestamp, so only the TTL check rejects it.
     expect(validateTattooAckToken(code, expiredToken)).toBe(false);
   });
 
@@ -65,6 +69,44 @@ describe("tattoo-ack-token: generateTattooAckToken / validateTattooAckToken", ()
     const sharedCode = "SHARED-CODE";
     const chipToken = generateForceToken(sharedCode);
     expect(validateTattooAckToken(sharedCode, chipToken)).toBe(false);
+  });
+
+  it("tattooAckToken does not pass chip force-token validation (reverse symmetry)", () => {
+    // Mirrors the test above: the prefix "tattoo:" separates the two HMAC
+    // namespaces, so a tattoo ack token must never satisfy validateForceToken.
+    const sharedCode = "SHARED-CODE-REVERSE";
+    const tattooToken = generateTattooAckToken(sharedCode);
+    expect(validateForceToken(sharedCode, tattooToken)).toBe(false);
+  });
+
+  it("TATTOO_MATCH_POSSIBLE return shape includes forceToken when microchipId is present", () => {
+    // Regression test for the combined chip-active + tattoo-match infinite loop.
+    // Simulates what createIntakeAction does at the TATTOO_MATCH_POSSIBLE branch:
+    // when parsed.microchipId is set (chip check already passed), it regenerates
+    // a forceToken so the next submit carries BOTH tokens and completes.
+    const microchipId = "900123456789012";
+    const tattooCode = "K9-COMBINED";
+
+    const forceToken = generateForceToken(microchipId);
+    const tattooAckToken = generateTattooAckToken(tattooCode);
+
+    // Both tokens must be independently valid before being bundled in the response.
+    expect(validateForceToken(microchipId, forceToken)).toBe(true);
+    expect(validateTattooAckToken(tattooCode, tattooAckToken)).toBe(true);
+
+    // The simulated TATTOO_MATCH_POSSIBLE return object carries both tokens.
+    const responseShape = {
+      error: null,
+      warning: "TATTOO_MATCH_POSSIBLE" as const,
+      matchedPetToken: "some-pet-token",
+      tattooAckToken,
+      forceToken,
+    };
+    expect(responseShape.forceToken).toBeDefined();
+    expect(responseShape.tattooAckToken).toBeDefined();
+    // Verify that a subsequent submit carrying both would pass both validations.
+    expect(validateForceToken(microchipId, responseShape.forceToken)).toBe(true);
+    expect(validateTattooAckToken(tattooCode, responseShape.tattooAckToken)).toBe(true);
   });
 });
 

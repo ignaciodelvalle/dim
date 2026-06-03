@@ -241,11 +241,18 @@ export async function createIntakeAction(
       const tattooMatch = await lookupByTattoo(parsed.tattooCode);
       if (tattooMatch && tattooMatch.pet.status !== "deceased") {
         // Advisory: surface the possible match so the operator can photo-verify.
+        // If a microchip is also present, the chip check already passed above
+        // (forceToken was valid). Carry a fresh forceToken forward so the next
+        // submit (with tattooAckToken) doesn't re-trigger CHIP_MATCH_ACTIVE
+        // and loop indefinitely.
         return {
           error: null,
           warning: "TATTOO_MATCH_POSSIBLE",
           matchedPetToken: tattooMatch.pet.publicToken,
           tattooAckToken: generateTattooAckToken(parsed.tattooCode),
+          ...(parsed.microchipId
+            ? { forceToken: generateForceToken(parsed.microchipId) }
+            : undefined),
         };
       }
     }
