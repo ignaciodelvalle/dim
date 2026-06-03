@@ -32,7 +32,7 @@ export function Panel({ children, "aria-labelledby": ariaLabelledBy, className =
   return (
     <section
       aria-labelledby={ariaLabelledBy}
-      className={`rounded-2xl border border-gob-border bg-gob-surface shadow-sm ${className}`.trim()}
+      className={`rounded-[var(--radius-card)] border border-gob-border bg-gob-surface shadow-sm ${className}`.trim()}
     >
       {children}
     </section>

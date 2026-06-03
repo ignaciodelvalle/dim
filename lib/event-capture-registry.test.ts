@@ -14,7 +14,14 @@ describe("EVENT_CAPTURE_REGISTRY", () => {
   it("every entry has a valid route + non-empty description", () => {
     for (const [eventType, entry] of Object.entries(EVENT_CAPTURE_REGISTRY)) {
       if (!entry) continue;
-      expect(entry.route, `route for ${eventType}`).toMatch(/^\/eventos\/nuevo\//);
+      // Routes are either absolute paths ("/eventos/nuevo/…") for full-page
+      // forms or query-string shorthands ("?sheet=…") for SheetMounter sheets.
+      const isAbsolutePath = entry.route.startsWith("/eventos/nuevo/");
+      const isSheetRoute = entry.route.startsWith("?sheet=");
+      expect(
+        isAbsolutePath || isSheetRoute,
+        `route for ${eventType} must be an /eventos/nuevo/ path or ?sheet= shorthand, got: ${entry.route}`,
+      ).toBe(true);
       expect(entry.description.length, `description for ${eventType}`).toBeGreaterThan(10);
       expect(entry.description.length, `description for ${eventType}`).toBeLessThan(120);
     }
@@ -72,28 +79,45 @@ describe("buildCaptureDeeplink", () => {
     expect(buildCaptureDeeplink("pet_profile_updated" as EventType, "DIM-XXXX-YY")).toBeNull();
   });
 
-  it("builds a basic URL with no slots", () => {
+  it("builds a sheet URL for weight_recorded (migrated to ?sheet=peso)", () => {
     expect(buildCaptureDeeplink("weight_recorded" as EventType, "DIM-XXXX-YY")).toBe(
-      "/mis-mascotas/DIM-XXXX-YY/eventos/nuevo/peso",
+      "/mis-mascotas/DIM-XXXX-YY?sheet=peso",
     );
   });
 
-  it("encodes provided slots as query params", () => {
+  it("builds a full-page URL for a still-live route (vaccination_administered)", () => {
+    expect(buildCaptureDeeplink("vaccination_administered" as EventType, "DIM-XXXX-YY")).toBe(
+      "/mis-mascotas/DIM-XXXX-YY/eventos/nuevo/vacuna",
+    );
+  });
+
+  it("appends slot params after the sheet key for sheet routes", () => {
     const url = buildCaptureDeeplink("weight_recorded" as EventType, "DIM-XXXX-YY", {
       kg: "12.5",
       occurredAt: "2026-05-10",
     });
+    expect(url).toContain("sheet=peso");
     expect(url).toContain("kg=12.5");
     expect(url).toContain("occurredAt=2026-05-10");
   });
 
-  it("skips null/undefined/empty slot values", () => {
+  it("appends slot params as query string for full-page routes", () => {
+    const url = buildCaptureDeeplink("vaccination_administered" as EventType, "DIM-XXXX-YY", {
+      vaccineName: "Antirrábica",
+      occurredAt: "2026-05-10",
+    });
+    expect(url).toContain("vaccineName=Antirr%C3%A1bica");
+    expect(url).toContain("occurredAt=2026-05-10");
+    expect(url).toMatch(/^\/mis-mascotas\/DIM-XXXX-YY\/eventos\/nuevo\/vacuna\?/);
+  });
+
+  it("skips null/undefined/empty slot values — sheet route", () => {
     const url = buildCaptureDeeplink("weight_recorded" as EventType, "DIM-XXXX-YY", {
       kg: "12.5",
       occurredAt: null,
       notes: undefined,
     });
-    expect(url).toBe("/mis-mascotas/DIM-XXXX-YY/eventos/nuevo/peso?kg=12.5");
+    expect(url).toBe("/mis-mascotas/DIM-XXXX-YY?sheet=peso&kg=12.5");
   });
 
   it("ignores slot keys not declared in prefillSlots", () => {
@@ -104,10 +128,37 @@ describe("buildCaptureDeeplink", () => {
     expect(url).not.toContain("randomKey");
   });
 
-  it("empty-prefillSlots event types still produce a bare URL", () => {
+  it("empty-prefillSlots event types still produce a bare URL — full-page route", () => {
     const url = buildCaptureDeeplink("incident_reported" as EventType, "DIM-XXXX-YY", {
       ...({ anything: "ignored" } as Record<string, string>),
     });
     expect(url).toBe("/mis-mascotas/DIM-XXXX-YY/eventos/nuevo/mordedura");
+  });
+
+  it("empty-prefillSlots event types produce a bare sheet URL — sheet route", () => {
+    const url = buildCaptureDeeplink("symptom_observed" as EventType, "DIM-XXXX-YY", {
+      ...({ anything: "ignored" } as Record<string, string>),
+    });
+    expect(url).toBe("/mis-mascotas/DIM-XXXX-YY?sheet=sintoma");
+  });
+
+  it("note_added produces a sheet URL with text and occurredAt slots", () => {
+    const url = buildCaptureDeeplink("note_added" as EventType, "DIM-XXXX-YY", {
+      text: "Mi nota",
+      occurredAt: "2026-05-10",
+    });
+    expect(url).toContain("sheet=nota");
+    expect(url).toContain("text=Mi+nota");
+    expect(url).toContain("occurredAt=2026-05-10");
+  });
+
+  it("medication_started produces a sheet URL with notes and occurredAt slots", () => {
+    const url = buildCaptureDeeplink("medication_started" as EventType, "DIM-XXXX-YY", {
+      notes: "Amoxicilina",
+      occurredAt: "2026-05-10",
+    });
+    expect(url).toContain("sheet=medicacion");
+    expect(url).toContain("notes=Amoxicilina");
+    expect(url).toContain("occurredAt=2026-05-10");
   });
 });
