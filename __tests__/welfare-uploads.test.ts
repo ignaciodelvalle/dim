@@ -1,9 +1,23 @@
 // Unit tests for uploadWelfareEvidence validation and upload logic.
 // Supabase storage is mocked so no real bucket is required.
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
+
+// ---------------------------------------------------------------------------
+// Mock: sharp (dynamic import inside welfare-uploads.ts)
+// ---------------------------------------------------------------------------
+
+const mockToBuffer = vi.fn();
+const mockRotate = vi.fn(() => ({ toBuffer: mockToBuffer }));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockSharpFn = vi.fn((_arg: any) => ({ rotate: mockRotate }));
+
+vi.mock("sharp", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  default: (arg: any) => mockSharpFn(arg),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,6 +45,12 @@ function makeSupabase(uploadError: string | null = null): FakeSupabase {
 // ---------------------------------------------------------------------------
 
 describe("uploadWelfareEvidence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: sharp returns a distinguishable processed buffer.
+    mockToBuffer.mockResolvedValue(Buffer.from("sharp-processed"));
+  });
+
   it("returns empty result when files array is empty", async () => {
     const supabase = makeSupabase();
     const result = await uploadWelfareEvidence(supabase, "report-id-1", []);
@@ -75,7 +95,8 @@ describe("uploadWelfareEvidence", () => {
     expect(u.storagePath).toMatch(/^report-id-5\//);
     expect(u.storagePath).toMatch(/\.jpg$/);
     expect(u.mimeType).toBe("image/jpeg");
-    expect(u.fileSize).toBe(2048);
+    // fileSize reflects the processed (EXIF-stripped) buffer, not the original.
+    expect(u.fileSize).toBe(Buffer.from("sharp-processed").length);
     expect(u.originalFilename).toBe("evidence.jpg");
   });
 
@@ -124,5 +145,63 @@ describe("uploadWelfareEvidence", () => {
     expect(result.error).toBeNull();
     expect(result.uploaded).toHaveLength(1);
     expect(result.uploaded[0].originalFilename).toBe("real.jpg");
+  });
+
+  // -------------------------------------------------------------------------
+  // EXIF-stripping behaviour
+  // -------------------------------------------------------------------------
+
+  it("raster image (jpeg/png/webp) routes through sharp and uploads the processed buffer", async () => {
+    const supabase = makeSupabase();
+    const file = makeFile("photo.jpg", "image/jpeg", 4096);
+    const result = await uploadWelfareEvidence(supabase, "report-id-exif-1", [file]);
+
+    expect(result.error).toBeNull();
+    // sharp was invoked.
+    expect(mockSharpFn).toHaveBeenCalledOnce();
+    expect(mockRotate).toHaveBeenCalledOnce();
+    expect(mockToBuffer).toHaveBeenCalledOnce();
+    // The body passed to storage.upload is the processed Buffer, not the original File.
+    const uploadCall = (supabase as unknown as { uploadMock: ReturnType<typeof vi.fn> }).uploadMock
+      .mock.calls[0] as unknown as [string, unknown, unknown];
+    const uploadedBody = uploadCall[1];
+    expect(Buffer.isBuffer(uploadedBody)).toBe(true);
+    expect(uploadedBody).toEqual(Buffer.from("sharp-processed"));
+    // fileSize reflects the processed buffer length.
+    expect(result.uploaded[0].fileSize).toBe(Buffer.from("sharp-processed").length);
+  });
+
+  it("non-image evidence (video/mp4) bypasses sharp and is uploaded as-is", async () => {
+    const supabase = makeSupabase();
+    const file = makeFile("clip.mp4", "video/mp4", 1024);
+    const result = await uploadWelfareEvidence(supabase, "report-id-exif-2", [file]);
+
+    expect(result.error).toBeNull();
+    // sharp must NOT have been called for non-raster types.
+    expect(mockSharpFn).not.toHaveBeenCalled();
+    // Uploaded body is the original File.
+    const uploadCall = (supabase as unknown as { uploadMock: ReturnType<typeof vi.fn> }).uploadMock
+      .mock.calls[0] as unknown as [string, unknown, unknown];
+    expect(uploadCall[1]).toBe(file);
+    // fileSize is the original file size.
+    expect(result.uploaded[0].fileSize).toBe(1024);
+  });
+
+  it("sharp throw is non-fatal: falls back to uploading the original file", async () => {
+    mockToBuffer.mockRejectedValue(new Error("sharp: unsupported format"));
+
+    const supabase = makeSupabase();
+    const file = makeFile("corrupt.jpg", "image/jpeg", 512);
+    const result = await uploadWelfareEvidence(supabase, "report-id-exif-3", [file]);
+
+    // Overall upload succeeds despite the sharp failure.
+    expect(result.error).toBeNull();
+    expect(result.uploaded).toHaveLength(1);
+    // Upload body fell back to the original File.
+    const uploadCall = (supabase as unknown as { uploadMock: ReturnType<typeof vi.fn> }).uploadMock
+      .mock.calls[0] as unknown as [string, unknown, unknown];
+    expect(uploadCall[1]).toBe(file);
+    // fileSize is the original size since the processed buffer was never produced.
+    expect(result.uploaded[0].fileSize).toBe(512);
   });
 });

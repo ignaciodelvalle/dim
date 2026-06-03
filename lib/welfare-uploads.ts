@@ -20,6 +20,22 @@ const ALLOWED_MIME = new Set([
   "video/quicktime",
 ]);
 
+// Raster image types that sharp can re-encode to strip EXIF/GPS metadata.
+// HEIC/HEIF and GIF are excluded — sharp support is optional/unreliable for
+// those formats, so we leave them untouched rather than risk a corrupt upload.
+const STRIP_EXIF_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+/**
+ * Strips EXIF metadata (including GPS) from a raster image buffer via sharp.
+ * `.rotate()` bakes orientation into pixels; omitting `.withMetadata()` means
+ * sharp outputs the result with NO metadata attached.
+ * Non-fatal: callers catch and fall back to the original bytes on any error.
+ */
+async function stripExif(buffer: Buffer): Promise<Buffer> {
+  const sharp = (await import("sharp")).default;
+  return sharp(buffer).rotate().toBuffer();
+}
+
 export type WelfareUploadResult = {
   error: string | null;
   uploaded: Array<{
@@ -71,7 +87,25 @@ export async function uploadWelfareEvidence(
     const ext = inferExtension(f.name, f.type);
     const attachmentId = crypto.randomUUID();
     const path = `${reportId}/${attachmentId}${ext}`;
-    const { error } = await supabase.storage.from(BUCKET).upload(path, f, {
+
+    // Strip EXIF (including GPS) from raster images before storage so an
+    // anonymous reporter's home location can't be inferred from photo metadata.
+    // Non-fatal: if sharp throws (corrupt/unsupported file), fall back to the
+    // original bytes — we'd rather store metadata than fail the whole denuncia.
+    let uploadBody: File | Buffer = f;
+    let storedSize = f.size;
+    if (STRIP_EXIF_MIME.has(f.type)) {
+      try {
+        const arrayBuffer = await f.arrayBuffer();
+        const processed = await stripExif(Buffer.from(arrayBuffer));
+        uploadBody = processed;
+        storedSize = processed.length;
+      } catch (err) {
+        console.warn("[welfare-uploads] EXIF strip failed (non-fatal), uploading original:", err);
+      }
+    }
+
+    const { error } = await supabase.storage.from(BUCKET).upload(path, uploadBody, {
       contentType: f.type,
       upsert: false,
     });
@@ -92,7 +126,7 @@ export async function uploadWelfareEvidence(
     uploaded.push({
       storagePath: path,
       mimeType: f.type,
-      fileSize: f.size,
+      fileSize: storedSize,
       originalFilename: f.name || null,
     });
     uploadedPaths.push(path);
