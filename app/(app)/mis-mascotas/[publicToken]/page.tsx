@@ -264,7 +264,7 @@ function DeceasedView({
           </Link>
           {" · "}
           <Link
-            href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/nota`}
+            href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}
             className="underline underline-offset-4 hover:text-gob-text-gray"
           >
             + Agregar nota
@@ -954,7 +954,7 @@ function MedicationDosesSection({
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold tracking-tight text-gob-text">Próximas dosis</h2>
         <Link
-          href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/medicacion-inicio`}
+          href={`/mis-mascotas/${pet.publicToken}?sheet=medicacion`}
           className="text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
         >
           + Nueva medicación

@@ -26,10 +26,6 @@
 //                         back-compat with its setPetLostAction reader;
 //                         removal of the alias is tracked in critique §5.
 //
-// Deprecated mode aliases (`point`, `jurisdiction`, `jurisdiction+point`,
-// `full`) still resolve via resolveMode for a few releases. `point` has no
-// active consumers; alias cleanup is critique §6/§8.
-
 import {
   type GeocodeResult,
   geocodeAddressAction,

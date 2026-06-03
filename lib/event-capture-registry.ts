@@ -42,7 +42,7 @@ export type EventCaptureEntry = {
 
 export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry>> = {
   weight_recorded: {
-    route: "/eventos/nuevo/peso",
+    route: "?sheet=peso",
     description: "El usuario está reportando el peso actual de su mascota",
     prefillSlots: ["kg", "occurredAt", "notes"],
   },
@@ -76,7 +76,7 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
     prefillSlots: ["chipNumber", "occurredAt", "notes"],
   },
   note_added: {
-    route: "/eventos/nuevo/nota",
+    route: "?sheet=nota",
     description: "El usuario agrega una nota libre sobre su mascota",
     // `text` matches NoteForm.tsx — the main body field is named `text`,
     // not `body`. Keep slot aligned to the handler.
@@ -95,7 +95,7 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
     prefillSlots: ["notes"],
   },
   medication_started: {
-    route: "/eventos/nuevo/medicacion-inicio",
+    route: "?sheet=medicacion",
     description: "El usuario empezó a darle una medicación a su mascota",
     prefillSlots: ["notes", "occurredAt"],
   },
@@ -111,7 +111,7 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
     prefillSlots: [],
   },
   symptom_observed: {
-    route: "/eventos/nuevo/sintoma",
+    route: "?sheet=sintoma",
     description: "El usuario reporta un síntoma observado en su mascota",
     prefillSlots: [],
   },
@@ -127,11 +127,20 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
  * pet's publicToken and an optional slot payload. Returns null if the
  * event_type has no registry entry yet.
  *
+ * Handles two route shapes stored in the registry:
+ *
+ *   1. Absolute path (e.g. "/eventos/nuevo/vacuna") — the legacy full-page
+ *      form. URL becomes /mis-mascotas/{token}/eventos/nuevo/vacuna?slots…
+ *
+ *   2. Query-string shorthand (e.g. "?sheet=peso") — the route was migrated
+ *      to a SheetMounter sheet. URL becomes
+ *      /mis-mascotas/{token}?sheet=peso&slots…
+ *
  * Usage:
  *   const url = buildCaptureDeeplink('weight_recorded', 'DIM-3K4F-9P2X', {
  *     kg: '12.5', occurredAt: '2026-05-16'
  *   });
- *   // → '/mis-mascotas/DIM-3K4F-9P2X/eventos/nuevo/peso?kg=12.5&occurredAt=2026-05-16'
+ *   // → '/mis-mascotas/DIM-3K4F-9P2X?sheet=peso&kg=12.5&occurredAt=2026-05-16'
  *
  * Slot keys not declared in `prefillSlots` are silently dropped (forms
  * with empty `prefillSlots` therefore always produce a bare URL).
@@ -143,14 +152,26 @@ export function buildCaptureDeeplink(
 ): string | null {
   const entry = EVENT_CAPTURE_REGISTRY[eventType];
   if (!entry) return null;
-  const base = `/mis-mascotas/${publicToken}${entry.route}`;
-  const params = new URLSearchParams();
+
+  // Build the filled slot params (only declared prefillSlots, non-empty values).
+  const slotParams = new URLSearchParams();
   for (const slot of entry.prefillSlots) {
     const value = slots[slot];
     if (value !== null && value !== undefined && value !== "") {
-      params.set(slot, String(value));
+      slotParams.set(slot, String(value));
     }
   }
-  const qs = params.toString();
-  return qs ? `${base}?${qs}` : base;
+  const slotQs = slotParams.toString();
+
+  // Route is either an absolute path ("/eventos/nuevo/…") or a query-string
+  // shorthand ("?sheet=…") for forms that were migrated to SheetMounter.
+  if (entry.route.startsWith("?")) {
+    // e.g. "?sheet=peso" → /mis-mascotas/{token}?sheet=peso&kg=12.5&…
+    const base = `/mis-mascotas/${publicToken}${entry.route}`;
+    return slotQs ? `${base}&${slotQs}` : base;
+  }
+
+  // Absolute path: /mis-mascotas/{token}/eventos/nuevo/…?slots…
+  const base = `/mis-mascotas/${publicToken}${entry.route}`;
+  return slotQs ? `${base}?${slotQs}` : base;
 }

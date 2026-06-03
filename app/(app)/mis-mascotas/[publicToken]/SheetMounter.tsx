@@ -96,6 +96,10 @@ export function SheetMounter({
   const searchParams = useSearchParams();
   const sheet = searchParams.get("sheet");
   const text = searchParams.get("text") ?? undefined;
+  // Slot params forwarded by buildCaptureDeeplink when coming from CaptureBox / deeplinks.
+  const kg = searchParams.get("kg") ?? undefined;
+  const occurredAt = searchParams.get("occurredAt") ?? undefined;
+  const notes = searchParams.get("notes") ?? undefined;
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -122,7 +126,11 @@ export function SheetMounter({
       <Sheet id="peso" title="Registrar peso" open onClose={close}>
         <WeightForm
           action={action}
-          defaults={{ kg: null, occurredAt: null, notes: text ?? null }}
+          defaults={{
+            kg: kg ?? null,
+            occurredAt: occurredAt ?? null,
+            notes: notes ?? text ?? null,
+          }}
         />
       </Sheet>
     );
@@ -144,8 +152,8 @@ export function SheetMounter({
         <MedicationStartForm
           action={action}
           species={species}
-          defaultNotes={text}
-          defaultOccurredAt={undefined}
+          defaultNotes={notes ?? text}
+          defaultOccurredAt={occurredAt}
         />
       </Sheet>
     );
@@ -155,7 +163,10 @@ export function SheetMounter({
     const action = createNoteAction.bind(null, petToken);
     return (
       <Sheet id="nota" title="Nota" open onClose={close}>
-        <NoteForm action={action} defaults={{ text: text ?? null, occurredAt: null }} />
+        <NoteForm
+          action={action}
+          defaults={{ text: text ?? null, occurredAt: occurredAt ?? null }}
+        />
       </Sheet>
     );
   }
