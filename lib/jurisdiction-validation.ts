@@ -77,12 +77,13 @@ export async function resolveCanonicalJurisdictionById(input: {
 }
 
 // Soft variant — returns canonical names when the input resolves cleanly,
-// otherwise falls back to trimmed input as-is. Use this in actions that
-// historically accepted free-text (pet registration, intake, welfare,
-// service offerings, vet upgrade, org creation) where breaking on a
-// missing catalog entry would block legit submissions from places INDEC
-// hasn't catalogued yet (notably CABA barrios — INDEC treats CABA as one
-// locality; barrios live in `data.buenosaires.gob.ar`, pending import).
+// otherwise falls back to trimmed input as-is.
+//
+// NOTE: Most server-side callers have been migrated to `resolveCanonicalJurisdiction`
+// (the strict path). `tryResolveCanonicalJurisdiction` is kept for callers where
+// the locality is genuinely optional (e.g. service-offerings, which may have no
+// operational scope set yet), or as a documented exception with a narrowly-scoped
+// tolerant path. Do NOT use it as a shortcut for new actions.
 //
 // Strict callers (admin-side `createInstitutionalAccountForAuthority` and
 // `assignGovtLocalityForAuthority`) keep using `resolveCanonicalJurisdiction`

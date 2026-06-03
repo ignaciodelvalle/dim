@@ -32,7 +32,10 @@ import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
+import {
+  JurisdictionValidationError,
+  resolveCanonicalJurisdiction,
+} from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -112,15 +115,25 @@ export async function createWelfareReportAction(
   // INDEC canonicalization is only used for the locality — the province
   // stays as PROVINCES[i].name to keep govt dashboards and rollups aligned.
   const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
-  const jurisdictionCanonical = provinceName
-    ? await tryResolveCanonicalJurisdiction({
+  const jurisdictionProvince: string | null = provinceName;
+  // Strictly validate locality when both province and locality are provided.
+  // If only province is given (locality omitted), locality stays null — welfare
+  // reports legitimately have province-only location (no catalog lookup needed).
+  let jurisdictionLocality: string | null = null;
+  if (provinceName && localityNameRaw) {
+    try {
+      const canonical = await resolveCanonicalJurisdiction({
         rawProvince: provinceName,
         rawLocality: localityNameRaw,
-      })
-    : null;
-  const jurisdictionProvince: string | null = provinceName;
-  const jurisdictionLocality: string | null =
-    jurisdictionCanonical?.locality || localityNameRaw || null;
+      });
+      jurisdictionLocality = canonical.locality.localityName;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      throw err;
+    }
+  }
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -555,15 +568,25 @@ export async function createOrgWelfareReportAction(
   // INDEC canonicalization is only used for the locality — the province
   // stays as PROVINCES[i].name to keep govt dashboards and rollups aligned.
   const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
-  const jurisdictionCanonical = provinceName
-    ? await tryResolveCanonicalJurisdiction({
+  const jurisdictionProvince: string | null = provinceName;
+  // Strictly validate locality when both province and locality are provided.
+  // If only province is given (locality omitted), locality stays null — org
+  // welfare reports legitimately may have province-only location.
+  let jurisdictionLocality: string | null = null;
+  if (provinceName && localityNameRaw) {
+    try {
+      const canonical = await resolveCanonicalJurisdiction({
         rawProvince: provinceName,
         rawLocality: localityNameRaw,
-      })
-    : null;
-  const jurisdictionProvince: string | null = provinceName;
-  const jurisdictionLocality: string | null =
-    jurisdictionCanonical?.locality || localityNameRaw || null;
+      });
+      jurisdictionLocality = canonical.locality.localityName;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      throw err;
+    }
+  }
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
