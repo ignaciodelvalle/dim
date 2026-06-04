@@ -53,6 +53,7 @@ const AUTH_GUARDS = [
   "requireActiveOrgOrRedirect",
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
+  "requireDecomisoPrincipal",
   "requirePetAccess",
   "requireAlivePetAccess",
   "requireOwnedPet",
