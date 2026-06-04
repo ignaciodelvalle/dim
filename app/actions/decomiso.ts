@@ -23,7 +23,7 @@
 //   TransferAction's pattern. The receiver org is the organization the caller
 //   belongs to, and it must match the case's receiverOrganizationId.
 //
-// S2 transaction steps for executeDecomisoAction:
+// S2 transaction steps for executeDecomisoAction (registered_pet path):
 //   1. Auth: requireDecomisoPrincipal (govt | admin) + jurisdictions guard.
 //   2. Resolve sanitary_authority org for the acting user.
 //   3. Validate subject pet (registered, found by publicToken).
@@ -41,11 +41,20 @@
 //      govt actor (info), admins (info).
 //  15. Audit log: decomiso_executed.
 //
-// Subject scope (S2): registered_pet only (found by publicToken). The
-// unowned_animal path (seizing a stray → create-pet-in-flight) is deferred
-// to a follow-up slice — it requires additional product decisions around
-// anonymous pet creation that go beyond this action's scope. The action
-// returns an explicit error when called with a non-registered subject.
+// Subject scope: two paths (DC3):
+//   - registered_pet: found by publicToken. DC2 double-confirm applies (owner
+//     notification emitted, prev ownerships closed).
+//   - unowned_animal: a stray with no prior registration. A new pet row is
+//     created inside the tx (mirroring createIntakeAction's pet insert, no
+//     ownership row for a prior owner). primarySubjectKind is set to
+//     'registered_pet' on the case (the pet was just created — it IS registered
+//     at that point) and primaryPetId = newPet.id. The cases CHECK constraint
+//     requires (primarySubjectKind = 'registered_pet') = (primaryPetId IS NOT
+//     NULL), so unowned_animal with a non-null petId would violate it. Jurisdiction
+//     for the new pet comes from the govt org (the stray has no prior jurisdiction).
+//     DC2 double-confirm modal is NOT shown (no prior owner to dispossess).
+//     Owner notification is skipped. All other steps (seizure, custody, handoff,
+//     audit) are identical to the registered_pet path.
 //
 // Decomiso marker on the handoff proposal: the custody_transfer_proposed schema
 // does not have a `from_decomiso` boolean field (adding one would require a
@@ -74,7 +83,9 @@ import { requireDecomisoPrincipal } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { generatePublicToken } from "@/lib/publicToken";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateUniqueToken } from "@/lib/unique-token";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,9 +103,29 @@ export type SeizureMotive =
   | "pelea_de_perros"
   | "otro";
 
+/** Descriptive fields for an unowned stray animal. Mirrors createIntakeAction's pet fields. */
+export interface UnownedAnimalInput {
+  /** Required: species (e.g. 'dog', 'cat'). */
+  species: string;
+  /** Approximate sex ('male' | 'female' | 'unknown'). */
+  sex: "male" | "female" | "unknown";
+  /** Optional breed description. */
+  breed?: string | null;
+  /** Optional coat / fur color. */
+  color?: string | null;
+  /** Optional distinctive markings (cicatrices, manchas, etc.). */
+  distinguishingFeatures?: string | null;
+  /** Approximate age in months (null when unknown). */
+  approxAgeMonths?: number | null;
+}
+
 export interface ExecuteDecomisoInput {
-  /** publicToken of the registered pet being seized. */
-  petPublicToken: string;
+  /** Discriminator — determines which path is taken. */
+  subjectKind: "registered_pet" | "unowned_animal";
+  /** Required when subjectKind='registered_pet': publicToken of the registered pet. */
+  petPublicToken?: string | null;
+  /** Required when subjectKind='unowned_animal': descriptive fields for the stray. */
+  unownedAnimal?: UnownedAnimalInput | null;
   seizureMotive: SeizureMotive;
   seizureMotiveOtherDetail?: string | null;
   judicialProceedingReference?: string | null;
@@ -242,48 +273,98 @@ export async function executeDecomisoAction(
     }
   }
 
-  // ---- 6. Load subject pet (S2: registered_pet only) ---------------------
-  const [pet] = await db
-    .select()
-    .from(pets)
-    .where(eq(pets.publicToken, input.petPublicToken))
-    .limit(1);
-  if (!pet) {
-    return { error: "Mascota no encontrada. Verificá el token público." };
-  }
+  // ---- 6. Load / validate subject — branches on subjectKind (DC3) --------
 
-  // Fix 1: Pet-jurisdiction vs user-jurisdiction scope check (spec §9 —
-  // "govt fuera de jurisdiction RECHAZADO"). Admin role has universal scope
-  // and bypasses this check. For govt, the pet's registered province must
-  // appear in the user's assigned jurisdictions. A null pet province means
-  // the pet was registered without a province — we allow the decomiso in that
-  // case (no jurisdiction can be violated if none is recorded).
-  if (session.profile.role === "govt") {
-    const petProvince = pet.jurisdictionProvince;
-    const inScope = !petProvince || session.jurisdictions.some((j) => j.province === petProvince);
-    if (!inScope) {
-      return {
-        error: "Esta mascota no está en tu jurisdicción asignada.",
-      };
+  if (input.subjectKind === "registered_pet") {
+    // --- Registered pet path ---
+    if (!input.petPublicToken?.trim()) {
+      return { error: "Ingresá el token de la mascota registrada." };
     }
+
+    const [pet] = await db
+      .select()
+      .from(pets)
+      .where(eq(pets.publicToken, input.petPublicToken))
+      .limit(1);
+    if (!pet) {
+      return { error: "Mascota no encontrada. Verificá el token público." };
+    }
+
+    // Fix 1: Pet-jurisdiction vs user-jurisdiction scope check (spec §9 —
+    // "govt fuera de jurisdiction RECHAZADO"). Admin role has universal scope
+    // and bypasses this check. For govt, the pet's registered province must
+    // appear in the user's assigned jurisdictions. A null pet province means
+    // the pet was registered without a province — we allow the decomiso in that
+    // case (no jurisdiction can be violated if none is recorded).
+    if (session.profile.role === "govt") {
+      const petProvince = pet.jurisdictionProvince;
+      const inScope = !petProvince || session.jurisdictions.some((j) => j.province === petProvince);
+      if (!inScope) {
+        return { error: "Esta mascota no está en tu jurisdicción asignada." };
+      }
+    }
+
+    // Fix 5: Explicit double-seizure guard — clear Spanish error instead of raw
+    // Postgres unique-constraint. A pet may only have one open custody_episode
+    // at a time. We check before opening the case to return a human-readable message.
+    const existingEpisode = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+    if (existingEpisode) {
+      return { error: "Esta mascota ya tiene un decomiso/custodia activa en curso." };
+    }
+
+    return _runDecomisoTransaction({
+      input,
+      govtOrg,
+      receiverOrg,
+      user,
+      session,
+      existingPet: pet,
+      unownedData: null,
+    });
   }
 
-  // Fix 5: Explicit double-seizure guard — clear Spanish error instead of raw
-  // Postgres unique-constraint. A pet may only have one open custody_episode
-  // at a time. We check before opening the case to return a human-readable
-  // message.
-  const existingEpisode = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
-  if (existingEpisode) {
-    return {
-      error: "Esta mascota ya tiene un decomiso/custodia activa en curso.",
-    };
+  // --- Unowned animal path (DC3) ---
+  if (!input.unownedAnimal?.species?.trim()) {
+    return { error: "Indicá al menos la especie del animal sin registrar." };
   }
 
-  // Fix 2: Upload ALL attachment files to Storage BEFORE opening the DB
-  // transaction. If any upload fails, we delete the already-uploaded blobs
-  // (compensating cleanup) and return the error — no DB mutation happens.
-  // After the transaction commits, if the DB throws, we also best-effort
-  // clean up the uploaded blobs so a failed decomiso doesn't leave orphans.
+  return _runDecomisoTransaction({
+    input,
+    govtOrg,
+    receiverOrg,
+    user,
+    session,
+    existingPet: null,
+    unownedData: input.unownedAnimal,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// _runDecomisoTransaction — shared transaction body for both subject paths
+// ---------------------------------------------------------------------------
+//
+// Separated so we can branch on subjectKind before entering the tx (to avoid
+// any DB work when input validation fails) while keeping the transaction body
+// DRY. The caller is responsible for all pre-tx validations.
+
+async function _runDecomisoTransaction(args: {
+  input: ExecuteDecomisoInput;
+  govtOrg: Awaited<ReturnType<typeof resolveGovtOrgForUser>> & object;
+  receiverOrg: { id: string; displayName: string };
+  user: { id: string };
+  session: { profile: { role: string }; jurisdictions: { province: string }[] };
+  /** Non-null for registered_pet path. */
+  existingPet: { id: string; name: string; publicToken: string } | null;
+  /** Non-null for unowned_animal path. */
+  unownedData: UnownedAnimalInput | null;
+}): Promise<ExecuteDecomisoResult> {
+  const { input, govtOrg, receiverOrg, user } = args;
+
+  // Upload ALL attachment files to Storage BEFORE opening the DB transaction.
+  // If any upload fails, delete already-uploaded blobs (compensating cleanup)
+  // and return the error — no DB mutation happens.
+  // After the transaction commits, if the DB throws, best-effort clean up the
+  // uploaded blobs so a failed decomiso doesn't leave orphans in Storage.
   const supabaseAdmin = createAdminClient();
 
   type UploadedAttachment = {
@@ -295,9 +376,8 @@ export async function executeDecomisoAction(
 
   const uploadedAttachments: UploadedAttachment[] = [];
 
-  // We need a stable prefix for all blobs in this decomiso. Use a
-  // pre-generated UUID as the case-scoped directory (the real caseId will be
-  // known only after openCase inside the tx, so we use a pre-generated UUID).
+  // Pre-generate a stable directory prefix (the real caseId is unknown until
+  // openCase inside the tx returns, so we use a pre-generated UUID).
   const attachmentDir = randomUUID();
 
   for (const file of input.attachmentFiles) {
@@ -312,7 +392,6 @@ export async function executeDecomisoAction(
       .upload(storagePath, buffer, { contentType: file.type });
 
     if (uploadError) {
-      // Compensating cleanup: delete the blobs already uploaded.
       if (uploadedAttachments.length > 0) {
         await supabaseAdmin.storage
           .from(ATTACHMENT_BUCKET)
@@ -331,7 +410,6 @@ export async function executeDecomisoAction(
     });
   }
 
-  // ---- Steps 7-15 inside a single transaction ----------------------------
   let createdPublicCode = "";
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
@@ -340,12 +418,114 @@ export async function executeDecomisoAction(
     await db.transaction(async (tx) => {
       const now = new Date();
 
-      // 7. openCase(custody_episode) — spec §13.3.
+      // ---------- Unowned path: CREATE the pet record in-flight ----------
+      // Mirrors createIntakeAction's pets insert. No ownership row is created
+      // for a prior owner. Jurisdiction comes from the govt org (the stray
+      // has no prior registered jurisdiction).
+      // primarySubjectKind is 'registered_pet' on the case because the pet
+      // IS registered at this point (we just created it). The cases CHECK
+      // constraint requires (primarySubjectKind='registered_pet') =
+      // (primaryPetId IS NOT NULL) — using 'unowned_animal' with a non-null
+      // petId would violate it.
+      let activePet: { id: string; name: string; publicToken: string };
+
+      if (args.unownedData) {
+        const { unownedData } = args;
+        const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
+
+        // Compute approximate date of birth from approxAgeMonths (same
+        // pattern as createIntakeAction's age-to-dob conversion).
+        let dateOfBirth: string | null = null;
+        let birthDateIsEstimated = false;
+        if (unownedData.approxAgeMonths != null && unownedData.approxAgeMonths >= 0) {
+          const dob = new Date();
+          dob.setMonth(dob.getMonth() - unownedData.approxAgeMonths);
+          dateOfBirth = dob.toISOString().slice(0, 10);
+          birthDateIsEstimated = true;
+        }
+
+        // Descriptive name for the stray — used in notifications and audit.
+        const straySyntheticName = [
+          unownedData.species,
+          unownedData.breed ?? null,
+          unownedData.color ?? null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const petName = straySyntheticName || "Animal sin registrar";
+
+        const [newPet] = await tx
+          .insert(pets)
+          .values({
+            publicToken,
+            name: petName,
+            species: unownedData.species,
+            sex: unownedData.sex,
+            breed: unownedData.breed ?? null,
+            color: unownedData.color ?? null,
+            distinguishingFeatures: unownedData.distinguishingFeatures ?? null,
+            dateOfBirth,
+            birthDateIsEstimated,
+            // Jurisdiction from the govt org — the stray has no prior jurisdiction.
+            jurisdictionProvince: govtOrg.jurisdictionProvince,
+            jurisdictionLocality: govtOrg.jurisdictionLocality,
+            potentiallyDangerousBreed: false,
+          })
+          .returning();
+
+        // Emit pet_registered event (append-only protocol).
+        const registeredPayload = validateEventPayload("pet_registered", {
+          name: petName,
+          species: unownedData.species,
+          sex: unownedData.sex,
+          breed: unownedData.breed ?? null,
+          date_of_birth: dateOfBirth,
+          birth_date_is_estimated: birthDateIsEstimated,
+          color: unownedData.color ?? null,
+          microchip_id: null,
+          microchip_country_code: null,
+          microchip_implanted_at: null,
+          microchip_implanted_by: null,
+          microchip_location: null,
+          estimated_weight_kg: null,
+          favourite_foods: [],
+          known_allergies: [],
+          training_level: null,
+          insurance_company: null,
+          insurance_policy_number: null,
+          jurisdiction_province: govtOrg.jurisdictionProvince,
+          jurisdiction_locality: govtOrg.jurisdictionLocality,
+          potentially_dangerous_breed: false,
+          acquisition_method: null,
+          has_photo: false,
+          has_microchip: false,
+          custody_kind: "shelter_custody_by_org",
+        });
+        await tx.insert(petEvents).values({
+          petId: newPet.id,
+          eventType: "pet_registered",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "govt",
+          authorOrganizationId: govtOrg.id,
+          authorVerified: true,
+          payload: registeredPayload,
+        });
+
+        activePet = { id: newPet.id, name: petName, publicToken };
+      } else {
+        // Registered pet path — existingPet is non-null (validated by caller).
+        activePet = args.existingPet as { id: string; name: string; publicToken: string };
+      }
+
+      // ---------- openCase(custody_episode) — spec §13.3 ----------
       const caseRow = await openCase(
         {
           kind: "custody_episode",
           primarySubjectKind: "registered_pet",
-          primaryPetId: pet.id,
+          primaryPetId: activePet.id,
           jurisdictionCountry: "AR",
           jurisdictionProvince: govtOrg.jurisdictionProvince,
           jurisdictionLocality: govtOrg.jurisdictionLocality,
@@ -358,7 +538,7 @@ export async function executeDecomisoAction(
       );
       createdPublicCode = caseRow.publicCode;
 
-      // 8. INSERT shelter_intake_recorded with full seizure payload + caseId.
+      // ---------- INSERT shelter_intake_recorded ----------
       const intakePayload = validateEventPayload("shelter_intake_recorded", {
         intake_reason: "seizure" as const,
         intake_condition: input.intakeCondition ?? null,
@@ -372,7 +552,7 @@ export async function executeDecomisoAction(
       const [intakeEvent] = await tx
         .insert(petEvents)
         .values({
-          petId: pet.id,
+          petId: activePet.id,
           eventType: "shelter_intake_recorded",
           occurredAt: now,
           recordedAt: now,
@@ -385,40 +565,41 @@ export async function executeDecomisoAction(
         })
         .returning();
 
-      // 9. Capture prev owner userIds then close all active ownerships.
-      // (DC7 / spec §5.1 step 4: "close existing owner ownerships")
-      const prevOwnerOwnerships = await tx
-        .select({
-          ownerUserId: ownerships.ownerUserId,
-        })
-        .from(ownerships)
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
+      // ---------- Ownership transitions ----------
+      // For registered_pet: capture prev owner userIds then close all active ownerships.
+      // For unowned_animal: no prev ownership rows exist (pet was just created).
+      const prevOwnerUserIds: string[] = [];
 
-      const prevOwnerUserIds = prevOwnerOwnerships
-        .map((o) => o.ownerUserId)
-        .filter((id): id is string => id !== null);
+      if (!args.unownedData) {
+        // Registered pet path only.
+        const prevOwnerOwnerships = await tx
+          .select({ ownerUserId: ownerships.ownerUserId })
+          .from(ownerships)
+          .where(and(eq(ownerships.petId, activePet.id), isNull(ownerships.endedAt)));
 
-      await tx
-        .update(ownerships)
-        .set({ endedAt: now })
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
+        for (const o of prevOwnerOwnerships) {
+          if (o.ownerUserId) prevOwnerUserIds.push(o.ownerUserId);
+        }
 
-      // 10. Open transitional shelter_custody for the govt org.
-      // ownership_role enum has 'shelter_custody'; this is the correct value per DC7
-      // ("row de shelter_custody para la welfare authority"). No 'pending_transfer'
-      // role exists in the schema — shelter_custody is used by all custody holders.
+        await tx
+          .update(ownerships)
+          .set({ endedAt: now })
+          .where(and(eq(ownerships.petId, activePet.id), isNull(ownerships.endedAt)));
+      }
+
+      // Open transitional shelter_custody for the govt org (both paths).
+      // ownership_role 'shelter_custody' is correct per DC7.
       await tx.insert(ownerships).values({
-        petId: pet.id,
+        petId: activePet.id,
         ownerOrganizationId: govtOrg.id,
         role: "shelter_custody",
         startedAt: now,
       });
 
-      // 11. INSERT custody_transfer_proposed toward the receiver org.
-      // Decomiso marker lives in `notes` as a structured string (no dedicated
-      // schema field exists; adding one would require a migration). S3 uses
-      // the parent case kind + openedByOrganizationId.orgType as the canonical
-      // discriminator for decomiso vs. civil cross-org handoffs.
+      // ---------- INSERT custody_transfer_proposed ----------
+      // Decomiso marker lives in `notes` (no dedicated schema field — adding
+      // one would require a migration). S3 uses the parent case kind +
+      // openedByOrganizationId.orgType as the canonical discriminator.
       const proposalPayload = validateEventPayload("custody_transfer_proposed", {
         from_user_id: null,
         from_organization_id: govtOrg.id,
@@ -430,7 +611,7 @@ export async function executeDecomisoAction(
         notes: `from_decomiso=true originating_intake_event_id=${intakeEvent.id} case=${caseRow.publicCode}`,
       });
       await tx.insert(petEvents).values({
-        petId: pet.id,
+        petId: activePet.id,
         eventType: "custody_transfer_proposed",
         occurredAt: now,
         recordedAt: now,
@@ -442,12 +623,11 @@ export async function executeDecomisoAction(
         caseId: caseRow.id,
       });
 
-      // 12. INSERT attachment rows using pre-resolved storage paths.
-      // Files were already uploaded to Storage above (Fix 2). We only insert
-      // the DB rows here — no uploads inside the transaction.
+      // ---------- INSERT attachment rows ----------
+      // Files were already uploaded to Storage above. We only insert DB rows here.
       for (const uploaded of uploadedAttachments) {
         await tx.insert(attachments).values({
-          petId: pet.id,
+          petId: activePet.id,
           eventId: intakeEvent.id,
           uploadedByUserId: user.id,
           storagePath: uploaded.storagePath,
@@ -456,7 +636,7 @@ export async function executeDecomisoAction(
         });
       }
 
-      // 13. Cross-reference note on the originating welfare case (spec §5.1 step 8 / DC12).
+      // ---------- Cross-reference note on originating welfare case (DC12) ----------
       if (input.originatingWelfareReportId) {
         const [welfareCase] = await tx
           .select({ id: cases.id, publicCode: cases.publicCode })
@@ -475,7 +655,7 @@ export async function executeDecomisoAction(
             text: `Devino en decomiso. Ver caso ${caseRow.publicCode} (custodia temporal).`,
           });
           await tx.insert(petEvents).values({
-            petId: pet.id,
+            petId: activePet.id,
             eventType: "note_added",
             occurredAt: now,
             recordedAt: now,
@@ -489,21 +669,21 @@ export async function executeDecomisoAction(
         }
       }
 
-      // 14. Build notifications (inserted outside tx below — spec: notifications
-      // are best-effort; a failed notif must not roll back the decomiso).
+      // ---------- Build notifications (inserted outside tx — best-effort) ----------
 
       // 14a. Previous owner(s) — urgent (spec §13.7: decomiso_owner_lost_custody).
+      // Skipped for unowned_animal path (no prior owner).
       for (const prevUserId of prevOwnerUserIds) {
         pendingNotifications.push({
           userId: prevUserId,
           notificationType: "decomiso_owner_lost_custody",
           severity: "urgent",
           title: "Custodia oficial transferida",
-          body: `La autoridad sanitaria ${govtOrg.displayName} ejecutó un decomiso sobre tu mascota ${pet.name}. Motivo: ${motiveLabel(input.seizureMotive)}.${input.judicialProceedingReference ? ` Referencia judicial: ${input.judicialProceedingReference}.` : ""} Para más información contactá a la autoridad sanitaria de tu jurisdicción.`,
+          body: `La autoridad sanitaria ${govtOrg.displayName} ejecutó un decomiso sobre tu mascota ${activePet.name}. Motivo: ${motiveLabel(input.seizureMotive)}.${input.judicialProceedingReference ? ` Referencia judicial: ${input.judicialProceedingReference}.` : ""} Para más información contactá a la autoridad sanitaria de tu jurisdicción.`,
           ctaLabel: "Más información",
           ctaUrl: `/casos/${caseRow.publicCode}`,
           relatedCaseId: caseRow.id,
-          relatedPetId: pet.id,
+          relatedPetId: activePet.id,
         });
       }
 
@@ -523,12 +703,12 @@ export async function executeDecomisoAction(
           userId: coord.userId,
           notificationType: "decomiso_handoff_proposed_receiver",
           severity: "urgent",
-          title: `Decomiso entrante — ${pet.name}`,
-          body: `La autoridad ${govtOrg.displayName} ejecutó un decomiso y propuso transferirte la custodia de ${pet.name}. Tenés 7 días para aceptar o rechazar.`,
+          title: `Decomiso entrante — ${activePet.name}`,
+          body: `La autoridad ${govtOrg.displayName} ejecutó un decomiso y propuso transferirte la custodia de ${activePet.name}. Tenés 7 días para aceptar o rechazar.`,
           ctaLabel: "Ver propuesta",
           ctaUrl: `/casos/${caseRow.publicCode}`,
           relatedCaseId: caseRow.id,
-          relatedPetId: pet.id,
+          relatedPetId: activePet.id,
         });
       }
 
@@ -537,45 +717,45 @@ export async function executeDecomisoAction(
         userId: user.id,
         notificationType: "decomiso_confirmed_govt",
         severity: "info",
-        title: `Decomiso ejecutado — ${pet.name}`,
-        body: `El decomiso de ${pet.name} fue registrado. El refugio ${receiverOrg.displayName} fue notificado y tiene 7 días para aceptar.`,
+        title: `Decomiso ejecutado — ${activePet.name}`,
+        body: `El decomiso de ${activePet.name} fue registrado. El refugio ${receiverOrg.displayName} fue notificado y tiene 7 días para aceptar.`,
         ctaLabel: "Ver caso",
         ctaUrl: `/casos/${caseRow.publicCode}`,
         relatedCaseId: caseRow.id,
-        relatedPetId: pet.id,
+        relatedPetId: activePet.id,
       });
 
       // Fix 3: Admins also receive a decomiso_confirmed_admin notification
-      // (spec §13.7: "govt actor (confirmation) + admin"). Query active admins
-      // inside the tx so we capture their IDs for the outside-tx insert below.
+      // (spec §13.7: "govt actor (confirmation) + admin").
       const adminProfiles = await tx
         .select({ id: profiles.id })
         .from(profiles)
         .where(and(eq(profiles.role, "admin"), isNull(profiles.deactivatedAt)));
       for (const admin of adminProfiles) {
-        if (admin.id === user.id) continue; // avoid duplicate if actor is admin
+        if (admin.id === user.id) continue;
         pendingNotifications.push({
           userId: admin.id,
           notificationType: "decomiso_confirmed_admin",
           severity: "info",
-          title: `Decomiso ejecutado — ${pet.name}`,
-          body: `La autoridad ${govtOrg.displayName} ejecutó un decomiso sobre ${pet.name} (${motiveLabel(input.seizureMotive)}). Destinatario: ${receiverOrg.displayName}.`,
+          title: `Decomiso ejecutado — ${activePet.name}`,
+          body: `La autoridad ${govtOrg.displayName} ejecutó un decomiso sobre ${activePet.name} (${motiveLabel(input.seizureMotive)}). Destinatario: ${receiverOrg.displayName}.`,
           ctaLabel: "Ver caso",
           ctaUrl: `/casos/${caseRow.publicCode}`,
           relatedCaseId: caseRow.id,
-          relatedPetId: pet.id,
+          relatedPetId: activePet.id,
         });
       }
 
-      // 15. Audit log (spec §4.5 / §5.1 step 10).
+      // ---------- Audit log (spec §4.5 / §5.1 step 10) ----------
       await tx.insert(auditLog).values({
         actorUserId: user.id,
         action: "decomiso_executed",
         payload: {
           case_id: caseRow.id,
           case_public_code: caseRow.publicCode,
-          pet_id: pet.id,
-          pet_public_token: pet.publicToken,
+          pet_id: activePet.id,
+          pet_public_token: activePet.publicToken,
+          subject_kind: input.subjectKind,
           govt_org_id: govtOrg.id,
           receiver_org_id: receiverOrg.id,
           seizure_motive: input.seizureMotive,
@@ -586,9 +766,8 @@ export async function executeDecomisoAction(
       });
     });
   } catch (err) {
-    // Fix 2 (post-tx compensating cleanup): if the DB transaction throws after
-    // uploads succeeded, best-effort delete the uploaded blobs so a failed
-    // decomiso doesn't leave orphans in Storage.
+    // Post-tx compensating cleanup: if the DB transaction throws after uploads
+    // succeeded, best-effort delete the uploaded blobs.
     if (uploadedAttachments.length > 0) {
       await supabaseAdmin.storage
         .from(ATTACHMENT_BUCKET)
