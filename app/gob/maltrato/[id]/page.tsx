@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { db, pets, profiles, welfareReportAttachments, welfareReports } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { getNormativesForCase } from "@/lib/case-normatives";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
 import { readPoint } from "@/lib/location";
@@ -357,30 +358,28 @@ export default async function GobMaltratoDetailPage({
           <Timeline events={timelineEvents} />
         </section>
 
-        {/* Normativa aplicable — static references, v1 */}
-        {/* TODO(E4-followup): source normativa from a real catalog instead of hardcoded list */}
+        {/* Normativa aplicable — sourced from case-normatives catalog */}
         <section className="rounded-lg border border-gob-border  p-4 space-y-3">
           <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">
             Normativa aplicable
           </h2>
-          <ul className="space-y-2 text-sm text-gob-text-gray ">
-            <li>
-              <span className="font-medium">Ley Nacional 14.346</span> — Protección de los animales
-              contra actos de crueldad.
-            </li>
-            <li>
-              <span className="font-medium">Ley Nacional 27.330</span> — Tenencia responsable y
-              bienestar de los animales de compañía.
-            </li>
-            <li>
-              <span className="font-medium">Código Civil y Comercial, Art. 240</span> — Los animales
-              son seres sintientes protegidos por la ley.
-            </li>
-            <li>
-              <span className="font-medium">Resolución SENASA 862/2009</span> — Bienestar animal en
-              el transporte y establecimientos.
-            </li>
-          </ul>
+          {(() => {
+            const normativas = getNormativesForCase("welfare_denuncia", {
+              country: "AR",
+              province: report.jurisdictionProvince ?? undefined,
+            });
+            if (normativas.length === 0) return null;
+            return (
+              <ul className="space-y-2 text-sm text-gob-text-gray ">
+                {normativas.map((law) => (
+                  <li key={law.id}>
+                    <span className="font-medium">{law.label}</span>
+                    {` — ${law.scope}`}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
         </section>
       </div>
     </main>

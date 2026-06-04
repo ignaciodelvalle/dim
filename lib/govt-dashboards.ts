@@ -28,6 +28,7 @@ import {
 import {
   cases,
   db,
+  jurisdictionsCensus,
   organizations,
   ownerships,
   petEvents,
@@ -631,6 +632,83 @@ export async function fetchCasesPerLocality(
       code: PROVINCE_ISO_MAP[r.province as string] ?? "",
       count: r.n,
     }));
+}
+
+// ============================================================================
+
+export type ProvinceCasesPerCapita = {
+  province: string;
+  /**
+   * ISO 3166-2:AR code matching the GeoJSON `code` property if known.
+   * Empty string if the province is not in PROVINCE_ISO_MAP.
+   */
+  code: string;
+  /** Raw count of open cases in this province. */
+  count: number;
+  /**
+   * Cases per 10,000 inhabitants (count / population * 10_000), rounded to
+   * one decimal. `null` when there is no census row for the province (avoids
+   * divide-by-zero; the UI falls back to showing the raw count in that case).
+   */
+  ratePer10k: number | null;
+};
+
+/**
+ * Open cases per province with INDEC 2022 per-capita rate.
+ *
+ * Aggregates open cases by jurisdictionProvince, then LEFT JOINs the
+ * jurisdictions_census table (province_name = jurisdiction_province) to
+ * compute rate = count / population * 10_000.
+ *
+ * Join key: cases.jurisdictionProvince (canonical display name, same format
+ * as jurisdictionsCensus.provinceName — both enforced by migration 0055
+ * canonical check constraint). Match is exact text equality.
+ *
+ * Fallback: provinces with no census row get ratePer10k = null so callers
+ * can display the raw count as a safe fallback.
+ */
+export async function fetchCasesPerCapita(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceCasesPerCapita[]> {
+  const conditions = [eq(cases.status, "open")];
+  const scope = casesScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  // Aggregate by province only (no locality grouping — per-capita is a
+  // province-level figure because the census table is province-level).
+  // The LEFT JOIN is 1:1 (province_name is the PK of jurisdictions_census),
+  // so grouping by province alone and using MAX(population) is safe.
+  const rows = await db
+    .select({
+      province: cases.jurisdictionProvince,
+      n: count(),
+      population: sql<string | null>`MAX(${jurisdictionsCensus.population})`,
+    })
+    .from(cases)
+    .leftJoin(
+      jurisdictionsCensus,
+      and(
+        eq(jurisdictionsCensus.provinceName, cases.jurisdictionProvince),
+        eq(jurisdictionsCensus.censusYear, 2022),
+      ),
+    )
+    .where(and(...conditions))
+    .groupBy(cases.jurisdictionProvince);
+
+  return rows
+    .filter((r) => r.province !== null)
+    .map((r) => {
+      const pop = r.population !== null ? Number(r.population) : null;
+      const ratePer10k =
+        pop !== null && pop > 0 ? Math.round((r.n / pop) * 10_000 * 10) / 10 : null;
+      return {
+        province: r.province as string,
+        code: PROVINCE_ISO_MAP[r.province as string] ?? "",
+        count: r.n,
+        ratePer10k,
+      };
+    });
 }
 
 // ============================================================================
