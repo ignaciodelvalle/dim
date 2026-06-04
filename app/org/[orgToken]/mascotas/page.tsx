@@ -306,7 +306,7 @@ export default async function OrgMascotasPage({
                       )}
                       {canEndFoster && hasFoster && (
                         <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/foster-fin`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}?sheet=fin-transito`}
                           className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           Cerrar tránsito
@@ -314,7 +314,7 @@ export default async function OrgMascotasPage({
                       )}
                       {canIntake && ownershipRole === "shelter_custody" && (
                         <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}?sheet=elegibilidad`}
                           className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
                         >
                           {pet.adoptionEligible === true
@@ -346,10 +346,10 @@ export default async function OrgMascotasPage({
                       )}
                       {showReturnToOwnerCta && (
                         <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/devolver-al-dueno`}
+                          href={`/org/${orgToken}/mascotas/${pet.publicToken}?sheet=devolver-al-dueno`}
                           className="inline-block text-xs px-2 py-1 rounded bg-gob-info text-white hover:bg-gob-info"
                         >
-                          Devolver al dueno
+                          Devolver al dueño
                         </Link>
                       )}
                       {showTransferCta && (
