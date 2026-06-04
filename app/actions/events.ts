@@ -26,7 +26,7 @@ import {
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { signalAuthorityReport } from "@/lib/authority";
-import { closeCase, openCase } from "@/lib/case-helpers";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { findDisease, isReportable } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
@@ -1614,6 +1614,12 @@ export async function createDeathRecordAction(
   // a rabies observation was auto-closed by this death.
   let rabiesObservationClosed = false;
 
+  // custody_episode terminal (death_recorded path — decomiso spec §13.4).
+  // Look up before the tx so caseId can be stamped on the death event itself.
+  // Null when the pet was never intaked (owner-registered pet dying at home) —
+  // that's normal; skip the close.
+  const custodyEpisodeCaseForDeath = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
@@ -1653,6 +1659,7 @@ export async function createDeathRecordAction(
           payload: eventPayload,
           notes,
           clientIdempotencyKey,
+          caseId: custodyEpisodeCaseForDeath?.id ?? null,
         },
         tx as Parameters<typeof insertEventIdempotent>[1],
       );
@@ -1738,6 +1745,13 @@ export async function createDeathRecordAction(
       }
       if (fosterCaseForDeath && activeFosters.length > 0) {
         await closeCase({ caseId: fosterCaseForDeath.id, reason: "resolved" }, tx);
+      }
+
+      // custody_episode terminal (death_recorded path — decomiso spec §13.4).
+      // Conditional: only close if the pet was actually intaked; owner-registered
+      // pets that die without ever being in shelter custody have no open episode.
+      if (custodyEpisodeCaseForDeath) {
+        await closeCase({ caseId: custodyEpisodeCaseForDeath.id, reason: "resolved" }, tx);
       }
 
       // Death-during-observation hook (bite-rabies-observation spec D9).

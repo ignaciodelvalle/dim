@@ -29,7 +29,7 @@ import {
   pets,
 } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
-import { closeCase, openCase } from "@/lib/case-helpers";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 const ALLOWED_REASONS = new Set([
@@ -369,6 +369,10 @@ export async function acceptCrossOrgTransferAction(input: {
     return { error: "La propuesta no fue dirigida a tu organización." };
   }
 
+  // custody_episode terminal (custody_transferred → cross-org handshake path).
+  // Null when the pet was never intaked — that's normal; skip the close.
+  const custodyCase = await findOpenCaseForPetAndKind(caseRow.primaryPetId, "custody_episode");
+
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
@@ -424,6 +428,14 @@ export async function acceptCrossOrgTransferAction(input: {
 
       // Close the handshake case.
       await closeCase({ caseId: caseRow.id, reason: "resolved", closedByUserId: user.id }, tx);
+
+      // Close the custody_episode case if one was open (animal was intaked).
+      if (custodyCase) {
+        await closeCase(
+          { caseId: custodyCase.id, reason: "resolved", closedByUserId: user.id },
+          tx,
+        );
+      }
 
       // Notify sender coordinators of the success.
       const senderCoords = await tx

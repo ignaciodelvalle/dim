@@ -36,7 +36,7 @@ import {
 } from "@/db";
 import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
-import { closeCase } from "@/lib/case-helpers";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 
@@ -595,6 +595,11 @@ export async function ownerAcceptReturnWriter({
     )
     .limit(1);
 
+  // custody_episode terminal (custody_transferred → return-to-owner path).
+  // Null when the pet was never intaked (owner-registered pet returning from
+  // an informal arrangement) — that's normal; we just skip the close.
+  const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
@@ -623,7 +628,7 @@ export async function ownerAcceptReturnWriter({
           recordedByUserId: userId,
           authorRole: "owner",
           payload: transferPayload,
-          caseId: lostCase?.id ?? null,
+          caseId: custodyCase?.id ?? lostCase?.id ?? null,
         })
         .returning({ id: petEvents.id });
 
@@ -632,6 +637,11 @@ export async function ownerAcceptReturnWriter({
       // which means the actorOwnership check passed.
       const actorOwnershipId = (actorOwnership as { id: string }).id;
       await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, actorOwnershipId));
+
+      // Close the custody_episode case if one was open (animal was intaked).
+      if (custodyCase) {
+        await closeCase({ caseId: custodyCase.id, reason: "resolved", closedByUserId: userId }, tx);
+      }
 
       // 3. Flip pet status from lost → active + emit status_changed event.
       if (pet.status === "lost") {
