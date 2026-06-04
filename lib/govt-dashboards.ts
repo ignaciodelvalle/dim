@@ -803,6 +803,19 @@ export type MaltratoListFilters = {
   queue: MaltratoQueue;
   kind?: string | null;
   severity?: string | null;
+  /** Status narrow filter — restores parity with the old JS ?status= param handling. */
+  status?: string | null;
+  /**
+   * For ADMIN only: canonical province name selected in the URL (?province=).
+   * Govt callers must NOT pass this — their scope is already enforced by
+   * filteredJurisdictions; passing selectedProvince for govt could widen the scope.
+   */
+  selectedProvince?: string | null;
+  /**
+   * For ADMIN only: canonical locality name selected in the URL (?locality=).
+   * See selectedProvince. Ignored unless selectedProvince is also set.
+   */
+  selectedLocality?: string | null;
   currentUserId: string;
 };
 
@@ -820,7 +833,17 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
  * the query will always produce zero rows.
  */
 export function buildMaltratoListConditions(filters: MaltratoListFilters) {
-  const { actor, filteredJurisdictions, queue, kind, severity, currentUserId } = filters;
+  const {
+    actor,
+    filteredJurisdictions,
+    queue,
+    kind,
+    severity,
+    status,
+    selectedProvince,
+    selectedLocality,
+    currentUserId,
+  } = filters;
 
   // Short-circuit: govt with no assignments can never see any row.
   if (actor.role === "govt" && filteredJurisdictions.length === 0) {
@@ -829,25 +852,47 @@ export function buildMaltratoListConditions(filters: MaltratoListFilters) {
 
   const conditions = [];
 
-  // 1. Jurisdiction scope.
+  // 1. Jurisdiction scope (govt only — admin is unscoped by welfareReportsScopeClause).
   const scope = welfareReportsScopeClause(actor, filteredJurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
 
-  // 2. Moderation exclusion — hide flagged rows awaiting admin review.
+  // 2. Admin province/locality filter — applies when an admin selects a province
+  //    or province+locality via the URL (?province= / ?locality=). Govt users must
+  //    NOT pass these fields; their scope is already enforced by filteredJurisdictions
+  //    (intersection of assignments ∩ URL selection, computed in the page layer).
+  if (actor.role === "admin" && selectedProvince) {
+    if (selectedLocality) {
+      conditions.push(
+        and(
+          eq(welfareReports.jurisdictionProvince, selectedProvince),
+          eq(welfareReports.jurisdictionLocality, selectedLocality),
+        ),
+      );
+    } else {
+      conditions.push(eq(welfareReports.jurisdictionProvince, selectedProvince));
+    }
+  }
+
+  // 3. Moderation exclusion — hide flagged rows awaiting admin review.
   conditions.push(
     sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
   );
 
-  // 3. Kind narrow filter.
+  // 4. Kind narrow filter.
   if (kind) conditions.push(eq(welfareReports.kind, kind as never));
 
-  // 4. Severity narrow filter.
+  // 5. Severity narrow filter.
   if (severity) conditions.push(eq(welfareReports.severity, severity as never));
 
-  // 5. Queue predicate.
+  // 6. Status narrow filter — restores parity with the old ?status= JS filtering.
+  if (status) conditions.push(eq(welfareReports.status, status as never));
+
+  // 7. Queue predicate.
   switch (queue) {
     case "urgent":
       // Critical or high severity, not yet in a terminal status.
+      // S-1: if severity is set to a non-(critical|high) value AND queue=urgent,
+      // the AND of these two conditions is always false — contradictory filter → no rows by design.
       conditions.push(inArray(welfareReports.severity, ["critical", "high"]));
       conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
       break;

@@ -24,6 +24,7 @@ import {
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
+  WELFARE_REPORT_STATUSES,
   type WelfareReportKind,
   type WelfareReportSeverity,
 } from "@/lib/welfare";
@@ -68,9 +69,15 @@ function parseSeverity(raw: string | undefined): WelfareReportSeverity | null {
     : null;
 }
 
+function parseStatus(raw: string | undefined): string | null {
+  if (!raw) return null;
+  return (WELFARE_REPORT_STATUSES as readonly string[]).includes(raw) ? raw : null;
+}
+
 function parsePage(raw: string | undefined): number {
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+  // Cap at 10_000 to prevent astronomical OFFSET values that would cause DB errors.
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 10_000) : 1;
 }
 
 export default async function GobMaltratoPage({
@@ -86,6 +93,7 @@ export default async function GobMaltratoPage({
     province?: string;
     locality?: string;
     page?: string;
+    status?: string;
   }>;
 }) {
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
@@ -95,6 +103,7 @@ export default async function GobMaltratoPage({
   const activeQueue = parseQueue(sp.queue);
   const activeKind = parseKind(sp.kind);
   const activeSeverity = parseSeverity(sp.severity);
+  const activeStatus = parseStatus(sp.status);
   const currentPage = parsePage(sp.page);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
@@ -143,12 +152,22 @@ export default async function GobMaltratoPage({
   }
 
   // Build the SQL WHERE condition covering all filters (scope + queue + kind + severity).
+  // For admin, pass the canonical province/locality so the SQL WHERE narrows
+  // by the URL selection. Govt scope is already enforced by filteredJurisdictions
+  // (intersection of assignments ∩ URL selection). Never pass these for govt.
+  const adminSelectedProvince = actor.role === "admin" ? (selectedProvinceObj?.name ?? null) : null;
+  const adminSelectedLocality =
+    actor.role === "admin" ? (selectedLocalityRow?.localityName ?? null) : null;
+
   const whereCondition = buildMaltratoListConditions({
     actor,
     filteredJurisdictions,
     queue: activeQueue,
     kind: activeKind,
     severity: activeSeverity,
+    status: activeStatus,
+    selectedProvince: adminSelectedProvince,
+    selectedLocality: adminSelectedLocality,
     currentUserId: user.id,
   });
 
@@ -161,14 +180,29 @@ export default async function GobMaltratoPage({
       .select()
       .from(welfareReports)
       .where(whereCondition)
-      .orderBy(desc(welfareReports.createdAt))
+      // Deterministic ORDER BY ensures stable pagination (no skip/repeat across pages).
+      .orderBy(desc(welfareReports.createdAt), desc(welfareReports.id))
       .limit(PAGE_SIZE)
       .offset(offset),
     db.select({ n: count() }).from(welfareReports).where(whereCondition),
   ]);
 
   const totalCount = totalRow?.n ?? 0;
-  const hasMore = offset + rows.length < totalCount;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const hasMore = currentPage < totalPages;
+
+  // Build a URL that preserves all current query params but overrides ?page=.
+  function pageUrl(p: number): string {
+    const params = new URLSearchParams();
+    if (sp.queue) params.set("queue", sp.queue);
+    if (sp.kind) params.set("kind", sp.kind);
+    if (sp.severity) params.set("severity", sp.severity);
+    if (sp.status) params.set("status", sp.status);
+    if (sp.province) params.set("province", sp.province);
+    if (sp.locality) params.set("locality", sp.locality);
+    params.set("page", String(p));
+    return `/gob/maltrato?${params.toString()}`;
+  }
 
   const panelListId = "panel-maltrato-lista-titulo";
 
@@ -237,14 +271,7 @@ export default async function GobMaltratoPage({
             {TABS.map((tab) => (
               <TabsContent key={tab.value} value={tab.value}>
                 <Panel aria-labelledby={panelListId} className="mt-4">
-                  <PanelHeader
-                    title={
-                      <span id={panelListId}>
-                        Denuncias ({totalCount}
-                        {hasMore ? `, mostrando ${PAGE_SIZE}` : ""})
-                      </span>
-                    }
-                  />
+                  <PanelHeader title={<span id={panelListId}>Denuncias ({totalCount})</span>} />
                   <PanelBody>
                     {rows.length === 0 ? (
                       <EmptyState
@@ -259,11 +286,47 @@ export default async function GobMaltratoPage({
                         ))}
                       </ul>
                     )}
-                    {hasMore && (
-                      <p className="mt-4 text-sm text-gob-text-gray text-center">
-                        Mostrando {rows.length} de {totalCount} denuncias. Refiná los filtros para
-                        ver resultados más específicos.
-                      </p>
+                    {totalPages > 1 && (
+                      <nav
+                        aria-label="Paginación de denuncias"
+                        className="mt-4 flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="text-gob-text-gray">
+                          Página {currentPage} de {totalPages} ({totalCount} denuncias)
+                        </span>
+                        <div className="flex gap-2">
+                          {currentPage > 1 ? (
+                            <a
+                              href={pageUrl(currentPage - 1)}
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text hover:bg-gob-surface-hover"
+                            >
+                              Anterior
+                            </a>
+                          ) : (
+                            <span
+                              aria-disabled="true"
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text-gray opacity-50 cursor-not-allowed"
+                            >
+                              Anterior
+                            </span>
+                          )}
+                          {hasMore ? (
+                            <a
+                              href={pageUrl(currentPage + 1)}
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text hover:bg-gob-surface-hover"
+                            >
+                              Siguiente
+                            </a>
+                          ) : (
+                            <span
+                              aria-disabled="true"
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text-gray opacity-50 cursor-not-allowed"
+                            >
+                              Siguiente
+                            </span>
+                          )}
+                        </div>
+                      </nav>
                     )}
                   </PanelBody>
                 </Panel>

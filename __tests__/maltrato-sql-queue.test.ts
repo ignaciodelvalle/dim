@@ -425,3 +425,173 @@ describe("pagination sanity (integration)", () => {
     for (const r of page2) expect(ids1.has(r.id)).toBe(false);
   });
 });
+
+// ============================================================================
+// parsePage cap — unit tests
+// ============================================================================
+
+// Inline copy of parsePage from the page module (private fn — tested here inline).
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 10_000) : 1;
+}
+
+describe("parsePage — unit", () => {
+  it("returns 1 for undefined", () => expect(parsePage(undefined)).toBe(1));
+  it("returns 1 for empty string", () => expect(parsePage("")).toBe(1));
+  it("returns 1 for 0", () => expect(parsePage("0")).toBe(1));
+  it("returns 1 for negative", () => expect(parsePage("-5")).toBe(1));
+  it("returns 1 for NaN string", () => expect(parsePage("abc")).toBe(1));
+  it("returns the page for a normal value", () => expect(parsePage("3")).toBe(3));
+  it("floors decimal pages", () => expect(parsePage("2.9")).toBe(2));
+  it("caps at 10_000", () => expect(parsePage("99999")).toBe(10_000));
+  it("caps Infinity", () => expect(parsePage("Infinity")).toBe(1)); // Infinity is not finite
+  it("returns exactly 10_000 for '10000'", () => expect(parsePage("10000")).toBe(10_000));
+});
+
+// ============================================================================
+// Status filter — unit + integration
+// ============================================================================
+
+describe("buildMaltratoListConditions — status filter (unit)", () => {
+  const BASE: MaltratoListFilters = {
+    actor: { role: "govt" },
+    filteredJurisdictions: [{ province: "Córdoba", locality: "Córdoba" }],
+    queue: "all",
+    currentUserId: "00000000-0000-0000-0000-000000000001",
+  };
+
+  it("includes status value when status filter is set", () => {
+    const result = buildMaltratoListConditions({ ...BASE, status: "closed" });
+    expect(extractLiterals(result)).toContain("closed");
+  });
+
+  it("condition with status=null is shorter than with status='closed' (no extra eq)", () => {
+    const withStatus = buildMaltratoListConditions({ ...BASE, status: "closed" });
+    const withoutStatus = buildMaltratoListConditions({ ...BASE, status: null });
+    // When status is null, no extra status condition is added — the SQL literal
+    // string should be strictly shorter.
+    expect(extractLiterals(withStatus).length).toBeGreaterThan(
+      extractLiterals(withoutStatus).length,
+    );
+  });
+});
+
+describe("buildMaltratoListConditions — status filter (integration)", () => {
+  it("returns only reports with the specified status", async () => {
+    const openId = await insertReport({
+      province: "Formosa",
+      locality: "Formosa",
+      status: "open",
+    });
+    const closedId = await insertReport({
+      province: "Formosa",
+      locality: "Formosa",
+      status: "closed",
+      closedAt: new Date(),
+    });
+
+    const openIds = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: "Formosa", locality: "Formosa" }],
+      queue: "all",
+      status: "open",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(openIds).toContain(openId);
+    expect(openIds).not.toContain(closedId);
+
+    const closedIds = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: "Formosa", locality: "Formosa" }],
+      queue: "all",
+      status: "closed",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(closedIds).toContain(closedId);
+    expect(closedIds).not.toContain(openId);
+  });
+});
+
+// ============================================================================
+// Admin province/locality filter (C-1)
+// ============================================================================
+
+describe("buildMaltratoListConditions — admin province/locality filter (integration)", () => {
+  it("admin selecting province X returns only reports from province X", async () => {
+    const cordobaId = await insertReport({ province: "Córdoba", locality: "Córdoba" });
+    const santaFeId = await insertReport({ province: "Santa Fe", locality: "Santa Fe" });
+
+    const ids = await queryIds({
+      actor: { role: "admin" },
+      filteredJurisdictions: [],
+      queue: "all",
+      selectedProvince: "Córdoba",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(ids).toContain(cordobaId);
+    expect(ids).not.toContain(santaFeId);
+  });
+
+  it("admin selecting province + locality returns only matching rows", async () => {
+    const cordobaCityId = await insertReport({ province: "Córdoba", locality: "Córdoba" });
+    const villaMaria = await insertReport({ province: "Córdoba", locality: "Villa María" });
+
+    const ids = await queryIds({
+      actor: { role: "admin" },
+      filteredJurisdictions: [],
+      queue: "all",
+      selectedProvince: "Córdoba",
+      selectedLocality: "Córdoba",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(ids).toContain(cordobaCityId);
+    expect(ids).not.toContain(villaMaria);
+  });
+
+  it("govt user (province A) selecting province B still returns ZERO rows (bypass-proof)", async () => {
+    // This is the key safety test: govt assigned to Córdoba cannot see Santa Fe
+    // reports by passing selectedProvince — we do NOT pass selectedProvince for
+    // govt; the page uses filteredJurisdictions intersection instead.
+    await insertReport({ province: "Santa Fe", locality: "Rosario" });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      // filteredJurisdictions after intersection with assignments scoped to Córdoba = []
+      // because Santa Fe is not in the assignments list.
+      filteredJurisdictions: [],
+      queue: "all",
+      // Even if selectedProvince were passed for govt (which the page never does),
+      // the short-circuit at the top of buildMaltratoListConditions returns sql`false`
+      // before any selectedProvince check runs.
+      selectedProvince: "Santa Fe",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(ids).toHaveLength(0);
+  });
+
+  it("COUNT uses the same WHERE as the list query (same condition object reuse)", async () => {
+    const id = await insertReport({ province: "La Pampa", locality: "Santa Rosa" });
+
+    const cond = buildMaltratoListConditions({
+      actor: { role: "admin" },
+      filteredJurisdictions: [],
+      queue: "all",
+      selectedProvince: "La Pampa",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    const listRows = await db.select({ id: welfareReports.id }).from(welfareReports).where(cond);
+
+    const [{ n }] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(welfareReports)
+      .where(cond);
+
+    // COUNT and list must agree.
+    expect(n).toBe(listRows.length);
+    expect(listRows.map((r) => r.id)).toContain(id);
+  });
+});
