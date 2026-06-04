@@ -1300,7 +1300,6 @@ describe("fetchAnalyticsMetrics", () => {
       locality: loc,
     });
     // Only pet1 gets rabia vaccination.
-    // Note: use unaccented "rabia" so ILIKE '%rabia%' matches ASCII-case-insensitively.
     await emitVaccinationWithName({
       petId: pet1,
       vaccineName: "Vacuna rabia canina triple",
@@ -1313,6 +1312,42 @@ describe("fetchAnalyticsMetrics", () => {
     expect(m.totalPets).toBeGreaterThanOrEqual(2);
     expect(m.rabiesVaccinationRate).toBeGreaterThanOrEqual(1);
     expect(m.rabiesVaccinationRate).toBeLessThanOrEqual(100);
+  });
+
+  it("rabiesVaccinationRate counts pets whose vaccine_name is accented 'Antirrábica'", async () => {
+    // Regression guard for E5-2: the old ILIKE '%rabi%' predicate is ASCII-only and
+    // would NOT match "Antirrábica" (ó has a diacritic). The unaccent()-based predicate
+    // must count it. Requires the unaccent extension (migration 0070).
+    const prov = "Formosa";
+    const loc = "Formosa Capital";
+    const petAccented = await insertFixturePet({
+      name: "AntirrabiPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const petUnvaccinated = await insertFixturePet({
+      name: "UnvaccinatedPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Vaccine name uses the accented form that ILIKE '%rabi%' would have missed.
+    await emitVaccinationWithName({
+      petId: petAccented,
+      vaccineName: "Antirrábica",
+      province: prov,
+      locality: loc,
+    });
+    // petUnvaccinated has no vaccination event at all.
+
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
+    // totalPets >= 2; exactly 1 of them has the rabies vaccine.
+    expect(m.totalPets).toBeGreaterThanOrEqual(2);
+    // rate must be > 0 — the accented name was matched by unaccent().
+    expect(m.rabiesVaccinationRate).toBeGreaterThan(0);
+    // rate must be < 100 — the unvaccinated pet lowers it below 100%.
+    expect(m.rabiesVaccinationRate).toBeLessThan(100);
   });
 
   it("scope: govt only sees pets in their assigned jurisdictions", async () => {

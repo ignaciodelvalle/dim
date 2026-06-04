@@ -1184,10 +1184,11 @@ export type AnalyticsMetrics = {
   adoptionRate: number;
   /**
    * % of pets in scope with at least one vaccination_administered event where
-   * vaccine_name ILIKE '%rabi%' (catches rabia, rabies; ASCII-only ILIKE).
+   * vaccine_name matches rabia/rabies/antirrábica/antirrabica (accent-insensitive).
+   * Uses unaccent() so accented forms like "antirrábica" are counted alongside
+   * ASCII forms "rabia" and "rabies".
    * Computed as (pets with ≥1 rabia event / totalPets) * 100, rounded to integer.
    * Returns 0 when totalPets = 0.
-   * TODO(E5-followup): use unaccent() to also catch 'antirrábica' etc. if extension is available.
    */
   rabiesVaccinationRate: number;
   /** Open cases in scope where case_kind='custody_dispute'. */
@@ -1228,16 +1229,16 @@ export async function fetchAnalyticsMetrics(
   }
 
   // 3. rabiesVaccinationRate: distinct petIds with ≥1 vaccination_administered where
-  //    vaccine_name matches rabia/rabies/rábica/antirrábica (ASCII: %rabi%).
-  //    Using %rabi% (without accent) catches all common variants:
-  //      - "rabia"           — direct match
-  //      - "rabies"          — English/lab names
-  //      - PostgreSQL ILIKE is ASCII-case-insensitive but not accent-insensitive,
-  //        so "antirrábica" (with accent) does NOT match %rabia%. Use %rabi% instead.
-  //    TODO(E5-followup): use unaccent() if the unaccent extension is available.
+  //    vaccine_name accent-insensitively matches rabia/rabies/antirrábica/antirrabica.
+  //    unaccent() strips diacritics on both sides so the pattern '%rabi%' catches:
+  //      - "rabia"           → unaccent → "rabia"       → contains "rabi" ✓
+  //      - "rabies"          → unaccent → "rabies"      → contains "rabi" ✓
+  //      - "antirrábica"     → unaccent → "antirrabica" → contains "rabi" ✓
+  //      - "Antirrábica"     → unaccent → "Antirrabica" → ILIKE catches case ✓
+  //    Requires the unaccent extension (migration 0070; first referenced in 0055).
   const rabiesConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${petEvents.payload}->>'vaccine_name') ILIKE ${"%rabi%"}`,
+    sql`unaccent(${petEvents.payload}->>'vaccine_name') ILIKE unaccent(${"%rabi%"})`,
   ];
   if (actor.role === "govt") {
     const pairs = jurisdictions.map(
