@@ -31,7 +31,7 @@ import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 
 // All Argentine provinces list for <JurisdictionSwitcher>.
 const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "Ciudad Autónoma de Buenos Aires" },
+  { code: "AR-C", name: "CABA" },
   { code: "AR-B", name: "Buenos Aires" },
   { code: "AR-X", name: "Córdoba" },
   { code: "AR-S", name: "Santa Fe" },
@@ -158,9 +158,27 @@ export default async function GobMaltratoPage({
     isNotNull(welfareReports.moderationResolvedAt),
   );
 
+  // Narrow the jurisdictions scope when a province/locality filter is active.
+  // Always intersects with the user's assignments — never widens beyond them.
+  // Admin stays unscoped (empty jurisdictions by contract).
+  let filteredJurisdictions = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalityRow) {
+      // Province + locality: intersect with assignments (NOT replacement).
+      // govtAssignments.jurisdictionLocality is NOT NULL, so exact match is correct.
+      filteredJurisdictions = jurisdictions.filter(
+        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+      );
+    } else {
+      // Province only: keep assignments for that province.
+      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+    }
+  }
+
   // Fetch metrics and report list in parallel.
   let [metrics, rows] = await Promise.all([
-    fetchWelfareMetrics(actor, jurisdictions, user.id),
+    fetchWelfareMetrics(actor, filteredJurisdictions, user.id),
     db
       .select()
       .from(welfareReports)

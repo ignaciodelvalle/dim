@@ -75,9 +75,13 @@ export default async function GobVigilanciaBrotesPage({
   if (selectedProvinceObj && profile.role !== "admin") {
     const provinceName = selectedProvinceObj.name;
     if (selectedLocalityRow) {
-      filteredJurisdictions = [
-        { province: provinceName, locality: selectedLocalityRow.localityName },
-      ];
+      // Province + locality: intersect with the user's actual assignments so a
+      // govt user cannot widen scope by crafting arbitrary ?province=&locality= params.
+      // govtAssignments.jurisdictionLocality is NOT NULL (schema-enforced), so exact
+      // match is correct — no null-locality province-level rows exist.
+      filteredJurisdictions = jurisdictions.filter(
+        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+      );
     } else {
       filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
     }
