@@ -35,7 +35,7 @@ export type GovtPetLookupResult =
 const TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
 export async function lookupPetForDecomisoAction(query: string): Promise<GovtPetLookupResult> {
-  await requireDecomisoPrincipal();
+  const session = await requireDecomisoPrincipal();
 
   const trimmed = query.trim().toUpperCase();
   if (!trimmed) return { found: false, error: "Ingresá un token de mascota." };
@@ -51,6 +51,7 @@ export async function lookupPetForDecomisoAction(query: string): Promise<GovtPet
       species: pets.species,
       sex: pets.sex,
       status: pets.status,
+      jurisdictionProvince: pets.jurisdictionProvince,
     })
     .from(pets)
     .where(eq(pets.publicToken, trimmed))
@@ -61,6 +62,24 @@ export async function lookupPetForDecomisoAction(query: string): Promise<GovtPet
       found: false,
       error: `No se encontró ninguna mascota con el token ${trimmed}.`,
     };
+  }
+
+  // Jurisdiction scope check — mirrors executeDecomisoAction Fix 1.
+  // Admin role has universal scope (session.jurisdictions is empty by design).
+  // For govt, the pet's registered province must appear in the user's assigned
+  // jurisdictions. A null pet province means no jurisdiction was recorded at
+  // registration — allow the lookup (no jurisdiction can be violated if none
+  // is recorded). If the pet IS out of scope, return an error WITHOUT exposing
+  // owner PII (ownerDisplayName / hasOwner).
+  if (session.profile.role === "govt") {
+    const petProvince = pet.jurisdictionProvince;
+    const inScope = !petProvince || session.jurisdictions.some((j) => j.province === petProvince);
+    if (!inScope) {
+      return {
+        found: false,
+        error: "Esta mascota no está en tu jurisdicción asignada.",
+      };
+    }
   }
 
   // Check for an active user-based 'owner' ownership.
