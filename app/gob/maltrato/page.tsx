@@ -15,17 +15,20 @@ import { db, welfareReports } from "@/db";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { PROVINCE_ISO_MAP, fetchWelfareMetrics } from "@/lib/govt-dashboards";
+import {
+  type MaltratoQueue,
+  PROVINCE_ISO_MAP,
+  buildMaltratoListConditions,
+  fetchWelfareMetrics,
+} from "@/lib/govt-dashboards";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
   WELFARE_REPORT_STATUSES,
   type WelfareReportKind,
   type WelfareReportSeverity,
-  type WelfareReportStatus,
 } from "@/lib/welfare";
-import { and, desc, isNotNull, isNull, or } from "drizzle-orm";
-import { eq } from "drizzle-orm";
+import { count, desc } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 
@@ -44,26 +47,21 @@ const ALL_PROVINCES: Array<{ code: string; name: string }> = [
   { code: "AR-W", name: "Corrientes" },
 ];
 
-type WelfareQueue = "urgent" | "mine" | "all" | "overdue";
-const VALID_QUEUES: WelfareQueue[] = ["urgent", "mine", "all", "overdue"];
+const PAGE_SIZE = 50;
+const VALID_QUEUES: MaltratoQueue[] = ["urgent", "mine", "all", "overdue"];
 
-function parseQueue(raw: string | undefined): WelfareQueue {
+function parseQueue(raw: string | undefined): MaltratoQueue {
   if (!raw) return "all";
-  return (VALID_QUEUES as string[]).includes(raw) ? (raw as WelfareQueue) : "all";
+  return (VALID_QUEUES as string[]).includes(raw) ? (raw as MaltratoQueue) : "all";
 }
 
-function parseStatus(raw: string | undefined): WelfareReportStatus | null {
-  if (!raw) return null;
-  return (WELFARE_REPORT_STATUSES as readonly string[]).includes(raw)
-    ? (raw as WelfareReportStatus)
-    : null;
-}
 function parseKind(raw: string | undefined): WelfareReportKind | null {
   if (!raw) return null;
   return (WELFARE_REPORT_KINDS as readonly string[]).includes(raw)
     ? (raw as WelfareReportKind)
     : null;
 }
+
 function parseSeverity(raw: string | undefined): WelfareReportSeverity | null {
   if (!raw) return null;
   return (WELFARE_REPORT_SEVERITIES as readonly string[]).includes(raw)
@@ -71,34 +69,15 @@ function parseSeverity(raw: string | undefined): WelfareReportSeverity | null {
     : null;
 }
 
-// Queue filter applied in JS post-fetch (v1 simplicity — bounded result set).
-// TODO(E4-followup): move queue filtering to the SQL query for scale.
-function filterByQueue(
-  reports: Array<typeof welfareReports.$inferSelect>,
-  queue: WelfareQueue,
-  currentUserId: string,
-): Array<typeof welfareReports.$inferSelect> {
-  switch (queue) {
-    case "urgent":
-      return reports.filter(
-        (r) =>
-          (r.severity === "critical" || r.severity === "high") &&
-          r.status !== "closed" &&
-          r.status !== "invalid" &&
-          r.status !== "duplicate",
-      );
-    case "mine":
-      return reports.filter((r) => r.assignedToUserId === currentUserId);
-    case "overdue":
-      // Overdue: open for more than 7 days without triage.
-      return reports.filter((r) => {
-        if (r.status !== "open") return false;
-        const ageMs = Date.now() - new Date(r.createdAt).getTime();
-        return ageMs > 7 * 24 * 60 * 60 * 1000;
-      });
-    default:
-      return reports;
-  }
+function parseStatus(raw: string | undefined): string | null {
+  if (!raw) return null;
+  return (WELFARE_REPORT_STATUSES as readonly string[]).includes(raw) ? raw : null;
+}
+
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw);
+  // Cap at 10_000 to prevent astronomical OFFSET values that would cause DB errors.
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 10_000) : 1;
 }
 
 export default async function GobMaltratoPage({
@@ -111,9 +90,10 @@ export default async function GobMaltratoPage({
     queue?: string;
     kind?: string;
     severity?: string;
-    status?: string;
     province?: string;
     locality?: string;
+    page?: string;
+    status?: string;
   }>;
 }) {
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
@@ -121,9 +101,10 @@ export default async function GobMaltratoPage({
   const sp = await searchParams;
 
   const activeQueue = parseQueue(sp.queue);
-  const activeStatus = parseStatus(sp.status);
   const activeKind = parseKind(sp.kind);
   const activeSeverity = parseSeverity(sp.severity);
+  const activeStatus = parseStatus(sp.status);
+  const currentPage = parsePage(sp.page);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
@@ -138,7 +119,7 @@ export default async function GobMaltratoPage({
       ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
       : [];
 
-  // Resolve locality slug → canonical locality name for post-fetch narrowing.
+  // Resolve locality slug → canonical locality name for the WHERE clause.
   const selectedLocalityRow =
     selectedProvinceObj && selectedLocalitySlug
       ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
@@ -152,15 +133,9 @@ export default async function GobMaltratoPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
-  // Exclude rows under active moderation (flagged but not resolved by moderator).
-  const notUnderModeration = or(
-    isNull(welfareReports.flaggedAt),
-    isNotNull(welfareReports.moderationResolvedAt),
-  );
-
   // Narrow the jurisdictions scope when a province/locality filter is active.
   // Always intersects with the user's assignments — never widens beyond them.
-  // Admin stays unscoped (empty jurisdictions by contract).
+  // Admin stays unscoped (empty jurisdictions by contract from requireAdminOrGovtOrRedirect).
   let filteredJurisdictions = jurisdictions;
   if (selectedProvinceObj && profile.role !== "admin") {
     const provinceName = selectedProvinceObj.name;
@@ -176,48 +151,58 @@ export default async function GobMaltratoPage({
     }
   }
 
-  // Fetch metrics and report list in parallel.
-  let [metrics, rows] = await Promise.all([
+  // Build the SQL WHERE condition covering all filters (scope + queue + kind + severity).
+  // For admin, pass the canonical province/locality so the SQL WHERE narrows
+  // by the URL selection. Govt scope is already enforced by filteredJurisdictions
+  // (intersection of assignments ∩ URL selection). Never pass these for govt.
+  const adminSelectedProvince = actor.role === "admin" ? (selectedProvinceObj?.name ?? null) : null;
+  const adminSelectedLocality =
+    actor.role === "admin" ? (selectedLocalityRow?.localityName ?? null) : null;
+
+  const whereCondition = buildMaltratoListConditions({
+    actor,
+    filteredJurisdictions,
+    queue: activeQueue,
+    kind: activeKind,
+    severity: activeSeverity,
+    status: activeStatus,
+    selectedProvince: adminSelectedProvince,
+    selectedLocality: adminSelectedLocality,
+    currentUserId: user.id,
+  });
+
+  // Fetch metrics and paginated report list in parallel.
+  const offset = (currentPage - 1) * PAGE_SIZE;
+
+  const [metrics, rows, [totalRow]] = await Promise.all([
     fetchWelfareMetrics(actor, filteredJurisdictions, user.id),
     db
       .select()
       .from(welfareReports)
-      .where(
-        activeStatus
-          ? and(eq(welfareReports.status, activeStatus), notUnderModeration)
-          : notUnderModeration,
-      )
-      .orderBy(desc(welfareReports.createdAt))
-      .limit(500),
+      .where(whereCondition)
+      // Deterministic ORDER BY ensures stable pagination (no skip/repeat across pages).
+      .orderBy(desc(welfareReports.createdAt), desc(welfareReports.id))
+      .limit(PAGE_SIZE)
+      .offset(offset),
+    db.select({ n: count() }).from(welfareReports).where(whereCondition),
   ]);
 
-  // Scope filtering for govt role (can't do tuple match in SQL with Drizzle).
-  if (profile.role === "govt") {
-    rows = rows.filter((r) =>
-      jurisdictions.some(
-        (j) => j.province === r.jurisdictionProvince && j.locality === r.jurisdictionLocality,
-      ),
-    );
-  }
-  // Locality filter: for both admin and govt, narrow to the selected province/locality
-  // when set in the URL. Uses the same post-fetch pattern as the existing kind/severity
-  // filters — bounded result set, no refactor of the SQL query needed.
-  if (selectedProvinceObj) {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      const localityName = selectedLocalityRow.localityName;
-      rows = rows.filter(
-        (r) => r.jurisdictionProvince === provinceName && r.jurisdictionLocality === localityName,
-      );
-    } else {
-      rows = rows.filter((r) => r.jurisdictionProvince === provinceName);
-    }
-  }
-  if (activeKind) rows = rows.filter((r) => r.kind === activeKind);
-  if (activeSeverity) rows = rows.filter((r) => r.severity === activeSeverity);
+  const totalCount = totalRow?.n ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const hasMore = currentPage < totalPages;
 
-  // Apply queue tab filter.
-  const visibleRows = filterByQueue(rows, activeQueue, user.id);
+  // Build a URL that preserves all current query params but overrides ?page=.
+  function pageUrl(p: number): string {
+    const params = new URLSearchParams();
+    if (sp.queue) params.set("queue", sp.queue);
+    if (sp.kind) params.set("kind", sp.kind);
+    if (sp.severity) params.set("severity", sp.severity);
+    if (sp.status) params.set("status", sp.status);
+    if (sp.province) params.set("province", sp.province);
+    if (sp.locality) params.set("locality", sp.locality);
+    params.set("page", String(p));
+    return `/gob/maltrato?${params.toString()}`;
+  }
 
   const panelListId = "panel-maltrato-lista-titulo";
 
@@ -286,11 +271,9 @@ export default async function GobMaltratoPage({
             {TABS.map((tab) => (
               <TabsContent key={tab.value} value={tab.value}>
                 <Panel aria-labelledby={panelListId} className="mt-4">
-                  <PanelHeader
-                    title={<span id={panelListId}>Denuncias ({visibleRows.length})</span>}
-                  />
+                  <PanelHeader title={<span id={panelListId}>Denuncias ({totalCount})</span>} />
                   <PanelBody>
-                    {visibleRows.length === 0 ? (
+                    {rows.length === 0 ? (
                       <EmptyState
                         icon="file-text"
                         title="Sin denuncias en esta cola"
@@ -298,10 +281,52 @@ export default async function GobMaltratoPage({
                       />
                     ) : (
                       <ul className="space-y-2">
-                        {visibleRows.map((r) => (
+                        {rows.map((r) => (
                           <WelfareDenunciaRow key={r.id} report={r} />
                         ))}
                       </ul>
+                    )}
+                    {totalPages > 1 && (
+                      <nav
+                        aria-label="Paginación de denuncias"
+                        className="mt-4 flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="text-gob-text-gray">
+                          Página {currentPage} de {totalPages} ({totalCount} denuncias)
+                        </span>
+                        <div className="flex gap-2">
+                          {currentPage > 1 ? (
+                            <a
+                              href={pageUrl(currentPage - 1)}
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text hover:bg-gob-surface-hover"
+                            >
+                              Anterior
+                            </a>
+                          ) : (
+                            <span
+                              aria-disabled="true"
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text-gray opacity-50 cursor-not-allowed"
+                            >
+                              Anterior
+                            </span>
+                          )}
+                          {hasMore ? (
+                            <a
+                              href={pageUrl(currentPage + 1)}
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text hover:bg-gob-surface-hover"
+                            >
+                              Siguiente
+                            </a>
+                          ) : (
+                            <span
+                              aria-disabled="true"
+                              className="rounded border border-gob-border px-3 py-1 text-gob-text-gray opacity-50 cursor-not-allowed"
+                            >
+                              Siguiente
+                            </span>
+                          )}
+                        </div>
+                      </nav>
                     )}
                   </PanelBody>
                 </Panel>
