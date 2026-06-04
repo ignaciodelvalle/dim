@@ -61,14 +61,12 @@ export type IntakeFormState = {
   createdPetName?: string;
 };
 
-type IntakeReason = "rescue" | "surrender" | "seizure" | "stray_found" | "other";
-const INTAKE_REASONS: readonly IntakeReason[] = [
-  "rescue",
-  "surrender",
-  "seizure",
-  "stray_found",
-  "other",
-];
+// "seizure" is intentionally absent: a decomiso is a State act (DC1) and
+// must go through the government decomiso flow (welfare.decomiso.execute),
+// not the org-side intake form. The intake_reason ENUM value "seizure" stays
+// valid in the DB and schema — the govt flow will use it.
+type IntakeReason = "rescue" | "surrender" | "stray_found" | "other";
+const INTAKE_REASONS: readonly IntakeReason[] = ["rescue", "surrender", "stray_found", "other"];
 
 // Custody role the org will take on this animal. Default "shelter_custody"
 // matches the rescue-and-rehome path; "owner" is for sanctuary / internal-
@@ -360,10 +358,11 @@ export async function createIntakeAction(
       // Cases system: open a custody_episode for every org intake so the
       // custody period has a first-class entry in /casos. The lifecycle's
       // opensEvents = shelter_intake_recorded with no sub-condition, so all
-      // intake reasons (rescue / surrender / seizure / stray_found / other)
-      // open a case. Close transitions (custody_transferred, adoption_finalized,
-      // death_recorded) are wired separately and are out of scope here —
-      // cases stay open until then.
+      // intake reasons (rescue / surrender / stray_found / other) open a case.
+      // "seizure" is excluded from org-side intake (DC1); the govt decomiso
+      // flow will open its own case. Close transitions (custody_transferred,
+      // adoption_finalized, death_recorded) are wired separately and are out
+      // of scope here — cases stay open until then.
       const custodyCase = await openCase(
         {
           kind: "custody_episode",
