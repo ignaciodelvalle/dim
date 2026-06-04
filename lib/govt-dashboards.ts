@@ -1503,10 +1503,9 @@ export type OutbreakHistoryRow = {
   locality: string;
   province: string;
   /**
-   * ISO date of the most recent outbreak_signal for this (disease_code, locality) group.
-   * v1 simplification: uses MAX(occurred_at) as peak date rather than computing
-   * the per-day peak (day with most signals). TODO(E5-followup): replace with
-   * a window-function subquery once query complexity is justified.
+   * ISO date (YYYY-MM-DD) of the calendar day with the highest number of
+   * outbreak_signal events for this (disease_code, locality, province) group.
+   * Tie-break: highest signal count first, then most-recent day.
    */
   peakDate: string;
   /** Total outbreak_signal events from this disease in this locality, full history. */
@@ -1514,8 +1513,16 @@ export type OutbreakHistoryRow = {
 };
 
 /**
- * Historical outbreaks grouped by (disease_code, locality, province),
- * most recent first (by MAX(occurred_at)).
+ * Historical outbreaks grouped by (disease_code, disease_label, locality, province),
+ * ordered by most-recent signal descending.
+ *
+ * peakDate = the calendar day (date_trunc('day', occurred_at)::date) that
+ * had the most outbreak_signal events within the group. Ties broken by most-
+ * recent day. Group-level totalSignals counts all signals across all days.
+ *
+ * Implemented as a three-CTE query (daily → peak → totals) joined together so
+ * that per-day counts, busiest-day selection (DISTINCT ON), and group totals
+ * are each computed in a single pass.
  *
  * Scope via outbreak_signal payload fields pet_jurisdiction_province/locality
  * (same as fetchSurveillanceSignals). No time restriction — full history.
@@ -1526,37 +1533,84 @@ export async function fetchOutbreakHistory(
 ): Promise<OutbreakHistoryRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
-  const conditions = [eq(petEvents.eventType, "outbreak_signal")];
+  // Build the jurisdiction scope clause once; reused in both CTEs.
   const scope = outbreakSignalScopeClause(actor, jurisdictions);
-  if (scope) conditions.push(sql`(${scope})`);
+  const scopeFragment = scope ? sql` AND (${scope})` : sql``;
 
-  const rows = await db
-    .select({
-      diseaseCode: sql<string>`(${petEvents.payload}->>'disease_code')`,
-      diseaseLabel: sql<string | null>`(${petEvents.payload}->>'disease_label')`,
-      province: sql<string>`COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')`,
-      locality: sql<string>`COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')`,
-      peakDate: sql<string>`MAX(${petEvents.occurredAt})`,
-      n: count(),
-    })
-    .from(petEvents)
-    .where(and(...conditions))
-    .groupBy(
-      sql`(${petEvents.payload}->>'disease_code')`,
-      sql`(${petEvents.payload}->>'disease_label')`,
-      sql`COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')`,
-      sql`COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')`,
+  type RawRow = {
+    disease_code: string;
+    disease_label: string | null;
+    province: string;
+    locality: string;
+    peak_day: string;
+    total_signals: number;
+    last_seen: string;
+  };
+
+  const rows = (await db.execute(sql`
+    WITH daily AS (
+      -- Per-(group, day) signal counts. Groups share the same 4-tuple key.
+      SELECT
+        (${petEvents.payload}->>'disease_code')                                AS disease_code,
+        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
+        date_trunc('day', ${petEvents.occurredAt})::date                        AS day,
+        COUNT(*)::int                                                           AS day_count
+      FROM ${petEvents}
+      WHERE ${petEvents.eventType} = 'outbreak_signal'${scopeFragment}
+      GROUP BY disease_code, disease_label, province, locality, day
+    ),
+    peak AS (
+      -- Pick the single busiest day per group.
+      -- Tie-break: most signals first, then most-recent day.
+      SELECT DISTINCT ON (disease_code, disease_label, province, locality)
+        disease_code,
+        disease_label,
+        province,
+        locality,
+        day AS peak_day
+      FROM daily
+      ORDER BY disease_code, disease_label, province, locality,
+               day_count DESC, day DESC
+    ),
+    totals AS (
+      -- Group-level aggregates: total signal count + last-seen timestamp
+      -- (used for ordering the final result).
+      SELECT
+        (${petEvents.payload}->>'disease_code')                                AS disease_code,
+        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
+        COUNT(*)::int                                                           AS total_signals,
+        MAX(${petEvents.occurredAt})                                            AS last_seen
+      FROM ${petEvents}
+      WHERE ${petEvents.eventType} = 'outbreak_signal'${scopeFragment}
+      GROUP BY disease_code, disease_label, province, locality
     )
-    .orderBy(sql`MAX(${petEvents.occurredAt}) DESC`)
-    .limit(100);
+    SELECT
+      t.disease_code,
+      t.disease_label,
+      t.province,
+      t.locality,
+      p.peak_day,
+      t.total_signals,
+      t.last_seen
+    FROM totals t
+    JOIN peak p USING (disease_code, disease_label, province, locality)
+    ORDER BY t.last_seen DESC
+    LIMIT 100
+  `)) as RawRow[];
 
   return rows.map((r) => ({
-    diseaseCode: r.diseaseCode,
-    diseaseName: findDisease(r.diseaseCode)?.label ?? r.diseaseLabel ?? r.diseaseCode,
+    diseaseCode: r.disease_code,
+    diseaseName: findDisease(r.disease_code)?.label ?? (r.disease_label || null) ?? r.disease_code,
     locality: r.locality,
     province: r.province,
-    peakDate: new Date(r.peakDate).toISOString(),
-    totalSignals: r.n,
+    // peak_day arrives as a Postgres ::date string (YYYY-MM-DD); wrap in Date
+    // only to normalise, then emit as ISO date string.
+    peakDate: new Date(r.peak_day).toISOString(),
+    totalSignals: r.total_signals,
   }));
 }
 

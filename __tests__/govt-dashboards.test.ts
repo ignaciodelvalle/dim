@@ -135,6 +135,38 @@ async function emitOutbreakSignal(input: {
   });
 }
 
+async function emitOutbreakSignalAt(input: {
+  petId: string;
+  diseaseCode: string;
+  province: string;
+  locality: string;
+  occurredAt: Date;
+}) {
+  await db.insert(petEvents).values({
+    petId: input.petId,
+    eventType: "outbreak_signal",
+    occurredAt: input.occurredAt,
+    payload: {
+      payload_version: 1,
+      source_symptom_event_id: "00000000-0000-0000-0000-000000000000",
+      disease_code: input.diseaseCode,
+      disease_label: input.diseaseCode,
+      match_strength: {
+        high_count: 1,
+        medium_count: 0,
+        low_count: 0,
+        matched_symptom_codes: ["s_test"],
+      },
+      pet_jurisdiction_country: "AR",
+      pet_jurisdiction_province: input.province,
+      pet_jurisdiction_locality: input.locality,
+      pet_species: "dog",
+    },
+    authorRole: "system",
+    recordedByUserId: null,
+  });
+}
+
 beforeAll(async () => {
   ownerUserId = await ensureOwner();
   await cleanupFixtureRows();
@@ -1621,6 +1653,215 @@ describe("fetchOutbreakHistory", () => {
     for (const row of govtR) {
       expect(row.locality).not.toBe(loc2);
     }
+  });
+
+  it("peakDate = the calendar day with the most signals, not the last signal", async () => {
+    const prov = "Córdoba";
+    const loc = "Río Cuarto";
+    const pet = await insertFixturePet({
+      name: "PeakPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+
+    // Anchor dates: three distinct calendar days.
+    // day0 = 3 days ago (1 signal — quiet day)
+    // day1 = 2 days ago (3 signals — busiest day)
+    // day2 = 1 day ago  (2 signals — most recent, but not busiest)
+    const now = Date.now();
+    const day0 = new Date(now - 3 * 24 * 60 * 60 * 1000);
+    const day1 = new Date(now - 2 * 24 * 60 * 60 * 1000);
+    const day2 = new Date(now - 1 * 24 * 60 * 60 * 1000);
+
+    // Normalise to midnight UTC to stay within the same calendar day regardless
+    // of sub-second jitter.
+    const midnightOf = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T12:00:00.000Z`);
+
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "brucellosis_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: midnightOf(day0),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "brucellosis_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: midnightOf(day1),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "brucellosis_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: new Date(midnightOf(day1).getTime() + 1000),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "brucellosis_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: new Date(midnightOf(day1).getTime() + 2000),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "brucellosis_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: midnightOf(day2),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "brucellosis_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: new Date(midnightOf(day2).getTime() + 1000),
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const row = r.find((x) => x.diseaseCode === "brucellosis_suspected" && x.locality === loc);
+    expect(row).toBeDefined();
+    if (!row) return;
+
+    // totalSignals must count ALL 6 signals across all days.
+    expect(row.totalSignals).toBeGreaterThanOrEqual(6);
+
+    // peakDate must be day1 (3 signals), not day2 (2 signals — most recent).
+    const expectedDay = midnightOf(day1).toISOString().slice(0, 10);
+    expect(row.peakDate.slice(0, 10)).toBe(expectedDay);
+  });
+
+  it("peakDate tie-break: most-recent day wins when counts are equal", async () => {
+    const prov = "Neuquén";
+    const loc = "Zapala";
+    const pet = await insertFixturePet({
+      name: "TiePet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+
+    const now = Date.now();
+    const older = new Date(now - 4 * 24 * 60 * 60 * 1000);
+    const newer = new Date(now - 2 * 24 * 60 * 60 * 1000);
+    const midnightOf = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T12:00:00.000Z`);
+
+    // 2 signals each on older and newer days — tied count; newer should win.
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "hantavirus_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: midnightOf(older),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "hantavirus_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: new Date(midnightOf(older).getTime() + 1000),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "hantavirus_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: midnightOf(newer),
+    });
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "hantavirus_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: new Date(midnightOf(newer).getTime() + 1000),
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const row = r.find((x) => x.diseaseCode === "hantavirus_suspected" && x.locality === loc);
+    expect(row).toBeDefined();
+    if (!row) return;
+
+    const expectedDay = midnightOf(newer).toISOString().slice(0, 10);
+    expect(row.peakDate.slice(0, 10)).toBe(expectedDay);
+  });
+
+  it("retains groups whose disease_label is NULL (null-safe join)", async () => {
+    const prov = "Salta";
+    const loc = "Salta Capital";
+    const pet = await insertFixturePet({
+      name: "NullLabelPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Emit an outbreak_signal with NO disease_label in the payload.
+    // The COALESCE fix must prevent this group from being dropped by the JOIN.
+    await db.insert(petEvents).values({
+      petId: pet,
+      eventType: "outbreak_signal",
+      occurredAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        source_symptom_event_id: "00000000-0000-0000-0000-000000000000",
+        disease_code: "null_label_disease",
+        // disease_label intentionally omitted — simulates a NULL in the DB column
+        match_strength: {
+          high_count: 1,
+          medium_count: 0,
+          low_count: 0,
+          matched_symptom_codes: ["s_test"],
+        },
+        pet_jurisdiction_country: "AR",
+        pet_jurisdiction_province: prov,
+        pet_jurisdiction_locality: loc,
+        pet_species: "dog",
+      },
+      authorRole: "system",
+      recordedByUserId: null,
+    });
+    await db.insert(petEvents).values({
+      petId: pet,
+      eventType: "outbreak_signal",
+      occurredAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        source_symptom_event_id: "00000000-0000-0000-0000-000000000001",
+        disease_code: "null_label_disease",
+        // disease_label intentionally omitted
+        match_strength: {
+          high_count: 1,
+          medium_count: 0,
+          low_count: 0,
+          matched_symptom_codes: ["s_test"],
+        },
+        pet_jurisdiction_country: "AR",
+        pet_jurisdiction_province: prov,
+        pet_jurisdiction_locality: loc,
+        pet_species: "dog",
+      },
+      authorRole: "system",
+      recordedByUserId: null,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const row = r.find((x) => x.diseaseCode === "null_label_disease" && x.locality === loc);
+
+    // Without the COALESCE fix this group would be silently dropped by the JOIN.
+    expect(row).toBeDefined();
+    if (!row) return;
+
+    // Both signals must be counted.
+    expect(row.totalSignals).toBeGreaterThanOrEqual(2);
+
+    // peakDate must be a valid ISO string.
+    expect(typeof row.peakDate).toBe("string");
+    expect(() => new Date(row.peakDate)).not.toThrow();
+
+    // diseaseName falls back to diseaseCode when label is missing.
+    expect(row.diseaseName).toBe("null_label_disease");
   });
 
   it("ordered by peakDate desc (most recent first)", async () => {
