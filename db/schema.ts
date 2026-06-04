@@ -1752,6 +1752,13 @@ export const AUDIT_LOG_ACTIONS = [
   // export_subject_data + erase_subject_data declared in migration 0059.
   "subject_data_exported",
   "subject_erasure",
+  // Decomiso (Ley 14.346) seizure lifecycle — spec §4.5
+  // (2026-05-19-decomiso-welfare-authority-design.md).
+  // Emitted by executeDecomisoAction and the handoff accept/reject/cancel actions.
+  "decomiso_executed",
+  "decomiso_handoff_accepted",
+  "decomiso_handoff_rejected",
+  "decomiso_handoff_cancelled",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

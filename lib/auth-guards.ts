@@ -158,3 +158,39 @@ export async function requireAdminOrRedirect(): Promise<AdminSession> {
     },
   };
 }
+
+// ============================================================================
+// Decomiso (Ley 14.346) guard — welfare.decomiso.execute capability
+// ============================================================================
+//
+// Spec: 2026-05-19-decomiso-welfare-authority-design.md §4.4 + DC1.
+//
+// Capability string: 'welfare.decomiso.execute'
+// Granted automatically to:
+//   - role='govt'  (all govt accounts, any active jurisdiction)
+//   - role='admin' (universal scope)
+// NOT granted to: owner, vet, org members without a govt/admin profile role.
+//
+// Auth model: this is a PROFILE-LEVEL role check (not an org-capability grant).
+// The decomiso is an act of the State (Ley 14.346); an org-capability grant
+// would allow a refugio to issue one, which is legally wrong (DC1: "refugio que
+// decomisa por su cuenta = robo de animal"). We mirror the EXACT same pattern
+// as requireAdminOrGovtOrRedirect (role + govt_assignments). A separate
+// org-capability ('welfare.decomiso.execute' in ORGANIZATION_CAPABILITIES)
+// is NOT created for this reason.
+//
+// Usage in server actions:
+//   const session = await requireDecomisoPrincipal();
+//   // session.profile.role is 'admin' | 'govt'
+//   // session.jurisdictions is [] for admin, non-empty tuples for govt
+//   // Jurisdiction-scope enforcement is the caller's responsibility:
+//   //   admin → universal scope (no jurisdiction check needed)
+//   //   govt  → animal's jurisdiction must appear in session.jurisdictions
+export type DecomisoPrincipalSession = AdminOrGovtSession;
+
+export async function requireDecomisoPrincipal(): Promise<DecomisoPrincipalSession> {
+  // Reuses requireAdminOrGovtOrRedirect verbatim — same role set, same
+  // jurisdictions query. Named separately so call sites are self-documenting
+  // ("this action requires decomiso authority") rather than generic.
+  return requireAdminOrGovtOrRedirect();
+}

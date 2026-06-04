@@ -871,15 +871,65 @@ const outbreakSignal = z
 // Authority side-effects (DGSA notification on seizure, etc.) hook off this
 // event via projections in later phases — keep the payload spec'd to AGENTS.md
 // → Custody & adoption.
+// Seizure-motive enum per spec §4.3 (2026-05-19-decomiso-welfare-authority-design.md DC4).
+// Same set as welfareReportKindEnum, generalised slightly for decomiso context.
+const seizureMotiveEnum = z.enum([
+  "maltrato_fisico",
+  "abandono_extremo",
+  "acumulacion",
+  "trafico",
+  "sin_refugio_critico",
+  "pelea_de_perros",
+  "otro",
+]);
+
 const shelterIntakeRecorded = z
   .object(
     withVersion({
       intake_reason: z.enum(["rescue", "surrender", "seizure", "stray_found", "other"]),
       intake_condition: z.string().nullable(),
       rescue_jurisdiction: z.string().nullable(),
+
+      // Decomiso (seizure) extension — spec §4.3.
+      // All fields are optional/nullable so non-seizure intakes are unaffected.
+      // The superRefine below enforces conditional requirements on seizure intakes.
+      seizure_motive: seizureMotiveEnum.nullable().optional(),
+      seizure_motive_other_detail: z.string().nullable().optional(),
+      judicial_proceeding_reference: z.string().nullable().optional(),
+      originating_welfare_report_id: z.string().uuid().nullable().optional(),
+      intended_receiver_organization_id: z.string().uuid().nullable().optional(),
     }),
   )
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    // Spec §4.3: when intake_reason === 'seizure', seizure_motive AND
+    // intended_receiver_organization_id are required. Additionally,
+    // seizure_motive_other_detail is required when seizure_motive === 'otro'.
+    // Non-seizure intakes are unaffected — all new fields remain optional.
+    if (p.intake_reason === "seizure") {
+      if (!p.seizure_motive) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "seizure_motive required when intake_reason is seizure",
+          path: ["seizure_motive"],
+        });
+      }
+      if (p.seizure_motive === "otro" && !p.seizure_motive_other_detail) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "seizure_motive_other_detail required when seizure_motive is otro",
+          path: ["seizure_motive_other_detail"],
+        });
+      }
+      if (!p.intended_receiver_organization_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "intended_receiver_organization_id required when intake_reason is seizure",
+          path: ["intended_receiver_organization_id"],
+        });
+      }
+    }
+  });
 
 // Foster assignment — refugio assigns a member to physically care for an
 // animal it holds in shelter_custody. The foster's `ownership(role='foster')`
