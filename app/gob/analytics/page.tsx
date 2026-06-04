@@ -30,7 +30,7 @@ import {
   PROVINCE_ISO_MAP,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
-  fetchCasesPerLocality,
+  fetchCasesPerCapita,
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/govt-dashboards";
@@ -83,13 +83,13 @@ export default async function GobAnalyticsPage({
   // fixed windows per spec (12m rolling). Period-aware queries are a follow-up.
   void searchParams;
 
-  const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerLocality] =
+  const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerCapita] =
     await Promise.all([
       fetchAnalyticsMetrics(actor, jurisdictions),
       fetchAcquisitionTrend(actor, jurisdictions),
       fetchDeathCauses(actor, jurisdictions),
       fetchOutbreakHistory(actor, jurisdictions),
-      fetchCasesPerLocality(actor, jurisdictions),
+      fetchCasesPerCapita(actor, jurisdictions),
     ]);
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
@@ -100,17 +100,18 @@ export default async function GobAnalyticsPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
-  // Shape map data — aggregate by province code (open cases as population proxy).
-  const codeToCount = new Map<string, number>();
-  for (const row of casesPerLocality) {
-    if (!row.code) continue;
-    codeToCount.set(row.code, (codeToCount.get(row.code) ?? 0) + row.count);
-  }
-  const choroplethData = Array.from(codeToCount.entries()).map(([code, value]) => ({
-    code,
-    value,
-    label: `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
-  }));
+  // Shape map data — per-capita rate per province (casos por 10k hab., INDEC 2022).
+  // Falls back to raw count label when census row is absent for a province.
+  const choroplethData = casesPerCapita
+    .filter((row) => row.code !== "")
+    .map((row) => ({
+      code: row.code,
+      value: row.ratePer10k ?? row.count,
+      label:
+        row.ratePer10k !== null
+          ? `${row.ratePer10k.toFixed(1)} casos por 10k hab.`
+          : `${row.count} caso${row.count !== 1 ? "s" : ""} abierto${row.count !== 1 ? "s" : ""}`,
+    }));
 
   // Compute bar chart max for death causes.
   const maxDeathCount = deathCauses.reduce((m, r) => Math.max(m, r.count), 0);
@@ -203,8 +204,7 @@ export default async function GobAnalyticsPage({
               <span id={panelMapId}>
                 Distribución geográfica{" "}
                 <span className="text-xs font-normal text-gob-text-muted">
-                  {/* TODO(E5-followup): replace with pets per capita when population data is available */}
-                  Casos abiertos por jurisdicción (proxy de población)
+                  por 10.000 hab. (INDEC 2022)
                 </span>
               </span>
             }
