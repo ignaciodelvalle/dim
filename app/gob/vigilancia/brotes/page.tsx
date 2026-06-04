@@ -7,9 +7,15 @@ import {
   PanelHeader,
   PeriodPicker,
 } from "@/components/poncho";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
-import { PROVINCE_ISO_MAP, fetchSurveillanceSignals } from "@/lib/govt-dashboards";
+import {
+  type DashboardJurisdiction,
+  PROVINCE_ISO_MAP,
+  fetchSurveillanceSignals,
+} from "@/lib/govt-dashboards";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 
 // All provinces in the GeoJSON placeholder (same list as the parent page).
@@ -36,6 +42,8 @@ export default async function GobVigilanciaBrotesPage({
     to?: string;
     signalId?: string;
     soloVerificados?: string;
+    province?: string;
+    locality?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -45,7 +53,41 @@ export default async function GobVigilanciaBrotesPage({
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const allSignals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
+  // Resolve selected province ISO code → ProvinceCode + canonical name.
+  const selectedProvinceIso = sp.province ?? null;
+  const selectedLocalitySlug = sp.locality ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
+  const localities =
+    selectedProvinceObj != null
+      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : [];
+
+  // Resolve locality slug → canonical name for data-fetcher narrowing.
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
+
+  // Narrow jurisdictions when a province/locality filter is active.
+  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalityRow) {
+      // Province + locality: intersect with the user's actual assignments so a
+      // govt user cannot widen scope by crafting arbitrary ?province=&locality= params.
+      // govtAssignments.jurisdictionLocality is NOT NULL (schema-enforced), so exact
+      // match is correct — no null-locality province-level rows exist.
+      filteredJurisdictions = jurisdictions.filter(
+        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+      );
+    } else {
+      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+    }
+  }
+
+  const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, { since });
 
   // A.5: tier-based filter — "Solo verificados institucionalmente"
   // When the checkbox is active, filter to signals where tier >= professional_verified.
@@ -88,8 +130,7 @@ export default async function GobVigilanciaBrotesPage({
         {/* Filters row */}
         <div className="grid md:grid-cols-2 gap-3">
           {/* TODO(future): filter by disease_code + confirmation_strength chips */}
-          {/* localities empty v1 — TODO(E2-followup): fetch localities for selected province */}
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
           <PeriodPicker defaultPreset="30d" />
         </div>
 
