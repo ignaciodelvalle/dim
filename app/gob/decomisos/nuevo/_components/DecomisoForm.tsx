@@ -4,8 +4,25 @@
 //
 // Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §6.
 //
-// Fields:
+// Mode toggle (DC3):
+//   - "registered_pet": existing token-lookup path. DC2 double-confirm applies
+//     when the pet has an owner.
+//   - "unowned_animal": stray with no prior registration. Collects descriptive
+//     fields (species required; breed/color/sex/approx age/distinguishing
+//     features). DC2 double-confirm NOT shown (no prior owner).
+//
+// Fields (registered_pet mode):
 //   - petPublicToken:               search/enter by public token → show pet preview
+//
+// Fields (unowned_animal mode):
+//   - unownedSpecies:               required
+//   - unownedSex:                   male | female | unknown
+//   - unownedBreed:                 optional
+//   - unownedColor:                 optional
+//   - unownedDistinguishingFeatures: optional
+//   - unownedApproxAgeMonths:       optional
+//
+// Shared fields (both modes):
 //   - seizureMotive:                Select (enum, required)
 //   - seizureMotiveOtherDetail:     shown when motive === 'otro'
 //   - judicialProceedingReference:  optional text
@@ -13,9 +30,6 @@
 //   - intendedReceiverOrganizationId: combobox over verified shelters
 //   - intakeCondition:              optional text
 //   - attachmentFiles:              ≥2 mandatory files (photo + acta)
-//
-// DC2: if the pet is a registered_pet (has an owner), show a double-confirm
-// modal before calling executeDecomisoAction.
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -24,6 +38,7 @@ import {
   type ExecuteDecomisoInput,
   type ExecuteDecomisoResult,
   type SeizureMotive,
+  type UnownedAnimalInput,
   executeDecomisoAction,
 } from "@/app/actions/decomiso";
 import {
@@ -49,6 +64,8 @@ type AttachmentEntry = {
   file: File;
   objectUrl: string | null;
 };
+
+type SubjectMode = "registered_pet" | "unowned_animal";
 
 type DecomisoFormProps = {
   receiverOrgs: ReceiverOrg[];
@@ -97,12 +114,24 @@ export function DecomisoForm({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Form state ---
+  // --- Subject mode toggle (DC3) ---
+  const [subjectMode, setSubjectMode] = useState<SubjectMode>("registered_pet");
+
+  // --- Registered pet state ---
   const [petToken, setPetToken] = useState(prefillPetToken ?? "");
   const [petPreview, setPetPreview] = useState<PetPreview | null>(null);
   const [petLookupPending, setPetLookupPending] = useState(false);
   const [petLookupError, setPetLookupError] = useState<string | null>(null);
 
+  // --- Unowned animal state ---
+  const [unownedSpecies, setUnownedSpecies] = useState("");
+  const [unownedSex, setUnownedSex] = useState<"male" | "female" | "unknown">("unknown");
+  const [unownedBreed, setUnownedBreed] = useState("");
+  const [unownedColor, setUnownedColor] = useState("");
+  const [unownedFeatures, setUnownedFeatures] = useState("");
+  const [unownedAgeMonths, setUnownedAgeMonths] = useState("");
+
+  // --- Shared state ---
   const [seizureMotive, setSeizureMotive] = useState<SeizureMotive | "">("");
   const [seizureMotiveOtherDetail, setSeizureMotiveOtherDetail] = useState("");
   const [judicialRef, setJudicialRef] = useState("");
@@ -182,7 +211,11 @@ export function DecomisoForm({
 
   // --- Validation ---
   function validate(): string | null {
-    if (!petPreview) return "Buscá y confirmá la mascota antes de continuar.";
+    if (subjectMode === "registered_pet") {
+      if (!petPreview) return "Buscá y confirmá la mascota antes de continuar.";
+    } else {
+      if (!unownedSpecies.trim()) return "Indicá la especie del animal sin registrar.";
+    }
     if (!seizureMotive) return "Seleccioná el motivo del decomiso.";
     if (seizureMotive === "otro" && !seizureMotiveOtherDetail.trim()) {
       return "Especificá el detalle cuando el motivo es 'Otro'.";
@@ -202,8 +235,9 @@ export function DecomisoForm({
       setFormError(err);
       return;
     }
-    // DC2: registered pet with owner → double-confirm modal
-    if (petPreview?.hasOwner) {
+    // DC2: registered pet with owner → double-confirm modal.
+    // Unowned path skips DC2 (no prior owner to dispossess).
+    if (subjectMode === "registered_pet" && petPreview?.hasOwner) {
       setShowConfirmModal(true);
       return;
     }
@@ -214,16 +248,47 @@ export function DecomisoForm({
     setShowConfirmModal(false);
     setFormError(null);
     startTransition(async () => {
-      const input: ExecuteDecomisoInput = {
-        petPublicToken: petPreview?.publicToken ?? "",
-        seizureMotive: seizureMotive as SeizureMotive,
-        seizureMotiveOtherDetail: seizureMotiveOtherDetail.trim() || null,
-        judicialProceedingReference: judicialRef.trim() || null,
-        originatingWelfareReportId: welfareReportId.trim() || null,
-        intendedReceiverOrganizationId: receiverOrgId,
-        intakeCondition: intakeCondition.trim() || null,
-        attachmentFiles: attachments.map((e) => e.file),
-      };
+      let input: ExecuteDecomisoInput;
+
+      if (subjectMode === "registered_pet") {
+        input = {
+          subjectKind: "registered_pet",
+          petPublicToken: petPreview?.publicToken ?? "",
+          seizureMotive: seizureMotive as SeizureMotive,
+          seizureMotiveOtherDetail: seizureMotiveOtherDetail.trim() || null,
+          judicialProceedingReference: judicialRef.trim() || null,
+          originatingWelfareReportId: welfareReportId.trim() || null,
+          intendedReceiverOrganizationId: receiverOrgId,
+          intakeCondition: intakeCondition.trim() || null,
+          attachmentFiles: attachments.map((e) => e.file),
+        };
+      } else {
+        const approxAgeMonthsRaw = unownedAgeMonths.trim();
+        const approxAgeMonths = approxAgeMonthsRaw
+          ? Math.max(0, Number.parseInt(approxAgeMonthsRaw, 10) || 0)
+          : null;
+
+        const unownedAnimal: UnownedAnimalInput = {
+          species: unownedSpecies.trim(),
+          sex: unownedSex,
+          breed: unownedBreed.trim() || null,
+          color: unownedColor.trim() || null,
+          distinguishingFeatures: unownedFeatures.trim() || null,
+          approxAgeMonths,
+        };
+        input = {
+          subjectKind: "unowned_animal",
+          unownedAnimal,
+          seizureMotive: seizureMotive as SeizureMotive,
+          seizureMotiveOtherDetail: seizureMotiveOtherDetail.trim() || null,
+          judicialProceedingReference: judicialRef.trim() || null,
+          originatingWelfareReportId: welfareReportId.trim() || null,
+          intendedReceiverOrganizationId: receiverOrgId,
+          intakeCondition: intakeCondition.trim() || null,
+          attachmentFiles: attachments.map((e) => e.file),
+        };
+      }
+
       const result: ExecuteDecomisoResult = await executeDecomisoAction(input);
       if ("error" in result) {
         setFormError(result.error);
@@ -247,92 +312,250 @@ export function DecomisoForm({
   return (
     <>
       <div className="space-y-6">
-        {/* --- Pet search --- */}
+        {/* --- Sujeto del decomiso (mode toggle + conditional fields) --- */}
         <section className="rounded-xl border border-gob-border p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gob-text uppercase tracking-wider">
-            1. Mascota sujeto del decomiso
+            1. Sujeto del decomiso
           </h2>
-          <p className="text-xs text-gob-text-muted">
-            Solo mascotas registradas (con token DIM-XXXX-XXXX). El decomiso de animales sin
-            registrar requiere un flujo diferente — documentalo con el acta y adjuntos.
-          </p>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label htmlFor="petToken" className="block text-xs font-medium text-gob-text mb-1">
-                Token de la mascota
-              </label>
-              <input
-                id="petToken"
-                type="text"
-                value={petToken}
-                onChange={(e) => {
-                  setPetToken(e.target.value.toUpperCase());
-                  setPetPreview(null);
-                  setPetLookupError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    lookupPet();
-                  }
-                }}
-                placeholder="DIM-XXXX-XXXX"
-                className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm font-mono text-gob-text placeholder-gob-text-muted focus:outline-none focus:border-gob-primary"
-              />
-            </div>
+
+          {/* Mode toggle */}
+          <div className="flex gap-3">
             <button
               type="button"
-              onClick={lookupPet}
-              disabled={petLookupPending || !petToken.trim()}
-              className="self-end px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+              onClick={() => setSubjectMode("registered_pet")}
+              className={`flex-1 py-2.5 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                subjectMode === "registered_pet"
+                  ? "border-gob-primary bg-gob-primary/5 text-gob-primary"
+                  : "border-gob-border bg-white text-gob-text-muted hover:bg-gob-surface-alt"
+              }`}
             >
-              {petLookupPending ? "Buscando..." : "Buscar"}
+              Mascota registrada (chapita)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubjectMode("unowned_animal")}
+              className={`flex-1 py-2.5 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                subjectMode === "unowned_animal"
+                  ? "border-gob-primary bg-gob-primary/5 text-gob-primary"
+                  : "border-gob-border bg-white text-gob-text-muted hover:bg-gob-surface-alt"
+              }`}
+            >
+              Animal sin registrar (callejero)
             </button>
           </div>
 
-          {petLookupError && (
-            <p className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2">
-              {petLookupError}
-            </p>
-          )}
-
-          {petPreview && (
-            <div
-              className={`rounded-lg border p-4 space-y-1 ${
-                petPreview.hasOwner
-                  ? "border-gob-warning bg-gob-warning/5"
-                  : "border-gob-border bg-gob-surface-alt"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gob-text">
-                  {petPreview.name}{" "}
-                  <span className="font-normal text-gob-text-muted">
-                    ({petPreview.species}, {petPreview.sex})
-                  </span>
-                </p>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full ${
-                    petPreview.status === "active"
-                      ? "bg-gob-success/10 text-gob-success"
-                      : "bg-gob-surface-alt text-gob-text-muted"
-                  }`}
+          {/* Registered pet fields */}
+          {subjectMode === "registered_pet" && (
+            <div className="space-y-3">
+              <p className="text-xs text-gob-text-muted">
+                Ingresá el token DIM-XXXX-XXXX de la mascota registrada.
+              </p>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label
+                    htmlFor="petToken"
+                    className="block text-xs font-medium text-gob-text mb-1"
+                  >
+                    Token de la mascota
+                  </label>
+                  <input
+                    id="petToken"
+                    type="text"
+                    value={petToken}
+                    onChange={(e) => {
+                      setPetToken(e.target.value.toUpperCase());
+                      setPetPreview(null);
+                      setPetLookupError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        lookupPet();
+                      }
+                    }}
+                    placeholder="DIM-XXXX-XXXX"
+                    className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm font-mono text-gob-text placeholder-gob-text-muted focus:outline-none focus:border-gob-primary"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={lookupPet}
+                  disabled={petLookupPending || !petToken.trim()}
+                  className="self-end px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
                 >
-                  {petPreview.status}
-                </span>
+                  {petLookupPending ? "Buscando..." : "Buscar"}
+                </button>
               </div>
-              <p className="text-xs font-mono text-gob-text-muted">{petPreview.publicToken}</p>
-              {petPreview.hasOwner ? (
-                <p className="text-xs text-gob-warning-text mt-1">
-                  Esta mascota tiene un dueño registrado
-                  {petPreview.ownerDisplayName ? ` (${petPreview.ownerDisplayName})` : ""}. Al
-                  continuar, se le quitará la custodia legal.
-                </p>
-              ) : (
-                <p className="text-xs text-gob-text-muted mt-1">
-                  Sin dueño registrado actualmente.
+
+              {petLookupError && (
+                <p className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2">
+                  {petLookupError}
                 </p>
               )}
+
+              {petPreview && (
+                <div
+                  className={`rounded-lg border p-4 space-y-1 ${
+                    petPreview.hasOwner
+                      ? "border-gob-warning bg-gob-warning/5"
+                      : "border-gob-border bg-gob-surface-alt"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gob-text">
+                      {petPreview.name}{" "}
+                      <span className="font-normal text-gob-text-muted">
+                        ({petPreview.species}, {petPreview.sex})
+                      </span>
+                    </p>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        petPreview.status === "active"
+                          ? "bg-gob-success/10 text-gob-success"
+                          : "bg-gob-surface-alt text-gob-text-muted"
+                      }`}
+                    >
+                      {petPreview.status}
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-gob-text-muted">{petPreview.publicToken}</p>
+                  {petPreview.hasOwner ? (
+                    <p className="text-xs text-gob-warning-text mt-1">
+                      Esta mascota tiene un dueño registrado
+                      {petPreview.ownerDisplayName ? ` (${petPreview.ownerDisplayName})` : ""}. Al
+                      continuar, se le quitará la custodia legal.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gob-text-muted mt-1">
+                      Sin dueño registrado actualmente.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Unowned animal fields */}
+          {subjectMode === "unowned_animal" && (
+            <div className="space-y-3">
+              <p className="text-xs text-gob-text-muted">
+                Describí el animal. Se creará un registro en el sistema para este decomiso. La
+                jurisdicción se asignará desde tu organización sanitaria.
+              </p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="unownedSpecies"
+                    className="block text-xs font-medium text-gob-text mb-1"
+                  >
+                    Especie <span className="text-gob-danger">*</span>
+                  </label>
+                  <select
+                    id="unownedSpecies"
+                    value={unownedSpecies}
+                    onChange={(e) => setUnownedSpecies(e.target.value)}
+                    className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm text-gob-text focus:outline-none focus:border-gob-primary appearance-none"
+                  >
+                    <option value="">— Seleccioná —</option>
+                    <option value="dog">Perro</option>
+                    <option value="cat">Gato</option>
+                    <option value="other">Otro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="unownedSex"
+                    className="block text-xs font-medium text-gob-text mb-1"
+                  >
+                    Sexo
+                  </label>
+                  <select
+                    id="unownedSex"
+                    value={unownedSex}
+                    onChange={(e) => setUnownedSex(e.target.value as "male" | "female" | "unknown")}
+                    className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm text-gob-text focus:outline-none focus:border-gob-primary appearance-none"
+                  >
+                    <option value="unknown">Desconocido</option>
+                    <option value="male">Macho</option>
+                    <option value="female">Hembra</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="unownedBreed"
+                    className="block text-xs font-medium text-gob-text mb-1"
+                  >
+                    Raza (opcional)
+                  </label>
+                  <input
+                    id="unownedBreed"
+                    type="text"
+                    value={unownedBreed}
+                    onChange={(e) => setUnownedBreed(e.target.value)}
+                    placeholder="Mestizo, labrador, etc."
+                    className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm text-gob-text focus:outline-none focus:border-gob-primary"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="unownedColor"
+                    className="block text-xs font-medium text-gob-text mb-1"
+                  >
+                    Color (opcional)
+                  </label>
+                  <input
+                    id="unownedColor"
+                    type="text"
+                    value={unownedColor}
+                    onChange={(e) => setUnownedColor(e.target.value)}
+                    placeholder="Negro, blanco y marrón, etc."
+                    className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm text-gob-text focus:outline-none focus:border-gob-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="unownedFeatures"
+                  className="block text-xs font-medium text-gob-text mb-1"
+                >
+                  Marcas distintivas (opcional)
+                </label>
+                <input
+                  id="unownedFeatures"
+                  type="text"
+                  value={unownedFeatures}
+                  onChange={(e) => setUnownedFeatures(e.target.value)}
+                  placeholder="Cicatriz en lomo, mancha en ojo derecho, etc."
+                  className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm text-gob-text focus:outline-none focus:border-gob-primary"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="unownedAgeMonths"
+                  className="block text-xs font-medium text-gob-text mb-1"
+                >
+                  Edad aproximada en meses (opcional)
+                </label>
+                <input
+                  id="unownedAgeMonths"
+                  type="number"
+                  min="0"
+                  max="360"
+                  step="1"
+                  value={unownedAgeMonths}
+                  onChange={(e) => setUnownedAgeMonths(e.target.value)}
+                  placeholder="Ej: 24 (2 años)"
+                  className="block w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-sm text-gob-text focus:outline-none focus:border-gob-primary"
+                />
+              </div>
             </div>
           )}
         </section>
