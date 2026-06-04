@@ -11,8 +11,11 @@ import {
   PeriodPicker,
   TimeSeriesChart,
 } from "@/components/poncho";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
+  type DashboardJurisdiction,
   PROVINCE_ISO_MAP,
   fetchCasesPerLocality,
   fetchDiseaseSummary,
@@ -42,27 +45,64 @@ const ALL_PROVINCES: Array<{ code: string; name: string }> = [
 export default async function GobVigilanciaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    province?: string;
+    locality?: string;
+  }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
 
-  // searchParams are read here for future period-aware queries (E2 follow-up).
-  // v1 note: fetchVigilanciaMetrics uses fixed windows (30d / 7d / today) per
-  // metric semantic rather than the UI period. The PeriodPicker drives
-  // fetchSurveillanceSignals so the signals panel and the drill-down route
-  // respect the selected period. Aligning all metrics to a single period is a
-  // planned E2-followup.
   const sp = await searchParams;
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
+  // Resolve selected province ISO code (e.g. "AR-B") → ProvinceCode + canonical name.
+  const selectedProvinceIso = sp.province ?? null;
+  const selectedLocalitySlug = sp.locality ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
+  const localities =
+    selectedProvinceObj != null
+      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : [];
+
+  // Resolve locality slug → Locality row so we can get the canonical localityName
+  // that the data fetchers compare against jurisdictionLocality columns.
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
+
+  // Narrow the jurisdictions array passed to data fetchers when a province and/or
+  // locality filter is active. Fetchers accept DashboardJurisdiction[] where
+  // province = canonical display name, locality = locality name (not slug).
+  // Admin's empty [] means "universal scope" — we leave it unchanged for admin
+  // because the scope clauses short-circuit on actor.role === "admin".
+  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalityRow) {
+      // Province + locality: narrow to exactly that pair.
+      filteredJurisdictions = [
+        { province: provinceName, locality: selectedLocalityRow.localityName },
+      ];
+    } else {
+      // Province only: keep the govt's assignments that belong to that province.
+      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+    }
+  }
+
   const [metrics, signals, mapData, trend, summary] = await Promise.all([
-    fetchVigilanciaMetrics(actor, jurisdictions),
-    fetchSurveillanceSignals(actor, jurisdictions, { since }),
-    fetchCasesPerLocality(actor, jurisdictions),
-    fetchZoonosisTrend(actor, jurisdictions),
-    fetchDiseaseSummary(actor, jurisdictions),
+    fetchVigilanciaMetrics(actor, filteredJurisdictions),
+    fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+    fetchCasesPerLocality(actor, filteredJurisdictions),
+    fetchZoonosisTrend(actor, filteredJurisdictions),
+    fetchDiseaseSummary(actor, filteredJurisdictions),
   ]);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
@@ -121,8 +161,7 @@ export default async function GobVigilanciaPage({
 
         {/* Filters row */}
         <div className="grid md:grid-cols-2 gap-3">
-          {/* localities is empty v1 — TODO(E2-followup): fetch localities for selected province */}
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
           <PeriodPicker defaultPreset="30d" />
         </div>
 

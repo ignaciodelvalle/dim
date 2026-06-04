@@ -12,6 +12,8 @@ import {
   TabsContent,
 } from "@/components/poncho";
 import { db, welfareReports } from "@/db";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { PROVINCE_ISO_MAP, fetchWelfareMetrics } from "@/lib/govt-dashboards";
 import {
@@ -110,6 +112,8 @@ export default async function GobMaltratoPage({
     kind?: string;
     severity?: string;
     status?: string;
+    province?: string;
+    locality?: string;
   }>;
 }) {
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
@@ -122,6 +126,23 @@ export default async function GobMaltratoPage({
   const activeSeverity = parseSeverity(sp.severity);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
+
+  // Resolve selected province ISO code → ProvinceCode + canonical name.
+  const selectedProvinceIso = sp.province ?? null;
+  const selectedLocalitySlug = sp.locality ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
+  const localities =
+    selectedProvinceObj != null
+      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : [];
+
+  // Resolve locality slug → canonical locality name for post-fetch narrowing.
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =
@@ -159,6 +180,20 @@ export default async function GobMaltratoPage({
         (j) => j.province === r.jurisdictionProvince && j.locality === r.jurisdictionLocality,
       ),
     );
+  }
+  // Locality filter: for both admin and govt, narrow to the selected province/locality
+  // when set in the URL. Uses the same post-fetch pattern as the existing kind/severity
+  // filters — bounded result set, no refactor of the SQL query needed.
+  if (selectedProvinceObj) {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalityRow) {
+      const localityName = selectedLocalityRow.localityName;
+      rows = rows.filter(
+        (r) => r.jurisdictionProvince === provinceName && r.jurisdictionLocality === localityName,
+      );
+    } else {
+      rows = rows.filter((r) => r.jurisdictionProvince === provinceName);
+    }
   }
   if (activeKind) rows = rows.filter((r) => r.kind === activeKind);
   if (activeSeverity) rows = rows.filter((r) => r.severity === activeSeverity);
@@ -201,7 +236,7 @@ export default async function GobMaltratoPage({
 
         {/* Filters row */}
         <div className="grid md:grid-cols-2 gap-3">
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
           <PeriodPicker defaultPreset="30d" />
         </div>
 

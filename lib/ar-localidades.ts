@@ -7,7 +7,7 @@
 // Every read filters by removed_at IS NULL so soft-deleted rows from past
 // import runs never bleed into UI or validation paths.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { type ArgentineLocality, arLocalities, db } from "@/db";
 import { type ProvinceCode, provinceByCode, provinceByName } from "@/lib/ar-provincias";
@@ -25,6 +25,12 @@ export type LocalitySearchResult = Locality & {
   provinceName: string;
   matchKind: "exact" | "prefix" | "contains";
 };
+
+/**
+ * Minimal shape expected by <JurisdictionSwitcher localities={...}>.
+ * Returned by listLocalitiesByProvince for direct use as a prop.
+ */
+export type LocalityOption = { slug: string; name: string };
 
 const MIN_QUERY_LENGTH = 2;
 const DEFAULT_SEARCH_LIMIT = 20;
@@ -110,6 +116,29 @@ export async function isCanonicalLocality(
   const province = provinceByCode(provinceCodeOrName) ?? provinceByName(provinceCodeOrName);
   if (!province) return false;
   return (await localityByName(province.code as ProvinceCode, localityName)) !== null;
+}
+
+/**
+ * Returns all non-removed localities for a given province, ordered
+ * alphabetically by locality_name. Shape matches <JurisdictionSwitcher
+ * localities={...}> directly.
+ *
+ * Returns [] when the catalog is empty (import has not run yet) so the
+ * locality select stays disabled rather than erroring.
+ */
+export async function listLocalitiesByProvince(
+  provinceCode: ProvinceCode,
+): Promise<LocalityOption[]> {
+  const rows = await db
+    .select({
+      localitySlug: arLocalities.localitySlug,
+      localityName: arLocalities.localityName,
+    })
+    .from(arLocalities)
+    .where(and(eq(arLocalities.provinceCode, provinceCode), isNull(arLocalities.removedAt)))
+    .orderBy(asc(arLocalities.localityName));
+
+  return rows.map((r) => ({ slug: r.localitySlug, name: r.localityName }));
 }
 
 export async function searchLocalities(input: {
