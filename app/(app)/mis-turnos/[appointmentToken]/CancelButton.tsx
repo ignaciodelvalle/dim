@@ -1,41 +1,28 @@
 "use client";
 
-// Owner-side cancellation button for /mis-turnos/[appointmentToken] (Fase 6).
+// Owner-side cancellation trigger for /mis-turnos/[appointmentToken].
+// Uses URL state (?sheet=cancelar-turno) instead of browser confirm().
 
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { buildSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { cancelAppointmentByOwnerAction } from "@/app/actions/booking";
-
-type Props = {
-  appointmentToken: string;
-};
-
-export function CancelButton({ appointmentToken }: Props) {
-  const [pending, startTransition] = useTransition();
+export function CancelButton() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  function handleCancel() {
-    if (!confirm("¿Confirmás la cancelación de este turno?")) return;
-
-    startTransition(async () => {
-      const result = await cancelAppointmentByOwnerAction(appointmentToken);
-      if ("error" in result) {
-        alert(result.error);
-        return;
-      }
-      router.refresh();
-    });
+  function handleClick() {
+    const params = new URLSearchParams(searchParams.toString());
+    router.push(buildSheetUrl(pathname, params, "cancelar-turno"));
   }
 
   return (
     <button
       type="button"
-      onClick={handleCancel}
-      disabled={pending}
-      className="px-4 py-2 rounded-md border border-gob-danger  text-gob-danger  text-sm font-medium hover:bg-gob-danger/10  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      onClick={handleClick}
+      className="px-4 py-2 rounded-md border border-gob-danger text-gob-danger text-sm font-medium hover:bg-gob-danger/10 transition-colors"
     >
-      {pending ? "Cancelando…" : "Cancelar turno"}
+      Cancelar turno
     </button>
   );
 }
