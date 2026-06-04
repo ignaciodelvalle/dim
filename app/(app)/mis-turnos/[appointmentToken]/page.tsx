@@ -1,17 +1,19 @@
 // /mis-turnos/[appointmentToken] — Appointment detail (Fase 4).
 //
 // Shows full appointment info: pet, offering, slot, provider, status.
-// Cancellation button is stubbed here but wired in Block F.
+// Cancellation is handled via URL-state sheet (?sheet=cancelar-turno).
 
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
+import { Suspense } from "react";
 
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 import { CancelButton } from "./CancelButton";
+import { MisTurnosSheetMounter } from "./MisTurnosSheetMounter";
 
 export default async function AppointmentDetailPage({
   params,
@@ -177,7 +179,9 @@ export default async function AppointmentDetailPage({
         {/* Cancellation — Fase 6 */}
         {canCancel && (
           <div className="pt-2 border-t border-gob-border ">
-            <CancelButton appointmentToken={appointmentToken} />
+            <Suspense>
+              <CancelButton />
+            </Suspense>
           </div>
         )}
 
@@ -189,6 +193,10 @@ export default async function AppointmentDetailPage({
           </div>
         )}
       </div>
+      {/* Sheet mounter — reads ?sheet= param and renders the matching sheet */}
+      <Suspense>
+        <MisTurnosSheetMounter appointmentToken={appointmentToken} />
+      </Suspense>
     </main>
   );
 }
