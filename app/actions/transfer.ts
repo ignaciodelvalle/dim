@@ -27,6 +27,7 @@ import {
   pets,
 } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -118,6 +119,10 @@ export async function transferCustodyAction(
   const authorVerified = organization.verified;
   const fosterEndedEventId = fosterRow ? randomUUID() : null;
 
+  // custody_episode terminal (custody_transferred → direct org transfer path).
+  // Null when the pet was never intaked — that's normal; skip the close.
+  const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
@@ -188,7 +193,16 @@ export async function transferCustodyAction(
         authorOrganizationId: organization.id,
         authorVerified,
         payload: transferPayload,
+        caseId: custodyCase?.id ?? null,
       });
+
+      // Close the custody_episode case if one was open (animal was intaked).
+      if (custodyCase) {
+        await closeCase(
+          { caseId: custodyCase.id, reason: "resolved", closedByUserId: user.id },
+          tx,
+        );
+      }
 
       // Fan out to destination admins so they know the pet is now in their
       // org's custody. Matches the capability_request precedent (admins only,

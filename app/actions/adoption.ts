@@ -26,7 +26,7 @@ import {
   reminders,
 } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
-import { closeCase } from "@/lib/case-helpers";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -210,6 +210,10 @@ export async function finalizeAdoptionAction(
     }
   }
 
+  // custody_episode terminal (adoption_finalized path).
+  // Null when the pet was never intaked — that's normal; skip the close.
+  const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
@@ -290,8 +294,17 @@ export async function finalizeAdoptionAction(
           authorOrganizationId: organization.id,
           authorVerified,
           payload,
+          caseId: custodyCase?.id ?? null,
         })
         .returning({ id: petEvents.id });
+
+      // Close the custody_episode case if one was open (animal was intaked).
+      if (custodyCase) {
+        await closeCase(
+          { caseId: custodyCase.id, reason: "resolved", closedByUserId: user.id },
+          tx,
+        );
+      }
 
       // Auto-rejection cascade for the other pending adoption applications
       // (spec adoption-listing-public §12 Fase 5.5). When THIS adoption
