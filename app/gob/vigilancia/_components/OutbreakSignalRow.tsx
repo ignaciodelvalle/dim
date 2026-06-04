@@ -62,6 +62,14 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
           {timeAgo(signal.detectedAt)}
         </time>
       </Link>
+      <div className="px-1 pb-2">
+        <Link
+          href={`/gob/vigilancia/investigaciones/nuevo?diseaseCode=${signal.diseaseCode}&signalId=${signal.signalEventId}`}
+          className="text-xs text-gob-azul-link hover:underline"
+        >
+          Abrir investigacion →
+        </Link>
+      </div>
     </li>
   );
 }

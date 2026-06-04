@@ -1,3 +1,5 @@
+// lib/authority.ts
+//
 // Placeholder for future integrations with Argentine authority systems.
 //
 // signalAuthorityReport — dispatches a structured disease/death signal to
@@ -42,4 +44,43 @@ export async function signalWelfareReport(_input: WelfareReportSignalInput): Pro
   // brigada ambiental, fiscalía especializada, NGO partner triage queue,
   // or wherever the integration target is decided). Today: no-op.
   return;
+}
+
+// ---------------------------------------------------------------------------
+// Outbreak investigation — ENO external notification (SNVS/SENASA/zoonosis)
+// ---------------------------------------------------------------------------
+//
+// Legal obligation: Ley 15.465/60 + Decreto 3640/64 (enfermedades de
+// notificación obligatoria). Today a no-op with v1_noop marker for
+// auditability. The marker lets future dashboards identify undelivered
+// notifications and replay them once the integration target is confirmed.
+
+export type OutbreakInvestigationNotifyInput = {
+  casePublicCode: string;
+  caseId: string;
+  diseaseCode: string;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+  openedByUserId: string;
+};
+
+export type OutbreakInvestigationNotifyResult = {
+  /** True when the notification was delivered to an external system. */
+  delivered: boolean;
+  /**
+   * Present when no integration is wired. Lets future audits identify
+   * cases that need replay once the integration target is confirmed.
+   */
+  v1_noop?: true;
+  /** Target system identifier (future use). */
+  target?: string;
+};
+
+export async function notifyOutbreakInvestigationOpened(
+  _input: OutbreakInvestigationNotifyInput,
+): Promise<OutbreakInvestigationNotifyResult> {
+  // v1: no-op. Wire SNVS/SENASA/zoonosis endpoint here when the integration
+  // target is confirmed. The v1_noop marker persists in caller audit rows
+  // so future automation can identify cases that need replay.
+  return { delivered: false, v1_noop: true };
 }

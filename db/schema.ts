@@ -1759,6 +1759,13 @@ export const AUDIT_LOG_ACTIONS = [
   "decomiso_handoff_accepted",
   "decomiso_handoff_rejected",
   "decomiso_handoff_cancelled",
+  // Outbreak investigation lifecycle (Ley 15.465/60 + Decreto 3640/64 ENO).
+  // Emitted by outbreak investigation server actions (app/actions/outbreak-investigation.ts).
+  "outbreak_investigation_opened",
+  "outbreak_investigation_escalated",
+  "outbreak_investigation_closed_resolved",
+  "outbreak_investigation_closed_dismissed",
+  "outbreak_investigation_note_added",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -2873,6 +2880,58 @@ export const cases = pgTable(
 
 export type Case = typeof cases.$inferSelect;
 export type NewCase = typeof cases.$inferInsert;
+
+// ============================================================================
+// InvestigationNotes — pet-independent timeline for general-subject cases
+// ============================================================================
+// pet_events.pet_id is NOT NULL at the DB level, so general-subject cases
+// (primarySubjectKind = 'general' | 'location' | 'unowned_animal') cannot use
+// pet_events for case-scoped notes. This table fills that gap.
+// Migration: 0069_investigation_notes.sql.
+
+export const INVESTIGATION_NOTE_TYPES = [
+  "case_opened",
+  "case_escalated",
+  "case_closed",
+  "dataset_classification",
+  "lab_result",
+  "control_action",
+  "contact_tracing",
+  "final_report",
+  "linked_signal",
+  "general_note",
+] as const;
+export type InvestigationNoteType = (typeof INVESTIGATION_NOTE_TYPES)[number];
+
+export const investigationNotes = pgTable(
+  "investigation_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => cases.id, { onDelete: "cascade" }),
+    entryType: text("entry_type").notNull().$type<InvestigationNoteType>(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    recordedByUserId: uuid("recorded_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    authorRole: text("author_role").notNull().default("govt"),
+    payload: jsonb("payload").notNull().default(sql`'{}'`),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    caseOccurredIdx: index("investigation_notes_case_id_occurred_idx").on(
+      table.caseId,
+      table.occurredAt,
+    ),
+    entryTypeIdx: index("investigation_notes_entry_type_idx").on(table.entryType),
+  }),
+);
+
+export type InvestigationNote = typeof investigationNotes.$inferSelect;
+export type NewInvestigationNote = typeof investigationNotes.$inferInsert;
 
 // ============================================================================
 // Physical tag interest — §4.20 placeholder for the future physical-QR-tag

@@ -7,17 +7,20 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import {
   type Case,
   type CaseClosedReason,
   type CaseStatus,
   type CaseSubjectKind,
+  type InvestigationNote,
+  type InvestigationNoteType,
   attachments,
   cases,
   custodyDisputes,
   db,
+  investigationNotes,
   organizations,
   ownerships,
   petEvents,
@@ -339,4 +342,140 @@ export async function listCasesForAdmin(): Promise<CaseListItem[]> {
     .orderBy(desc(cases.openedAt))
     .limit(500);
   return rows.map(mapListRow);
+}
+
+// ---------------------------------------------------------------------------
+// Outbreak investigation queries
+// ---------------------------------------------------------------------------
+
+export type OutbreakInvestigationListItem = {
+  id: string;
+  publicCode: string;
+  status: CaseStatus;
+  closedReason: CaseClosedReason | null;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+  openedAt: Date;
+  closedAt: Date | null;
+  openedReason: string | null;
+};
+
+export type OutbreakInvestigationDetail = {
+  id: string;
+  publicCode: string;
+  caseKind: CaseKind;
+  status: CaseStatus;
+  closedReason: CaseClosedReason | null;
+  jurisdictionCountry: string;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+  openedAt: Date;
+  openedReason: string | null;
+  closedAt: Date | null;
+  openedByUser: { id: string; displayName: string } | null;
+  closedByUser: { id: string; displayName: string } | null;
+  notes: InvestigationNote[];
+};
+
+/**
+ * List open + escalated + recently closed (last 90 days) outbreak
+ * investigations for the given jurisdictions. Admin passes [] to get all.
+ */
+export async function listOutbreakInvestigationsForGovt(
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  isAdmin = false,
+): Promise<OutbreakInvestigationListItem[]> {
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+  const jurisdictionFilter =
+    !isAdmin && jurisdictions.length > 0
+      ? or(
+          ...jurisdictions.map((j) =>
+            and(
+              eq(cases.jurisdictionProvince, j.province),
+              eq(cases.jurisdictionLocality, j.locality),
+            ),
+          ),
+        )
+      : undefined;
+
+  const rows = await db
+    .select({ c: cases })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.caseKind, "outbreak_investigation"),
+        or(
+          inArray(cases.status, ["open", "escalated"]),
+          and(eq(cases.status, "closed"), sql`${cases.closedAt} >= ${ninetyDaysAgo}`),
+        ),
+        jurisdictionFilter,
+      ),
+    )
+    .orderBy(desc(cases.openedAt))
+    .limit(200);
+
+  return rows.map((r) => ({
+    id: r.c.id,
+    publicCode: r.c.publicCode,
+    status: r.c.status,
+    closedReason: r.c.closedReason ?? null,
+    jurisdictionProvince: r.c.jurisdictionProvince ?? null,
+    jurisdictionLocality: r.c.jurisdictionLocality ?? null,
+    openedAt: r.c.openedAt,
+    closedAt: r.c.closedAt ?? null,
+    openedReason: r.c.openedReason ?? null,
+  }));
+}
+
+export async function getOutbreakInvestigationDetail(
+  publicCode: string,
+): Promise<OutbreakInvestigationDetail | null> {
+  const [row] = await db
+    .select({
+      c: cases,
+      openedByUser: {
+        id: profiles.id,
+        displayName: profiles.displayName,
+      },
+    })
+    .from(cases)
+    .leftJoin(profiles, eq(profiles.id, cases.openedByUserId))
+    .where(and(eq(cases.publicCode, publicCode), eq(cases.caseKind, "outbreak_investigation")))
+    .limit(1);
+
+  if (!row) return null;
+
+  const [closedByUserRow, noteRows] = await Promise.all([
+    row.c.closedByUserId
+      ? db
+          .select({ id: profiles.id, displayName: profiles.displayName })
+          .from(profiles)
+          .where(eq(profiles.id, row.c.closedByUserId))
+          .limit(1)
+          .then((rs) => rs[0] ?? null)
+      : Promise.resolve(null),
+    db
+      .select()
+      .from(investigationNotes)
+      .where(eq(investigationNotes.caseId, row.c.id))
+      .orderBy(desc(investigationNotes.occurredAt)),
+  ]);
+
+  return {
+    id: row.c.id,
+    publicCode: row.c.publicCode,
+    caseKind: "outbreak_investigation",
+    status: row.c.status,
+    closedReason: row.c.closedReason ?? null,
+    jurisdictionCountry: row.c.jurisdictionCountry,
+    jurisdictionProvince: row.c.jurisdictionProvince ?? null,
+    jurisdictionLocality: row.c.jurisdictionLocality ?? null,
+    openedAt: row.c.openedAt,
+    openedReason: row.c.openedReason ?? null,
+    closedAt: row.c.closedAt ?? null,
+    openedByUser: row.openedByUser?.id ? row.openedByUser : null,
+    closedByUser: closedByUserRow,
+    notes: noteRows,
+  };
 }

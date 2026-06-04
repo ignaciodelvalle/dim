@@ -1,0 +1,511 @@
+// Integration tests for the outbreak investigation management surface.
+//
+// Auth-guard is mocked. Users provisioned via Supabase admin SDK.
+
+import { createClient } from "@supabase/supabase-js";
+import { and, eq, inArray } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/auth-guards", () => ({
+  requireAdminOrGovtOrRedirect: vi.fn(),
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}));
+
+import {
+  addInvestigationNoteAction,
+  closeInvestigationAction,
+  escalateInvestigationAction,
+  openOutbreakInvestigationAction,
+} from "@/app/actions/outbreak-investigation";
+import { auditLog, cases, db, govtAssignments, investigationNotes, profiles } from "@/db";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+
+const SUPABASE_URL = "http://127.0.0.1:54321";
+const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const adminSdk = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
+
+function govtSession(userId: string, province = "Buenos Aires", locality = "La Plata") {
+  return {
+    user: { id: userId },
+    supabase: {} as never,
+    profile: { id: userId, role: "govt" as const },
+    jurisdictions: [{ province, locality }],
+  };
+}
+
+function adminSession(userId: string) {
+  return {
+    user: { id: userId },
+    supabase: {} as never,
+    profile: { id: userId, role: "admin" as const },
+    jurisdictions: [],
+  };
+}
+
+function outOfScopeGovtSession(userId: string) {
+  return {
+    user: { id: userId },
+    supabase: {} as never,
+    profile: { id: userId, role: "govt" as const },
+    jurisdictions: [{ province: "Mendoza", locality: "Mendoza" }],
+  };
+}
+
+const GOVT_EMAIL = "outbreak-test-govt@dim-test.local";
+const ADMIN_EMAIL = "outbreak-test-admin@dim-test.local";
+
+let govtUserId: string;
+let adminUserId: string;
+
+async function ensureUser(email: string, role: "govt" | "admin"): Promise<string> {
+  const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 500 });
+  const existing = list?.users.find((u) => u.email === email);
+  if (existing) {
+    const [profile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, existing.id));
+    if (profile) return existing.id;
+    await adminSdk.auth.admin.deleteUser(existing.id);
+  }
+  const r = await adminSdk.auth.admin.createUser({
+    email,
+    password: "OutbreakTest_2026!",
+    email_confirm: true,
+  });
+  if (r.error || !r.data.user) throw new Error(`createUser: ${r.error?.message}`);
+  const id = r.data.user.id;
+  await db.update(profiles).set({ role, accountType: "institutional" }).where(eq(profiles.id, id));
+  return id;
+}
+
+async function cleanupTestCasesForUsers(userIds: string[]) {
+  if (userIds.length === 0) return;
+  const caseRows = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(inArray(cases.openedByUserId, userIds));
+  const caseIds = caseRows.map((r) => r.id);
+  if (caseIds.length > 0) {
+    await db.delete(investigationNotes).where(inArray(investigationNotes.caseId, caseIds));
+    await db.delete(cases).where(inArray(cases.id, caseIds));
+  }
+}
+
+beforeAll(async () => {
+  govtUserId = await ensureUser(GOVT_EMAIL, "govt");
+  adminUserId = await ensureUser(ADMIN_EMAIL, "admin");
+
+  // Ensure govt user has jurisdiction.
+  try {
+    await db.insert(govtAssignments).values({
+      userId: govtUserId,
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    });
+  } catch {
+    // Already assigned — OK.
+  }
+
+  await cleanupTestCasesForUsers([govtUserId, adminUserId]);
+});
+
+afterAll(async () => {
+  await cleanupTestCasesForUsers([govtUserId, adminUserId]);
+});
+
+// ---------------------------------------------------------------------------
+// openOutbreakInvestigationAction
+// ---------------------------------------------------------------------------
+
+describe("openOutbreakInvestigationAction", () => {
+  it("creates a general-subject pet-less case in the govt jurisdiction", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: "leptospirosis",
+      reason: "Tres casos confirmados en la misma semana.",
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    if (!("ok" in result)) return;
+
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.publicCode, result.publicCode))
+      .limit(1);
+
+    expect(caseRow.caseKind).toBe("outbreak_investigation");
+    expect(caseRow.primarySubjectKind).toBe("general");
+    expect(caseRow.primaryPetId).toBeNull();
+    expect(caseRow.jurisdictionProvince).toBe("Buenos Aires");
+    expect(caseRow.status).toBe("open");
+    expect(caseRow.openedReason).toContain("manual [leptospirosis]:");
+    expect(caseRow.openedByUserId).toBe(govtUserId);
+
+    const notes = await db
+      .select()
+      .from(investigationNotes)
+      .where(eq(investigationNotes.caseId, caseRow.id));
+    expect(notes.some((n) => n.entryType === "case_opened")).toBe(true);
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.actorUserId, govtUserId),
+          eq(auditLog.action, "outbreak_investigation_opened"),
+        ),
+      )
+      .limit(5);
+    expect(auditRows.length).toBeGreaterThan(0);
+    const payload = auditRows[0].payload as Record<string, unknown>;
+    expect(payload.v1_noop).toBe(true);
+    expect(payload.disease_code).toBe("leptospirosis");
+  });
+
+  it("rejects invalid disease code", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: "not-a-real-disease",
+      reason: "Motivo suficientemente largo para test.",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("ENO") });
+  });
+
+  it("rejects reason shorter than 10 chars", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: "rabies",
+      reason: "Corto",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("10 caracteres") });
+  });
+
+  it("blocks duplicate open investigation for same (disease, jurisdiction)", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId, "Córdoba", "Córdoba"),
+    );
+
+    const first = await openOutbreakInvestigationAction({
+      diseaseCode: "hidatidosis",
+      reason: "Primera investigacion de hidatidosis en Córdoba.",
+    });
+    expect(first).toMatchObject({ ok: true });
+
+    const second = await openOutbreakInvestigationAction({
+      diseaseCode: "hidatidosis",
+      reason: "Segunda investigacion de hidatidosis en Córdoba.",
+    });
+    expect(second).toMatchObject({ error: expect.stringContaining("hidatidosis") });
+    // Error includes the public code of the duplicate case, not the province name
+    expect("error" in second).toBe(true);
+  });
+
+  it("admin bypasses jurisdiction requirement (national scope)", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      adminSession(adminUserId),
+    );
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: "brucelosis_canina",
+      reason: "Investigacion administrativa de alcance nacional.",
+    });
+    expect(result).toMatchObject({ ok: true });
+    if (!("ok" in result)) return;
+
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.publicCode, result.publicCode))
+      .limit(1);
+    expect(caseRow.jurisdictionProvince).toBeNull();
+    expect(caseRow.openedByUserId).toBe(adminUserId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addInvestigationNoteAction
+// ---------------------------------------------------------------------------
+
+describe("addInvestigationNoteAction", () => {
+  let testCasePublicCode: string;
+
+  beforeAll(async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: "leishmaniasis",
+      reason: "Caso de leishmaniasis para test de notas del dataset.",
+    });
+    if (!("ok" in result)) throw new Error(`Setup failed: ${JSON.stringify(result)}`);
+    testCasePublicCode = result.publicCode;
+  });
+
+  it("records a dataset_classification entry", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await addInvestigationNoteAction({
+      casePublicCode: testCasePublicCode,
+      entryType: "dataset_classification",
+      notes: "Caso sospechoso identificado en barrio norte.",
+    });
+    expect(result).toMatchObject({ ok: true });
+
+    const [caseRow] = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(eq(cases.publicCode, testCasePublicCode))
+      .limit(1);
+    const notes = await db
+      .select()
+      .from(investigationNotes)
+      .where(
+        and(
+          eq(investigationNotes.caseId, caseRow.id),
+          eq(investigationNotes.entryType, "dataset_classification"),
+        ),
+      );
+    expect(notes.length).toBeGreaterThan(0);
+  });
+
+  it("records a lab_result entry", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await addInvestigationNoteAction({
+      casePublicCode: testCasePublicCode,
+      entryType: "lab_result",
+      notes: "PCR positivo confirmado por ANLIS.",
+    });
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it("records a control_action entry", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await addInvestigationNoteAction({
+      casePublicCode: testCasePublicCode,
+      entryType: "control_action",
+      notes: "Fumigacion del area de 500 metros realizada.",
+    });
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it("rejects out-of-scope govt user", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      outOfScopeGovtSession(govtUserId),
+    );
+    const result = await addInvestigationNoteAction({
+      casePublicCode: testCasePublicCode,
+      entryType: "general_note",
+      notes: "Nota de usuario fuera de scope.",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+  });
+
+  it("admin bypasses jurisdiction check", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      adminSession(adminUserId),
+    );
+    const result = await addInvestigationNoteAction({
+      casePublicCode: testCasePublicCode,
+      entryType: "general_note",
+      notes: "Nota registrada por admin con scope universal.",
+    });
+    expect(result).toMatchObject({ ok: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// closeInvestigationAction
+// ---------------------------------------------------------------------------
+
+describe("closeInvestigationAction", () => {
+  let resolvedCaseCode: string;
+  let dismissedCaseCode: string;
+
+  beforeAll(async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+
+    const r1 = await openOutbreakInvestigationAction({
+      diseaseCode: "rabies",
+      reason: "Investigacion de rabia para test de cierre resuelto.",
+    });
+    if (!("ok" in r1)) throw new Error(`Setup r1: ${JSON.stringify(r1)}`);
+    resolvedCaseCode = r1.publicCode;
+
+    const r2 = await openOutbreakInvestigationAction({
+      diseaseCode: "brucelosis_canina",
+      reason: "Investigacion de brucelosis para test de cierre desestimado.",
+    });
+    if (!("ok" in r2)) throw new Error(`Setup r2: ${JSON.stringify(r2)}`);
+    dismissedCaseCode = r2.publicCode;
+  });
+
+  it("BLOCKS close-resolved without final report", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await closeInvestigationAction({
+      casePublicCode: resolvedCaseCode,
+      outcome: "resolved",
+      reason: "Investigacion cerrada con exito.",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("informe epidemiologico") });
+  });
+
+  it("SUCCEEDS close-resolved with inline final report text", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await closeInvestigationAction({
+      casePublicCode: resolvedCaseCode,
+      outcome: "resolved",
+      finalReportText: "Brote controlado. Sin nuevos casos en 4 semanas. Vacunacion al 95%.",
+      reason: "Brote controlado sin nuevos casos confirmados.",
+    });
+    expect(result).toMatchObject({ ok: true });
+
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.publicCode, resolvedCaseCode))
+      .limit(1);
+    expect(caseRow.status).toBe("closed");
+    expect(caseRow.closedReason).toBe("resolved");
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.actorUserId, govtUserId),
+          eq(auditLog.action, "outbreak_investigation_closed_resolved"),
+        ),
+      )
+      .limit(1);
+    expect(auditRows.length).toBeGreaterThan(0);
+    const payload = auditRows[0].payload as Record<string, unknown>;
+    expect(payload.v1_noop).toBe(true);
+    expect(payload.outcome).toBe("resolved");
+  });
+
+  it("SUCCEEDS close-resolved with pre-existing final report note", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const r = await openOutbreakInvestigationAction({
+      diseaseCode: "hidatidosis",
+      reason: "Hidatidosis para test con informe previo registrado antes del cierre.",
+    });
+    expect(r).toMatchObject({ ok: true });
+    if (!("ok" in r)) return;
+
+    const noteResult = await addInvestigationNoteAction({
+      casePublicCode: r.publicCode,
+      entryType: "final_report",
+      notes: "Informe final previo registrado como nota antes del cierre.",
+    });
+    expect(noteResult).toMatchObject({ ok: true });
+
+    const closeResult = await closeInvestigationAction({
+      casePublicCode: r.publicCode,
+      outcome: "resolved",
+      reason: "Cierre con informe previo registrado como nota.",
+    });
+    expect(closeResult).toMatchObject({ ok: true });
+  });
+
+  it("SUCCEEDS close-dismissed without final report", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+    const result = await closeInvestigationAction({
+      casePublicCode: dismissedCaseCode,
+      outcome: "dismissed",
+      reason: "Falsa alarma, no hay brote confirmado en el area.",
+    });
+    expect(result).toMatchObject({ ok: true });
+
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.publicCode, dismissedCaseCode))
+      .limit(1);
+    expect(caseRow.status).toBe("closed");
+    expect(caseRow.closedReason).toBe("cancelled");
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.actorUserId, govtUserId),
+          eq(auditLog.action, "outbreak_investigation_closed_dismissed"),
+        ),
+      )
+      .limit(1);
+    expect(auditRows.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// escalateInvestigationAction
+// ---------------------------------------------------------------------------
+
+describe("escalateInvestigationAction", () => {
+  it("escalates an open investigation and writes audit row", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId),
+    );
+
+    const openResult = await openOutbreakInvestigationAction({
+      diseaseCode: "rabies",
+      reason: "Nuevo brote de rabia para test especifico de escalada urgente.",
+    });
+    expect(openResult).toMatchObject({ ok: true });
+    if (!("ok" in openResult)) return;
+
+    const escalateResult = await escalateInvestigationAction({
+      casePublicCode: openResult.publicCode,
+      reason: "Nuevos casos confirmados, situacion critica en expansion rapida.",
+    });
+    expect(escalateResult).toMatchObject({ ok: true });
+
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(eq(cases.publicCode, openResult.publicCode))
+      .limit(1);
+    expect(caseRow.status).toBe("escalated");
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.actorUserId, govtUserId),
+          eq(auditLog.action, "outbreak_investigation_escalated"),
+        ),
+      )
+      .limit(1);
+    expect(auditRows.length).toBeGreaterThan(0);
+  });
+});
