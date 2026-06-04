@@ -7,7 +7,10 @@
 // DO NOT add diseases here without updating the spec. The list is locked per
 // ENO-D1 (2026-05-21).
 //
-// Legal framework: SENASA + ministerios provinciales bajo Decreto 1228/2018 + Ley 27.305.
+// Legal framework: SENASA + ministerios provinciales bajo Ley 15.465/1960 (Decreto 3640/64) +
+// Res. MS 2827/2022 (Manual ENO; SNVS 2.0 sistema oficial) + Res. SENASA 422/2003.
+// NOTE: Decreto 1228/2018 removed — unverified as ENO anchor. Ley 27.305 removed —
+// that statute covers infant-formula coverage (leche medicamentosa / PMO), NOT zoonosis.
 
 export type EnoDisease = {
   /** Stable key used for indexing and payload discrimination. */
@@ -43,7 +46,9 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "high",
     notifyHours: 48,
     stigmaSensitive: false,
-    legalAnchor: "Ley 27.305 (zoonosis)",
+    // Ley 27.305 removed — that statute is "leche medicamentosa" (PMO infant formula), NOT zoonosis.
+    // Leptospirosis → ENO national framework (Ley 15.465) + ProTenencia (Decreto 1088/2011).
+    legalAnchor: "Ley 15.465 (ENO nacional) + Decreto 1088/2011 (ProTenencia)",
   },
   {
     code: "hidatidosis",
@@ -51,7 +56,9 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "high",
     notifyHours: 48,
     stigmaSensitive: false,
-    legalAnchor: "Ley 27.305 + Res. SENASA 422/2003",
+    // Ley 27.305 removed — misattributed (see leptospirosis comment above).
+    // Hidatidosis → SENASA notifiable-disease framework (422/2003 Anexo II) + ProTenencia.
+    legalAnchor: "Res. SENASA 422/2003 (Anexo II) + Decreto 1088/2011 (ProTenencia)",
   },
   {
     code: "brucelosis_canina",
@@ -59,7 +66,9 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "high",
     notifyHours: 72,
     stigmaSensitive: true, // owner may experience social stigma
-    legalAnchor: "Res. SENASA 374/2003",
+    // TODO(verify): resolución específica de brucelosis canina (B. canis) no confirmada en
+    // digesto SENASA; se usa el marco general 422/2003 (Anexo II) hasta confirmar.
+    legalAnchor: "Res. SENASA 422/2003 (Anexo II)",
   },
   {
     code: "leishmaniasis",
@@ -67,7 +76,9 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "critical",
     notifyHours: 48,
     stigmaSensitive: true, // stigma from human-health risk + impact on pet
-    legalAnchor: "Res. SENASA 405/2017",
+    // TODO(verify): posible Res. SENASA 315/2017; confirmar en digesto.senasa.gob.ar.
+    // Res. SENASA 405/2017 not verified in official SENASA digest — replaced by general 422/2003.
+    legalAnchor: "Res. SENASA 422/2003 (Anexo II)",
   },
 ] as const;
 

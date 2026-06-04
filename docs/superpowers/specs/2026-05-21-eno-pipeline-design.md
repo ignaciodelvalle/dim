@@ -9,7 +9,8 @@
 
 ## Resumen
 
-Cuando un **vet** marca a una mascota con una enfermedad incluida en el catálogo ENO, el sistema **debe** notificar automáticamente a la autoridad sanitaria correspondiente (province + locality) dentro de las ventanas legales. Marco: SENASA + ministerios provinciales bajo Decreto 1228/2018 + Ley 27.305.
+Cuando un **vet** marca a una mascota con una enfermedad incluida en el catálogo ENO, el sistema **debe** notificar automáticamente a la autoridad sanitaria correspondiente (province + locality) dentro de las ventanas legales. Marco: SENASA + ministerios provinciales bajo Ley 15.465/1960 (Decreto 3640/64) + Res. MS 2827/2022 + Res. SENASA 422/2003.
+> **Corrección 2026-06-04:** Ley 27.305 eliminada — esa ley regula la cobertura de leche medicamentosa (PMO), no tiene relación con zoonosis. Decreto 1228/2018 eliminado — no verificado como ancla ENO.
 
 ENO ≠ vacunas obligatorias del carnet sanitario. El TODO(eno) histórico en C1 (`vaccine-reminder-state.ts`) confunde ambos conceptos. Este spec **separa** los dos catálogos y crea la infraestructura para el reporting automático.
 
@@ -56,7 +57,8 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "high",
     notifyHours: 48,
     stigmaSensitive: false,
-    legalAnchor: "Ley 27.305 (zoonosis)",
+    // Ley 27.305 removed — leche medicamentosa/PMO, NOT zoonosis.
+    legalAnchor: "Ley 15.465 (ENO nacional) + Decreto 1088/2011 (ProTenencia)",
   },
   {
     code: "hidatidosis",
@@ -64,7 +66,8 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "high",
     notifyHours: 48,
     stigmaSensitive: false,
-    legalAnchor: "Ley 27.305 + Res. SENASA 422/2003",
+    // Ley 27.305 removed — misattributed (see leptospirosis comment above).
+    legalAnchor: "Res. SENASA 422/2003 (Anexo II) + Decreto 1088/2011 (ProTenencia)",
   },
   {
     code: "brucelosis_canina",
@@ -72,7 +75,9 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "high",
     notifyHours: 72,
     stigmaSensitive: true,   // dueño puede sentir estigma social
-    legalAnchor: "Res. SENASA 374/2003",
+    // TODO(verify): resolución específica de brucelosis canina (B. canis) no confirmada en
+    // digesto SENASA; se usa el marco general 422/2003 (Anexo II) hasta confirmar.
+    legalAnchor: "Res. SENASA 422/2003 (Anexo II)",
   },
   {
     code: "leishmaniasis",
@@ -80,7 +85,9 @@ export const ENO_DISEASES_AR: readonly EnoDisease[] = [
     severity: "critical",
     notifyHours: 48,
     stigmaSensitive: true,   // estigma por riesgo humano + impacto en pet
-    legalAnchor: "Res. SENASA 405/2017",
+    // TODO(verify): posible Res. SENASA 315/2017; confirmar en digesto.senasa.gob.ar.
+    // Res. SENASA 405/2017 not verified in official SENASA digest — replaced by general 422/2003.
+    legalAnchor: "Res. SENASA 422/2003 (Anexo II)",
   },
 ];
 ```
