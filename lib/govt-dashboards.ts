@@ -686,14 +686,20 @@ export async function fetchCasesPerCapita(
       population: sql<string | null>`MAX(${jurisdictionsCensus.population})`,
     })
     .from(cases)
-    .leftJoin(jurisdictionsCensus, eq(jurisdictionsCensus.provinceName, cases.jurisdictionProvince))
+    .leftJoin(
+      jurisdictionsCensus,
+      and(
+        eq(jurisdictionsCensus.provinceName, cases.jurisdictionProvince),
+        eq(jurisdictionsCensus.censusYear, 2022),
+      ),
+    )
     .where(and(...conditions))
     .groupBy(cases.jurisdictionProvince);
 
   return rows
     .filter((r) => r.province !== null)
     .map((r) => {
-      const pop = r.population ? Number(r.population) : null;
+      const pop = r.population !== null ? Number(r.population) : null;
       const ratePer10k =
         pop !== null && pop > 0 ? Math.round((r.n / pop) * 10_000 * 10) / 10 : null;
       return {

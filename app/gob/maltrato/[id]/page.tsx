@@ -374,7 +374,7 @@ export default async function GobMaltratoDetailPage({
                 {normativas.map((law) => (
                   <li key={law.id}>
                     <span className="font-medium">{law.label}</span>
-                    {law.scope ? ` — ${law.scope}` : null}
+                    {` — ${law.scope}`}
                   </li>
                 ))}
               </ul>
