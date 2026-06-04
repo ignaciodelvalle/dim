@@ -1,5 +1,7 @@
 # CABA barrios — operational execution
 
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado (commits 225aadd, 9412f6b; PR #372). Tests en __tests__/caba-barrios.test.ts.
+
 > Plan operativo corto. El script `scripts/import-caba-barrios.ts` ya existe y está listo (hardcoded de los 48 barrios per Ley CABA 1.777). Falta ejecutarlo en producción y verificar que el typeahead `LocalityCombobox` los rankee bien para usuarios CABA.
 >
 > Sin nada que escribir en lib/ ni schema — todo está. Es solo run + verify + minor UX tweak.
@@ -135,10 +137,10 @@ it('búsqueda "Pal" sin context: orden alfabético', async () => {
 
 ### Paso 5 — Verificación manual
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
-- [ ] Smoke en `PetForm`: como usuario CABA, en el campo locality tipear "Palermo" → aparece como primer resultado (no como uno cualquiera detrás de otros)
-- [ ] Confirmar: pets existentes con `jurisdiction_locality='Ciudad Autónoma de Buenos Aires'` (sin barrio) siguen funcionando (no break retroactivo)
-- [ ] Confirmar: nuevas pets registradas en CABA pueden elegir barrio específico, y la columna `jurisdiction_locality` recibe el barrio (e.g., "Palermo"), no "Ciudad Autónoma de Buenos Aires"
+- [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
+- [x] Smoke en `PetForm`: como usuario CABA, en el campo locality tipear "Palermo" → aparece como primer resultado (no como uno cualquiera detrás de otros)
+- [x] Confirmar: pets existentes con `jurisdiction_locality='Ciudad Autónoma de Buenos Aires'` (sin barrio) siguen funcionando (no break retroactivo)
+- [x] Confirmar: nuevas pets registradas en CABA pueden elegir barrio específico, y la columna `jurisdiction_locality` recibe el barrio (e.g., "Palermo"), no "Ciudad Autónoma de Buenos Aires"
 
 ## 2. Out of scope
 

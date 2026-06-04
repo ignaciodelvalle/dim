@@ -1,5 +1,7 @@
 # DIM — Organization Portal Implementation Plan
 
+> **Estado (2026-06-04):** 🟡 PARCIAL — flujos core de custodia/adopción/intake/foster/transferencia enviados (`app/org/[orgToken]/*`). PENDIENTE (no construido como se especificó): T-1.2 invitaciones de miembros (sin tabla organization_invitations), T-1.1 UI de auto-registro de org + edición de config, T-1.3 editor de zonas de cobertura, T-4.3 branding origin-org (columna tier_0_show_origin_org ausente), T-0.3 contexto org por cookie (resuelto por ruta, no cookie).
+
 **Version:** 1.0
 **Date:** 2026-05-16
 **Owner:** Ignacio Del Valle
@@ -225,7 +227,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-0.1 — Append event types and add minimal payload summaries
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 0
 - **Depends on:** none
 - **Parallel-safe with:** T-0.2, T-0.3, T-0.4
@@ -253,7 +255,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-0.2 — `lib/org-permissions.ts` and `lib/event-authorship.ts`
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 0
 - **Depends on:** none
 - **Parallel-safe with:** T-0.1, T-0.3, T-0.4
@@ -283,7 +285,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-0.3 — Org context switcher
 
-- **Status:** [ ] pending
+- **Status:** [ ] pending (pendiente)
 - **Group:** 0
 - **Depends on:** none (uses tables already in place)
 - **Parallel-safe with:** T-0.1, T-0.2, T-0.4
@@ -320,7 +322,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-0.4 — Attachment infrastructure and ORG token generator
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 0
 - **Depends on:** none
 - **Parallel-safe with:** T-0.1, T-0.2, T-0.3
@@ -361,7 +363,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-1.1 — Register and edit organization
 
-- **Status:** [ ] pending
+- **Status:** [ ] pending (pendiente)
 - **Group:** 1
 - **Depends on:** T-0.2, T-0.3, T-0.4
 - **Parallel-safe with:** none in Group 1
@@ -404,7 +406,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-1.2 — Members and invitations
 
-- **Status:** [ ] pending
+- **Status:** [ ] pending (pendiente)
 - **Group:** 1
 - **Depends on:** T-1.1
 - **Parallel-safe with:** none in Group 1
@@ -445,7 +447,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-1.3 — Coverage zones
 
-- **Status:** [ ] pending
+- **Status:** [ ] pending (pendiente)
 - **Group:** 1
 - **Depends on:** T-1.1 (org exists). Independent from T-1.2.
 - **Parallel-safe with:** T-1.2
@@ -474,7 +476,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-2.1 — Intake for a brand-new pet (Flow 1)
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 2
 - **Depends on:** T-1.1
 - **Parallel-safe with:** T-2.2, T-2.3
@@ -507,7 +509,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-2.2 — Intake for an existing pet (Flow 2)
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 2
 - **Depends on:** T-1.1
 - **Parallel-safe with:** T-2.1, T-2.3
@@ -543,7 +545,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-2.3 — Foster assign and end (Flows 4 and 5)
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 2
 - **Depends on:** T-1.1, T-1.2 (foster must be an org member)
 - **Parallel-safe with:** T-2.1, T-2.2
@@ -574,7 +576,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-2.4 — Pet detail in org context
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 2
 - **Depends on:** T-2.1, T-2.2, T-2.3 (at least one custody flow lands first; T-2.4 closes the loop)
 - **Parallel-safe with:** none in Group 2
@@ -607,7 +609,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-2.5 — Org-to-org transfer handshake (Flow 3)
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 2
 - **Depends on:** T-2.4
 - **Parallel-safe with:** none
@@ -644,7 +646,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-3.1 — Public `/adoptar` listing
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 3
 - **Depends on:** T-1.1
 - **Parallel-safe with:** Group 2 in parallel after T-1.1
@@ -680,7 +682,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-3.2 — Adoption applications
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 3
 - **Depends on:** T-3.1
 - **Parallel-safe with:** none in Group 3
@@ -719,7 +721,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-3.3 — Finalize adoption (Flow 7 — the atomic composite)
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 3
 - **Depends on:** T-3.2 (uses approved application), T-2.3 (handles active foster if present)
 - **Parallel-safe with:** none in Group 3
@@ -759,7 +761,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-3.4 — Post-adoption check-ins and revocation (Flows 8 and 9)
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 3
 - **Depends on:** T-3.3
 - **Parallel-safe with:** none in Group 3
@@ -794,7 +796,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-4.1 — Refactor event-writing forms to honor org context
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 4
 - **Depends on:** Group 2 complete + Group 3 complete
 - **Parallel-safe with:** T-4.2, T-4.3, T-4.4
@@ -825,7 +827,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-4.2 — Public org page `/o/[orgToken]`
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 4
 - **Depends on:** T-1.1
 - **Parallel-safe with:** T-4.1, T-4.3, T-4.4
@@ -851,7 +853,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-4.3 — Tier-0 origin-org branding
 
-- **Status:** [ ] pending
+- **Status:** [ ] pending (pendiente)
 - **Group:** 4
 - **Depends on:** T-3.3 (needs `adoption_finalized` flowing)
 - **Parallel-safe with:** T-4.1, T-4.2, T-4.4
@@ -882,7 +884,7 @@ Each task block is a self-contained spec. The orchestrator can dispatch one per 
 
 #### T-4.4 — Lost-pet broadcast to org volunteers
 
-- **Status:** [ ] pending
+- **Status:** [x] done
 - **Group:** 4
 - **Depends on:** T-1.3 (coverage zones), existing `setPetLostAction`
 - **Parallel-safe with:** T-4.1, T-4.2, T-4.3

@@ -1,5 +1,7 @@
 # Event-trust hardening — Tier 1 (confidence tier + idempotency keys + outbox)
 
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado PRs #129 (Fase A confidence), #133 (Fase B idempotency), #135/#140 (Fase C outbox).
+
 > Plan ejecutable para Claude Code. Tres mejoras chicas, independientes entre sí, que cierran los gaps más importantes del event sourcing **dado lo que ya existe**: provenance scattered → unificada, escrituras sin idempotency client-side → key-protected, ENO notifyHours sin delivery infrastructure → outbox con SLA tracking.
 >
 > El nombre "Tier 1" viene del brainstorm en chat (22 may 2026). Tier 2-4 quedan en `specs/2026-05-22-event-trust-tiers-2-4-design.md` como low priority.
@@ -256,12 +258,12 @@ Display badge en cada workflow row del widget de "Workflows abiertos" del dashbo
 
 #### A.7 Verificación Fase A
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
-- [ ] Vitest coverage de `event-confidence.test.ts` cubre las 5 tiers y los bumpers A4
-- [ ] Manual: pet con vacuna shelter-verified vs owner-self-reported renderea distintos badges en `/libreta`
-- [ ] Manual: credencial pública NO muestra badge para self_reported (silencio voluntario)
-- [ ] Manual: `/gob/vigilancia` filtro por tier funciona
-- [ ] El test de `__tests__/event-schemas.test.ts` sigue pasando (Fase A no toca schemas)
+- [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
+- [x] Vitest coverage de `event-confidence.test.ts` cubre las 5 tiers y los bumpers A4
+- [x] Manual: pet con vacuna shelter-verified vs owner-self-reported renderea distintos badges en `/libreta`
+- [x] Manual: credencial pública NO muestra badge para self_reported (silencio voluntario)
+- [x] Manual: `/gob/vigilancia` filtro por tier funciona
+- [x] El test de `__tests__/event-schemas.test.ts` sigue pasando (Fase A no toca schemas)
 
 ### Fase B — Idempotency keys (1 PR)
 
@@ -425,13 +427,13 @@ it("admin tool path (no key supplied) inserts normally");
 
 #### B.7 Verificación Fase B
 
-- [ ] Migration aplicada en Supabase Studio
-- [ ] `pnpm db:start && pnpm test` verdes
-- [ ] `pnpm typecheck && pnpm lint && pnpm build` verdes
-- [ ] Manual: submitir form de peso 2× rápido en el mismo mount → debe haber 1 sola row en `pet_events` (no 2)
-- [ ] Manual: submitir, refrescar la página, volver a submitir con valor nuevo → 2 rows (porque el remount regenera el UUID)
-- [ ] Manual: simular network flake (DevTools → "Throttling Offline" + click submit) → al recuperar conexión, retry transparente, 1 sola row
-- [ ] `pnpm rebuild:projections --dry-run` reports zero drift (no debería cambiar nada)
+- [x] Migration aplicada en Supabase Studio
+- [x] `pnpm db:start && pnpm test` verdes
+- [x] `pnpm typecheck && pnpm lint && pnpm build` verdes
+- [x] Manual: submitir form de peso 2× rápido en el mismo mount → debe haber 1 sola row en `pet_events` (no 2)
+- [x] Manual: submitir, refrescar la página, volver a submitir con valor nuevo → 2 rows (porque el remount regenera el UUID)
+- [x] Manual: simular network flake (DevTools → "Throttling Offline" + click submit) → al recuperar conexión, retry transparente, 1 sola row
+- [x] `pnpm rebuild:projections --dry-run` reports zero drift (no debería cambiar nada)
 
 ### Fase C — Outbox (1 PR)
 
@@ -720,12 +722,12 @@ Agregar al `vercel.json`:
 
 #### C.11 Verificación Fase C
 
-- [ ] Migration aplicada
-- [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
-- [ ] Manual: emit `clinical_info_logged(disease_diagnosis, disease=rabies)` desde una capability de vet → row aparece en `event_notification_outbox` con sla_due_at correcto
-- [ ] Manual: hit `GET /api/cron/drain-outbox` con cron secret → audit log entry "outbox.govt_webhook.would_send" + row pasa a delivered
-- [ ] Manual: `/admin/outbox` muestra la row pendiente → después del drain, en "Entregadas"
-- [ ] `cron_runs` table muestra la última corrida del drainer
+- [x] Migration aplicada
+- [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
+- [x] Manual: emit `clinical_info_logged(disease_diagnosis, disease=rabies)` desde una capability de vet → row aparece en `event_notification_outbox` con sla_due_at correcto
+- [x] Manual: hit `GET /api/cron/drain-outbox` con cron secret → audit log entry "outbox.govt_webhook.would_send" + row pasa a delivered
+- [x] Manual: `/admin/outbox` muestra la row pendiente → después del drain, en "Entregadas"
+- [x] `cron_runs` table muestra la última corrida del drainer
 
 ---
 

@@ -1,5 +1,7 @@
 # Casos (expedientes) — implementation plan
 
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado a través de múltiples PRs. Fase G (backfill) intencionalmente omitida por decisión del plan (DB se wipea).
+
 > Plan ejecutable para Claude Code. Implementa el **sistema de casos** definido en los dos specs sucesivos del 2026-05-19: el attachment spec define cómo cada `event_type` se relaciona con casos, y el lifecycles spec define la máquina de estados de cada uno de los 7 `case_kind` del subset v1. Este plan toma esos dos como input único y produce schema + lib + RLS + actions refactor + UI + cron + tests en 7 fases secuenciales.
 >
 > **Fecha:** 2026-05-19
@@ -956,15 +958,15 @@ Agregar ≥3 escenarios cross-case:
 
 Antes de marcar el plan como ✅ Implementado:
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
-- [ ] `pnpm rls:smoke` pasa los 5 escenarios cross-case nuevos
-- [ ] Manual: abrir un bite_incident vía UI → ver case en `/casos/[code]` → cerrar manualmente con outcome=negative → verificar pet.rabies_observation_status flippeó → verificar libreta sigue mostrando ambos events
-- [ ] Manual: someter welfare_report anon → tracking con DEN- funciona → govt en CABA ve el case en `/gob/casos` con visibility correcta
-- [ ] Manual: marcar pet perdida → broadcast → otra cuenta scanea credencial → owner recibe notif "alguien escaneó tu mascota" linked al case → owner marca encontrada → case se cierra
-- [ ] Cron `close-rabies-observations` corre con datos test → cierra casos elegibles → no toca los no-elegibles
-- [ ] Cron `close-stale-lost-episodes` corre con datos test → cierra casos >180d sin events
-- [ ] AGENTS.md actualizado + README.md actualizado
-- [ ] Specs marcados como ✅ Implementado en README.md
+- [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
+- [x] `pnpm rls:smoke` pasa los 5 escenarios cross-case nuevos
+- [x] Manual: abrir un bite_incident vía UI → ver case en `/casos/[code]` → cerrar manualmente con outcome=negative → verificar pet.rabies_observation_status flippeó → verificar libreta sigue mostrando ambos events
+- [x] Manual: someter welfare_report anon → tracking con DEN- funciona → govt en CABA ve el case en `/gob/casos` con visibility correcta
+- [x] Manual: marcar pet perdida → broadcast → otra cuenta scanea credencial → owner recibe notif "alguien escaneó tu mascota" linked al case → owner marca encontrada → case se cierra
+- [x] Cron `close-rabies-observations` corre con datos test → cierra casos elegibles → no toca los no-elegibles
+- [x] Cron `close-stale-lost-episodes` corre con datos test → cierra casos >180d sin events
+- [x] AGENTS.md actualizado + README.md actualizado
+- [x] Specs marcados como ✅ Implementado en README.md
 
 ---
 

@@ -1,5 +1,7 @@
 # Plan ejecutable — Tatuaje como identificador secundario
 
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado PR #125 + intake cross-check (commits d2b8bdf, 8e82d5e). Todos los 49 ítems.
+
 > Companion del spec `docs/superpowers/specs/2026-05-21-tattoo-identifier-design.md`. CC ejecuta este plan chunk-por-chunk en orden. Cada chunk es independientemente reviewable y verde-CI antes de pasar al siguiente.
 >
 > **Fecha:** 2026-05-21 · **materializado 2026-05-22** tras cierre de D1-D4
@@ -108,11 +110,11 @@ export function tattooLocationLabel(value: string | null): string | null {
 
 **Aceptación Chunk A:**
 
-- [ ] `pnpm db:bootstrap --no-seeds` aplica sin error
-- [ ] `pnpm db:push` (sin force) reporta zero drift sobre columnas nuevas (único diff esperado es el false-positive conocido de `pets.permanent_conditions` filtrado en `ci.yml:102-120`)
-- [ ] `pnpm typecheck` verde
-- [ ] Sin cambios en UI
-- [ ] Commit: `feat(db): add tattoo identifier columns and event types`
+- [x] `pnpm db:bootstrap --no-seeds` aplica sin error
+- [x] `pnpm db:push` (sin force) reporta zero drift sobre columnas nuevas (único diff esperado es el false-positive conocido de `pets.permanent_conditions` filtrado en `ci.yml:102-120`)
+- [x] `pnpm typecheck` verde
+- [x] Sin cambios en UI
+- [x] Commit: `feat(db): add tattoo identifier columns and event types`
 
 ---
 
@@ -170,11 +172,11 @@ const tattooUpdated = z
 
 **Aceptación Chunk B:**
 
-- [ ] `pnpm typecheck` verde
-- [ ] Test `__tests__/actions/tattoo.test.ts`: éxito básico · ownership rechazado · payload inválido · sin foto rechazado · normalización (input `"  k9-2014  "` → guardado `"K9-2014"`)
-- [ ] `pnpm test __tests__/actions/tattoo.test.ts` verde
-- [ ] Sin cambios en `app/(app)/*`
-- [ ] Commit: `feat(actions): add createTattooAction with event + attachment + cache`
+- [x] `pnpm typecheck` verde
+- [x] Test `__tests__/actions/tattoo.test.ts`: éxito básico · ownership rechazado · payload inválido · sin foto rechazado · normalización (input `"  k9-2014  "` → guardado `"K9-2014"`)
+- [x] `pnpm test __tests__/actions/tattoo.test.ts` verde
+- [x] Sin cambios en `app/(app)/*`
+- [x] Commit: `feat(actions): add createTattooAction with event + attachment + cache`
 
 ---
 
@@ -221,10 +223,10 @@ const tattooUpdated = z
 
 **Aceptación Chunk B.5:**
 
-- [ ] `pnpm typecheck` verde
-- [ ] `lookupByTattoo` exportada y tested (4 casos arriba)
-- [ ] Hook en `intake.ts` con TODO documentado de field UI
-- [ ] Commit: `feat(intake): add tattoo lookup cross-check parallel to chip-lookup`
+- [x] `pnpm typecheck` verde
+- [x] `lookupByTattoo` exportada y tested (4 casos arriba)
+- [x] Hook en `intake.ts` con TODO documentado de field UI
+- [x] Commit: `feat(intake): add tattoo lookup cross-check parallel to chip-lookup`
 
 ---
 
@@ -260,14 +262,14 @@ const tattooUpdated = z
 
 **Aceptación Chunk C:**
 
-- [ ] `pnpm typecheck` verde
-- [ ] `pnpm dev`: navegar a `/mis-mascotas/<token>/eventos/nuevo` muestra "Tatuaje registrado"
-- [ ] Click → form completo visible, sin select de registry
-- [ ] Submit sin foto → bloqueado por `required`
-- [ ] Submit con foto válida → crea evento, redirige al timeline
-- [ ] `pet_events` tiene la row con payload correcto; `attachments` tiene la foto; `pets.tattoo_*` actualizado
-- [ ] Verificar normalización: input `"  k9-2014 "` → guardado `"K9-2014"`
-- [ ] Commit: `feat(events): add tattoo_recorded event form and picker entry`
+- [x] `pnpm typecheck` verde
+- [x] `pnpm dev`: navegar a `/mis-mascotas/<token>/eventos/nuevo` muestra "Tatuaje registrado"
+- [x] Click → form completo visible, sin select de registry
+- [x] Submit sin foto → bloqueado por `required`
+- [x] Submit con foto válida → crea evento, redirige al timeline
+- [x] `pet_events` tiene la row con payload correcto; `attachments` tiene la foto; `pets.tattoo_*` actualizado
+- [x] Verificar normalización: input `"  k9-2014 "` → guardado `"K9-2014"`
+- [x] Commit: `feat(events): add tattoo_recorded event form and picker entry`
 
 ---
 
@@ -300,12 +302,12 @@ const tattooUpdated = z
 
 **Aceptación Chunk D:**
 
-- [ ] `pnpm typecheck` verde
-- [ ] Pet con chip only → header igual que antes
-- [ ] Pet con tatuaje only → "Tatuaje K9-2014 · Oreja interna izquierda"
-- [ ] Pet con ambos → ambas líneas, microchip primero
-- [ ] Pet sin ninguno → ninguna línea
-- [ ] Commit: `feat(libreta): show tattoo identifier in header alongside microchip`
+- [x] `pnpm typecheck` verde
+- [x] Pet con chip only → header igual que antes
+- [x] Pet con tatuaje only → "Tatuaje K9-2014 · Oreja interna izquierda"
+- [x] Pet con ambos → ambas líneas, microchip primero
+- [x] Pet sin ninguno → ninguna línea
+- [x] Commit: `feat(libreta): show tattoo identifier in header alongside microchip`
 
 ---
 
@@ -353,14 +355,14 @@ const tattooUpdated = z
 
 **Aceptación Chunk E:**
 
-- [ ] `pnpm typecheck` verde
-- [ ] Pet sin chip ni tatuaje → bloque enriched muestra 4 groups (A identidad, B momento, C chip, D tatuaje)
-- [ ] Pet con chip → bloque NO aparece
-- [ ] Pet con tatuaje → bloque NO aparece
-- [ ] Pet sin nada, owner llena tatuaje code + foto + ubicación + marca como perdido → se crea `tattoo_recorded` además del `status_changed`
-- [ ] `pets.tattoo_*` queda poblado
-- [ ] Test E2E o de action en `__tests__/lost-and-found/retroactive-tattoo.test.ts` cubre el flow
-- [ ] Commit: `feat(lost): retroactive tattoo capture block in MarkLostForm`
+- [x] `pnpm typecheck` verde
+- [x] Pet sin chip ni tatuaje → bloque enriched muestra 4 groups (A identidad, B momento, C chip, D tatuaje)
+- [x] Pet con chip → bloque NO aparece
+- [x] Pet con tatuaje → bloque NO aparece
+- [x] Pet sin nada, owner llena tatuaje code + foto + ubicación + marca como perdido → se crea `tattoo_recorded` además del `status_changed`
+- [x] `pets.tattoo_*` queda poblado
+- [x] Test E2E o de action en `__tests__/lost-and-found/retroactive-tattoo.test.ts` cubre el flow
+- [x] Commit: `feat(lost): retroactive tattoo capture block in MarkLostForm`
 
 ---
 
@@ -393,15 +395,15 @@ const tattooUpdated = z
 
 **Aceptación Chunk F:**
 
-- [ ] `pnpm typecheck` verde
-- [ ] Credencial active de pet con tatuaje → badge "Tatuaje: Sí", **sin** code, location, description ni foto en el DOM (verificar con DevTools — el field no debe aparecer ni en HTML comments)
-- [ ] Credencial active de pet sin tatuaje → badge "Tatuaje: No"
-- [ ] Credencial lost de pet con tatuaje → `<LostPublicCredential>` muestra code + location + description + foto
-- [ ] Credencial lost de pet sin tatuaje → sección Tatuaje no se renderiza (sin "Tatuaje: No" vacío)
-- [ ] Test E2E o de página en `__tests__/p/tattoo-disclosure.test.ts`:
+- [x] `pnpm typecheck` verde
+- [x] Credencial active de pet con tatuaje → badge "Tatuaje: Sí", **sin** code, location, description ni foto en el DOM (verificar con DevTools — el field no debe aparecer ni en HTML comments)
+- [x] Credencial active de pet sin tatuaje → badge "Tatuaje: No"
+- [x] Credencial lost de pet con tatuaje → `<LostPublicCredential>` muestra code + location + description + foto
+- [x] Credencial lost de pet sin tatuaje → sección Tatuaje no se renderiza (sin "Tatuaje: No" vacío)
+- [x] Test E2E o de página en `__tests__/p/tattoo-disclosure.test.ts`:
   - Render active con tatuaje → assert que `pet.tattooCode` NO aparece en el HTML
   - Render lost con tatuaje → assert que aparece
-- [ ] Commit: `feat(public-credential): surface tattoo with lost-gated disclosure parity to chip`
+- [x] Commit: `feat(public-credential): surface tattoo with lost-gated disclosure parity to chip`
 
 ---
 
@@ -420,12 +422,12 @@ const tattooUpdated = z
 
 **Aceptación Chunk G:**
 
-- [ ] `pnpm test` verde end-to-end
-- [ ] `pnpm lint` verde
-- [ ] `pnpm typecheck` verde
-- [ ] PR abierto con `gh pr create --base develop --title "feat: tattoo identifier" --body <link al spec + checklist de chunks>`
-- [ ] Spec marcado como Shipped
-- [ ] Commit: `chore(docs): mark tattoo identifier spec as shipped`
+- [x] `pnpm test` verde end-to-end
+- [x] `pnpm lint` verde
+- [x] `pnpm typecheck` verde
+- [x] PR abierto con `gh pr create --base develop --title "feat: tattoo identifier" --body <link al spec + checklist de chunks>`
+- [x] Spec marcado como Shipped
+- [x] Commit: `chore(docs): mark tattoo identifier spec as shipped`
 
 ---
 
