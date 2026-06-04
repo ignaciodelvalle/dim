@@ -73,6 +73,7 @@ export const GOB_NAV: NavItem[] = [
   { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
   { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
   { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
+  { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
 ];
 
 // ---------------------------------------------------------------------------
