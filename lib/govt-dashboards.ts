@@ -770,7 +770,11 @@ export async function fetchZoonosisTrend(
 
 // Build a scope clause for the `welfare_reports` table.
 // Admin: null (no restriction). Govt: OR of jurisdiction pair matches.
-function welfareReportsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+// Exported so the maltrato list page and its tests can reuse the same logic.
+export function welfareReportsScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+) {
   if (actor.role === "admin") return null;
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
@@ -781,6 +785,88 @@ function welfareReportsScopeClause(actor: DashboardActor, jurisdictions: Dashboa
 }
 
 const TERMINAL_STATUSES = ["closed", "invalid", "duplicate"] as const;
+
+// ============================================================================
+// Maltrato list WHERE-clause builder (E4 followup)
+//
+// Consolidates every filter that was previously applied in JS post-fetch into
+// a composable Drizzle WHERE condition. Exported to allow unit testing without
+// a full DB round-trip.
+// ============================================================================
+
+export type MaltratoQueue = "urgent" | "mine" | "all" | "overdue";
+
+export type MaltratoListFilters = {
+  actor: DashboardActor;
+  /** Intersected (assignment ∩ UI selection) jurisdiction set from the page. */
+  filteredJurisdictions: DashboardJurisdiction[];
+  queue: MaltratoQueue;
+  kind?: string | null;
+  severity?: string | null;
+  currentUserId: string;
+};
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Returns a Drizzle SQL condition that encodes every filter for the maltrato
+ * triage list:
+ *   - Jurisdiction scope (intersected assignments — never widens beyond them)
+ *   - Moderation exclusion (flagged but not yet admin-resolved)
+ *   - Kind / severity narrow filters
+ *   - Queue predicate (urgent / mine / overdue / all)
+ *
+ * Returns `sql\`false\`` when a govt user has no jurisdiction assignments so
+ * the query will always produce zero rows.
+ */
+export function buildMaltratoListConditions(filters: MaltratoListFilters) {
+  const { actor, filteredJurisdictions, queue, kind, severity, currentUserId } = filters;
+
+  // Short-circuit: govt with no assignments can never see any row.
+  if (actor.role === "govt" && filteredJurisdictions.length === 0) {
+    return sql`false`;
+  }
+
+  const conditions = [];
+
+  // 1. Jurisdiction scope.
+  const scope = welfareReportsScopeClause(actor, filteredJurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  // 2. Moderation exclusion — hide flagged rows awaiting admin review.
+  conditions.push(
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  );
+
+  // 3. Kind narrow filter.
+  if (kind) conditions.push(eq(welfareReports.kind, kind as never));
+
+  // 4. Severity narrow filter.
+  if (severity) conditions.push(eq(welfareReports.severity, severity as never));
+
+  // 5. Queue predicate.
+  switch (queue) {
+    case "urgent":
+      // Critical or high severity, not yet in a terminal status.
+      conditions.push(inArray(welfareReports.severity, ["critical", "high"]));
+      conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
+      break;
+    case "mine":
+      // Assigned to the current user (any non-terminal status).
+      conditions.push(eq(welfareReports.assignedToUserId, currentUserId));
+      break;
+    case "overdue":
+      // Status still open AND created more than 7 days ago without triage.
+      conditions.push(eq(welfareReports.status, "open"));
+      conditions.push(lt(welfareReports.createdAt, new Date(Date.now() - SEVEN_DAYS_MS)));
+      break;
+    default:
+      // "all" — no extra filter.
+      break;
+  }
+
+  return and(...conditions);
+}
 
 export type WelfareMetrics = {
   /** Welfare reports in scope with assigned_to_user_id IS NULL AND status NOT in closed/invalid/duplicate. */

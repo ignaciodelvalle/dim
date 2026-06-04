@@ -1,0 +1,427 @@
+// Tests for the maltrato SQL-queue refactor (E4 followup).
+//
+// Three groups:
+//   1. Unit tests for buildMaltratoListConditions — verifies the returned
+//      Drizzle SQL object shape is deterministic and correct without a DB call.
+//   2. Integration tests for queue predicates — inserts fixture welfare_reports
+//      rows and asserts the right rows come back for urgent / mine / overdue.
+//   3. Jurisdiction scope regression — mirrors gob-locality-scope.test.ts but
+//      wires through buildMaltratoListConditions + an actual DB query to confirm
+//      a govt user scoped to province A gets zero rows for province B.
+
+import { eq, sql } from "drizzle-orm";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+
+import { db, welfareReports } from "@/db";
+import { type MaltratoListFilters, buildMaltratoListConditions } from "@/lib/govt-dashboards";
+
+// ============================================================================
+// Unit tests — no DB required
+// ============================================================================
+
+/**
+ * Drizzle SQL conditions contain circular references (PgTable → PgColumn →
+ * PgTable) that break JSON.stringify. This extractor recursively collects all
+ * primitive string/number values from the queryChunks tree so we can assert
+ * that expected literals (field names, enum values) appear in the condition
+ * without trying to serialize the whole object graph.
+ */
+function extractLiterals(node: unknown, seen = new WeakSet()): string {
+  if (node === null || node === undefined) return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (typeof node !== "object") return "";
+  if (seen.has(node as object)) return "";
+  seen.add(node as object);
+  return Object.values(node as Record<string, unknown>)
+    .map((v) => extractLiterals(v, seen))
+    .join(" ");
+}
+
+describe("buildMaltratoListConditions — unit", () => {
+  const BASE: MaltratoListFilters = {
+    actor: { role: "govt" },
+    filteredJurisdictions: [{ province: "Córdoba", locality: "Córdoba" }],
+    queue: "all",
+    currentUserId: "00000000-0000-0000-0000-000000000001",
+  };
+
+  it("returns sql`false` for govt with no assignments", () => {
+    const result = buildMaltratoListConditions({
+      ...BASE,
+      filteredJurisdictions: [],
+    });
+    // The helper returns sql`false` — detect via the internal queryChunks literal.
+    const chunks = (result as { queryChunks?: Array<{ value?: string[] }> }).queryChunks;
+    expect(Array.isArray(chunks)).toBe(true);
+    expect(chunks?.[0]?.value?.[0]).toBe("false");
+  });
+
+  it("returns a truthy condition for admin with no jurisdictions (unscoped)", () => {
+    const result = buildMaltratoListConditions({
+      ...BASE,
+      actor: { role: "admin" },
+      filteredJurisdictions: [],
+      queue: "all",
+    });
+    // For admin the scope clause is null; the condition must still be defined.
+    expect(result).toBeDefined();
+  });
+
+  it("includes severity + status predicates for urgent queue", () => {
+    const result = buildMaltratoListConditions({ ...BASE, queue: "urgent" });
+    const literals = extractLiterals(result);
+    // urgent queue embeds the severity values and terminal statuses.
+    expect(literals).toContain("critical");
+    expect(literals).toContain("high");
+    expect(literals).toContain("closed");
+    expect(literals).toContain("invalid");
+    expect(literals).toContain("duplicate");
+  });
+
+  it("includes assignedToUserId predicate for mine queue", () => {
+    const userId = "00000000-0000-0000-0000-000000000099";
+    const result = buildMaltratoListConditions({
+      ...BASE,
+      queue: "mine",
+      currentUserId: userId,
+    });
+    expect(extractLiterals(result)).toContain(userId);
+  });
+
+  it("includes status=open and createdAt column reference for overdue queue", () => {
+    const result = buildMaltratoListConditions({ ...BASE, queue: "overdue" });
+    const literals = extractLiterals(result);
+    expect(literals).toContain("open");
+    // The created_at column name must appear in the condition tree.
+    expect(literals).toContain("created_at");
+  });
+
+  it("includes kind value when kind filter is set", () => {
+    const result = buildMaltratoListConditions({ ...BASE, kind: "neglect" });
+    expect(extractLiterals(result)).toContain("neglect");
+  });
+
+  it("includes severity value when severity filter is set", () => {
+    const result = buildMaltratoListConditions({ ...BASE, severity: "medium" });
+    expect(extractLiterals(result)).toContain("medium");
+  });
+});
+
+// ============================================================================
+// Integration tests — DB required
+// ============================================================================
+
+const WR_PREFIX = "SQLQ-TEST-";
+let seqN = 0;
+
+// Resolved once per suite — must reference a real profile for the
+// assignedToUserId FK. We use admin@dim.test (seeded by db:bootstrap).
+let adminUserId: string;
+
+async function resolveAdminUserId(): Promise<string> {
+  const rows = (await db.execute(
+    sql`SELECT p.id::text AS id FROM public.profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'admin@dim.test' LIMIT 1`,
+  )) as Array<{ id: string }>;
+  const first = rows[0];
+  if (!first?.id)
+    throw new Error("admin@dim.test profile not found. Run `pnpm db:bootstrap` first.");
+  return first.id;
+}
+
+async function insertReport(input: {
+  province?: string;
+  locality?: string;
+  status?: "open" | "triaged" | "in_progress" | "closed" | "invalid" | "duplicate";
+  severity?: "low" | "medium" | "high" | "critical";
+  kind?: "neglect" | "physical_abuse" | "abandonment" | "hoarding" | "other";
+  assignedToUserId?: string | null;
+  closedAt?: Date | null;
+  createdAt?: Date;
+}): Promise<string> {
+  seqN += 1;
+  const [row] = await db
+    .insert(welfareReports)
+    .values({
+      referenceCode: `${WR_PREFIX}${Date.now()}-${seqN}`,
+      kind: input.kind ?? "neglect",
+      severity: input.severity ?? "medium",
+      description: "SQL queue test fixture.",
+      subjectKind: "unowned_animal",
+      jurisdictionProvince: input.province ?? "Buenos Aires",
+      jurisdictionLocality: input.locality ?? "La Plata",
+      status: input.status ?? "open",
+      assignedToUserId: input.assignedToUserId ?? null,
+      closedAt: input.closedAt ?? null,
+    })
+    .returning({ id: welfareReports.id });
+
+  // Override createdAt if requested (for overdue testing).
+  if (input.createdAt) {
+    await db
+      .update(welfareReports)
+      .set({ createdAt: input.createdAt })
+      .where(eq(welfareReports.id, row.id));
+  }
+
+  return row.id;
+}
+
+async function cleanup() {
+  await db
+    .delete(welfareReports)
+    .where(sql`${welfareReports.referenceCode} LIKE ${`${WR_PREFIX}%`}`);
+}
+
+beforeAll(async () => {
+  adminUserId = await resolveAdminUserId();
+  await cleanup();
+});
+afterEach(cleanup);
+
+// Helper: detect whether a Drizzle SQL condition is the `sql`false`` sentinel.
+// We check the first queryChunk literal — sql`false` produces [{value:["false"]}].
+// Using this avoids JSON.stringify which throws on circular Drizzle table refs.
+function isSqlFalseSentinel(cond: ReturnType<typeof buildMaltratoListConditions>): boolean {
+  if (!cond) return false;
+  const chunks = (cond as { queryChunks?: Array<{ value?: string[] }> }).queryChunks;
+  return Array.isArray(chunks) && chunks.length === 1 && chunks[0]?.value?.[0] === "false";
+}
+
+// Helper: run a scoped query using buildMaltratoListConditions and return IDs.
+async function queryIds(filters: MaltratoListFilters): Promise<string[]> {
+  const cond = buildMaltratoListConditions(filters);
+  // Short-circuit when the helper returns sql`false` (govt with no assignments).
+  if (isSqlFalseSentinel(cond)) return [];
+  const rows = await db
+    .select({ id: welfareReports.id })
+    .from(welfareReports)
+    .where(cond)
+    .orderBy(welfareReports.createdAt);
+  return rows.map((r) => r.id);
+}
+
+const GOVT_CORDOBA: MaltratoListFilters = {
+  actor: { role: "govt" },
+  filteredJurisdictions: [{ province: "Córdoba", locality: "Villa María" }],
+  queue: "all",
+  currentUserId: "00000000-0000-0000-0000-000000000001",
+};
+
+// ============================================================================
+// Queue predicates
+// ============================================================================
+
+describe("buildMaltratoListConditions — queue: urgent (integration)", () => {
+  it("returns critical/high severity reports that are not terminal", async () => {
+    const urgentId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      severity: "critical",
+      status: "open",
+    });
+    const lowId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      severity: "low",
+      status: "open",
+    });
+    const closedUrgentId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      severity: "high",
+      status: "closed",
+      closedAt: new Date(),
+    });
+
+    const ids = await queryIds({ ...GOVT_CORDOBA, queue: "urgent" });
+
+    expect(ids).toContain(urgentId);
+    expect(ids).not.toContain(lowId);
+    expect(ids).not.toContain(closedUrgentId);
+  });
+
+  it("also includes high severity not-terminal", async () => {
+    const highId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      severity: "high",
+      status: "triaged",
+    });
+    const ids = await queryIds({ ...GOVT_CORDOBA, queue: "urgent" });
+    expect(ids).toContain(highId);
+  });
+});
+
+describe("buildMaltratoListConditions — queue: mine (integration)", () => {
+  it("returns only reports assigned to currentUserId", async () => {
+    // assignedToUserId must reference a real profile — use the seeded admin.
+    const mineId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      assignedToUserId: adminUserId,
+    });
+    const notMineId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      assignedToUserId: null,
+    });
+
+    const ids = await queryIds({ ...GOVT_CORDOBA, queue: "mine", currentUserId: adminUserId });
+    expect(ids).toContain(mineId);
+    expect(ids).not.toContain(notMineId);
+  });
+});
+
+describe("buildMaltratoListConditions — queue: overdue (integration)", () => {
+  it("returns open reports older than 7 days", async () => {
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const overdueId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      status: "open",
+      createdAt: eightDaysAgo,
+    });
+    const recentId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      status: "open",
+      // Default createdAt = now (not overdue).
+    });
+    const oldButTriagedId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      status: "triaged",
+      createdAt: eightDaysAgo,
+    });
+
+    const ids = await queryIds({ ...GOVT_CORDOBA, queue: "overdue" });
+    expect(ids).toContain(overdueId);
+    expect(ids).not.toContain(recentId);
+    // Overdue only applies to status=open; triaged should be excluded.
+    expect(ids).not.toContain(oldButTriagedId);
+  });
+});
+
+// ============================================================================
+// Jurisdiction scope regression (mirrors gob-locality-scope.test.ts)
+// ============================================================================
+
+describe("buildMaltratoListConditions — jurisdiction scope (integration)", () => {
+  it("govt assigned to province A sees ZERO rows when selecting province B", async () => {
+    // Insert a report in Santa Fe (province B).
+    await insertReport({ province: "Santa Fe", locality: "Rosario" });
+
+    // Govt scoped only to Córdoba / Villa María (province A).
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: "Córdoba", locality: "Villa María" }],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    // Must not include any Santa Fe row.
+    const allReports = await db
+      .select({ id: welfareReports.id, prov: welfareReports.jurisdictionProvince })
+      .from(welfareReports)
+      .where(sql`${welfareReports.referenceCode} LIKE ${`${WR_PREFIX}%`}`);
+
+    const santaFeIds = allReports.filter((r) => r.prov === "Santa Fe").map((r) => r.id);
+    for (const id of santaFeIds) {
+      expect(ids).not.toContain(id);
+    }
+  });
+
+  it("govt with empty filteredJurisdictions sees zero rows", async () => {
+    await insertReport({ province: "Córdoba", locality: "Villa María" });
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(ids).toHaveLength(0);
+  });
+
+  it("admin (unscoped) sees reports from any province", async () => {
+    const idA = await insertReport({ province: "Córdoba", locality: "Villa María" });
+    const idB = await insertReport({ province: "Santa Fe", locality: "Rosario" });
+
+    const ids = await queryIds({
+      actor: { role: "admin" },
+      filteredJurisdictions: [],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(ids).toContain(idA);
+    expect(ids).toContain(idB);
+  });
+
+  it("govt assigned province A + locality X gets zero rows when URL selects province A + locality Y (out-of-assignment)", async () => {
+    // Assignment: Córdoba / Villa María
+    // URL selects: Córdoba / Río Cuarto (not in assignments)
+    // filteredJurisdictions after intersection = [] → zero rows
+    await insertReport({ province: "Córdoba", locality: "Río Cuarto" });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      // This is what the page computes after intersection: empty because Río Cuarto
+      // is not in the govt's assignment list.
+      filteredJurisdictions: [],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(ids).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Pagination / limit sanity
+// ============================================================================
+
+describe("pagination sanity (integration)", () => {
+  it("offset + limit correctly pages through results", async () => {
+    // Insert 3 reports in a unique isolated jurisdiction.
+    const prov = "Chaco";
+    const loc = "Resistencia";
+    for (let i = 0; i < 3; i++) {
+      await insertReport({ province: prov, locality: loc });
+    }
+
+    const cond = buildMaltratoListConditions({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: prov, locality: loc }],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    // Page 1: 2 rows.
+    const page1 = await db
+      .select({ id: welfareReports.id })
+      .from(welfareReports)
+      .where(cond)
+      .orderBy(welfareReports.createdAt)
+      .limit(2)
+      .offset(0);
+
+    // Page 2: 1 row.
+    const page2 = await db
+      .select({ id: welfareReports.id })
+      .from(welfareReports)
+      .where(cond)
+      .orderBy(welfareReports.createdAt)
+      .limit(2)
+      .offset(2);
+
+    // Total via count.
+    const [{ n }] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(welfareReports)
+      .where(cond);
+
+    expect(page1).toHaveLength(2);
+    expect(page2).toHaveLength(1);
+    expect(n).toBe(3);
+    // No overlap between pages.
+    const ids1 = new Set(page1.map((r) => r.id));
+    for (const r of page2) expect(ids1.has(r.id)).toBe(false);
+  });
+});
