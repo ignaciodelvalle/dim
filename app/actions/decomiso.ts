@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 // Decomiso (Ley 14.346) — server actions for the full handshake lifecycle.
 //
@@ -85,7 +85,7 @@ import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpe
 import { validateEventPayload } from "@/lib/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -317,7 +317,6 @@ export async function executeDecomisoAction(
       govtOrg,
       receiverOrg,
       user,
-      session,
       existingPet: pet,
       unownedData: null,
     });
@@ -328,12 +327,34 @@ export async function executeDecomisoAction(
     return { error: "Indicá al menos la especie del animal sin registrar." };
   }
 
+  // W3: Server-side species allowlist (the form <select> is not a real guard).
+  const ALLOWED_SPECIES = ["dog", "cat", "other"];
+  if (!ALLOWED_SPECIES.includes(input.unownedAnimal.species.trim())) {
+    return { error: "Especie no válida. Las opciones son: perro, gato u otro." };
+  }
+
+  // W4: Server-side upper bound on approxAgeMonths.
+  if (input.unownedAnimal.approxAgeMonths != null && input.unownedAnimal.approxAgeMonths > 360) {
+    return { error: "La edad aproximada no puede superar los 360 meses (30 años)." };
+  }
+
+  // C1: Jurisdiction check for unowned path — mirror the registered_pet path.
+  // govtOrg.jurisdictionProvince is guaranteed non-null here (checked above).
+  if (session.profile.role === "govt") {
+    const orgProvince = govtOrg.jurisdictionProvince;
+    const inScope = session.jurisdictions.some((j) => j.province === orgProvince);
+    if (!inScope) {
+      return {
+        error: "Tu organización sanitaria no está en tu jurisdicción asignada.",
+      };
+    }
+  }
+
   return _runDecomisoTransaction({
     input,
     govtOrg,
     receiverOrg,
     user,
-    session,
     existingPet: null,
     unownedData: input.unownedAnimal,
   });
@@ -352,7 +373,6 @@ async function _runDecomisoTransaction(args: {
   govtOrg: Awaited<ReturnType<typeof resolveGovtOrgForUser>> & object;
   receiverOrg: { id: string; displayName: string };
   user: { id: string };
-  session: { profile: { role: string }; jurisdictions: { province: string }[] };
   /** Non-null for registered_pet path. */
   existingPet: { id: string; name: string; publicToken: string } | null;
   /** Non-null for unowned_animal path. */
@@ -431,7 +451,9 @@ async function _runDecomisoTransaction(args: {
 
       if (args.unownedData) {
         const { unownedData } = args;
-        const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken);
+        const publicToken = await generateUniqueToken(pets, pets.publicToken, generatePublicToken, {
+          executor: tx,
+        });
 
         // Compute approximate date of birth from approxAgeMonths (same
         // pattern as createIntakeAction's age-to-dob conversion).
@@ -455,24 +477,33 @@ async function _runDecomisoTransaction(args: {
           .trim();
         const petName = straySyntheticName || "Animal sin registrar";
 
-        const [newPet] = await tx
-          .insert(pets)
-          .values({
-            publicToken,
-            name: petName,
-            species: unownedData.species,
-            sex: unownedData.sex,
-            breed: unownedData.breed ?? null,
-            color: unownedData.color ?? null,
-            distinguishingFeatures: unownedData.distinguishingFeatures ?? null,
-            dateOfBirth,
-            birthDateIsEstimated,
-            // Jurisdiction from the govt org — the stray has no prior jurisdiction.
-            jurisdictionProvince: govtOrg.jurisdictionProvince,
-            jurisdictionLocality: govtOrg.jurisdictionLocality,
-            potentiallyDangerousBreed: false,
-          })
-          .returning();
+        let newPet: { id: string; publicToken: string; name: string };
+        try {
+          const [inserted] = await tx
+            .insert(pets)
+            .values({
+              publicToken,
+              name: petName,
+              species: unownedData.species,
+              sex: unownedData.sex,
+              breed: unownedData.breed ?? null,
+              color: unownedData.color ?? null,
+              distinguishingFeatures: unownedData.distinguishingFeatures ?? null,
+              dateOfBirth,
+              birthDateIsEstimated,
+              // Jurisdiction from the govt org — the stray has no prior jurisdiction.
+              jurisdictionProvince: govtOrg.jurisdictionProvince,
+              jurisdictionLocality: govtOrg.jurisdictionLocality,
+              potentiallyDangerousBreed: false,
+            })
+            .returning();
+          newPet = inserted;
+        } catch (insertErr) {
+          if (isUniqueViolation(insertErr)) {
+            throw new Error("Token de mascota duplicado — reintentá el decomiso.");
+          }
+          throw insertErr;
+        }
 
         // Emit pet_registered event (append-only protocol).
         const registeredPayload = validateEventPayload("pet_registered", {

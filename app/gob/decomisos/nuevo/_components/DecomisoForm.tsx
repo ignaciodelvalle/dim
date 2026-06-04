@@ -548,6 +548,7 @@ export function DecomisoForm({
                   id="unownedAgeMonths"
                   type="number"
                   min="0"
+                  max="360"
                   step="1"
                   value={unownedAgeMonths}
                   onChange={(e) => setUnownedAgeMonths(e.target.value)}
