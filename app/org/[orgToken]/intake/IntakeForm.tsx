@@ -26,10 +26,12 @@ import { Radio } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
 
+// "seizure" is intentionally absent: a decomiso is a State act (DC1),
+// not something a refugio self-records through this form. Seizures go
+// through the government decomiso flow (welfare.decomiso.execute).
 const INTAKE_REASONS = [
   { value: "rescue", label: "Rescate" },
   { value: "surrender", label: "Entrega del dueño" },
-  { value: "seizure", label: "Decomiso / Ley 14.346" },
   { value: "stray_found", label: "Animal en la vía pública" },
   { value: "other", label: "Otro" },
 ] as const;
@@ -348,8 +350,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               <span className="space-y-0.5">
                 <span className="block font-medium">Dueño/a permanente</span>
                 <span className="block text-xs! text-gob-text-muted!">
-                  El animal queda registrado a nombre de la organización (santuario, decomiso sin
-                  rehome, adopción institucional).
+                  El animal queda registrado a nombre de la organización (santuario, adopción
+                  institucional).
                 </span>
               </span>
             </Radio>

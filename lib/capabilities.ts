@@ -121,6 +121,25 @@ export const CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
   },
 ] as const;
 
+// ---------------------------------------------------------------------------
+// Govt-level capability: welfare.decomiso.execute
+// ---------------------------------------------------------------------------
+//
+// Spec: 2026-05-19-decomiso-welfare-authority-design.md §4.4 + DC1.
+//
+// This capability is NOT in ORGANIZATION_CAPABILITIES (and therefore not in
+// CAPABILITY_CATALOG) because it is a PROFILE-ROLE-level grant, not an
+// org-membership-level grant. The decomiso is an act of the State:
+//   - Granted automatically to users with profile.role='govt' or 'admin'.
+//   - Enforced by requireDecomisoPrincipal() in lib/auth-guards.ts.
+//   - Org members (refugio coordinators, vets) cannot hold this capability
+//     through the org-grant system — that would allow non-State actors to
+//     issue legally-binding seizures (DC1: explicitly prohibited).
+//
+// Capability string (for audit log + documentation purposes):
+//   'welfare.decomiso.execute'
+export const WELFARE_DECOMISO_EXECUTE_CAPABILITY = "welfare.decomiso.execute" as const;
+
 const CAPABILITY_SET = new Set<string>(ORGANIZATION_CAPABILITIES);
 
 export function isValidCapability(value: string): value is OrganizationCapability {
