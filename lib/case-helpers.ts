@@ -214,8 +214,9 @@ export async function findOpenCasesForPet(
 export async function findOpenCaseForPetAndKind(
   petId: string,
   kind: CaseKind,
+  executor: CaseExecutor = db,
 ): Promise<Case | null> {
-  const [row] = await db
+  const [row] = await executor
     .select()
     .from(cases)
     .where(
