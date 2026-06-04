@@ -1744,14 +1744,20 @@ export async function createDeathRecordAction(
         });
       }
       if (fosterCaseForDeath && activeFosters.length > 0) {
-        await closeCase({ caseId: fosterCaseForDeath.id, reason: "resolved" }, tx);
+        await closeCase(
+          { caseId: fosterCaseForDeath.id, reason: "resolved", closedByUserId: user.id },
+          tx,
+        );
       }
 
       // custody_episode terminal (death_recorded path — decomiso spec §13.4).
       // Conditional: only close if the pet was actually intaked; owner-registered
       // pets that die without ever being in shelter custody have no open episode.
       if (custodyEpisodeCaseForDeath) {
-        await closeCase({ caseId: custodyEpisodeCaseForDeath.id, reason: "resolved" }, tx);
+        await closeCase(
+          { caseId: custodyEpisodeCaseForDeath.id, reason: "resolved", closedByUserId: user.id },
+          tx,
+        );
       }
 
       // Death-during-observation hook (bite-rabies-observation spec D9).
