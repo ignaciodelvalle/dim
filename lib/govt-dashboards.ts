@@ -1552,7 +1552,7 @@ export async function fetchOutbreakHistory(
       -- Per-(group, day) signal counts. Groups share the same 4-tuple key.
       SELECT
         (${petEvents.payload}->>'disease_code')                                AS disease_code,
-        (${petEvents.payload}->>'disease_label')                               AS disease_label,
+        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
         date_trunc('day', ${petEvents.occurredAt})::date                        AS day,
@@ -1579,7 +1579,7 @@ export async function fetchOutbreakHistory(
       -- (used for ordering the final result).
       SELECT
         (${petEvents.payload}->>'disease_code')                                AS disease_code,
-        (${petEvents.payload}->>'disease_label')                               AS disease_label,
+        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
         COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
         COUNT(*)::int                                                           AS total_signals,
@@ -1604,7 +1604,7 @@ export async function fetchOutbreakHistory(
 
   return rows.map((r) => ({
     diseaseCode: r.disease_code,
-    diseaseName: findDisease(r.disease_code)?.label ?? r.disease_label ?? r.disease_code,
+    diseaseName: findDisease(r.disease_code)?.label ?? (r.disease_label || null) ?? r.disease_code,
     locality: r.locality,
     province: r.province,
     // peak_day arrives as a Postgres ::date string (YYYY-MM-DD); wrap in Date

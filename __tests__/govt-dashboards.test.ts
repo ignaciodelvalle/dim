@@ -1788,6 +1788,82 @@ describe("fetchOutbreakHistory", () => {
     expect(row.peakDate.slice(0, 10)).toBe(expectedDay);
   });
 
+  it("retains groups whose disease_label is NULL (null-safe join)", async () => {
+    const prov = "Salta";
+    const loc = "Salta Capital";
+    const pet = await insertFixturePet({
+      name: "NullLabelPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Emit an outbreak_signal with NO disease_label in the payload.
+    // The COALESCE fix must prevent this group from being dropped by the JOIN.
+    await db.insert(petEvents).values({
+      petId: pet,
+      eventType: "outbreak_signal",
+      occurredAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        source_symptom_event_id: "00000000-0000-0000-0000-000000000000",
+        disease_code: "null_label_disease",
+        // disease_label intentionally omitted — simulates a NULL in the DB column
+        match_strength: {
+          high_count: 1,
+          medium_count: 0,
+          low_count: 0,
+          matched_symptom_codes: ["s_test"],
+        },
+        pet_jurisdiction_country: "AR",
+        pet_jurisdiction_province: prov,
+        pet_jurisdiction_locality: loc,
+        pet_species: "dog",
+      },
+      authorRole: "system",
+      recordedByUserId: null,
+    });
+    await db.insert(petEvents).values({
+      petId: pet,
+      eventType: "outbreak_signal",
+      occurredAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        source_symptom_event_id: "00000000-0000-0000-0000-000000000001",
+        disease_code: "null_label_disease",
+        // disease_label intentionally omitted
+        match_strength: {
+          high_count: 1,
+          medium_count: 0,
+          low_count: 0,
+          matched_symptom_codes: ["s_test"],
+        },
+        pet_jurisdiction_country: "AR",
+        pet_jurisdiction_province: prov,
+        pet_jurisdiction_locality: loc,
+        pet_species: "dog",
+      },
+      authorRole: "system",
+      recordedByUserId: null,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const row = r.find((x) => x.diseaseCode === "null_label_disease" && x.locality === loc);
+
+    // Without the COALESCE fix this group would be silently dropped by the JOIN.
+    expect(row).toBeDefined();
+    if (!row) return;
+
+    // Both signals must be counted.
+    expect(row.totalSignals).toBeGreaterThanOrEqual(2);
+
+    // peakDate must be a valid ISO string.
+    expect(typeof row.peakDate).toBe("string");
+    expect(() => new Date(row.peakDate)).not.toThrow();
+
+    // diseaseName falls back to diseaseCode when label is missing.
+    expect(row.diseaseName).toBe("null_label_disease");
+  });
+
   it("ordered by peakDate desc (most recent first)", async () => {
     const r = await fetchOutbreakHistory({ role: "admin" }, []);
     for (let i = 1; i < r.length; i++) {
