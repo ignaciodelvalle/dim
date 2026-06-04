@@ -1,12 +1,29 @@
 "use server";
 
-// Decomiso (Ley 14.346) execution — server action.
+// Decomiso (Ley 14.346) — server actions for the full handshake lifecycle.
 //
-// Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §5.1.
+// Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §5.1–5.3.
 //
-// Execution + handoff proposal only (S2). Receiver accept/reject is S3.
+// S2: executeDecomisoAction — opens the custody_episode case + emits the
+//     custody_transfer_proposed handshake event toward the receiver refugio.
 //
-// Single atomic transaction:
+// S3 (this file): three receiver-handshake actions:
+//   - acceptDecomisoHandoffAction   — receiver org member accepts the handoff.
+//   - rejectDecomisoHandoffAction   — receiver org member rejects the handoff.
+//   - reassignDecomisoToAnotherReceiverAction — govt reassigns to a new refugio.
+//
+// CANONICAL DISCRIMINATOR (S2 review §2.4):
+//   A decomiso handshake = a custody_episode case opened by an org whose
+//   orgType='sanitary_authority', with an open custody_transfer_proposed event.
+//   Do NOT parse notes text to identify a decomiso handoff — use the case kind +
+//   openedByOrganizationId.orgType + receiverOrganizationId on the case row.
+//
+// Receiver identifier: the receiver-facing actions take `casePublicCode` (the
+//   custody_episode's public code) as the identifier, mirroring acceptCrossOrg-
+//   TransferAction's pattern. The receiver org is the organization the caller
+//   belongs to, and it must match the case's receiverOrganizationId.
+//
+// S2 transaction steps for executeDecomisoAction:
 //   1. Auth: requireDecomisoPrincipal (govt | admin) + jurisdictions guard.
 //   2. Resolve sanitary_authority org for the acting user.
 //   3. Validate subject pet (registered, found by publicToken).
@@ -33,12 +50,11 @@
 // Decomiso marker on the handoff proposal: the custody_transfer_proposed schema
 // does not have a `from_decomiso` boolean field (adding one would require a
 // schema change + migration). Instead, the decomiso context is embedded in the
-// `notes` field as a structured key-value string. S3's acceptDecomisoHandoffAction
-// can use the parent case kind ('custody_episode' opened by a sanitary_authority org)
-// as the canonical discriminator without relying on the notes text.
+// `notes` field as a structured key-value string. S3 uses the parent case kind
+// + openedByOrganizationId.orgType as the canonical discriminator.
 
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -55,7 +71,8 @@ import {
   profiles,
 } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
-import { findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
+import { requireCapability } from "@/lib/capabilities";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -64,6 +81,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // ---------------------------------------------------------------------------
 
 export type ExecuteDecomisoResult = { ok: true; publicCode: string } | { error: string };
+export type DecomisoHandshakeResult = { ok: true; publicCode: string } | { error: string };
 
 export type SeizureMotive =
   | "maltrato_fisico"
@@ -618,4 +636,694 @@ function motiveLabel(motive: SeizureMotive): string {
     case "otro":
       return "Otro";
   }
+}
+
+// ---------------------------------------------------------------------------
+// acceptDecomisoHandoffAction (S3 — receiver org member accepts)
+// ---------------------------------------------------------------------------
+//
+// Spec §5.2 — same pattern as acceptCrossOrgTransferAction but with two
+// differences:
+//   a) Auth: requireCapability('org.transfer.accept') against the RECEIVER org,
+//      NOT requireDecomisoPrincipal. The receiver is a refugio.
+//   b) After closing the govt's custody_episode, a NEW custody_episode is opened
+//      for the receiver org (cross-org accept does not open a new episode).
+//
+// Single atomic transaction:
+//   1. Auth + receiver org membership check.
+//   2. Load + validate the custody_episode case (open, correct kind).
+//   3. Load the latest custody_transfer_proposed — fail loudly if >1 (integrity).
+//   4. Discriminator: openedByOrg.orgType must be 'sanitary_authority'.
+//   5. Receiver authorization: caseRow.receiverOrganizationId === caller's org.
+//   6. Emit custody_transferred (shelter_custody → shelter_custody, govt→receiver).
+//   7. End govt's shelter_custody ownership row.
+//   8. Open receiver's shelter_custody ownership row.
+//   9. CLOSE the govt's custody_episode case (reason='resolved').
+//  10. OPEN a new custody_episode for the receiver org (no further receiver).
+//  11. Build notifications (best-effort outside tx): govt + receiver.
+//  12. Audit log: decomiso_handoff_accepted.
+
+export async function acceptDecomisoHandoffAction(input: {
+  receiverOrgToken: string;
+  casePublicCode: string;
+}): Promise<DecomisoHandshakeResult> {
+  const auth = await requireCapability("org.transfer.accept");
+  if (auth.error !== null) return { error: auth.error };
+  const { user, organization } = auth;
+
+  if (organization.publicToken !== input.receiverOrgToken) {
+    return { error: "Estás operando desde una organización distinta a la destinataria." };
+  }
+
+  // Load the custody_episode case.
+  const [caseRow] = await db
+    .select()
+    .from(cases)
+    .where(eq(cases.publicCode, input.casePublicCode))
+    .limit(1);
+  if (!caseRow) return { error: "Caso no encontrado." };
+  if (caseRow.caseKind !== "custody_episode") {
+    return { error: "Este caso no es un episodio de custodia." };
+  }
+  if (caseRow.status !== "open") {
+    return { error: "Este caso ya no está abierto. El handoff ya fue procesado o cancelado." };
+  }
+  if (!caseRow.primaryPetId) {
+    return { error: "Caso sin mascota asociada." };
+  }
+
+  // Validate canonical discriminator: opener must be a sanitary_authority org.
+  const [openerOrg] = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, caseRow.openedByOrganizationId as string))
+    .limit(1);
+  if (!openerOrg || openerOrg.orgType !== "sanitary_authority") {
+    return { error: "Este caso no corresponde a un decomiso de autoridad sanitaria." };
+  }
+  const govtOrgId = openerOrg.id;
+  const govtOrgName = openerOrg.displayName;
+
+  // Receiver authorization: canonical column is source of truth.
+  const canonicalReceiverOrgId = caseRow.receiverOrganizationId;
+  if (!canonicalReceiverOrgId) {
+    return { error: "El caso no tiene destinatario asignado." };
+  }
+  if (canonicalReceiverOrgId !== organization.id) {
+    return { error: "El decomiso no fue dirigido a tu organización." };
+  }
+
+  // Load the latest custody_transfer_proposed — fail loudly if >1 (same
+  // integrity pattern as acceptCrossOrgTransferAction).
+  const proposalEvents = await db
+    .select()
+    .from(petEvents)
+    .where(
+      and(eq(petEvents.caseId, caseRow.id), eq(petEvents.eventType, "custody_transfer_proposed")),
+    )
+    .orderBy(desc(petEvents.recordedAt))
+    .limit(2);
+  const [proposalEvent, shadowProposalEvent] = proposalEvents;
+  if (!proposalEvent) return { error: "Propuesta de handoff no encontrada." };
+  if (shadowProposalEvent) {
+    console.error(
+      `decomiso-handshake integrity: case ${caseRow.id} has multiple custody_transfer_proposed events; refusing to accept until reconciled`,
+    );
+    return {
+      error:
+        "El caso tiene propuestas duplicadas. Contactá soporte para reconciliarlo antes de aceptar.",
+    };
+  }
+
+  const proposalPayload = proposalEvent.payload as {
+    from_organization_id?: string;
+    to_organization_id?: string;
+    reason?: string;
+  };
+
+  // Cross-check proposal payload vs case row (same drift guard as cross-org).
+  if (
+    caseRow.openedByOrganizationId &&
+    proposalPayload.from_organization_id &&
+    caseRow.openedByOrganizationId !== proposalPayload.from_organization_id
+  ) {
+    console.error(
+      `decomiso-handshake integrity: case ${caseRow.id} openedByOrganizationId (${caseRow.openedByOrganizationId}) does not match proposal from_organization_id (${proposalPayload.from_organization_id})`,
+    );
+    return {
+      error: "Inconsistencia entre el caso y la propuesta. Contactá soporte.",
+    };
+  }
+  if (
+    caseRow.receiverOrganizationId &&
+    proposalPayload.to_organization_id &&
+    caseRow.receiverOrganizationId !== proposalPayload.to_organization_id
+  ) {
+    console.error(
+      `decomiso-handshake integrity: case ${caseRow.id} receiverOrganizationId (${caseRow.receiverOrganizationId}) does not match proposal to_organization_id (${proposalPayload.to_organization_id})`,
+    );
+    return {
+      error: "Inconsistencia entre el caso y la propuesta. Contactá soporte.",
+    };
+  }
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      const now = new Date();
+
+      // 6. Emit custody_transferred (shelter_custody → shelter_custody, govt→receiver).
+      const transferPayload = validateEventPayload("custody_transferred", {
+        from_user_id: null,
+        from_organization_id: govtOrgId,
+        to_user_id: null,
+        to_organization_id: organization.id,
+        from_role: "shelter_custody",
+        to_role: "shelter_custody",
+        reason: "org_to_org_handoff",
+        matched_against_pet_id: null,
+        foster_ended_event_id: null,
+        notes: null,
+      });
+      await tx.insert(petEvents).values({
+        petId: caseRow.primaryPetId as string,
+        eventType: "custody_transferred",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "shelter",
+        authorOrganizationId: organization.id,
+        authorVerified: organization.verified,
+        payload: transferPayload,
+        caseId: caseRow.id,
+      });
+
+      // 7. End the govt's transitional shelter_custody ownership.
+      await tx
+        .update(ownerships)
+        .set({ endedAt: now })
+        .where(
+          and(
+            eq(ownerships.petId, caseRow.primaryPetId as string),
+            eq(ownerships.ownerOrganizationId, govtOrgId),
+            eq(ownerships.role, "shelter_custody"),
+            isNull(ownerships.endedAt),
+          ),
+        );
+
+      // 8. Open the receiver's shelter_custody ownership.
+      await tx.insert(ownerships).values({
+        petId: caseRow.primaryPetId as string,
+        ownerOrganizationId: organization.id,
+        role: "shelter_custody",
+        startedAt: now,
+      });
+
+      // 9. Close the govt's custody_episode case (reason='resolved').
+      await closeCase({ caseId: caseRow.id, reason: "resolved", closedByUserId: user.id }, tx);
+
+      // 10. Open a NEW custody_episode for the receiver org (spec §5.2 / DC10).
+      // This is the key difference from acceptCrossOrgTransferAction, which does
+      // NOT open a new episode. The receiver's custody_episode tracks the refugio's
+      // active custody going forward (adoption, transfer, death, etc.).
+      const receiverEpisode = await openCase(
+        {
+          kind: "custody_episode",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: caseRow.primaryPetId,
+          jurisdictionProvince: caseRow.jurisdictionProvince,
+          jurisdictionLocality: caseRow.jurisdictionLocality,
+          jurisdictionCountry: caseRow.jurisdictionCountry ?? "AR",
+          openedByUserId: user.id,
+          openedByOrganizationId: organization.id,
+          // No receiverOrganizationId — this episode is the receiver's own custody.
+          openedReason: `auto: decomiso handoff aceptado desde caso ${caseRow.publicCode}`,
+        },
+        tx,
+      );
+
+      // 11. Build notifications (best-effort, inserted outside tx).
+
+      // Govt org coordinators — success (spec §13.7: decomiso_handoff_accepted_govt).
+      const govtCoords = await tx
+        .select({ userId: organizationMemberships.userId })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.organizationId, govtOrgId),
+            inArray(organizationMemberships.role, ["admin", "coordinator"]),
+            isNull(organizationMemberships.leftAt),
+          ),
+        );
+      for (const coord of govtCoords) {
+        pendingNotifications.push({
+          userId: coord.userId,
+          notificationType: "decomiso_handoff_accepted_govt" as const,
+          severity: "success" as const,
+          title: "Decomiso aceptado por el refugio",
+          body: `${organization.displayName} aceptó la custodia del decomiso (caso ${caseRow.publicCode}). El episodio de custodia del refugio quedó registrado como ${receiverEpisode.publicCode}.`,
+          ctaLabel: "Ver caso",
+          ctaUrl: `/casos/${receiverEpisode.publicCode}`,
+          relatedCaseId: receiverEpisode.id,
+          relatedPetId: caseRow.primaryPetId,
+        });
+      }
+
+      // Receiver actor — success (spec §13.7: decomiso_handoff_accepted_receiver).
+      pendingNotifications.push({
+        userId: user.id,
+        notificationType: "decomiso_handoff_accepted_receiver" as const,
+        severity: "success" as const,
+        title: "Custodia del decomiso confirmada",
+        body: `Aceptaste la custodia del animal decomisado por ${govtOrgName}. El caso de custodia es ${receiverEpisode.publicCode}.`,
+        ctaLabel: "Ver caso",
+        ctaUrl: `/casos/${receiverEpisode.publicCode}`,
+        relatedCaseId: receiverEpisode.id,
+        relatedPetId: caseRow.primaryPetId,
+      });
+
+      // 12. Audit log.
+      await tx.insert(auditLog).values({
+        actorUserId: user.id,
+        action: "decomiso_handoff_accepted",
+        payload: {
+          closed_govt_case_id: caseRow.id,
+          closed_govt_case_public_code: caseRow.publicCode,
+          opened_receiver_case_id: receiverEpisode.id,
+          opened_receiver_case_public_code: receiverEpisode.publicCode,
+          pet_id: caseRow.primaryPetId,
+          govt_org_id: govtOrgId,
+          receiver_org_id: organization.id,
+        },
+      });
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo aceptar el handoff de decomiso: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (acceptDecomisoHandoffAction succeeded)", e);
+    }
+  }
+
+  revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
+  revalidatePath("/gob/decomisos");
+  return { ok: true, publicCode: input.casePublicCode };
+}
+
+// ---------------------------------------------------------------------------
+// rejectDecomisoHandoffAction (S3 — receiver org member rejects)
+// ---------------------------------------------------------------------------
+//
+// Spec §5.3 — receiver rejects; govt's custody_episode stays open.
+//
+// Key differences from rejectCrossOrgTransferAction:
+//   - The case kind is custody_episode, not custody_transfer_handshake.
+//   - The case is NOT closed — the govt retains the open episode.
+//   - No ownership flip: pet stays in govt transitional custody.
+//
+// Single atomic transaction:
+//   1. Auth: requireCapability('org.transfer.accept') — receiver org member.
+//   2. Load + validate the custody_episode case (open, correct kind).
+//   3. Discriminator check: opener is sanitary_authority.
+//   4. Receiver authorization: receiverOrganizationId matches caller's org.
+//   5. Emit note_added(category='rejection') with the reason.
+//   6. Close the custody_transfer_proposed handshake (NOT the custody_episode).
+//      Mechanically: close a note-only "handshake" state — because there is no
+//      separate handshake case for decomiso (the custody_episode IS the case),
+//      we mark the proposal as cancelled by updating the case's
+//      receiverOrganizationId to null and emitting the rejection note. The
+//      custody_episode status stays 'open'.
+//   7. Notify govt (decomiso_handoff_rejected_govt).
+//   8. Audit log: decomiso_handoff_rejected.
+
+export async function rejectDecomisoHandoffAction(input: {
+  receiverOrgToken: string;
+  casePublicCode: string;
+  reason?: string | null;
+  message?: string | null;
+}): Promise<DecomisoHandshakeResult> {
+  const auth = await requireCapability("org.transfer.accept");
+  if (auth.error !== null) return { error: auth.error };
+  const { user, organization } = auth;
+
+  if (organization.publicToken !== input.receiverOrgToken) {
+    return { error: "Estás operando desde una organización distinta a la destinataria." };
+  }
+
+  const [caseRow] = await db
+    .select()
+    .from(cases)
+    .where(eq(cases.publicCode, input.casePublicCode))
+    .limit(1);
+  if (!caseRow) return { error: "Caso no encontrado." };
+  if (caseRow.caseKind !== "custody_episode") {
+    return { error: "Este caso no es un episodio de custodia." };
+  }
+  if (caseRow.status !== "open") {
+    return { error: "Este caso ya no está abierto. El handoff ya fue procesado o cancelado." };
+  }
+  if (!caseRow.primaryPetId) {
+    return { error: "Caso sin mascota asociada." };
+  }
+
+  // Discriminator: opener must be a sanitary_authority org.
+  const [openerOrg] = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, caseRow.openedByOrganizationId as string))
+    .limit(1);
+  if (!openerOrg || openerOrg.orgType !== "sanitary_authority") {
+    return { error: "Este caso no corresponde a un decomiso de autoridad sanitaria." };
+  }
+  const govtOrgId = openerOrg.id;
+
+  // Receiver authorization.
+  const canonicalReceiverOrgId = caseRow.receiverOrganizationId;
+  if (!canonicalReceiverOrgId) {
+    return {
+      error: "Este decomiso no tiene destinatario activo. Puede que ya haya sido reasignado.",
+    };
+  }
+  if (canonicalReceiverOrgId !== organization.id) {
+    return { error: "El decomiso no fue dirigido a tu organización." };
+  }
+
+  const reasonNote =
+    [input.reason, input.message?.trim()].filter(Boolean).join(" — ") ||
+    "Rechazado sin motivo especificado";
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      const now = new Date();
+
+      // 5. Emit note_added(category='rejection') — spec §5.3.
+      const notePayload = validateEventPayload("note_added", {
+        category: "system" as const,
+        text: `Handoff rechazado por el receptor (${organization.displayName}): ${reasonNote}`,
+      });
+      await tx.insert(petEvents).values({
+        petId: caseRow.primaryPetId as string,
+        eventType: "note_added",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "shelter",
+        authorOrganizationId: organization.id,
+        authorVerified: organization.verified,
+        payload: notePayload,
+        caseId: caseRow.id,
+      });
+
+      // 6. Cancel the pending proposal: clear receiverOrganizationId on the case
+      // so the episode is no longer in the "intake_pending_acceptance" phase (spec
+      // §13.2). The custody_episode remains open — the pet stays with the govt.
+      // The cross-org pattern would close the handshake case entirely; here the
+      // episode IS the case, so we only clear the receiver instead of closing.
+      await tx
+        .update(cases)
+        .set({ receiverOrganizationId: null, updatedAt: now })
+        .where(eq(cases.id, caseRow.id));
+
+      // 7. Notify govt coordinators.
+      const govtCoords = await tx
+        .select({ userId: organizationMemberships.userId })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.organizationId, govtOrgId),
+            inArray(organizationMemberships.role, ["admin", "coordinator"]),
+            isNull(organizationMemberships.leftAt),
+          ),
+        );
+      for (const coord of govtCoords) {
+        pendingNotifications.push({
+          userId: coord.userId,
+          notificationType: "decomiso_handoff_rejected_govt" as const,
+          severity: "info" as const,
+          title: "Handoff de decomiso rechazado",
+          body: `${organization.displayName} rechazó la propuesta de custodia del caso ${caseRow.publicCode}. Motivo: ${reasonNote}. El animal sigue en custodia oficial — podés reasignar a otro refugio.`,
+          ctaLabel: "Ver caso",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
+          relatedPetId: caseRow.primaryPetId,
+        });
+      }
+
+      // 8. Audit log.
+      await tx.insert(auditLog).values({
+        actorUserId: user.id,
+        action: "decomiso_handoff_rejected",
+        payload: {
+          case_id: caseRow.id,
+          case_public_code: caseRow.publicCode,
+          pet_id: caseRow.primaryPetId,
+          govt_org_id: govtOrgId,
+          receiver_org_id: organization.id,
+          reason: reasonNote,
+        },
+      });
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo rechazar el handoff de decomiso: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (rejectDecomisoHandoffAction succeeded)", e);
+    }
+  }
+
+  revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
+  revalidatePath("/gob/decomisos");
+  return { ok: true, publicCode: input.casePublicCode };
+}
+
+// ---------------------------------------------------------------------------
+// reassignDecomisoToAnotherReceiverAction (S3 — govt reassigns to new refugio)
+// ---------------------------------------------------------------------------
+//
+// Spec §5.3 — govt action after rejection or proactive reassign.
+//
+// Auth: requireDecomisoPrincipal (govt | admin) + must be the opening org.
+//
+// Single atomic transaction:
+//   1. Auth: requireDecomisoPrincipal + jurisdiction check.
+//   2. Resolve govt org (must be the case opener).
+//   3. Load + validate the custody_episode case.
+//   4. Validate new receiver org (verified shelter/rescue_network).
+//   5. Cancel the current proposal: emit note_added(category='system', text='reassign')
+//      to document why the previous proposal is superseded.
+//   6. Emit a new custody_transfer_proposed toward the new receiver org.
+//   7. Update the case's receiverOrganizationId to the new receiver.
+//   8. Notify the new receiver (decomiso_handoff_proposed_receiver).
+//   9. Audit log: decomiso_handoff_cancelled (for the cancelled prior proposal).
+
+export async function reassignDecomisoToAnotherReceiverAction(input: {
+  casePublicCode: string;
+  newReceiverOrgId: string;
+  reason?: string | null;
+}): Promise<DecomisoHandshakeResult> {
+  // 1. Auth.
+  const session = await requireDecomisoPrincipal();
+  const { user } = session;
+
+  if (session.profile.role === "govt" && session.jurisdictions.length === 0) {
+    return {
+      error: "No tenés jurisdicciones activas asignadas para reasignar un decomiso.",
+    };
+  }
+
+  // 2. Resolve govt org.
+  const govtOrg = await resolveGovtOrgForUser(user.id);
+  if (!govtOrg) {
+    return {
+      error: "Tu usuario no está asociado a ninguna autoridad sanitaria.",
+    };
+  }
+
+  // 3. Load + validate the custody_episode case.
+  const [caseRow] = await db
+    .select()
+    .from(cases)
+    .where(eq(cases.publicCode, input.casePublicCode))
+    .limit(1);
+  if (!caseRow) return { error: "Caso no encontrado." };
+  if (caseRow.caseKind !== "custody_episode") {
+    return { error: "Este caso no es un episodio de custodia." };
+  }
+  if (caseRow.status !== "open") {
+    return { error: "Este caso ya no está abierto." };
+  }
+  if (!caseRow.primaryPetId) {
+    return { error: "Caso sin mascota asociada." };
+  }
+
+  // Must be the opening govt org.
+  if (caseRow.openedByOrganizationId !== govtOrg.id) {
+    return { error: "Solo la autoridad que abrió el decomiso puede reasignarlo." };
+  }
+
+  // 4. Validate new receiver org (same checks as executeDecomisoAction).
+  if (!input.newReceiverOrgId?.trim()) {
+    return { error: "Debe seleccionar un nuevo refugio destinatario." };
+  }
+  if (input.newReceiverOrgId === govtOrg.id) {
+    return { error: "El nuevo destinatario no puede ser la propia autoridad sanitaria." };
+  }
+  // Prevent reassigning to the same current receiver (no-op guard).
+  if (input.newReceiverOrgId === caseRow.receiverOrganizationId) {
+    return { error: "El nuevo destinatario es el mismo que el actual." };
+  }
+
+  const [newReceiverOrg] = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      verified: organizations.verified,
+      status: organizations.status,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, input.newReceiverOrgId))
+    .limit(1);
+  if (!newReceiverOrg) {
+    return { error: "Organización destinataria no encontrada." };
+  }
+  if (!newReceiverOrg.verified || newReceiverOrg.status !== "active") {
+    return { error: "La organización destinataria no está verificada o activa." };
+  }
+  if (!["shelter", "rescue_network"].includes(newReceiverOrg.orgType)) {
+    return {
+      error:
+        "El nuevo destinatario debe ser un refugio (shelter) o red de rescate (rescue_network).",
+    };
+  }
+
+  // Load the pet for notification copy.
+  const [pet] = await db
+    .select({ id: pets.id, name: pets.name })
+    .from(pets)
+    .where(eq(pets.id, caseRow.primaryPetId as string))
+    .limit(1);
+
+  const petName = pet?.name ?? "el animal";
+  const reassignReason = input.reason?.trim() || "Reasignado por la autoridad sanitaria";
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      const now = new Date();
+
+      // 5. Cancel the current proposal: emit note_added documenting the supersession.
+      const cancelNotePayload = validateEventPayload("note_added", {
+        category: "system" as const,
+        text: `Propuesta anterior cancelada por reasignación. Nuevo destinatario: ${newReceiverOrg.displayName}. Motivo: ${reassignReason}`,
+      });
+      await tx.insert(petEvents).values({
+        petId: caseRow.primaryPetId as string,
+        eventType: "note_added",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "govt",
+        authorOrganizationId: govtOrg.id,
+        authorVerified: true,
+        payload: cancelNotePayload,
+        caseId: caseRow.id,
+      });
+
+      // 6. Emit a new custody_transfer_proposed toward the new receiver.
+      const newProposalPayload = validateEventPayload("custody_transfer_proposed", {
+        from_user_id: null,
+        from_organization_id: govtOrg.id,
+        to_user_id: null,
+        to_organization_id: newReceiverOrg.id,
+        reason: "other" as const,
+        matched_against_pet_id: null,
+        proposed_at: now.toISOString(),
+        notes: `from_decomiso=true reassignment=true case=${caseRow.publicCode}`,
+      });
+      await tx.insert(petEvents).values({
+        petId: caseRow.primaryPetId as string,
+        eventType: "custody_transfer_proposed",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: user.id,
+        authorRole: "govt",
+        authorOrganizationId: govtOrg.id,
+        authorVerified: true,
+        payload: newProposalPayload,
+        caseId: caseRow.id,
+      });
+
+      // 7. Update the case's receiverOrganizationId to the new receiver.
+      await tx
+        .update(cases)
+        .set({ receiverOrganizationId: newReceiverOrg.id, updatedAt: now })
+        .where(eq(cases.id, caseRow.id));
+
+      // 8. Notify the new receiver coordinators (spec §13.7: decomiso_handoff_proposed_receiver).
+      const newReceiverCoords = await tx
+        .select({ userId: organizationMemberships.userId })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.organizationId, newReceiverOrg.id),
+            inArray(organizationMemberships.role, ["admin", "coordinator"]),
+            isNull(organizationMemberships.leftAt),
+          ),
+        );
+      for (const coord of newReceiverCoords) {
+        pendingNotifications.push({
+          userId: coord.userId,
+          notificationType: "decomiso_handoff_proposed_receiver" as const,
+          severity: "urgent" as const,
+          title: `Decomiso reasignado — ${petName}`,
+          body: `La autoridad ${govtOrg.displayName} reasignó el decomiso de ${petName} a tu organización. Tenés 7 días para aceptar o rechazar.`,
+          ctaLabel: "Ver propuesta",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
+          relatedPetId: caseRow.primaryPetId,
+        });
+      }
+
+      // 9. Audit log: decomiso_handoff_cancelled (for the cancelled prior proposal).
+      await tx.insert(auditLog).values({
+        actorUserId: user.id,
+        action: "decomiso_handoff_cancelled",
+        payload: {
+          case_id: caseRow.id,
+          case_public_code: caseRow.publicCode,
+          pet_id: caseRow.primaryPetId,
+          govt_org_id: govtOrg.id,
+          previous_receiver_org_id: caseRow.receiverOrganizationId ?? null,
+          new_receiver_org_id: newReceiverOrg.id,
+          reason: reassignReason,
+        },
+      });
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo reasignar el decomiso: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error(
+        "notifications insert failed (reassignDecomisoToAnotherReceiverAction succeeded)",
+        e,
+      );
+    }
+  }
+
+  revalidatePath("/gob/decomisos");
+  return { ok: true, publicCode: input.casePublicCode };
 }
