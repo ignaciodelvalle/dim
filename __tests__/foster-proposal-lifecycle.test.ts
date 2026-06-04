@@ -5,8 +5,7 @@
 //   - kind + statusValues + phases are declared correctly.
 //   - opensEvents points to the right event_type.
 //   - terminalEvents closes the case.
-//   - cronCloseRoute is null: proposeFosterAction does not yet open a cases
-//     row, so no cron close can be wired (lands with the case-opening action).
+//   - cronCloseRoute wired to /api/cron/expire-foster-proposals (migration 0068).
 //   - phases contains only genuine open-state subdivisions (lifecycles spec L1).
 //     accepted / rejected / cancelled / expired are closed outcomes, not phases.
 //   - manualOpenAllowed=false (proposal must come through foster_proposed event).
@@ -60,12 +59,11 @@ describe("foster_proposal lifecycle — declaration", () => {
     expect(lifecycle?.terminalEvents).toHaveLength(1);
   });
 
-  it("has no auto-close cron (case-opening action not yet wired)", () => {
-    // proposeFosterAction does not INSERT a cases row, so there is no cases
-    // row for the cron to close. cronCloseRoute lands with the foster_proposed
-    // case-opening action implementation.
-    expect(lifecycle?.cronCloseRoute).toBeNull();
-    expect(lifecycle?.cronCloseScheduleHours).toBe(0);
+  it("wires auto-close cron to the expirer route (migration 0068)", () => {
+    // proposeFosterAction now opens a cases row (migration 0068). The expirer
+    // cron closes it via closeCase with reason='auto_expired'.
+    expect(lifecycle?.cronCloseRoute).toBe("/api/cron/expire-foster-proposals");
+    expect(lifecycle?.cronCloseScheduleHours).toBe(24);
   });
 
   it("does not allow manual open (must come from foster_proposed event)", () => {

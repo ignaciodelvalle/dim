@@ -2359,6 +2359,12 @@ export const fosterProposals = pgTable(
       onDelete: "set null",
     }),
 
+    // Cases system (migration 0068). Linked to the foster_proposal case
+    // opened atomically by proposeFosterAction. Nullable for historical rows
+    // predating the wiring. No Drizzle .references() — mirrors petEvents.caseId
+    // pattern to avoid the forward-reference cycle (cases is declared after).
+    caseId: uuid("case_id"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
