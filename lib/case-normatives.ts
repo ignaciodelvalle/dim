@@ -230,6 +230,18 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
         scope:
           "Enfermedades de notificación obligatoria nacional; base del sistema de vigilancia epidemiológica",
       },
+      {
+        id: "res_ms_2827_2022",
+        label: "Res. MS 2827/2022",
+        scope:
+          "Aprueba el Manual de Normas y Procedimientos ENO; designa SNVS 2.0 como sistema oficial de notificación",
+      },
+      {
+        id: "ley_3959_policia_sanitaria_animal",
+        label: "Ley 3.959 (Policía Sanitaria Animal)",
+        scope:
+          "Ley fundacional de SENASA; base de las atribuciones federales de sanidad animal y notificación zoonótica",
+      },
     ],
   },
   {
