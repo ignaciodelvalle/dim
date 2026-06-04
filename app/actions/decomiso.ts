@@ -12,16 +12,17 @@
 //   3. Validate subject pet (registered, found by publicToken).
 //   4. Validate receiver org (exists + is shelter/rescue_network + verified).
 //   5. Validate attachments (min 2 per DC5).
-//   6. openCase(custody_episode).
-//   7. INSERT shelter_intake_recorded with seizure payload + caseId.
-//   8. Close prev owner ownerships — capture prev owner userIds for notification.
-//   9. Open transitional shelter_custody ownership for the govt org.
-//  10. INSERT custody_transfer_proposed toward the receiver org.
-//  11. Upload attachments + link each to the intake event.
-//  12. If originatingWelfareReportId: cross-ref note_added on that welfare case.
-//  13. Notifications: prev owner (urgent), receiver coordinators (urgent),
-//      govt actor (info).
-//  14. Audit log: decomiso_executed.
+//   6. Upload attachment files to Storage BEFORE the DB transaction.
+//   7. openCase(custody_episode).
+//   8. INSERT shelter_intake_recorded with seizure payload + caseId.
+//   9. Close prev owner ownerships — capture prev owner userIds for notification.
+//  10. Open transitional shelter_custody ownership for the govt org.
+//  11. INSERT custody_transfer_proposed toward the receiver org.
+//  12. INSERT attachment rows using pre-resolved storage paths.
+//  13. If originatingWelfareReportId: cross-ref note_added on that welfare case.
+//  14. Notifications: prev owner (urgent), receiver coordinators (urgent),
+//      govt actor (info), admins (info).
+//  15. Audit log: decomiso_executed.
 //
 // Subject scope (S2): registered_pet only (found by publicToken). The
 // unowned_animal path (seizing a stray → create-pet-in-flight) is deferred
@@ -51,9 +52,10 @@ import {
   ownerships,
   petEvents,
   pets,
+  profiles,
 } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
-import { openCase } from "@/lib/case-helpers";
+import { findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -98,6 +100,12 @@ export interface ExecuteDecomisoInput {
  * Spec §3 identifies the welfare authority as an org with
  * org_type='sanitary_authority'. A profile.role='govt' without org membership
  * is an incomplete setup — we surface a clear error in that case.
+ *
+ * Any active member of a sanitary_authority org may execute decomisos on
+ * behalf of the org (spec §5.1 / DC1: the check is role='govt' at the profile
+ * level, not org-level role). We do not further restrict by membership.role
+ * here because the org-level role (coordinator vs. member) is not defined as
+ * a discriminator in the spec — the profile.role='govt' check is sufficient.
  */
 export async function resolveGovtOrgForUser(userId: string): Promise<{
   id: string;
@@ -158,6 +166,15 @@ export async function executeDecomisoAction(
     };
   }
 
+  // Fix 4: Reject if the govt org has no province assigned. A null province
+  // would make the custody_episode invisible to jurisdiction-filtered queries
+  // (spec §13.6) and produce a case with no auditable jurisdiction.
+  if (!govtOrg.jurisdictionProvince) {
+    return {
+      error: "La organización sanitaria no tiene provincia asignada. Contactá al administrador.",
+    };
+  }
+
   // ---- 3. Validate seizure motive ----------------------------------------
   if (input.seizureMotive === "otro" && !input.seizureMotiveOtherDetail?.trim()) {
     return { error: "El motivo 'Otro' requiere un detalle explicativo." };
@@ -195,7 +212,7 @@ export async function executeDecomisoAction(
     return { error: "El destinatario no puede ser la propia autoridad sanitaria." };
   }
 
-  // ---- 5. Validate attachments (DC5) -------------------------------------
+  // ---- 5. Validate attachments (DC5) — BEFORE uploading anything ---------
   if (input.attachmentFiles.length < 2) {
     return {
       error: "Mínimo 2 adjuntos requeridos: foto del animal + acta administrativa.",
@@ -217,14 +234,91 @@ export async function executeDecomisoAction(
     return { error: "Mascota no encontrada. Verificá el token público." };
   }
 
-  // ---- Steps 7-14 inside a single transaction ----------------------------
+  // Fix 1: Pet-jurisdiction vs user-jurisdiction scope check (spec §9 —
+  // "govt fuera de jurisdiction RECHAZADO"). Admin role has universal scope
+  // and bypasses this check. For govt, the pet's registered province must
+  // appear in the user's assigned jurisdictions. A null pet province means
+  // the pet was registered without a province — we allow the decomiso in that
+  // case (no jurisdiction can be violated if none is recorded).
+  if (session.profile.role === "govt") {
+    const petProvince = pet.jurisdictionProvince;
+    const inScope = !petProvince || session.jurisdictions.some((j) => j.province === petProvince);
+    if (!inScope) {
+      return {
+        error: "Esta mascota no está en tu jurisdicción asignada.",
+      };
+    }
+  }
+
+  // Fix 5: Explicit double-seizure guard — clear Spanish error instead of raw
+  // Postgres unique-constraint. A pet may only have one open custody_episode
+  // at a time. We check before opening the case to return a human-readable
+  // message.
+  const existingEpisode = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+  if (existingEpisode) {
+    return {
+      error: "Esta mascota ya tiene un decomiso/custodia activa en curso.",
+    };
+  }
+
+  // Fix 2: Upload ALL attachment files to Storage BEFORE opening the DB
+  // transaction. If any upload fails, we delete the already-uploaded blobs
+  // (compensating cleanup) and return the error — no DB mutation happens.
+  // After the transaction commits, if the DB throws, we also best-effort
+  // clean up the uploaded blobs so a failed decomiso doesn't leave orphans.
+  const supabaseAdmin = createAdminClient();
+
+  type UploadedAttachment = {
+    filename: string;
+    storagePath: string;
+    mimeType: string;
+    size: number;
+  };
+
+  const uploadedAttachments: UploadedAttachment[] = [];
+
+  // We need a stable prefix for all blobs in this decomiso. Use a
+  // pre-generated UUID as the case-scoped directory (the real caseId will be
+  // known only after openCase inside the tx, so we use a pre-generated UUID).
+  const attachmentDir = randomUUID();
+
+  for (const file of input.attachmentFiles) {
+    const ext = (file.name.split(".").pop() ?? "bin").toLowerCase();
+    const storagePath = `decomiso/${attachmentDir}/${randomUUID()}.${ext}`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(ATTACHMENT_BUCKET)
+      .upload(storagePath, buffer, { contentType: file.type });
+
+    if (uploadError) {
+      // Compensating cleanup: delete the blobs already uploaded.
+      if (uploadedAttachments.length > 0) {
+        await supabaseAdmin.storage
+          .from(ATTACHMENT_BUCKET)
+          .remove(uploadedAttachments.map((u) => u.storagePath));
+      }
+      return {
+        error: `No se pudo subir el adjunto "${file.name}": ${uploadError.message}`,
+      };
+    }
+
+    uploadedAttachments.push({
+      filename: file.name,
+      storagePath,
+      mimeType: file.type,
+      size: file.size,
+    });
+  }
+
+  // ---- Steps 7-15 inside a single transaction ----------------------------
   let createdPublicCode = "";
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
   try {
-    const supabaseAdmin = createAdminClient();
-
     await db.transaction(async (tx) => {
       const now = new Date();
 
@@ -330,29 +424,17 @@ export async function executeDecomisoAction(
         caseId: caseRow.id,
       });
 
-      // 12. Upload attachments and link each one to the intake event.
-      for (const file of input.attachmentFiles) {
-        const ext = (file.name.split(".").pop() ?? "bin").toLowerCase();
-        const filename = `decomiso/${caseRow.id}/${randomUUID()}.${ext}`;
-
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const { error: uploadError } = await supabaseAdmin.storage
-          .from(ATTACHMENT_BUCKET)
-          .upload(filename, buffer, { contentType: file.type });
-
-        if (uploadError) {
-          throw new Error(`No se pudo subir el adjunto "${file.name}": ${uploadError.message}`);
-        }
-
+      // 12. INSERT attachment rows using pre-resolved storage paths.
+      // Files were already uploaded to Storage above (Fix 2). We only insert
+      // the DB rows here — no uploads inside the transaction.
+      for (const uploaded of uploadedAttachments) {
         await tx.insert(attachments).values({
           petId: pet.id,
           eventId: intakeEvent.id,
           uploadedByUserId: user.id,
-          storagePath: filename,
-          mimeType: file.type,
-          fileSize: file.size,
+          storagePath: uploaded.storagePath,
+          mimeType: uploaded.mimeType,
+          fileSize: uploaded.size,
         });
       }
 
@@ -445,6 +527,28 @@ export async function executeDecomisoAction(
         relatedPetId: pet.id,
       });
 
+      // Fix 3: Admins also receive a decomiso_confirmed_admin notification
+      // (spec §13.7: "govt actor (confirmation) + admin"). Query active admins
+      // inside the tx so we capture their IDs for the outside-tx insert below.
+      const adminProfiles = await tx
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(and(eq(profiles.role, "admin"), isNull(profiles.deactivatedAt)));
+      for (const admin of adminProfiles) {
+        if (admin.id === user.id) continue; // avoid duplicate if actor is admin
+        pendingNotifications.push({
+          userId: admin.id,
+          notificationType: "decomiso_confirmed_admin",
+          severity: "info",
+          title: `Decomiso ejecutado — ${pet.name}`,
+          body: `La autoridad ${govtOrg.displayName} ejecutó un decomiso sobre ${pet.name} (${motiveLabel(input.seizureMotive)}). Destinatario: ${receiverOrg.displayName}.`,
+          ctaLabel: "Ver caso",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
+          relatedPetId: pet.id,
+        });
+      }
+
       // 15. Audit log (spec §4.5 / §5.1 step 10).
       await tx.insert(auditLog).values({
         actorUserId: user.id,
@@ -464,6 +568,17 @@ export async function executeDecomisoAction(
       });
     });
   } catch (err) {
+    // Fix 2 (post-tx compensating cleanup): if the DB transaction throws after
+    // uploads succeeded, best-effort delete the uploaded blobs so a failed
+    // decomiso doesn't leave orphans in Storage.
+    if (uploadedAttachments.length > 0) {
+      await supabaseAdmin.storage
+        .from(ATTACHMENT_BUCKET)
+        .remove(uploadedAttachments.map((u) => u.storagePath))
+        .catch((cleanupErr) => {
+          console.error("storage cleanup after failed decomiso tx (best-effort)", cleanupErr);
+        });
+    }
     return {
       error: `No se pudo ejecutar el decomiso: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
