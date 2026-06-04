@@ -12,15 +12,14 @@ import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   type Case,
   type CaseClosedReason,
+  type CaseEvent,
   type CaseStatus,
   type CaseSubjectKind,
-  type InvestigationNote,
-  type InvestigationNoteType,
   attachments,
+  caseEvents,
   cases,
   custodyDisputes,
   db,
-  investigationNotes,
   organizations,
   ownerships,
   petEvents,
@@ -374,17 +373,24 @@ export type OutbreakInvestigationDetail = {
   closedAt: Date | null;
   openedByUser: { id: string; displayName: string } | null;
   closedByUser: { id: string; displayName: string } | null;
-  notes: InvestigationNote[];
+  /** Timeline entries from case_events (pet-less cases have no pet_events). */
+  notes: CaseEvent[];
 };
 
 /**
  * List open + escalated + recently closed (last 90 days) outbreak
  * investigations for the given jurisdictions. Admin passes [] to get all.
+ *
+ * Cross-jurisdiction guard: a govt user with no assignments gets an empty
+ * list instead of a nationwide data leak (mirrors listCasesForGovt).
  */
 export async function listOutbreakInvestigationsForGovt(
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
   isAdmin = false,
 ): Promise<OutbreakInvestigationListItem[]> {
+  // Guard: non-admin with no jurisdiction assignments sees nothing.
+  if (!isAdmin && jurisdictions.length === 0) return [];
+
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
   const jurisdictionFilter =
@@ -455,11 +461,13 @@ export async function getOutbreakInvestigationDetail(
           .limit(1)
           .then((rs) => rs[0] ?? null)
       : Promise.resolve(null),
+    // Outbreak cases are general-subject (no pet_events). Timeline comes from
+    // case_events only. The index on (case_id, occurred_at DESC) covers this.
     db
       .select()
-      .from(investigationNotes)
-      .where(eq(investigationNotes.caseId, row.c.id))
-      .orderBy(desc(investigationNotes.occurredAt)),
+      .from(caseEvents)
+      .where(eq(caseEvents.caseId, row.c.id))
+      .orderBy(desc(caseEvents.occurredAt)),
   ]);
 
   return {

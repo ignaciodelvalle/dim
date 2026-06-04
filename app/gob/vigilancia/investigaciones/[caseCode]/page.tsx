@@ -25,13 +25,13 @@ const ENTRY_LABEL: Record<string, string> = {
   case_opened: "Apertura",
   case_escalated: "Escalada",
   case_closed: "Cierre",
-  dataset_classification: "Clasificacion",
+  classification: "Clasificacion",
   lab_result: "Resultado de laboratorio",
   control_action: "Medida de control",
   contact_tracing: "Rastreo de contactos",
   final_report: "Informe final",
-  linked_signal: "Signal vinculada",
-  general_note: "Nota",
+  signal_link: "Signal vinculada",
+  system: "Nota",
 };
 
 function parseDiseaseCode(openedReason: string | null): string | null {
@@ -68,15 +68,11 @@ export default async function InvestigacionDetailPage({
   });
 
   const datasetNotes = detail.notes.filter((n) =>
-    ["dataset_classification", "lab_result", "control_action", "contact_tracing"].includes(
-      n.entryType,
-    ),
+    ["classification", "lab_result", "control_action", "contact_tracing"].includes(n.entryType),
   );
   const timelineNotes = detail.notes.filter(
     (n) =>
-      !["dataset_classification", "lab_result", "control_action", "contact_tracing"].includes(
-        n.entryType,
-      ),
+      !["classification", "lab_result", "control_action", "contact_tracing"].includes(n.entryType),
   );
 
   return (

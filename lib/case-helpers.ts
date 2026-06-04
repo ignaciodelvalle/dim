@@ -152,11 +152,23 @@ export async function closeCase(
 // escalateCase
 // ---------------------------------------------------------------------------
 
-export async function escalateCase(caseId: string): Promise<Case | null> {
-  const [existing] = await db.select().from(cases).where(eq(cases.id, caseId)).limit(1);
+/**
+ * UPDATE `cases` setting status='escalated'. Only acts when the current
+ * status is 'open'. Idempotent: already-escalated or non-open cases are
+ * returned unchanged.
+ *
+ * Pass `executor` (the tx from `db.transaction`) to run escalation
+ * atomically with the associated case_event insert and audit row in the
+ * same transaction.
+ */
+export async function escalateCase(
+  caseId: string,
+  executor: CaseExecutor = db,
+): Promise<Case | null> {
+  const [existing] = await executor.select().from(cases).where(eq(cases.id, caseId)).limit(1);
   if (!existing) return null;
   if (existing.status !== "open") return existing;
-  const [updated] = await db
+  const [updated] = await executor
     .update(cases)
     .set({ status: "escalated", updatedAt: new Date() })
     .where(eq(cases.id, caseId))

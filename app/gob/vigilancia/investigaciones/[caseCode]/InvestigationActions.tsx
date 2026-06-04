@@ -13,12 +13,12 @@ import {
 type Mode = "none" | "add_note" | "escalate" | "close_resolved" | "close_dismissed";
 
 const ENTRY_TYPES: { value: InvestigationNoteEntryType; label: string }[] = [
-  { value: "dataset_classification", label: "Clasificacion de caso" },
+  { value: "classification", label: "Clasificacion de caso" },
   { value: "lab_result", label: "Resultado de laboratorio" },
   { value: "control_action", label: "Medida de control" },
   { value: "contact_tracing", label: "Rastreo de contactos" },
   { value: "final_report", label: "Informe epidemiologico final" },
-  { value: "general_note", label: "Nota general" },
+  { value: "system", label: "Nota general" },
 ];
 
 export function InvestigationActions({
@@ -33,7 +33,7 @@ export function InvestigationActions({
   const [mode, setMode] = useState<Mode>("none");
   const [notes, setNotes] = useState("");
   const [finalReport, setFinalReport] = useState("");
-  const [entryType, setEntryType] = useState<InvestigationNoteEntryType>("general_note");
+  const [entryType, setEntryType] = useState<InvestigationNoteEntryType>("system");
   const [error, setError] = useState<string | null>(null);
 
   function reset() {

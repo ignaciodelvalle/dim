@@ -21,7 +21,7 @@ import {
   escalateInvestigationAction,
   openOutbreakInvestigationAction,
 } from "@/app/actions/outbreak-investigation";
-import { auditLog, cases, db, govtAssignments, investigationNotes, profiles } from "@/db";
+import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -52,6 +52,17 @@ function outOfScopeGovtSession(userId: string) {
     supabase: {} as never,
     profile: { id: userId, role: "govt" as const },
     jurisdictions: [{ province: "Mendoza", locality: "Mendoza" }],
+  };
+}
+
+/** Govt user with matching province but non-matching locality. */
+function wrongLocalityGovtSession(userId: string) {
+  return {
+    user: { id: userId },
+    supabase: {} as never,
+    profile: { id: userId, role: "govt" as const },
+    // Same province as test case (Buenos Aires) but different locality.
+    jurisdictions: [{ province: "Buenos Aires", locality: "Mar del Plata" }],
   };
 }
 
@@ -91,7 +102,7 @@ async function cleanupTestCasesForUsers(userIds: string[]) {
     .where(inArray(cases.openedByUserId, userIds));
   const caseIds = caseRows.map((r) => r.id);
   if (caseIds.length > 0) {
-    await db.delete(investigationNotes).where(inArray(investigationNotes.caseId, caseIds));
+    await db.delete(caseEvents).where(inArray(caseEvents.caseId, caseIds));
     await db.delete(cases).where(inArray(cases.id, caseIds));
   }
 }
@@ -100,7 +111,7 @@ beforeAll(async () => {
   govtUserId = await ensureUser(GOVT_EMAIL, "govt");
   adminUserId = await ensureUser(ADMIN_EMAIL, "admin");
 
-  // Ensure govt user has jurisdiction.
+  // Ensure govt user has jurisdiction (La Plata, Buenos Aires).
   try {
     await db.insert(govtAssignments).values({
       userId: govtUserId,
@@ -146,15 +157,14 @@ describe("openOutbreakInvestigationAction", () => {
     expect(caseRow.primarySubjectKind).toBe("general");
     expect(caseRow.primaryPetId).toBeNull();
     expect(caseRow.jurisdictionProvince).toBe("Buenos Aires");
+    // Locality must also be set when opened by a govt user.
+    expect(caseRow.jurisdictionLocality).toBe("La Plata");
     expect(caseRow.status).toBe("open");
     expect(caseRow.openedReason).toContain("manual [leptospirosis]:");
     expect(caseRow.openedByUserId).toBe(govtUserId);
 
-    const notes = await db
-      .select()
-      .from(investigationNotes)
-      .where(eq(investigationNotes.caseId, caseRow.id));
-    expect(notes.some((n) => n.entryType === "case_opened")).toBe(true);
+    const events = await db.select().from(caseEvents).where(eq(caseEvents.caseId, caseRow.id));
+    expect(events.some((n) => n.entryType === "case_opened")).toBe(true);
 
     const auditRows = await db
       .select()
@@ -210,7 +220,6 @@ describe("openOutbreakInvestigationAction", () => {
       reason: "Segunda investigacion de hidatidosis en Córdoba.",
     });
     expect(second).toMatchObject({ error: expect.stringContaining("hidatidosis") });
-    // Error includes the public code of the duplicate case, not the province name
     expect("error" in second).toBe(true);
   });
 
@@ -254,13 +263,13 @@ describe("addInvestigationNoteAction", () => {
     testCasePublicCode = result.publicCode;
   });
 
-  it("records a dataset_classification entry", async () => {
+  it("records a classification entry", async () => {
     (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
       govtSession(govtUserId),
     );
     const result = await addInvestigationNoteAction({
       casePublicCode: testCasePublicCode,
-      entryType: "dataset_classification",
+      entryType: "classification",
       notes: "Caso sospechoso identificado en barrio norte.",
     });
     expect(result).toMatchObject({ ok: true });
@@ -270,16 +279,11 @@ describe("addInvestigationNoteAction", () => {
       .from(cases)
       .where(eq(cases.publicCode, testCasePublicCode))
       .limit(1);
-    const notes = await db
+    const events = await db
       .select()
-      .from(investigationNotes)
-      .where(
-        and(
-          eq(investigationNotes.caseId, caseRow.id),
-          eq(investigationNotes.entryType, "dataset_classification"),
-        ),
-      );
-    expect(notes.length).toBeGreaterThan(0);
+      .from(caseEvents)
+      .where(and(eq(caseEvents.caseId, caseRow.id), eq(caseEvents.entryType, "classification")));
+    expect(events.length).toBeGreaterThan(0);
   });
 
   it("records a lab_result entry", async () => {
@@ -306,14 +310,26 @@ describe("addInvestigationNoteAction", () => {
     expect(result).toMatchObject({ ok: true });
   });
 
-  it("rejects out-of-scope govt user", async () => {
+  it("rejects out-of-scope govt user (wrong province)", async () => {
     (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
       outOfScopeGovtSession(govtUserId),
     );
     const result = await addInvestigationNoteAction({
       casePublicCode: testCasePublicCode,
-      entryType: "general_note",
+      entryType: "system",
       notes: "Nota de usuario fuera de scope.",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+  });
+
+  it("rejects out-of-scope govt user (same province, wrong locality)", async () => {
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      wrongLocalityGovtSession(govtUserId),
+    );
+    const result = await addInvestigationNoteAction({
+      casePublicCode: testCasePublicCode,
+      entryType: "system",
+      notes: "Nota de usuario con provincia correcta pero localidad incorrecta.",
     });
     expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
   });
@@ -324,7 +340,7 @@ describe("addInvestigationNoteAction", () => {
     );
     const result = await addInvestigationNoteAction({
       casePublicCode: testCasePublicCode,
-      entryType: "general_note",
+      entryType: "system",
       notes: "Nota registrada por admin con scope universal.",
     });
     expect(result).toMatchObject({ ok: true });
@@ -471,7 +487,7 @@ describe("closeInvestigationAction", () => {
 // ---------------------------------------------------------------------------
 
 describe("escalateInvestigationAction", () => {
-  it("escalates an open investigation and writes audit row", async () => {
+  it("escalates an open investigation and writes case_event + audit row atomically", async () => {
     (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
       govtSession(govtUserId),
     );
@@ -496,6 +512,13 @@ describe("escalateInvestigationAction", () => {
       .limit(1);
     expect(caseRow.status).toBe("escalated");
 
+    // case_event must exist for the escalation.
+    const escalateEvents = await db
+      .select()
+      .from(caseEvents)
+      .where(and(eq(caseEvents.caseId, caseRow.id), eq(caseEvents.entryType, "case_escalated")));
+    expect(escalateEvents.length).toBeGreaterThan(0);
+
     const auditRows = await db
       .select()
       .from(auditLog)
@@ -507,5 +530,51 @@ describe("escalateInvestigationAction", () => {
       )
       .limit(1);
     expect(auditRows.length).toBeGreaterThan(0);
+  });
+
+  it("rejects escalation of out-of-scope case (wrong province)", async () => {
+    // Use a distinct province/locality so there's no collision with cases opened
+    // in earlier describes (leptospirosis/La Plata is already open from suite 1).
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId, "Santa Fe", "Rosario"),
+    );
+    const openResult = await openOutbreakInvestigationAction({
+      diseaseCode: "leptospirosis",
+      reason: "Investigacion de leptospirosis en Rosario para test de scope incorrecto.",
+    });
+    expect(openResult).toMatchObject({ ok: true });
+    if (!("ok" in openResult)) return;
+
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      outOfScopeGovtSession(govtUserId),
+    );
+    const escalateResult = await escalateInvestigationAction({
+      casePublicCode: openResult.publicCode,
+      reason: "Intento de escalada desde jurisdiccion erronea, deberia ser rechazado.",
+    });
+    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+  });
+
+  it("rejects escalation from same province but wrong locality", async () => {
+    // Use a distinct locality (Mar del Plata) to avoid collision with La Plata cases.
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId, "Buenos Aires", "Mar del Plata"),
+    );
+    const openResult = await openOutbreakInvestigationAction({
+      diseaseCode: "leishmaniasis",
+      reason: "Investigacion de leishmaniasis en Mar del Plata para test de localidad.",
+    });
+    expect(openResult).toMatchObject({ ok: true });
+    if (!("ok" in openResult)) return;
+
+    // Wrong-locality user has Buenos Aires + different locality → rejected.
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId, "Buenos Aires", "La Plata"),
+    );
+    const escalateResult = await escalateInvestigationAction({
+      casePublicCode: openResult.publicCode,
+      reason: "Intento de escalada desde localidad incorrecta dentro de la misma provincia.",
+    });
+    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
   });
 });

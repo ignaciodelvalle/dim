@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 // Server actions for the outbreak investigation management surface.
 // Legal frame: Ley 15.465/60 + Decreto 3640/64.
@@ -7,7 +7,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { type AuditLogAction, auditLog, cases, db, investigationNotes } from "@/db";
+import { type AuditLogAction, auditLog, caseEvents, cases, db } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
@@ -20,12 +20,32 @@ export type OutbreakInvestigationActionResult =
 export type OutbreakInvestigationNoteResult = { ok: true } | { error: string };
 
 export type InvestigationNoteEntryType =
-  | "dataset_classification"
+  | "classification"
   | "lab_result"
   | "control_action"
   | "contact_tracing"
-  | "general_note"
-  | "final_report";
+  | "final_report"
+  | "system";
+
+// ---------------------------------------------------------------------------
+// Shared scope guard for govt users (province + locality, with national escape)
+// ---------------------------------------------------------------------------
+
+function isInScope(
+  caseRow: {
+    jurisdictionProvince: string | null;
+    jurisdictionLocality: string | null;
+  },
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+): boolean {
+  // National-scope case (no province set) — any govt may act.
+  if (!caseRow.jurisdictionProvince) return true;
+  return jurisdictions.some(
+    (j) =>
+      j.province === caseRow.jurisdictionProvince &&
+      (!caseRow.jurisdictionLocality || j.locality === caseRow.jurisdictionLocality),
+  );
+}
 
 // --- openOutbreakInvestigationAction ---
 export async function openOutbreakInvestigationAction(input: {
@@ -104,11 +124,10 @@ export async function openOutbreakInvestigationAction(input: {
       );
       createdPublicCode = caseRow.publicCode;
 
-      await tx.insert(investigationNotes).values({
+      await tx.insert(caseEvents).values({
         caseId: caseRow.id,
         entryType: "case_opened",
         recordedByUserId: user.id,
-        authorRole: profile.role,
         payload: {
           disease_code: diseaseCode,
           reason: input.reason.trim(),
@@ -118,11 +137,10 @@ export async function openOutbreakInvestigationAction(input: {
       });
 
       if (input.linkedSignalEventId?.trim()) {
-        await tx.insert(investigationNotes).values({
+        await tx.insert(caseEvents).values({
           caseId: caseRow.id,
-          entryType: "linked_signal",
+          entryType: "signal_link",
           recordedByUserId: user.id,
-          authorRole: profile.role,
           payload: { signal_event_id: input.linkedSignalEventId.trim() },
           notes: "Signal epidemiologica vinculada al abrir la investigacion.",
         });
@@ -189,19 +207,17 @@ export async function addInvestigationNoteAction(input: {
   }
 
   if (profile.role === "govt") {
-    const inScope =
-      !caseRow.jurisdictionProvince ||
-      jurisdictions.some((j) => j.province === caseRow.jurisdictionProvince);
-    if (!inScope) return { error: "Esta investigacion no esta en tu jurisdiccion." };
+    if (!isInScope(caseRow, jurisdictions)) {
+      return { error: "Esta investigacion no esta en tu jurisdiccion." };
+    }
   }
 
   try {
     await db.transaction(async (tx) => {
-      await tx.insert(investigationNotes).values({
+      await tx.insert(caseEvents).values({
         caseId: caseRow.id,
         entryType: input.entryType,
         recordedByUserId: user.id,
-        authorRole: profile.role,
         payload: input.payload ?? {},
         notes: input.notes.trim(),
       });
@@ -252,21 +268,20 @@ export async function escalateInvestigationAction(input: {
   }
 
   if (profile.role === "govt") {
-    const inScope =
-      !caseRow.jurisdictionProvince ||
-      jurisdictions.some((j) => j.province === caseRow.jurisdictionProvince);
-    if (!inScope) return { error: "Esta investigacion no esta en tu jurisdiccion." };
+    if (!isInScope(caseRow, jurisdictions)) {
+      return { error: "Esta investigacion no esta en tu jurisdiccion." };
+    }
   }
 
   try {
     await db.transaction(async (tx) => {
-      await escalateCase(caseRow.id);
+      // escalateCase now accepts executor — runs atomically with the note + audit.
+      await escalateCase(caseRow.id, tx);
 
-      await tx.insert(investigationNotes).values({
+      await tx.insert(caseEvents).values({
         caseId: caseRow.id,
         entryType: "case_escalated",
         recordedByUserId: user.id,
-        authorRole: profile.role,
         payload: { reason: input.reason.trim() },
         notes: input.reason.trim(),
       });
@@ -320,22 +335,16 @@ export async function closeInvestigationAction(input: {
   }
 
   if (profile.role === "govt") {
-    const inScope =
-      !caseRow.jurisdictionProvince ||
-      jurisdictions.some((j) => j.province === caseRow.jurisdictionProvince);
-    if (!inScope) return { error: "Esta investigacion no esta en tu jurisdiccion." };
+    if (!isInScope(caseRow, jurisdictions)) {
+      return { error: "Esta investigacion no esta en tu jurisdiccion." };
+    }
   }
 
   if (input.outcome === "resolved") {
     const hasFinalReport = await db
-      .select({ id: investigationNotes.id })
-      .from(investigationNotes)
-      .where(
-        and(
-          eq(investigationNotes.caseId, caseRow.id),
-          eq(investigationNotes.entryType, "final_report"),
-        ),
-      )
+      .select({ id: caseEvents.id })
+      .from(caseEvents)
+      .where(and(eq(caseEvents.caseId, caseRow.id), eq(caseEvents.entryType, "final_report")))
       .limit(1)
       .then((rows) => rows.length > 0);
 
@@ -355,21 +364,19 @@ export async function closeInvestigationAction(input: {
   try {
     await db.transaction(async (tx) => {
       if (input.outcome === "resolved" && input.finalReportText?.trim()) {
-        await tx.insert(investigationNotes).values({
+        await tx.insert(caseEvents).values({
           caseId: caseRow.id,
           entryType: "final_report",
           recordedByUserId: user.id,
-          authorRole: profile.role,
           payload: { inline: true },
           notes: input.finalReportText.trim(),
         });
       }
 
-      await tx.insert(investigationNotes).values({
+      await tx.insert(caseEvents).values({
         caseId: caseRow.id,
         entryType: "case_closed",
         recordedByUserId: user.id,
-        authorRole: profile.role,
         payload: { outcome: input.outcome, reason: input.reason.trim() },
         notes: input.reason.trim(),
       });
