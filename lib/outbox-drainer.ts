@@ -114,3 +114,21 @@ export async function deliverOutboxRow(row: EventNotificationOutbox): Promise<De
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Outbreak investigation outbox (placeholder — v1 no-op)
+// ---------------------------------------------------------------------------
+//
+// Outbreak investigation notifications (SNVS/SENASA/zoonosis) are NOT
+// integrated yet. Actions write v1_noop=true in audit_log payload rows so
+// future automation can identify cases that need replay.
+//
+// Wire actual dispatch logic here when the integration target is confirmed.
+
+export async function drainOutbreakNotificationOutbox(): Promise<{
+  processed: number;
+  failed: number;
+  v1_noop: true;
+}> {
+  return { processed: 0, failed: 0, v1_noop: true };
+}

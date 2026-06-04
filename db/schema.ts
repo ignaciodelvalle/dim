@@ -1759,6 +1759,13 @@ export const AUDIT_LOG_ACTIONS = [
   "decomiso_handoff_accepted",
   "decomiso_handoff_rejected",
   "decomiso_handoff_cancelled",
+  // Outbreak investigation lifecycle (Ley 15.465/60 + Decreto 3640/64 ENO).
+  // Emitted by outbreak investigation server actions (app/actions/outbreak-investigation.ts).
+  "outbreak_investigation_opened",
+  "outbreak_investigation_escalated",
+  "outbreak_investigation_closed_resolved",
+  "outbreak_investigation_closed_dismissed",
+  "outbreak_investigation_note_added",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -2873,6 +2880,69 @@ export const cases = pgTable(
 
 export type Case = typeof cases.$inferSelect;
 export type NewCase = typeof cases.$inferInsert;
+
+// ============================================================================
+// CaseEvents — generic pet-independent timeline for any case kind
+// ============================================================================
+// pet_events.pet_id is NOT NULL at the DB level, so general-subject cases
+// (primarySubjectKind = 'general' | 'location' | 'unowned_animal') cannot use
+// pet_events for case-scoped entries. This table fills that gap in a
+// domain-agnostic way — outbreak_investigation uses it today; decomiso,
+// welfare, and foster pet-less cases can reuse it without a new migration.
+// Migration: 0069_case_events.sql.
+//
+// Entry-type values below are the ones outbreak_investigation uses today.
+// The table itself is domain-agnostic; new case kinds add their own types.
+
+export const CASE_EVENT_ENTRY_TYPES = [
+  "case_opened",
+  "case_escalated",
+  "case_closed",
+  // outbreak_investigation entry types
+  "classification",
+  "lab_result",
+  "control_action",
+  "contact_tracing",
+  "final_report",
+  "signal_link",
+  "system",
+] as const;
+export type CaseEventEntryType = (typeof CASE_EVENT_ENTRY_TYPES)[number];
+
+export const caseEvents = pgTable(
+  "case_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => cases.id, { onDelete: "cascade" }),
+    entryType: text("entry_type").notNull(),
+    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    notes: text("notes"),
+    recordedByUserId: uuid("recorded_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    caseOccurredIdx: index("case_events_case_id_occurred_idx").on(
+      table.caseId,
+      table.occurredAt.desc(),
+    ),
+  }),
+);
+
+export type CaseEvent = typeof caseEvents.$inferSelect;
+export type NewCaseEvent = typeof caseEvents.$inferInsert;
+
+// Legacy aliases kept during migration window — callers updated progressively.
+/** @deprecated Use `caseEvents` */
+export const investigationNotes = caseEvents;
+/** @deprecated Use `CaseEvent` */
+export type InvestigationNote = CaseEvent;
+/** @deprecated Use `NewCaseEvent` */
+export type NewInvestigationNote = NewCaseEvent;
 
 // ============================================================================
 // Physical tag interest — §4.20 placeholder for the future physical-QR-tag
