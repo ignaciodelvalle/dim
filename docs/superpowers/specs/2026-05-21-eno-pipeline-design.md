@@ -1,5 +1,7 @@
 # ENO pipeline — Enfermedades de Notificación Obligatoria
 
+> **Estado (2026-06-04):** ✅ IMPLEMENTADO — v1 PR #124 + v2 cola horaria PR #302; correcciones legales PR #385. La superficie /gob/eno dedicada queda diferida a v2 (out-of-scope del spec).
+
 > **Fecha:** 2026-05-21
 > **Owner:** Ignacio Del Valle
 > **Status:** ✅ Owner decisions locked. Ready for implementation.
@@ -236,13 +238,13 @@ INSERT audit_log (
 
 ## Definition of Done
 
-- [ ] `lib/eno-catalog.ts` exportando 5 diseases
-- [ ] `lib/eno-trigger.ts` con `processEnoEventTrigger` integration-tested
-- [ ] AUDIT_LOG_ACTIONS contains `eno_notification_emitted`
-- [ ] Wired desde `app/actions/events.ts` (o equivalente) en el path de `clinical_info_logged`
-- [ ] `__tests__/eno-trigger.test.ts`: 
+- [x] `lib/eno-catalog.ts` exportando 5 diseases
+- [x] `lib/eno-trigger.ts` con `processEnoEventTrigger` integration-tested
+- [x] AUDIT_LOG_ACTIONS contains `eno_notification_emitted`
+- [x] Wired desde `app/actions/events.ts` (o equivalente) en el path de `clinical_info_logged`
+- [x] `__tests__/eno-trigger.test.ts`: 
   - rabies → notifies all province + locality govts + owner
   - leishmaniasis (stigmaSensitive) → notifies govts but NOT owner
   - non-ENO disease_code → no-op
   - missing govt scope → no-op (no targets to notify)
-- [ ] `pnpm typecheck` + `pnpm biome check` + `pnpm test` all clean
+- [x] `pnpm typecheck` + `pnpm biome check` + `pnpm test` all clean

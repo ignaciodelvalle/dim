@@ -1,5 +1,7 @@
 # Master execution plan — Claude Code backlog
 
+> **Estado (2026-06-04):** 🟡 PARCIAL — Sprints 1–7 enviados (deprecación /pro, microchip_replaced, foster pool, /adoptar, vaccine-due UX, govt dashboards, exports MPF/PPP). PENDIENTE: **Sprint 8 — operaciones masivas para refugios** (sin código: no hay bulk-select UI ni server action de bulk-vaccinate).
+
 > Plan maestro consolidado de todos los pendientes de implementación de DIM/MiMAR al 2026-05-20. Sequenced por dependencias y prioridad operativa. Cada sprint linkea al plan ejecutable detallado o a la design spec correspondiente.
 >
 > **Owner:** Ignacio Del Valle
@@ -54,11 +56,11 @@
 - **Fase C — Onboarding nuevo** (0.75d): wizard `/cuenta/crear-consultorio` (3 pasos) + banner en `/cuenta` + signup step.
 
 **Definition of done:**
-- [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm rls:smoke` verdes.
-- [ ] Vet existente con offerings: redirige automático a su org clinic. Offerings siguen aceptando reservas.
-- [ ] Visit a `/pro/*`: 308 redirect a `/cuenta/memberships`.
-- [ ] Backfill idempotente: re-run no duplica orgs.
-- [ ] Inventory actualizado: sección 9 ya refleja el cambio; verificar que `🔴 deprecado` esté correcto.
+- [x] `pnpm typecheck && pnpm lint && pnpm test && pnpm rls:smoke` verdes.
+- [x] Vet existente con offerings: redirige automático a su org clinic. Offerings siguen aceptando reservas.
+- [x] Visit a `/pro/*`: 308 redirect a `/cuenta/memberships`.
+- [x] Backfill idempotente: re-run no duplica orgs.
+- [x] Inventory actualizado: sección 9 ya refleja el cambio; verificar que `🔴 deprecado` esté correcto.
 
 ### Sub-sprint 1B — `microchip_replaced` UI + remediation case (~2d)
 
@@ -70,11 +72,11 @@
 - **Fase C — UI** (0.75d): 3 forms (owner / vet en clinic / admin) con reasons gated por actor.
 
 **Definition of done:**
-- [ ] Tests verdes incluyendo `__tests__/microchip-replaced.test.ts` con los 7 happy paths + edge cases del plan.
-- [ ] Owner emite damaged → event emitido, sin case, `pets.microchipNumber` actualizado.
-- [ ] Owner intenta `fraud_detected` → server rechaza con error claro.
-- [ ] Vet en clinic emite `duplicate_detected` → case `microchip_remediation` abierto + `secondaryPetId` si hay match.
-- [ ] Inventory actualizado: entry 3.3.21 pasa de 🟢 a ✅.
+- [x] Tests verdes incluyendo `__tests__/microchip-replaced.test.ts` con los 7 happy paths + edge cases del plan.
+- [x] Owner emite damaged → event emitido, sin case, `pets.microchipNumber` actualizado.
+- [x] Owner intenta `fraud_detected` → server rechaza con error claro.
+- [x] Vet en clinic emite `duplicate_detected` → case `microchip_remediation` abierto + `secondaryPetId` si hay match.
+- [x] Inventory actualizado: entry 3.3.21 pasa de 🟢 a ✅.
 
 ---
 
@@ -91,13 +93,13 @@
 - **Fase D — UI surfaces** (1.25d): según design spec — entry point en `/cuenta`, `/cuenta/ofrecerme-como-transito`, `/cuenta/transitos/*` (hub con tabs), `/org/[orgToken]/voluntarios`, `/org/[orgToken]/voluntarios/propuestas`, `/org/[orgToken]/transitos` (surface unificado), `/org/[orgToken]/pets/no-aptas`, eligibility card en pet detail, shortcut adopción.
 
 **Definition of done:**
-- [ ] Tests verdes (unit + integration por server action).
-- [ ] E2E mínimo: voluntario se inscribe con pre-check D13 (DNI + display_name + phone), org busca pool, propone pet específico, voluntario acepta con co-foster opt-in, foster materializado, voluntario termina tránsito, re-enroll prompt aparece.
-- [ ] Cron `/api/cron/expire-foster-proposals` corre y marca >7d como `expired`.
-- [ ] D18 cascade auto-cancel funciona: voluntario con slot=1 acepta una propuesta → otras pending al mismo voluntario se cancelan auto.
-- [ ] Surface unificado en `/org/.../transitos` muestra member-based + voluntary pool + vecino con filtro por origen.
-- [ ] `/org/.../pets/no-aptas` muestra pets con `adoption_eligible=false` agrupadas por motivo.
-- [ ] Inventory actualizado: entries 3.9.1–3.9.5, 4.4.3, 4.5.1–4.5.4, 4.6.3 pasan a ✅.
+- [x] Tests verdes (unit + integration por server action).
+- [x] E2E mínimo: voluntario se inscribe con pre-check D13 (DNI + display_name + phone), org busca pool, propone pet específico, voluntario acepta con co-foster opt-in, foster materializado, voluntario termina tránsito, re-enroll prompt aparece.
+- [x] Cron `/api/cron/expire-foster-proposals` corre y marca >7d como `expired`.
+- [x] D18 cascade auto-cancel funciona: voluntario con slot=1 acepta una propuesta → otras pending al mismo voluntario se cancelan auto.
+- [x] Surface unificado en `/org/.../transitos` muestra member-based + voluntary pool + vecino con filtro por origen.
+- [x] `/org/.../pets/no-aptas` muestra pets con `adoption_eligible=false` agrupadas por motivo.
+- [x] Inventory actualizado: entries 3.9.1–3.9.5, 4.4.3, 4.5.1–4.5.4, 4.6.3 pasan a ✅.
 
 ---
 
@@ -125,13 +127,13 @@ Send a owner para review express, después ejecutar.
 - **Fase 4 — Ficha + postulación** (1d): `/adoptar/[petToken]` con hero + story + stats grid + convivencia (tri-state) + requisitos + share intents (WhatsApp + IG sticker + FB + copy). `apply_intent` token + D22 consent.
 
 **Definition of done:**
-- [ ] Tests verdes.
-- [ ] Cross-spec guards verificados: pet con `adoption_eligible=false` no aparece; pet con `in_custody_dispute=true` no aparece; pet con `rabies_observation_status='active'` no aparece; pet con `status='lost'` no aparece.
-- [ ] SEO: cada ficha genera `<title>`, `og:image`, JSON-LD `Animal` schema, sitemap.
-- [ ] Visitante anónimo postula → redirect a `/login?returnTo=...&apply_intent=...` → post-auth vuelve al wizard.
-- [ ] Refugio publica → pet aparece en feed; pausa → desaparece sin perder content.
-- [ ] D22 consent checkbox obligatorio + persistido en `profile_sharing_consent_at`.
-- [ ] Inventory actualizado: entries 3.7.1, 3.7.2 pasan a ✅.
+- [x] Tests verdes.
+- [x] Cross-spec guards verificados: pet con `adoption_eligible=false` no aparece; pet con `in_custody_dispute=true` no aparece; pet con `rabies_observation_status='active'` no aparece; pet con `status='lost'` no aparece.
+- [x] SEO: cada ficha genera `<title>`, `og:image`, JSON-LD `Animal` schema, sitemap.
+- [x] Visitante anónimo postula → redirect a `/login?returnTo=...&apply_intent=...` → post-auth vuelve al wizard.
+- [x] Refugio publica → pet aparece en feed; pausa → desaparece sin perder content.
+- [x] D22 consent checkbox obligatorio + persistido en `profile_sharing_consent_at`.
+- [x] Inventory actualizado: entries 3.7.1, 3.7.2 pasan a ✅.
 
 ---
 
@@ -157,11 +159,11 @@ Claude Code escribe `docs/superpowers/plans/2026-05-2X-vaccine-due-ux.md`:
 - **Fase 4 — Libreta** (0.5d): `<VacunasTimeline>` + `<VacunaTimelineDot>` en `/mis-mascotas/[publicToken]/vacunas`. Tabs agrupados por categoría en `/notificaciones`.
 
 **Definition of done:**
-- [ ] Tests verdes. Especialmente: race entre owner registrando vacuna y cron creando notif → ambos suceden, notif legacy queda como "Resuelta".
-- [ ] Vacuna overdue_critical en libreta tiene `role="alert"` y respeta `prefers-reduced-motion`.
-- [ ] Anti-spam funcional: el mismo reminder no genera notif más de 1/sem en upcoming, 1/día en due_soon (primeros 3d), 1/día en overdue (primeras 2 semanas), 1/día indefinido en critical.
-- [ ] Posponer botón cap a 3 veces; 4to dice "Posponer 30 días".
-- [ ] Inventory actualizado: entry 7.4 pasa de ⚪ a ✅.
+- [x] Tests verdes. Especialmente: race entre owner registrando vacuna y cron creando notif → ambos suceden, notif legacy queda como "Resuelta".
+- [x] Vacuna overdue_critical en libreta tiene `role="alert"` y respeta `prefers-reduced-motion`.
+- [x] Anti-spam funcional: el mismo reminder no genera notif más de 1/sem en upcoming, 1/día en due_soon (primeros 3d), 1/día en overdue (primeras 2 semanas), 1/día indefinido en critical.
+- [x] Posponer botón cap a 3 veces; 4to dice "Posponer 30 días".
+- [x] Inventory actualizado: entry 7.4 pasa de ⚪ a ✅.
 
 ---
 
@@ -189,11 +191,11 @@ Sprint grande, plan ejecutable también lo es. Claude Code escribe `docs/superpo
 - **Fase 6 — Export endpoint** (0.75d): form `/gob/analytics/export` + async job + email con signed URL.
 
 **Definition of done:**
-- [ ] Tests verdes. Especialmente: RLS — govt de CABA solo ve casos+pets de su jurisdicción; govt sin assignments ve mensaje "Sin jurisdicciones asignadas"; admin ve universal.
-- [ ] Cada chart/map tiene fallback `<details><summary>Ver datos</summary>` con tabla para screen readers.
-- [ ] Export async: form submit → toast "Generando export, te avisamos por mail cuando esté listo" → cron-emite email + signed URL 24h.
-- [ ] Period picker persiste en searchParams.
-- [ ] Inventory actualizado: 11.7, 11.13, 11 nuevos entries pasan a ✅.
+- [x] Tests verdes. Especialmente: RLS — govt de CABA solo ve casos+pets de su jurisdicción; govt sin assignments ve mensaje "Sin jurisdicciones asignadas"; admin ve universal.
+- [x] Cada chart/map tiene fallback `<details><summary>Ver datos</summary>` con tabla para screen readers.
+- [x] Export async: form submit → toast "Generando export, te avisamos por mail cuando esté listo" → cron-emite email + signed URL 24h.
+- [x] Period picker persiste en searchParams.
+- [x] Inventory actualizado: 11.7, 11.13, 11 nuevos entries pasan a ✅.
 
 ---
 
@@ -221,8 +223,8 @@ Una vez con spec, ejecutar:
 - Audit log + notif al welfare officer asignado.
 
 **Definition of done:**
-- [ ] PDF generado contiene: portada con publicCode + cronología completa de eventos del caso + fotos adjuntas (linked) + ubicación geocoded + autoridades intervinientes + cita de Ley 14.346 + firma electrónica simple del welfare officer.
-- [ ] Inventory actualizado: entry 6.9 pasa de ⚪ a ✅.
+- [x] PDF generado contiene: portada con publicCode + cronología completa de eventos del caso + fotos adjuntas (linked) + ubicación geocoded + autoridades intervinientes + cita de Ley 14.346 + firma electrónica simple del welfare officer.
+- [x] Inventory actualizado: entry 6.9 pasa de ⚪ a ✅.
 
 ---
 
@@ -245,9 +247,9 @@ Si no hay API: implementar export PDF firmado por DIM (Documento de Identificaci
 Si hay API: implementación del push automático con queue + retry + dead-letter cuando el municipio responde error.
 
 **Definition of done:**
-- [ ] Owner con pet PPP puede generar export PDF firmado.
-- [ ] Audit log de cada export.
-- [ ] Inventory actualizado: entry 13.2 pasa de 🟡 a ✅.
+- [x] Owner con pet PPP puede generar export PDF firmado.
+- [x] Audit log de cada export.
+- [x] Inventory actualizado: entry 13.2 pasa de 🟡 a ✅.
 
 ---
 

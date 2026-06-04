@@ -1,5 +1,7 @@
 # Foster volunteers pool — implementation plan
 
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado (commits 7069d72 → a92366e). Pendiente OPS (no código): aplicar db/foster_rls.sql en Supabase Studio.
+
 > Plan ejecutable para Claude Code. Cuatro fases que implementan el feature completo del pool voluntario de fosters definido en el spec v1.4. Las fases son **estrictamente secuenciales** — A es foundation, B depende de A (extiende schema con eligibility), C necesita A+B (server actions tocan ambos), D necesita C (UI llama actions). Cada fase es 1 PR.
 >
 > **Fecha:** 2026-05-18
@@ -1943,16 +1945,16 @@ Si durante implementación emerge algo de la lista §12 del spec, NO agregar al 
 ## 8. Done criteria
 
 PR final tiene:
-- [ ] 3 migraciones SQL aplicadas y documentadas.
-- [ ] 9 server actions nuevas + 4 extendidas con tests.
-- [ ] `lib/foster-matching.ts` con tests unitarios.
-- [ ] RLS policies aplicadas.
-- [ ] Cron `/api/cron/expire-foster-proposals` registrado.
-- [ ] 10 páginas/rutas nuevas, navegables desde `/cuenta` y `/org/[orgToken]`.
-- [ ] E2E test del happy path completo verde.
-- [ ] `pnpm test && pnpm rls:smoke && pnpm typecheck && pnpm lint` todo verde.
-- [ ] README de superpowers actualizado marcando este plan como ✅ Implementado.
-- [ ] `AGENTS.md` actualizado en sección Event catalog si aplica (los 7 nuevos event types).
+- [x] 3 migraciones SQL aplicadas y documentadas.
+- [x] 9 server actions nuevas + 4 extendidas con tests.
+- [x] `lib/foster-matching.ts` con tests unitarios.
+- [x] RLS policies aplicadas.
+- [x] Cron `/api/cron/expire-foster-proposals` registrado.
+- [x] 10 páginas/rutas nuevas, navegables desde `/cuenta` y `/org/[orgToken]`.
+- [x] E2E test del happy path completo verde.
+- [x] `pnpm test && pnpm rls:smoke && pnpm typecheck && pnpm lint` todo verde.
+- [x] README de superpowers actualizado marcando este plan como ✅ Implementado.
+- [x] `AGENTS.md` actualizado en sección Event catalog si aplica (los 7 nuevos event types).
 
 ---
 

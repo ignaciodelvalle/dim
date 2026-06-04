@@ -1,5 +1,7 @@
 # Fix — Vet con professional.provider no debe landar en /mis-mascotas
 
+> **Estado (2026-06-04):** ⊘ SUPERSEDED por PR #84 — el portal `/pro` fue ELIMINADO (no placeholdeado); los vets operan vía `/org/[orgToken]`. El ruteo de vets quedó resuelto por otro mecanismo (`resolveVetLanding` en lib/role-landing.ts + redirect 308 en middleware.ts). Residual menor: los layouts `/gob` y `/admin` tienen "← Salir" a `/mis-mascotas` (posible escape-hatch intencional, no bloqueante).
+
 > Plan ejecutable corto para Claude Code. El `(app)/layout.tsx` actual solo bounce-redirige admin y govt; un vet con `professional.provider` aprobado pasa el gate y entra al portal de owners por default. Eso es incoherente con el modelo de cuatro roles (admin page spec v2.3). Además, los portales non-owner (/pro, /org, /gob, /admin) NO deben mostrar link a "Mis mascotas" en el chrome (topbar/sidebar) — solo links contextuales.
 >
 > **Importante**: NO se bloquea el acceso por URL directa. Un vet sigue siendo persona y puede tener mascotas propias — debe poder navegar a `/mis-mascotas` cuando quiere actuar como dueño. Lo que se arregla es (a) el **default landing** post-login y (b) **el chrome de los portales non-owner** que automáticamente sugería /mis-mascotas.
@@ -45,6 +47,8 @@ Cuando el `/pro` portal exista (sigue 🟡 spec only), va a tener el problema cr
 | F5 | **Indicador visible del rol activo** en el chrome de cada portal: badge "Trabajando como: [Vet profesional independiente | Miembro de Refugio X | Govt CABA | etc.]" arriba a la derecha. Click → menú con switch al otro portal disponible | UX. Multi-portal sin indicador es desorientador |
 
 ## 3. Cambios concretos
+
+> **Nota arquitectónica:** Los cambios concretos detallados abajo fueron supersedidos — el portal `/pro` fue eliminado en lugar de crearse como placeholder. Ver banner de estado arriba.
 
 ### 3.1 `app/(app)/layout.tsx`
 

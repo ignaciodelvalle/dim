@@ -1,5 +1,7 @@
 # Welfare reports — polish & bugfixes — implementation plan
 
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado (commit 5c643e0).
+
 > Plan ejecutable para Claude Code. Cuatro fases pequeñas que cierran gaps operativos del sistema de denuncias ya implementado (`welfare_reports` table + `WelfareReportForm` + bridge a pet_events). Las dos primeras fases arreglan bugs reales del mapa identificados en review 2026-05-18. La tercera agrega rate-limit anti-spam para reporters anónimos (TODO explícito en `app/actions/welfare.ts`). La cuarta cierra la documentación.
 >
 > **Fecha:** 2026-05-18
@@ -470,16 +472,16 @@ Específicamente importante después de Fase 1+2:
 ## 5. Done criteria
 
 PR final tiene:
-- [ ] `welfare.ts` setea `locationLat/locationLng` en los 3 pet_event INSERTs del bridge.
-- [ ] `EventMap` renombrado a `LocationMap` y movido a `components/`. Consumer en `mis-mascotas/eventos/[eventId]/page.tsx` actualizado.
-- [ ] 2 detail pages de denuncia renderizan el mapa.
-- [ ] Migration `rate_limit_buckets` aplicada via Studio.
-- [ ] `lib/rate-limit.ts` con tests.
-- [ ] `createWelfareReportAction` consume el rate-limit para anonymous; TODO original removido.
-- [ ] Spec `maltreatment-reporting-design.md` con banner SUPERSEDED.
-- [ ] `AGENTS.md → Open questions` actualizado.
-- [ ] `docs/superpowers/README.md` actualizado.
-- [ ] `pnpm test && pnpm rls:smoke && pnpm typecheck && pnpm lint` todo verde.
+- [x] `welfare.ts` setea `locationLat/locationLng` en los 3 pet_event INSERTs del bridge.
+- [x] `EventMap` renombrado a `LocationMap` y movido a `components/`. Consumer en `mis-mascotas/eventos/[eventId]/page.tsx` actualizado.
+- [x] 2 detail pages de denuncia renderizan el mapa.
+- [x] Migration `rate_limit_buckets` aplicada via Studio.
+- [x] `lib/rate-limit.ts` con tests.
+- [x] `createWelfareReportAction` consume el rate-limit para anonymous; TODO original removido.
+- [x] Spec `maltreatment-reporting-design.md` con banner SUPERSEDED.
+- [x] `AGENTS.md → Open questions` actualizado.
+- [x] `docs/superpowers/README.md` actualizado.
+- [x] `pnpm test && pnpm rls:smoke && pnpm typecheck && pnpm lint` todo verde.
 
 ## 6. Lo que NO está en este plan
 

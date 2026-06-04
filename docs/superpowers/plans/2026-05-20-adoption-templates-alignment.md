@@ -1,5 +1,7 @@
 # Adoption templates alignment — actualizar el spec del handshake para usar formulario + contrato reales
 
+> **Estado (2026-06-04):** ❎ DIFERIDO — el owner decidió que los 4 campos actuales cubren el caso; el wizard de 28 preguntas se re-evalúa cuando emerja demanda concreta (ver master-execution-plan). Nada implementado a propósito.
+
 > **Estado:** Draft for approval — no implementar todavía.
 > Plan **complementario** al de `2026-05-19-adoption-handshake.md`. Lo extiende; no lo reemplaza.
 >

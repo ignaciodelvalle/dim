@@ -1,6 +1,8 @@
 # Timeline Type Filter Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Estado (2026-06-04):** ✅ COMPLETO — enviado (commits e05978c, bebbd41).
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a multi-select chip row above the per-pet event timeline that filters events by type (Vacunas / Notas / Peso / Visitas), all client-side.
 
@@ -32,7 +34,7 @@ The implementation order matters: Task 1 (extract helper) is a pure refactor wit
 - Create: `lib/events.ts`
 - Modify: `app/(app)/mis-mascotas/[publicToken]/page.tsx` (remove lines 265–325 — the inline function; add an import; no behavior change)
 
-- [ ] **Step 1: Create `lib/events.ts`**
+- [x] **Step 1: Create `lib/events.ts`**
 
 Write the file at `lib/events.ts` with exactly this content:
 
@@ -104,7 +106,7 @@ export function eventPayloadSummary(
 
 This is copy-paste from the inline function currently at `page.tsx:268–325`, with an exported type alias added.
 
-- [ ] **Step 2: Update `page.tsx` — replace inline function with an import**
+- [x] **Step 2: Update `page.tsx` — replace inline function with an import**
 
 In `app/(app)/mis-mascotas/[publicToken]/page.tsx`:
 
@@ -116,7 +118,7 @@ import { eventPayloadSummary } from "@/lib/events";
 
 (b) Delete the local `eventPayloadSummary` function definition at the bottom of the file (currently lines 265–325, including the comment block and closing brace). No other call sites change — the function name and call signature are identical.
 
-- [ ] **Step 3: Run static checks**
+- [x] **Step 3: Run static checks**
 
 ```
 pnpm typecheck
@@ -125,12 +127,12 @@ pnpm lint
 
 Expected: both exit 0. If lint fails with CRLF errors on files outside this change, that is pre-existing Windows-checkout noise (`core.autocrlf=true`) and not introduced by this task. Verify by running lint only against the touched files: `npx biome check lib/events.ts "app/(app)/mis-mascotas/[publicToken]/page.tsx"`.
 
-- [ ] **Step 4: Manual smoke check**
+- [x] **Step 4: Manual smoke check**
 
 Dev server: `pnpm dev` (already running from earlier session — skip if so).
 Open `http://localhost:3000/mis-mascotas/{publicToken}` for a pet that has at least one event of each type. Expected: timeline renders identically to before — same primary line, same secondary line, same "Ver detalle técnico" expand for every existing event. **This task is a pure refactor; any visible diff is a regression.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/events.ts "app/(app)/mis-mascotas/[publicToken]/page.tsx"
@@ -158,7 +160,7 @@ EOF
 
 This is the second pure refactor: move the existing timeline JSX into a client component, no filter UI yet. The point is to isolate the move from the filter logic so any rendering regression is caught here, before chip state is introduced.
 
-- [ ] **Step 1: Create `EventTimeline.tsx`**
+- [x] **Step 1: Create `EventTimeline.tsx`**
 
 Write the file at `app/(app)/mis-mascotas/[publicToken]/EventTimeline.tsx`:
 
@@ -230,7 +232,7 @@ export function EventTimeline({ events }: Props) {
 
 The JSX is copied verbatim from `page.tsx` lines 207–246 (the `<ol>` block), with the wrapping `events.length === 0 ?` ternary unwrapped into an early return. Imports for `eventTypeLabel`, `formatDateTime` move here.
 
-- [ ] **Step 2: Update `page.tsx` to use the client component**
+- [x] **Step 2: Update `page.tsx` to use the client component**
 
 In `app/(app)/mis-mascotas/[publicToken]/page.tsx`:
 
@@ -253,7 +255,7 @@ import { EventTimeline } from "./EventTimeline";
 
 (c) Remove now-unused imports from `page.tsx`: `eventTypeLabel`, `formatDateTime` (they are now consumed inside `EventTimeline.tsx`). Confirm with typecheck.
 
-- [ ] **Step 3: Run static checks**
+- [x] **Step 3: Run static checks**
 
 ```
 pnpm typecheck
@@ -262,11 +264,11 @@ pnpm lint
 
 Expected: both exit 0 (or, for lint, no errors on touched files — see Task 1 Step 3 note about pre-existing CRLF noise).
 
-- [ ] **Step 4: Manual smoke check**
+- [x] **Step 4: Manual smoke check**
 
 Hard-reload the pet detail page in the browser. Expected: timeline still renders, every event card looks identical (primary, secondary, time, notes, expandable JSON). Open DevTools → Network: the page is still server-rendered (no client fetch for events). Open DevTools → Console: no errors. **Still a pure refactor; any visible diff is a regression.**
 
-- [ ] **Step 5: Commit (or defer for squash)**
+- [x] **Step 5: Commit (or defer for squash)**
 
 ```bash
 git add "app/(app)/mis-mascotas/[publicToken]/EventTimeline.tsx" "app/(app)/mis-mascotas/[publicToken]/page.tsx"
@@ -289,7 +291,7 @@ EOF
 **Files:**
 - Modify: `app/(app)/mis-mascotas/[publicToken]/EventTimeline.tsx` (add `FILTER_CHIPS`, `useState`, chip-row JSX, filtered list, new "no matches" empty state)
 
-- [ ] **Step 1: Add the chip constant and filter state**
+- [x] **Step 1: Add the chip constant and filter state**
 
 At the top of `EventTimeline.tsx`, immediately after the imports, add:
 
@@ -328,7 +330,7 @@ const filteredEvents =
     : events.filter((e) => selectedTypes.has(e.eventType));
 ```
 
-- [ ] **Step 2: Replace the early return + the `<ol>` with chips + filtered list**
+- [x] **Step 2: Replace the early return + the `<ol>` with chips + filtered list**
 
 Replace the entire current `EventTimeline` return logic (everything after the new state declarations) with:
 
@@ -409,7 +411,7 @@ return (
 
 The `<ol>` body is identical to Task 2 — only the data source changed (`filteredEvents` instead of `events`), and the empty-state branch was inverted into a ternary.
 
-- [ ] **Step 3: Run static checks**
+- [x] **Step 3: Run static checks**
 
 ```
 pnpm typecheck
@@ -418,7 +420,7 @@ pnpm lint
 
 Expected: both exit 0 (modulo pre-existing CRLF noise on untouched files — see Task 1 Step 3 note).
 
-- [ ] **Step 4: Manual smoke check — full filter behavior**
+- [x] **Step 4: Manual smoke check — full filter behavior**
 
 For a pet with at least one event of each filterable type (Vacunas, Notas, Peso, Visitas):
 
@@ -433,7 +435,7 @@ For a pet with at least one event of each filterable type (Vacunas, Notas, Peso,
 
 Also: open a pet with **zero events**. Expected: existing "Sin eventos todavía." message; chip row NOT rendered.
 
-- [ ] **Step 5: Commit (or, if squashing, do the final feature commit now)**
+- [x] **Step 5: Commit (or, if squashing, do the final feature commit now)**
 
 ```bash
 git add "app/(app)/mis-mascotas/[publicToken]/EventTimeline.tsx"
