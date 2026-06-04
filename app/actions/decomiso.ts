@@ -667,10 +667,24 @@ export async function acceptDecomisoHandoffAction(input: {
   receiverOrgToken: string;
   casePublicCode: string;
 }): Promise<DecomisoHandshakeResult> {
-  const auth = await requireCapability("org.transfer.accept");
+  // Resolve the receiver org by publicToken first so we can pin requireCapability
+  // to that specific org. Without pinning, a multi-org user could get a confusing
+  // error from the last-joined-membership fallback instead of a clean capability check.
+  const [receiverOrgByToken] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.publicToken, input.receiverOrgToken))
+    .limit(1);
+  if (!receiverOrgByToken) {
+    return { error: "Organización destinataria no encontrada." };
+  }
+
+  const auth = await requireCapability("org.transfer.accept", receiverOrgByToken.id);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
+  // Defense-in-depth: verify the token we looked up matches the org the capability
+  // check resolved (they should be the same row; this guard catches any mismatch).
   if (organization.publicToken !== input.receiverOrgToken) {
     return { error: "Estás operando desde una organización distinta a la destinataria." };
   }
@@ -938,7 +952,8 @@ export async function acceptDecomisoHandoffAction(input: {
 //   2. Load + validate the custody_episode case (open, correct kind).
 //   3. Discriminator check: opener is sanitary_authority.
 //   4. Receiver authorization: receiverOrganizationId matches caller's org.
-//   5. Emit note_added(category='rejection') with the reason.
+//   5. Emit note_added(category='system') with the reason (spec says 'rejection'
+//      but that value is not in the enum — 'system' is used; reason in `text`).
 //   6. Close the custody_transfer_proposed handshake (NOT the custody_episode).
 //      Mechanically: close a note-only "handshake" state — because there is no
 //      separate handshake case for decomiso (the custody_episode IS the case),
@@ -954,10 +969,24 @@ export async function rejectDecomisoHandoffAction(input: {
   reason?: string | null;
   message?: string | null;
 }): Promise<DecomisoHandshakeResult> {
-  const auth = await requireCapability("org.transfer.accept");
+  // Resolve the receiver org by publicToken first so we can pin requireCapability
+  // to that specific org. Without pinning, a multi-org user could get a confusing
+  // error from the last-joined-membership fallback instead of a clean capability check.
+  const [receiverOrgByToken] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.publicToken, input.receiverOrgToken))
+    .limit(1);
+  if (!receiverOrgByToken) {
+    return { error: "Organización destinataria no encontrada." };
+  }
+
+  const auth = await requireCapability("org.transfer.accept", receiverOrgByToken.id);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
+  // Defense-in-depth: verify the token we looked up matches the org the capability
+  // check resolved (they should be the same row; this guard catches any mismatch).
   if (organization.publicToken !== input.receiverOrgToken) {
     return { error: "Estás operando desde una organización distinta a la destinataria." };
   }
@@ -1015,7 +1044,12 @@ export async function rejectDecomisoHandoffAction(input: {
     await db.transaction(async (tx) => {
       const now = new Date();
 
-      // 5. Emit note_added(category='rejection') — spec §5.3.
+      // 5. Emit note_added(category='system') — spec §5.3 asks for category='rejection'
+      // but that value does not exist in the noteAdded Zod enum
+      // (["comportamiento","dieta","grooming","estado_de_animo","otro","system"]).
+      // 'system' is the correct runtime value; the rejection reason is preserved
+      // in full in the `text` payload below. Adding 'rejection' to the enum is
+      // deferred tech debt.
       const notePayload = validateEventPayload("note_added", {
         category: "system" as const,
         text: `Handoff rechazado por el receptor (${organization.displayName}): ${reasonNote}`,
