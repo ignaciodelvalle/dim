@@ -9,7 +9,17 @@
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
-import { attachments, db, ownerships, petEvents, petServiceDog, pets, profiles } from "@/db";
+import {
+  attachments,
+  cases,
+  db,
+  organizations,
+  ownerships,
+  petEvents,
+  petServiceDog,
+  pets,
+  profiles,
+} from "@/db";
 import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
@@ -92,6 +102,35 @@ export default async function PublicCredentialPage({
     : null;
 
   const isLost = pet.status === "lost";
+
+  // DC13: Public custody disclaimer — rendered when the pet has an open
+  // custody_episode case opened by a sanitary_authority org (state seizure).
+  // Discriminator: caseKind='custody_episode' + opener.orgType='sanitary_authority'.
+  // Never parsed from notes text — canonical discriminator only.
+  // No owner PII is exposed: only the authority name and a generic disclaimer.
+  const [openCustodyEpisode] = await db
+    .select({
+      caseId: cases.id,
+      authorityName: organizations.displayName,
+    })
+    .from(cases)
+    .innerJoin(
+      organizations,
+      and(
+        eq(organizations.id, cases.openedByOrganizationId),
+        eq(organizations.orgType, "sanitary_authority"),
+      ),
+    )
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "custody_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
+  const isUnderOfficialCustody = !!openCustodyEpisode;
 
   // Tier 2 público temporal — owner-opt-in window. Active when the
   // timestamp is in the future. The medical summary block fetches a tiny
@@ -412,6 +451,33 @@ export default async function PublicCredentialPage({
             codes={pet.permanentConditions}
             other={pet.permanentConditionsOther}
           />
+        )}
+
+        {/* DC13: Official custody disclaimer — rendered when this pet is under
+            an open custody_episode case initiated by a sanitary_authority org
+            (state seizure, Ley 14.346). Discriminator is case kind + opener
+            org_type — NOT notes text. No owner PII is revealed here. */}
+        {isUnderOfficialCustody && (
+          <div
+            role="alert"
+            className="rounded-xl border border-gob-warning  bg-gob-warning/10  px-4 py-3 space-y-1"
+            data-section="custody-disclaimer"
+          >
+            <p className="text-xs uppercase tracking-wider font-semibold text-gob-warning-text ">
+              Custodia oficial
+            </p>
+            <p className="text-sm font-medium text-gob-warning-text ">
+              Esta mascota está bajo custodia oficial.
+            </p>
+            {openCustodyEpisode?.authorityName && (
+              <p className="text-xs text-gob-warning-text ">
+                Autoridad a cargo: {openCustodyEpisode.authorityName}
+              </p>
+            )}
+            <p className="text-xs text-gob-text-gray ">
+              Para más información comunicate con la autoridad sanitaria competente.
+            </p>
+          </div>
         )}
 
         {/* Tier 2 público temporal — owner-opt-in widened medical projection.
