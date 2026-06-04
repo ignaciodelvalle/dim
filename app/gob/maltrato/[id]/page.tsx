@@ -2,7 +2,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { db, profiles, welfareReportAttachments, welfareReports } from "@/db";
+import { db, pets, profiles, welfareReportAttachments, welfareReports } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
@@ -90,6 +90,18 @@ export default async function GobMaltratoDetailPage({
         .where(eq(profiles.id, actorId));
       for (const r of more) actorNames.set(r.id, r.displayName);
     }
+  }
+
+  // Resolve pet publicToken when the denuncia is about a registered pet,
+  // so we can pre-fill the decomiso form with the pet's token.
+  let subjectPetToken: string | null = null;
+  if (report.subjectPetId) {
+    const [subjectPet] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, report.subjectPetId))
+      .limit(1);
+    subjectPetToken = subjectPet?.publicToken ?? null;
   }
 
   const isTerminal =
@@ -304,6 +316,32 @@ export default async function GobMaltratoDetailPage({
           <section className="space-y-3 pt-2 border-t border-gob-border ">
             <h2 className="text-lg font-semibold text-gob-text ">Acciones</h2>
             <TriageActions welfareReportId={report.id} currentStatus={report.status} />
+          </section>
+        )}
+
+        {/* Decomiso entry point — available for all non-terminal denuncias */}
+        {!isTerminal && (
+          <section className="rounded-lg border border-gob-border  p-4 space-y-2">
+            <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">
+              Derivar a decomiso
+            </h2>
+            <p className="text-xs text-gob-text-muted">
+              Si la denuncia amerita una incautación bajo Ley 14.346, iniciá el decomiso desde acá.
+              El ID de esta denuncia se pre-completará en el formulario.
+            </p>
+            <Link
+              href={`/gob/decomisos/nuevo?welfareReportId=${report.id}${subjectPetToken ? `&pet=${subjectPetToken}` : ""}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Iniciar decomiso →
+            </Link>
+            {report.subjectKind !== "registered_pet" && (
+              <p className="text-xs text-gob-warning-text">
+                La denuncia no tiene una mascota registrada vinculada. El formulario de decomiso
+                admite solo mascotas con token DIM-XXXX-XXXX — tendrás que ingresar el token
+                manualmente si la mascota está registrada.
+              </p>
+            )}
           </section>
         )}
 
