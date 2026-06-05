@@ -49,6 +49,11 @@ export function buildOrgNav(orgToken: string): NavItem[] {
       label: "Miembros",
       matchPrefix: `/org/${orgToken}/miembros`,
     },
+    {
+      href: `/org/${orgToken}/configuracion`,
+      label: "Configuración",
+      matchPrefix: `/org/${orgToken}/configuracion`,
+    },
   ];
 }
 

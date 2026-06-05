@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { ADMIN_NAV, GOB_NAV, OWNER_NAV, buildOrgNav } from "./nav-presets";
 
 describe("buildOrgNav", () => {
-  it("produces exactly 6 items (includes Miembros entry)", () => {
-    expect(buildOrgNav("ORG-ABC")).toHaveLength(6);
+  it("produces exactly 7 items (includes Miembros + Configuración entries)", () => {
+    expect(buildOrgNav("ORG-ABC")).toHaveLength(7);
   });
 
   it("does not contain an equipo entry (broken nav — ADR-4: no roadmap signal → remove)", () => {
@@ -32,13 +32,21 @@ describe("buildOrgNav", () => {
     expect(panel.href).toBe("/org/ORG-ABC");
   });
 
-  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros entries", () => {
+  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Configuración entries", () => {
     const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
     expect(labels).toContain("Agenda");
     expect(labels).toContain("Mascotas");
     expect(labels).toContain("Servicios");
     expect(labels).toContain("Operaciones");
     expect(labels).toContain("Miembros");
+    expect(labels).toContain("Configuración");
+  });
+
+  it("Configuración entry points to /org/<orgToken>/configuracion", () => {
+    const items = buildOrgNav("ORG-ABC");
+    const config = items.find((i) => i.label === "Configuración");
+    expect(config).toBeDefined();
+    expect(config?.href).toBe("/org/ORG-ABC/configuracion");
   });
 });
 

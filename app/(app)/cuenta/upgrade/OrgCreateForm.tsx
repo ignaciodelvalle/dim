@@ -8,11 +8,13 @@ import { Field, Input, Select } from "@/components/poncho";
 
 const initialState: UpgradeFormState = { error: null };
 
+// sanitary_authority is a government classification — self-registration is blocked
+// both here (UI) and server-side in createOrganizationForUser. Govt orgs are
+// provisioned out-of-band by platform admins.
 const ORG_TYPE_OPTIONS = [
   { value: "shelter", label: "Refugio / albergue" },
   { value: "rescue_network", label: "Red de rescate" },
   { value: "clinic", label: "Clínica veterinaria" },
-  { value: "sanitary_authority", label: "Autoridad sanitaria" },
   { value: "other", label: "Otro" },
 ] as const;
 
