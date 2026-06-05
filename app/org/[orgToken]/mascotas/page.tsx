@@ -2,12 +2,18 @@
 // ownership row where owner_organization_id = active org. Multiple custody
 // rows on the same pet (e.g. shelter_custody + foster) collapse to one card
 // — the highest-stakes role wins for the badge.
+//
+// Sprint 8 PR1: server data-fetcher only. List rendering moved to the
+// OrgMascotasBulkList client component so multi-select + bulk vaccination
+// can be wired with useState/useTransition.
 
 import { db, ownerships, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
+
+import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
 
 const ROLE_PRIORITY: Record<string, number> = {
   owner: 4,
@@ -16,39 +22,6 @@ const ROLE_PRIORITY: Record<string, number> = {
   co_owner: 1,
   caretaker: 0,
 };
-
-const ROLE_BADGE: Record<string, { label: string; className: string }> = {
-  owner: {
-    label: "Dueño",
-    className: "bg-gob-success/10 text-gob-success  ",
-  },
-  shelter_custody: {
-    label: "En custodia",
-    className: "bg-gob-warning/10 text-gob-warning-text  ",
-  },
-  foster: {
-    label: "Tránsito",
-    className: "bg-gob-info/10 text-gob-azul-link  ",
-  },
-  co_owner: {
-    label: "Co-dueño",
-    className: "bg-gob-surface-alt text-gob-text  ",
-  },
-  caretaker: {
-    label: "Caretaker",
-    className: "bg-gob-surface-alt text-gob-text  ",
-  },
-};
-
-const SPECIES_LABELS: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  other: "Otro",
-};
-
-function speciesLabel(species: string): string {
-  return SPECIES_LABELS[species] ?? species;
-}
 
 export default async function OrgMascotasPage({
   params,
@@ -73,6 +46,7 @@ export default async function OrgMascotasPage({
   const canTransfer = granted.has("custody.transfer");
   const canReturnToOwner = granted.has("custody.transfer");
   const canManageAdoptionListing = granted.has("adoption.listing.manage");
+  const canEventWrite = granted.has("event.write");
   const canRead = granted.has("pet.read_held") || membership.role === "admin";
 
   if (!canRead) {
@@ -179,6 +153,11 @@ export default async function OrgMascotasPage({
   const recentlyAdopted = sp.adopcion ?? null;
   const recentlyTransferred = sp.transferido ?? null;
 
+  // Serialize Sets to arrays — client components cannot receive Set instances
+  // as props (not serializable across the Server/Client boundary).
+  const fosteredPetIdsArray = Array.from(fosteredPetIds);
+  const pendingProposalPetIdsArray = Array.from(pendingProposalPetIds);
+
   return (
     <main className="min-h-screen p-6 bg-white ">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -232,141 +211,37 @@ export default async function OrgMascotasPage({
           </p>
         )}
 
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cards.map(({ pet, ownershipRole, startedAt }) => {
-            const badge = ROLE_BADGE[ownershipRole] ?? ROLE_BADGE.shelter_custody;
-            const ageInfo = pet.dateOfBirth
-              ? `${pet.birthDateIsEstimated ? "~" : ""}${calcAge(pet.dateOfBirth)}`
-              : "edad desconocida";
-            const hasFoster = fosteredPetIds.has(pet.id);
-            const showFosterCta =
-              canAssignFoster && ownershipRole === "shelter_custody" && !hasFoster;
-            return (
-              <li key={pet.id} className="rounded border border-gob-border  p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}`}
-                    className="flex-1 min-w-0 hover:underline"
-                  >
-                    <p className="text-base font-semibold">{pet.name}</p>
-                    <p className="text-xs text-gob-text-gray ">
-                      {speciesLabel(pet.species)}
-                      {pet.breed ? ` · ${pet.breed}` : ""}
-                      {pet.color ? ` · ${pet.color}` : ""}
-                    </p>
-                  </Link>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${badge.className}`}>
-                      {badge.label}
-                    </span>
-                    {hasFoster && ownershipRole === "shelter_custody" && (
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${ROLE_BADGE.foster.className}`}
-                      >
-                        + tránsito
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <p className="text-xs text-gob-text-muted">
-                  {ageInfo} · ingreso{" "}
-                  {new Date(startedAt).toLocaleDateString("es-AR", {
-                    dateStyle: "medium",
-                  })}
-                </p>
-                <p className="text-xs text-gob-text-muted">
-                  <code>{pet.publicToken}</code>
-                </p>
-                {(() => {
-                  const showTransferCta =
-                    canTransfer &&
-                    (ownershipRole === "shelter_custody" || ownershipRole === "owner");
-                  const hasPendingProposal = pendingProposalPetIds.has(pet.id);
-                  const showReturnToOwnerCta =
-                    canReturnToOwner &&
-                    ownershipRole === "shelter_custody" &&
-                    pet.status === "lost" &&
-                    !hasPendingProposal;
-                  const anyCta =
-                    showFosterCta ||
-                    (canEndFoster && hasFoster) ||
-                    (canFinalizeAdoption && ownershipRole === "shelter_custody") ||
-                    showTransferCta ||
-                    showReturnToOwnerCta;
-                  if (!anyCta) return null;
-                  return (
-                    <div className="pt-1 flex flex-wrap gap-2">
-                      {showFosterCta && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/foster`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
-                        >
-                          Asignar tránsito
-                        </Link>
-                      )}
-                      {canEndFoster && hasFoster && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}?sheet=fin-transito`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
-                        >
-                          Cerrar tránsito
-                        </Link>
-                      )}
-                      {canIntake && ownershipRole === "shelter_custody" && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}?sheet=elegibilidad`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
-                        >
-                          {pet.adoptionEligible === true
-                            ? "Apta ✓"
-                            : pet.adoptionEligible === false
-                              ? "NO apta"
-                              : "Elegibilidad"}
-                        </Link>
-                      )}
-                      {canManageAdoptionListing && ownershipRole === "shelter_custody" && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoptar`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
-                        >
-                          {pet.adoptionListedAt && !pet.adoptionListingPausedAt
-                            ? "Publicada ✓"
-                            : pet.adoptionListedAt && pet.adoptionListingPausedAt
-                              ? "Pausada"
-                              : "Publicar"}
-                        </Link>
-                      )}
-                      {canFinalizeAdoption && ownershipRole === "shelter_custody" && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
-                          className="inline-block text-xs px-2 py-1 rounded bg-gob-success text-white hover:bg-gob-success"
-                        >
-                          Finalizar adopción
-                        </Link>
-                      )}
-                      {showReturnToOwnerCta && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}?sheet=devolver-al-dueno`}
-                          className="inline-block text-xs px-2 py-1 rounded bg-gob-info text-white hover:bg-gob-info"
-                        >
-                          Devolver al dueño
-                        </Link>
-                      )}
-                      {showTransferCta && (
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/transfer`}
-                          className="inline-block text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
-                        >
-                          Transferir
-                        </Link>
-                      )}
-                    </div>
-                  );
-                })()}
-              </li>
-            );
-          })}
-        </ul>
+        <OrgMascotasBulkList
+          cards={cards.map((c) => ({
+            petId: c.pet.id,
+            publicToken: c.pet.publicToken,
+            name: c.pet.name,
+            species: c.pet.species,
+            breed: c.pet.breed ?? null,
+            color: c.pet.color ?? null,
+            dateOfBirth: c.pet.dateOfBirth ?? null,
+            birthDateIsEstimated: c.pet.birthDateIsEstimated,
+            status: c.pet.status,
+            adoptionEligible: c.pet.adoptionEligible ?? null,
+            adoptionListedAt: c.pet.adoptionListedAt ? c.pet.adoptionListedAt.toISOString() : null,
+            adoptionListingPausedAt: c.pet.adoptionListingPausedAt
+              ? c.pet.adoptionListingPausedAt.toISOString()
+              : null,
+            ownershipRole: c.ownershipRole,
+            startedAt: c.startedAt.toISOString(),
+          }))}
+          fosteredPetIds={fosteredPetIdsArray}
+          pendingProposalPetIds={pendingProposalPetIdsArray}
+          orgToken={orgToken}
+          canIntake={canIntake}
+          canAssignFoster={canAssignFoster}
+          canEndFoster={canEndFoster}
+          canFinalizeAdoption={canFinalizeAdoption}
+          canTransfer={canTransfer}
+          canReturnToOwner={canReturnToOwner}
+          canManageAdoptionListing={canManageAdoptionListing}
+          canEventWrite={canEventWrite}
+        />
 
         <footer className="pt-4 border-t border-gob-border ">
           <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
@@ -376,16 +251,4 @@ export default async function OrgMascotasPage({
       </div>
     </main>
   );
-}
-
-function calcAge(dob: string): string {
-  const birth = new Date(dob);
-  const now = new Date();
-  const months =
-    (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
-  if (months < 12) return `${Math.max(0, months)} meses`;
-  const years = Math.floor(months / 12);
-  const remMonths = months % 12;
-  if (remMonths === 0) return `${years} año${years === 1 ? "" : "s"}`;
-  return `${years} año${years === 1 ? "" : "s"} ${remMonths} m`;
 }
