@@ -24,6 +24,17 @@ const ROLE_LABEL: Record<string, string> = {
   foster: "Tránsito",
 };
 
+/**
+ * Mask a PII email address so token-holders cannot read the full address.
+ * Shows the first character of the local part + "***" + "@" + domain.
+ * e.g. "juan@refugio.org" → "j***@refugio.org"
+ */
+export function maskEmail(email: string): string {
+  const atIdx = email.indexOf("@");
+  if (atIdx <= 0) return "***";
+  return `${email[0]}***${email.slice(atIdx)}`;
+}
+
 export default async function InviteAcceptPage({
   params,
 }: {
@@ -31,11 +42,22 @@ export default async function InviteAcceptPage({
 }) {
   const { token } = await params;
 
-  // Load invitation row.
+  // Load invitation row — only the columns the page actually uses.
+  // (organizations has sensitive fields like cuit/cbu; narrow the select so
+  // only displayName is fetched from that table.)
   const [inviteRow] = await db
     .select({
-      invite: organizationInvitations,
-      org: organizations,
+      invite: {
+        email: organizationInvitations.email,
+        invitedRole: organizationInvitations.invitedRole,
+        expiresAt: organizationInvitations.expiresAt,
+        acceptedAt: organizationInvitations.acceptedAt,
+        revokedAt: organizationInvitations.revokedAt,
+        invitationToken: organizationInvitations.invitationToken,
+      },
+      org: {
+        displayName: organizations.displayName,
+      },
     })
     .from(organizationInvitations)
     .innerJoin(organizations, eq(organizations.id, organizationInvitations.organizationId))
@@ -130,7 +152,8 @@ export default async function InviteAcceptPage({
 
   const sessionEmail = user.email?.toLowerCase().trim() ?? "";
 
-  // State 2: email mismatch.
+  // State 2: email mismatch — show masked address only (PII: do not expose the
+  // full invite email to whoever holds the token).
   if (invite.email.toLowerCase() !== sessionEmail) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-gob-surface-alt">
@@ -140,8 +163,9 @@ export default async function InviteAcceptPage({
           </p>
           <h1 className="text-lg font-semibold text-gob-text">Cuenta incorrecta</h1>
           <p className="text-sm text-gob-text-gray">
-            Esta invitación es para <strong className="font-semibold">{invite.email}</strong>.
-            Iniciá sesión con esa cuenta para aceptarla.
+            Esta invitación es para{" "}
+            <strong className="font-semibold">{maskEmail(invite.email)}</strong>. Iniciá sesión con
+            esa cuenta para aceptarla.
           </p>
           <a
             href={loginHref}

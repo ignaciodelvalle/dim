@@ -212,7 +212,7 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   const appBase = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
   const inviteUrl = `${appBase}/r/invite/${token}`;
 
-  revalidatePath(`/org/${organization.publicToken}/equipo`);
+  revalidatePath(`/org/${organization.publicToken}/miembros`);
   return { inviteUrl };
 }
 
@@ -260,7 +260,7 @@ export async function revokeInvitationAction(
     .set({ revokedAt: new Date() })
     .where(eq(organizationInvitations.id, invite.id));
 
-  revalidatePath(`/org/${organization.publicToken}/equipo`);
+  revalidatePath(`/org/${organization.publicToken}/miembros`);
   return { ok: true };
 }
 
@@ -423,6 +423,6 @@ export async function acceptInvitationAction(
     }
   }
 
-  revalidatePath(`/org/${orgToken}/equipo`);
+  revalidatePath(`/org/${orgToken}/miembros`);
   return { orgToken };
 }
