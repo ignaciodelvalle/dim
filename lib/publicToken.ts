@@ -20,6 +20,7 @@
 //   APR  — approval request public token (approval_requests.public_token)
 //   OFR  — service offering public token (service_offerings.public_token)
 //   APT  — appointment public token (appointments.public_token)
+//   INV  — organization invitation token (organization_invitations.invitation_token)
 
 import { randomBytes } from "node:crypto";
 
@@ -80,4 +81,9 @@ export function generateOfferingToken(): string {
 /** Generates an APT-XXXX-XXXX appointment public token. */
 export function generateAppointmentToken(): string {
   return generatePrefixedToken("APT");
+}
+
+/** Generates an INV-XXXX-XXXX organization invitation token. */
+export function generateInvitationToken(): string {
+  return generatePrefixedToken("INV");
 }

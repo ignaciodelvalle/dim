@@ -1,4 +1,4 @@
-// Generic unique-token wrapper for short prefixed IDs (DIM, LBR, APR, OFR, APT, ...).
+// Generic unique-token wrapper for short prefixed IDs (DIM, LBR, APR, INV, ...).
 //
 // Two helpers:
 //
