@@ -27,6 +27,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -835,7 +836,8 @@ export const organizationCoverage = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
-    jurisdictionProvince: text("jurisdiction_province"),
+    // NOT NULL added in migration 0073 (verified zero null rows before applying).
+    jurisdictionProvince: text("jurisdiction_province").notNull(),
     jurisdictionLocality: text("jurisdiction_locality"),
     isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -846,6 +848,13 @@ export const organizationCoverage = pgTable(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
     ),
+    // Unique per (org, province, locality) with NULLS NOT DISTINCT so that
+    // province-level rows (locality IS NULL) also deduplicate correctly.
+    // Added in migration 0073.
+    // Constraint name is intentionally short to stay under Postgres's 63-char limit.
+    orgProvinceLocalityUnique: unique("org_coverage_org_province_locality_unique")
+      .on(table.organizationId, table.jurisdictionProvince, table.jurisdictionLocality)
+      .nullsNotDistinct(),
     organizationCoverageJurisdictionProvinceCanonical: check(
       "organization_coverage_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,

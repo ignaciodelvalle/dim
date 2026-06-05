@@ -17,7 +17,7 @@ import {
   organizations,
 } from "@/db";
 import type * as schema from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 // The transaction type accepted by Drizzle's `db.transaction(async (tx) => …)`
@@ -75,15 +75,35 @@ export async function broadcastLostPet(
   lastLocation: LastLocationForBroadcast,
 ): Promise<BroadcastResult> {
   try {
-    // 1. Require province + locality. Without them we have no jurisdiction to target.
+    // 1. Require province (locality is optional — province-only rows cover the whole province).
     const province = lastLocation?.province ?? pet.jurisdictionProvince ?? null;
     const locality = lastLocation?.locality ?? pet.jurisdictionLocality ?? null;
 
-    if (!province || !locality) {
+    if (!province) {
       return { broadcastedToMemberIds: [], orgCount: 0 };
     }
 
     // 2. Find verified, active orgs with coverage matching the jurisdiction.
+    //
+    //    Matching rules (C2 — broader reach for locality-less lost pets):
+    //
+    //    - pet has locality → match rows where
+    //        jurisdictionLocality = locality (exact) OR jurisdictionLocality IS NULL (province-level).
+    //        An org with province-level coverage catches any locality; a locality-specific org
+    //        catches only its registered locality.
+    //
+    //    - pet has NO locality → match ALL coverage rows for the province.
+    //        Drop the locality predicate entirely (just eq(province)). A pet lost somewhere
+    //        in province X with no known locality should alert every org covering any
+    //        part of province X — both province-level and locality-specific orgs.
+    const localityPredicate =
+      locality !== null
+        ? or(
+            eq(organizationCoverage.jurisdictionLocality, locality),
+            isNull(organizationCoverage.jurisdictionLocality),
+          )
+        : undefined; // no locality filter — match all coverage rows for the province
+
     const coveringOrgs = await (client as typeof db)
       .select({
         orgId: organizations.id,
@@ -96,7 +116,7 @@ export async function broadcastLostPet(
           eq(organizations.verified, true),
           eq(organizations.status, "active"),
           eq(organizationCoverage.jurisdictionProvince, province),
-          eq(organizationCoverage.jurisdictionLocality, locality),
+          localityPredicate,
         ),
       );
 

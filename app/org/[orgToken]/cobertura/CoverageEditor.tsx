@@ -1,0 +1,233 @@
+"use client";
+
+// CoverageEditor — interactive province + locality picker with zone table.
+//
+// Province selection drives a searchParam update so the server can pass down
+// the correct localities list (same pattern as JurisdictionSwitcher pages).
+// Locality options are pre-loaded by the server page and passed as a prop.
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
+
+import {
+  addCoverageZoneAction,
+  removeCoverageZoneAction,
+  setPrimaryCoverageZoneAction,
+} from "@/app/actions/org-coverage";
+import type { OrganizationCoverage } from "@/db";
+import type { LocalityOption } from "@/lib/ar-localidades";
+import type { Province } from "@/lib/ar-provincias";
+
+const selectClasses =
+  "min-h-11 px-3 rounded-lg border border-gob-border bg-gob-surface text-sm text-gob-text " +
+  "focus:border-gob-primary focus:outline-none focus:ring-2 focus:ring-gob-primary/20 " +
+  "disabled:opacity-50 disabled:cursor-not-allowed w-full";
+
+const labelClasses = "text-sm font-medium text-gob-text-gray";
+
+type Props = {
+  orgToken: string;
+  provinces: readonly Province[];
+  localities: LocalityOption[];
+  zones: OrganizationCoverage[];
+  canManage: boolean;
+};
+
+export function CoverageEditor({ orgToken, provinces, localities, zones, canManage }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedProvinceCode = searchParams.get("province") ?? "";
+  const selectedProvince = provinces.find((p) => p.code === selectedProvinceCode) ?? null;
+
+  const [selectedLocality, setSelectedLocality] = useState<string>("");
+
+  function handleProvinceChange(code: string) {
+    setSelectedLocality("");
+    setError(null);
+    const params = new URLSearchParams(searchParams.toString());
+    if (code) {
+      params.set("province", code);
+    } else {
+      params.delete("province");
+    }
+    params.delete("locality");
+    router.replace(`/org/${orgToken}/cobertura?${params.toString()}`, { scroll: false });
+  }
+
+  function handleAdd() {
+    if (!selectedProvince) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await addCoverageZoneAction({
+        orgToken,
+        province: selectedProvince.name,
+        locality: selectedLocality || null,
+      });
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setSelectedLocality("");
+      }
+    });
+  }
+
+  function handleRemove(coverageId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await removeCoverageZoneAction({ orgToken, coverageId });
+      if ("error" in result) setError(result.error);
+    });
+  }
+
+  function handleSetPrimary(coverageId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await setPrimaryCoverageZoneAction({ orgToken, coverageId });
+      if ("error" in result) setError(result.error);
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      {canManage && (
+        <div className="rounded-lg border border-gob-border bg-white p-6 space-y-4">
+          <h2 className="text-base font-semibold text-gob-text">Agregar zona de cobertura</h2>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="province-select" className={labelClasses}>
+                Provincia
+              </label>
+              <select
+                id="province-select"
+                className={selectClasses}
+                value={selectedProvinceCode}
+                onChange={(e) => handleProvinceChange(e.target.value)}
+                disabled={pending}
+              >
+                <option value="">Seleccioná una provincia…</option>
+                {provinces.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="locality-select" className={labelClasses}>
+                Localidad
+              </label>
+              <select
+                id="locality-select"
+                className={selectClasses}
+                value={selectedLocality}
+                onChange={(e) => setSelectedLocality(e.target.value)}
+                disabled={pending || !selectedProvinceCode}
+              >
+                <option value="">Toda la provincia</option>
+                {localities.map((l) => (
+                  <option key={l.slug} value={l.name}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-sm text-gob-danger" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={pending || !selectedProvinceCode}
+            className="inline-flex items-center gap-2 rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-gob-primary-hover disabled:opacity-60"
+          >
+            {pending ? "Guardando…" : "Agregar zona"}
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold text-gob-text">
+          Zonas registradas ({zones.length})
+        </h2>
+
+        {zones.length === 0 ? (
+          <p className="rounded-xl border border-gob-border bg-white px-4 py-6 text-center text-sm text-gob-text-muted">
+            Esta organización aún no tiene zonas de cobertura configuradas.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-gob-border bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gob-border bg-gob-surface-alt">
+                  <th className="px-4 py-3 text-left font-medium text-gob-text-gray">Provincia</th>
+                  <th className="px-4 py-3 text-left font-medium text-gob-text-gray">Localidad</th>
+                  <th className="px-4 py-3 text-left font-medium text-gob-text-gray">Principal</th>
+                  {canManage && (
+                    <th className="px-4 py-3 text-right font-medium text-gob-text-gray">
+                      Acciones
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gob-border">
+                {zones.map((zone) => (
+                  <tr key={zone.id} className="hover:bg-gob-surface-alt/40">
+                    <td className="px-4 py-3 text-gob-text">{zone.jurisdictionProvince}</td>
+                    <td className="px-4 py-3 text-gob-text">
+                      {zone.jurisdictionLocality ?? (
+                        <span className="italic text-gob-text-muted">Toda la provincia</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {zone.isPrimary ? (
+                        <span className="inline-flex items-center rounded-full bg-gob-primary/10 px-2.5 py-0.5 text-xs font-medium text-gob-primary">
+                          Principal
+                        </span>
+                      ) : (
+                        <span className="text-gob-text-muted">—</span>
+                      )}
+                    </td>
+                    {canManage && (
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex gap-2">
+                          {!zone.isPrimary && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimary(zone.id)}
+                              disabled={pending}
+                              className="rounded-full border border-gob-border-strong px-3 py-1 text-xs font-medium text-gob-text transition-colors hover:bg-gob-surface-alt disabled:opacity-60"
+                            >
+                              Marcar principal
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(zone.id)}
+                            disabled={pending}
+                            className="rounded-full border border-gob-danger px-3 py-1 text-xs font-medium text-gob-danger transition-colors hover:bg-gob-danger hover:text-white disabled:opacity-60"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
