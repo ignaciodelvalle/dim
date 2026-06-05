@@ -1,7 +1,9 @@
 // Org members page — active member list + pending invitations.
 // Invitations and revoke controls are shown only to users holding member.invite.
+// Management controls (role change, event-write toggle, remove) are shown
+// when the viewer holds member.invite AND the rank rule permits managing that target.
 
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { Badge, EmptyState } from "@/components/poncho";
@@ -10,17 +12,13 @@ import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 
+import { ChangeRoleSelect } from "./ChangeRoleSelect";
 import { CopyLinkButton } from "./CopyLinkButton";
+import { EventWriteToggle } from "./EventWriteToggle";
+import { LeaveOrgButton } from "./LeaveOrgButton";
+import { RemoveMemberButton } from "./RemoveMemberButton";
 import { RevokeButton } from "./RevokeButton";
-
-const ROLE_LABEL: Record<OrganizationMembership["role"], string> = {
-  admin: "Administrador",
-  coordinator: "Coordinador",
-  member: "Miembro",
-  volunteer: "Voluntario",
-  vet_individual: "Veterinario",
-  foster: "Tránsito",
-};
+import { ROLE_LABEL, canActorManage, getSettableRoles } from "./member-management";
 
 const ROLE_BADGE_VARIANT: Record<
   OrganizationMembership["role"],
@@ -59,6 +57,23 @@ export default async function MiembrosPage({
         isNull(organizationMemberships.leftAt),
       ),
     );
+
+  // Count active admins — needed to determine isLastAdmin for the self-leave button.
+  const [adminCountRow] = await db
+    .select({ n: count() })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, organization.id),
+        isNull(organizationMemberships.leftAt),
+        eq(organizationMemberships.role, "admin"),
+      ),
+    );
+  const activeAdminCount = Number(adminCountRow?.n ?? 0);
+  const viewerIsLastAdmin = membership.role === "admin" && activeAdminCount <= 1;
+
+  // Settable roles for the viewer (rank-bounded).
+  const settableRoles = canInvite ? getSettableRoles(membership.role) : [];
 
   // Pending invitations: not accepted, not revoked, not yet expired.
   // Only fetched when the viewer holds member.invite (avoids leaking invite
@@ -112,17 +127,68 @@ export default async function MiembrosPage({
           />
         ) : (
           <ul className="divide-y divide-gob-border rounded-xl border border-gob-border bg-white">
-            {members.map(({ membership: m, profile }) => (
-              <li key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gob-text">
-                    {profile.displayName}
-                  </p>
-                  {m.title && <p className="truncate text-xs text-gob-text-muted">{m.title}</p>}
-                </div>
-                <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{ROLE_LABEL[m.role]}</Badge>
-              </li>
-            ))}
+            {members.map(({ membership: m, profile }) => {
+              const isSelf = m.userId === membership.userId;
+              // Foster members are managed via the foster flow, not this path.
+              const isFoster = m.role === "foster";
+              const canManage =
+                canInvite && !isSelf && !isFoster && canActorManage(membership.role, m.role);
+
+              return (
+                <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gob-text">
+                      {profile.displayName}
+                      {isSelf && (
+                        <span className="ml-2 text-xs font-normal text-gob-text-muted">(vos)</span>
+                      )}
+                    </p>
+                    {m.title && <p className="truncate text-xs text-gob-text-muted">{m.title}</p>}
+                  </div>
+
+                  {/* Role badge — replaced by selector when actor can manage (never for foster) */}
+                  {canManage ? (
+                    <ChangeRoleSelect
+                      organizationId={organization.id}
+                      membershipId={m.id}
+                      currentRole={m.role}
+                      settableRoles={settableRoles}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{ROLE_LABEL[m.role]}</Badge>
+                      {isFoster && canInvite && (
+                        <span className="text-xs text-gob-text-muted">Gestionado vía tránsito</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Event-write toggle and remove — only for manageable targets */}
+                  {canManage && (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <EventWriteToggle
+                        organizationId={organization.id}
+                        membershipId={m.id}
+                        canWrite={m.canWritePetEvents}
+                      />
+                      <RemoveMemberButton
+                        organizationId={organization.id}
+                        membershipId={m.id}
+                        displayName={profile.displayName}
+                      />
+                    </div>
+                  )}
+
+                  {/* Self row: show leave button instead of management controls */}
+                  {isSelf && (
+                    <LeaveOrgButton
+                      organizationId={organization.id}
+                      isLastAdmin={viewerIsLastAdmin}
+                    />
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
