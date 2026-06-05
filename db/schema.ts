@@ -886,6 +886,12 @@ export const organizationMemberships = pgTable(
     activeIdx: index("organization_memberships_active_idx")
       .on(table.organizationId, table.userId)
       .where(sql`${table.leftAt} IS NULL`),
+    // Exactly one active membership per (org, user). Mirrors migration 0072.
+    // Prevents duplicate active memberships if two concurrent invite-accepts
+    // slip past the FOR UPDATE lock (e.g. via different invite tokens).
+    activeUniqueIdx: uniqueIndex("organization_memberships_active_unique")
+      .on(table.organizationId, table.userId)
+      .where(sql`${table.leftAt} IS NULL`),
   }),
 );
 

@@ -379,6 +379,65 @@ describe("inviteMemberAction", () => {
     });
     expect("error" in reinvite).toBe(false);
   });
+
+  it("re-invite is allowed after natural expiry (auto-revokes stale invite)", async () => {
+    await clearInvitations();
+    mockSessionAs(adminUserId, ADMIN_EMAIL);
+
+    // Insert an already-expired invite directly, simulating a naturally expired one.
+    const expiredEmail = "expired-reinvite@example.com";
+    await db.insert(organizationInvitations).values({
+      organizationId: orgId,
+      email: expiredEmail,
+      invitedRole: "volunteer",
+      invitedByUserId: adminUserId,
+      invitationToken: "INV-EXPR-STALE1",
+      expiresAt: new Date(Date.now() - 1000), // already expired, not revoked
+    });
+
+    // Verify it exists and is expired but not revoked (it would block re-invite
+    // if not treated as replaceable).
+    const [stale] = await db
+      .select()
+      .from(organizationInvitations)
+      .where(eq(organizationInvitations.invitationToken, "INV-EXPR-STALE1"))
+      .limit(1);
+    expect(stale.revokedAt).toBeNull();
+    expect(stale.expiresAt.getTime()).toBeLessThan(Date.now());
+
+    // Re-invite — should succeed and auto-revoke the stale expired invite.
+    const reinvite = await inviteMemberAction({
+      organizationId: orgId,
+      email: expiredEmail,
+      invitedRole: "member",
+    });
+    expect("error" in reinvite).toBe(false);
+    if ("error" in reinvite) throw new Error(reinvite.error);
+    expect(reinvite.inviteUrl).toContain("/r/invite/INV-");
+
+    // The stale invite should now be revoked.
+    const [staleAfter] = await db
+      .select()
+      .from(organizationInvitations)
+      .where(eq(organizationInvitations.invitationToken, "INV-EXPR-STALE1"))
+      .limit(1);
+    expect(staleAfter.revokedAt).not.toBeNull();
+
+    // A new active invite should exist.
+    const newInvites = await db
+      .select()
+      .from(organizationInvitations)
+      .where(
+        and(
+          eq(organizationInvitations.organizationId, orgId),
+          eq(organizationInvitations.email, expiredEmail),
+          isNull(organizationInvitations.acceptedAt),
+          isNull(organizationInvitations.revokedAt),
+        ),
+      );
+    expect(newInvites.length).toBe(1);
+    expect(newInvites[0].expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
 });
 
 describe("acceptInvitationAction", () => {

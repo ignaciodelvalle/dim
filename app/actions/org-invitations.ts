@@ -102,11 +102,15 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   // in profiles. The partial-unique DB index is the real guard against duplicate
   // active invites.
 
-  // Pre-check: no active invite for (org, email).
-  // The DB's partial unique index enforces this atomically, but a friendly
-  // pre-check saves a round-trip failure.
+  // Pre-check: look for an existing non-accepted, non-revoked invite for (org, email).
+  // If one exists but is expired, auto-revoke it and allow re-invite (W4).
+  // Only block when a genuinely ACTIVE (not expired) invite exists.
+  const now = new Date();
   const [existingInvite] = await db
-    .select({ id: organizationInvitations.id })
+    .select({
+      id: organizationInvitations.id,
+      expiresAt: organizationInvitations.expiresAt,
+    })
     .from(organizationInvitations)
     .where(
       and(
@@ -117,11 +121,22 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
       ),
     )
     .limit(1);
+
   if (existingInvite) {
-    return {
-      error:
-        "Ya existe una invitación activa para ese email en esta organización. Revocarla primero para re-invitar.",
-    };
+    if (existingInvite.expiresAt <= now) {
+      // Expired but not yet revoked — auto-revoke so the partial unique index
+      // allows the fresh invite to be inserted.
+      await db
+        .update(organizationInvitations)
+        .set({ revokedAt: now })
+        .where(eq(organizationInvitations.id, existingInvite.id));
+    } else {
+      // Genuinely active invite — block.
+      return {
+        error:
+          "Ya existe una invitación activa para ese email en esta organización. Revocarla primero para re-invitar.",
+      };
+    }
   }
 
   // Generate unique token.
@@ -192,6 +207,8 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
 
   // TODO: wire transactional email (Resend) for invitations
 
+  // NEXT_PUBLIC_SITE_URL is the canonical absolute-URL base used across the app
+  // (matches pet-transfer.ts and other absolute-link builders).
   const appBase = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
   const inviteUrl = `${appBase}/r/invite/${token}`;
 
@@ -281,13 +298,20 @@ export async function acceptInvitationAction(
 
   try {
     await db.transaction(async (tx) => {
-      // Fetch invitation.
+      // Lock the invitation row for update first to prevent concurrent accepts
+      // (TOCTOU: two simultaneous double-clicks both passing the checks and both
+      // inserting a membership). The second concurrent request will block here
+      // until the first commits, then re-read the now-accepted invite and return
+      // the friendly "already accepted" error instead of inserting a duplicate.
       const [invite] = await tx
         .select()
         .from(organizationInvitations)
         .where(eq(organizationInvitations.invitationToken, input.invitationToken))
+        .for("update")
         .limit(1);
 
+      // Re-validate AFTER acquiring the lock so concurrent accepts see the
+      // committed state of the first winner.
       if (!invite) throw new Error("Invitación no encontrada.");
       if (invite.acceptedAt) throw new Error("Esta invitación ya fue aceptada.");
       if (invite.revokedAt) throw new Error("Esta invitación fue revocada.");
@@ -308,7 +332,8 @@ export async function acceptInvitationAction(
         .limit(1);
       if (!org) throw new Error("Organización no encontrada.");
 
-      // Guard: already an active member (idempotent / friendly).
+      // Guard: already an active member — re-checked INSIDE the locked tx so a
+      // duplicate membership can't slip in between the invite lock and the insert.
       const [existingMembership] = await tx
         .select({ id: organizationMemberships.id })
         .from(organizationMemberships)
@@ -333,7 +358,9 @@ export async function acceptInvitationAction(
 
       const now = new Date();
 
-      // Insert membership.
+      // Insert membership. The partial unique index on organization_memberships
+      // (organization_id, user_id) WHERE left_at IS NULL is the final DB-level
+      // guard; isUniqueViolation is caught below the transaction.
       await tx.insert(organizationMemberships).values({
         organizationId: invite.organizationId,
         userId: user.id,
@@ -352,23 +379,35 @@ export async function acceptInvitationAction(
       orgToken = org.publicToken;
 
       // Notify inviter (best-effort, post-tx).
+      // invitedByUserId can be null if the inviter's profile was deleted (FK
+      // set-null). Skip the notification gracefully in that case.
       if (invite.invitedByUserId) {
-        const [inviterProfile] = await tx
+        // Query the ACCEPTER's profile (user.id) so the notification correctly
+        // reads "X accepted your invitation" from the accepter's display name.
+        const [accepterProfile] = await tx
           .select({ displayName: profiles.displayName })
           .from(profiles)
           .where(eq(profiles.id, user.id))
           .limit(1);
 
         pendingNotifications.push({
+          // Recipient is the INVITER — the person who sent the invitation.
           userId: invite.invitedByUserId,
           notificationType: "org_invitation_accepted",
           severity: "success",
-          title: `${inviterProfile?.displayName ?? "Un usuario"} aceptó tu invitación`,
+          title: `${accepterProfile?.displayName ?? "Un usuario"} aceptó tu invitación`,
           body: `Ahora es miembro de ${org.displayName} con el rol ${invite.invitedRole}.`,
         });
       }
     });
   } catch (err) {
+    if (isUniqueViolation(err)) {
+      // The partial unique index on organization_memberships fired despite the
+      // FOR UPDATE lock + in-tx recheck — this means the user already has an
+      // active membership via a concurrent non-invite path (e.g. a direct insert
+      // from an admin). Treat as idempotent: they are already a member.
+      return { error: "Ya sos miembro activo de esta organización." };
+    }
     return {
       error: err instanceof Error ? err.message : "No se pudo aceptar la invitación.",
     };
