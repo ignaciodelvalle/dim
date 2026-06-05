@@ -1,4 +1,4 @@
-// Tests for:
+﻿// Tests for:
 //  1. updateOrganizationForUser — admin-only, whitelisted columns enforced,
 //     cross-org rejected, orgType/verified NOT writable.
 //  2. createOrganizationForUser — server-side rejection of sanitary_authority.
@@ -245,6 +245,50 @@ describe("updateOrganizationForUser — admin-only + whitelist enforcement", () 
     });
     expect(result.error).toBeTruthy();
     expect(result.error).toMatch(/nombre/i);
+  });
+
+  it("rejects blank legalName (present but empty)", async () => {
+    mockSessionAs(adminUserId);
+    const result = await updateOrganizationForUser(adminUserId, orgToken, {
+      orgToken,
+      displayName: "Valid name",
+      legalName: "",
+    });
+    expect(result.error).toBeTruthy();
+    expect(result.error).toMatch(/nombre legal/i);
+  });
+
+  it("rejects blank email (present but empty)", async () => {
+    mockSessionAs(adminUserId);
+    const result = await updateOrganizationForUser(adminUserId, orgToken, {
+      orgToken,
+      displayName: "Valid name",
+      email: "",
+    });
+    expect(result.error).toBeTruthy();
+    expect(result.error).toMatch(/email/i);
+  });
+
+  it("accepts absent legalName (undefined — leave unchanged)", async () => {
+    mockSessionAs(adminUserId);
+    const result = await updateOrganizationForUser(adminUserId, orgToken, {
+      orgToken,
+      displayName: "Valid name",
+      // legalName absent — should leave the existing value unchanged
+    });
+    expect(result.error).toBeNull();
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts absent email (undefined — leave unchanged)", async () => {
+    mockSessionAs(adminUserId);
+    const result = await updateOrganizationForUser(adminUserId, orgToken, {
+      orgToken,
+      displayName: "Valid name",
+      // email absent — should leave the existing value unchanged
+    });
+    expect(result.error).toBeNull();
+    expect(result.ok).toBe(true);
   });
 
   it("rejects invalid website format", async () => {

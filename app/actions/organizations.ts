@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -31,21 +31,28 @@ export type UpdateOrgInput = {
 // ============================================================================
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const URL_RE = /^https?:\/\/.{1,}/;
+const URL_RE = /^https?:\/\/[^\s.]+\.[^\s]{2,}/;
 
 function validateUpdateOrgInput(input: UpdateOrgInput): string | null {
   const displayName = (input.displayName ?? "").trim();
   if (!displayName || displayName.length < 2 || displayName.length > 100) {
     return "El nombre debe tener entre 2 y 100 caracteres.";
   }
-  if (input.legalName) {
+  if (input.legalName !== undefined && input.legalName !== null) {
     const legalName = input.legalName.trim();
+    if (!legalName) {
+      return "El nombre legal no puede quedar vacío.";
+    }
     if (legalName.length < 2 || legalName.length > 100) {
       return "La razón social debe tener entre 2 y 100 caracteres.";
     }
   }
-  if (input.email) {
-    if (!EMAIL_RE.test(input.email.trim())) {
+  if (input.email !== undefined && input.email !== null) {
+    const email = input.email.trim();
+    if (!email) {
+      return "El email no puede quedar vacío.";
+    }
+    if (!EMAIL_RE.test(email)) {
       return "El correo electrónico es inválido.";
     }
   }
@@ -150,8 +157,8 @@ export async function updateOrganizationAction(
   return updateOrganizationForUser(user.id, orgToken, {
     orgToken,
     displayName: String(formData.get("displayName") ?? "").trim(),
-    legalName: String(formData.get("legalName") ?? "").trim() || null,
-    email: String(formData.get("email") ?? "").trim() || null,
+    legalName: formData.has("legalName") ? String(formData.get("legalName")).trim() : undefined,
+    email: formData.has("email") ? String(formData.get("email")).trim() : undefined,
     phone: String(formData.get("phone") ?? "").trim() || null,
     website: String(formData.get("website") ?? "").trim() || null,
     description: String(formData.get("description") ?? "").trim() || null,
