@@ -7,10 +7,11 @@
 // Auth: requireCapability("event.write", org.id) called ONCE (not per pet).
 // Ownership check: ONE batch query instead of per-pet requireAlivePetAccess
 // (which would do N Supabase auth calls).
-// Idempotency: clientIdempotencyKey = `bulk-${bulkActionId}-${petId}` per pet
-// so re-submitting with the same bulkActionId is a safe no-op.
+// Idempotency: clientIdempotencyKey per pet is a deterministic UUID v4-shaped
+// hash of (bulkActionId + petId) so re-submitting with the same bulkActionId
+// is a safe no-op. The column type is uuid so the key must be a valid UUID.
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { db, organizations, ownerships, petEvents, pets, reminders } from "@/db";
@@ -144,7 +145,18 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
     try {
       await db.transaction(async (tx) => {
         const now = new Date();
-        const clientIdempotencyKey = `bulk-${bulkActionId}-${petId}`;
+        // Deterministic UUID from SHA-256 of (bulkActionId + ":" + petId).
+        // The column type is uuid so the key must be a valid UUID v4-shaped hex.
+        // We take the first 32 hex chars of SHA-256 and apply version + variant bits.
+        const hash = createHash("sha256").update(`${bulkActionId}:${petId}`).digest("hex");
+        const variantNibble = (Number.parseInt(hash.charAt(16), 16) & 0x3) | 0x8;
+        const clientIdempotencyKey = [
+          hash.slice(0, 8),
+          hash.slice(8, 12),
+          `4${hash.slice(13, 16)}`, // version 4
+          `${variantNibble.toString(16)}${hash.slice(17, 20)}`, // variant
+          hash.slice(20, 32),
+        ].join("-");
 
         const eventPayload = validateEventPayload("vaccination_administered", {
           vaccine_name: vaccineName,
