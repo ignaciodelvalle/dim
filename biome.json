@@ -41,6 +41,29 @@
   },
   "overrides": [
     {
+      "include": ["src/modules/*/domain/**"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/db": "Domain layer must not import @/db. Use the repository interface injected by the application layer.",
+                  "drizzle-orm": "Domain layer must not import drizzle-orm. Database access belongs in infrastructure.",
+                  "next": "Domain layer must not import next. Framework dependencies belong in the actions layer.",
+                  "next/cache": "Domain layer must not import next/cache. Framework dependencies belong in the actions layer.",
+                  "next/navigation": "Domain layer must not import next/navigation. Framework dependencies belong in the actions layer.",
+                  "next/headers": "Domain layer must not import next/headers. Framework dependencies belong in the actions layer.",
+                  "server-only": "Domain layer must not import server-only. This marker belongs in infrastructure or actions."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "include": ["__tests__/**", "scripts/**", "**/*.test.ts", "**/*.test.tsx"],
       "linter": {
         "rules": {
