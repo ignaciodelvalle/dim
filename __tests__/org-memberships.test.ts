@@ -12,6 +12,8 @@
 //  - changeMemberRoleAction: foster rejected as settable role
 //  - changeMemberRoleAction: self role-change rejected
 //  - setMemberEventWriteAction: rank rule; toggles canWritePetEvents
+//  - setMemberEventWriteAction: self-toggle rejected (admin path)
+//  - setMemberEventWriteAction: last-admin invariant held inside tx (remove blocks when last)
 //  - leaveOrganizationAction: allowed when not last admin
 //  - leaveOrganizationAction: blocked when last admin
 //
@@ -313,6 +315,34 @@ describe("removeMemberAction", () => {
       .where(eq(organizationMemberships.id, admin2MembershipId));
   });
 
+  it("last-admin invariant: adminMembershipId still active after rejection", async () => {
+    // After the last-admin rejection above, the target row must NOT have been soft-deleted.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: new Date() })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+
+    mockSessionAs(adminUserId);
+    await removeMemberAction({
+      organizationId: orgId,
+      membershipId: adminMembershipId,
+    });
+
+    const [row] = await db
+      .select()
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.id, adminMembershipId))
+      .limit(1);
+    // The row must still be active (leftAt must remain null).
+    expect(row.leftAt).toBeNull();
+
+    // Restore admin2.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+  });
+
   it("CAN remove an admin when another admin exists", async () => {
     // Both admins are active. Admin removes admin2.
     await db
@@ -415,6 +445,34 @@ describe("changeMemberRoleAction", () => {
     expect("error" in result).toBe(true);
     if (!("error" in result)) throw new Error("Expected error");
     expect(result.error).toContain("al menos un administrador");
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+  });
+
+  it("last-admin invariant: adminMembershipId role still 'admin' after rejection", async () => {
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: new Date() })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+
+    mockSessionAs(adminUserId);
+    await changeMemberRoleAction({
+      organizationId: orgId,
+      membershipId: adminMembershipId,
+      newRole: "coordinator",
+    });
+
+    const [row] = await db
+      .select()
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.id, adminMembershipId))
+      .limit(1);
+    // Role must still be admin — tx must have rolled back.
+    expect(row.role).toBe("admin");
 
     // Restore.
     await db
@@ -563,6 +621,19 @@ describe("setMemberEventWriteAction", () => {
       .set({ canWritePetEvents: false })
       .where(eq(organizationMemberships.id, memberMembershipId));
   });
+
+  it("self-toggle rejected via admin path", async () => {
+    mockSessionAs(adminUserId);
+    const result = await setMemberEventWriteAction({
+      organizationId: orgId,
+      membershipId: adminMembershipId,
+      canWrite: false,
+    });
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) throw new Error("Expected error");
+    expect(result.error).toContain("propio permiso");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -610,6 +681,29 @@ describe("leaveOrganizationAction", () => {
     expect("error" in result).toBe(true);
     if (!("error" in result)) throw new Error("Expected error");
     expect(result.error).toContain("único administrador");
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+  });
+
+  it("last-admin invariant: adminMembershipId still active after leave rejection", async () => {
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: new Date() })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+
+    mockSessionAs(adminUserId);
+    await leaveOrganizationAction({ organizationId: orgId });
+
+    const [row] = await db
+      .select()
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.id, adminMembershipId))
+      .limit(1);
+    expect(row.leftAt).toBeNull();
 
     // Restore.
     await db

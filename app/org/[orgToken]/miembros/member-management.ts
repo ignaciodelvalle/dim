@@ -5,7 +5,7 @@
 import { INVITABLE_ROLES, ROLE_RANK } from "@/app/actions/org-invitations.constants";
 import type { OrganizationMembership } from "@/db";
 
-const ROLE_LABEL: Record<OrganizationMembership["role"], string> = {
+export const ROLE_LABEL: Record<OrganizationMembership["role"], string> = {
   admin: "Administrador",
   coordinator: "Coordinador",
   member: "Miembro",

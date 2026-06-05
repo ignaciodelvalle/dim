@@ -10,35 +10,20 @@
 //   - No self-management via admin path (use leaveOrganizationAction for self-removal).
 //   - Last-admin protection: org must retain ≥1 active admin at all times.
 //     Applies to removeMemberAction (any role) and changeMemberRoleAction when
-//     demoting an admin.
+//     demoting an admin. Guard is enforced inside a DB transaction with
+//     SELECT ... FOR UPDATE to prevent TOCTOU races.
+//     Last-admin is checked before self/rank so the invariant message is always
+//     surfaced first (even when the actor is the last admin trying to act on themselves).
 //   - Settable roles: admin, coordinator, member, volunteer, vet_individual.
 //     foster is NOT settable through this path (foster-proposal flow only).
 
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, notifications, organizationMemberships, organizations } from "@/db";
 import { requireCapability } from "@/lib/capabilities";
 import { createClient } from "@/lib/supabase/server";
 import { INVITABLE_ROLES, type InvitableRole, ROLE_RANK } from "./org-invitations.constants";
-
-// ============================================================================
-// Shared helpers
-// ============================================================================
-
-async function countActiveAdmins(organizationId: string): Promise<number> {
-  const [row] = await db
-    .select({ n: count() })
-    .from(organizationMemberships)
-    .where(
-      and(
-        eq(organizationMemberships.organizationId, organizationId),
-        isNull(organizationMemberships.leftAt),
-        eq(organizationMemberships.role, "admin"),
-      ),
-    );
-  return Number(row?.n ?? 0);
-}
 
 // ============================================================================
 // removeMemberAction
@@ -56,7 +41,7 @@ export async function removeMemberAction(input: RemoveMemberInput): Promise<Remo
   if (auth.error !== null) return { error: auth.error };
   const { user, membership: actorMembership, organization } = auth;
 
-  // Load target membership.
+  // Load target membership (outside tx — fast pre-check).
   const [target] = await db
     .select()
     .from(organizationMemberships)
@@ -71,37 +56,85 @@ export async function removeMemberAction(input: RemoveMemberInput): Promise<Remo
 
   if (!target) return { error: "Membresía no encontrada o ya inactiva." };
 
-  // Last-admin protection (checked before self/rank so the invariant message is
-  // always surfaced, even when the actor is the last admin trying to remove themselves).
+  // For admin targets: last-admin protection is checked BEFORE self/rank so the
+  // invariant message is always surfaced first (even when the actor is the last admin
+  // trying to remove themselves). Guard + mutation wrapped in a tx with SELECT FOR UPDATE
+  // to prevent TOCTOU races between concurrent removes/demotions.
   if (target.role === "admin") {
-    const adminCount = await countActiveAdmins(input.organizationId);
-    if (adminCount <= 1) {
+    let actionError: string | null = null;
+    try {
+      await db.transaction(async (tx) => {
+        // Lock ALL active admin rows for this org.
+        const lockResult = await tx.execute(
+          sql`SELECT id FROM organization_memberships WHERE organization_id = ${input.organizationId} AND role = 'admin' AND left_at IS NULL FOR UPDATE`,
+        );
+        const adminRows: Array<{ id: string }> = [
+          ...(lockResult as unknown as Iterable<{ id: string }>),
+        ];
+
+        // Last-admin check first (highest-priority invariant).
+        if (adminRows.length <= 1) {
+          actionError = "La organización debe tener al menos un administrador.";
+          throw new Error("LAST_ADMIN");
+        }
+
+        // Self-check.
+        if (target.userId === user.id) {
+          actionError =
+            "No podés quitarte a vos mismo por esta vía. Usá la opción 'Salir de la organización'.";
+          throw new Error("SELF");
+        }
+
+        // Rank rule.
+        const actorRankInner = ROLE_RANK[actorMembership.role];
+        const targetRankInner = ROLE_RANK[target.role];
+        if (targetRankInner > actorRankInner) {
+          actionError = "No podés gestionar a alguien con un rol mayor al tuyo.";
+          throw new Error("RANK");
+        }
+
+        await tx
+          .update(organizationMemberships)
+          .set({ leftAt: new Date() })
+          .where(
+            and(
+              eq(organizationMemberships.id, input.membershipId),
+              eq(organizationMemberships.organizationId, input.organizationId),
+            ),
+          );
+      });
+    } catch (e) {
+      if (actionError) return { error: actionError };
+      throw e;
+    }
+  } else {
+    // Non-admin target: no last-admin concern — validate then soft-delete directly.
+
+    // No self-management via admin path.
+    if (target.userId === user.id) {
       return {
-        error: "La organización debe tener al menos un administrador.",
+        error:
+          "No podés quitarte a vos mismo por esta vía. Usá la opción 'Salir de la organización'.",
       };
     }
-  }
 
-  // No self-management via admin path.
-  if (target.userId === user.id) {
-    return {
-      error:
-        "No podés quitarte a vos mismo por esta vía. Usá la opción 'Salir de la organización'.",
-    };
-  }
+    // Rank rule.
+    const actorRank = ROLE_RANK[actorMembership.role];
+    const targetRank = ROLE_RANK[target.role];
+    if (targetRank > actorRank) {
+      return { error: "No podés gestionar a alguien con un rol mayor al tuyo." };
+    }
 
-  // Rank rule.
-  const actorRank = ROLE_RANK[actorMembership.role];
-  const targetRank = ROLE_RANK[target.role];
-  if (targetRank > actorRank) {
-    return { error: "No podés gestionar a alguien con un rol mayor al tuyo." };
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: new Date() })
+      .where(
+        and(
+          eq(organizationMemberships.id, input.membershipId),
+          eq(organizationMemberships.organizationId, input.organizationId),
+        ),
+      );
   }
-
-  // Soft-delete.
-  await db
-    .update(organizationMemberships)
-    .set({ leftAt: new Date() })
-    .where(eq(organizationMemberships.id, input.membershipId));
 
   // Notify removed user (best-effort).
   try {
@@ -157,7 +190,7 @@ export async function changeMemberRoleAction(
     };
   }
 
-  // Load target membership.
+  // Load target membership (outside tx — fast pre-check).
   const [target] = await db
     .select()
     .from(organizationMemberships)
@@ -172,32 +205,78 @@ export async function changeMemberRoleAction(
 
   if (!target) return { error: "Membresía no encontrada o ya inactiva." };
 
-  // Last-admin protection: if demoting the last admin → reject (checked before
-  // self/rank so the invariant message is always surfaced first).
+  // For admin demotion: last-admin check BEFORE self/rank (same priority rule as remove).
+  // Guard + mutation inside a tx with SELECT FOR UPDATE to prevent TOCTOU races.
   if (target.role === "admin" && newRole !== "admin") {
-    const adminCount = await countActiveAdmins(input.organizationId);
-    if (adminCount <= 1) {
-      return {
-        error: "La organización debe tener al menos un administrador.",
-      };
+    let actionError: string | null = null;
+    try {
+      await db.transaction(async (tx) => {
+        // Lock ALL active admin rows for this org.
+        const lockResult = await tx.execute(
+          sql`SELECT id FROM organization_memberships WHERE organization_id = ${input.organizationId} AND role = 'admin' AND left_at IS NULL FOR UPDATE`,
+        );
+        const adminRows: Array<{ id: string }> = [
+          ...(lockResult as unknown as Iterable<{ id: string }>),
+        ];
+
+        // Last-admin check first.
+        if (adminRows.length <= 1) {
+          actionError = "La organización debe tener al menos un administrador.";
+          throw new Error("LAST_ADMIN");
+        }
+
+        // Self-check.
+        if (target.userId === user.id) {
+          actionError = "No podés cambiar tu propio rol.";
+          throw new Error("SELF");
+        }
+
+        // Rank rule on target's current role.
+        const actorRankInner = ROLE_RANK[actorMembership.role];
+        const targetRankInner = ROLE_RANK[target.role];
+        if (targetRankInner > actorRankInner) {
+          actionError = "No podés gestionar a alguien con un rol mayor al tuyo.";
+          throw new Error("RANK");
+        }
+
+        await tx
+          .update(organizationMemberships)
+          .set({ role: newRole })
+          .where(
+            and(
+              eq(organizationMemberships.id, input.membershipId),
+              eq(organizationMemberships.organizationId, input.organizationId),
+            ),
+          );
+      });
+    } catch (e) {
+      if (actionError) return { error: actionError };
+      throw e;
     }
-  }
+  } else {
+    // No last-admin concern — validate then update directly.
 
-  // No self role-change.
-  if (target.userId === user.id) {
-    return { error: "No podés cambiar tu propio rol." };
-  }
+    // No self role-change.
+    if (target.userId === user.id) {
+      return { error: "No podés cambiar tu propio rol." };
+    }
 
-  // Rank rule on target's current role.
-  const targetRank = ROLE_RANK[target.role];
-  if (targetRank > actorRank) {
-    return { error: "No podés gestionar a alguien con un rol mayor al tuyo." };
-  }
+    // Rank rule on target's current role.
+    const targetRank = ROLE_RANK[target.role];
+    if (targetRank > actorRank) {
+      return { error: "No podés gestionar a alguien con un rol mayor al tuyo." };
+    }
 
-  await db
-    .update(organizationMemberships)
-    .set({ role: newRole })
-    .where(eq(organizationMemberships.id, input.membershipId));
+    await db
+      .update(organizationMemberships)
+      .set({ role: newRole })
+      .where(
+        and(
+          eq(organizationMemberships.id, input.membershipId),
+          eq(organizationMemberships.organizationId, input.organizationId),
+        ),
+      );
+  }
 
   revalidatePath(`/org/${organization.publicToken}/miembros`);
   return { ok: true };
@@ -220,7 +299,7 @@ export async function setMemberEventWriteAction(
 ): Promise<SetMemberEventWriteResult> {
   const auth = await requireCapability("member.invite", input.organizationId);
   if (auth.error !== null) return { error: auth.error };
-  const { membership: actorMembership, organization } = auth;
+  const { user, membership: actorMembership, organization } = auth;
 
   // Load target membership.
   const [target] = await db
@@ -237,6 +316,11 @@ export async function setMemberEventWriteAction(
 
   if (!target) return { error: "Membresía no encontrada o ya inactiva." };
 
+  // No self-management via admin path.
+  if (target.userId === user.id) {
+    return { error: "No podés modificar tu propio permiso de escritura por esta vía." };
+  }
+
   // Rank rule.
   const actorRank = ROLE_RANK[actorMembership.role];
   const targetRank = ROLE_RANK[target.role];
@@ -247,7 +331,12 @@ export async function setMemberEventWriteAction(
   await db
     .update(organizationMemberships)
     .set({ canWritePetEvents: input.canWrite })
-    .where(eq(organizationMemberships.id, input.membershipId));
+    .where(
+      and(
+        eq(organizationMemberships.id, input.membershipId),
+        eq(organizationMemberships.organizationId, input.organizationId),
+      ),
+    );
 
   revalidatePath(`/org/${organization.publicToken}/miembros`);
   return { ok: true };
@@ -289,21 +378,50 @@ export async function leaveOrganizationAction(
     return { error: "No sos miembro activo de esta organización." };
   }
 
-  // Last-admin protection.
+  // For admins: enforce last-admin protection atomically inside a tx.
   if (membership.role === "admin") {
-    const adminCount = await countActiveAdmins(input.organizationId);
-    if (adminCount <= 1) {
-      return {
-        error:
-          "No podés salir porque sos el único administrador. Asigná otro administrador primero.",
-      };
-    }
-  }
+    let lastAdminError: string | null = null;
+    try {
+      await db.transaction(async (tx) => {
+        // Lock ALL active admin rows for this org.
+        const lockResult = await tx.execute(
+          sql`SELECT id FROM organization_memberships WHERE organization_id = ${input.organizationId} AND role = 'admin' AND left_at IS NULL FOR UPDATE`,
+        );
+        const adminRows: Array<{ id: string }> = [
+          ...(lockResult as unknown as Iterable<{ id: string }>),
+        ];
 
-  await db
-    .update(organizationMemberships)
-    .set({ leftAt: new Date() })
-    .where(eq(organizationMemberships.id, membership.id));
+        if (adminRows.length <= 1) {
+          lastAdminError =
+            "No podés salir porque sos el único administrador. Asigná otro administrador primero.";
+          throw new Error("LAST_ADMIN");
+        }
+
+        await tx
+          .update(organizationMemberships)
+          .set({ leftAt: new Date() })
+          .where(
+            and(
+              eq(organizationMemberships.id, membership.id),
+              eq(organizationMemberships.organizationId, input.organizationId),
+            ),
+          );
+      });
+    } catch (e) {
+      if (lastAdminError) return { error: lastAdminError };
+      throw e;
+    }
+  } else {
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: new Date() })
+      .where(
+        and(
+          eq(organizationMemberships.id, membership.id),
+          eq(organizationMemberships.organizationId, input.organizationId),
+        ),
+      );
+  }
 
   // Revalidate the members page (best-effort — load the org publicToken).
   try {

@@ -23,11 +23,13 @@ export function ChangeRoleSelect({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState(currentRole);
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newRole = e.target.value;
-    if (newRole === currentRole) return;
+    if (newRole === selectedRole) return;
     setError(null);
+    setSelectedRole(newRole);
     startTransition(async () => {
       const result = await changeMemberRoleAction({
         organizationId,
@@ -36,6 +38,7 @@ export function ChangeRoleSelect({
       });
       if ("error" in result) {
         setError(result.error);
+        setSelectedRole(currentRole);
         return;
       }
       router.refresh();
@@ -45,7 +48,7 @@ export function ChangeRoleSelect({
   return (
     <div className="flex flex-col gap-1">
       <select
-        defaultValue={currentRole}
+        value={selectedRole}
         onChange={handleChange}
         disabled={pending}
         className="rounded-lg border border-gob-border bg-white px-2 py-1 text-xs text-gob-text focus:outline-none focus:ring-2 focus:ring-gob-primary disabled:opacity-60"

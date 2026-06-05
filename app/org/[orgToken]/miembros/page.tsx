@@ -18,7 +18,7 @@ import { EventWriteToggle } from "./EventWriteToggle";
 import { LeaveOrgButton } from "./LeaveOrgButton";
 import { RemoveMemberButton } from "./RemoveMemberButton";
 import { RevokeButton } from "./RevokeButton";
-import { canActorManage, getSettableRoles } from "./member-management";
+import { ROLE_LABEL, canActorManage, getSettableRoles } from "./member-management";
 
 const ROLE_BADGE_VARIANT: Record<
   OrganizationMembership["role"],
@@ -30,15 +30,6 @@ const ROLE_BADGE_VARIANT: Record<
   volunteer: "neutral",
   vet_individual: "warning",
   foster: "neutral",
-};
-
-const ROLE_LABEL: Record<OrganizationMembership["role"], string> = {
-  admin: "Administrador",
-  coordinator: "Coordinador",
-  member: "Miembro",
-  volunteer: "Voluntario",
-  vet_individual: "Veterinario",
-  foster: "Tránsito",
 };
 
 export default async function MiembrosPage({
@@ -138,7 +129,10 @@ export default async function MiembrosPage({
           <ul className="divide-y divide-gob-border rounded-xl border border-gob-border bg-white">
             {members.map(({ membership: m, profile }) => {
               const isSelf = m.userId === membership.userId;
-              const canManage = canInvite && !isSelf && canActorManage(membership.role, m.role);
+              // Foster members are managed via the foster flow, not this path.
+              const isFoster = m.role === "foster";
+              const canManage =
+                canInvite && !isSelf && !isFoster && canActorManage(membership.role, m.role);
 
               return (
                 <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
@@ -152,7 +146,7 @@ export default async function MiembrosPage({
                     {m.title && <p className="truncate text-xs text-gob-text-muted">{m.title}</p>}
                   </div>
 
-                  {/* Role badge — replaced by selector when actor can manage */}
+                  {/* Role badge — replaced by selector when actor can manage (never for foster) */}
                   {canManage ? (
                     <ChangeRoleSelect
                       organizationId={organization.id}
@@ -161,7 +155,12 @@ export default async function MiembrosPage({
                       settableRoles={settableRoles}
                     />
                   ) : (
-                    <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{ROLE_LABEL[m.role]}</Badge>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{ROLE_LABEL[m.role]}</Badge>
+                      {isFoster && canInvite && (
+                        <span className="text-xs text-gob-text-muted">Gestionado vía tránsito</span>
+                      )}
+                    </div>
                   )}
 
                   {/* Event-write toggle and remove — only for manageable targets */}
