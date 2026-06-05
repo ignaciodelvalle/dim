@@ -55,3 +55,11 @@ export type BulkSetEligibilityInput = {
   ineligibleReasonNotes?: string | null;
   ineligibleUntilIso?: string | null;
 };
+
+export type BulkPublishListingInput = {
+  orgToken: string;
+  petPublicTokens: string[];
+  bulkActionId: string;
+  /** true = publish / re-publish for adoption; false = unpublish (remove from /adoptar) */
+  publish: boolean;
+};
