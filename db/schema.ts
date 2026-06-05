@@ -744,6 +744,9 @@ export const organizations = pgTable(
       onDelete: "set null",
     }),
     tier0ShowBranding: boolean("tier_0_show_branding").notNull().default(false),
+    // T-4.3: whether this org is shown as origin shelter on public credentials of pets it holds/adopted out.
+    // Distinct from tier0ShowBranding (event authorship on timeline). Gated by org.verified.
+    tier0ShowOriginOrg: boolean("tier_0_show_origin_org").notNull().default(false),
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),

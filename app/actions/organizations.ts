@@ -24,6 +24,7 @@ export type UpdateOrgInput = {
   website?: string | null;
   description?: string | null;
   personeriaJuridicaNumber?: string | null;
+  tier0ShowOriginOrg?: boolean;
 };
 
 // ============================================================================
@@ -128,6 +129,9 @@ export async function updateOrganizationForUser(
       website: input.website?.trim() || null,
       description: input.description?.trim() || null,
       personeriaJuridicaNumber: input.personeriaJuridicaNumber?.trim() || null,
+      ...(input.tier0ShowOriginOrg !== undefined && {
+        tier0ShowOriginOrg: input.tier0ShowOriginOrg,
+      }),
       updatedAt: new Date(),
     })
     .where(eq(organizations.id, row.orgId));
@@ -163,5 +167,8 @@ export async function updateOrganizationAction(
     website: String(formData.get("website") ?? "").trim() || null,
     description: String(formData.get("description") ?? "").trim() || null,
     personeriaJuridicaNumber: String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
+    tier0ShowOriginOrg: formData.has("tier0ShowOriginOrg")
+      ? formData.get("tier0ShowOriginOrg") === "true" || formData.get("tier0ShowOriginOrg") === "on"
+      : undefined,
   });
 }
