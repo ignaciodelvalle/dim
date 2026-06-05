@@ -23,6 +23,7 @@ import {
 import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
+import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
 import {
   type PermanentCondition,
   isPermanentCondition,
@@ -368,6 +369,11 @@ export default async function PublicCredentialPage({
     };
   }
 
+  // T-4.3: Origin-org badge — resolved server-side, no PII.
+  // Active credential only (lost branch has its own render path).
+  const originOrg = isLost ? null : await resolveOriginOrg(pet.id);
+  const showOriginOrg = shouldShowOriginOrgBadge(originOrg);
+
   // Lost branch — v2 public credential. ScanLogger still fires so scan
   // analytics are captured even in lost mode. lostSince falls back to now()
   // when the lost event row is missing (shouldn't happen, but defensive).
@@ -540,6 +546,30 @@ export default async function PublicCredentialPage({
               </p>
             )}
           </section>
+        )}
+
+        {/* T-4.3: Origin-org badge — shown only when org is verified AND tier0ShowOriginOrg is on.
+            No PII, no contact info, only the org display name (+ logo if available). */}
+        {showOriginOrg && originOrg && (
+          <div
+            className="flex items-center gap-3 rounded-xl border border-gob-border bg-white px-4 py-2.5"
+            data-section="origin-org-badge"
+          >
+            {originOrg.avatarUrl && (
+              <img
+                src={originOrg.avatarUrl}
+                alt=""
+                aria-hidden="true"
+                className="w-8 h-8 rounded-full object-cover shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-gob-text-muted">
+                Refugio de origen
+              </p>
+              <p className="text-sm font-medium text-gob-text truncate">{originOrg.displayName}</p>
+            </div>
+          </div>
         )}
 
         {/* Photo */}

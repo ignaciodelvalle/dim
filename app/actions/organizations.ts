@@ -24,6 +24,7 @@ export type UpdateOrgInput = {
   website?: string | null;
   description?: string | null;
   personeriaJuridicaNumber?: string | null;
+  tier0ShowOriginOrg?: boolean;
 };
 
 // ============================================================================
@@ -128,6 +129,14 @@ export async function updateOrganizationForUser(
       website: input.website?.trim() || null,
       description: input.description?.trim() || null,
       personeriaJuridicaNumber: input.personeriaJuridicaNumber?.trim() || null,
+      // Always write tier0ShowOriginOrg when it is provided as a concrete boolean.
+      // The action layer always emits a concrete boolean for this field now
+      // (see comment in updateOrganizationAction), so the write is never skipped.
+      // Direct callers (tests, future actions) that pass undefined keep the
+      // old skip-when-absent semantics for backward compatibility.
+      ...(input.tier0ShowOriginOrg !== undefined && {
+        tier0ShowOriginOrg: input.tier0ShowOriginOrg,
+      }),
       updatedAt: new Date(),
     })
     .where(eq(organizations.id, row.orgId));
@@ -163,5 +172,14 @@ export async function updateOrganizationAction(
     website: String(formData.get("website") ?? "").trim() || null,
     description: String(formData.get("description") ?? "").trim() || null,
     personeriaJuridicaNumber: String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
+    // Checkboxes submit NO field when unchecked, so `has()` returns false when
+    // unchecked — meaning the undefined-means-skip path would silently skip the
+    // DB column forever, making the toggle impossible to turn OFF.
+    // Fix: always resolve to a concrete boolean. `=== "true"` matches the
+    // checkbox's value="true" when checked; null (absent) resolves to false.
+    // This is safe because the other optional fields (legalName, email, …) are
+    // text inputs that legitimately use undefined-means-skip; tier0ShowOriginOrg
+    // is a checkbox this form always owns — skipping it on unchecked is wrong.
+    tier0ShowOriginOrg: formData.get("tier0ShowOriginOrg") === "true",
   });
 }

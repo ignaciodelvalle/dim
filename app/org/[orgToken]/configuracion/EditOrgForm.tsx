@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import { type UpdateOrgFormState, updateOrganizationAction } from "@/app/actions/organizations";
-import { Alert, Button, Field, Input } from "@/components/poncho";
+import { Alert, Button, Checkbox, Field, Input } from "@/components/poncho";
 import type { Organization } from "@/db";
 
 type Props = {
@@ -17,6 +17,7 @@ type Props = {
     | "website"
     | "description"
     | "personeriaJuridicaNumber"
+    | "tier0ShowOriginOrg"
   >;
 };
 
@@ -124,6 +125,20 @@ export function EditOrgForm({ organization }: Props) {
           />
         )}
       </Field>
+
+      <div className="space-y-1">
+        <Checkbox
+          name="tier0ShowOriginOrg"
+          value="true"
+          defaultChecked={organization.tier0ShowOriginOrg}
+        >
+          Mostrar a mi organización como refugio de origen en la credencial pública de las mascotas
+        </Checkbox>
+        <p className="text-xs text-gob-text-gray pl-6">
+          Cuando está activo, la credencial pública muestra el nombre de tu organización como
+          refugio de origen de la mascota.
+        </p>
+      </div>
 
       {state.error && <Alert variant="danger">{state.error}</Alert>}
       {state.ok && <Alert variant="success">Cambios guardados correctamente.</Alert>}
