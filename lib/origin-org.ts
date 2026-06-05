@@ -14,7 +14,7 @@
 // resolver logic out of the page module (constraint: page.tsx must not
 // export extra symbols).
 
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { db, organizations, ownerships, petEvents } from "@/db";
 
@@ -37,7 +37,10 @@ export type OriginOrg = {
  * history, etc.).
  */
 export async function resolveOriginOrg(petId: string): Promise<OriginOrg | null> {
-  // 1. Active shelter_custody ownership
+  // 1. Active shelter_custody ownership.
+  // isNotNull(ownerOrganizationId) guards against malformed rows where the org
+  // column is null — those would resolve to null anyway but cause a redundant
+  // org-lookup pass further below.
   const [activeCustody] = await db
     .select({
       orgId: ownerships.ownerOrganizationId,
@@ -48,6 +51,7 @@ export async function resolveOriginOrg(petId: string): Promise<OriginOrg | null>
         eq(ownerships.petId, petId),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
+        isNotNull(ownerships.ownerOrganizationId),
       ),
     )
     .limit(1);

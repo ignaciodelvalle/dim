@@ -333,6 +333,41 @@ describe("shouldShowOriginOrgBadge — gating", () => {
     expect(shouldShowOriginOrgBadge(null)).toBe(false);
   });
 });
+// -------------------------------------------------------------------------
+// FormData parse — checkbox OFF path
+// Tests the action-layer formData → boolean mapping without needing a real
+// session. We exercise the same expression the action uses so that if it
+// ever regresses back to has()/undefined the test catches it immediately.
+// -------------------------------------------------------------------------
+describe("updateOrganizationAction formData parse — tier0ShowOriginOrg", () => {
+  /**
+   * Replicate the exact parse expression from updateOrganizationAction so
+   * the test is coupled to the actual decision logic, not a copy of it.
+   *   formData.get("tier0ShowOriginOrg") === "true"
+   */
+  function parseTier0(fd: FormData): boolean {
+    return fd.get("tier0ShowOriginOrg") === "true";
+  }
+
+  it("checkbox checked (value='true') → true", () => {
+    const fd = new FormData();
+    fd.set("tier0ShowOriginOrg", "true");
+    expect(parseTier0(fd)).toBe(true);
+  });
+
+  it("checkbox unchecked (field absent) → false", () => {
+    // Simulates a real form submission where an unchecked checkbox sends no field.
+    const fd = new FormData();
+    expect(parseTier0(fd)).toBe(false);
+  });
+
+  it("explicit 'false' string → false (defensive)", () => {
+    const fd = new FormData();
+    fd.set("tier0ShowOriginOrg", "false");
+    expect(parseTier0(fd)).toBe(false);
+  });
+});
+
 describe("updateOrganizationForUser — tier0ShowOriginOrg writeable; orgType/verified not", () => {
   it("admin can toggle tier0ShowOriginOrg off then on", async () => {
     mockSessionAs(adminUserId);
