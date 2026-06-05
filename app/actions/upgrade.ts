@@ -116,6 +116,11 @@ function validateOrgInput(input: CreateOrganizationInput): string | null {
   if (!ORG_TYPES.includes(input.orgType as (typeof ORG_TYPES)[number])) {
     return "Tipo de organización inválido.";
   }
+  // sanitary_authority is a government classification provisioned out-of-band.
+  // Block self-registration server-side regardless of what the form submitted.
+  if (input.orgType === "sanitary_authority") {
+    return "Las organizaciones de tipo 'Autoridad sanitaria' son proviscionadas por el equipo de MiMAR. No podés registrarlas de forma autónoma.";
+  }
   if (!EMAIL_RE.test(input.email)) {
     return "El correo electrónico es inválido.";
   }
