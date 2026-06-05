@@ -1,20 +1,25 @@
 "use client";
 
 // Client component for the mascotas list. Mirrors the multi-select UI of
-// BulkApprovalQueueList but for bulk vaccination.
+// BulkApprovalQueueList but for bulk vaccination and bulk eligibility.
 //
 // When canEventWrite is true and ≥1 pets are selected, a sticky BulkActionBar
 // appears with "Vacunar selección". Clicking it opens an inline
 // BulkVaccinationForm. On submit it calls bulkVaccinateAction and shows a
 // ResultPanel ("N vacunadas · M fallaron" + per-pet failure reasons +
 // bulkActionId). Users without event.write see the list read-only.
+//
+// Sprint 8 PR2: added "Marcar elegibilidad" button (canIntake) that opens a
+// BulkEligibilityForm inline. Only one form is open at a time. Both actions
+// share the same selection set.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
-import { bulkVaccinateAction } from "@/app/actions/bulk-pet-events";
+import { bulkSetEligibilityAction, bulkVaccinateAction } from "@/app/actions/bulk-pet-events";
+import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { Checkbox } from "@/components/poncho";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -82,6 +87,17 @@ const SPECIES_LABELS: Record<string, string> = {
   other: "Otro",
 };
 
+const INELIGIBLE_REASON_LABELS: Record<(typeof BULK_INELIGIBLE_REASONS)[number], string> = {
+  medical_treatment: "Tratamiento médico",
+  behavioral_evaluation: "Evaluación conductual",
+  recovery: "Recuperación",
+  quarantine: "Cuarentena",
+  legal_hold: "Retención legal",
+  age: "Edad",
+  pending_intake_eval: "Evaluación de ingreso pendiente",
+  other: "Otro",
+};
+
 const BULK_MAX = 500;
 
 function speciesLabel(s: string): string {
@@ -119,11 +135,14 @@ export function OrgMascotasBulkList({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [mode, setMode] = useState<"none" | "vaccinate">("none");
+  const [mode, setMode] = useState<"none" | "vaccinate" | "eligibility">("none");
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
+  const [lastResultType, setLastResultType] = useState<"vaccinate" | "eligibility" | null>(null);
 
   const fosteredSet = new Set(fosteredPetIds);
   const pendingProposalSet = new Set(pendingProposalPetIds);
+
+  const canBulkSelect = canEventWrite || canIntake;
 
   function toggle(token: string) {
     setSelected((prev) => {
@@ -142,6 +161,7 @@ export function OrgMascotasBulkList({
     setSelected(new Set());
     setMode("none");
     setLastResult(null);
+    setLastResultType(null);
   }
 
   const allSelected = selected.size === cards.length && cards.length > 0;
@@ -157,7 +177,7 @@ export function OrgMascotasBulkList({
 
   return (
     <div className="space-y-3 pb-32">
-      {canEventWrite && (
+      {canBulkSelect && (
         <div className="flex items-center gap-3 text-xs text-gob-text-muted">
           <button
             type="button"
@@ -201,7 +221,7 @@ export function OrgMascotasBulkList({
               className={`rounded border p-3 space-y-2 ${isSelected ? "border-gob-border-strong bg-gob-surface-alt " : "border-gob-border "}`}
             >
               <div className="flex items-start gap-2">
-                {canEventWrite && (
+                {canBulkSelect && (
                   <Checkbox
                     id={`row-${card.publicToken}`}
                     checked={isSelected}
@@ -318,9 +338,18 @@ export function OrgMascotasBulkList({
         })}
       </ul>
 
-      {lastResult && <ResultPanel result={lastResult} onDismiss={() => setLastResult(null)} />}
+      {lastResult && (
+        <ResultPanel
+          result={lastResult}
+          actionType={lastResultType ?? "vaccinate"}
+          onDismiss={() => {
+            setLastResult(null);
+            setLastResultType(null);
+          }}
+        />
+      )}
 
-      {someSelected && canEventWrite && (
+      {someSelected && canBulkSelect && (
         <div className="fixed bottom-0 left-0 right-0 border-t border-gob-border  bg-white  z-50">
           <div className="max-w-3xl mx-auto px-6 py-3 space-y-3">
             {mode === "none" && (
@@ -342,14 +371,26 @@ export function OrgMascotasBulkList({
                   >
                     Limpiar
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("vaccinate")}
-                    disabled={selected.size > BULK_MAX}
-                    className="px-3 py-1.5 rounded text-sm bg-gob-primary text-white  hover:bg-gob-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Vacunar selección
-                  </button>
+                  {canEventWrite && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("vaccinate")}
+                      disabled={selected.size > BULK_MAX}
+                      className="px-3 py-1.5 rounded text-sm bg-gob-primary text-white  hover:bg-gob-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Vacunar selección
+                    </button>
+                  )}
+                  {canIntake && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("eligibility")}
+                      disabled={selected.size > BULK_MAX}
+                      className="px-3 py-1.5 rounded text-sm bg-gob-info text-white  hover:bg-gob-info disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Marcar elegibilidad
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -362,6 +403,7 @@ export function OrgMascotasBulkList({
                 onSubmit={(fields) => {
                   const tokens = Array.from(selected);
                   setLastResult(null);
+                  setLastResultType(null);
                   startTransition(async () => {
                     const bulkActionId = crypto.randomUUID();
                     const result = await bulkVaccinateAction({
@@ -371,6 +413,34 @@ export function OrgMascotasBulkList({
                       ...fields,
                     });
                     setLastResult(result);
+                    setLastResultType("vaccinate");
+                    setMode("none");
+                    setSelected(new Set());
+                    router.refresh();
+                  });
+                }}
+              />
+            )}
+
+            {mode === "eligibility" && (
+              <BulkEligibilityForm
+                count={selected.size}
+                pending={pending}
+                onCancel={() => setMode("none")}
+                onSubmit={(fields) => {
+                  const tokens = Array.from(selected);
+                  setLastResult(null);
+                  setLastResultType(null);
+                  startTransition(async () => {
+                    const bulkActionId = crypto.randomUUID();
+                    const result = await bulkSetEligibilityAction({
+                      orgToken,
+                      petPublicTokens: tokens,
+                      bulkActionId,
+                      ...fields,
+                    });
+                    setLastResult(result);
+                    setLastResultType("eligibility");
                     setMode("none");
                     setSelected(new Set());
                     router.refresh();
@@ -540,15 +610,181 @@ function BulkVaccinationForm({
   );
 }
 
+// ─── BulkEligibilityForm ──────────────────────────────────────────────────────
+
+type EligibilityFields = {
+  eligible: boolean;
+  ineligibleReason?: (typeof BULK_INELIGIBLE_REASONS)[number] | null;
+  ineligibleReasonNotes?: string | null;
+  ineligibleUntilIso?: string | null;
+};
+
+function BulkEligibilityForm({
+  count,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  count: number;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (fields: EligibilityFields) => void;
+}) {
+  const [eligible, setEligible] = useState<boolean>(true);
+  const [ineligibleReason, setIneligibleReason] = useState<
+    (typeof BULK_INELIGIBLE_REASONS)[number] | ""
+  >("");
+  const [ineligibleReasonNotes, setIneligibleReasonNotes] = useState("");
+  const [ineligibleUntilIso, setIneligibleUntilIso] = useState("");
+
+  const needsReason = !eligible;
+  const needsNotes = ineligibleReason === "other";
+  const canSubmit =
+    eligible ||
+    (ineligibleReason !== "" &&
+      (ineligibleReason !== "other" || ineligibleReasonNotes.trim().length > 0));
+
+  function handleSubmit() {
+    onSubmit({
+      eligible,
+      ineligibleReason: eligible
+        ? null
+        : (ineligibleReason as (typeof BULK_INELIGIBLE_REASONS)[number]) || null,
+      ineligibleReasonNotes: eligible ? null : ineligibleReasonNotes.trim() || null,
+      ineligibleUntilIso: eligible ? null : ineligibleUntilIso.trim() || null,
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium">
+        Marcar elegibilidad — {count} animal{count === 1 ? "" : "es"}
+      </p>
+
+      <div className="flex gap-4">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="radio"
+            name="bulk-elig-toggle"
+            checked={eligible}
+            onChange={() => {
+              setEligible(true);
+              setIneligibleReason("");
+              setIneligibleReasonNotes("");
+              setIneligibleUntilIso("");
+            }}
+            className="accent-gob-success"
+          />
+          Apta para adopción
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="radio"
+            name="bulk-elig-toggle"
+            checked={!eligible}
+            onChange={() => setEligible(false)}
+            className="accent-gob-danger"
+          />
+          No apta para adopción
+        </label>
+      </div>
+
+      {needsReason && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-gob-text-muted" htmlFor="bulk-elig-reason">
+              Razón <span className="text-gob-danger">*</span>
+            </label>
+            <select
+              id="bulk-elig-reason"
+              value={ineligibleReason}
+              onChange={(e) =>
+                setIneligibleReason(e.target.value as (typeof BULK_INELIGIBLE_REASONS)[number] | "")
+              }
+              className="w-full px-3 py-1.5 rounded border border-gob-border-strong  bg-white  text-sm"
+            >
+              <option value="">Seleccioná una razón</option>
+              {BULK_INELIGIBLE_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {INELIGIBLE_REASON_LABELS[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-gob-text-muted" htmlFor="bulk-elig-until">
+              No apta hasta (opcional)
+            </label>
+            <input
+              id="bulk-elig-until"
+              type="date"
+              value={ineligibleUntilIso}
+              onChange={(e) => setIneligibleUntilIso(e.target.value)}
+              className="w-full px-3 py-1.5 rounded border border-gob-border-strong  bg-white  text-sm"
+            />
+          </div>
+
+          {needsNotes && (
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs text-gob-text-muted" htmlFor="bulk-elig-notes">
+                Notas <span className="text-gob-danger">*</span>
+              </label>
+              <input
+                id="bulk-elig-notes"
+                type="text"
+                value={ineligibleReasonNotes}
+                onChange={(e) => setIneligibleReasonNotes(e.target.value)}
+                placeholder="Describí la situación"
+                className="w-full px-3 py-1.5 rounded border border-gob-border-strong  bg-white  text-sm"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={pending}
+          className="px-3 py-1.5 rounded text-sm border border-gob-border-strong "
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={pending || !canSubmit}
+          className="px-3 py-1.5 rounded text-sm font-medium bg-gob-info text-white  hover:bg-gob-info disabled:opacity-50"
+        >
+          {pending ? "Guardando..." : "Confirmar elegibilidad"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── ResultPanel ──────────────────────────────────────────────────────────────
 
-function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () => void }) {
+function ResultPanel({
+  result,
+  actionType,
+  onDismiss,
+}: {
+  result: BulkResult;
+  actionType: "vaccinate" | "eligibility";
+  onDismiss: () => void;
+}) {
+  const nounSingular = actionType === "vaccinate" ? "vacunada" : "actualizada";
+  const nounPlural = actionType === "vaccinate" ? "vacunadas" : "actualizadas";
+  const noun = result.succeeded.length === 1 ? nounSingular : nounPlural;
+
   return (
     <div className="rounded border border-gob-border-strong  p-3 space-y-2 text-sm">
       <div className="flex items-baseline justify-between">
         <p className="font-medium">
-          {result.succeeded.length} vacunada{result.succeeded.length === 1 ? "" : "s"} ·{" "}
-          {result.failed.length} fallaron
+          {result.succeeded.length} {noun} · {result.failed.length} fallaron
         </p>
         <button
           type="button"
