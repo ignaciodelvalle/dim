@@ -11,6 +11,7 @@
 // Auth is stubbed via vi.mock("@/lib/supabase/server") so requireCapability
 // reads the mocked user. Ownership and event inserts use the real DB.
 
+import { createHash } from "node:crypto";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -266,7 +267,7 @@ describe("bulkSetEligibilityAction", () => {
     const result = await bulkSetEligibilityAction({
       orgToken,
       petPublicTokens: PET_TOKENS_ELIGIBLE,
-      bulkActionId: "elig-happy-aaaa-bbbb-cccc-dddddddddddd",
+      bulkActionId: "11334455-1133-4234-8455-112233445566",
       eligible: true,
     });
 
@@ -307,7 +308,7 @@ describe("bulkSetEligibilityAction", () => {
     const result = await bulkSetEligibilityAction({
       orgToken,
       petPublicTokens: PET_TOKENS_INELIGIBLE,
-      bulkActionId: "inelig-happy-bbbb-cccc-dddd-eeeeeeeeeeee",
+      bulkActionId: "22445566-2244-4345-8566-223344556677",
       eligible: false,
       ineligibleReason: "medical_treatment",
       ineligibleReasonNotes: "Recuperándose de cirugía",
@@ -346,7 +347,7 @@ describe("bulkSetEligibilityAction", () => {
     const result = await bulkSetEligibilityAction({
       orgToken,
       petPublicTokens: PET_TOKENS_ELIGIBLE.slice(0, 2),
-      bulkActionId: "valid-noreas-cccc-dddd-eeee-ffffffffffff",
+      bulkActionId: "33556677-3355-4456-8677-334455667788",
       eligible: false,
       // ineligibleReason intentionally omitted
     });
@@ -363,7 +364,7 @@ describe("bulkSetEligibilityAction", () => {
     const result = await bulkSetEligibilityAction({
       orgToken,
       petPublicTokens: allTokens,
-      bulkActionId: "partial-elig-dddd-eeee-ffff-000000000000",
+      bulkActionId: "44667788-4466-4567-8788-445566778899",
       eligible: true,
     });
 
@@ -384,7 +385,7 @@ describe("bulkSetEligibilityAction", () => {
     mockSessionAs(coordUserId);
 
     const tokens = PET_TOKENS_ELIGIBLE.slice(0, 3);
-    const bulkActionId = "idem-elig-eeee-ffff-0000-111111111111";
+    const bulkActionId = "55778899-5577-4678-8899-5566778899aa";
 
     const result1 = await bulkSetEligibilityAction({
       orgToken,
@@ -403,23 +404,35 @@ describe("bulkSetEligibilityAction", () => {
     expect([...result1.succeeded].sort()).toEqual([...result2.succeeded].sort());
     expect(result2.failed).toHaveLength(0);
 
-    // No duplicate events: exactly 1 adoption_eligibility_set per pet with this key.
+    // No duplicate events: exactly 1 adoption_eligibility_set per pet for the
+    // specific clientIdempotencyKey derived from this bulkActionId.
+    // Derive key the same way the action does (SHA-256 of bulkActionId:petId → UUID v4).
     for (const token of tokens) {
       const [p] = await db.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
       expect(p).toBeTruthy();
+
+      const hash = createHash("sha256").update(`${bulkActionId}:${p!.id}`).digest("hex");
+      const variantNibble = (Number.parseInt(hash.charAt(16), 16) & 0x3) | 0x8;
+      const expectedKey = [
+        hash.slice(0, 8),
+        hash.slice(8, 12),
+        `4${hash.slice(13, 16)}`,
+        `${variantNibble.toString(16)}${hash.slice(17, 20)}`,
+        hash.slice(20, 32),
+      ].join("-");
+
       const evts = await db
         .select()
         .from(petEvents)
         .where(
-          and(eq(petEvents.petId, p!.id), eq(petEvents.eventType, "adoption_eligibility_set")),
+          and(
+            eq(petEvents.petId, p!.id),
+            eq(petEvents.eventType, "adoption_eligibility_set"),
+            eq(petEvents.clientIdempotencyKey, expectedKey),
+          ),
         );
-      // There may be more than 1 event across all tests (happy-path + this one
-      // use different bulkActionIds and therefore different idempotency keys).
-      // Filter to just the ones sharing the same idempotency key prefix.
-      // Since we can't easily filter by key directly, we assert no more than
-      // 2 total events (one from happy-path, one from this run) — the retry
-      // must NOT have added a third.
-      expect(evts.length).toBeLessThanOrEqual(2);
+      // Exactly 1 event for this specific idempotency key — the retry must be a no-op.
+      expect(evts).toHaveLength(1);
     }
   }, 30_000);
 
@@ -429,7 +442,7 @@ describe("bulkSetEligibilityAction", () => {
     const result = await bulkSetEligibilityAction({
       orgToken,
       petPublicTokens: PET_TOKENS_ELIGIBLE.slice(0, 3),
-      bulkActionId: "auth-elig-ffff-0000-1111-222222222222",
+      bulkActionId: "668899aa-6688-4789-89aa-6677889900bb",
       eligible: true,
     });
 
@@ -439,4 +452,29 @@ describe("bulkSetEligibilityAction", () => {
       expect(f.reason).toBeTruthy();
     }
   }, 10_000);
+
+  it.each([
+    { label: "empty string", id: "" },
+    { label: "non-UUID string", id: "not-a-uuid" },
+    { label: "UUID v1 (wrong version)", id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8" },
+  ])(
+    "invalid bulkActionId ($label) → all tokens rejected before DB",
+    async ({ id }) => {
+      mockSessionAs(coordUserId);
+
+      const tokens = PET_TOKENS_ELIGIBLE.slice(0, 2);
+      const result = await bulkSetEligibilityAction({
+        orgToken,
+        petPublicTokens: tokens,
+        // Cast to string to simulate a caller bypassing the type
+        bulkActionId: id as string,
+        eligible: true,
+      });
+
+      expect(result.succeeded).toHaveLength(0);
+      expect(result.failed).toHaveLength(tokens.length);
+      expect(result.failed[0]!.reason).toContain("bulkActionId");
+    },
+    10_000,
+  );
 });

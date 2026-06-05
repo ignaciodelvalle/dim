@@ -3,6 +3,14 @@
 // constraint), and client components need to import the input shape without
 // crossing a server boundary.
 
+// UUID v4 shape: 8-4-4-4-12 hex, version nibble = 4, variant nibble = 8|9|a|b.
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Returns true when `id` is a non-empty UUID v4 string. */
+export function isValidBulkActionId(id: unknown): id is string {
+  return typeof id === "string" && UUID_V4_RE.test(id);
+}
+
 export type BulkVaccinateInput = {
   orgToken: string;
   petPublicTokens: string[];

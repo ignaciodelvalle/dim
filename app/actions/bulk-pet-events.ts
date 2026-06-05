@@ -26,12 +26,24 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import type { BulkResult } from "./bulk-actions";
 import type { BulkSetEligibilityInput, BulkVaccinateInput } from "./bulk-vaccinate-types";
-import { BULK_INELIGIBLE_REASONS } from "./bulk-vaccinate-types";
+import { BULK_INELIGIBLE_REASONS, isValidBulkActionId } from "./bulk-vaccinate-types";
 
 const BULK_BATCH_MAX = 500;
 
 export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<BulkResult> {
   const bulkActionId = input.bulkActionId;
+
+  // --- 0a. Validate bulkActionId — must be a UUID v4 so key derivation is safe ---
+  if (!isValidBulkActionId(bulkActionId)) {
+    return {
+      bulkActionId: String(bulkActionId ?? ""),
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: "bulkActionId inválido.",
+      })),
+    };
+  }
 
   // --- 0. Batch size cap ---
   if (input.petPublicTokens.length > BULK_BATCH_MAX) {
@@ -252,6 +264,18 @@ export async function bulkSetEligibilityAction(
   input: BulkSetEligibilityInput,
 ): Promise<BulkResult> {
   const bulkActionId = input.bulkActionId;
+
+  // --- 0a. Validate bulkActionId — must be a UUID v4 so key derivation is safe ---
+  if (!isValidBulkActionId(bulkActionId)) {
+    return {
+      bulkActionId: String(bulkActionId ?? ""),
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: "bulkActionId inválido.",
+      })),
+    };
+  }
 
   // --- 0. Batch size cap ---
   if (input.petPublicTokens.length > BULK_BATCH_MAX) {

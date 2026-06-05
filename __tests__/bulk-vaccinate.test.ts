@@ -280,7 +280,7 @@ describe("bulkVaccinateAction", () => {
       batch: "L-2026-A",
       administeredBy: "Dr. Test",
       nextDueAt: null,
-      bulkActionId: "happy-path-aaaa-bbbb-cccc-dddddddddddd",
+      bulkActionId: "aabbccdd-aabb-4bcc-8ddd-aabbccddeeff",
     });
 
     expect(result.succeeded).toHaveLength(20);
@@ -317,7 +317,7 @@ describe("bulkVaccinateAction", () => {
 
     const tokens = PET_TOKENS_HAPPY.slice(0, 2);
     const nextDueAt = "2027-01-15";
-    const bulkActionId = "reminder-sid-test-bbbb-cccc-dddddddddddd";
+    const bulkActionId = "bbccddee-bbcc-4cdd-8eee-bbccddeeff00";
 
     await bulkVaccinateAction({
       orgToken,
@@ -360,7 +360,7 @@ describe("bulkVaccinateAction", () => {
     mockSessionAs(coordUserId);
 
     const tokens = PET_TOKENS_HAPPY.slice(5, 7);
-    const bulkActionId = "no-dup-reminder-4ddd-8eee-ffffffffffff";
+    const bulkActionId = "ccddee00-ccdd-4dee-8f00-ccddee001122";
 
     await bulkVaccinateAction({
       orgToken,
@@ -402,7 +402,7 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: tokens,
       vaccineName: "Any vaccine",
       occurredAt: "2026-06-12",
-      bulkActionId: "cap-test-aaaa-bbbb-cccc-dddddddddddd",
+      bulkActionId: "ddee0011-ddee-4ef0-8011-ddee00112233",
     });
 
     expect(result.succeeded).toHaveLength(0);
@@ -420,7 +420,7 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: allTokens,
       vaccineName: "Triple felina",
       occurredAt: "2026-06-02",
-      bulkActionId: "partial-fail-aaaa-bbbb-cccc-dddddddddddd",
+      bulkActionId: "ee001122-ee00-4f01-8122-ee0011223344",
     });
 
     expect(result.succeeded).toHaveLength(PET_TOKENS_PARTIAL_GOOD.length);
@@ -492,7 +492,7 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: PET_TOKENS_HAPPY.slice(0, 3),
       vaccineName: "Some vaccine",
       occurredAt: "2026-06-04",
-      bulkActionId: "auth-test-aaaa-bbbb-cccc-dddddddddddd",
+      bulkActionId: "ff112233-ff11-4012-8233-ff1122334455",
     });
 
     expect(result.succeeded).toHaveLength(0);
@@ -510,10 +510,35 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: PET_TOKENS_SCALE,
       vaccineName: "Vacuna masiva",
       occurredAt: "2026-06-05",
-      bulkActionId: "scale-test-aaaa-bbbb-cccc-dddddddddddd",
+      bulkActionId: "00223344-0022-4123-8344-001122334455",
     });
 
     expect(result.succeeded).toHaveLength(200);
     expect(result.failed).toHaveLength(0);
   }, 300_000); // 5-min ceiling — correct semantics, no hard wall-time assertion
+
+  it.each([
+    { label: "empty string", id: "" },
+    { label: "non-UUID string", id: "not-a-uuid" },
+    { label: "UUID v1 (wrong version)", id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8" },
+  ])(
+    "invalid bulkActionId ($label) → all tokens rejected before DB",
+    async ({ id }) => {
+      mockSessionAs(coordUserId);
+
+      const tokens = PET_TOKENS_HAPPY.slice(0, 2);
+      const result = await bulkVaccinateAction({
+        orgToken,
+        petPublicTokens: tokens,
+        vaccineName: "Any vaccine",
+        occurredAt: "2026-06-04",
+        bulkActionId: id as string,
+      });
+
+      expect(result.succeeded).toHaveLength(0);
+      expect(result.failed).toHaveLength(tokens.length);
+      expect(result.failed[0]!.reason).toContain("bulkActionId");
+    },
+    10_000,
+  );
 });
