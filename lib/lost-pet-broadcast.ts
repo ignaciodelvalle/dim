@@ -17,7 +17,7 @@ import {
   organizations,
 } from "@/db";
 import type * as schema from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 // The transaction type accepted by Drizzle's `db.transaction(async (tx) => …)`
@@ -75,15 +75,28 @@ export async function broadcastLostPet(
   lastLocation: LastLocationForBroadcast,
 ): Promise<BroadcastResult> {
   try {
-    // 1. Require province + locality. Without them we have no jurisdiction to target.
+    // 1. Require province (locality is optional — province-only rows cover the whole province).
     const province = lastLocation?.province ?? pet.jurisdictionProvince ?? null;
     const locality = lastLocation?.locality ?? pet.jurisdictionLocality ?? null;
 
-    if (!province || !locality) {
+    if (!province) {
       return { broadcastedToMemberIds: [], orgCount: 0 };
     }
 
     // 2. Find verified, active orgs with coverage matching the jurisdiction.
+    //    A coverage row matches when:
+    //      - jurisdictionProvince = province AND jurisdictionLocality = locality (exact match), OR
+    //      - jurisdictionProvince = province AND jurisdictionLocality IS NULL (province-level row).
+    //    This means an org that registered province-level coverage receives broadcasts for
+    //    ANY locality in that province, while locality-specific rows still match exactly.
+    const localityPredicate =
+      locality !== null
+        ? or(
+            eq(organizationCoverage.jurisdictionLocality, locality),
+            isNull(organizationCoverage.jurisdictionLocality),
+          )
+        : isNull(organizationCoverage.jurisdictionLocality);
+
     const coveringOrgs = await (client as typeof db)
       .select({
         orgId: organizations.id,
@@ -96,7 +109,7 @@ export async function broadcastLostPet(
           eq(organizations.verified, true),
           eq(organizations.status, "active"),
           eq(organizationCoverage.jurisdictionProvince, province),
-          eq(organizationCoverage.jurisdictionLocality, locality),
+          localityPredicate,
         ),
       );
 

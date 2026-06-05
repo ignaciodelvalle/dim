@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { ADMIN_NAV, GOB_NAV, OWNER_NAV, buildOrgNav } from "./nav-presets";
 
 describe("buildOrgNav", () => {
-  it("produces exactly 7 items (includes Miembros + Configuración entries)", () => {
-    expect(buildOrgNav("ORG-ABC")).toHaveLength(7);
+  it("produces exactly 8 items (includes Miembros + Cobertura + Configuración entries)", () => {
+    expect(buildOrgNav("ORG-ABC")).toHaveLength(8);
   });
 
   it("does not contain an equipo entry (broken nav — ADR-4: no roadmap signal → remove)", () => {
@@ -32,14 +32,22 @@ describe("buildOrgNav", () => {
     expect(panel.href).toBe("/org/ORG-ABC");
   });
 
-  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Configuración entries", () => {
+  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración entries", () => {
     const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
     expect(labels).toContain("Agenda");
     expect(labels).toContain("Mascotas");
     expect(labels).toContain("Servicios");
     expect(labels).toContain("Operaciones");
     expect(labels).toContain("Miembros");
+    expect(labels).toContain("Cobertura");
     expect(labels).toContain("Configuración");
+  });
+
+  it("Cobertura entry points to /org/<orgToken>/cobertura", () => {
+    const items = buildOrgNav("ORG-ABC");
+    const cobertura = items.find((i) => i.label === "Cobertura");
+    expect(cobertura).toBeDefined();
+    expect(cobertura?.href).toBe("/org/ORG-ABC/cobertura");
   });
 
   it("Configuración entry points to /org/<orgToken>/configuracion", () => {
