@@ -886,6 +886,12 @@ export const organizationMemberships = pgTable(
     activeIdx: index("organization_memberships_active_idx")
       .on(table.organizationId, table.userId)
       .where(sql`${table.leftAt} IS NULL`),
+    // Exactly one active membership per (org, user). Mirrors migration 0072.
+    // Prevents duplicate active memberships if two concurrent invite-accepts
+    // slip past the FOR UPDATE lock (e.g. via different invite tokens).
+    activeUniqueIdx: uniqueIndex("organization_memberships_active_unique")
+      .on(table.organizationId, table.userId)
+      .where(sql`${table.leftAt} IS NULL`),
   }),
 );
 
@@ -3337,3 +3343,54 @@ export const jurisdictionsCensus = pgTable("jurisdictions_census", {
 
 export type JurisdictionCensus = typeof jurisdictionsCensus.$inferSelect;
 export type NewJurisdictionCensus = typeof jurisdictionsCensus.$inferInsert;
+
+// ============================================================================
+// Organization invitations — link-based member invite flow (migration 0071)
+// ============================================================================
+// Invite is email-tied: acceptance requires the logged-in user's email to match
+// the invitation email exactly (case-insensitive). Role is fixed at invite time
+// and bounded by the inviter's role rank. Foster is excluded (comes via the
+// foster-proposal flow). Delivery is a shareable link; no email in this slice.
+//
+// Duplicate prevention: partial unique index on (organization_id, lower(email))
+// WHERE accepted_at IS NULL AND revoked_at IS NULL. Re-invite is allowed once
+// the previous invite is accepted/revoked/expired.
+
+export const organizationInvitations = pgTable(
+  "organization_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    invitedRole: organizationMembershipRoleEnum("invited_role").notNull(),
+    canWritePetEvents: boolean("can_write_pet_events").notNull().default(false),
+    invitedByUserId: uuid("invited_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    invitationToken: text("invitation_token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '14 days'`),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedByUserId: uuid("accepted_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    orgIdx: index("org_invitations_org_id_idx").on(table.organizationId),
+    tokenIdx: index("org_invitations_token_idx").on(table.invitationToken),
+    emailIdx: index("org_invitations_email_idx").on(table.email),
+    // Partial unique index — exactly one active invite per (org, lower(email)).
+    // Mirrors the SQL: CREATE UNIQUE INDEX … WHERE accepted_at IS NULL AND revoked_at IS NULL.
+    activeUnique: uniqueIndex("org_invitations_active_unique")
+      .on(table.organizationId, sql`lower(${table.email})`)
+      .where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`),
+  }),
+);
+
+export type OrganizationInvitation = typeof organizationInvitations.$inferSelect;
+export type NewOrganizationInvitation = typeof organizationInvitations.$inferInsert;
