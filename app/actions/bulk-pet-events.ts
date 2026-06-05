@@ -677,8 +677,10 @@ export async function bulkPublishListingAction(
           });
           continue;
         }
-        // Note: "deceased" is already excluded by the ownership query (ne(pets.status, "deceased"))
-        // but we mirror the single-pet guard explicitly for clarity and test coverage.
+        // Defense-in-depth: the ownership query already excludes deceased pets via
+        // ne(pets.status, "deceased"), so this guard is unreachable in practice.
+        // It is retained to mirror the single-pet path and protect against future
+        // query changes that might inadvertently include deceased pets.
         if (petEntry.status === "deceased") {
           failed.push({
             id: token,

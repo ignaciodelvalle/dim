@@ -5,8 +5,9 @@
 //   - per-pet guard failures:
 //       · ineligible pet (adoptionEligible=false) → failed[] with eligibility message
 //       · lost pet → failed[] with lost message
-//       · deceased status (set directly, bypassing ownership filter) → tested via
-//         inCustodyDispute guard since deceased is filtered by the ownership query
+//       · deceased pets are excluded at the ownership-query level
+//         (ne(pets.status, "deceased")) and are therefore not reachable by the
+//         in-loop guard; no separate unit test covers that path through the loop.
 //       · inCustodyDispute=true → failed[] with dispute message
 //       · rabiesObservationStatus="in_progress" → failed[] with observation message
 //     While an eligible pet in the same batch succeeds.
@@ -425,8 +426,14 @@ describe("bulkPublishListingAction", () => {
       publish: false,
     });
 
+    // The action must report the token in succeeded[] and zero failures.
+    // This is the server-side source of truth that drives the UI: the client
+    // maps publish=false results to the "listing-unlist" actionType, which
+    // ResultPanel renders as "despublicada(s)". The noun mapping itself is
+    // enforced by the TypeScript union (listing-publish | listing-unlist).
     expect(result.succeeded).toContain(PET_TOKENS_ELIGIBLE[0]!);
     expect(result.failed).toHaveLength(0);
+    expect(result.bulkActionId).toBeTruthy();
 
     const [pet] = await db.select().from(pets).where(eq(pets.publicToken, PET_TOKENS_ELIGIBLE[0]!));
     expect(pet!.adoptionListedAt).toBeNull();

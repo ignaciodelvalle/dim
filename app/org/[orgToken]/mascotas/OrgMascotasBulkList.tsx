@@ -146,7 +146,7 @@ export function OrgMascotasBulkList({
   const [mode, setMode] = useState<"none" | "vaccinate" | "eligibility" | "listing">("none");
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
   const [lastResultType, setLastResultType] = useState<
-    "vaccinate" | "eligibility" | "listing" | null
+    "vaccinate" | "eligibility" | "listing-publish" | "listing-unlist" | null
   >(null);
 
   const fosteredSet = new Set(fosteredPetIds);
@@ -487,7 +487,7 @@ export function OrgMascotasBulkList({
                       publish,
                     });
                     setLastResult(result);
-                    setLastResultType("listing");
+                    setLastResultType(publish ? "listing-publish" : "listing-unlist");
                     setMode("none");
                     setSelected(new Set());
                     router.refresh();
@@ -873,21 +873,25 @@ function ResultPanel({
   onDismiss,
 }: {
   result: BulkResult;
-  actionType: "vaccinate" | "eligibility" | "listing";
+  actionType: "vaccinate" | "eligibility" | "listing-publish" | "listing-unlist";
   onDismiss: () => void;
 }) {
   const nounSingular =
     actionType === "vaccinate"
       ? "vacunada"
-      : actionType === "listing"
+      : actionType === "listing-publish"
         ? "publicada"
-        : "actualizada";
+        : actionType === "listing-unlist"
+          ? "despublicada"
+          : "actualizada";
   const nounPlural =
     actionType === "vaccinate"
       ? "vacunadas"
-      : actionType === "listing"
+      : actionType === "listing-publish"
         ? "publicadas"
-        : "actualizadas";
+        : actionType === "listing-unlist"
+          ? "despublicadas"
+          : "actualizadas";
   const noun = result.succeeded.length === 1 ? nounSingular : nounPlural;
 
   return (
