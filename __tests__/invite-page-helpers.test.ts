@@ -1,8 +1,8 @@
-// Unit tests for helpers in app/r/invite/[token]/page.tsx.
+// Unit tests for helpers in app/r/invite/[token]/helpers.ts.
 
 import { describe, expect, it } from "vitest";
 
-import { maskEmail } from "@/app/r/invite/[token]/page";
+import { maskEmail } from "@/app/r/invite/[token]/helpers";
 
 describe("maskEmail", () => {
   it("masks a standard email", () => {

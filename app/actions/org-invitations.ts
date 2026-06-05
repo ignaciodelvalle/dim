@@ -17,7 +17,6 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
-  type OrganizationMembership,
   db,
   notifications,
   organizationInvitations,
@@ -25,27 +24,16 @@ import {
   organizations,
   profiles,
 } from "@/db";
+import { INVITABLE_ROLES, type InvitableRole, ROLE_RANK } from "./org-invitations.constants";
 import { requireCapability } from "@/lib/capabilities";
 import { generateInvitationToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
 
 // ============================================================================
-// Role-rank model
+// Role-rank model (see org-invitations.constants.ts — "use server" can only
+// export async functions; ROLE_RANK and InvitableRole live in constants)
 // ============================================================================
-
-// Invitable roles (foster excluded — comes via foster-proposal flow).
-const INVITABLE_ROLES = ["admin", "coordinator", "member", "volunteer", "vet_individual"] as const;
-export type InvitableRole = (typeof INVITABLE_ROLES)[number];
-
-export const ROLE_RANK: Record<OrganizationMembership["role"], number> = {
-  admin: 5,
-  coordinator: 4,
-  member: 3,
-  vet_individual: 3,
-  volunteer: 2,
-  foster: 1,
-};
 
 function isInvitableRole(role: string): role is InvitableRole {
   return (INVITABLE_ROLES as readonly string[]).includes(role);

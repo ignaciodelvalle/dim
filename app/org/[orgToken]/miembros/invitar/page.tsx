@@ -7,7 +7,7 @@
 
 import { redirect } from "next/navigation";
 
-import { type InvitableRole, ROLE_RANK } from "@/app/actions/org-invitations";
+import { type InvitableRole, ROLE_RANK } from "@/app/actions/org-invitations.constants";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/lib/capabilities";
 

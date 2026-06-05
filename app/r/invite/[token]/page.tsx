@@ -14,6 +14,7 @@ import { db, organizationInvitations, organizations } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 
 import { AcceptButton } from "./AcceptButton";
+import { maskEmail } from "./helpers";
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
@@ -23,17 +24,6 @@ const ROLE_LABEL: Record<string, string> = {
   vet_individual: "Veterinario",
   foster: "Tránsito",
 };
-
-/**
- * Mask a PII email address so token-holders cannot read the full address.
- * Shows the first character of the local part + "***" + "@" + domain.
- * e.g. "juan@refugio.org" → "j***@refugio.org"
- */
-export function maskEmail(email: string): string {
-  const atIdx = email.indexOf("@");
-  if (atIdx <= 0) return "***";
-  return `${email[0]}***${email.slice(atIdx)}`;
-}
 
 export default async function InviteAcceptPage({
   params,
