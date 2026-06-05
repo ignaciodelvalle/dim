@@ -110,6 +110,9 @@ async function purgeTestPetsByTokens(tokens: string[]) {
     for (const token of tokens) {
       const rows = await tx.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
       for (const { id } of rows) {
+        // Explicitly delete petEvents before pets — don't rely on ON DELETE CASCADE
+        // so re-runs don't leave stale events that break idempotency toHaveLength(1) assertions.
+        await tx.delete(petEvents).where(eq(petEvents.petId, id));
         await tx.delete(reminders).where(eq(reminders.petId, id));
         await tx.delete(ownerships).where(eq(ownerships.petId, id));
         await tx.delete(pets).where(eq(pets.id, id));
@@ -277,6 +280,7 @@ describe("bulkVaccinateAction", () => {
       batch: "L-2026-A",
       administeredBy: "Dr. Test",
       nextDueAt: null,
+      bulkActionId: "happy-path-aaaa-bbbb-cccc-dddddddddddd",
     });
 
     expect(result.succeeded).toHaveLength(20);
@@ -308,6 +312,104 @@ describe("bulkVaccinateAction", () => {
     expect(evts[0]!.clientIdempotencyKey).toBeTruthy();
   }, 60_000);
 
+  it("reminder has sourceEventId and petName in description when nextDueAt is set", async () => {
+    mockSessionAs(coordUserId);
+
+    const tokens = PET_TOKENS_HAPPY.slice(0, 2);
+    const nextDueAt = "2027-01-15";
+    const bulkActionId = "reminder-sid-test-bbbb-cccc-dddddddddddd";
+
+    await bulkVaccinateAction({
+      orgToken,
+      petPublicTokens: tokens,
+      vaccineName: "Refuerzo test",
+      occurredAt: "2026-06-10",
+      nextDueAt,
+      bulkActionId,
+    });
+
+    for (const token of tokens) {
+      const [p] = await db
+        .select({ id: pets.id, name: pets.name })
+        .from(pets)
+        .where(eq(pets.publicToken, token));
+      expect(p).toBeTruthy();
+
+      const evts = await db
+        .select()
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, p!.id), eq(petEvents.eventType, "vaccination_administered")),
+        );
+      const refuerzo = evts.find(
+        (e) => (e.payload as Record<string, unknown>).vaccine_name === "Refuerzo test",
+      );
+      expect(refuerzo).toBeTruthy();
+
+      const rems = await db.select().from(reminders).where(eq(reminders.petId, p!.id));
+      const rem = rems.find((r) => r.title === "Refuerzo: Refuerzo test");
+      expect(rem).toBeTruthy();
+      // sourceEventId must be set (W1).
+      expect(rem!.sourceEventId).toBe(refuerzo!.id);
+      // Description must include pet name (S1).
+      expect(rem!.description).toBe(`Próxima dosis programada para ${p!.name}.`);
+    }
+  }, 30_000);
+
+  it("retry does NOT create a duplicate reminder (idempotent no-op skips reminder insert)", async () => {
+    mockSessionAs(coordUserId);
+
+    const tokens = PET_TOKENS_HAPPY.slice(5, 7);
+    const bulkActionId = "no-dup-reminder-4ddd-8eee-ffffffffffff";
+
+    await bulkVaccinateAction({
+      orgToken,
+      petPublicTokens: tokens,
+      vaccineName: "Antiparasitario doble",
+      occurredAt: "2026-06-11",
+      nextDueAt: "2026-12-11",
+      bulkActionId,
+    });
+
+    // Second run — same bulkActionId → wasNoop=true → NO new reminder.
+    await bulkVaccinateAction({
+      orgToken,
+      petPublicTokens: tokens,
+      vaccineName: "Antiparasitario doble",
+      occurredAt: "2026-06-11",
+      nextDueAt: "2026-12-11",
+      bulkActionId,
+    });
+
+    for (const token of tokens) {
+      const [p] = await db.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
+      const rems = await db.select().from(reminders).where(eq(reminders.petId, p!.id));
+      const matching = rems.filter((r) => r.title === "Refuerzo: Antiparasitario doble");
+      // Exactly 1 reminder — the second run must have been a no-op.
+      expect(matching).toHaveLength(1);
+    }
+  }, 30_000);
+
+  it(">500 pets: server rejects with cap error for all tokens", async () => {
+    mockSessionAs(coordUserId);
+
+    const tokens = Array.from(
+      { length: 501 },
+      (_, i) => `DIM-OVER-CAP-${String(i).padStart(3, "0")}`,
+    );
+    const result = await bulkVaccinateAction({
+      orgToken,
+      petPublicTokens: tokens,
+      vaccineName: "Any vaccine",
+      occurredAt: "2026-06-12",
+      bulkActionId: "cap-test-aaaa-bbbb-cccc-dddddddddddd",
+    });
+
+    expect(result.succeeded).toHaveLength(0);
+    expect(result.failed).toHaveLength(501);
+    expect(result.failed[0]!.reason).toContain("500");
+  }, 10_000);
+
   it("partial failure: tokens not in custody → failed[], the rest succeed", async () => {
     mockSessionAs(coordUserId);
 
@@ -318,6 +420,7 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: allTokens,
       vaccineName: "Triple felina",
       occurredAt: "2026-06-02",
+      bulkActionId: "partial-fail-aaaa-bbbb-cccc-dddddddddddd",
     });
 
     expect(result.succeeded).toHaveLength(PET_TOKENS_PARTIAL_GOOD.length);
@@ -389,6 +492,7 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: PET_TOKENS_HAPPY.slice(0, 3),
       vaccineName: "Some vaccine",
       occurredAt: "2026-06-04",
+      bulkActionId: "auth-test-aaaa-bbbb-cccc-dddddddddddd",
     });
 
     expect(result.succeeded).toHaveLength(0);
@@ -406,6 +510,7 @@ describe("bulkVaccinateAction", () => {
       petPublicTokens: PET_TOKENS_SCALE,
       vaccineName: "Vacuna masiva",
       occurredAt: "2026-06-05",
+      bulkActionId: "scale-test-aaaa-bbbb-cccc-dddddddddddd",
     });
 
     expect(result.succeeded).toHaveLength(200);

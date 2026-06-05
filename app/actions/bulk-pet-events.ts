@@ -11,7 +11,7 @@
 // hash of (bulkActionId + petId) so re-submitting with the same bulkActionId
 // is a safe no-op. The column type is uuid so the key must be a valid UUID.
 
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { db, organizations, ownerships, petEvents, pets, reminders } from "@/db";
@@ -24,8 +24,22 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { BulkResult } from "./bulk-actions";
 import type { BulkVaccinateInput } from "./bulk-vaccinate-types";
 
+const BULK_BATCH_MAX = 500;
+
 export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<BulkResult> {
-  const bulkActionId = input.bulkActionId ?? randomUUID();
+  const bulkActionId = input.bulkActionId;
+
+  // --- 0. Batch size cap ---
+  if (input.petPublicTokens.length > BULK_BATCH_MAX) {
+    return {
+      bulkActionId,
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: `Máximo ${BULK_BATCH_MAX} mascotas por lote masivo.`,
+      })),
+    };
+  }
 
   // --- 1. Resolve org by publicToken ---
   const [orgRow] = await db
@@ -110,7 +124,7 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
     tokens.length === 0
       ? []
       : await db
-          .select({ petId: pets.id, publicToken: pets.publicToken })
+          .select({ petId: pets.id, publicToken: pets.publicToken, petName: pets.name })
           .from(pets)
           .innerJoin(ownerships, eq(ownerships.petId, pets.id))
           .where(
@@ -123,23 +137,25 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
             ),
           );
 
-  const tokenToPetId = new Map<string, string>();
+  const tokenToPet = new Map<string, { petId: string; petName: string }>();
   for (const row of ownedRows) {
-    tokenToPetId.set(row.publicToken, row.petId);
+    tokenToPet.set(row.publicToken, { petId: row.petId, petName: row.petName });
   }
 
   const succeeded: string[] = [];
   const failed: { id: string; reason: string }[] = [];
 
   for (const token of tokens) {
-    const petId = tokenToPetId.get(token);
-    if (!petId) {
+    const petEntry = tokenToPet.get(token);
+    if (!petEntry) {
       failed.push({
         id: token,
         reason: "No está bajo custodia activa de tu organización (o no está vivo).",
       });
       continue;
     }
+
+    const { petId, petName } = petEntry;
 
     // --- 5. Best-effort per-pet transaction ---
     try {
@@ -166,7 +182,7 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
           next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
         });
 
-        const { wasNoop } = await insertEventIdempotent(
+        const { wasNoop, event } = await insertEventIdempotent(
           {
             petId,
             eventType: "vaccination_administered",
@@ -184,7 +200,8 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
         );
 
         // No-op = already written with this key (idempotent retry). Count as
-        // succeeded — the event exists and is correct.
+        // succeeded — the event exists and the reminder was already created on
+        // the original run. Do NOT insert a duplicate reminder.
         if (wasNoop) return;
 
         // Auto-create a vaccine reminder when next dose is known.
@@ -195,7 +212,8 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
             reminderType: "vaccine",
             dueAt: nextDueAt,
             title: `Refuerzo: ${vaccineName}`,
-            description: "Próxima dosis programada (lote masivo).",
+            description: `Próxima dosis programada para ${petName}.`,
+            sourceEventId: event.id,
           });
         }
       });

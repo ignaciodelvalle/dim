@@ -82,6 +82,8 @@ const SPECIES_LABELS: Record<string, string> = {
   other: "Otro",
 };
 
+const BULK_MAX = 500;
+
 function speciesLabel(s: string): string {
   return SPECIES_LABELS[s] ?? s;
 }
@@ -323,10 +325,15 @@ export function OrgMascotasBulkList({
           <div className="max-w-3xl mx-auto px-6 py-3 space-y-3">
             {mode === "none" && (
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm">
-                  <span className="font-medium">{selected.size}</span> seleccionada
-                  {selected.size === 1 ? "" : "s"}
-                </p>
+                <div>
+                  <p className="text-sm">
+                    <span className="font-medium">{selected.size}</span> seleccionada
+                    {selected.size === 1 ? "" : "s"}
+                    {selected.size > BULK_MAX && (
+                      <span className="ml-2 text-gob-danger text-xs">(máx. {BULK_MAX})</span>
+                    )}
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -338,7 +345,8 @@ export function OrgMascotasBulkList({
                   <button
                     type="button"
                     onClick={() => setMode("vaccinate")}
-                    className="px-3 py-1.5 rounded text-sm bg-gob-primary text-white  hover:bg-gob-primary"
+                    disabled={selected.size > BULK_MAX}
+                    className="px-3 py-1.5 rounded text-sm bg-gob-primary text-white  hover:bg-gob-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Vacunar selección
                   </button>
