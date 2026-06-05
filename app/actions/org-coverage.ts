@@ -13,18 +13,13 @@ import { db, organizationCoverage } from "@/db";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/ar-provincias";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { isManagerRole } from "@/lib/org-roles";
 
 // ============================================================================
 // Shared helpers
 // ============================================================================
 
 type ActionResult = { ok: true } | { error: string };
-
-const MANAGER_ROLES = ["admin", "coordinator"] as const;
-
-function isManagerRole(role: string): boolean {
-  return (MANAGER_ROLES as readonly string[]).includes(role);
-}
 
 // Canonical province names as a fast lookup set (widened to string for has() compatibility).
 const VALID_PROVINCE_NAMES: ReadonlySet<string> = new Set<string>(PROVINCES.map((p) => p.name));
@@ -113,23 +108,24 @@ export async function removeCoverageZoneAction(
     return { error: "Solo administradores y coordinadores pueden gestionar zonas de cobertura." };
   }
 
-  // Verify the row belongs to this org before deleting.
-  const [row] = await db
-    .select({ id: organizationCoverage.id })
-    .from(organizationCoverage)
+  // W2: fold the ownership check into the DELETE WHERE so there is no
+  // TOCTOU window between the ownership SELECT and the actual DELETE.
+  // Drizzle does not expose affected-row count directly, so we use
+  // a returning() clause: if zero rows come back, the row either
+  // didn't exist or belonged to another org.
+  const deleted = await db
+    .delete(organizationCoverage)
     .where(
       and(
         eq(organizationCoverage.id, input.coverageId),
         eq(organizationCoverage.organizationId, organization.id),
       ),
     )
-    .limit(1);
+    .returning({ id: organizationCoverage.id });
 
-  if (!row) {
+  if (deleted.length === 0) {
     return { error: "Zona no encontrada." };
   }
-
-  await db.delete(organizationCoverage).where(eq(organizationCoverage.id, input.coverageId));
 
   revalidatePath(`/org/${input.orgToken}/cobertura`);
   return { ok: true };
@@ -151,34 +147,36 @@ export async function setPrimaryCoverageZoneAction(input: SetPrimaryInput): Prom
     return { error: "Solo administradores y coordinadores pueden gestionar zonas de cobertura." };
   }
 
-  // Verify target row belongs to this org.
-  const [row] = await db
-    .select({ id: organizationCoverage.id })
-    .from(organizationCoverage)
-    .where(
-      and(
-        eq(organizationCoverage.id, input.coverageId),
-        eq(organizationCoverage.organizationId, organization.id),
-      ),
-    )
-    .limit(1);
-
-  if (!row) {
-    return { error: "Zona no encontrada." };
-  }
-
-  // In one transaction: clear all isPrimary for this org, then set target.
-  await db.transaction(async (tx) => {
+  // W2: move the ownership verification inside the transaction and scope
+  // the target UPDATE by organizationId so no TOCTOU window exists.
+  // The two-step pattern is: clear all isPrimary for this org, then atomically
+  // set the target — but only if that row also belongs to this org.
+  // Using returning() on the second UPDATE to detect "not found or wrong org".
+  const result = await db.transaction(async (tx) => {
+    // Clear all isPrimary flags for this org.
     await tx
       .update(organizationCoverage)
       .set({ isPrimary: false })
       .where(eq(organizationCoverage.organizationId, organization.id));
 
-    await tx
+    // Set the target row primary — scoped by both id AND organizationId.
+    const updated = await tx
       .update(organizationCoverage)
       .set({ isPrimary: true })
-      .where(eq(organizationCoverage.id, input.coverageId));
+      .where(
+        and(
+          eq(organizationCoverage.id, input.coverageId),
+          eq(organizationCoverage.organizationId, organization.id),
+        ),
+      )
+      .returning({ id: organizationCoverage.id });
+
+    return updated;
   });
+
+  if (result.length === 0) {
+    return { error: "Zona no encontrada." };
+  }
 
   revalidatePath(`/org/${input.orgToken}/cobertura`);
   return { ok: true };

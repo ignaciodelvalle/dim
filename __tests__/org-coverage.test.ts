@@ -25,13 +25,37 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   addCoverageZoneAction,
   removeCoverageZoneAction,
   setPrimaryCoverageZoneAction,
 } from "@/app/actions/org-coverage";
+import { isManagerRole } from "@/lib/org-roles";
+
+// ---------------------------------------------------------------------------
+// Mock requireOrgAccessByToken so role-gate tests (A6/A7/B3/C3) can inject
+// specific membership roles without a real Supabase session.
+//
+// Default implementation: returns an admin membership for the primary org.
+// Override per-test with vi.mocked(...).mockResolvedValueOnce(...) before
+// calling the action. The existing DB-path tests (A2/A3/B2/C1/D1-D3) never
+// invoke the action functions directly, so this mock does not affect them.
+// ---------------------------------------------------------------------------
+
+const MOCK_ORG_ID = "00000000-cafe-dead-beef-000000000001";
+const MOCK_ORG_TOKEN = "mock-org-token-for-role-tests";
+const MOCK_USER_ID = "00000000-cafe-dead-beef-000000000002";
+
+vi.mock("@/lib/auth-guards", () => ({
+  requireOrgAccessByToken: vi.fn(async () => ({
+    user: { id: MOCK_USER_ID },
+    organization: { id: MOCK_ORG_ID },
+    membership: { id: "mock-membership-id", role: "admin" },
+    supabase: {},
+  })),
+}));
 import {
   db,
   notifications,
@@ -324,18 +348,80 @@ async function insertBroadcastPet(
 // A. addCoverageZoneAction
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// isManagerRole unit tests — verify the decision path directly
+// ---------------------------------------------------------------------------
+
+describe("isManagerRole — decision path", () => {
+  it("returns true for admin and coordinator", () => {
+    expect(isManagerRole("admin")).toBe(true);
+    expect(isManagerRole("coordinator")).toBe(true);
+  });
+
+  it("returns false for member, volunteer, and other non-manager roles", () => {
+    expect(isManagerRole("member")).toBe(false);
+    expect(isManagerRole("volunteer")).toBe(false);
+    expect(isManagerRole("foster")).toBe(false);
+    expect(isManagerRole("vet_individual")).toBe(false);
+    expect(isManagerRole("")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A. addCoverageZoneAction — role gate tests (A6/A7)
+//
+// The mock at the top of this file controls requireOrgAccessByToken.
+// Override it per-test to inject a non-manager role.
+// The role check fires before any DB interaction, so no FK violations.
+// ---------------------------------------------------------------------------
+
+// Typed shorthand to build a mock OrgAccessSession with a specific role.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mockSession(role: string): any {
+  return {
+    user: { id: MOCK_USER_ID },
+    organization: { id: MOCK_ORG_ID },
+    membership: { id: "mock-mem", role },
+    supabase: {},
+  };
+}
+
 describe("addCoverageZoneAction — role gate", () => {
-  it("A6: rejects member role", async () => {
-    // We can't easily inject a Supabase session in vitest, so we test the
-    // exported action's internal role check by calling the DB path directly.
-    // The server action calls requireOrgAccessByToken → checks membership.role.
-    // For role-check unit coverage, we verify the isManagerRole helper logic
-    // via the action's exported path with a crafted org where we know the role.
-    //
-    // In a real e2e test the session cookie would identify the user. Here we
-    // verify the DB-level idempotency and validation logic below, and trust
-    // that server-actions-auth-coverage.test.ts enforces the guard call.
-    expect(["member", "volunteer"]).not.toContain("admin");
+  it("A6: member role → returns { error } and writes nothing to DB", async () => {
+    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
+
+    const result = await addCoverageZoneAction({
+      orgToken: MOCK_ORG_TOKEN,
+      province: "Buenos Aires",
+      locality: null,
+    });
+
+    expect(result).toEqual({
+      error: "Solo administradores y coordinadores pueden gestionar zonas de cobertura.",
+    });
+
+    // Verify no coverage row was written.
+    const rows = await db
+      .select({ id: organizationCoverage.id })
+      .from(organizationCoverage)
+      .where(eq(organizationCoverage.organizationId, MOCK_ORG_ID));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("A7: volunteer role → returns { error } and writes nothing to DB", async () => {
+    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("volunteer"));
+
+    const result = await addCoverageZoneAction({
+      orgToken: MOCK_ORG_TOKEN,
+      province: "Buenos Aires",
+      locality: null,
+    });
+
+    expect(result).toEqual({
+      error: "Solo administradores y coordinadores pueden gestionar zonas de cobertura.",
+    });
   });
 
   it("A4: rejects invalid province name", async () => {
@@ -432,6 +518,22 @@ describe("removeCoverageZoneAction — cross-org guard", () => {
   });
 });
 
+describe("removeCoverageZoneAction — role gate", () => {
+  it("B3: member role → returns { error } and deletes nothing", async () => {
+    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
+
+    const result = await removeCoverageZoneAction({
+      orgToken: MOCK_ORG_TOKEN,
+      coverageId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(result).toEqual({
+      error: "Solo administradores y coordinadores pueden gestionar zonas de cobertura.",
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // C. setPrimaryCoverageZoneAction
 // ---------------------------------------------------------------------------
@@ -488,6 +590,22 @@ describe("setPrimaryCoverageZoneAction — transaction atomicity", () => {
     const row3 = rows.find((r) => r.id === id3);
     expect(row1?.isPrimary).toBe(false);
     expect(row3?.isPrimary).toBe(false);
+  });
+});
+
+describe("setPrimaryCoverageZoneAction — role gate", () => {
+  it("C3: member role → returns { error } and writes nothing", async () => {
+    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
+
+    const result = await setPrimaryCoverageZoneAction({
+      orgToken: MOCK_ORG_TOKEN,
+      coverageId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(result).toEqual({
+      error: "Solo administradores y coordinadores pueden gestionar zonas de cobertura.",
+    });
   });
 });
 
@@ -676,5 +794,95 @@ describe("broadcastLostPet — province-level coverage", () => {
     // at least not include the province-only-org member.
     expect(result.broadcastedToMemberIds).not.toContain(broadcastMemberUserId);
     void before;
+  });
+
+  // C2 fix — pet with province but NO locality:
+  // Both a province-level org AND a locality-specific org in the same province must match.
+  it("C2/D4: pet with province + no locality → reaches province-level AND locality-specific orgs", async () => {
+    const NO_LOCALITY_PROVINCE = "Neuquén";
+    const NO_LOCALITY_LOCALITY = "Neuquén"; // a real locality in Neuquén
+
+    // Org A: province-level coverage (locality IS NULL).
+    const tokenA = generatePublicToken();
+    const [orgA] = await db
+      .insert(organizations)
+      .values({
+        publicToken: tokenA,
+        legalName: "Province Level Org C2 SRL",
+        displayName: "Province Level Org C2",
+        orgType: "shelter",
+        email: "c2-province-org@dim-test.local",
+        verified: true,
+        status: "active",
+      })
+      .returning();
+    insertedOrgIds.push(orgA.id);
+    await db.insert(organizationCoverage).values({
+      organizationId: orgA.id,
+      jurisdictionProvince: NO_LOCALITY_PROVINCE,
+      jurisdictionLocality: null, // province-level row
+    });
+
+    // Org B: locality-specific coverage for a specific locality in the same province.
+    const tokenB = generatePublicToken();
+    const [orgB] = await db
+      .insert(organizations)
+      .values({
+        publicToken: tokenB,
+        legalName: "Locality Specific Org C2 SRL",
+        displayName: "Locality Specific Org C2",
+        orgType: "shelter",
+        email: "c2-locality-org@dim-test.local",
+        verified: true,
+        status: "active",
+      })
+      .returning();
+    insertedOrgIds.push(orgB.id);
+    await db.insert(organizationCoverage).values({
+      organizationId: orgB.id,
+      jurisdictionProvince: NO_LOCALITY_PROVINCE,
+      jurisdictionLocality: NO_LOCALITY_LOCALITY, // locality-specific row
+    });
+
+    // Add a unique member to each org so we can distinguish them.
+    const memberOfOrgA = memberUserId; // reuse from main setup
+    const memberOfOrgB = volunteerUserId; // reuse from main setup (different membership here)
+
+    await db.insert(organizationMemberships).values([
+      {
+        organizationId: orgA.id,
+        userId: memberOfOrgA,
+        role: "member",
+        canWritePetEvents: false,
+        receivesBroadcasts: true,
+      },
+      {
+        organizationId: orgB.id,
+        userId: memberOfOrgB,
+        role: "member",
+        canWritePetEvents: false,
+        receivesBroadcasts: true,
+      },
+    ]);
+
+    // Pet with province set but NO locality (null) — the C2 fix case.
+    const { petId, publicToken: petToken } = await insertBroadcastPet(adminUserId);
+    const pet = {
+      id: petId,
+      publicToken: petToken,
+      name: "TestDogNoLocality",
+      species: "dog",
+      breed: null,
+      color: null,
+      jurisdictionProvince: NO_LOCALITY_PROVINCE,
+      jurisdictionLocality: null, // no locality — triggers the C2 predicate
+    };
+
+    const result = await broadcastLostPet(db, pet, { id: adminUserId, displayName: "Owner" }, null);
+
+    // Both orgs must match: the province-level org AND the locality-specific org.
+    expect(result.orgCount).toBeGreaterThanOrEqual(2);
+    expect(result.broadcastedToMemberIds).toContain(memberOfOrgA); // province-level org member
+    expect(result.broadcastedToMemberIds).toContain(memberOfOrgB); // locality-specific org member
   });
 });
