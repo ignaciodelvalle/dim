@@ -44,7 +44,11 @@ export function buildOrgNav(orgToken: string): NavItem[] {
       label: "Operaciones",
       matchPrefix: `/org/${orgToken}/adopciones`,
     },
-    // equipo entry removed: no app/org/[orgToken]/equipo/page.tsx exists and no roadmap signal (ADR-4)
+    {
+      href: `/org/${orgToken}/miembros`,
+      label: "Miembros",
+      matchPrefix: `/org/${orgToken}/miembros`,
+    },
   ];
 }
 

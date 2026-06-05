@@ -26,6 +26,11 @@ const initialAuthState: AuthFormState = { error: null };
 // is opened with `intent=apply`, we skip step 2 entirely — a visitor who
 // came here to ADOPT does not have a pet of their own to register yet.
 // On step-1 success we push them straight to `returnTo` (the postular page).
+//
+// returnTo branch (general): when any `returnTo` is present (e.g. invite link),
+// we also skip step 2 and redirect back to `returnTo` after account creation.
+// safeReturnTo on the page validates the path before it reaches here, so
+// open-redirect is already guarded. The default flow (no returnTo) is unchanged.
 
 export function SignupForm({
   intent,
@@ -40,12 +45,14 @@ export function SignupForm({
 
   useEffect(() => {
     if (!authState.ok) return;
-    if (intent === "apply" && returnTo) {
+    // Any validated returnTo (apply-intent, invite link, etc.) takes priority over
+    // the pet-creation step. safeReturnTo already rejected unsafe paths upstream.
+    if (returnTo) {
       router.replace(returnTo);
       return;
     }
     setStep("pet");
-  }, [authState.ok, intent, returnTo, router]);
+  }, [authState.ok, returnTo, router]);
 
   if (step === "pet") {
     return (
@@ -85,7 +92,7 @@ export function SignupForm({
   return (
     <div className="space-y-5">
       <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted  text-center">
-        {intent === "apply" ? "Paso 1 de 1" : "Paso 1 de 2"}
+        {returnTo ? "Paso 1 de 1" : "Paso 1 de 2"}
       </p>
 
       <button

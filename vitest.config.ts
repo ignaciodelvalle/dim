@@ -12,6 +12,7 @@ export default defineConfig({
     // is idempotent enough that the dedupe test does its own teardown.
     fileParallelism: false,
     setupFiles: ["./__tests__/setup.ts"],
+    exclude: ["node_modules/**", ".claude/worktrees/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json"],
