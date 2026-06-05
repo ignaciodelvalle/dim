@@ -24,11 +24,11 @@ import {
   organizations,
   profiles,
 } from "@/db";
-import { INVITABLE_ROLES, type InvitableRole, ROLE_RANK } from "./org-invitations.constants";
 import { requireCapability } from "@/lib/capabilities";
 import { generateInvitationToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
+import { INVITABLE_ROLES, type InvitableRole, ROLE_RANK } from "./org-invitations.constants";
 
 // ============================================================================
 // Role-rank model (see org-invitations.constants.ts — "use server" can only
