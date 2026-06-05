@@ -4,6 +4,7 @@
 //
 // bulkVaccinateAction  — PR1: bulk vaccination
 // bulkSetEligibilityAction — PR2: bulk adoption-eligibility
+// bulkPublishListingAction — PR3: bulk adoption-listing publish / unpublish
 //
 // Pattern: mirrors bulk-actions.ts — one bulkActionId at the top, per-item
 // try/catch (best-effort, NO outer tx over all items), returns BulkResult.
@@ -13,6 +14,11 @@
 // Idempotency: clientIdempotencyKey per pet is a deterministic UUID v4-shaped
 // hash of (bulkActionId + petId) so re-submitting with the same bulkActionId
 // is a safe no-op. The column type is uuid so the key must be a valid UUID.
+//
+// Note on bulkPublishListingAction: listing publish/unpublish writes NO event
+// (it's shelter-curated curation, not a pet fact — matches single-pet path).
+// bulkActionId is still validated for BulkResult consistency, and the
+// isValidBulkActionId guard is the only idempotency mechanism needed here.
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -25,7 +31,11 @@ import { parseDateInput } from "@/lib/format";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import type { BulkResult } from "./bulk-actions";
-import type { BulkSetEligibilityInput, BulkVaccinateInput } from "./bulk-vaccinate-types";
+import type {
+  BulkPublishListingInput,
+  BulkSetEligibilityInput,
+  BulkVaccinateInput,
+} from "./bulk-vaccinate-types";
 import { BULK_INELIGIBLE_REASONS, isValidBulkActionId } from "./bulk-vaccinate-types";
 
 const BULK_BATCH_MAX = 500;
@@ -502,5 +512,235 @@ export async function bulkSetEligibilityAction(
   }
 
   revalidatePath(`/org/${input.orgToken}/mascotas`);
+  return { bulkActionId, succeeded, failed };
+}
+
+// ─── bulkPublishListingAction ─────────────────────────────────────────────────
+//
+// Sprint 8 PR3: bulk adoption-listing publish / unpublish for refugios.
+//
+// Mirrors the preamble of bulkVaccinateAction / bulkSetEligibilityAction:
+//   org resolve → requireCapability("adoption.listing.manage") ONCE →
+//   isValidBulkActionId guard → 500 cap → batch ownership query →
+//   best-effort per-pet UPDATE.
+//
+// On publish=true, enforces ALL cross-spec preconditions from the single-pet
+// setAdoptionListingStatusAction (D18 not lost, D18 not deceased, D19
+// adoptionEligible=true, D20 not inCustodyDispute, D21 rabies not in_progress).
+// A pet failing any guard goes to failed[] with the exact same message the
+// single-pet action uses — the reasons explain why an ineligible pet failed.
+//
+// On publish=false (unpublish), clears adoptionListedAt + adoptionListingPausedAt
+// — mirrors the single-pet "unpublish" path.
+//
+// No event is written (listing is curation, not a pet fact — matches
+// single-pet setAdoptionListingStatusAction which also writes no events).
+
+export async function bulkPublishListingAction(
+  input: BulkPublishListingInput,
+): Promise<BulkResult> {
+  const bulkActionId = input.bulkActionId;
+
+  // --- 0a. Validate bulkActionId ---
+  if (!isValidBulkActionId(bulkActionId)) {
+    return {
+      bulkActionId: String(bulkActionId ?? ""),
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: "bulkActionId inválido.",
+      })),
+    };
+  }
+
+  // --- 0. Batch size cap ---
+  if (input.petPublicTokens.length > BULK_BATCH_MAX) {
+    return {
+      bulkActionId,
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: `Máximo ${BULK_BATCH_MAX} mascotas por lote masivo.`,
+      })),
+    };
+  }
+
+  // --- 1. Resolve org by publicToken ---
+  const [orgRow] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.publicToken, input.orgToken))
+    .limit(1);
+
+  if (!orgRow) {
+    return {
+      bulkActionId,
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: "Organización no encontrada.",
+      })),
+    };
+  }
+
+  // --- 2. requireCapability("adoption.listing.manage") ONCE ---
+  const cap = await requireCapability("adoption.listing.manage", orgRow.id);
+  if (cap.error) {
+    return {
+      bulkActionId,
+      succeeded: [],
+      failed: input.petPublicTokens.map((id) => ({
+        id,
+        reason: cap.error as string,
+      })),
+    };
+  }
+
+  const capOk = cap as RequireCapabilitySuccess;
+  const org = capOk.organization;
+
+  // --- 3. Batch ownership query ---
+  // SELECT the fields needed to evaluate cross-spec guards on publish.
+  const tokens = input.petPublicTokens;
+
+  const ownedRows =
+    tokens.length === 0
+      ? []
+      : await db
+          .select({
+            petId: pets.id,
+            publicToken: pets.publicToken,
+            adoptionListedAt: pets.adoptionListedAt,
+            status: pets.status,
+            adoptionEligible: pets.adoptionEligible,
+            inCustodyDispute: pets.inCustodyDispute,
+            rabiesObservationStatus: pets.rabiesObservationStatus,
+          })
+          .from(pets)
+          .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+          .where(
+            and(
+              inArray(pets.publicToken, tokens),
+              eq(ownerships.ownerOrganizationId, org.id),
+              eq(ownerships.role, "shelter_custody"),
+              isNull(ownerships.endedAt),
+              ne(pets.status, "deceased"),
+            ),
+          );
+
+  const tokenToPet = new Map<
+    string,
+    {
+      petId: string;
+      adoptionListedAt: Date | null;
+      status: string;
+      adoptionEligible: boolean | null;
+      inCustodyDispute: boolean | null;
+      rabiesObservationStatus: string | null;
+    }
+  >();
+  for (const row of ownedRows) {
+    tokenToPet.set(row.publicToken, {
+      petId: row.petId,
+      adoptionListedAt: row.adoptionListedAt,
+      status: row.status,
+      adoptionEligible: row.adoptionEligible,
+      inCustodyDispute: row.inCustodyDispute,
+      rabiesObservationStatus: row.rabiesObservationStatus,
+    });
+  }
+
+  const succeeded: string[] = [];
+  const failed: { id: string; reason: string }[] = [];
+
+  for (const token of tokens) {
+    const petEntry = tokenToPet.get(token);
+    if (!petEntry) {
+      failed.push({
+        id: token,
+        reason: "No está bajo custodia activa de tu organización (o no está vivo).",
+      });
+      continue;
+    }
+
+    // --- 4. Best-effort per-pet ---
+    try {
+      const now = new Date();
+
+      if (input.publish) {
+        // Cross-spec guards (D18, D19, D20, D21) — mirrors single-pet publish path EXACTLY.
+        if (petEntry.status === "lost") {
+          failed.push({
+            id: token,
+            reason:
+              "Esta mascota está reportada como perdida. Marcala recuperada antes de publicar.",
+          });
+          continue;
+        }
+        // Note: "deceased" is already excluded by the ownership query (ne(pets.status, "deceased"))
+        // but we mirror the single-pet guard explicitly for clarity and test coverage.
+        if (petEntry.status === "deceased") {
+          failed.push({
+            id: token,
+            reason: "Esta mascota está registrada como fallecida.",
+          });
+          continue;
+        }
+        if (petEntry.adoptionEligible !== true) {
+          failed.push({
+            id: token,
+            reason:
+              "Marcá esta mascota como apta para adopción antes de publicar (desde la pestaña de elegibilidad).",
+          });
+          continue;
+        }
+        if (petEntry.inCustodyDispute === true) {
+          failed.push({
+            id: token,
+            reason:
+              "Esta mascota está en disputa de custodia. Resolvé la dispute antes de publicar.",
+          });
+          continue;
+        }
+        if (petEntry.rabiesObservationStatus === "in_progress") {
+          failed.push({
+            id: token,
+            reason:
+              "Esta mascota está en período de observación sanitaria. Esperá al cierre del período antes de publicar.",
+          });
+          continue;
+        }
+
+        await db
+          .update(pets)
+          .set({
+            adoptionListedAt: petEntry.adoptionListedAt ?? now,
+            adoptionListingPausedAt: null,
+            updatedAt: now,
+          })
+          .where(eq(pets.id, petEntry.petId));
+      } else {
+        // Unpublish — clears listing columns, no guards needed.
+        await db
+          .update(pets)
+          .set({
+            adoptionListedAt: null,
+            adoptionListingPausedAt: null,
+            updatedAt: now,
+          })
+          .where(eq(pets.id, petEntry.petId));
+      }
+
+      succeeded.push(token);
+    } catch (err) {
+      failed.push({
+        id: token,
+        reason: err instanceof Error ? err.message : "Error desconocido.",
+      });
+    }
+  }
+
+  revalidatePath(`/org/${input.orgToken}/mascotas`);
+  revalidatePath("/adoptar");
   return { bulkActionId, succeeded, failed };
 }

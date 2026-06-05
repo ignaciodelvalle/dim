@@ -1,7 +1,8 @@
 "use client";
 
 // Client component for the mascotas list. Mirrors the multi-select UI of
-// BulkApprovalQueueList but for bulk vaccination and bulk eligibility.
+// BulkApprovalQueueList but for bulk vaccination, bulk eligibility, and
+// bulk adoption-listing publish.
 //
 // When canEventWrite is true and ≥1 pets are selected, a sticky BulkActionBar
 // appears with "Vacunar selección". Clicking it opens an inline
@@ -12,13 +13,20 @@
 // Sprint 8 PR2: added "Marcar elegibilidad" button (canIntake) that opens a
 // BulkEligibilityForm inline. Only one form is open at a time. Both actions
 // share the same selection set.
+//
+// Sprint 8 PR3: added "Publicar en adopción" button (canManageListing) that
+// opens a BulkListingForm inline. Publish and unlist paths. Same selection set.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
-import { bulkSetEligibilityAction, bulkVaccinateAction } from "@/app/actions/bulk-pet-events";
+import {
+  bulkPublishListingAction,
+  bulkSetEligibilityAction,
+  bulkVaccinateAction,
+} from "@/app/actions/bulk-pet-events";
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { Checkbox } from "@/components/poncho";
 
@@ -135,14 +143,16 @@ export function OrgMascotasBulkList({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [mode, setMode] = useState<"none" | "vaccinate" | "eligibility">("none");
+  const [mode, setMode] = useState<"none" | "vaccinate" | "eligibility" | "listing">("none");
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
-  const [lastResultType, setLastResultType] = useState<"vaccinate" | "eligibility" | null>(null);
+  const [lastResultType, setLastResultType] = useState<
+    "vaccinate" | "eligibility" | "listing" | null
+  >(null);
 
   const fosteredSet = new Set(fosteredPetIds);
   const pendingProposalSet = new Set(pendingProposalPetIds);
 
-  const canBulkSelect = canEventWrite || canIntake;
+  const canBulkSelect = canEventWrite || canIntake || canManageAdoptionListing;
 
   function toggle(token: string) {
     setSelected((prev) => {
@@ -391,6 +401,16 @@ export function OrgMascotasBulkList({
                       Marcar elegibilidad
                     </button>
                   )}
+                  {canManageAdoptionListing && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("listing")}
+                      disabled={selected.size > BULK_MAX}
+                      className="px-3 py-1.5 rounded text-sm bg-gob-success text-white hover:bg-gob-success disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Publicar en adopción
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -441,6 +461,33 @@ export function OrgMascotasBulkList({
                     });
                     setLastResult(result);
                     setLastResultType("eligibility");
+                    setMode("none");
+                    setSelected(new Set());
+                    router.refresh();
+                  });
+                }}
+              />
+            )}
+
+            {mode === "listing" && (
+              <BulkListingForm
+                count={selected.size}
+                pending={pending}
+                onCancel={() => setMode("none")}
+                onSubmit={(publish) => {
+                  const tokens = Array.from(selected);
+                  setLastResult(null);
+                  setLastResultType(null);
+                  startTransition(async () => {
+                    const bulkActionId = crypto.randomUUID();
+                    const result = await bulkPublishListingAction({
+                      orgToken,
+                      petPublicTokens: tokens,
+                      bulkActionId,
+                      publish,
+                    });
+                    setLastResult(result);
+                    setLastResultType("listing");
                     setMode("none");
                     setSelected(new Set());
                     router.refresh();
@@ -765,6 +812,59 @@ function BulkEligibilityForm({
   );
 }
 
+// ─── BulkListingForm ──────────────────────────────────────────────────────────
+
+function BulkListingForm({
+  count,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  count: number;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (publish: boolean) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium">
+        Publicar en adopción — {count} animal{count === 1 ? "" : "es"}
+      </p>
+      <p className="text-xs text-gob-text-muted">
+        Solo se publicarán las mascotas que cumplan todos los requisitos (apta para adopción, sin
+        disputas, sin observación sanitaria activa, etc.). Las que no cumplan aparecerán en el
+        detalle de fallos con la razón específica.
+      </p>
+      <div className="flex gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={pending}
+          className="px-3 py-1.5 rounded text-sm border border-gob-border-strong "
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={() => onSubmit(false)}
+          disabled={pending}
+          className="px-3 py-1.5 rounded text-sm border border-gob-border-strong  hover:bg-gob-surface-alt disabled:opacity-50"
+        >
+          {pending ? "Procesando..." : "Despublicar selección"}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSubmit(true)}
+          disabled={pending}
+          className="px-3 py-1.5 rounded text-sm font-medium bg-gob-success text-white hover:bg-gob-success disabled:opacity-50"
+        >
+          {pending ? "Publicando..." : "Confirmar publicación"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── ResultPanel ──────────────────────────────────────────────────────────────
 
 function ResultPanel({
@@ -773,11 +873,21 @@ function ResultPanel({
   onDismiss,
 }: {
   result: BulkResult;
-  actionType: "vaccinate" | "eligibility";
+  actionType: "vaccinate" | "eligibility" | "listing";
   onDismiss: () => void;
 }) {
-  const nounSingular = actionType === "vaccinate" ? "vacunada" : "actualizada";
-  const nounPlural = actionType === "vaccinate" ? "vacunadas" : "actualizadas";
+  const nounSingular =
+    actionType === "vaccinate"
+      ? "vacunada"
+      : actionType === "listing"
+        ? "publicada"
+        : "actualizada";
+  const nounPlural =
+    actionType === "vaccinate"
+      ? "vacunadas"
+      : actionType === "listing"
+        ? "publicadas"
+        : "actualizadas";
   const noun = result.succeeded.length === 1 ? nounSingular : nounPlural;
 
   return (
