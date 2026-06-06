@@ -30,9 +30,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+// adoption.ts and adoption-applications.ts were migrated to the hexagonal module
+// (src/modules/adoption/actions.ts) in WU-4 of hexagonal-lite-foundation.
+// The new file uses flushNotifications() helper (same pattern, different surface).
 const REFACTORED_FILES = [
-  "adoption.ts",
-  "adoption-applications.ts",
   "admin-decisions.ts",
   "admin-institutional.ts",
   "admin-proposals.ts",

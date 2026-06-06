@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { setAdoptionEligibilityAction } from "@/app/actions/adoption-eligibility";
+import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
 
 const REASONS = [
   { value: "medical_treatment", label: "Tratamiento médico en curso" },

@@ -1,7 +1,10 @@
 "use client";
 
-import { type FinalizeAdoptionFormState, finalizeAdoptionAction } from "@/app/actions/adoption";
 import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
+import {
+  type FinalizeAdoptionFormState,
+  finalizeAdoptionAction,
+} from "@/src/modules/adoption/actions";
 import { useActionState, useState } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };

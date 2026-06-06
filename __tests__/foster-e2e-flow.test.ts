@@ -25,7 +25,6 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { setAdoptionEligibilityAction } from "@/app/actions/adoption-eligibility";
 import { acceptFosterProposalAction, proposeFosterAction } from "@/app/actions/foster-proposals";
 import { upsertFosterVolunteerAction } from "@/app/actions/foster-volunteers";
 import {
@@ -41,6 +40,7 @@ import {
   profiles,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -336,7 +336,7 @@ describe("foster-e2e: propose → accept → adopt", () => {
     // ----- Step 5: org finalizes adoption to the foster shortcut -----
     // finalizeAdoptionAction uses FormData. adopterUserId hidden field
     // triggers the §15.1 shortcut path. Skip DNI fields entirely.
-    const { finalizeAdoptionAction } = await import("@/app/actions/adoption");
+    const { finalizeAdoptionAction } = await import("@/src/modules/adoption/actions");
     const formData = new FormData();
     formData.set("adopterUserId", volunteerUserId);
     formData.set("followupMonths", "0");

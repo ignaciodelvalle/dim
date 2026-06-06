@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import {
   approveAdoptionApplicationAction,
   rejectAdoptionApplicationAction,
-} from "@/app/actions/adoption-applications";
+} from "@/src/modules/adoption/actions";
 
 export function ReviewButtons({
   orgToken,
