@@ -7,7 +7,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { expirePetTransfersOnce } from "@/app/actions/pet-transfer";
+import { expirePetTransfersAction as expirePetTransfersOnce } from "@/src/modules/transfers/actions";
 
 export const dynamic = "force-dynamic";
 

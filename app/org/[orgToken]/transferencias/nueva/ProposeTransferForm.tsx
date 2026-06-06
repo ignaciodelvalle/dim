@@ -14,9 +14,9 @@
 
 import { useState, useTransition } from "react";
 
-import { proposeCrossOrgTransferAction } from "@/app/actions/cross-org-transfer";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
+import { proposeCrossOrgTransferAction } from "@/src/modules/transfers/actions";
 
 interface ReceiverOption {
   id: string;

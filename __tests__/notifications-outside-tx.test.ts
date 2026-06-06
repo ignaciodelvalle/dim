@@ -36,7 +36,9 @@ import { describe, expect, it } from "vitest";
 // foster.ts and foster-proposals.ts were migrated to src/modules/foster/actions.ts
 // in WU-4 of hexagonal-lite-foster. The post-tx flush pattern is maintained there via
 // the flushNotifications() helper (same contract, different surface).
-// All three new files use the flushNotifications() helper pattern (same semantics).
+// transfer.ts (org-to-org handoff), pet-transfer.ts, and cross-org-transfer.ts were
+// migrated to src/modules/transfers/actions.ts in WU-4 of hexagonal-lite-transfers.
+// All migrated files use the flushNotifications() helper pattern (same semantics).
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-institutional.ts",
@@ -47,7 +49,6 @@ const REFACTORED_FILES = [
   "intake.ts",
   "profile-self-service.ts",
   "return-to-owner.ts",
-  "transfer.ts",
   "welfare.ts",
   "welfare-triage.ts",
 ] as const;

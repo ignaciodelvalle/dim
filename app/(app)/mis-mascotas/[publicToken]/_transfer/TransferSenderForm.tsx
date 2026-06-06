@@ -5,8 +5,11 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { type InitiateTransferInput, initiatePetTransferAction } from "@/app/actions/pet-transfer";
 import { Field, Input, Select, Textarea } from "@/components/poncho";
+import {
+  type InitiatePetTransferInput as InitiateTransferInput,
+  initiatePetTransferAction,
+} from "@/src/modules/transfers/actions";
 
 const REASONS: Array<{ value: InitiateTransferInput["reason"]; label: string }> = [
   { value: "sale", label: "Venta" },

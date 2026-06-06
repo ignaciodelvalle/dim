@@ -1,7 +1,10 @@
 "use client";
 
-import { type TransferCustodyFormState, transferCustodyAction } from "@/app/actions/transfer";
 import { Field, Select, Textarea } from "@/components/poncho";
+import {
+  type TransferCustodyFormState,
+  transferCustodyAction,
+} from "@/src/modules/transfers/actions";
 import { useActionState } from "react";
 
 const initialState: TransferCustodyFormState = { error: null };

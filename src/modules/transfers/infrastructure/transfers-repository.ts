@@ -16,6 +16,7 @@ import {
   petEvents,
   petTransfers,
   pets,
+  profiles,
 } from "@/db";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -185,6 +186,31 @@ export const TransfersRepository = {
     const [row] = await (client as typeof db)
       .select()
       .from(petTransfers)
+      .where(eq(petTransfers.publicToken, publicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Finds a transfer with joined pet and sender profile data for the viewer page.
+   * Auth is handled by the caller (use-case + action edge).
+   */
+  async findTransferViewByToken(publicToken: string): Promise<{
+    transfer: PetTransferRow;
+    petName: string;
+    petToken: string;
+    fromDisplayName: string | null;
+  } | null> {
+    const [row] = await db
+      .select({
+        transfer: petTransfers,
+        petName: pets.name,
+        petToken: pets.publicToken,
+        fromDisplayName: profiles.displayName,
+      })
+      .from(petTransfers)
+      .innerJoin(pets, eq(pets.id, petTransfers.petId))
+      .leftJoin(profiles, eq(profiles.id, petTransfers.fromOwnerId))
       .where(eq(petTransfers.publicToken, publicToken))
       .limit(1);
     return row ?? null;
