@@ -35,6 +35,10 @@ export type ExistingPetSnapshot = {
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   acquisitionMethod: string | null;
+  // Required for flag-change detection in the update use-case.
+  // emergencyInfoVisible is NOT diffed (UI preference, not pet fact) but
+  // we do need to know if it changed to decide whether to skip the transaction.
+  emergencyInfoVisible: boolean;
 };
 
 export type DiffEntry = {
