@@ -49,7 +49,7 @@ export type AcceptPetTransferInput = {
 export async function acceptPetTransfer(
   input: AcceptPetTransferInput,
   deps: Deps,
-): Promise<UseCaseResult<{ petId: string }>> {
+): Promise<UseCaseResult<{ petId: string; fromOwnerId: string; petPublicToken: string | null }>> {
   const { repo, actor, transaction } = deps;
   const { user } = actor;
 
@@ -140,9 +140,12 @@ export async function acceptPetTransfer(
     return { ok: false, error: err instanceof Error ? err.message : "Error desconocido." };
   }
 
+  // Fetch pet publicToken for cache revalidation in the thin action.
+  const petPublicToken = await repo.findPetPublicTokenById(transfer.petId);
+
   return {
     ok: true,
-    value: { petId: transfer.petId },
+    value: { petId: transfer.petId, fromOwnerId: transfer.fromOwnerId, petPublicToken },
     notifications: pendingNotifications,
   };
 }

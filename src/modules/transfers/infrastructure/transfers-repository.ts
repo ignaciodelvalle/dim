@@ -132,6 +132,20 @@ export const TransfersRepository = {
   },
 
   /**
+   * Returns a pet's publicToken given its UUID id. Used for cache revalidation
+   * after transfers where only petId is available. Returns null if not found.
+   */
+  async findPetPublicTokenById(petId: string, tx?: Tx): Promise<string | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    return row?.publicToken ?? null;
+  },
+
+  /**
    * Finds the active (endedAt IS NULL) owner ownership row for a pet.
    */
   async findActiveOwnerOwnership(

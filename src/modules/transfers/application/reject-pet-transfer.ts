@@ -43,7 +43,7 @@ export type RejectPetTransferInput = {
 export async function rejectPetTransfer(
   input: RejectPetTransferInput,
   deps: Deps,
-): Promise<UseCaseResult<void>> {
+): Promise<UseCaseResult<{ petId: string }>> {
   const { repo, actor, transaction } = deps;
   const { user } = actor;
 
@@ -101,5 +101,5 @@ export async function rejectPetTransfer(
     return { ok: false, error: err instanceof Error ? err.message : "Error desconocido." };
   }
 
-  return { ok: true, value: undefined, notifications: pendingNotifications };
+  return { ok: true, value: { petId: transfer.petId }, notifications: pendingNotifications };
 }

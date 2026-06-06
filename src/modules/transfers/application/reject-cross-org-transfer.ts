@@ -55,7 +55,15 @@ export type RejectCrossOrgTransferInput = {
 export async function rejectCrossOrgTransfer(
   input: RejectCrossOrgTransferInput,
   deps: Deps,
-): Promise<UseCaseResult<{ publicCode: string }>> {
+): Promise<
+  UseCaseResult<{
+    publicCode: string;
+    caseId: string;
+    petId: string;
+    senderOrgId: string;
+    receiverOrgId: string;
+  }>
+> {
   const { repo, actor, transaction } = deps;
   const { user, organization } = actor;
 
@@ -155,7 +163,13 @@ export async function rejectCrossOrgTransfer(
 
   return {
     ok: true,
-    value: { publicCode: caseRow.publicCode },
+    value: {
+      publicCode: caseRow.publicCode,
+      caseId: caseRow.id,
+      petId: caseRow.primaryPetId as string,
+      senderOrgId: canonicalSenderOrgId,
+      receiverOrgId: organization.id,
+    },
     notifications: pendingNotifications,
   };
 }

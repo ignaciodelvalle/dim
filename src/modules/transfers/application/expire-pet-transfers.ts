@@ -20,9 +20,17 @@ type Deps = {
   repo: typeof TransfersRepository;
 };
 
+export type ExpirePetTransfersAuditEntry = {
+  actorUserId: string;
+  transferToken: string;
+  petId: string;
+};
+
 export type ExpirePetTransfersStats = {
   expired: number;
   errors: number;
+  /** Per-row data for audit_log inserts. The thin action writes these post-loop. */
+  auditEntries: ExpirePetTransfersAuditEntry[];
 };
 
 // ---------------------------------------------------------------------------
@@ -40,6 +48,7 @@ export async function expirePetTransfers(
   let expired = 0;
   let errors = 0;
   const notifications: NewNotification[] = [];
+  const auditEntries: ExpirePetTransfersAuditEntry[] = [];
 
   for (const row of stale) {
     try {
@@ -57,6 +66,13 @@ export async function expirePetTransfers(
         category: "custody",
       });
 
+      // Parity: actor=fromOwnerId per row (not the calling user).
+      auditEntries.push({
+        actorUserId: row.fromOwnerId,
+        transferToken: row.publicToken,
+        petId: row.petId,
+      });
+
       expired += 1;
     } catch (err) {
       errors += 1;
@@ -64,5 +80,5 @@ export async function expirePetTransfers(
     }
   }
 
-  return { ok: true, value: { expired, errors }, notifications };
+  return { ok: true, value: { expired, errors, auditEntries }, notifications };
 }

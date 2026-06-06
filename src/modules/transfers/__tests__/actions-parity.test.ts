@@ -26,13 +26,22 @@ vi.mock("@/lib/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
-vi.mock("@/db", () => ({
-  db: {
-    transaction: vi.fn().mockImplementation(async (cb: (tx: unknown) => unknown) => cb({})),
-    insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }),
-  },
-  notifications: {},
-}));
+vi.mock("@/db", () => {
+  // Factory: each db.insert() call returns a fresh { values } mock so callers
+  // can be distinguished by their (table, values) pairs across calls.
+  const insertFactory = vi.fn().mockImplementation(() => ({
+    values: vi.fn().mockResolvedValue(undefined),
+  }));
+
+  return {
+    db: {
+      transaction: vi.fn().mockImplementation(async (cb: (tx: unknown) => unknown) => cb({})),
+      insert: insertFactory,
+    },
+    notifications: {},
+    auditLog: {},
+  };
+});
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -349,13 +358,21 @@ describe("rejectPetTransferAction — auth-scope: recipient USER (id-or-email)",
   });
 
   it("returns ok:true on success", async () => {
-    rejectPetTransferUc.mockResolvedValue({ ok: true, value: undefined, notifications: [] });
+    rejectPetTransferUc.mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-r" },
+      notifications: [],
+    });
     const result = await rejectPetTransferAction({ transferToken: "PTR-abc", reason: "no quiero" });
     expect(result).toEqual({ ok: true });
   });
 
   it("passes callerEmail from session to use-case", async () => {
-    rejectPetTransferUc.mockResolvedValue({ ok: true, value: undefined, notifications: [] });
+    rejectPetTransferUc.mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-r2" },
+      notifications: [],
+    });
     await rejectPetTransferAction({ transferToken: "PTR-abc" });
     expect(rejectPetTransferUc).toHaveBeenCalledWith(
       expect.objectContaining({ callerEmail: "caller@example.com" }),
@@ -396,7 +413,7 @@ describe("cancelPetTransferAction — auth-scope: SENDER USER only", () => {
     const { db } = await import("@/db");
     cancelPetTransferUc.mockResolvedValue({
       ok: true,
-      value: undefined,
+      value: { petId: "pet-c" },
       notifications: [{ userId: "u-2", notificationType: "pet_transfer_cancelled" }],
     });
     const result = await cancelPetTransferAction("PTR-abc");
@@ -405,7 +422,11 @@ describe("cancelPetTransferAction — auth-scope: SENDER USER only", () => {
   });
 
   it("passes the authenticated user id to the use-case as actor", async () => {
-    cancelPetTransferUc.mockResolvedValue({ ok: true, value: undefined, notifications: [] });
+    cancelPetTransferUc.mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-c2" },
+      notifications: [],
+    });
     await cancelPetTransferAction("PTR-abc");
     expect(cancelPetTransferUc).toHaveBeenCalledWith(
       expect.objectContaining({ transferToken: "PTR-abc" }),
@@ -493,7 +514,7 @@ describe("expirePetTransfersAction — auth-scope: NONE (CRON_SECRET at route)",
   it("returns stats on success", async () => {
     expirePetTransfersUc.mockResolvedValue({
       ok: true,
-      value: { expired: 3, errors: 0 },
+      value: { expired: 3, errors: 0, auditEntries: [] },
       notifications: [],
     });
     const result = await expirePetTransfersAction();
@@ -854,5 +875,374 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
     formData.append("destinationOrgId", "org-2");
     const result = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
     expect(result).toEqual({ error: "No se pudo transferir la custodia: error desconocido" });
+  });
+});
+
+// ===========================================================================
+// AUDIT LOG PARITY (C-1) — 9 operations must insert auditLog rows
+// ===========================================================================
+//
+// Strategy: assert db.insert is called with the auditLog table sentinel AND
+// that .values() receives the correct action string + key payload fields.
+// We use the mock sentinel `auditLog: {}` exported from the @/db mock; the
+// actual identity-equality check uses `toHaveBeenCalledWith(auditLog)`.
+
+describe("AUDIT LOG PARITY — C-1: all 9 operations insert auditLog rows", () => {
+  let db: { insert: ReturnType<typeof vi.fn> };
+  let auditLog: object;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const dbModule = await import("@/db");
+    db = dbModule.db as unknown as { insert: ReturnType<typeof vi.fn> };
+    auditLog = dbModule.auditLog;
+  });
+
+  afterEach(() => vi.resetModules());
+
+  // Get all .values() arguments from db.insert(auditLog).values(...) calls.
+  function getAuditInserts(): unknown[] {
+    const results: unknown[] = [];
+    for (let i = 0; i < db.insert.mock.calls.length; i++) {
+      const [table] = db.insert.mock.calls[i] as [unknown];
+      if (table === auditLog) {
+        const valuesCall = db.insert.mock.results[i].value as {
+          values: ReturnType<typeof vi.fn>;
+        };
+        if (valuesCall?.values?.mock?.calls?.length) {
+          results.push(...valuesCall.values.mock.calls.map((args: unknown[]) => args[0]));
+        }
+      }
+    }
+    return results;
+  }
+
+  // --------------------------------------------------------------------------
+  // R1 — initiatePetTransferAction → pet_transfer_initiated
+  // --------------------------------------------------------------------------
+  it("R1: initiatePetTransferAction inserts auditLog with action=pet_transfer_initiated", async () => {
+    mockRequireUser.mockResolvedValue(makeUserSession());
+    const { initiatePetTransferAction } = await import("../actions");
+    const { initiatePetTransfer } = await import("../application/initiate-pet-transfer");
+    (initiatePetTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: {
+        transferToken: "PTR-r1",
+        petId: "pet-1",
+        recipientNeedsInvite: false,
+        petName: "Rex",
+      },
+      notifications: [],
+    });
+    await initiatePetTransferAction({ petToken: "tok", toEmail: "a@b.com", reason: "gift" });
+    const audits = getAuditInserts();
+    expect(audits.length).toBeGreaterThanOrEqual(1);
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "pet_transfer_initiated",
+        payload: expect.objectContaining({
+          transfer_public_token: "PTR-r1",
+          pet_id: "pet-1",
+          to_email: "a@b.com",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R2 — acceptPetTransferAction → pet_transfer_accepted
+  // --------------------------------------------------------------------------
+  it("R2: acceptPetTransferAction inserts auditLog with action=pet_transfer_accepted", async () => {
+    mockRequireUser.mockResolvedValue(makeUserSession());
+    const { acceptPetTransferAction } = await import("../actions");
+    const { acceptPetTransfer } = await import("../application/accept-pet-transfer");
+    (acceptPetTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-2", fromOwnerId: "sender-user" },
+      notifications: [],
+    });
+    await acceptPetTransferAction("PTR-r2");
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "pet_transfer_accepted",
+        payload: expect.objectContaining({
+          transfer_public_token: "PTR-r2",
+          pet_id: "pet-2",
+          from_user_id: "sender-user",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R3 — rejectPetTransferAction → pet_transfer_rejected
+  // --------------------------------------------------------------------------
+  it("R3: rejectPetTransferAction inserts auditLog with action=pet_transfer_rejected", async () => {
+    mockRequireUser.mockResolvedValue(makeUserSession());
+    const { rejectPetTransferAction } = await import("../actions");
+    const { rejectPetTransfer } = await import("../application/reject-pet-transfer");
+    (rejectPetTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-3" },
+      notifications: [],
+    });
+    await rejectPetTransferAction({ transferToken: "PTR-r3", reason: "no quiero" });
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "pet_transfer_rejected",
+        payload: expect.objectContaining({
+          transfer_public_token: "PTR-r3",
+          pet_id: "pet-3",
+          reason: "no quiero",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R4 — cancelPetTransferAction → pet_transfer_cancelled
+  // --------------------------------------------------------------------------
+  it("R4: cancelPetTransferAction inserts auditLog with action=pet_transfer_cancelled", async () => {
+    mockRequireUser.mockResolvedValue(makeUserSession());
+    const { cancelPetTransferAction } = await import("../actions");
+    const { cancelPetTransfer } = await import("../application/cancel-pet-transfer");
+    (cancelPetTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-4" },
+      notifications: [],
+    });
+    await cancelPetTransferAction("PTR-r4");
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "pet_transfer_cancelled",
+        payload: expect.objectContaining({
+          transfer_public_token: "PTR-r4",
+          pet_id: "pet-4",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R6 — expirePetTransfersAction → pet_transfer_expired, actor=fromOwnerId per row
+  // --------------------------------------------------------------------------
+  it("R6: expirePetTransfersAction inserts auditLog per expired row with actor=fromOwnerId", async () => {
+    const { expirePetTransfersAction } = await import("../actions");
+    const { expirePetTransfers } = await import("../application/expire-pet-transfers");
+    (expirePetTransfers as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: {
+        expired: 2,
+        errors: 0,
+        auditEntries: [
+          { actorUserId: "owner-a", transferToken: "PTR-e1", petId: "pet-e1" },
+          { actorUserId: "owner-b", transferToken: "PTR-e2", petId: "pet-e2" },
+        ],
+      },
+      notifications: [],
+    });
+    await expirePetTransfersAction();
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "owner-a",
+        action: "pet_transfer_expired",
+        payload: expect.objectContaining({ transfer_public_token: "PTR-e1", pet_id: "pet-e1" }),
+      }),
+    );
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "owner-b",
+        action: "pet_transfer_expired",
+        payload: expect.objectContaining({ transfer_public_token: "PTR-e2", pet_id: "pet-e2" }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R7 — proposeCrossOrgTransferAction → cross_org_transfer_proposed
+  // --------------------------------------------------------------------------
+  it("R7: proposeCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_proposed", async () => {
+    mockRequireCapability.mockResolvedValue(makeAuth());
+    const { proposeCrossOrgTransferAction } = await import("../actions");
+    const { proposeCrossOrgTransfer } = await import("../application/propose-cross-org-transfer");
+    (proposeCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: {
+        publicCode: "CASE-r7",
+        caseId: "case-r7",
+        petId: "pet-r7",
+        senderOrgId: "org-1",
+        receiverOrgId: "org-2",
+      },
+      notifications: [],
+    });
+    await proposeCrossOrgTransferAction({
+      senderOrgToken: "org-tok",
+      petPublicToken: "pet-tok",
+      receiverOrgId: "org-2",
+      reason: "space_constraint",
+    });
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "cross_org_transfer_proposed",
+        payload: expect.objectContaining({
+          case_id: "case-r7",
+          pet_id: "pet-r7",
+          sender_org_id: "org-1",
+          receiver_org_id: "org-2",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R8 — acceptCrossOrgTransferAction → cross_org_transfer_accepted
+  // --------------------------------------------------------------------------
+  it("R8: acceptCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_accepted", async () => {
+    mockRequireCapability.mockResolvedValue(makeAuth());
+    const { acceptCrossOrgTransferAction } = await import("../actions");
+    const { acceptCrossOrgTransfer } = await import("../application/accept-cross-org-transfer");
+    (acceptCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: {
+        publicCode: "CASE-r8",
+        caseId: "case-r8",
+        petId: "pet-r8",
+        senderOrgId: "org-sender",
+        receiverOrgId: "org-1",
+      },
+      notifications: [],
+    });
+    await acceptCrossOrgTransferAction({ receiverOrgToken: "org-tok", casePublicCode: "CASE-r8" });
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "cross_org_transfer_accepted",
+        payload: expect.objectContaining({
+          case_id: "case-r8",
+          pet_id: "pet-r8",
+          sender_org_id: "org-sender",
+          receiver_org_id: "org-1",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R9 — rejectCrossOrgTransferAction → cross_org_transfer_rejected
+  // --------------------------------------------------------------------------
+  it("R9: rejectCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_rejected", async () => {
+    mockRequireCapability.mockResolvedValue(makeAuth());
+    const { rejectCrossOrgTransferAction } = await import("../actions");
+    const { rejectCrossOrgTransfer } = await import("../application/reject-cross-org-transfer");
+    (rejectCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: {
+        publicCode: "CASE-r9",
+        caseId: "case-r9",
+        petId: "pet-r9",
+        senderOrgId: "org-sender",
+        receiverOrgId: "org-1",
+      },
+      notifications: [],
+    });
+    await rejectCrossOrgTransferAction({
+      receiverOrgToken: "org-tok",
+      casePublicCode: "CASE-r9",
+      reason: "no capacity",
+    });
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "cross_org_transfer_rejected",
+        payload: expect.objectContaining({
+          case_id: "case-r9",
+          pet_id: "pet-r9",
+          sender_org_id: "org-sender",
+          receiver_org_id: "org-1",
+        }),
+      }),
+    );
+  });
+
+  // --------------------------------------------------------------------------
+  // R10 — cancelCrossOrgTransferAction → cross_org_transfer_cancelled_by_sender
+  // --------------------------------------------------------------------------
+  it("R10: cancelCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_cancelled_by_sender", async () => {
+    mockRequireCapability.mockResolvedValue(makeAuth());
+    const { cancelCrossOrgTransferAction } = await import("../actions");
+    const { cancelCrossOrgTransfer } = await import("../application/cancel-cross-org-transfer");
+    (cancelCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      value: {
+        publicCode: "CASE-r10",
+        caseId: "case-r10",
+        petId: "pet-r10",
+        senderOrgId: "org-1",
+        receiverOrgId: "org-receiver",
+      },
+      notifications: [],
+    });
+    await cancelCrossOrgTransferAction({
+      senderOrgToken: "org-tok",
+      casePublicCode: "CASE-r10",
+      reason: "changed plans",
+    });
+    const audits = getAuditInserts();
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "user-1",
+        action: "cross_org_transfer_cancelled_by_sender",
+        payload: expect.objectContaining({
+          case_id: "case-r10",
+          pet_id: "pet-r10",
+          sender_org_id: "org-1",
+          receiver_org_id: "org-receiver",
+        }),
+      }),
+    );
+  });
+});
+
+// ===========================================================================
+// W-2: acceptPetTransferAction — specific-path revalidation
+// ===========================================================================
+
+describe("W-2: acceptPetTransferAction — specific petPublicToken revalidation", () => {
+  let acceptPetTransferAction: (...args: any[]) => Promise<any>;
+  let acceptPetTransferUc: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue(makeUserSession());
+    const actions = await import("../actions");
+    acceptPetTransferAction = actions.acceptPetTransferAction;
+    const ucModule = await import("../application/accept-pet-transfer");
+    acceptPetTransferUc = ucModule.acceptPetTransfer as ReturnType<typeof vi.fn>;
+  });
+
+  afterEach(() => vi.resetModules());
+
+  it("W-2: calls revalidatePath on specific pet page when use-case returns petPublicToken", async () => {
+    const { revalidatePath } = await import("next/cache");
+    acceptPetTransferUc.mockResolvedValue({
+      ok: true,
+      value: { petId: "pet-1", fromOwnerId: "sender-user", petPublicToken: "PET-tok-123" },
+      notifications: [],
+    });
+    await acceptPetTransferAction("PTR-w2");
+    expect(revalidatePath).toHaveBeenCalledWith("/mis-mascotas/PET-tok-123");
   });
 });

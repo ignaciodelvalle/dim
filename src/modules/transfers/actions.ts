@@ -21,7 +21,7 @@
 //
 // Reference: src/modules/foster/actions.ts, src/modules/adoption/actions.ts
 
-import { db, notifications } from "@/db";
+import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { requireCapability } from "@/lib/capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -58,6 +58,21 @@ async function flushNotifications(pending: NewNotification[]): Promise<void> {
       .values(pending as unknown as (typeof notifications.$inferInsert)[]);
   } catch (e) {
     console.error("[transfers/actions] notifications insert failed (action did succeed):", e);
+  }
+}
+
+type AuditEntry = {
+  actorUserId: string;
+  action: string;
+  payload: Record<string, unknown>;
+};
+
+/** Insert a single audit_log row post-tx, best-effort. Never throws. */
+async function flushAuditLog(entry: AuditEntry): Promise<void> {
+  try {
+    await db.insert(auditLog).values(entry as typeof auditLog.$inferInsert);
+  } catch (e) {
+    console.error("[transfers/actions] auditLog insert failed (action did succeed):", e);
   }
 }
 
@@ -103,6 +118,18 @@ export async function initiatePetTransferAction(
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R1 (pet_transfer_initiated).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "pet_transfer_initiated",
+    payload: {
+      transfer_public_token: result.value.transferToken,
+      pet_id: result.value.petId,
+      to_email: input.toEmail,
+      to_user_known: !result.value.recipientNeedsInvite,
+    },
+  });
 
   // Best-effort invite for recipients without an account.
   if (result.value.recipientNeedsInvite) {
@@ -156,11 +183,22 @@ export async function acceptPetTransferAction(
 
   await flushNotifications(result.notifications);
 
-  // Parity: revalidate pet timeline + /mis-mascotas.
-  // We don't have petToken here directly; the use-case returns petId.
-  // The old action resolved the publicToken inside the tx via a select.
-  // The use-case returns petId; we trust the existing integration tests cover
-  // the case where we need the publicToken. We revalidate /mis-mascotas always.
+  // Parity: audit_log insert for R2 (pet_transfer_accepted).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "pet_transfer_accepted",
+    payload: {
+      transfer_public_token: transferToken,
+      pet_id: result.value.petId,
+      from_user_id: result.value.fromOwnerId,
+    },
+  });
+
+  // W-2 parity: revalidate specific pet page when publicToken is available
+  // (use-case returns petPublicToken if the view was fetched inside the tx).
+  if (result.value.petPublicToken) {
+    revalidatePath(`/mis-mascotas/${result.value.petPublicToken}`);
+  }
   revalidatePath("/mis-mascotas");
 
   return { ok: true };
@@ -196,6 +234,18 @@ export async function rejectPetTransferAction(
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R3 (pet_transfer_rejected).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "pet_transfer_rejected",
+    payload: {
+      transfer_public_token: input.transferToken,
+      pet_id: result.value.petId,
+      reason: input.reason ?? null,
+    },
+  });
+
   return { ok: true };
 }
 
@@ -223,6 +273,17 @@ export async function cancelPetTransferAction(
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R4 (pet_transfer_cancelled).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "pet_transfer_cancelled",
+    payload: {
+      transfer_public_token: transferToken,
+      pet_id: result.value.petId,
+    },
+  });
+
   return { ok: true };
 }
 
@@ -313,6 +374,18 @@ export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStat
   // Flush per-row notifications best-effort.
   await flushNotifications(result.notifications);
 
+  // Parity (R6): audit_log insert per expired row; actor=fromOwnerId per row.
+  for (const entry of result.value.auditEntries) {
+    await flushAuditLog({
+      actorUserId: entry.actorUserId,
+      action: "pet_transfer_expired",
+      payload: {
+        transfer_public_token: entry.transferToken,
+        pet_id: entry.petId,
+      },
+    });
+  }
+
   return { expired: result.value.expired };
 }
 
@@ -356,6 +429,20 @@ export async function proposeCrossOrgTransferAction(
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R7 (cross_org_transfer_proposed).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "cross_org_transfer_proposed",
+    payload: {
+      case_id: result.value.caseId,
+      pet_id: result.value.petId,
+      sender_org_id: result.value.senderOrgId,
+      receiver_org_id: result.value.receiverOrgId,
+      reason: input.reason,
+    },
+  });
+
   revalidatePath(`/org/${input.senderOrgToken}/transferencias`);
   return { ok: true, publicCode: result.value.publicCode };
 }
@@ -389,6 +476,19 @@ export async function acceptCrossOrgTransferAction(input: {
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R8 (cross_org_transfer_accepted).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "cross_org_transfer_accepted",
+    payload: {
+      case_id: result.value.caseId,
+      pet_id: result.value.petId,
+      sender_org_id: result.value.senderOrgId,
+      receiver_org_id: result.value.receiverOrgId,
+    },
+  });
+
   revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
   return { ok: true, publicCode: result.value.publicCode };
 }
@@ -425,6 +525,20 @@ export async function rejectCrossOrgTransferAction(input: {
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R9 (cross_org_transfer_rejected).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "cross_org_transfer_rejected",
+    payload: {
+      case_id: result.value.caseId,
+      pet_id: result.value.petId,
+      sender_org_id: result.value.senderOrgId,
+      receiver_org_id: result.value.receiverOrgId,
+      reason: input.reason ?? null,
+    },
+  });
+
   revalidatePath(`/org/${input.receiverOrgToken}/transferencias/recibidas`);
   return { ok: true, publicCode: result.value.publicCode };
 }
@@ -461,6 +575,20 @@ export async function cancelCrossOrgTransferAction(input: {
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
+
+  // Parity: audit_log insert for R10 (cross_org_transfer_cancelled_by_sender).
+  await flushAuditLog({
+    actorUserId: user.id,
+    action: "cross_org_transfer_cancelled_by_sender",
+    payload: {
+      case_id: result.value.caseId,
+      pet_id: result.value.petId,
+      sender_org_id: result.value.senderOrgId,
+      receiver_org_id: result.value.receiverOrgId ?? null,
+      reason: input.reason ?? null,
+    },
+  });
+
   revalidatePath(`/org/${input.senderOrgToken}/transferencias`);
   return { ok: true, publicCode: result.value.publicCode };
 }

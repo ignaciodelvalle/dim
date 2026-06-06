@@ -58,7 +58,15 @@ export type ProposeCrossOrgTransferInput = {
 export async function proposeCrossOrgTransfer(
   input: ProposeCrossOrgTransferInput,
   deps: Deps,
-): Promise<UseCaseResult<{ publicCode: string }>> {
+): Promise<
+  UseCaseResult<{
+    publicCode: string;
+    caseId: string;
+    petId: string;
+    senderOrgId: string;
+    receiverOrgId: string;
+  }>
+> {
   const { repo, actor, transaction } = deps;
   const { user, organization } = actor;
 
@@ -113,6 +121,7 @@ export async function proposeCrossOrgTransfer(
 
   const pendingNotifications: NewNotification[] = [];
   let createdPublicCode = "";
+  let createdCaseId = "";
 
   // 9. Atomic transaction.
   try {
@@ -130,6 +139,7 @@ export async function proposeCrossOrgTransfer(
         tx as Parameters<typeof repo.openHandshakeCase>[1],
       );
       createdPublicCode = caseRow.publicCode;
+      createdCaseId = caseRow.id;
 
       await repo.insertPetEvent(
         {
@@ -197,7 +207,13 @@ export async function proposeCrossOrgTransfer(
 
   return {
     ok: true,
-    value: { publicCode: createdPublicCode },
+    value: {
+      publicCode: createdPublicCode,
+      caseId: createdCaseId,
+      petId: pet.id,
+      senderOrgId: organization.id,
+      receiverOrgId: receiver.id,
+    },
     notifications: pendingNotifications,
   };
 }
