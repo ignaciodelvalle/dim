@@ -20,9 +20,12 @@
 //   - Flushing pendingNotifications (post-tx, best-effort)
 //   - redirect("/mis-mascotas")
 
-import type { UseCaseResult, NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";
-import type { PetsRepository } from "../infrastructure/pets-repository";
+import type {
+  NewNotification,
+  UseCaseResult,
+} from "@/src/modules/adoption/application/set-adoption-eligibility";
 import type { RegisterPetInput } from "../domain/types";
+import type { PetsRepository } from "../infrastructure/pets-repository";
 
 // ---------------------------------------------------------------------------
 // Types

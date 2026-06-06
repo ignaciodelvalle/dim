@@ -8,9 +8,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PetsRepository } from "../../infrastructure/pets-repository";
-import type { ParsedPet, UpdatePetInput } from "../../domain/types";
 import type { ExistingPetSnapshot } from "../../domain/pet-diff";
+import type { ParsedPet, UpdatePetInput } from "../../domain/types";
+import type { PetsRepository } from "../../infrastructure/pets-repository";
 
 // ---------------------------------------------------------------------------
 // Fake repository
@@ -19,7 +19,9 @@ import type { ExistingPetSnapshot } from "../../domain/pet-diff";
 function makeFakeRepo(overrides?: Partial<typeof PetsRepository>): typeof PetsRepository {
   return {
     generatePublicToken: vi.fn().mockResolvedValue("DIM-TEST-0001"),
-    insertPetRegistered: vi.fn().mockResolvedValue({ petId: "pet-uuid-1", eventId: "event-uuid-1" }),
+    insertPetRegistered: vi
+      .fn()
+      .mockResolvedValue({ petId: "pet-uuid-1", eventId: "event-uuid-1" }),
     updatePetProfile: vi.fn().mockResolvedValue({ eventId: "event-uuid-update-1" }),
     ...overrides,
   } as unknown as typeof PetsRepository;
@@ -107,7 +109,10 @@ type EventAuthorship = {
   authorVerified: boolean;
 };
 
-function makeActor(overrides?: { accessPath?: "owner" | "org"; eventAuthorship?: Partial<EventAuthorship> }): {
+function makeActor(overrides?: {
+  accessPath?: "owner" | "org";
+  eventAuthorship?: Partial<EventAuthorship>;
+}): {
   user: { id: string };
   accessPath: "owner" | "org";
   eventAuthorship: EventAuthorship;
@@ -189,14 +194,11 @@ describe("updatePet", () => {
     it("calls updatePetProfile with hasContentChanges=true when name changed", async () => {
       const repo = makeFakeRepo();
 
-      const result = await updatePet(
-        makeInput({ parsed: makeParsedPet({ name: "Lulú" }) }),
-        {
-          repo,
-          actor: makeActor(),
-          transaction: async (cb) => await cb({} as never),
-        },
-      );
+      const result = await updatePet(makeInput({ parsed: makeParsedPet({ name: "Lulú" }) }), {
+        repo,
+        actor: makeActor(),
+        transaction: async (cb) => await cb({} as never),
+      });
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error("unreachable");
@@ -213,7 +215,11 @@ describe("updatePet", () => {
       const repo = makeFakeRepo();
 
       await updatePet(
-        makeInput({ uploadedPath: "pet-photos/photo.jpg", uploadMimeType: "image/jpeg", uploadSize: 1024 }),
+        makeInput({
+          uploadedPath: "pet-photos/photo.jpg",
+          uploadMimeType: "image/jpeg",
+          uploadSize: 1024,
+        }),
         {
           repo,
           actor: makeActor(),
@@ -324,14 +330,11 @@ describe("updatePet", () => {
         updatePetProfile: vi.fn().mockRejectedValue(new Error("constraint violated")),
       });
 
-      const result = await updatePet(
-        makeInput({ parsed: makeParsedPet({ name: "Lulú" }) }),
-        {
-          repo,
-          actor: makeActor(),
-          transaction: async (cb) => await cb({} as never),
-        },
-      );
+      const result = await updatePet(makeInput({ parsed: makeParsedPet({ name: "Lulú" }) }), {
+        repo,
+        actor: makeActor(),
+        transaction: async (cb) => await cb({} as never),
+      });
 
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");

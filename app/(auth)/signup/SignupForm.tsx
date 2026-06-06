@@ -1,9 +1,9 @@
 "use client";
 
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
-import { createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
 import { Input } from "@/components/poncho";
+import { createPetAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";

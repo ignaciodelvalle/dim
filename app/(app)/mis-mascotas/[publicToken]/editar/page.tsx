@@ -1,8 +1,8 @@
-import { updatePetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
 import { attachments, db } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
 import { petPhotoUrl } from "@/lib/storage";
+import { updatePetAction } from "@/src/modules/pets/actions";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";

@@ -1,0 +1,399 @@
+// Parity tests for src/modules/pets/actions.ts thin controllers.
+//
+// These are module-level unit tests — they mock Next.js, Supabase, and the
+// use-cases so we can verify the action's orchestration logic without a DB:
+//   - Auth guard fires first (createPet: getUser; updatePet: requirePetAccess)
+//   - Pre-tx chip cross-check 3-way: lost→redirect / active→warn+forceToken / deceased→error
+//   - Jurisdiction error propagated from resolveCanonicalJurisdiction
+//   - Use-case error propagated to caller
+//   - Notifications are flushed post-tx (db.insert called after use-case ok)
+//
+// TDD cycle: RED written before src/modules/pets/actions.ts exists.
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// Module mocks (must be at top level before imports)
+// ---------------------------------------------------------------------------
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    throw Object.assign(new Error(`REDIRECT:${url}`), { digest: `NEXT_REDIRECT:${url}` });
+  }),
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn().mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
+    },
+    storage: {
+      from: vi.fn().mockReturnValue({
+        remove: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    },
+  }),
+}));
+
+vi.mock("@/lib/pet-access", () => ({
+  requirePetAccess: vi.fn().mockResolvedValue({
+    ok: true,
+    user: { id: "user-1" },
+    supabase: {
+      storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) },
+    },
+    pet: {
+      id: "pet-existing",
+      name: "Luna",
+      species: "perro",
+      sex: "female",
+      breed: "labrador",
+      dateOfBirth: "2022-01-01",
+      color: "negro",
+      microchipId: null,
+      microchipCountryCode: null,
+      microchipImplantedAt: null,
+      microchipImplantedBy: null,
+      microchipLocation: null,
+      estimatedWeightKg: null,
+      favouriteFoods: null,
+      knownAllergies: null,
+      trainingLevel: null,
+      potentiallyDangerousBreed: false,
+      insuranceCompany: null,
+      insurancePolicyNumber: null,
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+      acquisitionMethod: "adopted",
+      emergencyInfoVisible: false,
+      permanentConditions: [],
+      permanentConditionsOther: null,
+      discloseConditionsPublicly: false,
+    },
+    eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
+    accessPath: "owner",
+  }),
+}));
+
+vi.mock("@/lib/uploads", () => ({
+  uploadAttachmentIfPresent: vi.fn().mockResolvedValue({
+    uploadedPath: null,
+    mimeType: null,
+    size: null,
+    error: null,
+  }),
+}));
+
+vi.mock("@/lib/jurisdiction-validation", () => ({
+  JurisdictionValidationError: class JurisdictionValidationError extends Error {},
+  resolveCanonicalJurisdiction: vi.fn().mockResolvedValue({
+    province: { name: "Buenos Aires" },
+    locality: { localityName: "La Plata" },
+  }),
+}));
+
+vi.mock("@/lib/microchip-validation", () => ({
+  validateMicrochipId: vi.fn().mockReturnValue({ ok: true, normalized: "724123456789012" }),
+}));
+
+vi.mock("@/lib/chip-lookup", () => ({
+  lookupByChip: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/microchip-force-token", () => ({
+  generateForceToken: vi.fn().mockReturnValue("force-tok-abc"),
+  validateForceToken: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock("@/lib/breeds-server", () => ({
+  isPotentiallyDangerousBreedForJurisdiction: vi.fn().mockResolvedValue(false),
+}));
+
+vi.mock("@/db", () => ({
+  db: {
+    transaction: vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => cb({})),
+    insert: vi.fn().mockReturnValue({
+      values: vi.fn().mockResolvedValue(undefined),
+    }),
+  },
+  notifications: { $inferInsert: {} },
+}));
+
+vi.mock("@/src/modules/pets/application/register-pet", () => ({
+  registerPet: vi.fn().mockResolvedValue({
+    ok: true,
+    value: { petId: "new-pet-id", eventId: "new-event-id" },
+    notifications: [],
+  }),
+}));
+
+vi.mock("@/src/modules/pets/application/update-pet", () => ({
+  updatePet: vi.fn().mockResolvedValue({
+    ok: true,
+    notifications: [],
+  }),
+}));
+
+vi.mock("@/src/modules/pets/infrastructure/pets-repository", () => ({
+  PetsRepository: {
+    generatePublicToken: vi.fn(),
+    insertPetRegistered: vi.fn(),
+    updatePetProfile: vi.fn(),
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeCreateFormData(overrides?: Record<string, string>): FormData {
+  const fd = new FormData();
+  fd.append("name", "Luna");
+  fd.append("species", "perro");
+  fd.append("sex", "female");
+  for (const [k, v] of Object.entries(overrides ?? {})) {
+    fd.set(k, v);
+  }
+  return fd;
+}
+
+function makeUpdateFormData(overrides?: Record<string, string>): FormData {
+  return makeCreateFormData(overrides);
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("createPetAction", () => {
+  let createPetAction: typeof import("../actions").createPetAction;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import("../actions");
+    createPetAction = mod.createPetAction;
+
+    vi.clearAllMocks();
+    // Reset mocks to defaults
+    (await import("@/lib/supabase/server")).createClient = vi.fn().mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }),
+      },
+      storage: {
+        from: vi.fn().mockReturnValue({ remove: vi.fn().mockResolvedValue({ error: null }) }),
+      },
+    });
+    (await import("@/lib/chip-lookup")).lookupByChip = vi.fn().mockResolvedValue(null);
+    (await import("@/lib/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
+      .fn()
+      .mockResolvedValue({
+        province: { name: "Buenos Aires" },
+        locality: { localityName: "La Plata" },
+      });
+    (await import("@/src/modules/pets/application/register-pet")).registerPet = vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        value: { petId: "new-pet-id", eventId: "new-event-id" },
+        notifications: [],
+      });
+  });
+
+  describe("auth guard", () => {
+    it("returns error when no Supabase session", async () => {
+      const supaClient = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+        storage: { from: vi.fn() },
+      };
+      const { createClient } = await import("@/lib/supabase/server");
+      (createClient as ReturnType<typeof vi.fn>).mockResolvedValueOnce(supaClient);
+
+      const result = (await createPetAction({ error: null }, makeCreateFormData())) as {
+        error: string;
+      };
+      expect(result.error).toMatch(/Sesión expirada/);
+    });
+  });
+
+  describe("chip cross-check (found_stray)", () => {
+    it("redirects to match page when chip match status=lost", async () => {
+      const { lookupByChip } = await import("@/lib/chip-lookup");
+      (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        pet: { status: "lost", publicToken: "DIM-LOST-0001" },
+      });
+
+      await expect(
+        createPetAction(
+          { error: null },
+          makeCreateFormData({ acquisitionMethod: "found_stray", microchipId: "724123456789012" }),
+        ),
+      ).rejects.toThrow("REDIRECT:/mis-mascotas/nueva/match/DIM-LOST-0001");
+    });
+
+    it("returns CHIP_MATCH_ACTIVE warning when match status=active and no forceToken", async () => {
+      const { lookupByChip } = await import("@/lib/chip-lookup");
+      (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        pet: { status: "active", publicToken: "DIM-ACTIVE-0001" },
+      });
+
+      const result = (await createPetAction(
+        { error: null },
+        makeCreateFormData({ acquisitionMethod: "found_stray", microchipId: "724123456789012" }),
+      )) as { warning: string; matchedPetToken: string; forceToken: string };
+
+      expect(result.warning).toBe("CHIP_MATCH_ACTIVE");
+      expect(result.matchedPetToken).toBe("DIM-ACTIVE-0001");
+      expect(result.forceToken).toBeDefined();
+    });
+
+    it("returns deceased chip error when match status=deceased", async () => {
+      const { lookupByChip } = await import("@/lib/chip-lookup");
+      (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        pet: { status: "deceased", publicToken: "DIM-DEAD-0001" },
+      });
+
+      const result = (await createPetAction(
+        { error: null },
+        makeCreateFormData({ acquisitionMethod: "found_stray", microchipId: "724123456789012" }),
+      )) as { error: string };
+
+      expect(result.error).toMatch(/fallecida/);
+    });
+  });
+
+  describe("error propagation", () => {
+    it("propagates use-case error to caller", async () => {
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+      (registerPet as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        error: "No se pudo crear la mascota: DB failure",
+      });
+
+      const result = (await createPetAction({ error: null }, makeCreateFormData())) as {
+        error: string;
+      };
+      expect(result.error).toMatch(/No se pudo crear la mascota/);
+    });
+  });
+});
+
+describe("updatePetAction", () => {
+  let updatePetAction: typeof import("../actions").updatePetAction;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import("../actions");
+    updatePetAction = mod.updatePetAction;
+    vi.clearAllMocks();
+
+    (await import("@/lib/pet-access")).requirePetAccess = vi.fn().mockResolvedValue({
+      ok: true,
+      user: { id: "user-1" },
+      supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
+      pet: {
+        id: "pet-existing",
+        name: "Luna",
+        species: "perro",
+        sex: "female",
+        breed: "labrador",
+        dateOfBirth: "2022-01-01",
+        color: "negro",
+        microchipId: null,
+        microchipCountryCode: null,
+        microchipImplantedAt: null,
+        microchipImplantedBy: null,
+        microchipLocation: null,
+        estimatedWeightKg: null,
+        favouriteFoods: null,
+        knownAllergies: null,
+        trainingLevel: null,
+        potentiallyDangerousBreed: false,
+        insuranceCompany: null,
+        insurancePolicyNumber: null,
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+        acquisitionMethod: "adopted",
+        emergencyInfoVisible: false,
+        permanentConditions: [],
+        permanentConditionsOther: null,
+        discloseConditionsPublicly: false,
+      },
+      eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
+      accessPath: "owner",
+    });
+    (await import("@/lib/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
+      .fn()
+      .mockResolvedValue({
+        province: { name: "Buenos Aires" },
+        locality: { localityName: "La Plata" },
+      });
+    (await import("@/src/modules/pets/application/update-pet")).updatePet = vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        notifications: [],
+      });
+  });
+
+  describe("auth guard", () => {
+    it("returns error when requirePetAccess fails", async () => {
+      const { requirePetAccess } = await import("@/lib/pet-access");
+      (requirePetAccess as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        error: "Acceso denegado.",
+      });
+
+      const result = (await updatePetAction(
+        "DIM-TEST-0001",
+        { error: null },
+        makeUpdateFormData(),
+      )) as { error: string };
+      expect(result.error).toBe("Acceso denegado.");
+    });
+  });
+
+  describe("error propagation", () => {
+    it("propagates use-case error to caller", async () => {
+      const { updatePet } = await import("@/src/modules/pets/application/update-pet");
+      (updatePet as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        error: "No se pudo actualizar: constraint",
+      });
+
+      const result = (await updatePetAction(
+        "DIM-TEST-0001",
+        { error: null },
+        makeUpdateFormData(),
+      )) as { error: string };
+      expect(result.error).toMatch(/No se pudo actualizar/);
+    });
+  });
+
+  describe("notifications flush", () => {
+    it("calls db.insert with notifications when use-case returns them", async () => {
+      const { updatePet } = await import("@/src/modules/pets/application/update-pet");
+      (updatePet as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        notifications: [
+          {
+            userId: "user-1",
+            notificationType: "ppp_registration_reminder",
+            title: "PPP reminder",
+            body: "Register your pet",
+            severity: "warning",
+          },
+        ],
+      });
+
+      const { db } = await import("@/db");
+      const insertSpy = db.insert as ReturnType<typeof vi.fn>;
+
+      // updatePetAction succeeds (redirect throws) — catch the redirect
+      await expect(
+        updatePetAction("DIM-TEST-0001", { error: null }, makeUpdateFormData()),
+      ).rejects.toThrow(/REDIRECT/);
+
+      expect(insertSpy).toHaveBeenCalled();
+    });
+  });
+});

@@ -32,7 +32,8 @@ import { describe, expect, it } from "vitest";
 
 // adoption.ts and adoption-applications.ts were migrated to the hexagonal module
 // (src/modules/adoption/actions.ts) in WU-4 of hexagonal-lite-foundation.
-// The new file uses flushNotifications() helper (same pattern, different surface).
+// pets.ts was migrated to src/modules/pets/actions.ts in WU-4 of hexagonal-lite-pets.
+// Both new files use the flushNotifications() helper pattern (same contract, different surface).
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-institutional.ts",
@@ -43,7 +44,6 @@ const REFACTORED_FILES = [
   "foster.ts",
   "foster-proposals.ts",
   "intake.ts",
-  "pets.ts",
   "profile-self-service.ts",
   "return-to-owner.ts",
   "transfer.ts",

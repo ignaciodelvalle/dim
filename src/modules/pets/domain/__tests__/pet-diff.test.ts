@@ -37,6 +37,7 @@ function makeExisting(overrides: Partial<ExistingPetFixture> = {}): ExistingPetF
     jurisdictionProvince: "Buenos Aires",
     jurisdictionLocality: "La Plata",
     acquisitionMethod: "adopted",
+    emergencyInfoVisible: false,
     ...overrides,
   };
 }

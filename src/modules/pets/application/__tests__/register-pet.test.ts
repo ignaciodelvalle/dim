@@ -8,9 +8,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PetsRepository } from "../../infrastructure/pets-repository";
 import type { ParsedPet } from "../../domain/types";
 import type { RegisterPetInput } from "../../domain/types";
+import type { PetsRepository } from "../../infrastructure/pets-repository";
 
 // ---------------------------------------------------------------------------
 // Fake repository
@@ -19,7 +19,9 @@ import type { RegisterPetInput } from "../../domain/types";
 function makeFakeRepo(overrides?: Partial<typeof PetsRepository>): typeof PetsRepository {
   return {
     generatePublicToken: vi.fn().mockResolvedValue("DIM-TEST-0001"),
-    insertPetRegistered: vi.fn().mockResolvedValue({ petId: "pet-uuid-1", eventId: "event-uuid-1" }),
+    insertPetRegistered: vi
+      .fn()
+      .mockResolvedValue({ petId: "pet-uuid-1", eventId: "event-uuid-1" }),
     updatePetProfile: vi.fn().mockResolvedValue({ eventId: null }),
     ...overrides,
   } as unknown as typeof PetsRepository;

@@ -20,11 +20,14 @@
 //   - Flushing pendingNotifications (post-tx, best-effort)
 //   - redirect(`/mis-mascotas/${publicToken}`)
 
-import type { UseCaseResult, NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";
-import { diffPet, type ExistingPetSnapshot } from "../domain/pet-diff";
+import type {
+  NewNotification,
+  UseCaseResult,
+} from "@/src/modules/adoption/application/set-adoption-eligibility";
+import { type ExistingPetSnapshot, diffPet } from "../domain/pet-diff";
 import { isBecamePPP, isChipNewlyAdded, isFlagOnlyChange, isNoOp } from "../domain/pet-rules";
-import type { PetsRepository } from "../infrastructure/pets-repository";
 import type { UpdatePetInput } from "../domain/types";
+import type { PetsRepository } from "../infrastructure/pets-repository";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,13 +58,11 @@ type Deps = {
 // Use-case
 // ---------------------------------------------------------------------------
 
-export async function updatePet(
-  input: UpdatePetInput,
-  deps: Deps,
-): Promise<UseCaseResult<void>> {
+export async function updatePet(input: UpdatePetInput, deps: Deps): Promise<UseCaseResult<void>> {
   const { repo, actor, transaction } = deps;
   const { user, accessPath, eventAuthorship, existingPet } = actor;
-  const { petId, parsed, potentiallyDangerousBreed, uploadedPath, uploadMimeType, uploadSize } = input;
+  const { petId, parsed, potentiallyDangerousBreed, uploadedPath, uploadMimeType, uploadSize } =
+    input;
 
   const now = new Date();
 

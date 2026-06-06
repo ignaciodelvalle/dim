@@ -5,7 +5,6 @@
 // prop — present means edit, absent means create. The action prop is bound
 // at the call site so the form doesn't need to know which it's calling.
 
-import type { NewPetFormState } from "@/app/actions/pets";
 import { Field, Input, Select } from "@/components/poncho";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/ar-provincias";
@@ -24,6 +23,7 @@ import {
   permanentConditionGroup,
   permanentConditionLabel,
 } from "@/lib/permanent-conditions";
+import type { NewPetFormState } from "@/src/modules/pets/domain/types";
 import { useActionState, useMemo, useState } from "react";
 import { LocationFields } from "./LocationFields";
 
