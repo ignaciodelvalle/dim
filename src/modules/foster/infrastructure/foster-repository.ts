@@ -15,8 +15,9 @@ import {
   ownerships,
   petEvents,
   pets,
+  profiles,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 // ---------------------------------------------------------------------------
@@ -667,5 +668,680 @@ export const FosterRepository = {
     const map = new Map<string, number>();
     for (const c of counts) map.set(c.userId, c.count);
     return map;
+  },
+
+  // -------------------------------------------------------------------------
+  // Composite atomic write methods (use-case boundaries)
+  //
+  // These bundle event insert + case operations into one tx call so use-cases
+  // remain unit-testable with a fake repo.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Atomic: insert foster ownership + open foster_placement case + emit
+   * foster_assigned event. Must be called inside a db.transaction().
+   * Returns the new ownership id and the case id.
+   */
+  async insertAssignFoster(
+    args: {
+      petId: string;
+      petName: string;
+      petJurisdictionProvince: string | null;
+      petJurisdictionLocality: string | null;
+      fosterUserId: string;
+      expectedWeeks: number | null;
+      notes: string | null;
+      actorUserId: string;
+      actorOrgId: string;
+      actorOrgVerified: boolean;
+      actorOrgDisplayName: string;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<{ ownershipId: string; caseId: string }> {
+    const [ownership] = await tx
+      .insert(ownerships)
+      .values({
+        petId: args.petId,
+        ownerUserId: args.fosterUserId,
+        role: "foster",
+        startedAt: args.now,
+      })
+      .returning({ id: ownerships.id });
+
+    const caseRow = await openCase(
+      {
+        kind: "foster_placement",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: args.petId,
+        jurisdictionProvince: args.petJurisdictionProvince,
+        jurisdictionLocality: args.petJurisdictionLocality,
+        openedByUserId: args.actorUserId,
+        openedByOrganizationId: args.actorOrgId,
+        openedReason: `Foster placement assigned by ${args.actorOrgDisplayName}${
+          args.expectedWeeks ? ` — expected ${args.expectedWeeks} weeks` : ""
+        }`,
+      },
+      tx,
+    );
+
+    const payload = validateEventPayload("foster_assigned", {
+      foster_user_id: args.fosterUserId,
+      expected_weeks: args.expectedWeeks,
+      notes: args.notes,
+    });
+    await tx.insert(petEvents).values({
+      petId: args.petId,
+      eventType: "foster_assigned",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.actorUserId,
+      authorRole: "shelter",
+      authorOrganizationId: args.actorOrgId,
+      authorVerified: args.actorOrgVerified,
+      payload,
+      caseId: caseRow.id,
+    });
+
+    return { ownershipId: ownership.id, caseId: caseRow.id };
+  },
+
+  /**
+   * Atomic: end foster ownership + emit foster_ended event + close
+   * foster_placement case + optionally read volunteer slots for re-enroll
+   * prompt logic. Returns the caseId (or null) and the volunteer slot count.
+   */
+  async insertEndFoster(
+    args: {
+      petId: string;
+      petName: string;
+      fosterOwnershipId: string;
+      fosterUserId: string;
+      reason: string;
+      closedReason: "resolved" | "cancelled";
+      notes: string | null;
+      actorUserId: string;
+      actorOrgId: string;
+      actorOrgVerified: boolean;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<{ caseId: string | null; volunteerAvailableSlots: number | null }> {
+    await tx
+      .update(ownerships)
+      .set({ endedAt: args.now })
+      .where(eq(ownerships.id, args.fosterOwnershipId));
+
+    // Resolve open foster_placement case via case-helpers.
+    const caseRow = await findOpenCaseForPetAndKind(args.petId, "foster_placement", tx);
+    const caseId = caseRow?.id ?? null;
+
+    const payload = validateEventPayload("foster_ended", {
+      foster_user_id: args.fosterUserId,
+      reason: args.reason,
+      notes: args.notes,
+    });
+    await tx.insert(petEvents).values({
+      petId: args.petId,
+      eventType: "foster_ended",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.actorUserId,
+      authorRole: "shelter",
+      authorOrganizationId: args.actorOrgId,
+      authorVerified: args.actorOrgVerified,
+      payload,
+      caseId,
+    });
+
+    if (caseId) {
+      await closeCase({ caseId, reason: args.closedReason, closedByUserId: args.actorUserId }, tx);
+    }
+
+    // Read volunteer slots INSIDE tx for re-enroll prompt (spec R2).
+    const [volunteer] = await tx
+      .select({ availableSlots: fosterVolunteers.availableSlots })
+      .from(fosterVolunteers)
+      .where(eq(fosterVolunteers.userId, args.fosterUserId))
+      .limit(1);
+
+    return { caseId, volunteerAvailableSlots: volunteer?.availableSlots ?? null };
+  },
+
+  /**
+   * Atomic: open foster_proposal case + insert proposal row + emit
+   * foster_proposed event. Returns the proposal id and public token.
+   */
+  async insertProposeFoster(
+    args: {
+      petId: string;
+      petName: string;
+      petJurisdictionProvince: string | null;
+      petJurisdictionLocality: string | null;
+      volunteerUserId: string;
+      proposedByUserId: string;
+      orgId: string;
+      orgVerified: boolean;
+      orgDisplayName: string;
+      orgToken: string;
+      publicToken: string;
+      proposedDurationWeeks: number | null;
+      proposedNotes: string | null;
+      matchWarnings: string[];
+      expiresAt: Date;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<{ proposalId: string; caseId: string }> {
+    const caseRow = await openCase(
+      {
+        kind: "foster_proposal",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: args.petId,
+        openedByUserId: args.proposedByUserId,
+        openedByOrganizationId: args.orgId,
+        jurisdictionProvince: args.petJurisdictionProvince,
+        jurisdictionLocality: args.petJurisdictionLocality,
+        openedReason: `Foster proposal to volunteer ${args.volunteerUserId} by org ${args.orgId}`,
+      },
+      tx,
+    );
+
+    const [proposal] = await tx
+      .insert(fosterProposals)
+      .values({
+        publicToken: args.publicToken,
+        organizationId: args.orgId,
+        volunteerUserId: args.volunteerUserId,
+        petId: args.petId,
+        proposedByUserId: args.proposedByUserId,
+        proposedAt: args.now,
+        proposedDurationWeeks: args.proposedDurationWeeks,
+        proposedNotes: args.proposedNotes,
+        matchWarnings: args.matchWarnings,
+        expiresAt: args.expiresAt,
+        status: "pending",
+        caseId: caseRow.id,
+        createdAt: args.now,
+        updatedAt: args.now,
+      })
+      .returning({ id: fosterProposals.id });
+
+    const payload = validateEventPayload("foster_proposed", {
+      proposal_public_token: args.publicToken,
+      volunteer_user_id: args.volunteerUserId,
+      proposed_duration_weeks: args.proposedDurationWeeks,
+      match_warnings: args.matchWarnings,
+    });
+    await tx.insert(petEvents).values({
+      petId: args.petId,
+      eventType: "foster_proposed",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.proposedByUserId,
+      authorRole: "shelter",
+      authorOrganizationId: args.orgId,
+      authorVerified: args.orgVerified,
+      payload,
+      caseId: caseRow.id,
+    });
+
+    return { proposalId: proposal.id, caseId: caseRow.id };
+  },
+
+  /**
+   * Atomic: accept foster proposal — insert ownership FIRST, then single
+   * proposal UPDATE (satisfies CHECK constraint), emit events, close case,
+   * optionally emit co-foster event, decrement slot, D18 cascade.
+   *
+   * Returns ownershipId, newSlots, cascadeCancelledTokens, and collected
+   * notification targets for fan-out (flushed post-tx by the use-case).
+   */
+  async insertAcceptFosterProposal(
+    args: {
+      proposal: ProposalRow;
+      petId: string;
+      petName: string;
+      volunteerUserId: string;
+      volunteerId: string;
+      volunteerCurrentSlots: number;
+      allowCoFoster: boolean;
+      responseNotes: string | null;
+      actorUserId: string;
+      actorOrgId: string;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<{
+    ownershipId: string;
+    newSlots: number;
+    cascadeCancelledTokens: string[];
+    cascadeOrgNotifyTargets: { orgId: string; petId: string }[];
+    acceptingOrgCoordinatorIds: string[];
+    actorDisplayName: string | null;
+  }> {
+    // Insert foster ownership FIRST (satisfies CHECK constraint ordering).
+    const [fosterOwnership] = await tx
+      .insert(ownerships)
+      .values({
+        petId: args.petId,
+        ownerUserId: args.volunteerUserId,
+        role: "foster",
+        startedAt: args.now,
+        allowCoFoster: args.allowCoFoster,
+      })
+      .returning({ id: ownerships.id });
+
+    // Single proposal UPDATE with resolvedOwnershipId set simultaneously.
+    await tx
+      .update(fosterProposals)
+      .set({
+        status: "accepted",
+        respondedAt: args.now,
+        responseNotes: args.responseNotes,
+        resolvedOwnershipId: fosterOwnership.id,
+        updatedAt: args.now,
+      })
+      .where(eq(fosterProposals.id, args.proposal.id));
+
+    // Resolve case_id for the accepted proposal.
+    const proposalCaseId =
+      args.proposal.caseId ??
+      (await findOpenCaseForPetAndKind(args.petId, "foster_proposal", tx))?.id ??
+      null;
+
+    // Emit foster_proposal_resolved (authorVerified=false) + foster_assigned (authorVerified=TRUE hardcoded).
+    const acceptedPayload = validateEventPayload("foster_proposal_resolved", {
+      proposal_public_token: args.proposal.publicToken,
+      outcome: "accepted",
+      response_notes: args.responseNotes,
+    });
+    const assignedPayload = validateEventPayload("foster_assigned", {
+      foster_user_id: args.volunteerUserId,
+      expected_weeks: args.proposal.proposedDurationWeeks,
+      notes: args.responseNotes,
+    });
+    await tx.insert(petEvents).values([
+      {
+        petId: args.petId,
+        eventType: "foster_proposal_resolved",
+        occurredAt: args.now,
+        recordedAt: args.now,
+        recordedByUserId: args.actorUserId,
+        authorRole: "owner",
+        authorOrganizationId: null,
+        authorVerified: false,
+        payload: acceptedPayload,
+        caseId: proposalCaseId,
+      },
+      {
+        petId: args.petId,
+        eventType: "foster_assigned",
+        occurredAt: args.now,
+        recordedAt: args.now,
+        recordedByUserId: args.actorUserId,
+        // PARITY: authorVerified hardcoded TRUE for foster_assigned (design §parity quirk 3)
+        authorRole: "shelter",
+        authorOrganizationId: args.proposal.organizationId,
+        authorVerified: true,
+        payload: assignedPayload,
+        caseId: proposalCaseId,
+      },
+    ]);
+
+    if (proposalCaseId) {
+      await closeCase(
+        { caseId: proposalCaseId, reason: "resolved", closedByUserId: args.actorUserId },
+        tx,
+      );
+    }
+
+    // Optional co-foster event.
+    if (args.allowCoFoster) {
+      const coFosterPayload = validateEventPayload("foster_co_foster_allowed", {
+        allow_co_foster: true,
+        foster_ownership_id: fosterOwnership.id,
+      });
+      await tx.insert(petEvents).values({
+        petId: args.petId,
+        eventType: "foster_co_foster_allowed",
+        occurredAt: args.now,
+        recordedAt: args.now,
+        recordedByUserId: args.actorUserId,
+        authorRole: "owner",
+        authorOrganizationId: null,
+        authorVerified: false,
+        payload: coFosterPayload,
+      });
+    }
+
+    // D16 — slot decrement.
+    const newSlots = args.volunteerCurrentSlots - 1;
+    await tx
+      .update(fosterVolunteers)
+      .set({ availableSlots: newSlots, updatedAt: args.now })
+      .where(eq(fosterVolunteers.id, args.volunteerId));
+
+    // D18 cascade when last slot consumed.
+    const cascadeCancelledTokens: string[] = [];
+    const cascadeOrgNotifyTargets: { orgId: string; petId: string }[] = [];
+
+    if (newSlots === 0) {
+      const others = await tx
+        .select()
+        .from(fosterProposals)
+        .where(
+          and(
+            eq(fosterProposals.volunteerUserId, args.volunteerUserId),
+            eq(fosterProposals.status, "pending"),
+            ne(fosterProposals.id, args.proposal.id),
+          ),
+        );
+      for (const p of others) {
+        await tx
+          .update(fosterProposals)
+          .set({
+            status: "cancelled",
+            cancelledAt: args.now,
+            cancelledByUserId: args.actorUserId,
+            cancellationReason: "volunteer_accepted_another",
+            updatedAt: args.now,
+          })
+          .where(eq(fosterProposals.id, p.id));
+
+        const otherCaseId =
+          p.caseId ?? (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ?? null;
+
+        const cancelPayload = validateEventPayload("foster_proposal_resolved", {
+          proposal_public_token: p.publicToken,
+          outcome: "cancelled",
+          cancellation_reason: "volunteer_accepted_another",
+          auto_cancelled: true,
+        });
+        await tx.insert(petEvents).values({
+          petId: p.petId,
+          eventType: "foster_proposal_resolved",
+          occurredAt: args.now,
+          recordedAt: args.now,
+          recordedByUserId: args.actorUserId,
+          authorRole: "owner",
+          authorOrganizationId: null,
+          authorVerified: false,
+          payload: cancelPayload,
+          caseId: otherCaseId,
+        });
+
+        if (otherCaseId) {
+          await closeCase(
+            { caseId: otherCaseId, reason: "cancelled", closedByUserId: args.actorUserId },
+            tx,
+          );
+        }
+
+        cascadeCancelledTokens.push(p.publicToken);
+        cascadeOrgNotifyTargets.push({ orgId: p.organizationId, petId: p.petId });
+      }
+    }
+
+    // Resolve accepting org coordinator ids + actor display name for notifications.
+    const acceptingOrgCoordinatorIds = await getOrgFosterCoordinatorUserIds(
+      args.proposal.organizationId,
+      tx,
+    );
+    const [actorProfile] = await tx
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, args.actorUserId))
+      .limit(1);
+
+    return {
+      ownershipId: fosterOwnership.id,
+      newSlots,
+      cascadeCancelledTokens,
+      cascadeOrgNotifyTargets,
+      acceptingOrgCoordinatorIds,
+      actorDisplayName: actorProfile?.displayName ?? null,
+    };
+  },
+
+  /**
+   * Atomic: reject a foster proposal — update status, emit event, close case.
+   * Returns orgCoordinatorIds for notification fan-out.
+   */
+  async insertRejectFosterProposal(
+    args: {
+      proposal: ProposalRow;
+      rejectionReason: string;
+      responseNotes: string | null;
+      actorUserId: string;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<{ orgCoordinatorIds: string[] }> {
+    await tx
+      .update(fosterProposals)
+      .set({
+        status: "rejected",
+        respondedAt: args.now,
+        responseNotes: args.responseNotes,
+        rejectionReason: args.rejectionReason,
+        updatedAt: args.now,
+      })
+      .where(eq(fosterProposals.id, args.proposal.id));
+
+    const proposalCaseId =
+      args.proposal.caseId ??
+      (await findOpenCaseForPetAndKind(args.proposal.petId, "foster_proposal", tx))?.id ??
+      null;
+
+    const payload = validateEventPayload("foster_proposal_resolved", {
+      proposal_public_token: args.proposal.publicToken,
+      outcome: "rejected",
+      rejection_reason: args.rejectionReason,
+      response_notes: args.responseNotes,
+    });
+    await tx.insert(petEvents).values({
+      petId: args.proposal.petId,
+      eventType: "foster_proposal_resolved",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.actorUserId,
+      authorRole: "owner",
+      authorOrganizationId: null,
+      authorVerified: false,
+      payload,
+      caseId: proposalCaseId,
+    });
+
+    if (proposalCaseId) {
+      await closeCase(
+        { caseId: proposalCaseId, reason: "resolved", closedByUserId: args.actorUserId },
+        tx,
+      );
+    }
+
+    const orgCoordinatorIds = await getOrgFosterCoordinatorUserIds(
+      args.proposal.organizationId,
+      tx,
+    );
+    return { orgCoordinatorIds };
+  },
+
+  /**
+   * Atomic: cancel a foster proposal (org-initiated). Emits event, closes case,
+   * returns volunteer userId for notification.
+   */
+  async insertCancelFosterProposal(
+    args: {
+      proposal: ProposalRow;
+      cancellationReason: string;
+      actorUserId: string;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<{ volunteerUserId: string }> {
+    await tx
+      .update(fosterProposals)
+      .set({
+        status: "cancelled",
+        cancelledAt: args.now,
+        cancelledByUserId: args.actorUserId,
+        cancellationReason: args.cancellationReason,
+        updatedAt: args.now,
+      })
+      .where(eq(fosterProposals.id, args.proposal.id));
+
+    const proposalCaseId =
+      args.proposal.caseId ??
+      (await findOpenCaseForPetAndKind(args.proposal.petId, "foster_proposal", tx))?.id ??
+      null;
+
+    const payload = validateEventPayload("foster_proposal_resolved", {
+      proposal_public_token: args.proposal.publicToken,
+      outcome: "cancelled",
+      cancellation_reason: args.cancellationReason,
+      auto_cancelled: false,
+    });
+    await tx.insert(petEvents).values({
+      petId: args.proposal.petId,
+      eventType: "foster_proposal_resolved",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.actorUserId,
+      authorRole: "shelter",
+      authorOrganizationId: args.proposal.organizationId,
+      authorVerified: true,
+      payload,
+      caseId: proposalCaseId,
+    });
+
+    if (proposalCaseId) {
+      await closeCase(
+        { caseId: proposalCaseId, reason: "cancelled", closedByUserId: args.actorUserId },
+        tx,
+      );
+    }
+
+    return { volunteerUserId: args.proposal.volunteerUserId };
+  },
+
+  /**
+   * Atomic: set co-foster allowed flag + emit foster_co_foster_allowed event
+   * (attached to open foster_placement case).
+   */
+  async insertSetCoFosterAllowed(
+    args: {
+      ownershipId: string;
+      petId: string;
+      allowCoFoster: boolean;
+      actorUserId: string;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<void> {
+    await tx
+      .update(ownerships)
+      .set({ allowCoFoster: args.allowCoFoster })
+      .where(eq(ownerships.id, args.ownershipId));
+
+    const caseRow = await findOpenCaseForPetAndKind(args.petId, "foster_placement", tx);
+
+    const payload = validateEventPayload("foster_co_foster_allowed", {
+      allow_co_foster: args.allowCoFoster,
+      foster_ownership_id: args.ownershipId,
+    });
+    await tx.insert(petEvents).values({
+      petId: args.petId,
+      eventType: "foster_co_foster_allowed",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.actorUserId,
+      authorRole: "owner",
+      authorOrganizationId: null,
+      authorVerified: false,
+      payload,
+      caseId: caseRow?.id ?? null,
+    });
+  },
+
+  /**
+   * Checks whether the given organization currently has active shelter_custody
+   * of the pet identified by petId. Used as a defense-in-depth re-check during
+   * proposal acceptance (org may have released custody after proposal was made).
+   */
+  async findOrgCustodyByPetId(
+    petId: string,
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ id: string } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Finds a foster ownership row by id that belongs to the given user and is
+   * currently active (endedAt IS NULL). Returns the row or null.
+   */
+  async findActiveFosterOwnershipById(
+    id: string,
+    userId: string,
+    tx?: Tx,
+  ): Promise<{ id: string; petId: string } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ id: ownerships.id, petId: ownerships.petId })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.id, id),
+          eq(ownerships.role, "foster"),
+          eq(ownerships.ownerUserId, userId),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Finds a user profile by id. Used for D13 pre-conditions.
+   */
+  async findProfileById(
+    userId: string,
+    tx?: Tx,
+  ): Promise<{
+    id: string;
+    accountType: string | null;
+    role: string | null;
+    dniVerified: boolean | null;
+    displayName: string | null;
+    phone: string | null;
+  } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({
+        id: profiles.id,
+        accountType: profiles.accountType,
+        role: profiles.role,
+        dniVerified: profiles.dniVerified,
+        displayName: profiles.displayName,
+        phone: profiles.phone,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    return row ?? null;
   },
 };

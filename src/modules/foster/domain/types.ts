@@ -81,9 +81,10 @@ export type VolunteerSnapshot = {
 };
 
 // D13 pre-condition profile shape (no DB types).
+// accountType and role may be null for newly-created or incomplete profiles.
 export type ProfileSnapshot = {
-  accountType: string;
-  role: string;
+  accountType: string | null;
+  role: string | null;
   dniVerified: boolean | null;
   displayName: string | null;
   phone: string | null;
