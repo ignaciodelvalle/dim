@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { cancelFosterProposalAction } from "@/app/actions/foster-proposals";
+import { cancelFosterProposalAction } from "@/src/modules/foster/actions";
 
 export function CancelProposalButton({ proposalPublicToken }: { proposalPublicToken: string }) {
   const router = useRouter();

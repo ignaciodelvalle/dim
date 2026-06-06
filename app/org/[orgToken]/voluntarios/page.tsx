@@ -1,6 +1,6 @@
-import { searchFosterVolunteers } from "@/app/actions/foster-proposals";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { searchFosterVolunteers } from "@/src/modules/foster/actions";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { VolunteerRow } from "./VolunteerRow";

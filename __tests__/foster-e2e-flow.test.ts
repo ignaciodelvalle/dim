@@ -25,8 +25,6 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { acceptFosterProposalAction, proposeFosterAction } from "@/app/actions/foster-proposals";
-import { upsertFosterVolunteerAction } from "@/app/actions/foster-volunteers";
 import {
   db,
   fosterProposals,
@@ -41,6 +39,11 @@ import {
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
+import {
+  acceptFosterProposalAction,
+  proposeFosterAction,
+  upsertFosterVolunteerAction,
+} from "@/src/modules/foster/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

@@ -13,6 +13,7 @@ function makeVolunteerRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "vol-1",
     userId: "user-1",
+    displayName: "Test Volunteer",
     status: "active",
     availableSlots: 2,
     acceptsDogs: true,

@@ -9,7 +9,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { expireFosterProposals } from "@/lib/foster-proposal-expirer";
+import { expireFosterProposalsAction as expireFosterProposals } from "@/src/modules/foster/actions";
 
 export const dynamic = "force-dynamic";
 

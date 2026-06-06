@@ -18,7 +18,7 @@ describe("GET /api/cron/expire-foster-proposals", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/foster-proposal-expirer");
+    vi.doUnmock("@/src/modules/foster/actions");
   });
 
   async function callRoute(headers: Record<string, string>) {
@@ -31,8 +31,8 @@ describe("GET /api/cron/expire-foster-proposals", () => {
   }
 
   it("returns 401 when the x-cron-secret header is missing", async () => {
-    vi.doMock("@/lib/foster-proposal-expirer", () => ({
-      expireFosterProposals: vi.fn(),
+    vi.doMock("@/src/modules/foster/actions", () => ({
+      expireFosterProposalsAction: vi.fn(),
     }));
     const res = await callRoute({});
     expect(res.status).toBe(401);
@@ -41,8 +41,8 @@ describe("GET /api/cron/expire-foster-proposals", () => {
   });
 
   it("returns 401 when the x-cron-secret header does not match", async () => {
-    vi.doMock("@/lib/foster-proposal-expirer", () => ({
-      expireFosterProposals: vi.fn(),
+    vi.doMock("@/src/modules/foster/actions", () => ({
+      expireFosterProposalsAction: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "wrong-value" });
     expect(res.status).toBe(401);
@@ -50,8 +50,8 @@ describe("GET /api/cron/expire-foster-proposals", () => {
 
   it("returns 200 with helper stats when the secret matches", async () => {
     const expireMock = vi.fn().mockResolvedValue({ candidates: 5, expired: 3, errors: 0 });
-    vi.doMock("@/lib/foster-proposal-expirer", () => ({
-      expireFosterProposals: expireMock,
+    vi.doMock("@/src/modules/foster/actions", () => ({
+      expireFosterProposalsAction: expireMock,
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     expect(res.status).toBe(200);
@@ -67,8 +67,8 @@ describe("GET /api/cron/expire-foster-proposals", () => {
   });
 
   it("returns 500 with the error message when the helper throws", async () => {
-    vi.doMock("@/lib/foster-proposal-expirer", () => ({
-      expireFosterProposals: vi.fn().mockRejectedValue(new Error("db down")),
+    vi.doMock("@/src/modules/foster/actions", () => ({
+      expireFosterProposalsAction: vi.fn().mockRejectedValue(new Error("db down")),
     }));
     // Silence the expected console.error for clean test output.
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

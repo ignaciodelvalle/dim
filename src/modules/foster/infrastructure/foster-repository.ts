@@ -629,7 +629,7 @@ export const FosterRepository = {
       species?: "dog" | "cat" | "other";
     },
     limit: number,
-  ): Promise<VolunteerRow[]> {
+  ): Promise<(VolunteerRow & { displayName: string })[]> {
     const conditions: ReturnType<typeof eq>[] = [
       eq(fosterVolunteers.status, "active"),
       sql`${fosterVolunteers.availableSlots} > 0` as unknown as ReturnType<typeof eq>,
@@ -645,11 +645,16 @@ export const FosterRepository = {
     if (filters.species === "other")
       conditions.push(eq(fosterVolunteers.acceptsOtherSpecies, true));
 
-    return db
-      .select()
+    const rows = await db
+      .select({
+        volunteer: fosterVolunteers,
+        displayName: profiles.displayName,
+      })
       .from(fosterVolunteers)
+      .innerJoin(profiles, eq(profiles.id, fosterVolunteers.userId))
       .where(and(...conditions))
       .limit(limit);
+    return rows.map((r) => ({ ...r.volunteer, displayName: r.displayName ?? "" }));
   },
 
   /**

@@ -37,6 +37,7 @@ export type SearchFosterVolunteersInput = {
 
 export type FosterVolunteerSearchRow = {
   userId: string;
+  displayName: string;
   availableSlots: number;
   acceptedCount: number;
   matchScore: number | null;
@@ -93,6 +94,7 @@ export async function searchFosterVolunteers(
 
     return {
       userId: volunteer.userId,
+      displayName: (volunteer as { displayName?: string }).displayName ?? "",
       availableSlots: volunteer.availableSlots,
       acceptedCount: countMap.get(volunteer.userId) ?? 0,
       matchScore,
