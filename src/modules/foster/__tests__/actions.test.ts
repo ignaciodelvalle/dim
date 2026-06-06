@@ -39,6 +39,13 @@ vi.mock("@/db", () => ({
   notifications: {},
 }));
 
+// Repository mock — cancelFosterProposalAction loads the proposal before auth
+vi.mock("../infrastructure/foster-repository", () => ({
+  FosterRepository: {
+    findProposalByToken: vi.fn(),
+  },
+}));
+
 // Use-case mocks
 vi.mock("../application/assign-foster", () => ({ assignFoster: vi.fn() }));
 vi.mock("../application/end-foster", () => ({ endFoster: vi.fn() }));
@@ -89,6 +96,7 @@ import { searchFosterVolunteers as searchUseCase } from "../application/search-f
 import { setCoFosterAllowed } from "../application/set-co-foster-allowed";
 import { upsertFosterVolunteer } from "../application/upsert-foster-volunteer";
 import { withdrawFosterVolunteer } from "../application/withdraw-foster-volunteer";
+import { FosterRepository } from "../infrastructure/foster-repository";
 
 import {
   acceptFosterProposalAction,
@@ -296,24 +304,67 @@ describe("proposeFosterAction", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cancelFosterProposalAction — auth moves to action edge, targets proposal.organizationId
+// cancelFosterProposalAction — auth scoped to proposal.organizationId (spec R6)
 // ---------------------------------------------------------------------------
+
+// Minimal proposal shape for cancelFosterProposalAction tests.
+// Typed via cast because the full ProposalRow has many DB columns not relevant here.
+type PartialProposalRow = Awaited<ReturnType<typeof FosterRepository.findProposalByToken>>;
+const MOCK_PROPOSAL = {
+  id: "prop-1",
+  publicToken: "FP-tok",
+  organizationId: "org-1",
+  volunteerUserId: "vol-user-1",
+  petId: "pet-1",
+  status: "pending",
+  caseId: "case-1",
+} as unknown as NonNullable<PartialProposalRow>;
 
 describe("cancelFosterProposalAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: proposal found for org-1; auth succeeds for org-1.
+    vi.mocked(FosterRepository.findProposalByToken).mockResolvedValue(MOCK_PROPOSAL);
     mockAuth();
+  });
+
+  it("returns { error } when proposal is not found (before auth)", async () => {
+    vi.mocked(FosterRepository.findProposalByToken).mockResolvedValue(null);
+    const result = await cancelFosterProposalAction({ proposalPublicToken: "FP-tok" });
+    expect(result).toEqual({ error: "Propuesta no encontrada." });
+    // Auth must NOT be called when the proposal does not exist.
+    expect(requireCapability).not.toHaveBeenCalled();
+  });
+
+  it("scopes requireCapability to proposal.organizationId (spec R6)", async () => {
+    vi.mocked(cancelFosterProposal).mockResolvedValue({
+      ok: true,
+      value: { ok: true },
+      notifications: [],
+    });
+    await cancelFosterProposalAction({ proposalPublicToken: "FP-tok" });
+    expect(requireCapability).toHaveBeenCalledWith("foster.assign", "org-1");
+  });
+
+  it("rejects a user with foster.assign in a DIFFERENT org (cross-org bypass fix)", async () => {
+    // Proposal belongs to org-1; requireCapability("foster.assign", "org-1") returns
+    // an error for a user whose active membership is in a different org.
+    vi.mocked(FosterRepository.findProposalByToken).mockResolvedValue(MOCK_PROPOSAL);
+    mockAuthError("No tenés permiso en esta organización.");
+    const result = await cancelFosterProposalAction({ proposalPublicToken: "FP-tok" });
+    expect(result).toEqual({ error: "No tenés permiso en esta organización." });
+    expect(cancelFosterProposal).not.toHaveBeenCalled();
   });
 
   it("returns { error } when use-case fails", async () => {
     vi.mocked(cancelFosterProposal).mockResolvedValue({
       ok: false,
-      error: "propuesta no encontrada",
+      error: "Esta propuesta ya no está activa.",
     });
     const result = await cancelFosterProposalAction({
       proposalPublicToken: "FP-tok",
     });
-    expect(result).toEqual({ error: "propuesta no encontrada" });
+    expect(result).toEqual({ error: "Esta propuesta ya no está activa." });
   });
 
   it("returns { ok: true } on success", async () => {

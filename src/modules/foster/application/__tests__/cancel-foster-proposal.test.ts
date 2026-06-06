@@ -157,11 +157,12 @@ describe("cancelFosterProposal", () => {
     expect(n?.userId).toBe("vol-user-1");
   });
 
-  it("targets proposal.organizationId for auth (NOT actor.organization.id only)", async () => {
-    // The proposal may belong to a DIFFERENT org than the actor's org if the
-    // action edge mis-routes it. But the use-case receives a pre-verified actor
-    // per design: auth is done by the thin action BEFORE calling the use-case.
-    // We just verify the repo is called with the proposal that was looked up.
+  it("use-case does not enforce org-scoping (auth delegated to the action edge)", async () => {
+    // The use-case receives a pre-authorized actor per design: the thin action
+    // calls requireCapability("foster.assign", proposal.organizationId) BEFORE
+    // invoking this use-case (spec R6 enforced at the action edge).
+    // This test documents that the use-case itself trusts the caller; it proceeds
+    // with whatever proposal is found regardless of actor.organization.id.
     const repo = makeFakeRepo({
       findProposalByToken: vi.fn().mockResolvedValue(makeProposal({ organizationId: "org-99" })),
     });
@@ -170,7 +171,6 @@ describe("cancelFosterProposal", () => {
       actor,
       transaction: fakeTransaction,
     });
-    // Use-case delegates auth to action; it proceeds with whatever proposal is found.
     expect(result).toMatchObject({ ok: true });
   });
 

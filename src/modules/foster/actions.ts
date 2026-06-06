@@ -175,11 +175,12 @@ export async function proposeFosterAction(input: ProposeFosterInput): Promise<Pr
 
 // ---------------------------------------------------------------------------
 // cancelFosterProposalAction
-// Authentication note: the original action checked capability INSIDE the tx
-// (requireCapability was called after loading the proposal). Design §parity quirk 7
-// moves this to the action edge — we still target proposal.organizationId but do it
-// by calling requireCapability without an explicit orgId (the session's org). The
-// use-case now receives a pre-authorized actor.
+// Authentication note: auth MUST be scoped to the proposal's organization, not
+// the session's most-recent active membership. Fix for spec R6:
+//   1. Load the proposal by token first (or return not-found).
+//   2. Call requireCapability("foster.assign", proposal.organizationId) so that
+//      only a user with the capability in THAT specific org can cancel it.
+//   3. Pass the pre-authorized actor to the use-case (which skips its own auth).
 // ---------------------------------------------------------------------------
 
 export type CancelFosterProposalInput = {
@@ -192,7 +193,12 @@ export type CancelFosterProposalResult = { ok: true } | { error: string };
 export async function cancelFosterProposalAction(
   input: CancelFosterProposalInput,
 ): Promise<CancelFosterProposalResult> {
-  const auth = await requireCapability("foster.assign");
+  // 1. Load proposal first to obtain the owning organizationId for auth scoping.
+  const proposal = await FosterRepository.findProposalByToken(input.proposalPublicToken);
+  if (!proposal) return { error: "Propuesta no encontrada." };
+
+  // 2. Auth check scoped to the proposal's org (spec R6).
+  const auth = await requireCapability("foster.assign", proposal.organizationId);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
