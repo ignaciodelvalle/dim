@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import type { WelfareReportStatus } from "@/lib/welfare";
 import {
   closeWelfareReportAction,
   startWelfareReportAction,
   triageWelfareReportAction,
-} from "@/app/actions/welfare-triage";
-import type { WelfareReportStatus } from "@/lib/welfare";
+} from "@/src/modules/welfare/actions";
 
 type Mode = "none" | "triage" | "invalid" | "duplicate" | "start" | "close";
 

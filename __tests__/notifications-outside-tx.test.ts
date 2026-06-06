@@ -39,6 +39,9 @@ import { describe, expect, it } from "vitest";
 // transfer.ts (org-to-org handoff), pet-transfer.ts, and cross-org-transfer.ts were
 // migrated to src/modules/transfers/actions.ts in WU-4 of hexagonal-lite-transfers.
 // All migrated files use the flushNotifications() helper pattern (same semantics).
+// welfare.ts and welfare-triage.ts were migrated to src/modules/welfare/actions.ts
+// in WU-4 of hexagonal-lite-welfare. The flushNotifications() helper pattern is
+// maintained there (same contract, different surface).
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-institutional.ts",
@@ -49,8 +52,6 @@ const REFACTORED_FILES = [
   "intake.ts",
   "profile-self-service.ts",
   "return-to-owner.ts",
-  "welfare.ts",
-  "welfare-triage.ts",
 ] as const;
 
 describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {

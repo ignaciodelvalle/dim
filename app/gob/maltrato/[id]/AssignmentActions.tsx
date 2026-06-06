@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import { assignWelfareToMeAction, unassignWelfareAction } from "@/app/actions/welfare-assign";
+import { assignWelfareToMeAction, unassignWelfareAction } from "@/src/modules/welfare/actions";
 
 type AssignmentActionsProps = {
   reportId: string;

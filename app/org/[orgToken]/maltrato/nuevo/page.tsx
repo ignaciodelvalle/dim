@@ -27,10 +27,10 @@
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { createOrgWelfareReportAction } from "@/app/actions/welfare";
 import { WelfareReportForm } from "@/app/denuncias/nueva/WelfareReportForm";
 import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { createOrgWelfareReportAction } from "@/src/modules/welfare/actions";
 
 const ALLOWED_ROLES = new Set(["admin", "coordinator", "member", "vet_individual"]);
 
