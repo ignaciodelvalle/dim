@@ -11,9 +11,17 @@
 //   - No auth logic — auth lives at the action / use-case edge.
 //   - Reads return Drizzle row shapes ($inferSelect) — callers expect them.
 
-import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, gte, ne } from "drizzle-orm";
 
-import { auditLog, db, notifications, welfareReportAttachments, welfareReports } from "@/db";
+import {
+  auditLog,
+  db,
+  notifications,
+  pets,
+  profiles,
+  welfareReportAttachments,
+  welfareReports,
+} from "@/db";
 import type {
   NewAuditLogRow,
   NewWelfareReport,
@@ -287,5 +295,50 @@ export class WelfareRepository {
       .select()
       .from(welfareReportAttachments)
       .where(eq(welfareReportAttachments.welfareReportId, welfareReportId));
+  }
+
+  /**
+   * Return the reporter's display name for MPF export.
+   * Returns null when the report is anonymous (reporterUserId is null) or the
+   * profile row is not found.
+   */
+  async findReporterName(reporterUserId: string | null): Promise<string | null> {
+    if (!reporterUserId) return null;
+    const [row] = await db
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, reporterUserId))
+      .limit(1);
+    return row?.displayName ?? null;
+  }
+
+  /**
+   * Return the exporter's display name for MPF export.
+   * Falls back to "Autoridad DIM" when the profile row is not found.
+   */
+  async findExporterName(exporterUserId: string): Promise<string> {
+    const [row] = await db
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, exporterUserId))
+      .limit(1);
+    return row?.displayName ?? "Autoridad DIM";
+  }
+
+  /**
+   * Return minimal subject pet info (name + microchipId) for MPF export.
+   * Returns null when the report has no subjectPetId or the pet row is not found.
+   */
+  async findSubjectPet(
+    subjectPetId: string | null,
+  ): Promise<{ name: string; microchipId: string | null } | null> {
+    if (!subjectPetId) return null;
+    const [row] = await db
+      .select({ name: pets.name, microchipId: pets.microchipId })
+      .from(pets)
+      .where(eq(pets.id, subjectPetId))
+      .limit(1);
+    if (!row) return null;
+    return { name: row.name, microchipId: row.microchipId ?? null };
   }
 }
