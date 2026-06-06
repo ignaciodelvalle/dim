@@ -168,6 +168,14 @@ export class SurveillanceRepository {
   }
 
   /**
+   * Find all pets currently in rabies observation (status='in_progress').
+   * Used by the cron closer to iterate eligible candidates.
+   */
+  async findPetsInProgress(): Promise<SurveillancePet[]> {
+    return db.select().from(pets).where(eq(pets.rabiesObservationStatus, "in_progress"));
+  }
+
+  /**
    * Find the active owner of a pet (endedAt IS NULL, role='owner').
    * Returns { ownerUserId } when found, null otherwise.
    */
