@@ -1,0 +1,571 @@
+// TransfersRepository — thin Drizzle wrapper for all three transfer sub-flows.
+// All write methods accept an optional `tx` parameter for use inside
+// db.transaction(), mirroring the openCase(input, tx) pattern from foster.
+// No auth logic — auth lives at the action / use-case edge.
+
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+
+import {
+  cases,
+  db,
+  notifications,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  petEvents,
+  petTransfers,
+  pets,
+} from "@/db";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
+import { validateEventPayload } from "@/lib/event-schemas";
+
+// ---------------------------------------------------------------------------
+// Type aliases
+// ---------------------------------------------------------------------------
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbOrTx = typeof db | Tx;
+
+type PetRow = typeof pets.$inferSelect;
+type OwnershipRow = typeof ownerships.$inferSelect;
+type PetTransferRow = typeof petTransfers.$inferSelect;
+type CaseRow = typeof cases.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Owner-flow types
+// ---------------------------------------------------------------------------
+
+type InsertPetTransferArgs = {
+  publicToken: string;
+  petId: string;
+  fromOwnerId: string;
+  toOwnerId: string | null;
+  toOwnerEmail: string;
+  status: "pending" | "accepted" | "rejected" | "expired" | "cancelled";
+  reason: "sale" | "gift" | "inheritance" | "other" | null;
+  note: string | null;
+  expiresAt: Date;
+};
+
+type UpdateTransferStatusArgs = {
+  id: string;
+  status: "pending" | "accepted" | "rejected" | "expired" | "cancelled";
+  respondedAt?: Date;
+  toOwnerId?: string | null;
+  rejectionReason?: string | null;
+};
+
+type InsertOwnerOwnershipArgs = {
+  petId: string;
+  ownerUserId: string;
+  startedAt?: Date;
+};
+
+// ---------------------------------------------------------------------------
+// Cross-org flow types
+// ---------------------------------------------------------------------------
+
+type OpenHandshakeCaseArgs = {
+  petId: string;
+  jurisdictionProvince?: string | null;
+  jurisdictionLocality?: string | null;
+  openedByUserId: string;
+  openedByOrganizationId: string;
+  receiverOrganizationId: string;
+  openedReason: string;
+};
+
+// ---------------------------------------------------------------------------
+// Shared event type
+// ---------------------------------------------------------------------------
+
+type AuthorRole = "owner" | "vet" | "govt" | "scanner" | "finder" | "shelter" | "system";
+
+type InsertPetEventArgs = {
+  id?: string;
+  petId: string;
+  eventType: string;
+  occurredAt: Date;
+  recordedAt: Date;
+  recordedByUserId: string | null;
+  authorRole: AuthorRole;
+  authorOrganizationId?: string | null;
+  authorVerified?: boolean | null;
+  payload: Record<string, unknown>;
+  caseId?: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Direct-transfer types
+// ---------------------------------------------------------------------------
+
+type InsertShelterCustodyArgs = {
+  petId: string;
+  ownerOrganizationId: string;
+  role?: "shelter_custody" | "owner";
+  startedAt?: Date;
+  transferredFromId?: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Repository
+// ---------------------------------------------------------------------------
+
+export const TransfersRepository = {
+  // -------------------------------------------------------------------------
+  // Shared reads
+  // -------------------------------------------------------------------------
+
+  /**
+   * Finds a pet by its public token. Returns the full pet row or null.
+   */
+  async findPetByToken(publicToken: string, tx?: Tx): Promise<PetRow | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select()
+      .from(pets)
+      .where(eq(pets.publicToken, publicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Finds the active (endedAt IS NULL) owner ownership row for a pet.
+   */
+  async findActiveOwnerOwnership(
+    petId: string,
+    tx?: Tx,
+  ): Promise<Pick<OwnershipRow, "id" | "ownerUserId"> | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
+      .from(ownerships)
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  // -------------------------------------------------------------------------
+  // Owner-flow: pet transfer table
+  // -------------------------------------------------------------------------
+
+  /**
+   * Inserts a new pet_transfers row.
+   */
+  async insertPetTransfer(args: InsertPetTransferArgs, tx?: Tx): Promise<void> {
+    const client: DbOrTx = tx ?? db;
+    await (client as typeof db).insert(petTransfers).values(args);
+  },
+
+  /**
+   * Finds a transfer by its public token.
+   */
+  async findTransferByToken(publicToken: string, tx?: Tx): Promise<PetTransferRow | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select()
+      .from(petTransfers)
+      .where(eq(petTransfers.publicToken, publicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Updates the status (and optional fields) of a pet transfer.
+   */
+  async updateTransferStatus(args: UpdateTransferStatusArgs, tx?: Tx): Promise<void> {
+    const client: DbOrTx = tx ?? db;
+    const now = new Date();
+    await (client as typeof db)
+      .update(petTransfers)
+      .set({
+        status: args.status,
+        respondedAt: args.respondedAt ?? now,
+        ...(args.toOwnerId !== undefined ? { toOwnerId: args.toOwnerId } : {}),
+        ...(args.rejectionReason !== undefined ? { rejectionReason: args.rejectionReason } : {}),
+        updatedAt: now,
+      })
+      .where(eq(petTransfers.id, args.id));
+  },
+
+  /**
+   * Returns all pending transfers whose expiresAt is before `now`.
+   * Per-row (not single tx) — callers iterate and expire one at a time.
+   */
+  async expirablePetTransfers(now: Date): Promise<
+    Array<{
+      id: string;
+      petId: string;
+      fromOwnerId: string;
+      publicToken: string;
+    }>
+  > {
+    return db
+      .select({
+        id: petTransfers.id,
+        petId: petTransfers.petId,
+        fromOwnerId: petTransfers.fromOwnerId,
+        publicToken: petTransfers.publicToken,
+      })
+      .from(petTransfers)
+      .where(
+        and(
+          eq(petTransfers.status, "pending"),
+          sql`${petTransfers.expiresAt} < ${now.toISOString()}`,
+        ),
+      );
+  },
+
+  // -------------------------------------------------------------------------
+  // Owner-flow: ownership writes
+  // -------------------------------------------------------------------------
+
+  /**
+   * Closes all active owner ownerships for a pet (endedAt = now).
+   * PARITY QUIRK: must be called BEFORE insertOwnerOwnership to satisfy the
+   * unique-active-owner partial index (validates at tx commit).
+   */
+  async closeOwnerOwnerships(petId: string, tx: Tx): Promise<void> {
+    const now = new Date();
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      );
+  },
+
+  /**
+   * Inserts a new owner ownership row for a user.
+   */
+  async insertOwnerOwnership(args: InsertOwnerOwnershipArgs, tx: Tx): Promise<{ id: string }> {
+    const [row] = await tx
+      .insert(ownerships)
+      .values({
+        petId: args.petId,
+        ownerUserId: args.ownerUserId,
+        role: "owner",
+        startedAt: args.startedAt ?? new Date(),
+      })
+      .returning({ id: ownerships.id });
+    return row;
+  },
+
+  // -------------------------------------------------------------------------
+  // Shared event write
+  // -------------------------------------------------------------------------
+
+  /**
+   * Inserts a pet_event row. Accepts an optional `id` for the upfront-UUID
+   * pattern required by the foster-cascade ordering in transferCustody.
+   */
+  async insertPetEvent(args: InsertPetEventArgs, tx?: Tx): Promise<{ id: string }> {
+    const client: DbOrTx = tx ?? db;
+    const payload = validateEventPayload(
+      args.eventType as Parameters<typeof validateEventPayload>[0],
+      args.payload,
+    );
+    const [row] = await (client as typeof db)
+      .insert(petEvents)
+      .values({
+        ...(args.id ? { id: args.id } : {}),
+        petId: args.petId,
+        eventType: args.eventType,
+        occurredAt: args.occurredAt,
+        recordedAt: args.recordedAt,
+        recordedByUserId: args.recordedByUserId,
+        authorRole: args.authorRole,
+        authorOrganizationId: args.authorOrganizationId ?? null,
+        authorVerified: args.authorVerified ?? false,
+        payload,
+        caseId: args.caseId ?? null,
+      })
+      .returning({ id: petEvents.id });
+    return row;
+  },
+
+  // -------------------------------------------------------------------------
+  // Cross-org: reads
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns the active shelter_custody ownership row for (petId, orgId), or null.
+   */
+  async findActiveShelterCustody(
+    petId: string,
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ id: string } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Returns the receiver org row (id, displayName, verified, status) or null.
+   */
+  async findReceiverOrg(
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ id: string; displayName: string; verified: boolean; status: string } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({
+        id: organizations.id,
+        displayName: organizations.displayName,
+        verified: organizations.verified,
+        status: organizations.status,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Returns the open handshake case for a pet, or null.
+   */
+  async findOpenHandshakeCase(petId: string, tx?: Tx): Promise<{ id: string } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ id: cases.id })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.primaryPetId, petId),
+          eq(cases.caseKind, "custody_transfer_handshake"),
+          inArray(cases.status, ["open", "escalated"]),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Opens a custody_transfer_handshake case and returns the new case row.
+   * Delegates to lib/case-helpers.openCase.
+   */
+  async openHandshakeCase(args: OpenHandshakeCaseArgs, tx: Tx): Promise<CaseRow> {
+    return openCase(
+      {
+        kind: "custody_transfer_handshake",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: args.petId,
+        jurisdictionProvince: args.jurisdictionProvince,
+        jurisdictionLocality: args.jurisdictionLocality,
+        openedByUserId: args.openedByUserId,
+        openedByOrganizationId: args.openedByOrganizationId,
+        receiverOrganizationId: args.receiverOrganizationId,
+        openedReason: args.openedReason,
+      },
+      tx,
+    );
+  },
+
+  /**
+   * Fetches proposal events for a case (LIMIT 2 — for duplicate-proposal guard).
+   * Returns the two most recent `custody_transfer_proposed` events for the case.
+   */
+  async proposalEventsForCase(
+    caseId: string,
+    tx?: Tx,
+  ): Promise<Array<typeof petEvents.$inferSelect>> {
+    const client: DbOrTx = tx ?? db;
+    return (client as typeof db)
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.caseId, caseId), eq(petEvents.eventType, "custody_transfer_proposed")),
+      )
+      .orderBy(desc(petEvents.recordedAt))
+      .limit(2);
+  },
+
+  /**
+   * Ends the active shelter_custody row for (petId, orgId).
+   */
+  async endShelterCustody(petId: string, orgId: string, tx: Tx): Promise<void> {
+    const now = new Date();
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+  },
+
+  /**
+   * Inserts a new shelter_custody row for an org.
+   */
+  async insertShelterCustody(args: InsertShelterCustodyArgs, tx: Tx): Promise<{ id: string }> {
+    const [row] = await tx
+      .insert(ownerships)
+      .values({
+        petId: args.petId,
+        ownerOrganizationId: args.ownerOrganizationId,
+        role: args.role ?? "shelter_custody",
+        startedAt: args.startedAt ?? new Date(),
+        transferredFromId: args.transferredFromId ?? null,
+      })
+      .returning({ id: ownerships.id });
+    return row;
+  },
+
+  /**
+   * Returns (userId, orgId) for active admin+coordinator members of an org.
+   */
+  async orgCoordinatorAdminUserIds(orgId: string, tx?: Tx): Promise<Array<{ userId: string }>> {
+    const client: DbOrTx = tx ?? db;
+    return (client as typeof db)
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, orgId),
+          inArray(organizationMemberships.role, ["admin", "coordinator"]),
+          isNull(organizationMemberships.leftAt),
+        ),
+      );
+  },
+
+  // -------------------------------------------------------------------------
+  // Cross-org: case helpers (delegates to lib)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Closes a case with the given reason. Delegates to lib/case-helpers.closeCase.
+   */
+  async closeCase(
+    args: { caseId: string; reason: string; closedByUserId?: string | null },
+    tx: Tx,
+  ): Promise<void> {
+    await closeCase(
+      {
+        caseId: args.caseId,
+        reason: args.reason as Parameters<typeof closeCase>[0]["reason"],
+        closedByUserId: args.closedByUserId,
+      },
+      tx,
+    );
+  },
+
+  /**
+   * Finds the open custody_episode case for a pet, or null.
+   * Delegates to lib/case-helpers.findOpenCaseForPetAndKind.
+   */
+  async findOpenCustodyEpisode(petId: string): Promise<{ id: string } | null> {
+    return findOpenCaseForPetAndKind(petId, "custody_episode");
+  },
+
+  // -------------------------------------------------------------------------
+  // Direct org-to-org: reads
+  // -------------------------------------------------------------------------
+
+  /**
+   * Finds a pet currently under active ownership by the given org, returning
+   * both the pet row and the ownership id + role.
+   * Scoped to organization.id — this is the implicit-org security boundary
+   * for the direct handoff flow.
+   */
+  async findPetUnderOrg(
+    petPublicToken: string,
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ pet: PetRow; ownershipId: string; ownershipRole: string } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({
+        pet: pets,
+        ownershipId: ownerships.id,
+        ownershipRole: ownerships.role,
+      })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          eq(pets.publicToken, petPublicToken),
+          eq(ownerships.ownerOrganizationId, orgId),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Returns the active foster row for a pet (null if none).
+   */
+  async findActiveFosterRow(
+    petId: string,
+    tx?: Tx,
+  ): Promise<{ id: string; ownerUserId: string | null } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
+      .from(ownerships)
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "foster"), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Returns admin user ids for an org (admins only, not coordinators —
+   * direct handoff follows admin-only fanout per spec R11).
+   */
+  async orgAdminUserIds(orgId: string, tx?: Tx): Promise<Array<{ userId: string }>> {
+    const client: DbOrTx = tx ?? db;
+    return (client as typeof db)
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, orgId),
+          eq(organizationMemberships.role, "admin"),
+          isNull(organizationMemberships.leftAt),
+        ),
+      );
+  },
+
+  /**
+   * Closes a single ownership row by id (used to close the source row in
+   * direct handoffs).
+   */
+  async closeOwnershipById(ownershipId: string, endedAt: Date, tx: Tx): Promise<void> {
+    await tx.update(ownerships).set({ endedAt }).where(eq(ownerships.id, ownershipId));
+  },
+
+  /**
+   * Closes the active foster row for a pet.
+   */
+  async closeFosterOwnership(ownershipId: string, endedAt: Date, tx: Tx): Promise<void> {
+    await tx.update(ownerships).set({ endedAt }).where(eq(ownerships.id, ownershipId));
+  },
+
+  /**
+   * Inserts notifications in batch (used post-tx for best-effort fanout).
+   */
+  async insertNotifications(values: Array<typeof notifications.$inferInsert>): Promise<void> {
+    if (values.length === 0) return;
+    await db.insert(notifications).values(values);
+  },
+};
