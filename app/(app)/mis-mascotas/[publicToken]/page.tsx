@@ -1054,7 +1054,9 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         <form
           action={async () => {
             "use server";
-            const { ownerCloseRabiesObservationAction } = await import("@/app/actions/bite");
+            const { ownerCloseRabiesObservationAction } = await import(
+              "@/src/modules/surveillance/actions"
+            );
             await ownerCloseRabiesObservationAction(pet.publicToken);
           }}
         >

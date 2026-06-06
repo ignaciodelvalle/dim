@@ -2,9 +2,9 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { professionalCloseRabiesObservationAction } from "@/app/actions/bite";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 
 import { CloseObservationForm } from "./CloseObservationForm";
 

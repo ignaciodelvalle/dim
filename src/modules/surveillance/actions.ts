@@ -400,6 +400,8 @@ export type OutbreakInvestigationActionResult =
 
 export type OutbreakInvestigationNoteResult = { ok: true } | { error: string };
 
+export type { InvestigationNoteEntryType };
+
 /** Build shared outbreak deps (repo + case ops + tx + notif + revalidate). */
 function makeOutbreakDeps(revalidateFn: (path: string) => void) {
   return {

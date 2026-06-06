@@ -42,12 +42,14 @@ import { describe, expect, it } from "vitest";
 // welfare.ts and welfare-triage.ts were migrated to src/modules/welfare/actions.ts
 // in WU-4 of hexagonal-lite-welfare. The flushNotifications() helper pattern is
 // maintained there (same contract, different surface).
+// bite.ts was migrated to src/modules/surveillance/actions.ts in WU-5 of
+// hexagonal-lite-surveillance. The flushNotifications() helper pattern is maintained
+// there (same contract, different surface). app/actions/bite.ts was deleted.
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-institutional.ts",
   "admin-proposals.ts",
   "admin-revocations.ts",
-  "bite.ts",
   "chip-match.ts",
   "intake.ts",
   "profile-self-service.ts",

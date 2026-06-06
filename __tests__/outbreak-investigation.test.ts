@@ -15,14 +15,14 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
 }));
 
+import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   addInvestigationNoteAction,
   closeInvestigationAction,
   escalateInvestigationAction,
   openOutbreakInvestigationAction,
-} from "@/app/actions/outbreak-investigation";
-import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+} from "@/src/modules/surveillance/actions";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { openOutbreakInvestigationAction } from "@/app/actions/outbreak-investigation";
 import type { EnoDisease } from "@/lib/eno-catalog";
+import { openOutbreakInvestigationAction } from "@/src/modules/surveillance/actions";
 
 export function OpenInvestigationForm({
   diseases,

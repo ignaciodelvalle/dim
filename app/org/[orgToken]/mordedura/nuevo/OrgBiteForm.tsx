@@ -15,11 +15,14 @@
 
 import { useState, useTransition } from "react";
 
-import { type ReportBiteFromOrgFormState, reportBiteFromOrgAction } from "@/app/actions/bite";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { Checkbox, Input, Select, Textarea } from "@/components/poncho";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
+import {
+  type ReportBiteFromOrgFormState,
+  reportBiteFromOrgAction,
+} from "@/src/modules/surveillance/actions";
 
 type FormAction = (
   prev: ReportBiteFromOrgFormState,
