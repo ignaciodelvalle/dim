@@ -2,7 +2,7 @@
 // codecs for the /adoptar feed. This module is intentionally free of
 // `db` imports so it can be safely consumed by client components like
 // `AdoptionFiltersBar.tsx` and `AdoptionListingForm.tsx`. The DB query
-// (`queryAdoptionListing`) lives in `@/lib/adoption-listing-query`.
+// (`queryAdoptionListing`) lives in `@/src/modules/adoption/infrastructure/adoption-listing-read`.
 
 // ---------------------------------------------------------------------------
 // Catalogs (kept here so consumers — page, form, filters bar — import from

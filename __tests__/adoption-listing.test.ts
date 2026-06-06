@@ -11,7 +11,7 @@ import {
   buildSearchParams,
   parseSearchParams,
 } from "@/lib/adoption-listing";
-import { queryAdoptionListing } from "@/lib/adoption-listing-query";
+import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // Fixtures live under a single org so cleanup is easy.
 const ORG_TOKEN = "DIM-ADOPTLIST-TEST";

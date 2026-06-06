@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
-import type { queryAdoptionListing } from "@/lib/adoption-listing-query";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { petPhotoUrl } from "@/lib/storage";
+import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // Single source of truth for the adoption-listing pet card. Consumed by:
 //   - /adoptar (public landing — full grid)

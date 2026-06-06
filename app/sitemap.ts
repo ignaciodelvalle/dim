@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { MetadataRoute } from "next";
 
 import { db, organizations } from "@/db";
-import { queryAdoptionListing } from "@/lib/adoption-listing-query";
+import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // Sitemap hits the DB to enumerate adoptable pets + verified refugios —
 // keep it out of the build-time prerender path so CI doesn't need
