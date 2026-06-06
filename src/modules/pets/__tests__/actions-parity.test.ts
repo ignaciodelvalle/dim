@@ -246,6 +246,33 @@ describe("createPetAction", () => {
       expect(result.forceToken).toBeDefined();
     });
 
+    it("falls through to registerPet when match status=active and forceToken is valid", async () => {
+      const { lookupByChip } = await import("@/lib/chip-lookup");
+      (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        pet: { status: "active", publicToken: "DIM-ACTIVE-0001" },
+      });
+
+      const { validateForceToken } = await import("@/lib/microchip-force-token");
+      (validateForceToken as ReturnType<typeof vi.fn>).mockReturnValueOnce(true);
+
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+
+      // The action should NOT return a warning/error state — it falls through to
+      // registerPet and then redirect throws (NEXT_REDIRECT sentinel).
+      await expect(
+        createPetAction(
+          { error: null },
+          makeCreateFormData({
+            acquisitionMethod: "found_stray",
+            microchipId: "724123456789012",
+            forceToken: "valid-force-token",
+          }),
+        ),
+      ).rejects.toThrow(/REDIRECT/);
+
+      expect(registerPet).toHaveBeenCalledOnce();
+    });
+
     it("returns deceased chip error when match status=deceased", async () => {
       const { lookupByChip } = await import("@/lib/chip-lookup");
       (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
