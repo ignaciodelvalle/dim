@@ -3,10 +3,11 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern from foster.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 
 import {
   cases,
+  custodyDisputes,
   db,
   notifications,
   organizationMemberships,
@@ -145,6 +146,23 @@ export const TransfersRepository = {
       )
       .limit(1);
     return row ?? null;
+  },
+
+  /**
+   * Looks up a user id by email via the Supabase Auth admin SDK (listUsers).
+   * Returns the user id if found, null otherwise. Best-effort — errors are
+   * swallowed and return null so the transfer can proceed as an open invite.
+   */
+  async findUserIdByEmail(email: string): Promise<string | null> {
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const admin = createAdminClient();
+      const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const match = list?.users.find((u) => (u.email ?? "").toLowerCase() === email.toLowerCase());
+      return match?.id ?? null;
+    } catch {
+      return null;
+    }
   },
 
   // -------------------------------------------------------------------------
@@ -567,5 +585,176 @@ export const TransfersRepository = {
   async insertNotifications(values: Array<typeof notifications.$inferInsert>): Promise<void> {
     if (values.length === 0) return;
     await db.insert(notifications).values(values);
+  },
+
+  // -------------------------------------------------------------------------
+  // Cross-org: additional reads (needed by use-cases)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Finds an open custody dispute for a pet, or null.
+   */
+  async findOpenDispute(petId: string): Promise<{ id: string } | null> {
+    const [row] = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(and(eq(custodyDisputes.petId, petId), eq(custodyDisputes.status, "open")))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Finds a case by its public code. Used by cross-org accept/reject/cancel.
+   */
+  async findCaseByPublicCode(publicCode: string): Promise<typeof cases.$inferSelect | null> {
+    const [row] = await db.select().from(cases).where(eq(cases.publicCode, publicCode)).limit(1);
+    return row ?? null;
+  },
+
+  // -------------------------------------------------------------------------
+  // Cross-org expiry helpers (moved from lib/case-closers)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns open custody_transfer_handshake cases opened more than
+   * `staleAfterDays` days ago (default 30). Used by the expire cron.
+   */
+  async findExpirableCrossOrgCases(options?: {
+    now?: Date;
+    staleAfterDays?: number;
+  }): Promise<
+    Array<{
+      id: string;
+      publicCode: string;
+      primaryPetId: string | null;
+      openedByOrganizationId: string | null;
+      receiverOrganizationId: string | null;
+    }>
+  > {
+    const now = options?.now ?? new Date();
+    const staleAfterMs = (options?.staleAfterDays ?? 30) * 24 * 60 * 60 * 1000;
+    const openedBefore = new Date(now.getTime() - staleAfterMs);
+
+    return db
+      .select({
+        id: cases.id,
+        publicCode: cases.publicCode,
+        primaryPetId: cases.primaryPetId,
+        openedByOrganizationId: cases.openedByOrganizationId,
+        receiverOrganizationId: cases.receiverOrganizationId,
+      })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.caseKind, "custody_transfer_handshake"),
+          eq(cases.status, "open"),
+          lt(cases.openedAt, openedBefore),
+        ),
+      );
+  },
+
+  /**
+   * Expires a single cross-org transfer case in its own tx.
+   * Mirrors the logic from lib/case-closers/expire-cross-org-transfers.ts
+   * (expireCrossOrgTransfer). The lib shim remains until callers repointed.
+   */
+  async expireOneCrossOrgCase(
+    candidate: {
+      id: string;
+      publicCode: string;
+      primaryPetId: string | null;
+      openedByOrganizationId: string | null;
+      receiverOrganizationId: string | null;
+    },
+    options?: { now?: Date },
+  ): Promise<void> {
+    const now = options?.now ?? new Date();
+
+    await db.transaction(async (tx) => {
+      // Re-check status inside tx so a concurrent accept/reject wins.
+      const [current] = await tx
+        .select({ status: cases.status })
+        .from(cases)
+        .where(eq(cases.id, candidate.id))
+        .limit(1);
+      if (!current || current.status !== "open") return;
+
+      // Resolve receiver: canonical column first, payload fallback for legacy rows.
+      let receiverOrgId: string | null = candidate.receiverOrganizationId;
+      if (!receiverOrgId) {
+        const [proposalEvent] = await tx
+          .select({ payload: petEvents.payload })
+          .from(petEvents)
+          .where(
+            and(
+              eq(petEvents.caseId, candidate.id),
+              eq(petEvents.eventType, "custody_transfer_proposed"),
+            ),
+          )
+          .limit(1);
+        if (proposalEvent) {
+          const p = proposalEvent.payload as { to_organization_id?: string };
+          receiverOrgId = p.to_organization_id ?? null;
+        }
+      }
+
+      if (candidate.primaryPetId) {
+        const notePayload = validateEventPayload("note_added", {
+          category: "system",
+          text: "Auto-expirada: el destinatario no respondió la propuesta en el plazo de 30 días.",
+        });
+        await tx.insert(petEvents).values({
+          petId: candidate.primaryPetId,
+          eventType: "note_added",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: null,
+          authorRole: "system",
+          payload: notePayload,
+          caseId: candidate.id,
+        });
+      }
+
+      await closeCase({ caseId: candidate.id, reason: "auto_expired" }, tx);
+
+      // Notify coordinators on both sides (inside tx — cron has no post-tx flush).
+      const orgIds = [candidate.openedByOrganizationId, receiverOrgId].filter(
+        (id): id is string => typeof id === "string",
+      );
+      if (orgIds.length > 0) {
+        const recipients = await tx
+          .select({
+            userId: organizationMemberships.userId,
+            orgId: organizationMemberships.organizationId,
+          })
+          .from(organizationMemberships)
+          .where(
+            and(
+              inArray(organizationMemberships.organizationId, orgIds),
+              inArray(organizationMemberships.role, ["admin", "coordinator"]),
+              isNull(organizationMemberships.leftAt),
+            ),
+          );
+        if (recipients.length > 0) {
+          await tx.insert(notifications).values(
+            recipients.map((r) => ({
+              userId: r.userId,
+              notificationType:
+                r.orgId === candidate.openedByOrganizationId
+                  ? ("cross_org_transfer_expired_sender" as const)
+                  : ("cross_org_transfer_expired_receiver" as const),
+              severity: "warning" as const,
+              title: "Propuesta de transferencia expirada",
+              body: "Pasaron 30 días sin respuesta. La propuesta se cerró automáticamente.",
+              ctaLabel: "Ver caso",
+              ctaUrl: `/casos/${candidate.publicCode}`,
+              relatedCaseId: candidate.id,
+              relatedPetId: candidate.primaryPetId,
+            })),
+          );
+        }
+      }
+      // No audit_log entry — actor is system; note_added + closed case row is the trail.
+    });
   },
 };
