@@ -1,6 +1,6 @@
 "use server";
 
-// Thin action controllers for the surveillance domain — WU-3 bite + rabies actions.
+// Thin action controllers for the surveillance domain — WU-3 bite + rabies + WU-4 ENO + outbreak.
 //
 // Each action:
 //   1. AUTH GUARD at the edge (EXACT scope per action — see spec §AUTH SCOPE).
@@ -11,13 +11,17 @@
 //   6. revalidatePath or redirect.
 //
 // AUTH SCOPE CONTRACT:
-//   reportBiteAction:           requireAlivePetAccess (owner+alive)
-//   reportBiteFromOrgAction:    requireCapability("bite.report")
-//   ownerCloseRabiesObservation: requireAlivePetAccess
-//   professionalCloseRabiesObservation: requireAdminOrGovtOrRedirect + jurisdiction scope
+//   reportBiteAction:                    requireAlivePetAccess (owner+alive)
+//   reportBiteFromOrgAction:             requireCapability("bite.report")
+//   ownerCloseRabiesObservation:         requireAlivePetAccess
+//   professionalCloseRabiesObservation:  requireAdminOrGovtOrRedirect + jurisdiction scope
+//   openOutbreakInvestigationAction:     requireAdminOrGovtOrRedirect + isInScope (via use-case)
+//   addInvestigationNoteAction:          requireAdminOrGovtOrRedirect + isInScope (via use-case)
+//   escalateInvestigationAction:         requireAdminOrGovtOrRedirect + isInScope (via use-case)
+//   closeInvestigationAction:            requireAdminOrGovtOrRedirect + isInScope (via use-case)
 //
 // NO business logic. NO direct Drizzle queries (beyond db.transaction).
-// AUDIT_LOG: NONE (bite/rabies actions never wrote audit_log — preserve absence).
+// AUDIT_LOG: NONE on bite/rabies. Outbreak: all 4 write audit_log inside tx (use-case handles it).
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -25,11 +29,19 @@ import { redirect } from "next/navigation";
 import { db, notifications } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { requireCapability } from "@/lib/capabilities";
-import { closeCase, openCase } from "@/lib/case-helpers";
+import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 
 import { closeEligibleObservations } from "./application/close-eligible-observations";
+import {
+  type InvestigationNoteEntryType,
+  addInvestigationNote,
+  closeInvestigation,
+  escalateInvestigation,
+  openOutbreakInvestigation,
+} from "./application/outbreak-investigation";
 import { ownerCloseObservation } from "./application/owner-close-observation";
 import { professionalCloseObservation } from "./application/professional-close-observation";
 import { reportBite } from "./application/report-bite";
@@ -375,3 +387,141 @@ export async function professionalCloseRabiesObservationAction(
 // ---------------------------------------------------------------------------
 
 export { closeEligibleObservations };
+
+// ---------------------------------------------------------------------------
+// Outbreak investigation actions — admin/govt (spec §H, §I)
+// Auth: requireAdminOrGovtOrRedirect + isInScope enforced inside use-case.
+// AUDIT_LOG: all 4 write inside tx with v1_noop:true (use-case handles it).
+// ---------------------------------------------------------------------------
+
+export type OutbreakInvestigationActionResult =
+  | { ok: true; publicCode: string }
+  | { error: string };
+
+export type OutbreakInvestigationNoteResult = { ok: true } | { error: string };
+
+/** Build shared outbreak deps (repo + case ops + tx + notif + revalidate). */
+function makeOutbreakDeps(revalidateFn: (path: string) => void) {
+  return {
+    repo,
+    openCase: async (
+      input: {
+        kind: string;
+        primarySubjectKind: string;
+        primaryPetId: null;
+        jurisdictionCountry: string;
+        jurisdictionProvince: string | null;
+        jurisdictionLocality: string | null;
+        openedByUserId: string;
+        openedReason: string;
+      },
+      tx: unknown,
+    ) => openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),
+    closeCase: async (
+      args: { caseId: string; reason: "resolved" | "cancelled"; closedByUserId: string },
+      tx: unknown,
+    ): Promise<void> => {
+      await closeCase(args, tx as Parameters<typeof closeCase>[1]);
+    },
+    escalateCase: async (caseId: string, tx: unknown): Promise<void> => {
+      await escalateCase(caseId, tx as Parameters<typeof escalateCase>[1]);
+    },
+    transaction: db.transaction.bind(db),
+    notifyOutbreakOpened: async (
+      ...args: Parameters<typeof notifyOutbreakInvestigationOpened>
+    ): Promise<void> => {
+      await notifyOutbreakInvestigationOpened(...args);
+    },
+    revalidate: revalidateFn,
+  };
+}
+
+export async function openOutbreakInvestigationAction(input: {
+  diseaseCode: string;
+  reason: string;
+  linkedSignalEventId?: string | null;
+}): Promise<OutbreakInvestigationActionResult> {
+  const session = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = session;
+
+  const result = await openOutbreakInvestigation(
+    {
+      diseaseCode: input.diseaseCode ?? "",
+      reason: input.reason ?? "",
+      linkedSignalEventId: input.linkedSignalEventId,
+      actor: { profile, jurisdictions },
+    },
+    makeOutbreakDeps(revalidatePath),
+  );
+
+  if (!result.ok) return { error: result.error };
+  return { ok: true, publicCode: result.value.publicCode };
+}
+
+export async function addInvestigationNoteAction(input: {
+  casePublicCode: string;
+  entryType: InvestigationNoteEntryType;
+  notes: string;
+  payload?: Record<string, unknown>;
+}): Promise<OutbreakInvestigationNoteResult> {
+  const session = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = session;
+
+  const result = await addInvestigationNote(
+    {
+      casePublicCode: input.casePublicCode,
+      entryType: input.entryType,
+      notes: input.notes ?? "",
+      payload: input.payload,
+      actor: { profile, jurisdictions },
+    },
+    makeOutbreakDeps(revalidatePath),
+  );
+
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function escalateInvestigationAction(input: {
+  casePublicCode: string;
+  reason: string;
+}): Promise<OutbreakInvestigationNoteResult> {
+  const session = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = session;
+
+  const result = await escalateInvestigation(
+    {
+      casePublicCode: input.casePublicCode,
+      reason: input.reason ?? "",
+      actor: { profile, jurisdictions },
+    },
+    makeOutbreakDeps(revalidatePath),
+  );
+
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function closeInvestigationAction(input: {
+  casePublicCode: string;
+  outcome: "resolved" | "dismissed";
+  finalReportText?: string | null;
+  reason: string;
+}): Promise<OutbreakInvestigationNoteResult> {
+  const session = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = session;
+
+  const result = await closeInvestigation(
+    {
+      casePublicCode: input.casePublicCode,
+      outcome: input.outcome,
+      reason: input.reason ?? "",
+      finalReportText: input.finalReportText,
+      actor: { profile, jurisdictions },
+    },
+    makeOutbreakDeps(revalidatePath),
+  );
+
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
