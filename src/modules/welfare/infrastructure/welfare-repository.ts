@@ -16,6 +16,7 @@ import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 import {
   auditLog,
   db,
+  govtAssignments,
   notifications,
   organizationMemberships,
   organizations,
@@ -411,5 +412,27 @@ export class WelfareRepository {
     executor: DbOrTx = db,
   ): Promise<void> {
     await executor.insert(petEvents).values(values);
+  }
+
+  /**
+   * Return all active (non-revoked) govt jurisdiction rows for `userId`.
+   * Empty array for admins (callers use universal scope) or users with no
+   * active assignments.
+   *
+   * Extracted from get-active-govt-scope.ts to keep the application layer
+   * free of direct Drizzle / @/db imports (hexagonal purity).
+   */
+  async findGovtScopeForUser(
+    userId: string,
+  ): Promise<Array<{ province: string; locality: string }>> {
+    const rows = await db
+      .select({
+        province: govtAssignments.jurisdictionProvince,
+        locality: govtAssignments.jurisdictionLocality,
+      })
+      .from(govtAssignments)
+      .innerJoin(profiles, eq(profiles.id, govtAssignments.userId))
+      .where(and(eq(govtAssignments.userId, userId), isNull(govtAssignments.revokedAt)));
+    return rows;
   }
 }

@@ -23,6 +23,7 @@
 //   7. Insert audit_log (NOT in tx).
 //   8. Return signedUrl + expiresAt.
 
+import { MPF_EXPORT_SCHEMA_VERSION } from "@/lib/welfare-exports";
 import type { WelfareMpfAttachmentInfo, WelfareMpfDto } from "@/lib/welfare-exports";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
 import type { UseCaseResult } from "./types";
@@ -236,7 +237,7 @@ export async function generateMpfExport(
       welfareReportId: input.welfareReportId,
       referenceCode: report.referenceCode,
       storagePath,
-      schemaVersion: "2026-05-21",
+      schemaVersion: MPF_EXPORT_SCHEMA_VERSION,
     },
   });
 

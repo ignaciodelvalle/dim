@@ -100,10 +100,7 @@ export type CreateWelfareReportInput = {
 };
 
 type Deps = {
-  repo: Pick<
-    WelfareRepository,
-    "insertAttachments" | "linkCase" | "insertPetEvent" | "setFlagged" | "insertAudit"
-  >;
+  repo: Pick<WelfareRepository, "insertAttachments" | "linkCase" | "insertPetEvent" | "setFlagged">;
   openCase: (input: OpenCaseInput) => Promise<{ id: string; publicCode: string }>;
   computeFlagReasons: (input: ComputeFlagReasonsInput) => Promise<string[]>;
   signal: (input: {

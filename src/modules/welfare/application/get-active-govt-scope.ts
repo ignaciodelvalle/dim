@@ -1,15 +1,18 @@
 // Helper: load the active govt jurisdiction rows for a user.
 // Extracted from app/actions/welfare-triage.ts::getActiveGovtScopeForUser.
 // Exported as a module helper (also re-exported from the shim for listing pages).
+//
+// Uses WelfareRepository.findGovtScopeForUser to keep the application layer
+// free of direct Drizzle / @/db imports (hexagonal purity — W2 fix).
 
-import { and, eq, isNull } from "drizzle-orm";
-
-import { db, govtAssignments, profiles } from "@/db";
+import { WelfareRepository } from "../infrastructure/welfare-repository";
 
 export type GovtJurisdiction = {
   province: string;
   locality: string;
 };
+
+const repo = new WelfareRepository();
 
 /**
  * Return all active (non-revoked) govt_assignments rows for `userId`.
@@ -17,13 +20,5 @@ export type GovtJurisdiction = {
  * active assignments.
  */
 export async function getActiveGovtScopeForUser(userId: string): Promise<GovtJurisdiction[]> {
-  const rows = await db
-    .select({
-      province: govtAssignments.jurisdictionProvince,
-      locality: govtAssignments.jurisdictionLocality,
-    })
-    .from(govtAssignments)
-    .innerJoin(profiles, eq(profiles.id, govtAssignments.userId))
-    .where(and(eq(govtAssignments.userId, userId), isNull(govtAssignments.revokedAt)));
-  return rows;
+  return repo.findGovtScopeForUser(userId);
 }
