@@ -63,8 +63,8 @@ export function bridgeEventTypeFor(
 export function derivePrimarySubjectKind(
   subjectKind: WelfareReportSubjectKind | string,
   petId: string | null,
-  locationLat: number | null,
-  locationLng: number | null,
+  locationLat: number | string | null,
+  locationLng: number | string | null,
 ): "registered_pet" | "unowned_animal" | "location" | "general" {
   if (subjectKind === "registered_pet" && petId != null) return "registered_pet";
   if (subjectKind === "unowned_animal") return "unowned_animal";

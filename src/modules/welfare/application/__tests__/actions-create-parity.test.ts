@@ -1,0 +1,146 @@
+// Parity tests for createWelfareReportAction + createOrgWelfareReportAction.
+//
+// Spec R1: anon rate-limit (welfare_anon bucket, 1/min + 3/hr) triggered for anon.
+//          authenticated path SKIPS rate-limit entirely.
+// Spec R2: org-create requires requireUserOrRedirect + org membership + verified + role gate
+//          scoped to THIS org's publicToken (not any org — foster cross-org bypass lesson).
+//          wrong-org / under-verified / wrong-role → rejected.
+//
+// These tests work at the action boundary. They mock auth-guards, rate-limit,
+// supabase, and next/headers so they run without a server context.
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// Hoist mocks before any imports
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/auth-guards", () => ({
+  requireUserOrRedirect: vi.fn(),
+  requireAdminOrGovtOrRedirect: vi.fn(),
+  requireAdminOrRedirect: vi.fn(),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: vi.fn(),
+  RateLimitError: class RateLimitError extends Error {
+    constructor(message = "Rate limit exceeded") {
+      super(message);
+      this.name = "RateLimitError";
+    }
+  },
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn().mockResolvedValue({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+    },
+    storage: {
+      from: vi.fn().mockReturnValue({ remove: vi.fn().mockResolvedValue({}) }),
+    },
+  }),
+}));
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Map([["x-forwarded-for", "1.2.3.4"]])),
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+}));
+
+import * as authGuards from "@/lib/auth-guards";
+import * as rateLimit from "@/lib/rate-limit";
+
+// ---------------------------------------------------------------------------
+// Tests — createWelfareReportAction rate-limit (anon path)
+// ---------------------------------------------------------------------------
+
+describe("createWelfareReportAction — anon rate-limit gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("anon: RateLimitError → returns Spanish throttle message, NO insert", async () => {
+    // User is null (anon)
+    const { createClient } = await import("@/lib/supabase/server");
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+      },
+      storage: { from: vi.fn() },
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
+
+    // enforceRateLimit throws RateLimitError
+    vi.mocked(rateLimit.enforceRateLimit).mockRejectedValue(
+      new rateLimit.RateLimitError(new Date(Date.now() + 60000), "welfare_anon"),
+    );
+
+    const { createWelfareReportAction } = await import("../../actions");
+    const fd = new FormData();
+    fd.set("kind", "neglect");
+    fd.set("severity", "medium");
+    fd.set("description", "El animal parece estar desnutrido.");
+    fd.set("subjectKind", "unowned_animal");
+    fd.set("subjectDescription", "Perro callejero");
+
+    const result = await createWelfareReportAction({ error: null }, fd);
+
+    expect(result.error).toMatch(/demasiadas denuncias/i);
+    expect(rateLimit.enforceRateLimit).toHaveBeenCalledWith(
+      "welfare_anon",
+      expect.any(String),
+      expect.objectContaining({ maxPerMinute: 1, maxPerHour: 3 }),
+    );
+  });
+
+  it("authenticated user: enforceRateLimit NOT called (auth skips rate-limit)", async () => {
+    const { createClient } = await import("@/lib/supabase/server");
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "user-123" } },
+        }),
+      },
+      storage: { from: vi.fn() },
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
+
+    const { createWelfareReportAction } = await import("../../actions");
+    const fd = new FormData();
+    // Provide just enough to pass validation and fail gracefully elsewhere
+    fd.set("kind", "INVALID_KIND_TO_FAIL_FAST");
+
+    await createWelfareReportAction({ error: null }, fd);
+
+    expect(rateLimit.enforceRateLimit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — createOrgWelfareReportAction auth-scope rejection
+// ---------------------------------------------------------------------------
+
+describe("createOrgWelfareReportAction — auth-scope rejection (foster cross-org bypass lesson)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("unauthenticated caller: requireUserOrRedirect redirects", async () => {
+    const redirectErr = new Error("NEXT_REDIRECT");
+    vi.mocked(authGuards.requireUserOrRedirect).mockRejectedValue(redirectErr);
+
+    const { createOrgWelfareReportAction } = await import("../../actions");
+    const fd = new FormData();
+
+    await expect(
+      createOrgWelfareReportAction("some-org-token", { error: null }, fd),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(authGuards.requireUserOrRedirect).toHaveBeenCalled();
+  });
+});

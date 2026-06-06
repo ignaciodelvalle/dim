@@ -11,12 +11,16 @@
 //   - No auth logic — auth lives at the action / use-case edge.
 //   - Reads return Drizzle row shapes ($inferSelect) — callers expect them.
 
-import { and, desc, eq, gte, ne } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 
 import {
   auditLog,
   db,
   notifications,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  petEvents,
   pets,
   profiles,
   welfareReportAttachments,
@@ -340,5 +344,72 @@ export class WelfareRepository {
       .limit(1);
     if (!row) return null;
     return { name: row.name, microchipId: row.microchipId ?? null };
+  }
+
+  /**
+   * Find a pet by its publicToken. Returns { id } when found, null otherwise.
+   * Used by create-welfare-report / create-org-welfare-report to resolve
+   * subjectPetToken → subjectPetId before the insert tx.
+   */
+  async findPetByToken(publicToken: string): Promise<{ id: string } | null> {
+    const [row] = await db
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, publicToken))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Check whether a user holds an active ownership of a pet (endedAt IS NULL).
+   * Returns { id } when found (truthy), null when not.
+   * Used to derive reporterRole (owner vs. witness) in create-welfare-report.
+   */
+  async findActiveOwnership(petId: string, userId: string): Promise<{ id: string } | null> {
+    const [row] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerUserId, userId),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Return the user IDs of all active institutional admins (role=admin,
+   * accountType=institutional, deactivatedAt IS NULL).
+   * Used by create-org-welfare-report for OA4 fan-out notifications.
+   * Accepts an optional executor so it can run inside the same tx.
+   */
+  async findInstitutionalAdmins(executor: DbOrTx = db): Promise<string[]> {
+    const rows = await executor
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(
+        and(
+          eq(profiles.role, "admin"),
+          eq(profiles.accountType, "institutional"),
+          isNull(profiles.deactivatedAt),
+        ),
+      );
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * Insert a pet_event row. Accepts any executor (db or tx).
+   * Used by create-welfare-report and create-org-welfare-report for the
+   * pet-event bridge (abandonment_reported, maltreatment_reported,
+   * symptom_observed, note_added).
+   */
+  async insertPetEvent(
+    values: typeof petEvents.$inferInsert,
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor.insert(petEvents).values(values);
   }
 }
