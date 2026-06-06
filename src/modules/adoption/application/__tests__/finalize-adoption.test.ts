@@ -98,6 +98,9 @@ const baseInput = {
   followupMonths: null,
   notes: null,
   contractAttachmentId: null,
+  contractStoragePath: null,
+  contractMimeType: null,
+  contractFileSize: null,
 };
 
 // ---------------------------------------------------------------------------

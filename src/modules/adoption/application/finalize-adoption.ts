@@ -56,6 +56,12 @@ export type FinalizeAdoptionInput = FinalizationInput & {
   petPublicToken: string;
   /** Pre-uploaded contract attachment id (or null). Upload happens before tx. */
   contractAttachmentId: string | null;
+  /** Supabase Storage path returned by the upload helper (null when no file). */
+  contractStoragePath: string | null;
+  /** MIME type returned by the upload helper (null when no file). */
+  contractMimeType: string | null;
+  /** Byte size of the stored file returned by the upload helper (null when no file). */
+  contractFileSize: number | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -189,8 +195,13 @@ export async function finalizeAdoption(
           phone: input.adopterPhone,
           dni,
           contractAttachmentId: input.contractAttachmentId,
+          contractStoragePath: input.contractStoragePath,
+          contractMimeType: input.contractMimeType,
+          contractFileSize: input.contractFileSize,
           followupMonths: isStubAdopter ? null : followupMonths,
           notes: input.notes,
+          orgDisplayName: organization.displayName,
+          petName: petRow.name,
           now,
         },
         tx as Parameters<typeof repo.insertAdoptionFinalized>[1],

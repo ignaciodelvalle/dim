@@ -102,8 +102,18 @@ type InsertAdoptionFinalizedArgs = {
   phone: string | null;
   dni: string | null;
   contractAttachmentId: string | null;
+  /** Supabase Storage path of the uploaded contract file (null when no file). */
+  contractStoragePath: string | null;
+  /** MIME type of the uploaded contract file (null when no file). */
+  contractMimeType: string | null;
+  /** Byte size of the stored (possibly re-encoded) contract file (null when no file). */
+  contractFileSize: number | null;
   followupMonths: number | null;
   notes: string | null;
+  /** Organization display name — used in reminder description copy. */
+  orgDisplayName: string;
+  /** Pet name — used in reminder description copy. */
+  petName: string;
   now: Date;
 };
 
@@ -522,8 +532,13 @@ export const AdoptionRepository = {
       phone,
       dni,
       contractAttachmentId,
+      contractStoragePath,
+      contractMimeType,
+      contractFileSize,
       followupMonths,
       notes,
+      orgDisplayName,
+      petName,
       now,
     } = args;
 
@@ -603,13 +618,19 @@ export const AdoptionRepository = {
     }
 
     // Contract attachment row.
-    // (Caller handles orphan cleanup on error — we just insert the row here.)
-    if (contractAttachmentId) {
-      // Attachment args include storagePath — caller passes contractAttachmentId only
-      // if the upload succeeded; storagePath must be threaded through if needed.
-      // For now: attachment insert is skipped (storage upload is pre-tx in the action;
-      // this method only creates the DB row when contractAttachmentId is non-null).
-      // The action is responsible for passing storagePath separately.
+    // The storage upload happens pre-tx in the action; the action passes the
+    // resulting storagePath, mimeType, and fileSize alongside contractAttachmentId.
+    // Caller handles orphan cleanup on error (storage delete + throw).
+    if (contractAttachmentId && contractStoragePath && contractMimeType) {
+      await tx.insert(attachments).values({
+        id: contractAttachmentId,
+        petId,
+        eventId: adoptionEvent.id,
+        uploadedByUserId: userId,
+        storagePath: contractStoragePath,
+        mimeType: contractMimeType,
+        fileSize: contractFileSize ?? null,
+      });
     }
 
     // Reminder rows for non-stub adopter.
@@ -627,8 +648,7 @@ export const AdoptionRepository = {
               reminderType: "post_adoption_checkin" as const,
               dueAt: dueDate,
               title: `Seguimiento post-adopción a los ${m} ${m === 1 ? "mes" : "meses"}`,
-              description:
-                "La organización pidió un check-in sobre el pet. Subí fotos y contanos cómo está.",
+              description: `${orgDisplayName} pidió un check-in sobre ${petName}. Subí fotos y contanos cómo está.`,
               sourceEventId: adoptionEvent.id,
             };
           }),
