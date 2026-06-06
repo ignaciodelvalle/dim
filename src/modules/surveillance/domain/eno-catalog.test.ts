@@ -4,12 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  ENO_DISEASES_AR,
-  diseaseCodeToEnoCode,
-  getEnoDisease,
-  isEnoCode,
-} from "./eno-catalog";
+import { ENO_DISEASES_AR, diseaseCodeToEnoCode, getEnoDisease, isEnoCode } from "./eno-catalog";
 
 // ---------------------------------------------------------------------------
 // ENO_DISEASES_AR catalog shape

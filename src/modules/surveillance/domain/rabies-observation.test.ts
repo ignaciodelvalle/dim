@@ -80,7 +80,12 @@ describe("outcomeToStatus", () => {
   });
 
   it("every PROFESSIONAL_OUTCOME maps to a value containing the outcome word", () => {
-    const outcomes: RabiesObservationOutcome[] = ["negative", "positive_rabies", "dead", "lost_to_followup"];
+    const outcomes: RabiesObservationOutcome[] = [
+      "negative",
+      "positive_rabies",
+      "dead",
+      "lost_to_followup",
+    ];
     for (const outcome of outcomes) {
       const status: RabiesObservationStatus = outcomeToStatus(outcome);
       expect(status).toMatch(/^completed_/);

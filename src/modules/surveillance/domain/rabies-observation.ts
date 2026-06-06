@@ -35,11 +35,7 @@ export const RABIES_OBSERVATION_STATUSES = [
   "completed_lost_to_followup",
 ] as const satisfies readonly RabiesObservationStatus[];
 
-export type RabiesObservationOutcome =
-  | "negative"
-  | "positive_rabies"
-  | "dead"
-  | "lost_to_followup";
+export type RabiesObservationOutcome = "negative" | "positive_rabies" | "dead" | "lost_to_followup";
 
 // Outcomes available to professional closure (vet/govt/admin).
 // NOT available to owner closure (which is hardcoded to 'negative').

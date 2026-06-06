@@ -5,12 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  BITE_SEVERITIES,
-  VICTIM_KINDS,
-  isInScope,
-  orgTypeToReporterRole,
-} from "./bite";
+import { BITE_SEVERITIES, VICTIM_KINDS, isInScope, orgTypeToReporterRole } from "./bite";
 
 // ---------------------------------------------------------------------------
 // VICTIM_KINDS constant
@@ -128,25 +123,19 @@ describe("isInScope", () => {
   // ---- Province match + any locality ----
 
   it("returns true when province matches and case has no locality", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [
-      { province: "Buenos Aires", locality: "Tigre" },
-    ];
+    const govtJurisdictions: GovtJurisdiction[] = [{ province: "Buenos Aires", locality: "Tigre" }];
     const investCase: JurisdictionCase = { province: "Buenos Aires", locality: null };
     expect(isInScope("govt", govtJurisdictions, investCase)).toBe(true);
   });
 
   it("returns true when province matches and locality matches", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [
-      { province: "Buenos Aires", locality: "Tigre" },
-    ];
+    const govtJurisdictions: GovtJurisdiction[] = [{ province: "Buenos Aires", locality: "Tigre" }];
     const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "Tigre" };
     expect(isInScope("govt", govtJurisdictions, investCase)).toBe(true);
   });
 
   it("returns false when province matches but locality does not match", () => {
-    const govtJurisdictions: GovtJurisdiction[] = [
-      { province: "Buenos Aires", locality: "Tigre" },
-    ];
+    const govtJurisdictions: GovtJurisdiction[] = [{ province: "Buenos Aires", locality: "Tigre" }];
     const investCase: JurisdictionCase = { province: "Buenos Aires", locality: "San Isidro" };
     expect(isInScope("govt", govtJurisdictions, investCase)).toBe(false);
   });
