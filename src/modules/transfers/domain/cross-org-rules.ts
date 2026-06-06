@@ -1,0 +1,162 @@
+// Cross-org transfer domain rules — pure functions, no DB, no Next.js.
+// Extracted from app/actions/cross-org-transfer.ts validation blocks.
+// SECURITY NOTE: validateReceiverOrgScope is the auth boundary for cross-org
+// accept/reject. The canonical-org resolution (case col ?? payload) with drift
+// detection must be reproduced exactly — do NOT simplify.
+
+import { CROSS_ORG_ALLOWED_REASONS, type DomainResult } from "./types";
+
+// ---------------------------------------------------------------------------
+// Reason validation
+// ---------------------------------------------------------------------------
+
+export function validateCrossOrgReason(input: {
+  reason: string;
+  notes: string | null | undefined;
+}): DomainResult {
+  if (!CROSS_ORG_ALLOWED_REASONS.has(input.reason)) {
+    return { ok: false, error: "Motivo de transferencia inválido." };
+  }
+  if (input.reason === "other") {
+    const trimmedNotes = input.notes?.trim() || null;
+    if (!trimmedNotes) {
+      return { ok: false, error: "El motivo 'other' requiere una nota explicativa." };
+    }
+  }
+  return { ok: true, value: undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Receiver-not-sender guard
+// ---------------------------------------------------------------------------
+
+export function validateReceiverNotSender(
+  senderOrgId: string,
+  receiverOrgId: string,
+): DomainResult {
+  if (receiverOrgId === senderOrgId) {
+    return { ok: false, error: "El destinatario no puede ser tu propia organización." };
+  }
+  return { ok: true, value: undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Org token match (edge-level auth guard for propose/accept/reject/cancel)
+// ---------------------------------------------------------------------------
+
+export function validateOrgTokenMatch(
+  orgToken: string,
+  inputToken: string,
+  side: "sender" | "receiver",
+): DomainResult {
+  if (orgToken !== inputToken) {
+    return {
+      ok: false,
+      error: `Estás operando desde una organización distinta a la ${side}.`,
+    };
+  }
+  return { ok: true, value: undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Canonical sender resolution with drift detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the canonical sender org id: case column is source of truth,
+ * payload is the fallback for legacy rows pre-backfill.
+ * When both are present they must agree — drift here surfaces as an error
+ * rather than silently authorizing the wrong sender.
+ */
+export function validateSenderOrgScope(args: {
+  caseOpenedByOrganizationId: string | null | undefined;
+  payloadFromOrganizationId: string | null | undefined;
+}): DomainResult<{ canonicalSenderOrgId: string }> {
+  const { caseOpenedByOrganizationId, payloadFromOrganizationId } = args;
+
+  if (caseOpenedByOrganizationId && payloadFromOrganizationId) {
+    if (caseOpenedByOrganizationId !== payloadFromOrganizationId) {
+      return {
+        ok: false,
+        error:
+          "Inconsistencia entre el caso y la propuesta. Avisanos para reconciliarlo antes de aceptar la transferencia.",
+      };
+    }
+    return { ok: true, value: { canonicalSenderOrgId: caseOpenedByOrganizationId } };
+  }
+
+  const canonicalSenderOrgId = caseOpenedByOrganizationId ?? payloadFromOrganizationId ?? null;
+  if (!canonicalSenderOrgId) {
+    return { ok: false, error: "Propuesta sin organización emisora." };
+  }
+
+  return { ok: true, value: { canonicalSenderOrgId } };
+}
+
+// ---------------------------------------------------------------------------
+// Canonical receiver resolution with drift detection — SECURITY BOUNDARY
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the canonical receiver org id: case column is source of truth
+ * (migration 0043), payload is fallback for legacy rows pre-backfill.
+ * When both present and they disagree → drift error (inconsistency).
+ * When resolved, validates that callerOrgId matches the canonical receiver.
+ *
+ * This is a CRITICAL security boundary equivalent to the foster-bug class:
+ * the receiver auth is the case's receiverOrganizationId column, NOT the
+ * caller's mere capability.
+ */
+export function validateReceiverOrgScope(args: {
+  caseReceiverOrganizationId: string | null | undefined;
+  payloadToOrganizationId: string | null | undefined;
+  callerOrgId: string;
+}): DomainResult<{ canonicalReceiverOrgId: string }> {
+  const { caseReceiverOrganizationId, payloadToOrganizationId, callerOrgId } = args;
+
+  if (caseReceiverOrganizationId && payloadToOrganizationId) {
+    if (caseReceiverOrganizationId !== payloadToOrganizationId) {
+      return {
+        ok: false,
+        error:
+          "Inconsistencia entre el caso y la propuesta. Avisanos para reconciliarlo antes de aceptar la transferencia.",
+      };
+    }
+  }
+
+  const canonicalReceiverOrgId = caseReceiverOrganizationId ?? payloadToOrganizationId ?? null;
+  if (!canonicalReceiverOrgId) {
+    return { ok: false, error: "Propuesta sin organización destinataria." };
+  }
+
+  if (canonicalReceiverOrgId !== callerOrgId) {
+    return { ok: false, error: "La propuesta no fue dirigida a tu organización." };
+  }
+
+  return { ok: true, value: { canonicalReceiverOrgId } };
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate-proposal guard (LIMIT-2, fail-loud)
+// ---------------------------------------------------------------------------
+
+/**
+ * Validates the proposal event count fetched with LIMIT 2.
+ * - 0 events: original proposal not found.
+ * - 1 event: correct — proceed.
+ * - 2 events: shadow/duplicate event detected — fail loud (do NOT silently
+ *   pick one). The inconsistency must be reconciled manually.
+ */
+export function validateDuplicateProposalGuard(proposalEventCount: number): DomainResult {
+  if (proposalEventCount === 0) {
+    return { ok: false, error: "Propuesta original no encontrada." };
+  }
+  if (proposalEventCount >= 2) {
+    return {
+      ok: false,
+      error:
+        "El caso tiene propuestas duplicadas. Avisanos para reconciliarlo antes de aceptar la transferencia.",
+    };
+  }
+  return { ok: true, value: undefined };
+}
