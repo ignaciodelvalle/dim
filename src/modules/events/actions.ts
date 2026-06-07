@@ -1132,6 +1132,8 @@ export async function createSymptomObservedAction(
   const onsetRaw = String(formData.get("onsetAt") ?? "").trim();
   const onsetAt = onsetRaw.length > 0 ? onsetRaw : null;
 
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
   const repo = new EventsRepository();
 
   const result = await createSymptomObservedWriter(
@@ -1152,6 +1154,7 @@ export async function createSymptomObservedAction(
       freeText,
       severity,
       onsetAt,
+      clientIdempotencyKey,
     },
     {
       repo,
@@ -1291,10 +1294,6 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
     },
     { repo, transaction: makeTransaction() },
   );
-
-  if (result.alreadyActive) {
-    redirect(`/mis-mascotas/${publicToken}`);
-  }
 
   redirect(`/mis-mascotas/${publicToken}`);
 }

@@ -52,6 +52,12 @@ export type CreateSymptomObservedWriterParams = {
   freeText: string;
   severity: "mild" | "moderate" | "severe" | null;
   onsetAt: string | null;
+  /**
+   * When provided (non-null), the symptom_observed insert uses insertEventIdempotent
+   * for double-submit deduplication (parity with original createSymptomObservedAction).
+   * When null/absent, falls back to plain insertEvent (preserves headless writer path).
+   */
+  clientIdempotencyKey?: string | null;
   now?: Date;
 };
 
@@ -60,7 +66,7 @@ export type CreateSymptomObservedWriterResult =
   | { ok: false; error: string };
 
 type Deps = {
-  repo: Pick<EventsRepository, "insertEvent" | "enqueueOutbox">;
+  repo: Pick<EventsRepository, "insertEvent" | "insertEventIdempotent" | "enqueueOutbox">;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   flushNotifications: (pendingNotifications: NewNotification[]) => Promise<void>;
 };
@@ -93,6 +99,7 @@ export async function createSymptomObservedWriter(
     freeText,
     severity,
     onsetAt,
+    clientIdempotencyKey,
     now = new Date(),
   } = params;
 
@@ -128,20 +135,38 @@ export async function createSymptomObservedWriter(
         onset_at: onsetAt,
       });
 
-      // PLAIN insert (NOT idempotent) — parity with original writer.
-      const symptomEvent = await deps.repo.insertEvent(
-        {
-          petId,
-          eventType: "symptom_observed",
-          occurredAt: onsetAt ? new Date(onsetAt) : now,
-          recordedAt: now,
-          recordedByUserId,
-          ...eventAuthorship,
-          payload: symptomPayload,
-        } as Parameters<typeof deps.repo.insertEvent>[0],
-        tx as Parameters<typeof deps.repo.insertEvent>[1],
-      );
-      symptomEventId = symptomEvent.id;
+      const symptomEventBase = {
+        petId,
+        eventType: "symptom_observed",
+        occurredAt: onsetAt ? new Date(onsetAt) : now,
+        recordedAt: now,
+        recordedByUserId,
+        ...eventAuthorship,
+        payload: symptomPayload,
+      };
+
+      let symptomEvent: { id: string };
+
+      if (clientIdempotencyKey != null) {
+        // Idempotent path — parity with original createSymptomObservedAction.
+        // When wasNoop=true the submission is a duplicate; skip all signals.
+        const { event, wasNoop } = await deps.repo.insertEventIdempotent(
+          { ...symptomEventBase, clientIdempotencyKey } as Parameters<
+            typeof deps.repo.insertEventIdempotent
+          >[0],
+          tx as Parameters<typeof deps.repo.insertEventIdempotent>[1],
+        );
+        symptomEventId = event.id;
+        if (wasNoop) return; // early return inside transaction — skip signals
+        symptomEvent = event;
+      } else {
+        // PLAIN insert (NOT idempotent) — original headless writer path.
+        symptomEvent = await deps.repo.insertEvent(
+          symptomEventBase as Parameters<typeof deps.repo.insertEvent>[0],
+          tx as Parameters<typeof deps.repo.insertEvent>[1],
+        );
+        symptomEventId = symptomEvent.id;
+      }
 
       const rabiesObservationActive = rabiesObservationStatus === "in_progress";
 

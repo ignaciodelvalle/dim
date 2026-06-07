@@ -12,6 +12,11 @@
 //       → push urgent owner notification (rabies_observation_escalation_owner).
 //   - pendingNotifications flushed post-tx (caller's responsibility).
 //   - Result: { ok: true, symptomEventId, signalEventIds }
+//
+// W-1 fix (2026-06-07): clientIdempotencyKey idempotency parity:
+//   - When clientIdempotencyKey is provided (non-null), use insertEventIdempotent.
+//   - When wasNoop=true, return early with ok:true and empty signalEventIds (no signals).
+//   - When clientIdempotencyKey is null/absent, use plain insertEvent (preserves original writer path).
 
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,8 +58,11 @@ function makeRepo(
 
 function buildRepo() {
   const insertEvent = vi.fn().mockResolvedValue({ id: randomUUID() });
+  const insertEventIdempotent = vi
+    .fn()
+    .mockResolvedValue({ event: { id: randomUUID() }, wasNoop: false });
   const enqueueOutbox = vi.fn().mockResolvedValue(undefined);
-  return { insertEvent, enqueueOutbox };
+  return { insertEvent, insertEventIdempotent, enqueueOutbox };
 }
 
 function makeTransaction() {
@@ -112,7 +120,10 @@ describe("createSymptomObservedWriter", () => {
     const flush = makeFlushNotifications();
 
     const result = await createSymptomObservedWriter(baseParams, {
-      repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "enqueueOutbox">,
+      repo: repo as unknown as Pick<
+        EventsRepository,
+        "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+      >,
       transaction: tx,
       flushNotifications: flush,
     });
@@ -158,7 +169,10 @@ describe("createSymptomObservedWriter", () => {
     const result = await createSymptomObservedWriter(
       { ...baseParams, rabiesObservationStatus: null },
       {
-        repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "enqueueOutbox">,
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+        >,
         transaction: tx,
         flushNotifications: flush,
       },
@@ -221,7 +235,10 @@ describe("createSymptomObservedWriter", () => {
     const result = await createSymptomObservedWriter(
       { ...baseParams, rabiesObservationStatus: "in_progress" },
       {
-        repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "enqueueOutbox">,
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+        >,
         transaction: tx,
         flushNotifications: flush,
       },
@@ -260,7 +277,10 @@ describe("createSymptomObservedWriter", () => {
     const flush = makeFlushNotifications();
 
     const result = await createSymptomObservedWriter(baseParams, {
-      repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "enqueueOutbox">,
+      repo: repo as unknown as Pick<
+        EventsRepository,
+        "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+      >,
       transaction: tx,
       flushNotifications: flush,
     });
@@ -290,7 +310,10 @@ describe("createSymptomObservedWriter", () => {
     await createSymptomObservedWriter(
       { ...baseParams, onsetAt },
       {
-        repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "enqueueOutbox">,
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+        >,
         transaction: tx,
         flushNotifications: flush,
       },
@@ -311,7 +334,10 @@ describe("createSymptomObservedWriter", () => {
     const flush = makeFlushNotifications();
 
     const result = await createSymptomObservedWriter(baseParams, {
-      repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "enqueueOutbox">,
+      repo: repo as unknown as Pick<
+        EventsRepository,
+        "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+      >,
       transaction: tx,
       flushNotifications: flush,
     });
@@ -320,5 +346,73 @@ describe("createSymptomObservedWriter", () => {
     if (!result.ok) {
       expect(result.error).toContain("db error");
     }
+  });
+
+  // W-1 fix: clientIdempotencyKey parity tests
+  it("uses insertEventIdempotent when clientIdempotencyKey is provided", async () => {
+    mockMatchSymptoms.mockReturnValue([]);
+    mockAggregateDiseaseMatches.mockReturnValue([]);
+
+    const symptomId = randomUUID();
+    const repo = makeRepo();
+    repo.insertEventIdempotent.mockResolvedValueOnce({ event: { id: symptomId }, wasNoop: false });
+
+    const tx = makeTransaction();
+    const flush = makeFlushNotifications();
+
+    const result = await createSymptomObservedWriter(
+      { ...baseParams, clientIdempotencyKey: "client-key-abc" },
+      {
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+        >,
+        transaction: tx,
+        flushNotifications: flush,
+      },
+    );
+
+    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [] });
+    // Must use idempotent path
+    expect(repo.insertEventIdempotent).toHaveBeenCalledTimes(1);
+    const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [
+      Record<string, unknown>,
+      unknown,
+    ];
+    expect(insertArg.eventType).toBe("symptom_observed");
+    expect(insertArg.clientIdempotencyKey).toBe("client-key-abc");
+    // Plain insertEvent must NOT be called for the symptom row
+    expect(repo.insertEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns early with empty signalEventIds when wasNoop=true (duplicate submission)", async () => {
+    mockMatchSymptoms.mockReturnValue([]);
+    mockAggregateDiseaseMatches.mockReturnValue([]);
+
+    const symptomId = randomUUID();
+    const repo = makeRepo();
+    // wasNoop=true simulates a duplicate submission
+    repo.insertEventIdempotent.mockResolvedValueOnce({ event: { id: symptomId }, wasNoop: true });
+
+    const tx = makeTransaction();
+    const flush = makeFlushNotifications();
+
+    const result = await createSymptomObservedWriter(
+      { ...baseParams, clientIdempotencyKey: "client-key-dup" },
+      {
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+        >,
+        transaction: tx,
+        flushNotifications: flush,
+      },
+    );
+
+    expect(result).toEqual({ ok: true, symptomEventId: symptomId, signalEventIds: [] });
+    // No signals, no outbox, no notifications when noop
+    expect(repo.enqueueOutbox).not.toHaveBeenCalled();
+    expect(mockRouteOutbreakSignalNotifications).not.toHaveBeenCalled();
+    expect(flush).toHaveBeenCalledWith([]); // flush called with empty array
   });
 });
