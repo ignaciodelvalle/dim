@@ -23,13 +23,14 @@ import {
   organizationInvitations,
   organizationMemberships,
   organizations,
+  profiles,
 } from "@/db";
 
 // ---------------------------------------------------------------------------
 // Executor type — mirrors CasesRepository idiom (foster/transfers pattern)
 // ---------------------------------------------------------------------------
 
-type Exec = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
+export type Exec = Parameters<Parameters<typeof db.transaction>[0]>[0] | typeof db;
 
 // ---------------------------------------------------------------------------
 // Input types
@@ -484,5 +485,99 @@ export class OrgRepository {
           isNull(organizationMemberships.leftAt),
         ),
       );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Methods added for WU-3 use-cases
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Find an invitation by token (NOT locked). Used for revoke (non-tx check).
+   */
+  async findInviteByToken(token: string, e: Exec = db): Promise<OrganizationInvitation | null> {
+    const [row] = await e
+      .select()
+      .from(organizationInvitations)
+      .where(eq(organizationInvitations.invitationToken, token))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find the caller's own active membership in an org (for self-leave).
+   */
+  async findOwnActiveMembership(
+    userId: string,
+    organizationId: string,
+    e: Exec = db,
+  ): Promise<OrganizationMembership | null> {
+    const [row] = await e
+      .select()
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.userId, userId),
+          eq(organizationMemberships.organizationId, organizationId),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find an organization by ID. Used inside accept-invitation tx.
+   */
+  async findOrgById(orgId: string, e: Exec = db): Promise<Organization | null> {
+    const [row] = await e.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find an existing active membership for (orgId, userId). Used for idempotency in accept-invitation.
+   */
+  async findExistingActiveMembership(
+    orgId: string,
+    userId: string,
+    e: Exec = db,
+  ): Promise<{ id: string } | null> {
+    const [row] = await e
+      .select({ id: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, orgId),
+          eq(organizationMemberships.userId, userId),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find the display name of the accepter user. Used for accept-invitation notification.
+   * Returns null if profile not found.
+   */
+  async findAccepterDisplayName(userId: string, e: Exec = db): Promise<string | null> {
+    const [row] = await e
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    return row?.displayName ?? null;
+  }
+
+  /**
+   * Find the publicToken of an organization by ID.
+   * Used for post-action revalidate when publicToken is not already in scope.
+   */
+  async findOrgPublicToken(orgId: string, e: Exec = db): Promise<string | null> {
+    const [row] = await e
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return row?.publicToken ?? null;
   }
 }

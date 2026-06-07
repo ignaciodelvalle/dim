@@ -1,0 +1,727 @@
+// Unit tests for organizations membership use-cases (WU-3, task 3.1):
+//   - update-organization
+//   - remove-member
+//   - change-member-role
+//   - set-member-event-write
+//   - leave-organization
+//
+// Strategy: mock OrgRepository methods; test pure business logic only.
+// Auth is NOT in use-cases — it is done at the action edge.
+//
+// TDD: tests written before use-case files exist (RED phase).
+
+import { describe, expect, it, vi } from "vitest";
+
+import type { OrganizationMembership } from "@/db";
+import { changeOrganizationMemberRole } from "@/src/modules/organizations/application/change-member-role";
+import { leaveOrganization } from "@/src/modules/organizations/application/leave-organization";
+import { removeMember } from "@/src/modules/organizations/application/remove-member";
+import { setMemberEventWrite } from "@/src/modules/organizations/application/set-member-event-write";
+import { updateOrganization } from "@/src/modules/organizations/application/update-organization";
+
+// ---------------------------------------------------------------------------
+// Shared fixture helpers
+// ---------------------------------------------------------------------------
+
+function makeMembership(overrides: Partial<OrganizationMembership> = {}): OrganizationMembership {
+  return {
+    id: "mem-1",
+    userId: "user-actor",
+    organizationId: "org-1",
+    role: "admin",
+    title: null,
+    leftAt: null,
+    joinedAt: new Date("2024-01-01"),
+    invitedByUserId: null,
+    canWritePetEvents: false,
+    receivesBroadcasts: true,
+    ...overrides,
+  };
+}
+
+function makeOrg() {
+  return {
+    id: "org-1",
+    publicToken: "ORG-TOKEN",
+    displayName: "Test Org",
+    legalName: null,
+    email: null,
+    phone: null,
+    website: null,
+    description: null,
+    personeriaJuridicaNumber: null,
+    tier0ShowOriginOrg: false,
+    orgType: "refugio",
+    verified: true,
+    status: "active",
+    jurisdictionProvince: null,
+    jurisdictionLocality: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// update-organization
+// ---------------------------------------------------------------------------
+
+describe("updateOrganization", () => {
+  it("returns error when displayName is too short", async () => {
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "A" },
+      },
+      {
+        repo: { findMembershipByUserAndOrgToken: vi.fn(), updateOrgProfile: vi.fn() },
+      },
+    );
+    expect(result).toEqual({ ok: false, error: "El nombre debe tener entre 2 y 100 caracteres." });
+  });
+
+  it("returns error when displayName is too long", async () => {
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "A".repeat(101) },
+      },
+      {
+        repo: { findMembershipByUserAndOrgToken: vi.fn(), updateOrgProfile: vi.fn() },
+      },
+    );
+    expect(result).toEqual({ ok: false, error: "El nombre debe tener entre 2 y 100 caracteres." });
+  });
+
+  it("returns error when legalName is provided but empty", async () => {
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "Valid Name", legalName: "   " },
+      },
+      {
+        repo: { findMembershipByUserAndOrgToken: vi.fn(), updateOrgProfile: vi.fn() },
+      },
+    );
+    expect(result).toEqual({ ok: false, error: "El nombre legal no puede quedar vacío." });
+  });
+
+  it("returns error when email format is invalid", async () => {
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "Valid Name", email: "not-an-email" },
+      },
+      {
+        repo: { findMembershipByUserAndOrgToken: vi.fn(), updateOrgProfile: vi.fn() },
+      },
+    );
+    expect(result).toEqual({ ok: false, error: "El correo electrónico es inválido." });
+  });
+
+  it("returns error when membership not found", async () => {
+    const repo = {
+      findMembershipByUserAndOrgToken: vi.fn().mockResolvedValue(null),
+      updateOrgProfile: vi.fn(),
+    };
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "Valid Name" },
+      },
+      { repo },
+    );
+    expect(result).toEqual({ ok: false, error: "No tenés acceso a esta organización." });
+  });
+
+  it("returns error when role is not admin", async () => {
+    const repo = {
+      findMembershipByUserAndOrgToken: vi.fn().mockResolvedValue({
+        org: makeOrg(),
+        membership: makeMembership({ role: "coordinator" }),
+      }),
+      updateOrgProfile: vi.fn(),
+    };
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "Valid Name" },
+      },
+      { repo },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "Solo los administradores de la organización pueden editar el perfil.",
+    });
+  });
+
+  it("updates profile when admin with valid input", async () => {
+    const repo = {
+      findMembershipByUserAndOrgToken: vi.fn().mockResolvedValue({
+        org: { ...makeOrg(), publicToken: "TKN" },
+        membership: makeMembership({ role: "admin" }),
+      }),
+      updateOrgProfile: vi.fn().mockResolvedValue(undefined),
+    };
+    const result = await updateOrganization(
+      {
+        userId: "user-1",
+        orgToken: "TKN",
+        fields: { displayName: "New Name" },
+      },
+      { repo },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.updateOrgProfile).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// remove-member
+// ---------------------------------------------------------------------------
+
+describe("removeMember", () => {
+  const baseRepo = () => ({
+    findActiveMembership: vi.fn(),
+    lockActiveAdmins: vi.fn(),
+    softLeave: vi.fn().mockResolvedValue(undefined),
+  });
+
+  it("returns error when target membership not found", async () => {
+    const repo = { ...baseRepo(), findActiveMembership: vi.fn().mockResolvedValue(null) };
+    const result = await removeMember(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN", displayName: "Org" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result).toEqual({ ok: false, error: "Membresía no encontrada o ya inactiva." });
+  });
+
+  it("returns self-error for non-admin when removing self", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-actor", role: "coordinator" }),
+        ),
+    };
+    const result = await removeMember(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN", displayName: "Org" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "No podés quitarte a vos mismo por esta vía. Usá la opción 'Salir de la organización'.",
+    });
+  });
+
+  it("returns rank error when target outranks actor", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "admin" }),
+        ),
+      // 2 admins so last-admin doesn't block; rank check will fail
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-actor" }, { id: "mem-target" }]),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await removeMember(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        // coordinator (rank 4) trying to remove admin (rank 5) — should fail
+        actor: { userId: "user-actor", role: "coordinator", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN", displayName: "Org" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "No podés gestionar a alguien con un rol mayor al tuyo.",
+    });
+  });
+
+  it("LAST-ADMIN: blocks remove even when actor is the last admin targeting themselves", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-other", role: "admin" }),
+        ),
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-target" }]), // only 1 admin
+      softLeave: vi.fn(),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await removeMember(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN", displayName: "Org" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "La organización debe tener al menos un administrador.",
+    });
+    expect(repo.softLeave).not.toHaveBeenCalled();
+  });
+
+  it("removes non-admin member successfully", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+    };
+    const result = await removeMember(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN", displayName: "Org" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result.ok).toBe(true);
+    // Non-admin path: no tx passed (uses default db executor)
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-target");
+  });
+
+  it("removes admin member when 2+ admins exist", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "admin" }),
+        ),
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-actor" }, { id: "mem-target" }]),
+      softLeave: vi.fn().mockResolvedValue(undefined),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await removeMember(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN", displayName: "Org" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-target", expect.anything());
+  });
+
+  it("wrong-org: actor from different org is rejected", async () => {
+    // The action layer gates with requireCapability(cap, orgId) SCOPED to the org.
+    // At the use-case level, the actor is already resolved; we test that the
+    // findActiveMembership (using organizationId) returns null when the membership
+    // doesn't belong to that org.
+    const repo = {
+      ...baseRepo(),
+      // Simulates DB returning null because (membershipId, orgId) pair doesn't match
+      findActiveMembership: vi.fn().mockResolvedValue(null),
+    };
+    const result = await removeMember(
+      {
+        organizationId: "org-WRONG",
+        membershipId: "mem-target",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN-WRONG", displayName: "Wrong Org" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result).toEqual({ ok: false, error: "Membresía no encontrada o ya inactiva." });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// change-member-role
+// ---------------------------------------------------------------------------
+
+describe("changeOrganizationMemberRole", () => {
+  const baseRepo = () => ({
+    findActiveMembership: vi.fn(),
+    lockActiveAdmins: vi.fn(),
+    setRole: vi.fn().mockResolvedValue(undefined),
+  });
+
+  it("returns error for invalid new role", async () => {
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        newRole: "superadmin",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo: baseRepo(), transaction: vi.fn() },
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { error: string }).error).toMatch(/Rol inválido/);
+  });
+
+  it("returns error when new role outranks actor", async () => {
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        newRole: "admin",
+        actor: { userId: "user-actor", role: "coordinator", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo: baseRepo(), transaction: vi.fn() },
+    );
+    expect(result).toEqual({ ok: false, error: "No podés asignar un rol mayor al tuyo." });
+  });
+
+  it("returns error when target not found", async () => {
+    const repo = { ...baseRepo(), findActiveMembership: vi.fn().mockResolvedValue(null) };
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        newRole: "member",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result).toEqual({ ok: false, error: "Membresía no encontrada o ya inactiva." });
+  });
+
+  it("returns self-error when changing own role", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-actor", role: "member" }),
+        ),
+    };
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        newRole: "coordinator",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result).toEqual({ ok: false, error: "No podés cambiar tu propio rol." });
+  });
+
+  it("returns rank error when target outranks actor", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "admin" }),
+        ),
+      // 2 admins so last-admin doesn't block; rank check will fail
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-actor" }, { id: "mem-target" }]),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        // coordinator (rank 4) can't manage admin (rank 5)
+        newRole: "member",
+        actor: { userId: "user-actor", role: "coordinator", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "No podés gestionar a alguien con un rol mayor al tuyo.",
+    });
+  });
+
+  it("LAST-ADMIN: blocks demotion of last admin", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "admin" }),
+        ),
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-target" }]),
+      setRole: vi.fn(),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        newRole: "member",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "La organización debe tener al menos un administrador.",
+    });
+    expect(repo.setRole).not.toHaveBeenCalled();
+  });
+
+  it("changes role successfully when valid", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+      setRole: vi.fn().mockResolvedValue(undefined),
+    };
+    const result = await changeOrganizationMemberRole(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        newRole: "coordinator",
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result.ok).toBe(true);
+    // Non-admin target path — no tx (uses default db executor)
+    expect(repo.setRole).toHaveBeenCalledWith("mem-target", "coordinator");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// set-member-event-write
+// ---------------------------------------------------------------------------
+
+describe("setMemberEventWrite", () => {
+  const baseRepo = () => ({
+    findActiveMembership: vi.fn(),
+    setEventWrite: vi.fn().mockResolvedValue(undefined),
+  });
+
+  it("returns error when target not found", async () => {
+    const repo = { ...baseRepo(), findActiveMembership: vi.fn().mockResolvedValue(null) };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: true,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo },
+    );
+    expect(result).toEqual({ ok: false, error: "Membresía no encontrada o ya inactiva." });
+  });
+
+  it("returns self-error when actor modifies own event-write", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-actor", role: "member" }),
+        ),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: true,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "No podés modificar tu propio permiso de escritura por esta vía.",
+    });
+  });
+
+  it("returns rank error when target outranks actor", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "admin" }),
+        ),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: false,
+        actor: { userId: "user-actor", role: "coordinator", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "No podés gestionar a alguien con un rol mayor al tuyo.",
+    });
+  });
+
+  it("updates event-write successfully", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: true,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo },
+    );
+    expect(result.ok).toBe(true);
+    // No tx for setEventWrite (uses default db executor)
+    expect(repo.setEventWrite).toHaveBeenCalledWith("mem-target", true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// leave-organization (self-leave)
+// ---------------------------------------------------------------------------
+
+describe("leaveOrganization", () => {
+  const baseRepo = () => ({
+    findOwnActiveMembership: vi.fn(),
+    lockActiveAdmins: vi.fn(),
+    softLeave: vi.fn().mockResolvedValue(undefined),
+  });
+
+  it("returns error when user is not active member", async () => {
+    const repo = { ...baseRepo(), findOwnActiveMembership: vi.fn().mockResolvedValue(null) };
+    const result = await leaveOrganization(
+      {
+        userId: "user-1",
+        organizationId: "org-1",
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result).toEqual({ ok: false, error: "No sos miembro activo de esta organización." });
+  });
+
+  it("LAST-ADMIN: blocks admin self-leave when only 1 admin", async () => {
+    const repo = {
+      ...baseRepo(),
+      findOwnActiveMembership: vi
+        .fn()
+        .mockResolvedValue(makeMembership({ id: "mem-1", userId: "user-1", role: "admin" })),
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-1" }]),
+      softLeave: vi.fn(),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await leaveOrganization(
+      {
+        userId: "user-1",
+        organizationId: "org-1",
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "No podés salir porque sos el único administrador. Asigná otro administrador primero.",
+    });
+    expect(repo.softLeave).not.toHaveBeenCalled();
+  });
+
+  it("allows admin self-leave when multiple admins exist", async () => {
+    const repo = {
+      ...baseRepo(),
+      findOwnActiveMembership: vi
+        .fn()
+        .mockResolvedValue(makeMembership({ id: "mem-1", userId: "user-1", role: "admin" })),
+      lockActiveAdmins: vi.fn().mockResolvedValue([{ id: "mem-1" }, { id: "mem-2" }]),
+      softLeave: vi.fn().mockResolvedValue(undefined),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await leaveOrganization(
+      {
+        userId: "user-1",
+        organizationId: "org-1",
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: txFn },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-1", expect.anything());
+  });
+
+  it("allows non-admin self-leave directly (no tx needed)", async () => {
+    const repo = {
+      ...baseRepo(),
+      findOwnActiveMembership: vi
+        .fn()
+        .mockResolvedValue(makeMembership({ id: "mem-1", userId: "user-1", role: "member" })),
+      softLeave: vi.fn().mockResolvedValue(undefined),
+    };
+    const result = await leaveOrganization(
+      {
+        userId: "user-1",
+        organizationId: "org-1",
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: vi.fn() },
+    );
+    expect(result.ok).toBe(true);
+    // Non-admin path: no tx (uses default db executor)
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-1");
+  });
+});
