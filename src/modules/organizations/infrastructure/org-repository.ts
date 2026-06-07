@@ -18,6 +18,7 @@ import {
   type OrganizationInvitation,
   type OrganizationMembership,
   db,
+  orgContactMessages,
   organizationCapabilityGrants,
   organizationCoverage,
   organizationInvitations,
@@ -58,6 +59,15 @@ export interface InsertGrantInput {
   capability: string;
   status?: OrganizationCapabilityGrant["status"];
   requestedReason?: string | null;
+}
+
+export interface InsertContactInput {
+  organizationId: string;
+  kind: "contact" | "volunteer";
+  inquirerName: string | null;
+  inquirerEmail: string;
+  message: string;
+  submitterIp: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -579,5 +589,56 @@ export class OrgRepository {
       .where(eq(organizations.id, orgId))
       .limit(1);
     return row?.publicToken ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Methods added for WU-4 use-cases
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Find the display name of a user by ID. Alias of findAccepterDisplayName,
+   * used for capability-request fan-out notifications.
+   */
+  async findRequesterDisplayName(userId: string, e: Exec = db): Promise<string | null> {
+    return this.findAccepterDisplayName(userId, e);
+  }
+
+  /**
+   * Find an organization by publicToken. Used for contact form (anonymous).
+   */
+  async findOrgByToken(token: string, e: Exec = db): Promise<{ id: string } | null> {
+    const [row] = await e
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.publicToken, token))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Insert an org contact message row. Used by submit-org-contact use-case.
+   */
+  async insertContact(values: InsertContactInput, e: Exec = db): Promise<void> {
+    await e.insert(orgContactMessages).values({
+      organizationId: values.organizationId,
+      kind: values.kind,
+      inquirerName: values.inquirerName,
+      inquirerEmail: values.inquirerEmail,
+      message: values.message,
+      submitterIp: values.submitterIp,
+    });
+  }
+
+  /**
+   * Find the userId of the membership that owns a capability grant.
+   * Used to notify the requester after a decision.
+   */
+  async findGrantMemberUserId(membershipId: string, e: Exec = db): Promise<string | null> {
+    const [row] = await e
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.id, membershipId))
+      .limit(1);
+    return row?.userId ?? null;
   }
 }
