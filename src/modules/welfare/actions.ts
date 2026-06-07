@@ -61,7 +61,6 @@ import { confirmWelfareAsSpam } from "./application/confirm-welfare-as-spam";
 import { createOrgWelfareReport } from "./application/create-org-welfare-report";
 import { createWelfareReport } from "./application/create-welfare-report";
 import { generateMpfExport } from "./application/generate-mpf-export";
-import { getActiveGovtScopeForUser } from "./application/get-active-govt-scope";
 import { passWelfareToTriage } from "./application/pass-welfare-to-triage";
 import { startWelfareReport } from "./application/start-welfare-report";
 import { triageWelfareReport } from "./application/triage-welfare-report";
@@ -82,8 +81,9 @@ export type GenerateMpfExportResult =
   | { ok: true; signedUrl: string; expiresAt: Date }
   | { ok: false; error: string };
 
-// Re-export helper (consumed by listing pages — must stay importable from here)
-export { getActiveGovtScopeForUser };
+// getActiveGovtScopeForUser is a server-only query helper, NOT a server action.
+// Import it directly from "./application/get-active-govt-scope" — a "use server"
+// file may only export locally-declared async actions.
 
 // ---------------------------------------------------------------------------
 // Shared helpers

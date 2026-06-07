@@ -34,7 +34,6 @@ import { requireCapability } from "@/lib/capabilities";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 
-import { closeEligibleObservations } from "./application/close-eligible-observations";
 import {
   type InvestigationNoteEntryType,
   addInvestigationNote,
@@ -381,12 +380,11 @@ export async function professionalCloseRabiesObservationAction(
 }
 
 // ---------------------------------------------------------------------------
-// closeEligibleRabiesObservationsAction — cron use-case (spec §E)
-// Exposed here for direct use from cron route shim if needed. The cron route
-// imports from lib/rabies-observation-closer shim which delegates here.
+// Cron use-case (spec §E): closeEligibleObservations lives in
+// ./application/close-eligible-observations and is invoked by the cron route via
+// the lib/rabies-observation-closer shim. It is intentionally NOT re-exported here —
+// a "use server" file may only export locally-declared async actions.
 // ---------------------------------------------------------------------------
-
-export { closeEligibleObservations };
 
 // ---------------------------------------------------------------------------
 // Outbreak investigation actions — admin/govt (spec §H, §I)

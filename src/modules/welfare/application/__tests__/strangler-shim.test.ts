@@ -32,7 +32,6 @@ import {
   createOrgWelfareReportAction,
   createWelfareReportAction,
   generateMpfExportAction,
-  getActiveGovtScopeForUser,
   passWelfareToTriageAction,
   startWelfareReportAction,
   triageWelfareReportAction,
@@ -51,6 +50,10 @@ describe("WU-4 — welfare module strangler: symbol exports", () => {
     expect(typeof assignWelfareToMeAction).toBe("function");
     expect(typeof unassignWelfareAction).toBe("function");
     expect(typeof generateMpfExportAction).toBe("function");
+  });
+
+  it("get-active-govt-scope helper is importable from its source module", async () => {
+    const { getActiveGovtScopeForUser } = await import("../get-active-govt-scope");
     expect(typeof getActiveGovtScopeForUser).toBe("function");
   });
 
