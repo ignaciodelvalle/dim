@@ -1,5 +1,5 @@
-import { createDewormingAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createDewormingAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { DewormingForm } from "./DewormingForm";
 

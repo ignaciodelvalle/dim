@@ -1,5 +1,5 @@
-import { createSterilizationAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createSterilizationAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { SterilizationForm } from "./SterilizationForm";
 

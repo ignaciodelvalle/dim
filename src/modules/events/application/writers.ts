@@ -6,7 +6,7 @@
 // hard-coded to use `db` + `EventsRepository` directly. These wrappers fill in
 // deps automatically so existing callers remain unmodified.
 //
-// Import from here (not from @/app/actions/events) — this is a server-only
+// Import from here (not from @/src/modules/events/actions) — this is a server-only
 // module and must NOT be imported by Client Components.
 // ---------------------------------------------------------------------------
 

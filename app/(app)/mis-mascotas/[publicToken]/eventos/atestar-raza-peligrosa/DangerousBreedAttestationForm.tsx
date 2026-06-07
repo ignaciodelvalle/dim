@@ -1,7 +1,7 @@
 "use client";
 
-import type { EventFormState } from "@/app/actions/events";
 import { Input, Radio, Textarea } from "@/components/poncho";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../nuevo/AttachmentField";
 

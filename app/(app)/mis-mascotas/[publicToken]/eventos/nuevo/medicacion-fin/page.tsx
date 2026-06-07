@@ -1,7 +1,7 @@
-import { createMedicationEndAction } from "@/app/actions/events";
 import { db, petEvents } from "@/db";
 import { formatDate } from "@/lib/format";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createMedicationEndAction } from "@/src/modules/events/actions";
 import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { MedicationEndForm } from "./MedicationEndForm";

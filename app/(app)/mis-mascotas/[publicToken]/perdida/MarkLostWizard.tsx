@@ -20,7 +20,6 @@
 
 import { useRef, useState, useTransition } from "react";
 
-import type { DisclosurePrefsInput, EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
 import { Input } from "@/components/poncho/Input";
 import { Select } from "@/components/poncho/Select";
@@ -28,6 +27,7 @@ import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { Textarea } from "@/components/poncho/Textarea";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
+import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 

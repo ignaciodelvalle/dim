@@ -4,7 +4,6 @@
 // single layout. Called via an early-return branch in PetDetailPage; the
 // heavy queries that power the normal owner view are skipped.
 
-import { setPetFoundAction } from "@/app/actions/events";
 import { setPetDisclosurePrefsAction } from "@/app/actions/lost-mode";
 import {
   type DisclosurePrefs,
@@ -16,6 +15,7 @@ import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostSc
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
 import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetProfileHero";
 import type { LostEpisode } from "@/lib/lost-mode";
+import { setPetFoundAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 
 type Props = {

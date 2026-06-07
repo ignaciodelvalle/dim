@@ -1,5 +1,5 @@
-import { createVetVisitAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createVetVisitAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { VetVisitForm } from "./VetVisitForm";
 

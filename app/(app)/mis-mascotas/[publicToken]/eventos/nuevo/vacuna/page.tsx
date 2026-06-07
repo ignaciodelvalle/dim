@@ -1,6 +1,6 @@
-import { createVaccinationAction } from "@/app/actions/events";
 import { db, reminders } from "@/db";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createVaccinationAction } from "@/src/modules/events/actions";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { VaccinationForm } from "./VaccinationForm";

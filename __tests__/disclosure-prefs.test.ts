@@ -11,9 +11,9 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { DisclosurePrefsInput } from "@/app/actions/events";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/publicToken";
+import type { DisclosurePrefsInput } from "@/src/modules/events/actions";
 import { setPetLostWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

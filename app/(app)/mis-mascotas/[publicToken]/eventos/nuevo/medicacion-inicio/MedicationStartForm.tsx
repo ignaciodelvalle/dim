@@ -1,10 +1,10 @@
 "use client";
 
-import type { EventFormState } from "@/app/actions/events";
 import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/drugs";
 import { FREQUENCY_LABELS } from "@/lib/medication-schedule";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 

@@ -1,9 +1,9 @@
 "use client";
 
-import type { EventFormState } from "@/app/actions/events";
 import { Checkbox, Field, Input, Radio, Select, Textarea } from "@/components/poncho";
 import { diseasesForSpecies, findDisease } from "@/lib/diseases";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
