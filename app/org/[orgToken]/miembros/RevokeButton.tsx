@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { revokeInvitationAction } from "@/app/actions/org-invitations";
+import { revokeInvitationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
   organizationId: string;

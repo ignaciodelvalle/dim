@@ -2,9 +2,12 @@
 
 import { useActionState } from "react";
 
-import { type UpdateOrgFormState, updateOrganizationAction } from "@/app/actions/organizations";
 import { Alert, Button, Checkbox, Field, Input } from "@/components/poncho";
 import type { Organization } from "@/db";
+import {
+  type UpdateOrgFormState,
+  updateOrganizationAction,
+} from "@/src/modules/organizations/actions";
 
 type Props = {
   organization: Pick<

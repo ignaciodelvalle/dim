@@ -29,11 +29,6 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
-  acceptInvitationAction,
-  inviteMemberAction,
-  revokeInvitationAction,
-} from "@/app/actions/org-invitations";
-import {
   db,
   notifications,
   organizationInvitations,
@@ -42,6 +37,11 @@ import {
   profiles,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import {
+  acceptInvitationAction,
+  inviteMemberAction,
+  revokeInvitationAction,
+} from "@/src/modules/organizations/actions";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

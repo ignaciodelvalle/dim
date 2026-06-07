@@ -5,8 +5,8 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { submitOrgContactAction } from "@/app/actions/org-contact";
 import { db, orgContactMessages, organizations } from "@/db";
+import { submitOrgContactAction } from "@/src/modules/organizations/actions";
 
 const TOKEN = "DIM-CTC-TEST";
 

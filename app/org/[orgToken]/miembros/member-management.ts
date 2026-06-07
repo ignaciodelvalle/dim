@@ -2,8 +2,8 @@
 // Kept separate from page.tsx (which may only export the default component
 // + allowed Next.js page fields).
 
-import { INVITABLE_ROLES, ROLE_RANK } from "@/app/actions/org-invitations.constants";
 import type { OrganizationMembership } from "@/db";
+import { INVITABLE_ROLES, ROLE_RANK } from "@/src/modules/organizations/domain/role-rules";
 
 export const ROLE_LABEL: Record<OrganizationMembership["role"], string> = {
   admin: "Administrador",
