@@ -424,4 +424,45 @@ export class EventsRepository {
   async endFoster(ownershipId: string, now: Date, executor: DbOrTx = db): Promise<void> {
     await executor.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, ownershipId));
   }
+
+  /**
+   * Update pets for the deceased status: set status=deceased, deceasedAt=occurredAt.
+   * Separate from updateStatusProjection so callers pass the actual death date (occurredAt),
+   * not the wall-clock time of the write.
+   */
+  async updateDeceased(
+    petId: string,
+    occurredAt: Date,
+    now: Date = new Date(),
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(pets)
+      .set({ status: "deceased", deceasedAt: occurredAt, updatedAt: now })
+      .where(eq(pets.id, petId));
+  }
+
+  /**
+   * Update pets.rabiesObservationStatus.
+   * Used by CASCADE C of death-record to flip to "completed_dead" when the
+   * pet dies during an active 10-day observation.
+   */
+  async updateRabiesObservationStatus(
+    petId: string,
+    status: string,
+    now: Date = new Date(),
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(pets)
+      .set({
+        rabiesObservationStatus: status as
+          | "in_progress"
+          | "completed_clear"
+          | "completed_dead"
+          | null,
+        updatedAt: now,
+      })
+      .where(eq(pets.id, petId));
+  }
 }

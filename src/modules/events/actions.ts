@@ -1,6 +1,7 @@
 "use server";
 
-// Thin server actions for events module — medical (WU-2), identity (WU-3), clinical (WU-4).
+// Thin server actions for events module — medical (WU-2), identity (WU-3), clinical (WU-4),
+// surveillance-bridge (WU-5), lifecycle (WU-6).
 // Auth stays at the EDGE here (exact guard per AUTH SCOPE MATRIX).
 // Each action: parse → auth guard → use-case → redirect.
 //
@@ -15,6 +16,10 @@
 // Clinical auth:
 //   - vet-visit, clinical-info: requireAlivePetAccess
 //   - recordDiseaseDiagnosis: role=vet + matriculaVerified, NO ownership check.
+// Surveillance auth:
+//   - createSymptomObserved: requireAlivePetAccess.
+// Lifecycle auth:
+//   - setPetLost/setPetFound/deathRecord: requirePetAccess (accepts non-alive).
 //
 // Post-tx side-effects (cleanupAttachment) remain in the action per original parity.
 
@@ -44,6 +49,9 @@ import { createVetVisit } from "./application/clinical/vet-visit-use-case";
 import { createDangerousBreedAttestation } from "./application/identity/dangerous-breed-attestation-use-case";
 import { createMicrochip } from "./application/identity/microchip-use-case";
 import { createNote } from "./application/identity/note-use-case";
+import { createDeathRecord } from "./application/lifecycle/death-record-use-case";
+import { setPetFound } from "./application/lifecycle/set-pet-found-use-case";
+import { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
 import { createDeworming } from "./application/medical/deworming-use-case";
 import { markMedicationDoseTaken } from "./application/medical/medication-dose-taken-use-case";
 import { createMedicationEnd } from "./application/medical/medication-end-use-case";
@@ -51,6 +59,7 @@ import { createMedicationStart } from "./application/medical/medication-start-us
 import { createSterilization } from "./application/medical/sterilization-use-case";
 import { createVaccination } from "./application/medical/vaccination-use-case";
 import { createWeight } from "./application/medical/weight-use-case";
+import { createSymptomObservedWriter } from "./application/surveillance/symptom-observed-use-case";
 import { CLINICAL_SUB_KINDS } from "./domain/enums";
 import { DANGEROUS_BREED_REGISTRIES } from "./domain/enums";
 import { NOTE_CATEGORIES } from "./domain/enums";
@@ -1022,4 +1031,418 @@ export async function recordDiseaseDiagnosisAction(
     return { error: `No se pudo registrar el diagnóstico: ${result.error}` };
   }
   return { error: null };
+}
+
+// ---------------------------------------------------------------------------
+// Disclosure prefs + enriched description form helpers (lifecycle)
+// ---------------------------------------------------------------------------
+
+function parseDisclosurePrefsFromForm(
+  formData: FormData,
+  petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput,
+): import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput {
+  const checked = (name: string) => formData.get(name) === "on";
+  const hasSection = [
+    "disclose_first_name_when_lost",
+    "disclose_phone_when_lost",
+    "disclose_email_when_lost",
+    "disclose_last_location_when_lost",
+    "allow_finder_form_when_lost",
+  ].some((key) => formData.has(key));
+
+  if (!hasSection) return petDefaults;
+
+  return {
+    discloseFirstNameWhenLost: checked("disclose_first_name_when_lost"),
+    disclosePhoneWhenLost: checked("disclose_phone_when_lost"),
+    discloseEmailWhenLost: checked("disclose_email_when_lost"),
+    discloseLastLocationWhenLost: checked("disclose_last_location_when_lost"),
+    allowFinderFormWhenLost: checked("allow_finder_form_when_lost"),
+  };
+}
+
+function parseEnrichedDescriptionFromForm(
+  formData: FormData,
+): import("./application/lifecycle/set-pet-lost-use-case").EnrichedLostDescriptionInput | null {
+  const enrichedKeys = [
+    "enriched_color",
+    "enriched_distinguishing_features",
+    "enriched_accessories_when_lost",
+    "enriched_behavior_notes",
+    "enriched_last_seen_context",
+    "enriched_microchip_id",
+    "enriched_tattoo_code",
+    "enriched_tattoo_location",
+    "enriched_tattoo_description",
+  ];
+
+  const hasSection = enrichedKeys.some((k) => formData.has(k));
+  if (!hasSection) return null;
+
+  const str = (key: string) => String(formData.get(key) ?? "").trim() || null;
+
+  return {
+    color: str("enriched_color"),
+    distinguishingFeatures: str("enriched_distinguishing_features"),
+    accessoriesWhenLost: str("enriched_accessories_when_lost"),
+    behaviorNotes: str("enriched_behavior_notes"),
+    lastSeenContext: str("enriched_last_seen_context"),
+    microchipId: str("enriched_microchip_id"),
+    tattooCode: str("enriched_tattoo_code"),
+    tattooLocation: str("enriched_tattoo_location"),
+    tattooDescription: str("enriched_tattoo_description"),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Symptom observed (WU-5 surveillance-bridge)
+// ---------------------------------------------------------------------------
+
+// Re-export writer + types so WU-7 strangler shim can re-export them from actions.ts.
+export type {
+  CreateSymptomObservedWriterParams as SymptomObservedWriterParams,
+  CreateSymptomObservedWriterResult,
+} from "./application/surveillance/symptom-observed-use-case";
+export { createSymptomObservedWriter } from "./application/surveillance/symptom-observed-use-case";
+
+export type SymptomFormState = {
+  error: string | null;
+  ok?: boolean;
+};
+
+export async function createSymptomObservedAction(
+  publicToken: string,
+  _previous: SymptomFormState,
+  formData: FormData,
+): Promise<SymptomFormState> {
+  // AUTH: requireAlivePetAccess (alive pets only).
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { pet, user, eventAuthorship } = access;
+
+  const freeText = String(formData.get("freeText") ?? "").trim();
+  if (!freeText) return { error: "Tenés que describir los síntomas." };
+
+  const severityRaw = String(formData.get("severity") ?? "").trim();
+  const severity: "mild" | "moderate" | "severe" | null =
+    severityRaw === "mild" || severityRaw === "moderate" || severityRaw === "severe"
+      ? severityRaw
+      : null;
+
+  const onsetRaw = String(formData.get("onsetAt") ?? "").trim();
+  const onsetAt = onsetRaw.length > 0 ? onsetRaw : null;
+
+  const repo = new EventsRepository();
+
+  const result = await createSymptomObservedWriter(
+    {
+      petId: pet.id,
+      petPublicToken: pet.publicToken,
+      petSpecies: pet.species,
+      petJurisdictionCountry: pet.jurisdictionCountry,
+      petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+      petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+      rabiesObservationStatus: pet.rabiesObservationStatus ?? null,
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as {
+        authorRole: string;
+        authorOrganizationId: string | null;
+        authorVerified: boolean;
+      },
+      freeText,
+      severity,
+      onsetAt,
+    },
+    {
+      repo,
+      transaction: makeTransaction(),
+      flushNotifications,
+    },
+  );
+
+  if (!result.ok) {
+    return { error: `No se pudo registrar el síntoma: ${result.error}` };
+  }
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath(`/mis-mascotas/${publicToken}`);
+  redirect(`/mis-mascotas/${publicToken}?evento=sintoma_registrado`);
+}
+
+// ---------------------------------------------------------------------------
+// Set pet lost (WU-6 lifecycle) — writer re-export
+// ---------------------------------------------------------------------------
+
+// Re-export writer + types for WU-7 strangler shim.
+export type {
+  SetPetLostWriterParams,
+  SetPetLostWriterResult,
+  DisclosurePrefsInput,
+  EnrichedLostDescriptionInput,
+} from "./application/lifecycle/set-pet-lost-use-case";
+export { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
+
+export async function setPetLostAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  // AUTH: requirePetAccess (accepts non-alive — lost pets can still update disclosure prefs).
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const locationDescription = String(formData.get("locationAddress") ?? "").trim() || null;
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+
+  const locationLatRaw = String(formData.get("locationLat") ?? "").trim() || null;
+  const locationLngRaw = String(formData.get("locationLng") ?? "").trim() || null;
+
+  if (locationLatRaw && locationLngRaw) {
+    const lat = Number.parseFloat(locationLatRaw);
+    const lng = Number.parseFloat(locationLngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { error: "Coordenadas inválidas. Tocá el mapa de nuevo para marcar el punto." };
+    }
+  }
+
+  // Parse disclosure prefs from FormData (checkbox pattern).
+  const petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput =
+    {
+      discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+      disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+      discloseEmailWhenLost: pet.discloseEmailWhenLost,
+      discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+      allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+    };
+  const disclosurePrefs = parseDisclosurePrefsFromForm(formData, petDefaults);
+  const enrichedDescription = parseEnrichedDescriptionFromForm(formData);
+
+  const repo = new EventsRepository();
+
+  const { broadcastLostPet } = await import("@/lib/lost-pet-broadcast");
+
+  const result = await setPetLostWriter(
+    {
+      petId: pet.id,
+      petPublicToken: pet.publicToken,
+      petName: pet.name,
+      petStatus: pet.status,
+      petMicrochipId: pet.microchipId,
+      petTattooCode: pet.tattooCode,
+      petSpecies: pet.species,
+      petBreed: pet.breed,
+      petColor: pet.color,
+      petJurisdictionProvince: pet.jurisdictionProvince,
+      petJurisdictionLocality: pet.jurisdictionLocality,
+      ownerUserId: user.id,
+      ownerDisplayName: "",
+      fromStatus: pet.status,
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as Record<string, unknown>,
+      locationDescription,
+      locationLat: locationLatRaw,
+      locationLng: locationLngRaw,
+      reason,
+      disclosurePrefs,
+      enrichedDescription,
+    },
+    {
+      repo,
+      transaction: makeTransaction(),
+      broadcastLostPet: broadcastLostPet as Parameters<
+        typeof setPetLostWriter
+      >[1]["broadcastLostPet"],
+    },
+  );
+
+  if (result.error) return result;
+
+  if (String(formData.get("noRedirect") ?? "") === "1") {
+    return { error: null, ok: true };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Set pet found (WU-6 lifecycle)
+// ---------------------------------------------------------------------------
+
+export async function setPetFoundAction(publicToken: string): Promise<void> {
+  // AUTH: requirePetAccess (accepts non-alive).
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) throw new Error(access.error);
+  const { user, pet, eventAuthorship } = access;
+
+  const repo = new EventsRepository();
+
+  const result = await setPetFound(
+    {
+      petId: pet.id,
+      petStatus: pet.status,
+      petPublicToken: pet.publicToken,
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as {
+        authorRole: string;
+        authorOrganizationId: string | null;
+        authorVerified: boolean;
+      },
+    },
+    { repo, transaction: makeTransaction() },
+  );
+
+  if (result.alreadyActive) {
+    redirect(`/mis-mascotas/${publicToken}`);
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Death record (WU-6 lifecycle — multi-cascade)
+// ---------------------------------------------------------------------------
+
+export { DEATH_CAUSES, DISPOSITION_METHODS, VET_CONTACT_VALUES } from "./domain/death-rules";
+
+export async function createDeathRecordAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  // AUTH: requirePetAccess (accepts non-alive — deceased guard is inside the writer).
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
+
+  if (pet.status === "deceased")
+    return { error: "Esta mascota ya está registrada como fallecida." };
+
+  const {
+    DEATH_CAUSES: DC,
+    DISPOSITION_METHODS: DM,
+    VET_CONTACT_VALUES: VCV,
+  } = await import("./domain/death-rules");
+
+  const cause = String(formData.get("cause") ?? "").trim();
+  const causeDetail = String(formData.get("causeDetail") ?? "").trim() || null;
+  const confirmedByVet = formData.get("confirmedByVet") === "true";
+  const vetName = String(formData.get("vetName") ?? "").trim() || null;
+  const dispositionMethodRaw = String(formData.get("dispositionMethod") ?? "").trim();
+  const facility = String(formData.get("facility") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  const deathAtClinic = formData.get("deathAtClinic") === "true";
+  const clinicName = String(formData.get("clinicName") ?? "").trim() || null;
+  const vetContactedOwnerRaw = String(formData.get("vetContactedOwner") ?? "").trim();
+  const vetDecidedAlone = formData.get("vetDecidedAlone") === "true";
+  const ownerToPrivateCrematorium = formData.get("ownerToPrivateCrematorium") === "true";
+
+  if (!(DC as readonly string[]).includes(cause))
+    return { error: "Causa de fallecimiento inválida." };
+  if (!occurredAtRaw) return { error: "Falta la fecha." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const dispositionMethod = dispositionMethodRaw === "" ? null : dispositionMethodRaw;
+  if (dispositionMethod !== null && !(DM as readonly string[]).includes(dispositionMethod)) {
+    return { error: "Método de disposición inválido." };
+  }
+
+  const vetContactedOwner = vetContactedOwnerRaw === "" ? null : vetContactedOwnerRaw;
+  if (vetContactedOwner !== null && !(VCV as readonly string[]).includes(vetContactedOwner)) {
+    return { error: "Valor de contacto del veterinario inválido." };
+  }
+
+  if (clinicName && !deathAtClinic) {
+    return {
+      error: "Indicaste un nombre de clínica pero no marcaste que falleció en una veterinaria.",
+    };
+  }
+  if (vetContactedOwner && !deathAtClinic) {
+    return { error: "El contacto del veterinario solo aplica si falleció en una veterinaria." };
+  }
+  if (vetDecidedAlone && vetContactedOwner !== "no") {
+    return {
+      error:
+        "Solo se puede marcar 'vet decidió sin contacto' cuando el veterinario no logró contactar al propietario.",
+    };
+  }
+
+  const diseaseCodeRaw = String(formData.get("diseaseCode") ?? "").trim() || null;
+  const confirmedByLab = formData.get("confirmedByLab") === "true";
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  const diseaseCode = cause === "disease" && diseaseCodeRaw ? diseaseCodeRaw : null;
+  if (diseaseCode && !findDisease(diseaseCode)) {
+    return { error: "Enfermedad no reconocida." };
+  }
+  const { isReportable } = await import("@/lib/diseases");
+  const reportable = isReportable(diseaseCode);
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  // Look up custody_episode BEFORE the tx — stamp caseId on the death event.
+  const { findOpenCaseForPetAndKind } = await import("@/lib/case-helpers");
+  const custodyEpisodeCaseForDeath = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
+  const repo = new EventsRepository();
+
+  const result = await createDeathRecord(
+    {
+      pet: {
+        id: pet.id,
+        name: pet.name,
+        status: pet.status,
+        rabiesObservationStatus: pet.rabiesObservationStatus ?? null,
+        jurisdictionProvince: pet.jurisdictionProvince ?? null,
+        jurisdictionLocality: pet.jurisdictionLocality ?? null,
+      },
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as {
+        authorRole: string;
+        authorOrganizationId: string | null;
+        authorVerified: boolean;
+      },
+      cause,
+      causeDetail,
+      confirmedByVet,
+      vetName,
+      dispositionMethod,
+      facility,
+      occurredAt,
+      notes,
+      deathAtClinic,
+      clinicName,
+      vetContactedOwner,
+      vetDecidedAlone,
+      ownerToPrivateCrematorium,
+      diseaseCode,
+      confirmedByLab,
+      isReportable: reportable,
+      uploadedPath: upload.uploadedPath,
+      uploadedMimeType: upload.mimeType ?? null,
+      uploadedSize: upload.size ?? null,
+      clientIdempotencyKey,
+      custodyEpisodeCaseId: custodyEpisodeCaseForDeath?.id ?? null,
+    },
+    {
+      repo,
+      transaction: makeTransaction(),
+      flushNotifications,
+    },
+  );
+
+  if (!result.ok) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el fallecimiento: ${result.error}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
 }
