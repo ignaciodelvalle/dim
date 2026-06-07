@@ -90,4 +90,4 @@ This is not bureaucracy; the patterns in this codebase are dense enough that fre
 
 - Open a draft PR early and `@`-mention a maintainer with a question.
 - For domain-language questions, search `AGENTS.md` before asking.
-- For event-sourcing questions, look at how the closest existing event handles it (see `app/actions/events.ts` for the canonical patterns).
+- For event-sourcing questions, look at how the closest existing event handles it — see `src/modules/events/actions.ts` (thin actions) and `src/modules/events/application/` (use-cases) for the canonical patterns. (`app/actions/events.ts` is now just a re-export shim.)
