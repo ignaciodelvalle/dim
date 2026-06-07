@@ -14,13 +14,14 @@
 // Spec: docs/superpowers/plans/2026-05-22-event-trust-tier-1.md §4 C.3
 
 import type { EventType } from "@/db/schema";
-import { diseaseCodeToEnoCode, getEnoDisease } from "./eno-catalog";
+import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
 /**
  * Returns the ENO catalog disease for a given diseases.ts disease_code, or
  * null if the code is not in the ENO catalog (non-ENO disease or unknown code).
  *
- * Uses the canonical `diseaseCodeToEnoCode` bridge from `lib/eno-catalog.ts`
+ * Uses the canonical `diseaseCodeToEnoCode` bridge from
+ * `src/modules/surveillance/domain/eno-catalog.ts`
  * so the form-code → ENO-code mapping is shared with `lib/eno-trigger.ts`.
  */
 function getEnoForDiseaseCode(diseaseCode: string) {

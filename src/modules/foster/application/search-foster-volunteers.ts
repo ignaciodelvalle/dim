@@ -8,7 +8,7 @@
 // Sort: matchScore desc → slots desc → acceptedCount desc.
 // Returns rows ≤ limit (default 50, clamped 1..200).
 
-import { ageMonthsFromDob, computeMatch } from "@/lib/foster-matching";
+import { ageMonthsFromDob, computeMatch } from "@/src/modules/foster/domain/matching-rules";
 import type { FosterRepository } from "../infrastructure/foster-repository";
 import type { UseCaseResult } from "./types";
 

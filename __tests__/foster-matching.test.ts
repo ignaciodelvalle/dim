@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { ageMonthsFromDob, computeMatch } from "@/lib/foster-matching";
+import { ageMonthsFromDob, computeMatch } from "@/src/modules/foster/domain/matching-rules";
 
 const PERMISSIVE_VOLUNTEER = {
   acceptsDogs: true,

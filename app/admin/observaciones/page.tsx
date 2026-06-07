@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import type { RabiesObservationStatus } from "@/lib/rabies-observation";
+import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
