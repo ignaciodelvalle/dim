@@ -356,6 +356,28 @@ export class EventsRepository {
   }
 
   /**
+   * Find a pet by reminder ownership: verifies that the reminder's pet is owned
+   * by the given user (active ownership, no endedAt) and returns minimal pet info.
+   * Used exclusively by markMedicationDoseTaken (reminder-keyed auth).
+   * Returns null when not found or not owned by the user.
+   */
+  async findOwnedAlivePetByReminder(
+    petId: string,
+    userId: string,
+    executor: DbOrTx = db,
+  ): Promise<{ id: string; publicToken: string; status: string } | null> {
+    const [row] = await executor
+      .select({ id: pets.id, publicToken: pets.publicToken, status: pets.status })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(eq(pets.id, petId), eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
    * Find active foster ownerships for a pet.
    * Used by death-record cascade A.
    */
