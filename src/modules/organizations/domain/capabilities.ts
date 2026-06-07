@@ -7,8 +7,9 @@
 //   - coordinator    → COORDINATOR_IMPLICIT_CAPS ∪ approved grants
 //   - others         → only approved grant rows (isValidCapability-filtered)
 //
-// The shim lib/capabilities.ts re-exports every symbol + type from here
-// (pure part) and from infrastructure/authz-resolver.ts (I/O part).
+// Pure symbols: importers should use this module directly.
+// I/O symbols (requireCapability, getGrantedCapabilities, getActiveMemberships)
+// live in infrastructure/authz-resolver.ts.
 
 import { ORGANIZATION_CAPABILITIES, type OrganizationCapability } from "@/db/schema";
 
@@ -116,7 +117,7 @@ export const CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
 
 // ---------------------------------------------------------------------------
 // Govt-level capability (NOT in ORGANIZATION_CAPABILITIES).
-// See lib/capabilities.ts comment for rationale.
+// Govt-authority-level capability granted outside the standard org capability set.
 // ---------------------------------------------------------------------------
 
 export const WELFARE_DECOMISO_EXECUTE_CAPABILITY = "welfare.decomiso.execute" as const;

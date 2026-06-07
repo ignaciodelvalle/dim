@@ -23,7 +23,7 @@ import {
   organizations,
   profiles,
 } from "@/db";
-import { getActiveMemberships } from "@/lib/capabilities";
+import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

@@ -15,7 +15,7 @@ import Link from "next/link";
 
 import { db } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export const dynamic = "force-dynamic";
 

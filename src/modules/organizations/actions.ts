@@ -28,16 +28,16 @@ import { organizationInvitations } from "@/db";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/ar-provincias";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import {
-  getActiveMemberships,
-  getGrantedCapabilities,
-  requireCapability,
-} from "@/lib/capabilities";
-import { isManagerRole } from "@/lib/org-roles";
 import { generateInvitationToken } from "@/lib/publicToken";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
+import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
+import {
+  getActiveMemberships,
+  getGrantedCapabilities,
+  requireCapability,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { acceptInvitation } from "./application/accept-invitation";
 import { addCoverageZone } from "./application/add-coverage-zone";

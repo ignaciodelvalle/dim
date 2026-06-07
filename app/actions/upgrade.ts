@@ -14,7 +14,6 @@ import {
 } from "@/db";
 import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { getActiveMemberships } from "@/lib/capabilities";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import {
   JurisdictionValidationError,
@@ -23,6 +22,7 @@ import {
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken } from "@/lib/unique-token";
+import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ============================================================================
 // Types

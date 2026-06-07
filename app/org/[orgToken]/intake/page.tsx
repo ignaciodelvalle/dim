@@ -4,7 +4,7 @@
 // the security boundary.
 
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import Link from "next/link";
 import { IntakeForm } from "./IntakeForm";
 

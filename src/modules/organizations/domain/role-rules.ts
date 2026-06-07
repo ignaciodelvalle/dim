@@ -1,6 +1,6 @@
 // Pure role-hierarchy helpers for org membership.
 // No DB imports, no Next.js imports — domain-only.
-// Shim: lib/org-roles.ts re-exports isManagerRole from here.
+// Importers should use this module directly.
 // Shim: app/actions/org-invitations.constants.ts re-exports ROLE_RANK,
 //       INVITABLE_ROLES, and InvitableRole from here.
 

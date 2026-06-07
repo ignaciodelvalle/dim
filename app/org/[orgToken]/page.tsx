@@ -14,7 +14,8 @@ import {
   profiles,
 } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { CAPABILITY_CATALOG, getGrantedCapabilities } from "@/lib/capabilities";
+import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
 

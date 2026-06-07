@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Module mocks (hoisted)
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/capabilities", () => ({
+vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
 }));
 
@@ -121,7 +121,7 @@ vi.mock("../infrastructure/transfers-repository", () => ({
 // ---------------------------------------------------------------------------
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { AdoptionListingForm } from "./AdoptionListingForm";

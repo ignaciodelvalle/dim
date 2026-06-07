@@ -30,9 +30,9 @@ import { db, notifications } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
-import { requireCapability } from "@/lib/capabilities";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { requireAlivePetAccess } from "@/lib/pet-access";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import {
   type InvestigationNoteEntryType,

@@ -16,8 +16,8 @@
 // Reference: src/modules/adoption/actions.ts
 
 import { db, notifications } from "@/db";
-import { requireCapability } from "@/lib/capabilities";
 import { createClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 

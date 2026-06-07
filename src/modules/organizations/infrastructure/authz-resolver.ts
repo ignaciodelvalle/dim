@@ -28,7 +28,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveGrantedCaps } from "@/src/modules/organizations/domain/capabilities";
 
 // ---------------------------------------------------------------------------
-// Re-export types that lib/capabilities.ts shim needs
+// Public types exported from this module
 // ---------------------------------------------------------------------------
 
 export type ActiveMembership = {

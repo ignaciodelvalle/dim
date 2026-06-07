@@ -11,7 +11,7 @@ import { Suspense } from "react";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";

@@ -23,9 +23,9 @@
 
 import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 

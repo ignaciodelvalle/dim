@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Module mocks (must be before imports)
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/capabilities", () => ({
+vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
 }));
 
@@ -80,8 +80,8 @@ vi.mock("../application/search-foster-volunteers", () => ({
 // ---------------------------------------------------------------------------
 
 import { db } from "@/db";
-import { requireCapability } from "@/lib/capabilities";
 import { createClient } from "@/lib/supabase/server";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 

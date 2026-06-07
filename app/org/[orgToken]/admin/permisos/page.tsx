@@ -4,7 +4,7 @@
 
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { CAPABILITY_CATALOG } from "@/lib/capabilities";
+import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { DecideForm } from "./DecideForm";

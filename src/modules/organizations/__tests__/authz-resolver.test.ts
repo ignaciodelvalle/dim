@@ -335,7 +335,8 @@ describe("getGrantedCapabilities", () => {
 // In test scope (outside a request context) this throws "cookies was called
 // outside a request scope." The session-absent branch ("Sesión expirada.") and
 // the session-present branches (S2-S11) are instead verified via:
-//   - vi.mock("@/lib/capabilities") in src/modules/foster/__tests__/actions.test.ts,
+//   - vi.mock("@/src/modules/organizations/infrastructure/authz-resolver") in
+//     src/modules/foster/__tests__/actions.test.ts,
 //     src/modules/adoption/__tests__/actions-parity.test.ts,
 //     src/modules/transfers/__tests__/actions-parity.test.ts
 //   - The resolution LOGIC (getActiveMemberships + getGrantedCapabilities) is fully
@@ -354,7 +355,7 @@ describe("requireCapability", () => {
 // requireCapability — S2-S11 tested via getActiveMemberships + getGrantedCapabilities
 // which are the pure DB layers. The session-dependent requireCapability path
 // is covered by the mocked tests in the existing test suite (role-upgrade,
-// foster, adoption, transfers) that vi.mock("@/lib/capabilities").
+// foster, adoption, transfers) that vi.mock("@/src/modules/organizations/infrastructure/authz-resolver").
 //
 // The parity contract (resolution order, error strings, orgId filter, last-membership
 // default) is verified by reading the implementation. Full E2E session-based

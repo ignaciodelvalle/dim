@@ -10,8 +10,8 @@ import { createScheduleRuleAction, deleteScheduleRuleAction } from "@/app/action
 import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { findServiceKind } from "@/lib/service-kinds";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { AgendaRuleForm } from "./AgendaRuleForm";
 import { MaterializeNowButton } from "./MaterializeNowButton";

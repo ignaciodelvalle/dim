@@ -24,10 +24,13 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { db, organizations, ownerships, petEvents, pets, reminders } from "@/db";
-import { type RequireCapabilitySuccess, requireCapability } from "@/lib/capabilities";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
+import {
+  type RequireCapabilitySuccess,
+  requireCapability,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import type { BulkResult } from "./bulk-actions";

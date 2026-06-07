@@ -16,8 +16,8 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
-import { requireCapability } from "@/lib/capabilities";
 import { materializeSlotsForRule } from "@/lib/slot-materialization";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers

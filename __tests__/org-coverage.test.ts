@@ -27,12 +27,12 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { isManagerRole } from "@/lib/org-roles";
 import {
   addCoverageZoneAction,
   removeCoverageZoneAction,
   setPrimaryCoverageZoneAction,
 } from "@/src/modules/organizations/actions";
+import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
 
 // ---------------------------------------------------------------------------
 // Mock requireOrgAccessByToken so role-gate tests (A6/A7/B3/C3) can inject

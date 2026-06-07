@@ -12,7 +12,7 @@
 // (application/__tests__/*). These parity tests cover the action wiring.
 //
 // Mocking approach:
-//   - vi.mock("@/lib/capabilities") — returns a fake requireCapability
+//   - vi.mock("@/src/modules/organizations/infrastructure/authz-resolver") — returns a fake requireCapability
 //   - vi.mock("@/db") — no-op db.insert / db.transaction
 //   - vi.mock("next/navigation") — redirect/revalidatePath are no-ops
 //   - vi.mock("next/cache") — revalidatePath no-op
@@ -24,7 +24,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Module mocks (hoisted — must come before any import of the tested module)
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/capabilities", () => ({
+vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
 }));
 
@@ -100,7 +100,7 @@ vi.mock("../infrastructure/adoption-repository", () => ({
 // Lazy imports (AFTER vi.mock calls)
 // ---------------------------------------------------------------------------
 
-import { requireCapability } from "@/lib/capabilities";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
 // Helpers

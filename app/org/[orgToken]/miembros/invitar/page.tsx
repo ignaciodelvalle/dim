@@ -8,8 +8,8 @@
 import { redirect } from "next/navigation";
 
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { type InvitableRole, ROLE_RANK } from "@/src/modules/organizations/domain/role-rules";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { InviteForm } from "./InviteForm";
 

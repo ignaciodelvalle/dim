@@ -31,8 +31,8 @@ import {
   ownerships,
   pets,
 } from "@/db";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { createClient } from "@/lib/supabase/server";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 
 export type PetAccessPath = "owner" | "org";

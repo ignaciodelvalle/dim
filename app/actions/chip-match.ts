@@ -32,8 +32,8 @@ import {
   pets,
 } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 
 export type ConfirmChipMatchResult = { ok: true; custodyEventId?: string } | { error: string };

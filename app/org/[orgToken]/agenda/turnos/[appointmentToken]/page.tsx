@@ -14,8 +14,8 @@ import {
 } from "@/app/actions/attendance";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { findServiceKind } from "@/lib/service-kinds";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { AttendanceFormDispatcher } from "./AttendanceFormDispatcher";
 
 export default async function OrgAppointmentDetailPage({
