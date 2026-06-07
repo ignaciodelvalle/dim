@@ -17,9 +17,9 @@ const expireCrossOrgTransfer = (
   candidate: Parameters<typeof TransfersRepository.expireOneCrossOrgCase>[0],
 ) => TransfersRepository.expireOneCrossOrgCase(candidate);
 import { closeCase, openCase } from "@/lib/case-helpers";
-import { V1_CASE_KINDS } from "@/lib/case-kinds";
-import { getLifecycle } from "@/lib/case-lifecycles";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { V1_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
+import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SENDER_TOKEN = "DIM-XO-SND1";

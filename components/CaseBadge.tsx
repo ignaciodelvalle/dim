@@ -7,7 +7,7 @@
 import Link from "next/link";
 
 import type { CaseStatus } from "@/db";
-import { type CaseKind, caseKindLabel } from "@/lib/case-kinds";
+import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const KIND_ICON: Record<CaseKind, string> = {
   bite_incident: "🐾",

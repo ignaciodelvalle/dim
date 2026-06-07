@@ -32,7 +32,6 @@ export default defineConfig({
       thresholds: {
         "lib/business-rules-**": { branches: 90 },
         "lib/**-rules/**": { branches: 90 },
-        "lib/case-lifecycles/**": { branches: 90 },
         "lib/**": { branches: 70 },
         "app/actions/**": { branches: 75 },
         "app/api/**": { branches: 60 },

@@ -14,7 +14,7 @@
 // Sources: lifecycles spec §§5.7, 6.7, 7.7, 8.7, 9.7, 10.7, 11.7 +
 // `docs/legal-framework-full.md`.
 
-import { CASE_KINDS, type CaseKind } from "./case-kinds";
+import { CASE_KINDS, type CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 export interface LawReference {
   /** Stable slug — used for dedup + future UI deep-linking. */

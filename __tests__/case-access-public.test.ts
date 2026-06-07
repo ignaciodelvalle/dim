@@ -6,8 +6,8 @@
 import { describe, expect, it } from "vitest";
 
 import { canReadCase, isPubliclyVisibleKind } from "@/lib/case-access";
-import { CASE_KINDS, type CaseKind } from "@/lib/case-kinds";
 import type { CaseDetail } from "@/lib/case-queries";
+import { CASE_KINDS, type CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 const ANON = null;
 const ADMIN = {

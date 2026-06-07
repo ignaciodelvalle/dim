@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getLifecycle } from "@/lib/case-lifecycles";
+import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 
 describe("custody_episode lifecycle — declaration", () => {
   const lifecycle = getLifecycle("custody_episode");

@@ -17,13 +17,13 @@ import { notFound, redirect } from "next/navigation";
 import { CaseBadge } from "@/components/CaseBadge";
 import { db, govtAssignments, profiles } from "@/db";
 import { canReadCase } from "@/lib/case-access";
-import { caseKindLabel } from "@/lib/case-kinds";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDate, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 import { and, eq, isNull } from "drizzle-orm";
 
 interface PageProps {

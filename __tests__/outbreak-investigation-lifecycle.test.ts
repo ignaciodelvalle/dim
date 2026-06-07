@@ -13,8 +13,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getLifecycle } from "@/lib/case-lifecycles";
 import { getNormativesForCase } from "@/lib/case-normatives";
+import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 
 describe("outbreak_investigation lifecycle — declaration", () => {
   const lifecycle = getLifecycle("outbreak_investigation");

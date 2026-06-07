@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getLifecycle } from "@/lib/case-lifecycles";
+import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 
 describe("foster_proposal lifecycle — declaration", () => {
   const lifecycle = getLifecycle("foster_proposal");
