@@ -26,6 +26,8 @@ import { signalAuthorityReport } from "@/lib/authority";
 import { closeCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
+type CaseExecutor = Parameters<typeof closeCase>[1];
+
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { NewNotification } from "../types";
 
@@ -264,8 +266,7 @@ export async function createDeathRecord(
       if (fosterCaseId && activeFosters.length > 0) {
         await closeCase(
           { caseId: fosterCaseId, reason: "resolved", closedByUserId: recordedByUserId },
-          // biome-ignore lint/suspicious/noExplicitAny: CaseExecutor is a Drizzle internal type; unknown tx is compatible at runtime
-          tx as any,
+          tx as CaseExecutor,
         );
       }
 
@@ -273,8 +274,7 @@ export async function createDeathRecord(
       if (custodyEpisodeCaseId) {
         await closeCase(
           { caseId: custodyEpisodeCaseId, reason: "resolved", closedByUserId: recordedByUserId },
-          // biome-ignore lint/suspicious/noExplicitAny: CaseExecutor is a Drizzle internal type; unknown tx is compatible at runtime
-          tx as any,
+          tx as CaseExecutor,
         );
       }
 
@@ -320,11 +320,7 @@ export async function createDeathRecord(
           );
 
           if (biteCaseId) {
-            await closeCase(
-              { caseId: biteCaseId, reason: "resolved" },
-              // biome-ignore lint/suspicious/noExplicitAny: CaseExecutor is a Drizzle internal type; unknown tx is compatible at runtime
-              tx as any,
-            );
+            await closeCase({ caseId: biteCaseId, reason: "resolved" }, tx as CaseExecutor);
           }
 
           rabiesObservationClosed = true;

@@ -24,19 +24,17 @@ import { writePoint } from "@/lib/location";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 
+import type { DisclosurePrefsInput } from "../../domain/disclosure-prefs";
+import { parseDisclosurePrefsSnapshot } from "../../domain/disclosure-prefs";
 import type { EventsRepository } from "../../infrastructure/events-repository";
+
+type CaseExecutor = Parameters<typeof openCase>[1];
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type DisclosurePrefsInput = {
-  discloseFirstNameWhenLost: boolean;
-  disclosePhoneWhenLost: boolean;
-  discloseEmailWhenLost: boolean;
-  discloseLastLocationWhenLost: boolean;
-  allowFinderFormWhenLost: boolean;
-};
+export type { DisclosurePrefsInput };
 
 export type EnrichedLostDescriptionInput = {
   color: string | null;
@@ -141,13 +139,7 @@ export async function setPetLostWriter(
     allowFinderFormWhenLost,
   } = disclosurePrefs;
 
-  const disclosurePrefsSnapshot = {
-    first_name: discloseFirstNameWhenLost,
-    phone: disclosePhoneWhenLost,
-    email: discloseEmailWhenLost,
-    last_location: discloseLastLocationWhenLost,
-    finder_form: allowFinderFormWhenLost,
-  };
+  const disclosurePrefsSnapshot = parseDisclosurePrefsSnapshot(disclosurePrefs);
 
   const { locationLat: latVal, locationLng: lngVal } = writePoint(
     locationLat && locationLng
@@ -193,8 +185,7 @@ export async function setPetLostWriter(
           openedByUserId: recordedByUserId,
           openedReason: `Pet ${petPublicToken || petId} marked as lost by owner${reason ? ` — ${reason}` : ""}`,
         },
-        // biome-ignore lint/suspicious/noExplicitAny: CaseExecutor is a Drizzle internal type; unknown tx is compatible at runtime
-        tx as any,
+        tx as CaseExecutor,
       );
 
       const eventPayload = validateEventPayload("status_changed", {

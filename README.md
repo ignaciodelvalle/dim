@@ -156,7 +156,7 @@ docs/
   architecture/             Hexagonal-lite architecture guide (+ Mermaid diagrams)
   superpowers/              specs and plans for upcoming features
   archive/                  2021 carpeta, CONAIISI paper, BMC (provenance, not spec)
-mimar-go-to-market.md       GTM strategy: Mi Argentina integration path and decision-makers
+docs/archive/mimar-go-to-market.md  GTM strategy: Mi Argentina integration path and decision-makers
 ```
 
 ## Documentation

@@ -17,6 +17,8 @@ import "server-only";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
+type CaseExecutor = Parameters<typeof closeCase>[1];
+
 import type { EventsRepository } from "../../infrastructure/events-repository";
 
 // ---------------------------------------------------------------------------
@@ -100,8 +102,7 @@ export async function setPetFound(
     if (lostCase) {
       await closeCase(
         { caseId: lostCase.id, reason: "resolved", closedByUserId: recordedByUserId },
-        // biome-ignore lint/suspicious/noExplicitAny: CaseExecutor is a Drizzle internal type; unknown tx is compatible at runtime
-        tx as any,
+        tx as CaseExecutor,
       );
     }
   });

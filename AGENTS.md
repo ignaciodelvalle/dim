@@ -912,7 +912,7 @@ If a new feature seems to need an exception, write the exception into the PR des
 
 ## Open questions / future work
 
-- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `mimar-go-to-market.md` for the GTM analysis)
+- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md` for the GTM analysis)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - ~~**`/pro` portal**~~ — removed in Sprint 1A Phase B. Independent vets now create a clinic org via `/cuenta/crear-consultorio` and operate from `/org/[orgToken]`.
 - **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md`.
