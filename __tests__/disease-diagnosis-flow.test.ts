@@ -12,7 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { recordDiseaseDiagnosisWriter } from "@/app/actions/events";
 import {
   db,
   eventNotificationOutbox,
@@ -22,6 +21,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { recordDiseaseDiagnosisWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

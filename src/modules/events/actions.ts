@@ -936,12 +936,11 @@ export async function createClinicalInfoAction(
 // Record disease diagnosis (WU-4 clinical) — VET-ONLY, NO ownership check
 // ---------------------------------------------------------------------------
 
-// Re-export writer + types so WU-7 strangler shim can re-export them from actions.ts.
+// Re-export types only (no value re-exports in "use server" files).
 export type {
   RecordDiseaseDiagnosisWriterInput,
   RecordDiseaseDiagnosisWriterResult,
 } from "./application/clinical/record-disease-diagnosis-use-case";
-export { recordDiseaseDiagnosisWriter } from "./application/clinical/record-disease-diagnosis-use-case";
 
 async function flushNotifications(
   pending: import("./application/types").NewNotification[],
@@ -1098,12 +1097,11 @@ function parseEnrichedDescriptionFromForm(
 // Symptom observed (WU-5 surveillance-bridge)
 // ---------------------------------------------------------------------------
 
-// Re-export writer + types so WU-7 strangler shim can re-export them from actions.ts.
+// Re-export types only (no value re-exports in "use server" files).
 export type {
   CreateSymptomObservedWriterParams as SymptomObservedWriterParams,
   CreateSymptomObservedWriterResult,
 } from "./application/surveillance/symptom-observed-use-case";
-export { createSymptomObservedWriter } from "./application/surveillance/symptom-observed-use-case";
 
 export type SymptomFormState = {
   error: string | null;
@@ -1176,14 +1174,13 @@ export async function createSymptomObservedAction(
 // Set pet lost (WU-6 lifecycle) — writer re-export
 // ---------------------------------------------------------------------------
 
-// Re-export writer + types for WU-7 strangler shim.
+// Re-export types only (no value re-exports in "use server" files).
 export type {
   SetPetLostWriterParams,
   SetPetLostWriterResult,
   DisclosurePrefsInput,
   EnrichedLostDescriptionInput,
 } from "./application/lifecycle/set-pet-lost-use-case";
-export { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
 
 export async function setPetLostAction(
   publicToken: string,
@@ -1301,8 +1298,6 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
 // ---------------------------------------------------------------------------
 // Death record (WU-6 lifecycle — multi-cascade)
 // ---------------------------------------------------------------------------
-
-export { DEATH_CAUSES, DISPOSITION_METHODS, VET_CONTACT_VALUES } from "./domain/death-rules";
 
 export async function createDeathRecordAction(
   publicToken: string,
