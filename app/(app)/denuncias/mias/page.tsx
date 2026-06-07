@@ -5,7 +5,7 @@ import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 

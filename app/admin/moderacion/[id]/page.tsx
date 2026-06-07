@@ -8,12 +8,12 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
-import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
+} from "@/src/modules/welfare/domain/types";
 import { eq } from "drizzle-orm";
 
 import { ModerationActions } from "./ModerationActions";

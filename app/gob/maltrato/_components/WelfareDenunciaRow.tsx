@@ -5,8 +5,11 @@ import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
-} from "@/lib/welfare";
-import type { WelfareReportSeverity, WelfareReportStatus } from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
+import type {
+  WelfareReportSeverity,
+  WelfareReportStatus,
+} from "@/src/modules/welfare/domain/types";
 
 // Severity → Badge variant mapping per spec §B.4:
 // critical/high → danger, medium → warning, low → info, unknown → neutral.

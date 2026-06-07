@@ -24,7 +24,7 @@ import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "Abierta",

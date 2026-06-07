@@ -43,7 +43,6 @@ import { writePoint } from "@/lib/location";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
-import { generateReferenceCode } from "@/lib/welfare-codes";
 import {
   MPF_EXPORT_SCHEMA_VERSION,
   createSignedExportUrl,
@@ -53,6 +52,7 @@ import {
 } from "@/lib/welfare-exports";
 import { computeFlagReasons } from "@/lib/welfare-moderation";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
+import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { assignWelfare } from "./application/assign-welfare";

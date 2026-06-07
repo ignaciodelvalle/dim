@@ -2,8 +2,11 @@ import Link from "next/link";
 
 import { db, welfareReports } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { welfareReportKindLabel, welfareReportSeverityLabel } from "@/lib/welfare";
 import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
+import {
+  welfareReportKindLabel,
+  welfareReportSeverityLabel,
+} from "@/src/modules/welfare/domain/types";
 import { and, desc, isNotNull, isNull } from "drizzle-orm";
 
 const SEVERITY_TONE: Record<string, string> = {
