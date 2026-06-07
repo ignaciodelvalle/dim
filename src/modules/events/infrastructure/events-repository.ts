@@ -16,8 +16,17 @@ import "server-only";
 
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 
-import { attachments, db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
-import type { NewPetEvent, PetEvent } from "@/db/schema";
+import {
+  attachments,
+  auditLog,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  pets,
+  reminders,
+} from "@/db";
+import type { NewAuditLogRow, NewPetEvent, PetEvent } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
 
@@ -295,6 +304,22 @@ export class EventsRepository {
       pet,
       now,
     );
+  }
+
+  // ===========================================================================
+  // Audit log
+  // ===========================================================================
+
+  /**
+   * Insert an audit_log row (best-effort — callers swallow errors on failure).
+   * Used by record-disease-diagnosis to record ENO trigger failures without
+   * rolling back the committed diagnosis event.
+   */
+  async insertAuditLog(
+    values: Omit<NewAuditLogRow, "id" | "createdAt">,
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor.insert(auditLog).values(values as NewAuditLogRow);
   }
 
   // ===========================================================================

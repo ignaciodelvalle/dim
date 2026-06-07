@@ -1,6 +1,6 @@
 "use server";
 
-// Thin server actions for events module — medical use-cases (WU-2).
+// Thin server actions for events module — medical (WU-2), identity (WU-3), clinical (WU-4).
 // Auth stays at the EDGE here (exact guard per AUTH SCOPE MATRIX).
 // Each action: parse → auth guard → use-case → redirect.
 //
@@ -9,6 +9,12 @@
 //       requireAlivePetAccess
 //   - markMedicationDoseTaken: reminder-keyed (NOT requirePetAccess) + use-case verifies
 //       ownership+alive manually.
+// Identity auth:
+//   - microchip, dangerous-breed-attestation: requireAlivePetAccess
+//   - note: requirePetAccess (allows deceased/lost) — PARITY QUIRK.
+// Clinical auth:
+//   - vet-visit, clinical-info: requireAlivePetAccess
+//   - recordDiseaseDiagnosis: role=vet + matriculaVerified, NO ownership check.
 //
 // Post-tx side-effects (cleanupAttachment) remain in the action per original parity.
 
@@ -19,15 +25,25 @@ import {
   parseFrequencyFields,
 } from "@/lib/medication-schedule";
 
-import { db } from "@/db";
+import { db, profiles } from "@/db";
+import { pets } from "@/db";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { findDisease } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { parseDateInput } from "@/lib/format";
-import { requireAlivePetAccess } from "@/lib/pet-access";
+import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
+import { createClinicalInfo } from "./application/clinical/clinical-info-use-case";
+import { recordDiseaseDiagnosisWriter } from "./application/clinical/record-disease-diagnosis-use-case";
+import { createVetVisit } from "./application/clinical/vet-visit-use-case";
+import { createDangerousBreedAttestation } from "./application/identity/dangerous-breed-attestation-use-case";
+import { createMicrochip } from "./application/identity/microchip-use-case";
+import { createNote } from "./application/identity/note-use-case";
 import { createDeworming } from "./application/medical/deworming-use-case";
 import { markMedicationDoseTaken } from "./application/medical/medication-dose-taken-use-case";
 import { createMedicationEnd } from "./application/medical/medication-end-use-case";
@@ -35,6 +51,9 @@ import { createMedicationStart } from "./application/medical/medication-start-us
 import { createSterilization } from "./application/medical/sterilization-use-case";
 import { createVaccination } from "./application/medical/vaccination-use-case";
 import { createWeight } from "./application/medical/weight-use-case";
+import { CLINICAL_SUB_KINDS } from "./domain/enums";
+import { DANGEROUS_BREED_REGISTRIES } from "./domain/enums";
+import { NOTE_CATEGORIES } from "./domain/enums";
 import { EventsRepository } from "./infrastructure/events-repository";
 
 // ---------------------------------------------------------------------------
@@ -546,4 +565,461 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
   }
 
   redirect(`/mis-mascotas/${result.value.petPublicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Microchip (WU-3 identity)
+// ---------------------------------------------------------------------------
+
+export async function createMicrochipAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
+
+  const chipNumber = String(formData.get("chipNumber") ?? "").trim();
+  const countryCode = String(formData.get("countryCode") ?? "").trim() || null;
+  const implantedBy = String(formData.get("implantedBy") ?? "").trim() || null;
+  const locationOnBody = String(formData.get("locationOnBody") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  if (!chipNumber) return { error: "Falta el número de microchip." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de implantación." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const repo = new EventsRepository();
+
+  try {
+    const result = await createMicrochip(
+      {
+        pet: { id: pet.id, microchipId: pet.microchipId ?? null },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as {
+          authorRole: string;
+          authorOrganizationId: string | null;
+          authorVerified: boolean;
+        },
+        chipNumber,
+        countryCode,
+        implantedBy,
+        locationOnBody,
+        occurredAt,
+        notes,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+        clientIdempotencyKey,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el microchip: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Dangerous-breed attestation (WU-3 identity)
+// ---------------------------------------------------------------------------
+
+export async function createDangerousBreedAttestationAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
+
+  const registry = String(formData.get("registry") ?? "").trim();
+  const registryId = String(formData.get("registryId") ?? "").trim() || null;
+  const attestedAtRaw = String(formData.get("attestedAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!(DANGEROUS_BREED_REGISTRIES as readonly string[]).includes(registry)) {
+    return { error: "Registro inválido. Elegí uno de los disponibles." };
+  }
+  if (!attestedAtRaw) return { error: "Falta la fecha de atestación." };
+  const attestedAt = parseDateInput(attestedAtRaw);
+  if (!attestedAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const repo = new EventsRepository();
+
+  try {
+    const result = await createDangerousBreedAttestation(
+      {
+        pet: { id: pet.id },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as {
+          authorRole: string;
+          authorOrganizationId: string | null;
+          authorVerified: boolean;
+        },
+        registry,
+        registryId,
+        attestedAt,
+        notes,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la atestación: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Note (WU-3 identity) — requirePetAccess (allows deceased/lost)
+// ---------------------------------------------------------------------------
+
+export async function createNoteAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  // PARITY: requirePetAccess (NOT requireAlivePetAccess) — allows deceased/lost pets.
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
+
+  const text = String(formData.get("text") ?? "").trim();
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const categoryRaw = String(formData.get("category") ?? "").trim();
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  if (!text) return { error: "Falta el contenido de la nota." };
+  if (!occurredAtRaw) return { error: "Falta la fecha." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const category = (NOTE_CATEGORIES as readonly string[]).includes(categoryRaw)
+    ? categoryRaw
+    : null;
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const repo = new EventsRepository();
+
+  try {
+    const result = await createNote(
+      {
+        pet: { id: pet.id },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as {
+          authorRole: string;
+          authorOrganizationId: string | null;
+          authorVerified: boolean;
+        },
+        text,
+        occurredAt,
+        category,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+        clientIdempotencyKey,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo guardar la nota: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Vet visit (WU-4 clinical)
+// ---------------------------------------------------------------------------
+
+export async function createVetVisitAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
+
+  const reason = String(formData.get("reason") ?? "").trim();
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const diagnosis = String(formData.get("diagnosis") ?? "").trim() || null;
+  const vetName = String(formData.get("vetName") ?? "").trim() || null;
+  const clinic = String(formData.get("clinic") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+
+  if (!reason) return { error: "Falta el motivo de la visita." };
+  if (!occurredAtRaw) return { error: "Falta la fecha." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const repo = new EventsRepository();
+
+  try {
+    const result = await createVetVisit(
+      {
+        pet: { id: pet.id },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as {
+          authorRole: string;
+          authorOrganizationId: string | null;
+          authorVerified: boolean;
+        },
+        reason,
+        occurredAt,
+        diagnosis,
+        vetName,
+        clinic,
+        notes,
+        eventJurisdictionProvince,
+        eventJurisdictionLocality,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+        clientIdempotencyKey,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la visita: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Clinical info (WU-4 clinical)
+// ---------------------------------------------------------------------------
+
+export async function createClinicalInfoAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await requireAlivePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { supabase, user, pet, eventAuthorship } = access;
+
+  const subKindRaw = String(formData.get("subKind") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const details = String(formData.get("details") ?? "").trim() || null;
+  const performedBy = String(formData.get("performedBy") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+
+  if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
+    return { error: "Tipo de información clínica inválido." };
+  }
+  const subKind = subKindRaw;
+  if (!title) return { error: "Falta el título / nombre del estudio o procedimiento." };
+  if (!occurredAtRaw) return { error: "Falta la fecha." };
+
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const repo = new EventsRepository();
+
+  try {
+    const result = await createClinicalInfo(
+      {
+        pet: { id: pet.id },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as {
+          authorRole: string;
+          authorOrganizationId: string | null;
+          authorVerified: boolean;
+        },
+        subKind,
+        title,
+        details,
+        performedBy,
+        occurredAt,
+        notes,
+        eventJurisdictionProvince,
+        eventJurisdictionLocality,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+        clientIdempotencyKey,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo guardar la información clínica: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Record disease diagnosis (WU-4 clinical) — VET-ONLY, NO ownership check
+// ---------------------------------------------------------------------------
+
+// Re-export writer + types so WU-7 strangler shim can re-export them from actions.ts.
+export type {
+  RecordDiseaseDiagnosisWriterInput,
+  RecordDiseaseDiagnosisWriterResult,
+} from "./application/clinical/record-disease-diagnosis-use-case";
+export { recordDiseaseDiagnosisWriter } from "./application/clinical/record-disease-diagnosis-use-case";
+
+async function flushNotifications(
+  pending: import("./application/types").NewNotification[],
+): Promise<void> {
+  if (pending.length === 0) return;
+  const { notifications } = await import("@/db");
+  try {
+    // biome-ignore lint/suspicious/noExplicitAny: NewNotification is structurally compatible with notifications.$inferInsert
+    await db.insert(notifications).values(pending as any[]);
+  } catch (e) {
+    console.error("notifications insert failed (action did succeed)", e);
+  }
+}
+
+export async function recordDiseaseDiagnosisAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  // VET-ONLY auth: role=vet + matriculaVerified=true. NO ownership check.
+  const { user } = await requireUserOrRedirect();
+  const [vetProfile] = await db
+    .select({
+      role: profiles.role,
+      matriculaVerified: profiles.matriculaVerified,
+      displayName: profiles.displayName,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  if (!vetProfile || vetProfile.role !== "vet" || !vetProfile.matriculaVerified) {
+    return { error: "Solo veterinarios con matrícula verificada pueden registrar diagnósticos." };
+  }
+
+  const diseaseCode = String(formData.get("diseaseCode") ?? "").trim();
+  const confirmedByLab = formData.get("confirmedByLab") === "on";
+  const labName = String(formData.get("labName") ?? "").trim() || null;
+  const labReportRef = String(formData.get("labReportReference") ?? "").trim() || null;
+  const diagnosisDateRaw = String(formData.get("diagnosisDate") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!diseaseCode) return { error: "Falta el código de enfermedad." };
+  const disease = findDisease(diseaseCode);
+  if (!disease) return { error: "Código de enfermedad desconocido." };
+  if (!diagnosisDateRaw) return { error: "Falta la fecha del diagnóstico." };
+  const diagnosisDate = parseDateInput(diagnosisDateRaw);
+  if (!diagnosisDate) return { error: "Fecha de diagnóstico inválida." };
+
+  if (confirmedByLab && !labName) {
+    return {
+      error: "Para marcar como confirmado por laboratorio indicá el nombre del laboratorio.",
+    };
+  }
+
+  // Resolve pet by publicToken — NO ownership check (vet can diagnose any pet).
+  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  if (!pet) return { error: "Mascota no encontrada." };
+
+  const repo = new EventsRepository();
+
+  const result = await recordDiseaseDiagnosisWriter(
+    {
+      petId: pet.id,
+      petName: pet.name,
+      petSpecies: pet.species,
+      petJurisdictionCountry: pet.jurisdictionCountry,
+      petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+      petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+      vetUserId: user.id,
+      vetDisplayName: vetProfile.displayName,
+      diseaseCode,
+      confirmedByLab,
+      labName,
+      labReportReference: labReportRef,
+      diagnosisDate,
+      notes,
+    },
+    {
+      repo,
+      transaction: makeTransaction(),
+      flushNotifications,
+    },
+  );
+
+  if (!result.ok) {
+    return { error: `No se pudo registrar el diagnóstico: ${result.error}` };
+  }
+  return { error: null };
 }
