@@ -45,3 +45,7 @@ supabase/snippets/Untitled*.sql
 # agent tool caches
 .atl/
 .claude/
+
+# design handoff reference (local only — source for the Libreta Nacional redesign, not production)
+design_handoff_owner_libreta_nacional/
+install.cmd

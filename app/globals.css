@@ -7,7 +7,11 @@
    de identidad de Presidencia.
    ============================================================================= */
 
-/* ---- Fuentes oficiales ----------------------------------------------------- */
+/* ---- Fuentes — Libreta Nacional (IBM Plex family + Caveat via CSS vars) ---- */
+/* next/font/google injects them in app/layout.tsx; the CSS vars are wired in
+   @theme so Tailwind utilities like font-ln-serif work everywhere. */
+
+/* ---- Fuentes oficiales (Encode Sans — gob portals) ------------------------ */
 
 @font-face {
   font-family: "Encode Sans";
@@ -50,9 +54,45 @@
 /* ---- Tokens ---------------------------------------------------------------- */
 
 @theme {
-  /* Tipografía */
+  /* ---- Tipografía --------------------------------------------------------- */
+
+  /* Encode Sans — gob portals (self-hosted, unchanged) */
   --font-sans: "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial,
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+
+  /* Libreta Nacional font stack (CSS vars injected by next/font in layout.tsx) */
+  --font-ln-serif: var(--a-serif-font, "IBM Plex Serif"), Georgia, serif;
+  --font-ln-sans: var(--a-sans-font, "IBM Plex Sans"), system-ui, sans-serif;
+  --font-ln-mono: var(--a-mono-font, "IBM Plex Mono"), "Menlo", monospace;
+  --font-ln-caveat: var(--a-caveat-font, "Caveat"), cursive;
+
+  /* ---- Paleta Libreta Nacional -------------------------------------------- */
+  /* Exact values from design_handoff_owner_libreta_nacional/redesign-a.css */
+
+  --color-ln-azul: #0e5a99;
+  --color-ln-azul-700: #0a4576;
+  --color-ln-azul-900: #0a3556;
+  --color-ln-celeste: #4e97d1;
+  --color-ln-celeste-100: #dcebf7;
+  --color-ln-celeste-050: #eff6fc;
+
+  --color-ln-ink: #1b2a33;
+  --color-ln-ink-2: #3c4b55;
+  --color-ln-mute: #6e7b84;
+  --color-ln-faint: #9aa4ab;
+
+  --color-ln-paper: #fbfaf5;
+  --color-ln-card: #ffffff;
+  --color-ln-stripe: #f6f4ed;
+  --color-ln-line: #e4dfd3;
+  --color-ln-line-2: #eeeae0;
+  --color-ln-line-strong: #cfc8b8;
+
+  --color-ln-seal: #a23a2c;
+  --color-ln-ok: #2e7d4f;
+  --color-ln-warn: #b0771a;
+  --color-ln-err: #c0392b;
+  --color-ln-rosa: #b5497e;
 
   /* Paleta oficial Poncho — colores específicos gob.ar.
      Estos generan utilidades Tailwind como bg-gob-primary, text-gob-celeste, etc. */
