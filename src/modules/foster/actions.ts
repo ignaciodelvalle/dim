@@ -24,8 +24,10 @@ import { redirect } from "next/navigation";
 import { acceptFosterProposal } from "./application/accept-foster-proposal";
 import { assignFoster } from "./application/assign-foster";
 import { cancelFosterProposal } from "./application/cancel-foster-proposal";
+import { convertFosterToOwner } from "./application/convert-foster-to-owner";
 import { endFoster } from "./application/end-foster";
 import { expireFosterProposals as expireFosterProposalsUseCase } from "./application/expire-foster-proposals";
+import { sendRehomeRequest } from "./application/find-rehome-orgs";
 import { proposeFoster } from "./application/propose-foster";
 import { rejectFosterProposal } from "./application/reject-foster-proposal";
 import { searchFosterVolunteers as searchFosterVolunteersUseCase } from "./application/search-foster-volunteers";
@@ -481,4 +483,76 @@ export async function searchFosterVolunteers(
 
   if (!result.ok) return { error: result.error };
   return { rows: result.value.rows };
+}
+
+// ---------------------------------------------------------------------------
+// convertFosterToOwnerAction — owner portal / transit banner CTA 1
+// ---------------------------------------------------------------------------
+
+export type ConvertFosterToOwnerResult = { redirectPath: string } | { error: string };
+
+/**
+ * Converts an active foster into permanent ownership.
+ * Auth: session user must be the active foster of the pet identified by
+ * petPublicToken (enforced server-side via FosterRepository.findActiveFosterByUser).
+ */
+export async function convertFosterToOwnerAction(
+  petPublicToken: string,
+): Promise<ConvertFosterToOwnerResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+
+  const result = await convertFosterToOwner(
+    { petPublicToken },
+    {
+      repo: FosterRepository,
+      actor: { user },
+      transaction: db.transaction.bind(db),
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath(`/mis-mascotas/${petPublicToken}`);
+  revalidatePath("/mis-mascotas");
+  return { redirectPath: result.value.redirectPath };
+}
+
+// ---------------------------------------------------------------------------
+// sendRehomeRequestAction — owner portal / transit banner CTA 2
+// ---------------------------------------------------------------------------
+
+export type SendRehomeRequestResult = { ok: true } | { error: string };
+
+/**
+ * Sends a rehome request notification to an org's admins/coordinators.
+ * Auth: session user must be the active foster of the pet.
+ * No new schema — lean notification-based MVP.
+ */
+export async function sendRehomeRequestAction(
+  petPublicToken: string,
+  targetOrgId: string,
+): Promise<SendRehomeRequestResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+
+  const result = await sendRehomeRequest(
+    { petPublicToken, targetOrgId },
+    {
+      repo: FosterRepository,
+      actor: { user },
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  return { ok: true };
 }

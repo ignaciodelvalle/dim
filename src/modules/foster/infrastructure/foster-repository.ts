@@ -3,7 +3,7 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 
 import {
   db,
@@ -12,6 +12,7 @@ import {
   notifications,
   organizationCapabilityGrants,
   organizationMemberships,
+  organizations,
   ownerships,
   petEvents,
   pets,
@@ -1266,6 +1267,197 @@ export const FosterRepository = {
       authorVerified: false,
       payload,
       caseId: caseRow?.id ?? null,
+    });
+  },
+
+  // -------------------------------------------------------------------------
+  // Convert-foster-to-owner + rehome helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Finds a pet by its public token. Returns the full pet row or null.
+   * Used by convert-foster-to-owner and find-rehome-orgs use-cases.
+   */
+  async findPetByToken(publicToken: string, tx?: Tx): Promise<PetRow | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select()
+      .from(pets)
+      .where(eq(pets.publicToken, publicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Finds the active foster ownership row for a pet scoped to the given
+   * userId. Returns id + petId or null. Used as the server-side auth boundary
+   * for convert-foster-to-owner and send-rehome-request.
+   */
+  async findActiveFosterByUser(
+    petId: string,
+    userId: string,
+    tx?: Tx,
+  ): Promise<{ id: string; ownerUserId: string; petId: string } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId, petId: ownerships.petId })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerUserId, userId),
+          eq(ownerships.role, "foster"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row?.ownerUserId ? (row as { id: string; ownerUserId: string; petId: string }) : null;
+  },
+
+  /**
+   * Finds an organization by id. Returns a minimal shape for rehome-request
+   * validation (orgType, verified) or null.
+   */
+  async findOrgById(
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ id: string; displayName: string; orgType: string; verified: boolean } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({
+        id: organizations.id,
+        displayName: organizations.displayName,
+        orgType: organizations.orgType,
+        verified: organizations.verified,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Returns userId list for admin + coordinator members of an org.
+   * Used for notification fan-out in sendRehomeRequest.
+   */
+  async orgAdminAndCoordinatorUserIds(orgId: string, tx?: Tx): Promise<Array<{ userId: string }>> {
+    const client = tx ?? db;
+    return (client as typeof db)
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, orgId),
+          inArray(organizationMemberships.role, ["admin", "coordinator"]),
+          isNull(organizationMemberships.leftAt),
+        ),
+      );
+  },
+
+  /**
+   * Atomic: convert foster → owner in one transaction.
+   *
+   * Ordering (mirrors transfer-custody.ts for FK/CHECK parity):
+   *   a. endFosterOwnership (sets endedAt on the foster row)
+   *   b. findOpenCaseForPetAndKind("foster_placement") → caseId
+   *   c. insertPetEvent(foster_ended, UPFRONT UUID)
+   *   d. closeCase(foster_placement, "resolved") if open
+   *   e. closeOwnerOwnerships (end any prior owner rows — prevents
+   *      unique-active-owner partial index violation at tx commit)
+   *   f. insertOwnerOwnership (new role='owner' row for the foster user)
+   *   g. insertPetEvent(custody_transferred, references foster_ended UUID)
+   */
+  async insertConvertFosterToOwner(
+    args: {
+      petId: string;
+      petName: string;
+      fosterOwnershipId: string;
+      fosterUserId: string;
+      fosterEndedEventId: string;
+      actorUserId: string;
+      now: Date;
+    },
+    tx: Tx,
+  ): Promise<void> {
+    const {
+      petId,
+      petName: _petName,
+      fosterOwnershipId,
+      fosterUserId,
+      fosterEndedEventId,
+      actorUserId,
+      now,
+    } = args;
+
+    // a. End foster ownership.
+    await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterOwnershipId));
+
+    // b. Find open foster_placement case.
+    const caseRow = await findOpenCaseForPetAndKind(petId, "foster_placement", tx);
+    const caseId = caseRow?.id ?? null;
+
+    // c. Emit foster_ended (upfront UUID for ordering).
+    const fosterEndedPayload = validateEventPayload("foster_ended", {
+      foster_user_id: fosterUserId,
+      reason: "adopted_by_foster",
+      notes: null,
+    });
+    await tx.insert(petEvents).values({
+      id: fosterEndedEventId,
+      petId,
+      eventType: "foster_ended",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: actorUserId,
+      authorRole: "owner",
+      authorOrganizationId: null,
+      authorVerified: false,
+      payload: fosterEndedPayload,
+      caseId,
+    });
+
+    // d. Close foster_placement case if open.
+    if (caseId) {
+      await closeCase({ caseId, reason: "resolved", closedByUserId: actorUserId }, tx);
+    }
+
+    // e. Close prior owner ownerships (parity: must be BEFORE inserting new
+    //    owner row — unique-active-owner partial index is checked at tx commit).
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      );
+
+    // f. Insert new owner ownership row.
+    await tx.insert(ownerships).values({
+      petId,
+      ownerUserId: fosterUserId,
+      role: "owner",
+      startedAt: now,
+    });
+
+    // g. Emit custody_transferred (AFTER foster_ended — UUID reference is safe).
+    const transferredPayload = validateEventPayload("custody_transferred", {
+      from_user_id: fosterUserId,
+      to_user_id: fosterUserId,
+      from_role: "owner" as const,
+      to_role: "owner" as const,
+      foster_ended_event_id: fosterEndedEventId,
+      notes: "Tránsito convertido en adopción por el propio transitante.",
+    });
+    await tx.insert(petEvents).values({
+      petId,
+      eventType: "custody_transferred",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: actorUserId,
+      authorRole: "owner",
+      authorOrganizationId: null,
+      authorVerified: false,
+      payload: transferredPayload,
+      caseId,
     });
   },
 
