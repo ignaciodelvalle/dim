@@ -114,6 +114,8 @@ export function eventTypeLabel(eventType: string): string {
       return "Fallecimiento";
     case "note_added":
       return "Nota";
+    case "reporter_comment":
+      return "Comentario del denunciante";
     case "status_changed":
       return "Cambio de estado";
     case "credential_scanned":

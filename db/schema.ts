@@ -2923,6 +2923,9 @@ export const CASE_EVENT_ENTRY_TYPES = [
   "case_opened",
   "case_escalated",
   "case_closed",
+  // Reporter comment — welfare_denuncia: reporter adds a free-text note to their case.
+  // entryType is a plain string (not an enum) so this is a non-breaking additive change.
+  "reporter_comment",
   // outbreak_investigation entry types
   "classification",
   "lab_result",

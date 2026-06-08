@@ -15,6 +15,7 @@ import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 
 import {
   auditLog,
+  caseEvents,
   db,
   govtAssignments,
   notifications,
@@ -359,6 +360,36 @@ export class WelfareRepository {
       .where(eq(pets.publicToken, publicToken))
       .limit(1);
     return row ?? null;
+  }
+
+  /**
+   * Insert a case_events row. Used by addReporterComment and any future
+   * welfare-domain use-cases that write pet-independent case timeline entries.
+   */
+  async insertCaseEvent(
+    values: {
+      caseId: string;
+      entryType: string;
+      payload: Record<string, unknown>;
+      notes?: string | null;
+      recordedByUserId?: string | null;
+      occurredAt?: Date;
+    },
+    executor: DbOrTx = db,
+  ): Promise<{ id: string }> {
+    const [row] = await executor
+      .insert(caseEvents)
+      .values({
+        caseId: values.caseId,
+        entryType: values.entryType,
+        payload: values.payload,
+        notes: values.notes ?? null,
+        recordedByUserId: values.recordedByUserId ?? null,
+        occurredAt: values.occurredAt ?? new Date(),
+      })
+      .returning({ id: caseEvents.id });
+    if (!row) throw new Error("WelfareRepository.insertCaseEvent: insert returned no rows");
+    return row;
   }
 
   /**
