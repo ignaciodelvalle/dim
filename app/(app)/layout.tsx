@@ -56,9 +56,7 @@ export default async function AuthenticatedLayout({
     );
 
   return (
-    <div
-      className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]"
-    >
+    <div className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]">
       <LnGuilloche />
       {/* LnOwnerNav is a client component — reads usePathname for active state */}
       <LnOwnerNav displayName={displayName} unreadCount={unreadCount} />

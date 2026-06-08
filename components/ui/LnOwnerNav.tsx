@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LnMasthead } from "./Shell";
+import type { LnMasthead } from "./Shell";
 
 /**
  * LnOwnerNav — client wrapper for the LnMasthead that:
@@ -40,7 +40,7 @@ export function LnOwnerNav({ displayName, unreadCount }: Props) {
     key: item.key,
     label: item.label,
     href: item.href,
-    active: pathname === item.match || pathname.startsWith(item.match + "/"),
+    active: pathname === item.match || pathname.startsWith(`${item.match}/`),
   }));
 
   // Avatar initials: first char of first word + first char of second word (if any)
