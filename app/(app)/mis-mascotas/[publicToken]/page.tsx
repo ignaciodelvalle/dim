@@ -104,6 +104,7 @@ import { Suspense } from "react";
 import { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
 import { SheetMounter } from "./SheetMounter";
+import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { PetReminders } from "./_components/PetReminders";
 
 // NOTE: eventsWithAttachments is fetched only when pet.status === 'deceased'
@@ -339,7 +340,11 @@ export default async function PetDetailPage({
         ),
       )
       .limit(1);
-    isTransit = ownerRow?.role === "shelter_custody";
+    // isTransit = true for users who have an active foster ownership row
+    // (role='foster'). This is the canonical "viewer is fostering this pet" check.
+    // Note: shelter_custody is an org-level role (ownerOrganizationId), not a
+    // user-level role, so it cannot appear here via the ownerUserId path.
+    isTransit = ownerRow?.role === "foster";
     ownershipRole = ownerRow?.role ?? null;
   }
 
@@ -660,7 +665,7 @@ export default async function PetDetailPage({
         </div>
       )}
 
-      {isTransit && <TransitBanner petName={pet.name} />}
+      {isTransit && <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />}
 
       {pet.rabiesObservationStatus === "in_progress" && (
         <RabiesObservationBanner pet={pet} events={typedEvents} />
@@ -1072,7 +1077,13 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
   );
 }
 
-function TransitBanner({ petName }: { petName: string }) {
+function TransitBanner({
+  petName,
+  petPublicToken,
+}: {
+  petName: string;
+  petPublicToken: string;
+}) {
   return (
     <section className="rounded-xl border border-gob-warning/30 bg-gob-warning/10 p-4 space-y-3">
       <p className="text-sm text-gob-warning-text">
@@ -1080,22 +1091,13 @@ function TransitBanner({ petName }: { petName: string }) {
         viaja con la mascota.
       </p>
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled
-          title="Próximamente"
-          className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text opacity-60 cursor-not-allowed"
-        >
-          Convertir en mi mascota
-        </button>
-        <button
-          type="button"
-          disabled
-          title="Próximamente"
-          className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text opacity-60 cursor-not-allowed"
+        <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
+        <Link
+          href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
+          className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text hover:border-gob-warning/80 transition-colors"
         >
           Buscar nuevo hogar
-        </button>
+        </Link>
       </div>
     </section>
   );
