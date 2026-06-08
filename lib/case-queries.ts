@@ -110,67 +110,93 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
   if (!row) return null;
 
   // Resolve optional linkbacks in parallel.
-  const [welfareReportRow, custodyDisputeRow, openedByOrgRow, closedByUserRow, eventRows] =
-    await Promise.all([
-      row.c.welfareReportId
-        ? db
-            .select({
-              id: welfareReports.id,
-              referenceCode: welfareReports.referenceCode,
-              status: welfareReports.status,
-            })
-            .from(welfareReports)
-            .where(eq(welfareReports.id, row.c.welfareReportId))
-            .limit(1)
-            .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      row.c.custodyDisputeId
-        ? db
-            .select({
-              id: custodyDisputes.id,
-              publicToken: custodyDisputes.publicToken,
-              status: custodyDisputes.status,
-            })
-            .from(custodyDisputes)
-            .where(eq(custodyDisputes.id, row.c.custodyDisputeId))
-            .limit(1)
-            .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      row.c.openedByOrganizationId
-        ? db
-            .select({
-              id: organizations.id,
-              displayName: organizations.displayName,
-              publicToken: organizations.publicToken,
-            })
-            .from(organizations)
-            .where(eq(organizations.id, row.c.openedByOrganizationId))
-            .limit(1)
-            .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      row.c.closedByUserId
-        ? db
-            .select({ id: profiles.id, displayName: profiles.displayName })
-            .from(profiles)
-            .where(eq(profiles.id, row.c.closedByUserId))
-            .limit(1)
-            .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-          notes: petEvents.notes,
-          authorRole: petEvents.authorRole,
-        })
-        .from(petEvents)
-        .where(eq(petEvents.caseId, row.c.id))
-        .orderBy(desc(petEvents.occurredAt)),
-    ]);
+  const [
+    welfareReportRow,
+    custodyDisputeRow,
+    openedByOrgRow,
+    closedByUserRow,
+    petEventRows,
+    caseEventRows,
+  ] = await Promise.all([
+    row.c.welfareReportId
+      ? db
+          .select({
+            id: welfareReports.id,
+            referenceCode: welfareReports.referenceCode,
+            status: welfareReports.status,
+          })
+          .from(welfareReports)
+          .where(eq(welfareReports.id, row.c.welfareReportId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    row.c.custodyDisputeId
+      ? db
+          .select({
+            id: custodyDisputes.id,
+            publicToken: custodyDisputes.publicToken,
+            status: custodyDisputes.status,
+          })
+          .from(custodyDisputes)
+          .where(eq(custodyDisputes.id, row.c.custodyDisputeId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    row.c.openedByOrganizationId
+      ? db
+          .select({
+            id: organizations.id,
+            displayName: organizations.displayName,
+            publicToken: organizations.publicToken,
+          })
+          .from(organizations)
+          .where(eq(organizations.id, row.c.openedByOrganizationId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    row.c.closedByUserId
+      ? db
+          .select({ id: profiles.id, displayName: profiles.displayName })
+          .from(profiles)
+          .where(eq(profiles.id, row.c.closedByUserId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+        notes: petEvents.notes,
+        authorRole: petEvents.authorRole,
+      })
+      .from(petEvents)
+      .where(eq(petEvents.caseId, row.c.id))
+      .orderBy(desc(petEvents.occurredAt)),
+    // case_events covers pet-less cases (location/general/unowned) and
+    // reporter_comment entries for welfare_denuncia. Merged into the shared
+    // timeline so the case detail page shows a unified history.
+    db
+      .select({
+        id: caseEvents.id,
+        eventType: caseEvents.entryType,
+        occurredAt: caseEvents.occurredAt,
+        payload: caseEvents.payload,
+        notes: caseEvents.notes,
+        authorRole: sql<string>`'system'`,
+      })
+      .from(caseEvents)
+      .where(eq(caseEvents.caseId, row.c.id))
+      .orderBy(desc(caseEvents.occurredAt)),
+  ]);
 
   const caseKind = isCaseKind(row.c.caseKind) ? row.c.caseKind : ("bite_incident" as CaseKind);
+
+  // Merge pet_events + case_events into a single timeline sorted newest-first.
+  const mergedEvents: CaseEventRow[] = [...petEventRows, ...caseEventRows].sort(
+    (a, b) => b.occurredAt.getTime() - a.occurredAt.getTime(),
+  );
 
   return {
     id: row.c.id,
@@ -203,7 +229,7 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
     openedByUser: row.openedByUser?.id ? row.openedByUser : null,
     openedByOrganization: openedByOrgRow,
     closedByUser: closedByUserRow,
-    events: eventRows,
+    events: mergedEvents,
   };
 }
 

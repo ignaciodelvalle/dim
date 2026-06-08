@@ -1,18 +1,21 @@
 import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
+import { caseEvents, cases } from "@/db/schema";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { addReporterCommentAction } from "@/src/modules/welfare/actions";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { type CommentFormState, ReporterCommentForm } from "./_components/ReporterCommentForm";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
@@ -102,6 +105,34 @@ export default async function WelfareReportDetailPage({
     })),
   );
 
+  // Fetch reporter comments from the case timeline.
+  let reporterComments: Array<{
+    id: string;
+    notes: string | null;
+    occurredAt: Date;
+  }> = [];
+  let casePublicCode: string | null = null;
+
+  if (report.caseId) {
+    const [caseRow, commentRows] = await Promise.all([
+      db
+        .select({ publicCode: cases.publicCode })
+        .from(cases)
+        .where(eq(cases.id, report.caseId))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+      db
+        .select({ id: caseEvents.id, notes: caseEvents.notes, occurredAt: caseEvents.occurredAt })
+        .from(caseEvents)
+        .where(
+          and(eq(caseEvents.caseId, report.caseId), eq(caseEvents.entryType, "reporter_comment")),
+        )
+        .orderBy(desc(caseEvents.occurredAt)),
+    ]);
+    casePublicCode = caseRow?.publicCode ?? null;
+    reporterComments = commentRows;
+  }
+
   const locationPoint = readPoint(report);
   const hasLocation =
     report.locationAddress ||
@@ -110,6 +141,19 @@ export default async function WelfareReportDetailPage({
     locationPoint !== null;
 
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
+
+  // Bound server action — ties the reportId to this report so the client form
+  // does not need to pass it as a hidden field (avoids tamper risk).
+  async function commentAction(
+    _prev: CommentFormState,
+    formData: FormData,
+  ): Promise<CommentFormState> {
+    "use server";
+    const text = String(formData.get("text") ?? "").trim();
+    const result = await addReporterCommentAction(id, text);
+    if (!result.ok) return { error: result.error, success: false };
+    return { error: null, success: true };
+  }
 
   return (
     <main className="min-h-screen p-6 bg-white ">
@@ -160,6 +204,15 @@ export default async function WelfareReportDetailPage({
             <span>Enviada {formatDateTime(report.createdAt)}</span>
             {report.occurredAt && <span>Ocurrió el {formatDate(report.occurredAt)}</span>}
           </div>
+          {/* Case link — shown when this report has a linked case */}
+          {casePublicCode && (
+            <Link
+              href={`/casos/${casePublicCode}`}
+              className="inline-block text-xs underline underline-offset-4 text-gob-text-muted  hover:text-gob-text-gray  transition-colors"
+            >
+              Ver caso {casePublicCode} →
+            </Link>
+          )}
         </header>
 
         {/* Integration-pending notice — shown prominently below the header */}
@@ -275,6 +328,31 @@ export default async function WelfareReportDetailPage({
                 ) : null,
               )}
             </div>
+          </section>
+        )}
+
+        {/* Reporter comments — shown only when the report has a linked case */}
+        {report.caseId && (
+          <section className="space-y-4">
+            <SectionLabel>Tus comentarios sobre el caso</SectionLabel>
+
+            {reporterComments.length > 0 && (
+              <ol className="space-y-3">
+                {reporterComments.map((c) => (
+                  <li
+                    key={c.id}
+                    className="rounded-xl border border-gob-border  bg-gob-surface-alt  px-4 py-3 space-y-1"
+                  >
+                    <p className="text-sm text-gob-text  whitespace-pre-wrap">{c.notes}</p>
+                    <time className="block text-xs text-gob-text-muted ">
+                      {formatDateTime(c.occurredAt)}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <ReporterCommentForm action={commentAction} />
           </section>
         )}
       </div>

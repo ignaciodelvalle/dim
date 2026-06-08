@@ -55,6 +55,7 @@ import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { and, eq, isNull } from "drizzle-orm";
 
+import { addReporterComment } from "./application/add-reporter-comment";
 import { assignWelfare } from "./application/assign-welfare";
 import { closeWelfareReport } from "./application/close-welfare-report";
 import { confirmWelfareAsSpam } from "./application/confirm-welfare-as-spam";
@@ -886,6 +887,41 @@ export async function createOrgWelfareReportAction(
 // ---------------------------------------------------------------------------
 // Internal helpers — jurisdiction scope guards
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// addReporterCommentAction — reporter adds a free-text note to their case
+// ---------------------------------------------------------------------------
+
+export type ReporterCommentResult = { ok: true } | { ok: false; error: string };
+
+export async function addReporterCommentAction(
+  welfareReportId: string,
+  text: string,
+): Promise<ReporterCommentResult> {
+  const session = await requireUserOrRedirect();
+
+  const result = await addReporterComment(
+    { reportId: welfareReportId, reporterUserId: session.user.id, text },
+    {
+      repo: { findById: repo.findById.bind(repo) },
+      insertCaseEvent: repo.insertCaseEvent.bind(repo),
+    },
+  );
+
+  if (!result.ok) {
+    const errorMessages: Record<string, string> = {
+      forbidden: "No tenés permiso para comentar en esta denuncia.",
+      validation: "El comentario debe tener entre 1 y 2000 caracteres.",
+      no_case: "Esta denuncia aún no tiene un caso asociado.",
+      report_not_found: "Denuncia no encontrada.",
+      db_error: "Error al guardar el comentario. Intentá de nuevo.",
+    };
+    return { ok: false, error: errorMessages[result.error] ?? "Error inesperado." };
+  }
+
+  revalidatePath(`/denuncias/${welfareReportId}`);
+  return { ok: true };
+}
 
 type WelfareReportRow = import("@/db").WelfareReport;
 
