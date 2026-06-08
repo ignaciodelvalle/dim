@@ -2,7 +2,7 @@
 // by scripts/import-indec-localities.ts. If the catalog is empty (the import
 // hasn't run yet), the tests skip with a clear message instead of failing.
 
-import { count as countFn, isNull } from "drizzle-orm";
+import { count as countFn, inArray, isNull, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
@@ -13,6 +13,32 @@ import {
   localityByName,
   searchLocalities,
 } from "@/lib/ar-localidades";
+
+// INDEC IDs from the import-indec-localities fixture CSV. If a prior test run
+// timed out before afterAll cleanup, these rows may still be present and will
+// corrupt the catalogPopulated count and the empty-catalog test. Remove them
+// before anything else runs.
+const INDEC_FIXTURE_IDS = [
+  "02014010", // Palermo (AR-C)
+  "02002010", // Recoleta (AR-C)
+  "06028010", // Avellaneda (AR-B)
+  "06441010", // La Plata fixture (AR-B — different from real catalog ID 06441030)
+  "50028010", // Mendoza capital (AR-M)
+] as const;
+
+beforeAll(async () => {
+  // Purge any stale fixture rows so catalogPopulated and province-scoped
+  // queries reflect only real catalog data.
+  await db.delete(arLocalities).where(inArray(arLocalities.indecId, [...INDEC_FIXTURE_IDS]));
+  // Restore any soft-deleted indec_cppdyl rows the import fixture may have
+  // stamped so the live catalog count is accurate.
+  await db
+    .update(arLocalities)
+    .set({ removedAt: null })
+    .where(
+      sql`${arLocalities.source} = 'indec_cppdyl' AND ${arLocalities.removedAt} IS NOT NULL AND ${arLocalities.indecId} IS NOT NULL`,
+    );
+});
 
 let catalogPopulated = false;
 
