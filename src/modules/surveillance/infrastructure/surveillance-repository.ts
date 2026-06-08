@@ -415,7 +415,7 @@ export class SurveillanceRepository {
     diseaseCode: string,
     province: string | null,
     locality: string | null,
-  ): Promise<{ id: string; publicCode: string }[]> {
+  ): Promise<{ id: string; publicCode: string; openedReason: string | null }[]> {
     const conditions = [
       eq(cases.caseKind, "outbreak_investigation"),
       sql`${cases.status} IN ('open', 'escalated')`,
@@ -433,7 +433,7 @@ export class SurveillanceRepository {
     }
 
     return db
-      .select({ id: cases.id, publicCode: cases.publicCode })
+      .select({ id: cases.id, publicCode: cases.publicCode, openedReason: cases.openedReason })
       .from(cases)
       .where(and(...conditions));
   }

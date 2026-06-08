@@ -16,7 +16,7 @@
 // A "wrong principal" for moderation is a govt user.
 // A "wrong principal" for triage is an unauthenticated caller (redirect = throws).
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mock auth-guards — vi.mock is hoisted, so we use a factory
@@ -55,6 +55,14 @@ describe("auth scope — moderation actions are admin-ONLY", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  // Timeout is generous: a prior file in the serial suite may call
+  // vi.resetModules(), forcing a cold re-import of actions.ts here.
+  // 15 s covers the warm-up; under normal conditions this runs in < 1 s.
   it("passWelfareToTriageAction: calls requireAdminOrRedirect (not the govt-inclusive guard)", async () => {
     // Mock requireAdminOrRedirect to simulate redirect (throws NEXT_REDIRECT)
     const redirect = new Error("NEXT_REDIRECT");
@@ -71,7 +79,7 @@ describe("auth scope — moderation actions are admin-ONLY", () => {
     expect(authGuards.requireAdminOrRedirect).toHaveBeenCalled();
     // The WRONG guard was NOT called
     expect(authGuards.requireAdminOrGovtOrRedirect).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("confirmWelfareAsSpamAction: calls requireAdminOrRedirect (not the govt-inclusive guard)", async () => {
     const redirect = new Error("NEXT_REDIRECT");
@@ -91,6 +99,11 @@ describe("auth scope — moderation actions are admin-ONLY", () => {
 describe("auth scope — triage/assign/unassign/mpf use requireAdminOrGovtOrRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("triageWelfareReportAction: calls requireAdminOrGovtOrRedirect", async () => {
