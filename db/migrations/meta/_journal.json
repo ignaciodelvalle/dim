@@ -1,1 +1,13 @@
-{ "version": "7", "dialect": "postgresql", "entries": [] }
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780931763622,
+      "tag": "0000_steep_pete_wisdom",
+      "breakpoints": true
+    }
+  ]
+}
