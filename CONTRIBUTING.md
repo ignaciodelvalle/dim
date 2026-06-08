@@ -61,14 +61,14 @@ Don't add `Co-Authored-By` trailers. Don't include AI attribution.
 
 ## Pre-PR checklist
 
-Run all four locally before pushing. Don't outsource this to CI:
+Run these locally before pushing. Don't outsource this to CI:
 
 ```bash
-pnpm lint              # Biome — formatting + lint
-pnpm typecheck         # tsc --noEmit
-pnpm test              # Vitest (needs db:start running)
-pnpm build             # next build (catches what tsc misses — module-level evaluation)
+pnpm verify            # one shot: typecheck + lint + lint:tokens + build
+pnpm test              # Vitest (needs db:start running) — run separately
 ```
+
+`pnpm verify` is the static gate (tsc + Biome + design tokens + `next build`). **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test` (needs the local Supabase stack via `pnpm db:start`).
 
 If a step fails on your branch but passes on `develop`, your branch is the source. Fix it before opening the PR.
 

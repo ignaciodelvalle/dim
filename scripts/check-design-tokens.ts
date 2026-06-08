@@ -23,8 +23,16 @@
 
 import { globSync, readFileSync } from "node:fs";
 
+// `exclude` must be a predicate function — Node's fs.globSync rejects an array
+// on some 22.x minors (ERR_INVALID_ARG_TYPE). A function is portable across versions.
+const EXCLUDE_DIRS = ["node_modules", "components/ui"];
 const FILES = globSync("{app,components}/**/*.{ts,tsx}", {
-  exclude: ["**/node_modules/**", "components/ui/**"],
+  exclude: (entry) => {
+    const p = entry.replaceAll("\\", "/");
+    return EXCLUDE_DIRS.some(
+      (dir) => p === dir || p.startsWith(`${dir}/`) || p.includes(`/${dir}/`),
+    );
+  },
 });
 
 const RAW_PALETTE_FAMILIES =
