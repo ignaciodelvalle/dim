@@ -31,6 +31,7 @@ import {
   db,
   govtAssignments,
   notifications,
+  organizationMemberships,
   organizations,
   profiles,
 } from "@/db";
@@ -173,6 +174,85 @@ export async function revokeVetRoleForAuthority(
       if (updatedRows.length < 1) {
         // Lost the race — another concurrent revocation already ran
         throw new Error("RACE_CONDITION: target profile already updated");
+      }
+
+      // D4: Cascade — un-verify any clinic org that was auto-verified via this
+      // vet's matrícula AND where the revoked user is still the sole active admin.
+      //
+      // "Sole active admin" means exactly one active membership with role=admin.
+      // We check this by finding all clinic orgs where:
+      //   (1) the vet is an active admin
+      //   (2) autoVerifiedViaMatricula = true
+      //   (3) there is only one active admin membership total on that org
+      //
+      // This protects multi-admin orgs from cascading incorrectly.
+      const vetAdminMemberships = await tx
+        .select({ organizationId: organizationMemberships.organizationId })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.userId, input.targetUserId),
+            eq(organizationMemberships.role, "admin"),
+            isNull(organizationMemberships.leftAt),
+          ),
+        );
+
+      if (vetAdminMemberships.length > 0) {
+        const orgIds = vetAdminMemberships.map((m) => m.organizationId);
+
+        // Load the candidate orgs that are auto-verified via matrícula
+        const candidateOrgs = await tx
+          .select({ id: organizations.id, createdByUserId: organizations.createdByUserId })
+          .from(organizations)
+          .where(
+            and(
+              inArray(organizations.id, orgIds),
+              eq(organizations.verified, true),
+              eq(organizations.autoVerifiedViaMatricula, true),
+            ),
+          );
+
+        for (const org of candidateOrgs) {
+          // Check that this org has exactly one active admin (the vet being revoked).
+          // If there are co-admins, do NOT cascade — the org has its own governance.
+          const [adminCount] = await tx
+            .select({ count: count() })
+            .from(organizationMemberships)
+            .where(
+              and(
+                eq(organizationMemberships.organizationId, org.id),
+                eq(organizationMemberships.role, "admin"),
+                isNull(organizationMemberships.leftAt),
+              ),
+            );
+
+          if ((adminCount?.count ?? 0) === 1) {
+            await tx
+              .update(organizations)
+              .set({
+                verified: false,
+                verifiedAt: null,
+                verifiedByUserId: null,
+                autoVerifiedViaMatricula: false,
+                updatedAt: new Date(),
+              })
+              .where(eq(organizations.id, org.id));
+
+            // Queue a notification for the org owner (best-effort, same pattern
+            // as revokeOrgVerificationForAuthority).
+            if (org.createdByUserId) {
+              pendingNotifications.push({
+                userId: org.createdByUserId,
+                notificationType: "revocation_executed_org",
+                title: "La verificación de tu consultorio fue revocada",
+                body: "La matrícula del titular fue revocada. Tu consultorio requiere verificación institucional para volver a operar.",
+                severity: "warning",
+                ctaLabel: "Más información",
+                ctaUrl: "/org",
+              });
+            }
+          }
+        }
       }
 
       // b. INSERT audit_log RETURNING id

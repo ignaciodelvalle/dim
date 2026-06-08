@@ -322,7 +322,7 @@ export async function createOrganizationForUser(
 
   // Prerequisite: DNI must be verified before creating an organization.
   const [profile] = await db
-    .select({ dniVerified: profiles.dniVerified })
+    .select({ dniVerified: profiles.dniVerified, matriculaVerified: profiles.matriculaVerified })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
@@ -334,6 +334,11 @@ export async function createOrganizationForUser(
       prereqUrl: "/cuenta/verificar-dni?next=/cuenta/upgrade",
     };
   }
+
+  // D1: a solo vet clinic auto-verifies at creation when the creator's personal
+  // matrícula is already verified. Other org types and non-verified-matrícula
+  // creators follow the standard pending-review flow.
+  const isSoloVetClinic = input.orgType === "clinic" && profile.matriculaVerified === true;
 
   // Idempotency: one org per user (the existing membership-based guard).
   const memberships = await getActiveMemberships(userId);
@@ -394,6 +399,7 @@ export async function createOrganizationForUser(
 
   try {
     const result = await db.transaction(async (tx) => {
+      const now = new Date();
       const [newOrg] = await tx
         .insert(organizations)
         .values({
@@ -406,7 +412,11 @@ export async function createOrganizationForUser(
           phone: input.phone?.trim() || null,
           jurisdictionProvince: province,
           jurisdictionLocality: locality,
-          verified: false,
+          // D1: auto-verify solo vet clinics at creation.
+          verified: isSoloVetClinic,
+          verifiedAt: isSoloVetClinic ? now : null,
+          verifiedByUserId: null, // intentionally null — system decision, not the vet herself
+          autoVerifiedViaMatricula: isSoloVetClinic,
           createdByUserId: userId,
         })
         .returning();
@@ -419,40 +429,62 @@ export async function createOrganizationForUser(
       });
 
       // Canonical contract: the approval request is what authorities act on.
+      // For auto-verified solo-vet clinics, insert as approved (audit trail).
+      // For all other orgs, insert as pending (standard review flow).
       await tx.insert(approvalRequests).values({
         publicToken: approvalPublicToken,
         type: "organization_verification",
-        status: "pending",
+        status: isSoloVetClinic ? "approved" : "pending",
         applicantUserId: userId,
         initiatedBy: "self",
         targetOrganizationId: newOrg.id,
         jurisdictionProvince: province,
         jurisdictionLocality: locality,
         payload,
+        // D1: decidedAt required by CHECK constraint for approved rows.
+        // decidedByUserId is null — system-automated decision.
+        decidedAt: isSoloVetClinic ? now : null,
+        decidedByUserId: null,
+        decisionNotes: isSoloVetClinic
+          ? "Auto-verified via verified matrícula — solo vet clinic creation"
+          : null,
       });
 
-      await tx.insert(notifications).values({
-        userId,
-        notificationType: "approval_request_submitted_self",
-        title: "Organización creada — pendiente de verificación",
-        body: "Tu organización fue creada. Mientras se verifica, los eventos que registres aparecen como no verificados.",
-        severity: "info",
-        ctaLabel: "Ir al panel",
-        ctaUrl: "/org",
-      });
+      if (isSoloVetClinic) {
+        // D1: lighter onboarding copy — the clinic is already operational.
+        await tx.insert(notifications).values({
+          userId,
+          notificationType: "approval_request_submitted_self",
+          title: "Consultorio creado y verificado",
+          body: "Tu consultorio fue creado y verificado gracias a tu matrícula habilitada. Ya podés crear servicios y recibir turnos.",
+          severity: "success",
+          ctaLabel: "Ir al panel",
+          ctaUrl: "/org",
+        });
+      } else {
+        await tx.insert(notifications).values({
+          userId,
+          notificationType: "approval_request_submitted_self",
+          title: "Organización creada — pendiente de verificación",
+          body: "Tu organización fue creada. Mientras se verifica, los eventos que registres aparecen como no verificados.",
+          severity: "info",
+          ctaLabel: "Ir al panel",
+          ctaUrl: "/org",
+        });
 
-      if (authorityIds.length > 0) {
-        await tx.insert(notifications).values(
-          authorityIds.map((authorityId) => ({
-            userId: authorityId,
-            notificationType: "approval_request_pending_authority",
-            title: `Nueva organización a verificar en ${locality}`,
-            body: `${newOrg.displayName} (${input.orgType}) solicitó verificación.`,
-            severity: "info" as const,
-            ctaLabel: "Revisar",
-            ctaUrl: `/admin/cola/${approvalPublicToken}`,
-          })),
-        );
+        if (authorityIds.length > 0) {
+          await tx.insert(notifications).values(
+            authorityIds.map((authorityId) => ({
+              userId: authorityId,
+              notificationType: "approval_request_pending_authority",
+              title: `Nueva organización a verificar en ${locality}`,
+              body: `${newOrg.displayName} (${input.orgType}) solicitó verificación.`,
+              severity: "info" as const,
+              ctaLabel: "Revisar",
+              ctaUrl: `/admin/cola/${approvalPublicToken}`,
+            })),
+          );
+        }
       }
 
       return { organizationId: newOrg.id };
