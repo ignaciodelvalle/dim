@@ -747,6 +747,11 @@ export const organizations = pgTable(
     // T-4.3: whether this org is shown as origin shelter on public credentials of pets it holds/adopted out.
     // Distinct from tier0ShowBranding (event authorship on timeline). Gated by org.verified.
     tier0ShowOriginOrg: boolean("tier_0_show_origin_org").notNull().default(false),
+    // Set to true when a clinic org was auto-verified at creation because its sole admin
+    // held a verified personal matrícula (solo-vet-consultorio bridge, D1).
+    // Used by the matrícula-revocation cascade (D4) to un-verify ONLY matrícula-derived
+    // verifications, never institutionally-reviewed ones.
+    autoVerifiedViaMatricula: boolean("auto_verified_via_matricula").notNull().default(false),
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
@@ -1632,7 +1637,9 @@ export const approvalRequests = pgTable(
     ),
     approvalDecisionConsistent: check(
       "approval_decision_consistent",
-      sql`(${table.status} in ('approved', 'rejected') and ${table.decidedAt} is not null and ${table.decidedByUserId} is not null) or (${table.status} in ('pending', 'withdrawn') and ${table.decidedAt} is null and ${table.decidedByUserId} is null)`,
+      // decidedByUserId is nullable for system-automated decisions (e.g. auto-verify via matrícula).
+      // decidedAt IS NOT NULL is still required to prove a decision was made.
+      sql`(${table.status} in ('approved', 'rejected') and ${table.decidedAt} is not null) or (${table.status} in ('pending', 'withdrawn') and ${table.decidedAt} is null and ${table.decidedByUserId} is null)`,
     ),
     approvalRequestsJurisdictionProvinceCanonical: check(
       "approval_requests_jurisdiction_province_canonical",
