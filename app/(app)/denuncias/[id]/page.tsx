@@ -8,7 +8,7 @@ import {
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 import { and, eq } from "drizzle-orm";
 import dynamic from "next/dynamic";
 import Link from "next/link";

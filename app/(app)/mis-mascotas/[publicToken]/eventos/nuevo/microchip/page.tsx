@@ -1,5 +1,5 @@
-import { createMicrochipAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createMicrochipAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { MicrochipForm } from "./MicrochipForm";
 

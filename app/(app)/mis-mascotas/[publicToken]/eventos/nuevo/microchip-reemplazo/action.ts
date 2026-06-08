@@ -1,9 +1,9 @@
 "use server";
 
-import type { EventFormState } from "@/app/actions/events";
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { parseDateInput } from "@/lib/format";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { redirect } from "next/navigation";
 
 const OWNER_REASONS = new Set([

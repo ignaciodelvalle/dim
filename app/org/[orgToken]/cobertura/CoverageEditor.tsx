@@ -9,14 +9,14 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import type { OrganizationCoverage } from "@/db";
+import type { LocalityOption } from "@/lib/ar-localidades";
+import type { Province } from "@/lib/ar-provincias";
 import {
   addCoverageZoneAction,
   removeCoverageZoneAction,
   setPrimaryCoverageZoneAction,
-} from "@/app/actions/org-coverage";
-import type { OrganizationCoverage } from "@/db";
-import type { LocalityOption } from "@/lib/ar-localidades";
-import type { Province } from "@/lib/ar-provincias";
+} from "@/src/modules/organizations/actions";
 
 const selectClasses =
   "min-h-11 px-3 rounded-lg border border-gob-border bg-gob-surface text-sm text-gob-text " +

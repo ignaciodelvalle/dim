@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 
-import { generateMpfExportAction } from "@/app/actions/welfare-export-mpf";
+import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 
 type Props = {
   welfareReportId: string;

@@ -22,15 +22,15 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import {
-  type UpsertFosterVolunteerInput,
-  upsertFosterVolunteerAction,
-  withdrawFosterVolunteerAction,
-} from "@/app/actions/foster-volunteers";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { Checkbox } from "@/components/poncho";
 import { WizardShell } from "@/components/poncho/Wizard";
 import { provinceByName } from "@/lib/ar-provincias";
+import {
+  upsertFosterVolunteerAction,
+  withdrawFosterVolunteerAction,
+} from "@/src/modules/foster/actions";
+import type { UpsertFosterVolunteerInput } from "@/src/modules/foster/domain/types";
 
 type InitialState = {
   status: "active" | "paused" | "withdrawn";

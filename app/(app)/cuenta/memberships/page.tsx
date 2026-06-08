@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { getActiveMemberships } from "@/lib/capabilities";
+import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // Org type display labels — Argentine Spanish
 const ORG_TYPE_LABELS: Record<string, string> = {

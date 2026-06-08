@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { proposeFosterAction } from "@/app/actions/foster-proposals";
+import { proposeFosterAction } from "@/src/modules/foster/actions";
 
 type Row = {
   userId: string;

@@ -53,9 +53,32 @@ Account type is DB-enforced via CHECK constraint on `profiles.account_type`. Per
 | ORM              | Drizzle                                 |
 | File storage     | Supabase Storage                        |
 | Lint / format    | Biome                                   |
+| Tests            | Vitest (strict TDD; run against local Postgres) |
 | Local dev        | Supabase CLI (Docker)                   |
 | Deploy (when)    | Vercel + Supabase Cloud                 |
 | Locale           | Spanish (es-AR)                         |
+
+## Architecture
+
+The backend follows **Hexagonal-lite + Screaming Architecture**: business logic is sliced **by domain** under `src/modules/<domain>/`, and within each module dependencies point **inward** — a pure, framework-free core wrapped by thin edges that touch Next.js and the database.
+
+```
+actions.ts        thin Next server action — parse input, AUTH (security boundary), redirect
+   │  calls
+application/      use-cases — orchestrate one operation, own the transaction
+   │  depends on
+domain/           pure rules, types, state machines — no @/db, no next (Biome-enforced)
+   ▲  returns
+infrastructure/   repository — the only layer that runs Drizzle queries
+```
+
+- **`domain/`** is pure and unit-tested without a database; **`infrastructure/`** is the only place that issues Drizzle queries.
+- **`actions.ts`** is the security boundary — Drizzle bypasses Postgres RLS by design, so authorization is enforced at the action edge, not in the DB.
+- Multi-step writes thread a single transaction through the repository; notifications are flushed post-transaction (best-effort).
+- Shared kernels (`cases`, `organizations`/`capabilities`) are consumed through thin **re-export shims** in `lib/`, so the migration didn't have to repoint hundreds of callers at once (strangler pattern).
+- This layers on top of — it does not replace — the event-sourcing principles in [`AGENTS.md`](./AGENTS.md): use-cases append immutable events, and projections stay pure functions.
+
+Full guide with diagrams: **[`docs/architecture/hexagonal-lite.md`](./docs/architecture/hexagonal-lite.md)**.
 
 ## Status
 
@@ -92,6 +115,14 @@ New to the project? Read **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the branch
 ## Project layout
 
 ```
+src/
+  modules/                  domain-sliced backend (Hexagonal-lite) — see docs/architecture
+    <domain>/               adoption · pets · foster · transfers · cases ·
+                            welfare · surveillance · organizations · events
+      domain/               pure rules, types, state machines (no @/db, no next)
+      application/          use-cases — orchestration + transactions
+      infrastructure/       repository — the only place that runs Drizzle queries
+      actions.ts            thin "use server" controllers (parse · auth · redirect)
 app/
   (auth)/                   signup, login (route group, public)
   (app)/                    authenticated pages (route group, gated by layout)
@@ -100,33 +131,38 @@ app/
     cuenta/                 upgrade (vet / org creation)
   org/[orgToken]/           org portal — shelter, clinic, rescue network, sanitary authority
   refugios/[orgToken]/      public shelter profile (no auth) — verified shelters only
-  admin/                    admin + govt shared portal — pending /gob split
+  gob/                      government portal (locality-scoped)
+  admin/                    meta-admin portal (universal scope)
   p/[publicToken]/          public credential page (no auth required)
   auth/callback/            Supabase OAuth/email-link return URL
-  actions/                  server actions (auth, pets, scans, notifications)
-components/                 shared UI (PetForm)
+  api/cron/                 scheduled jobs (outbox drain, auto-expire, escalations)
+  actions/                  legacy server actions — now thin re-export shims into src/modules
+components/                 shared presentational UI
 db/
   schema.ts                 Drizzle schema (single source of truth for the DB shape)
   index.ts                  postgres-js client wrapper
+  migrations/               SQL migrations
   triggers.sql              non-Drizzle SQL (handle_new_user, welcome notification)
   storage.sql               Supabase Storage bucket + RLS policies
 lib/
-  breeds.ts                 breed lookups + dangerous-breed detection
-  lookups.ts                food / allergy / microchip / training options
-  format.ts                 i18n date and label helpers
+  projections/              pure event-replay (pet status, weight, microchip) — domain-grade
+  case-helpers.ts, capabilities.ts, …   re-export shims delegating into src/modules
+  breeds.ts, format.ts, location.ts     shared utilities & reference data
   publicToken.ts            DIM-XXXX-XXXX token generator (DIM is the codename, stays)
-  storage.ts                public photo URL helper
   supabase/                 server, browser, and middleware Supabase clients
+__tests__/                  integration tests (Vitest, run against local Postgres)
 middleware.ts               Next.js middleware (refreshes auth cookies on every request)
 docs/
+  architecture/             Hexagonal-lite architecture guide (+ Mermaid diagrams)
   superpowers/              specs and plans for upcoming features
   archive/                  2021 carpeta, CONAIISI paper, BMC (provenance, not spec)
-mimar-go-to-market.md       GTM strategy: Mi Argentina integration path and decision-makers
+docs/archive/mimar-go-to-market.md  GTM strategy: Mi Argentina integration path and decision-makers
 ```
 
 ## Documentation
 
 - [`AGENTS.md`](./AGENTS.md) — full design doc: principles, data model, event catalog, privacy tiers, dashboards, legal framework, portal surfaces, role model. **Read first.**
+- [`docs/architecture/hexagonal-lite.md`](./docs/architecture/hexagonal-lite.md) — backend architecture: the four layers, the dependency rule, module anatomy, a worked example, shims/strangler, and how to add a domain. Diagrams included.
 - [`docs/superpowers/README.md`](./docs/superpowers/README.md) — index of specs and implementation plans, priority order, cross-cutting dependencies
 - Inline code comments — every non-obvious file has a header explaining its job
 

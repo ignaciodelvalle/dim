@@ -1,0 +1,518 @@
+// SurveillanceRepository — thin Drizzle wrapper for surveillance domain writes + reads.
+//
+// Design decisions:
+//   - All write methods accept an optional `executor` param (DbOrTx) to
+//     support both top-level calls and participation in a db.transaction().
+//   - Reuses insertEventIdempotent from lib/event-idempotency for owner-bite path.
+//   - autoExpireBiteCase uses a DIRECT cases UPDATE (closed_reason='auto_expired'),
+//     NOT closeCase('resolved') — this is the load-bearing parity quirk (spec §E).
+//   - ENO queue onConflictDoNothing on pet_event_id — returns null on no-op.
+//   - ENO retry: markEnoFailed increments retryCount; sets status='failed' at >=2.
+//   - Case ops (openCase, closeCase, escalateCase) route through CasesRepository
+//     injected by the caller or use-case layer.
+//   - No auth logic — auth lives at the action / use-case edge.
+//   - Returns Drizzle row shapes ($inferSelect) — callers type them directly.
+
+import "server-only";
+
+import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+
+import {
+  cases,
+  db,
+  enoProcessingQueue,
+  govtAssignments,
+  notifications,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+} from "@/db";
+import type { NewPetEvent, PetEvent } from "@/db/schema";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
+
+// ---------------------------------------------------------------------------
+// Type aliases
+// ---------------------------------------------------------------------------
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbOrTx = typeof db | Tx;
+
+// Lightweight shape returned by findPetByToken (avoids pulling whole row for auth).
+export type SurveillancePet = typeof pets.$inferSelect;
+
+// Shape returned by ENO queue finds.
+export type EnoQueueRow = typeof enoProcessingQueue.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// SurveillanceRepository
+// ---------------------------------------------------------------------------
+
+export class SurveillanceRepository {
+  // ===========================================================================
+  // Pet reads
+  // ===========================================================================
+
+  /**
+   * Find a pet by its publicToken. Returns the full pet row when found, null otherwise.
+   */
+  async findPetByToken(publicToken: string): Promise<SurveillancePet | null> {
+    const [row] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+    return row ?? null;
+  }
+
+  // ===========================================================================
+  // Rabies vaccine reads
+  // ===========================================================================
+
+  /**
+   * Find the most recent vaccination_administered event for the given pet
+   * whose payload.vaccine_name matches the rabies regex (~* '(antirr[áa]bica|rabies)').
+   *
+   * Returns { occurredAt, payload } so the caller can pass it to the pure domain
+   * predicate isRabiesVaccineValid without pulling the full event shape.
+   */
+  async findLatestRabiesVaccineEvent(
+    petId: string,
+    executor: DbOrTx = db,
+  ): Promise<{ id: string; occurredAt: Date; payload: Record<string, unknown> } | null> {
+    const [row] = await executor
+      .select({
+        id: petEvents.id,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
+        ),
+      )
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+
+    if (!row) return null;
+    return {
+      id: row.id,
+      occurredAt: row.occurredAt,
+      payload: row.payload as Record<string, unknown>,
+    };
+  }
+
+  // ===========================================================================
+  // Rabies observation reads
+  // ===========================================================================
+
+  /**
+   * Find the most recent rabies_observation_started event for the pet.
+   * Returns the full event row (needed by use-cases to read observation_until
+   * and bite_event_id from the payload).
+   */
+  async findLatestObservationStarted(
+    petId: string,
+    executor: DbOrTx = db,
+  ): Promise<PetEvent | null> {
+    const [row] = await executor
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "rabies_observation_started")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Check for any symptom_observed event during the observation period whose
+   * payload.alerted_disease_codes @> '"rabies_suspected"'::jsonb.
+   * Returns the first matching event (truthy) or null (none found).
+   */
+  async findEscalatingSymptom(
+    petId: string,
+    since: Date,
+    executor: DbOrTx = db,
+  ): Promise<{ id: string } | null> {
+    const [row] = await executor
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          eq(petEvents.eventType, "symptom_observed"),
+          gte(petEvents.occurredAt, since),
+          sql`(${petEvents.payload}->'alerted_disease_codes') @> '"rabies_suspected"'::jsonb`,
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find the open bite_incident case for the pet. Returns { id } when found,
+   * null when no open case exists (e.g. pre-cases-system rows).
+   */
+  async findOpenBiteCase(petId: string, executor: DbOrTx = db): Promise<{ id: string } | null> {
+    const [row] = await executor
+      .select({ id: cases.id })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.primaryPetId, petId),
+          eq(cases.caseKind, "bite_incident"),
+          eq(cases.status, "open"),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find all pets currently in rabies observation (status='in_progress').
+   * Used by the cron closer to iterate eligible candidates.
+   */
+  async findPetsInProgress(): Promise<SurveillancePet[]> {
+    return db.select().from(pets).where(eq(pets.rabiesObservationStatus, "in_progress"));
+  }
+
+  /**
+   * Find the active owner of a pet (endedAt IS NULL, role='owner').
+   * Returns { ownerUserId } when found, null otherwise.
+   */
+  async findActiveOwnership(
+    petId: string,
+    executor: DbOrTx = db,
+  ): Promise<{ ownerUserId: string } | null> {
+    const [row] = await executor
+      .select({ ownerUserId: ownerships.ownerUserId })
+      .from(ownerships)
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+    if (!row || !row.ownerUserId) return null;
+    return { ownerUserId: row.ownerUserId };
+  }
+
+  // ===========================================================================
+  // Rabies event writes
+  // ===========================================================================
+
+  /**
+   * Insert an incident_reported event using idempotency key deduplication
+   * (owner-bite path only — org-bite uses insertIncidentEvent plain insert).
+   */
+  async insertIncidentEventIdempotent(
+    values: NewPetEvent,
+    executor: DbOrTx = db,
+  ): Promise<{ event: PetEvent; wasNoop: boolean }> {
+    return insertEventIdempotent(values, executor as Parameters<typeof insertEventIdempotent>[1]);
+  }
+
+  /**
+   * Insert an incident_reported event without idempotency (org-bite path).
+   * Returns the inserted row. This is the asymmetric parity path — preserve it.
+   */
+  async insertIncidentEvent(values: NewPetEvent, executor: DbOrTx = db): Promise<PetEvent> {
+    const [row] = await executor.insert(petEvents).values(values).returning();
+    if (!row)
+      throw new Error("SurveillanceRepository.insertIncidentEvent: insert returned no rows");
+    return row;
+  }
+
+  /**
+   * Insert a rabies_observation_started event.
+   */
+  async insertObservationStarted(values: NewPetEvent, executor: DbOrTx = db): Promise<PetEvent> {
+    const [row] = await executor.insert(petEvents).values(values).returning();
+    if (!row) throw new Error("SurveillanceRepository.insertObservationStarted: no rows returned");
+    return row;
+  }
+
+  /**
+   * Insert a rabies_observation_ended event.
+   */
+  async insertObservationEnded(values: NewPetEvent, executor: DbOrTx = db): Promise<void> {
+    await executor.insert(petEvents).values(values);
+  }
+
+  /**
+   * Update the pets.rabiesObservationStatus column.
+   */
+  async setObservationStatus(
+    petId: string,
+    status: string,
+    now: Date,
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(pets)
+      .set({ rabiesObservationStatus: status, updatedAt: now })
+      .where(eq(pets.id, petId));
+  }
+
+  /**
+   * Auto-expire close: direct UPDATE on cases with closedReason='auto_expired'.
+   * Guard: WHERE status='open' (idempotent — already-closed rows are skipped).
+   *
+   * IMPORTANT: This must NOT route through closeCase('resolved') — the
+   * closed_reason='auto_expired' is load-bearing parity (spec §E parity quirk).
+   */
+  async autoExpireBiteCase(caseId: string, now: Date, executor: DbOrTx = db): Promise<void> {
+    await executor
+      .update(cases)
+      .set({
+        status: "closed",
+        closedReason: "auto_expired",
+        closedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(cases.id, caseId), eq(cases.status, "open")));
+  }
+
+  // ===========================================================================
+  // Notification writes (best-effort callers must catch)
+  // ===========================================================================
+
+  /**
+   * Insert notification rows. Uses the top-level db (not a tx) because
+   * notifications are best-effort post-tx.
+   */
+  async insertNotifications(rows: (typeof notifications.$inferInsert)[]): Promise<void> {
+    if (rows.length === 0) return;
+    await db.insert(notifications).values(rows);
+  }
+
+  // ===========================================================================
+  // Govt assignment reads (for fan-out targeting)
+  // ===========================================================================
+
+  /**
+   * Return the userId of every active (non-revoked) govt assignment for the
+   * given province+locality pair.
+   */
+  async findGovtTargetsForJurisdiction(
+    province: string,
+    locality: string,
+  ): Promise<{ userId: string }[]> {
+    return db
+      .select({ userId: govtAssignments.userId })
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.jurisdictionProvince, province),
+          eq(govtAssignments.jurisdictionLocality, locality),
+          isNull(govtAssignments.revokedAt),
+        ),
+      );
+  }
+
+  /**
+   * Return all active (non-revoked) govt jurisdiction rows for a given user.
+   * Used by professional-close and outbreak use-cases for scope checking.
+   */
+  async findGovtScopeForUser(
+    userId: string,
+  ): Promise<Array<{ province: string; locality: string }>> {
+    const rows = await db
+      .select({
+        province: govtAssignments.jurisdictionProvince,
+        locality: govtAssignments.jurisdictionLocality,
+      })
+      .from(govtAssignments)
+      .where(and(eq(govtAssignments.userId, userId), isNull(govtAssignments.revokedAt)));
+    return rows;
+  }
+
+  // ===========================================================================
+  // ENO queue reads + writes (WU-2 §2.2)
+  // ===========================================================================
+
+  /**
+   * Enqueue a pet event for ENO processing.
+   * Returns the inserted row, or null if a row with this pet_event_id already
+   * exists (onConflictDoNothing idempotency — unique index on pet_event_id).
+   */
+  async insertEnoQueueRow(petEventId: string): Promise<EnoQueueRow | null> {
+    const rows = await db
+      .insert(enoProcessingQueue)
+      .values({ petEventId })
+      .onConflictDoNothing({
+        target: enoProcessingQueue.petEventId,
+      })
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Pick the oldest BATCH_SIZE pending rows for processing.
+   */
+  async pickPendingBatch(batchSize: number): Promise<EnoQueueRow[]> {
+    return db
+      .select()
+      .from(enoProcessingQueue)
+      .where(eq(enoProcessingQueue.status, "pending"))
+      .orderBy(asc(enoProcessingQueue.queuedAt))
+      .limit(batchSize);
+  }
+
+  /**
+   * Mark a queue row as processed (status='processed', processedAt=now).
+   */
+  async markEnoProcessed(queueRowId: string): Promise<void> {
+    await db
+      .update(enoProcessingQueue)
+      .set({ status: "processed", processedAt: new Date() })
+      .where(eq(enoProcessingQueue.id, queueRowId));
+  }
+
+  /**
+   * Mark a queue row as failed or increment retryCount.
+   * If retryCount reaches 2, status becomes 'failed'. Otherwise stays 'pending'.
+   * Retry ≤ 2 semantics match the spec (retry count: 0, 1 → retry; 2 → failed).
+   */
+  async markEnoFailed(queueRowId: string, error: string): Promise<void> {
+    // Read current retryCount to decide next status.
+    const [row] = await db
+      .select({ retryCount: enoProcessingQueue.retryCount })
+      .from(enoProcessingQueue)
+      .where(eq(enoProcessingQueue.id, queueRowId));
+
+    if (!row) return;
+    const nextRetry = (row.retryCount ?? 0) + 1;
+    const nextStatus = nextRetry >= 2 ? "failed" : "pending";
+
+    await db
+      .update(enoProcessingQueue)
+      .set({
+        status: nextStatus,
+        retryCount: nextRetry,
+        lastError: error,
+      })
+      .where(eq(enoProcessingQueue.id, queueRowId));
+  }
+
+  /**
+   * Find the pet_event row for a given queue entry.
+   * Returns null when the pet event no longer exists.
+   */
+  async findEnoEventRow(petEventId: string): Promise<PetEvent | null> {
+    const [row] = await db.select().from(petEvents).where(eq(petEvents.id, petEventId)).limit(1);
+    return row ?? null;
+  }
+
+  // ===========================================================================
+  // Outbreak investigation reads + writes (WU-2 §2.3)
+  // ===========================================================================
+
+  /**
+   * Find open or escalated outbreak_investigation cases for a disease in a
+   * jurisdiction. Used for dedupe check before opening a new investigation.
+   *
+   * openedReason prefix: 'manual [code]:' (spec H).
+   */
+  async findOpenInvestigationsForDisease(
+    diseaseCode: string,
+    province: string | null,
+    locality: string | null,
+  ): Promise<{ id: string; publicCode: string; openedReason: string | null }[]> {
+    const conditions = [
+      eq(cases.caseKind, "outbreak_investigation"),
+      sql`${cases.status} IN ('open', 'escalated')`,
+      sql`${cases.openedReason} LIKE ${`manual [${diseaseCode}]:%`}`,
+    ];
+
+    if (province !== null) {
+      conditions.push(eq(cases.jurisdictionProvince, province));
+    } else {
+      conditions.push(isNull(cases.jurisdictionProvince));
+    }
+
+    if (locality !== null) {
+      conditions.push(eq(cases.jurisdictionLocality, locality));
+    }
+
+    return db
+      .select({ id: cases.id, publicCode: cases.publicCode, openedReason: cases.openedReason })
+      .from(cases)
+      .where(and(...conditions));
+  }
+
+  /**
+   * Find a case by its public code. Used by outbreak action to load the
+   * full investigation before applying scope checks.
+   */
+  async findInvestigationByCode(publicCode: string): Promise<typeof cases.$inferSelect | null> {
+    const [row] = await db.select().from(cases).where(eq(cases.publicCode, publicCode)).limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Find the most recent case_event of type 'final_report' for a case.
+   */
+  async findFinalReport(caseId: string): Promise<{ id: string } | null> {
+    // Import caseEvents inline to avoid a circular dep risk at module load time
+    const { caseEvents } = await import("@/db/schema");
+    const [row] = await db
+      .select({ id: caseEvents.id })
+      .from(caseEvents)
+      .where(and(eq(caseEvents.caseId, caseId), eq(caseEvents.entryType, "final_report")))
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Insert a case_event row (for outbreak investigation timeline entries:
+   * case_opened, case_escalated, case_closed, final_report, signal_link).
+   */
+  async insertCaseEvent(
+    values: {
+      caseId: string;
+      entryType: string;
+      payload: Record<string, unknown>;
+      notes?: string | null;
+      recordedByUserId?: string | null;
+      occurredAt?: Date;
+    },
+    executor: DbOrTx = db,
+  ): Promise<{ id: string }> {
+    const { caseEvents } = await import("@/db/schema");
+    const [row] = await executor
+      .insert(caseEvents)
+      .values({
+        caseId: values.caseId,
+        entryType: values.entryType,
+        payload: values.payload,
+        notes: values.notes ?? null,
+        recordedByUserId: values.recordedByUserId ?? null,
+        occurredAt: values.occurredAt ?? new Date(),
+      })
+      .returning({ id: caseEvents.id });
+    if (!row) throw new Error("SurveillanceRepository.insertCaseEvent: insert returned no rows");
+    return row;
+  }
+
+  /**
+   * Insert an outbreak_investigation audit_log row.
+   * All 4 outbreak actions write their specific audit action inside the tx.
+   */
+  async insertOutbreakAuditLog(
+    values: {
+      actorUserId: string;
+      action: string;
+      payload: Record<string, unknown>;
+    },
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    const { auditLog } = await import("@/db/schema");
+    // The action column is typed as AuditLogAction — cast through unknown since
+    // callers pass validated action strings (outbreak_investigation_*) that are
+    // in the union but TypeScript can't narrow a plain string to it.
+    await executor.insert(auditLog).values({
+      actorUserId: values.actorUserId,
+      action: values.action as (typeof auditLog.$inferInsert)["action"],
+      payload: values.payload,
+    });
+  }
+}

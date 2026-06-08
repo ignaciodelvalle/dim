@@ -16,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json"],
-      include: ["lib/**", "app/**"],
+      include: ["lib/**", "app/**", "src/**"],
       exclude: [
         "components/**",
         "__tests__/**",
@@ -32,10 +32,14 @@ export default defineConfig({
       thresholds: {
         "lib/business-rules-**": { branches: 90 },
         "lib/**-rules/**": { branches: 90 },
-        "lib/case-lifecycles/**": { branches: 90 },
         "lib/**": { branches: 70 },
         "app/actions/**": { branches: 75 },
         "app/api/**": { branches: 60 },
+        // Hexagonal-lite module thresholds (T-1.1). Domain rules are pure
+        // functions and must hold 90% branch coverage. The broader module
+        // layer (application + infrastructure) is held to 70%.
+        "src/modules/**/domain/**": { branches: 90 },
+        "src/modules/**": { branches: 70 },
       },
     },
   },

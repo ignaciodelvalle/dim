@@ -1,8 +1,8 @@
 "use client";
 
-import type { SymptomFormState } from "@/app/actions/events";
 import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { SymptomFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 
 const initialState: SymptomFormState = { error: null };

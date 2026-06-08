@@ -9,14 +9,17 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, ownerships, petEvents, pets } from "@/db";
-import {
-  expireCrossOrgTransfer,
-  findExpiredCrossOrgTransfers,
-} from "@/lib/case-closers/expire-cross-org-transfers";
+import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
+
+const findExpiredCrossOrgTransfers =
+  TransfersRepository.findExpirableCrossOrgCases.bind(TransfersRepository);
+const expireCrossOrgTransfer = (
+  candidate: Parameters<typeof TransfersRepository.expireOneCrossOrgCase>[0],
+) => TransfersRepository.expireOneCrossOrgCase(candidate);
 import { closeCase, openCase } from "@/lib/case-helpers";
-import { V1_CASE_KINDS } from "@/lib/case-kinds";
-import { getLifecycle } from "@/lib/case-lifecycles";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { V1_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
+import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SENDER_TOKEN = "DIM-XO-SND1";

@@ -43,7 +43,6 @@
 // ---------------------------------------------------------------------------
 
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
-import { markMedicationDoseTakenAction } from "@/app/actions/events";
 import { signTimelineAttachmentsForPet } from "@/app/actions/sign-timeline-attachments";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import type { CredentialChip } from "@/components/AchievementsSection";
@@ -97,6 +96,7 @@ import {
 import { requirePetAccess } from "@/lib/pet-access";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
+import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -1054,7 +1054,9 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         <form
           action={async () => {
             "use server";
-            const { ownerCloseRabiesObservationAction } = await import("@/app/actions/bite");
+            const { ownerCloseRabiesObservationAction } = await import(
+              "@/src/modules/surveillance/actions"
+            );
             await ownerCloseRabiesObservationAction(pet.publicToken);
           }}
         >

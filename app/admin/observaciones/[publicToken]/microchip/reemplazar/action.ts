@@ -1,10 +1,10 @@
 "use server";
 
-import type { EventFormState } from "@/app/actions/events";
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { parseDateInput } from "@/lib/format";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 

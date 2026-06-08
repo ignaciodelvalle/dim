@@ -1,5 +1,5 @@
-import { createPetAction } from "@/app/actions/pets";
 import { PetForm } from "@/components/PetForm";
+import { createPetAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 
 export default function NewPetPage() {

@@ -4,8 +4,8 @@
 
 import { useState, useTransition } from "react";
 
-import { inviteMemberAction } from "@/app/actions/org-invitations";
 import { Alert, Button, Checkbox, Field, Input, Select } from "@/components/poncho";
+import { inviteMemberAction } from "@/src/modules/organizations/actions";
 
 type RoleOption = { value: string; label: string };
 

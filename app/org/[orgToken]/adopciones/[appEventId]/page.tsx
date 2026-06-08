@@ -12,7 +12,7 @@ import { notFound } from "next/navigation";
 
 import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ReviewButtons } from "./ReviewButtons";
 

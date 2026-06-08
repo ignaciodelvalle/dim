@@ -15,6 +15,9 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
+      // The wildcard alias intentionally covers src/modules/* — there is no
+      // need for a dedicated @/modules/* path entry. Any import written as
+      // @/modules/adoption/... resolves correctly via this alias.
       "@/*": ["./*"]
     }
   },

@@ -188,9 +188,9 @@ export const organizationCapabilityStatusEnum = pgEnum("organization_capability_
 ]);
 
 // Capability catalog kept as TEXT (not an enum) so adding a new capability is
-// a one-line edit. Validation happens in `lib/capabilities.ts`. Membership
-// role=admin implicitly holds every capability and is NOT required to be
-// granted them explicitly (see lib/capabilities.ts → getGrantedCapabilities).
+// a one-line edit. Validation happens in src/modules/organizations/domain/capabilities.ts.
+// Membership role=admin implicitly holds every capability and is NOT required to be
+// granted them explicitly (see infrastructure/authz-resolver.ts → getGrantedCapabilities).
 export const ORGANIZATION_CAPABILITIES = [
   "pet.read_held",
   "intake.create",

@@ -7,8 +7,8 @@ import {
   closeWelfareReportAction,
   startWelfareReportAction,
   triageWelfareReportAction,
-} from "@/app/actions/welfare-triage";
-import type { WelfareReportStatus } from "@/lib/welfare";
+} from "@/src/modules/welfare/actions";
+import type { WelfareReportStatus } from "@/src/modules/welfare/domain/types";
 
 type Mode = "none" | "triage" | "invalid" | "duplicate" | "start" | "close";
 

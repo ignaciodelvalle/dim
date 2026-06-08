@@ -1,0 +1,423 @@
+// Integration tests for CasesRepository.
+// Layer: Integration (real local Postgres via Drizzle).
+// TDD: RED written first — cases-repository.ts does not exist yet.
+//
+// Parity requirements (from spec):
+//   R1 openCase: insert + public_code CAS-XXXX-XXXX + tx support
+//   R2 closeCase: idempotency (closed/merged no-op), missing → null
+//   R3 escalateCase: idempotent open-only
+//   R4 reopenCase: db-only (no tx), already-open → existing, missing → null
+//   R5 findOpenCasesForPet: cap 50, status IN (open, escalated)
+//   R6 findOpenCaseForPetAndKind: tx-threaded, LIMIT 1
+//   R7 findOpenAdoptionApplicationCase
+//   R8 findOpenAdoptionListingCase
+//   generateUniqueCasePublicCode: CAS-XXXX-XXXX format, uses executor
+
+import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { withMutationOverride } from "@/__tests__/_helpers/db-overrides";
+import { cases, db, pets } from "@/db";
+import { CasesRepository } from "@/src/modules/cases/infrastructure/cases-repository";
+
+const PET_TOKEN_REPO = "DIM-CREPO-PA1";
+const PET_TOKEN_REPO2 = "DIM-CREPO-PA2";
+
+let petId: string;
+let petId2: string;
+const repo = new CasesRepository();
+
+beforeAll(async () => {
+  // Clean up from any prior run
+  await withMutationOverride(async (tx) => {
+    for (const token of [PET_TOKEN_REPO, PET_TOKEN_REPO2]) {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${token}
+      )`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${token}
+      )`);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${token}`);
+    }
+  });
+
+  const [pet1] = await db
+    .insert(pets)
+    .values({
+      publicToken: PET_TOKEN_REPO,
+      name: "CasesRepoTest1",
+      species: "dog",
+      sex: "unknown",
+      potentiallyDangerousBreed: false,
+    })
+    .returning();
+  petId = pet1.id;
+
+  const [pet2] = await db
+    .insert(pets)
+    .values({
+      publicToken: PET_TOKEN_REPO2,
+      name: "CasesRepoTest2",
+      species: "cat",
+      sex: "female",
+      potentiallyDangerousBreed: false,
+    })
+    .returning();
+  petId2 = pet2.id;
+});
+
+afterAll(async () => {
+  await withMutationOverride(async (tx) => {
+    for (const token of [PET_TOKEN_REPO, PET_TOKEN_REPO2]) {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${token}
+      )`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${token}
+      )`);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${token}`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R1: openCase
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.openCase", () => {
+  it("inserts a case row with status=open and CAS-XXXX-XXXX public_code", async () => {
+    const result = await repo.openCase({
+      kind: "lost_pet_episode",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "auto: status_changed to lost",
+    });
+
+    expect(result.status).toBe("open");
+    expect(result.caseKind).toBe("lost_pet_episode");
+    expect(result.primaryPetId).toBe(petId);
+    expect(result.publicCode).toMatch(/^CAS-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    expect(result.jurisdictionCountry).toBe("AR"); // default
+
+    // Cleanup
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${result.id}`);
+    });
+  });
+
+  it("uses the provided executor (tx) for the insert", async () => {
+    let insertedId: string | undefined;
+
+    await db
+      .transaction(async (tx) => {
+        const result = await repo.openCase(
+          {
+            kind: "bite_incident",
+            primarySubjectKind: "registered_pet",
+            primaryPetId: petId,
+            openedReason: "auto: bite incident opened",
+          },
+          tx,
+        );
+        insertedId = result.id;
+        expect(result.caseKind).toBe("bite_incident");
+        // Roll back to leave no side effects
+        await tx.rollback();
+      })
+      .catch(() => {
+        // Expected rollback
+      });
+
+    // After rollback, case should not exist
+    if (insertedId) {
+      const [row] = await db.select().from(cases).where(eq(cases.id, insertedId)).limit(1);
+      expect(row).toBeUndefined();
+    }
+  });
+
+  it("defaults jurisdictionCountry to AR when not provided", async () => {
+    const result = await repo.openCase({
+      kind: "welfare_denuncia",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "Manual welfare report opened by admin",
+    });
+    expect(result.jurisdictionCountry).toBe("AR");
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${result.id}`);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R2: closeCase (idempotency)
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.closeCase", () => {
+  it("closes an open case and returns updated row", async () => {
+    const opened = await repo.openCase({
+      kind: "lost_pet_episode",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "auto: to test closeCase",
+    });
+
+    const closed = await repo.closeCase({
+      caseId: opened.id,
+      reason: "resolved",
+      closedByUserId: null,
+    });
+
+    expect(closed).not.toBeNull();
+    expect(closed?.status).toBe("closed");
+    expect(closed?.closedReason).toBe("resolved");
+    expect(closed?.closedAt).toBeInstanceOf(Date);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns existing row unchanged when case is already closed (idempotency)", async () => {
+    const opened = await repo.openCase({
+      kind: "lost_pet_episode",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "auto: idempotency test",
+    });
+
+    const first = await repo.closeCase({ caseId: opened.id, reason: "cancelled" });
+    const second = await repo.closeCase({ caseId: opened.id, reason: "resolved" });
+
+    expect(second?.status).toBe("closed");
+    // Idempotency: second call returns the already-closed row, unchanged
+    expect(second?.id).toBe(first?.id);
+    expect(second?.closedReason).toBe("cancelled"); // not overwritten to 'resolved'
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns null for missing case id", async () => {
+    const result = await repo.closeCase({
+      caseId: "00000000-0000-0000-0000-000000000000",
+      reason: "resolved",
+    });
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R3: escalateCase (idempotent, open-only)
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.escalateCase", () => {
+  it("escalates an open case", async () => {
+    const opened = await repo.openCase({
+      kind: "welfare_denuncia",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "Manual welfare report for escalation test",
+    });
+
+    const escalated = await repo.escalateCase(opened.id);
+    expect(escalated?.status).toBe("escalated");
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns existing row unchanged when already escalated (idempotency)", async () => {
+    const opened = await repo.openCase({
+      kind: "welfare_denuncia",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "Manual welfare for double-escalate test",
+    });
+
+    const first = await repo.escalateCase(opened.id);
+    const second = await repo.escalateCase(opened.id);
+    expect(second?.status).toBe("escalated");
+    expect(second?.id).toBe(first?.id);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns null for missing case id", async () => {
+    const result = await repo.escalateCase("00000000-0000-0000-0000-000000000000");
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R4: reopenCase (db-only, no tx param)
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.reopenCase", () => {
+  it("reopens a closed case", async () => {
+    const opened = await repo.openCase({
+      kind: "adoption_listing",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "auto: eligibility set to reopen test",
+    });
+    await repo.closeCase({ caseId: opened.id, reason: "resolved" });
+    const reopened = await repo.reopenCase(opened.id);
+
+    expect(reopened?.status).toBe("open");
+    expect(reopened?.closedReason).toBeNull();
+    expect(reopened?.closedAt).toBeNull();
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns existing row when already open", async () => {
+    const opened = await repo.openCase({
+      kind: "adoption_listing",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "auto: already open reopen test",
+    });
+    const result = await repo.reopenCase(opened.id);
+    expect(result?.status).toBe("open");
+    expect(result?.id).toBe(opened.id);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns null for missing case id", async () => {
+    const result = await repo.reopenCase("00000000-0000-0000-0000-000000000000");
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R5: findOpenCasesForPet
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.findOpenCasesForPet", () => {
+  it("returns open and escalated cases for a pet, capped at 50", async () => {
+    const opened = await repo.openCase({
+      kind: "lost_pet_episode",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId2,
+      openedReason: "auto: for findOpenCases test",
+    });
+
+    const results = await repo.findOpenCasesForPet(petId2);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.some((r) => r.id === opened.id)).toBe(true);
+    expect(results.every((r) => r.caseKind !== undefined)).toBe(true);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("does not return closed cases", async () => {
+    const opened = await repo.openCase({
+      kind: "bite_incident",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId2,
+      openedReason: "auto: bite for find-closed test",
+    });
+    await repo.closeCase({ caseId: opened.id, reason: "resolved" });
+
+    const results = await repo.findOpenCasesForPet(petId2);
+    expect(results.some((r) => r.id === opened.id)).toBe(false);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R6: findOpenCaseForPetAndKind
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.findOpenCaseForPetAndKind", () => {
+  it("returns the open case for (pet, kind)", async () => {
+    const opened = await repo.openCase({
+      kind: "welfare_denuncia",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId2,
+      openedReason: "Manual welfare for findOpenCaseForPetAndKind test",
+    });
+
+    const found = await repo.findOpenCaseForPetAndKind(petId2, "welfare_denuncia");
+    expect(found).not.toBeNull();
+    expect(found?.id).toBe(opened.id);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
+
+  it("returns null when no open case exists for (pet, kind)", async () => {
+    const found = await repo.findOpenCaseForPetAndKind(petId2, "custody_dispute");
+    expect(found).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R7: findOpenAdoptionApplicationCase
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.findOpenAdoptionApplicationCase", () => {
+  it("returns null when no matching adoption_application case exists", async () => {
+    const found = await repo.findOpenAdoptionApplicationCase(
+      petId,
+      "00000000-0000-0000-0000-000000000001",
+    );
+    expect(found).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R8: findOpenAdoptionListingCase
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.findOpenAdoptionListingCase", () => {
+  it("returns null when no matching adoption_listing case exists", async () => {
+    const found = await repo.findOpenAdoptionListingCase(
+      petId,
+      "00000000-0000-0000-0000-000000000002",
+    );
+    expect(found).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateUniqueCasePublicCode
+// ---------------------------------------------------------------------------
+
+describe("CasesRepository.generateUniqueCasePublicCode", () => {
+  it("returns a code matching CAS-XXXX-XXXX format", async () => {
+    const code = await repo.generateUniqueCasePublicCode();
+    expect(code).toMatch(/^CAS-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  });
+
+  it("returns a different code on subsequent calls (not hardcoded)", async () => {
+    const codes = await Promise.all([
+      repo.generateUniqueCasePublicCode(),
+      repo.generateUniqueCasePublicCode(),
+      repo.generateUniqueCasePublicCode(),
+    ]);
+    // All valid format
+    for (const code of codes) {
+      expect(code).toMatch(/^CAS-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    }
+    // At least 2 distinct values (astronomically unlikely to collide all 3)
+    const unique = new Set(codes);
+    expect(unique.size).toBeGreaterThanOrEqual(2);
+  });
+});

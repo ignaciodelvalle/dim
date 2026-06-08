@@ -30,24 +30,30 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+// adoption.ts and adoption-applications.ts were migrated to the hexagonal module
+// (src/modules/adoption/actions.ts) in WU-4 of hexagonal-lite-foundation.
+// pets.ts was migrated to src/modules/pets/actions.ts in WU-4 of hexagonal-lite-pets.
+// foster.ts and foster-proposals.ts were migrated to src/modules/foster/actions.ts
+// in WU-4 of hexagonal-lite-foster. The post-tx flush pattern is maintained there via
+// the flushNotifications() helper (same contract, different surface).
+// transfer.ts (org-to-org handoff), pet-transfer.ts, and cross-org-transfer.ts were
+// migrated to src/modules/transfers/actions.ts in WU-4 of hexagonal-lite-transfers.
+// All migrated files use the flushNotifications() helper pattern (same semantics).
+// welfare.ts and welfare-triage.ts were migrated to src/modules/welfare/actions.ts
+// in WU-4 of hexagonal-lite-welfare. The flushNotifications() helper pattern is
+// maintained there (same contract, different surface).
+// bite.ts was migrated to src/modules/surveillance/actions.ts in WU-5 of
+// hexagonal-lite-surveillance. The flushNotifications() helper pattern is maintained
+// there (same contract, different surface). app/actions/bite.ts was deleted.
 const REFACTORED_FILES = [
-  "adoption.ts",
-  "adoption-applications.ts",
   "admin-decisions.ts",
   "admin-institutional.ts",
   "admin-proposals.ts",
   "admin-revocations.ts",
-  "bite.ts",
   "chip-match.ts",
-  "foster.ts",
-  "foster-proposals.ts",
   "intake.ts",
-  "pets.ts",
   "profile-self-service.ts",
   "return-to-owner.ts",
-  "transfer.ts",
-  "welfare.ts",
-  "welfare-triage.ts",
 ] as const;
 
 describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {

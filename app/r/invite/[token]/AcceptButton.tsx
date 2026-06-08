@@ -5,8 +5,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { acceptInvitationAction } from "@/app/actions/org-invitations";
 import { Button } from "@/components/poncho";
+import { acceptInvitationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
   invitationToken: string;

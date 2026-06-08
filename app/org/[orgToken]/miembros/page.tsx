@@ -10,7 +10,7 @@ import { Badge, EmptyState } from "@/components/poncho";
 import { db, organizationInvitations, organizationMemberships, profiles } from "@/db";
 import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ChangeRoleSelect } from "./ChangeRoleSelect";
 import { CopyLinkButton } from "./CopyLinkButton";

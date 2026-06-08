@@ -1,9 +1,9 @@
 "use client";
 
-import type { EventFormState } from "@/app/actions/events";
 import { Field, Input, Textarea } from "@/components/poncho";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { useMemo, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 

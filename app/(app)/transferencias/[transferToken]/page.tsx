@@ -5,8 +5,8 @@
 
 import Link from "next/link";
 
-import { getTransferForViewer } from "@/app/actions/pet-transfer";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { getTransferForViewerAction as getTransferForViewer } from "@/src/modules/transfers/actions";
 import { AcceptTransferActions } from "./AcceptTransferActions";
 
 const STATUS_LABELS: Record<string, string> = {

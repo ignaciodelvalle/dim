@@ -1,0 +1,579 @@
+// Integration tests for FosterRepository.
+// Written FIRST (RED phase, tasks 2.1-2.4) before creating foster-repository.ts.
+//
+// These tests run against a local Postgres instance. They follow the same
+// fixture pattern used by adoption-repository.test.ts.
+//
+// Known pre-existing flaky tests (NOT in this file):
+//   outbreak-investigation, import-indec-localities, caba-barrios,
+//   ar-localidades, admin-decisions/admin-revocations/role-upgrade
+
+import { and, eq, isNull } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import {
+  db,
+  fosterProposals,
+  fosterVolunteers,
+  organizations,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+} from "@/db";
+import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
+
+// Module under test — will be created in GREEN phase.
+import { FosterRepository } from "../foster-repository";
+
+// ---------------------------------------------------------------------------
+// Fixture constants
+// ---------------------------------------------------------------------------
+
+const ORG_TOKEN = "DIM-FOSTERREP-TEST";
+const PET_TOKEN = "DIM-FOSTERREP-P1";
+
+let orgId: string;
+let petId: string;
+let custodyOwnershipId: string;
+let volunteerUserId: string;
+let volunteerId: string;
+let proposerUserId: string;
+
+// ---------------------------------------------------------------------------
+// Setup / teardown
+// ---------------------------------------------------------------------------
+
+beforeAll(async () => {
+  // Insert a test-owned proposer profile so FK columns don't depend on any seeded user.
+  proposerUserId = crypto.randomUUID();
+  await db.insert(profiles).values({
+    id: proposerUserId,
+    displayName: "FosterRepo Proposer",
+    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniVerified: false,
+    role: "owner",
+  });
+
+  // Clean slate for crashed previous runs.
+  await withMutationOverride(async (tx) => {
+    const stalePets = await tx
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, PET_TOKEN));
+    for (const { id } of stalePets) await tx.delete(pets).where(eq(pets.id, id));
+    const staleOrgs = await tx
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.publicToken, ORG_TOKEN));
+    for (const { id } of staleOrgs) await tx.delete(organizations).where(eq(organizations.id, id));
+  });
+
+  // Insert org.
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      publicToken: ORG_TOKEN,
+      legalName: "Foster Repo Test SRL",
+      displayName: "Foster Repo Org",
+      orgType: "shelter",
+      email: "fosterrep@dim-test.local",
+      verified: true,
+    })
+    .returning();
+  orgId = org.id;
+
+  // Insert volunteer profile.
+  volunteerUserId = crypto.randomUUID();
+  await db.insert(profiles).values({
+    id: volunteerUserId,
+    displayName: "Test Volunteer",
+    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniVerified: true,
+    role: "owner",
+    phone: "1112345678",
+  });
+
+  // Insert volunteer row.
+  const [vol] = await db
+    .insert(fosterVolunteers)
+    .values({
+      userId: volunteerUserId,
+      status: "active",
+      availableSlots: 2,
+      acceptsDogs: true,
+      acceptsCats: true,
+      acceptsOtherSpecies: false,
+      acceptsSizeSmall: true,
+      acceptsSizeMedium: true,
+      acceptsSizeLarge: false,
+      acceptsPuppies: false,
+      acceptsSeniors: true,
+      acceptsChronicConditions: false,
+      acceptsDangerousBreeds: false,
+    })
+    .returning();
+  volunteerId = vol.id;
+
+  // Insert pet.
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: PET_TOKEN,
+      name: "FosterRepoTestPet",
+      species: "dog",
+      sex: "male",
+      potentiallyDangerousBreed: false,
+      status: "active",
+    })
+    .returning();
+  petId = pet.id;
+
+  // Insert shelter_custody ownership.
+  const [custody] = await db
+    .insert(ownerships)
+    .values({
+      petId,
+      ownerOrganizationId: orgId,
+      role: "shelter_custody",
+    })
+    .returning();
+  custodyOwnershipId = custody.id;
+});
+
+afterAll(async () => {
+  await withMutationOverride(async (tx) => {
+    if (petId) await tx.delete(pets).where(eq(pets.id, petId));
+    if (orgId) await tx.delete(organizations).where(eq(organizations.id, orgId));
+    if (volunteerUserId) await tx.delete(profiles).where(eq(profiles.id, volunteerUserId));
+    if (proposerUserId) await tx.delete(profiles).where(eq(profiles.id, proposerUserId));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findShelterPetByToken
+// ---------------------------------------------------------------------------
+
+describe("FosterRepository.findShelterPetByToken", () => {
+  it("returns the pet when it exists in the org's shelter_custody", async () => {
+    const result = await FosterRepository.findShelterPetByToken(PET_TOKEN, orgId);
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe(petId);
+  });
+
+  it("returns null when the pet exists but not under this org's custody", async () => {
+    const result = await FosterRepository.findShelterPetByToken(
+      PET_TOKEN,
+      "00000000-0000-0000-0000-000000000000",
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null for an unknown token", async () => {
+    const result = await FosterRepository.findShelterPetByToken("NO-SUCH-TOKEN", orgId);
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findActiveMembership
+// ---------------------------------------------------------------------------
+
+describe("FosterRepository.findActiveMembership", () => {
+  it("returns null when no membership exists", async () => {
+    const result = await FosterRepository.findActiveMembership(
+      "00000000-0000-0000-0000-000000000001",
+      orgId,
+    );
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findActiveFosterRows
+// ---------------------------------------------------------------------------
+
+describe("FosterRepository.findActiveFosterRows", () => {
+  it("returns empty array when no active foster row exists", async () => {
+    const result = await FosterRepository.findActiveFosterRows(petId);
+    expect(result).toEqual([]);
+  });
+
+  it("returns foster rows when they exist", async () => {
+    const [fosterOwnership] = await db
+      .insert(ownerships)
+      .values({ petId, ownerUserId: volunteerUserId, role: "foster" })
+      .returning();
+
+    const result = await FosterRepository.findActiveFosterRows(petId);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].id).toBe(fosterOwnership.id);
+
+    // Cleanup.
+    await db.delete(ownerships).where(eq(ownerships.id, fosterOwnership.id));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// insertFosterOwnership + endFosterOwnership (atomicity / rollback)
+// ---------------------------------------------------------------------------
+
+describe("FosterRepository.insertFosterOwnership — atomicity", () => {
+  it("rolls back insertFosterOwnership when the tx is aborted", async () => {
+    const countBefore = (
+      await db
+        .select()
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, petId),
+            eq(ownerships.role, "foster"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+    ).length;
+
+    await expect(
+      db.transaction(async (tx) => {
+        await FosterRepository.insertFosterOwnership(
+          {
+            petId,
+            ownerUserId: volunteerUserId,
+            allowCoFoster: false,
+          },
+          tx,
+        );
+        throw new Error("intentional rollback");
+      }),
+    ).rejects.toThrow("intentional rollback");
+
+    const countAfter = (
+      await db
+        .select()
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, petId),
+            eq(ownerships.role, "foster"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+    ).length;
+
+    expect(countAfter).toBe(countBefore);
+  });
+
+  it("persists the foster row when tx commits", async () => {
+    let fosterOwnershipId: string | undefined;
+
+    await db.transaction(async (tx) => {
+      const { id } = await FosterRepository.insertFosterOwnership(
+        { petId, ownerUserId: volunteerUserId, allowCoFoster: false },
+        tx,
+      );
+      fosterOwnershipId = id;
+    });
+
+    const rows = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(eq(ownerships.id, fosterOwnershipId!));
+    expect(rows).toHaveLength(1);
+
+    // Cleanup.
+    await db.delete(ownerships).where(eq(ownerships.id, fosterOwnershipId!));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2.2: accept inserts ownership BEFORE single proposal update (CHECK constraint)
+// ---------------------------------------------------------------------------
+
+describe("Task 2.2 — CHECK foster_proposals_response_consistent: accept ordering", () => {
+  it("inserting ownership before updating proposal satisfies the CHECK constraint", async () => {
+    // Create a pending proposal row.
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const [proposal] = await db
+      .insert(fosterProposals)
+      .values({
+        publicToken: `FP-REPTEST-${Date.now()}`,
+        organizationId: orgId,
+        volunteerUserId,
+        petId,
+        proposedByUserId: proposerUserId,
+        proposedAt: now,
+        expiresAt,
+        status: "pending",
+        matchWarnings: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    try {
+      await db.transaction(async (tx) => {
+        // Step 1: insert foster ownership.
+        const { id: fosterOwnershipId } = await FosterRepository.insertFosterOwnership(
+          { petId, ownerUserId: volunteerUserId, allowCoFoster: false },
+          tx,
+        );
+
+        // Step 2: single proposal UPDATE with resolvedOwnershipId + respondedAt.
+        // This must NOT be split across two statements (CHECK constraint requires both
+        // respondedAt IS NOT NULL AND resolvedOwnershipId IS NOT NULL when status='accepted').
+        await tx
+          .update(fosterProposals)
+          .set({
+            status: "accepted",
+            respondedAt: now,
+            resolvedOwnershipId: fosterOwnershipId,
+            updatedAt: now,
+          })
+          .where(eq(fosterProposals.id, proposal.id));
+        // If the CHECK fires, the tx throws and this test fails with a constraint violation.
+      });
+
+      // Verify the proposal is now accepted.
+      const [updated] = await db
+        .select({ status: fosterProposals.status })
+        .from(fosterProposals)
+        .where(eq(fosterProposals.id, proposal.id));
+      expect(updated.status).toBe("accepted");
+    } finally {
+      // Cleanup: remove foster ownership + proposal.
+      await db.delete(fosterProposals).where(eq(fosterProposals.id, proposal.id));
+      await db
+        .delete(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, petId),
+            eq(ownerships.ownerUserId, volunteerUserId),
+            eq(ownerships.role, "foster"),
+          ),
+        );
+    }
+  });
+
+  it("updating proposal to accepted WITHOUT resolvedOwnershipId violates the CHECK constraint", async () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const [proposal] = await db
+      .insert(fosterProposals)
+      .values({
+        publicToken: `FP-REPTEST2-${Date.now()}`,
+        organizationId: orgId,
+        volunteerUserId,
+        petId,
+        proposedByUserId: proposerUserId,
+        proposedAt: now,
+        expiresAt,
+        status: "pending",
+        matchWarnings: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    try {
+      await expect(
+        db.transaction(async (tx) => {
+          // Attempt accepted WITHOUT resolvedOwnershipId → CHECK must fail.
+          await tx
+            .update(fosterProposals)
+            .set({ status: "accepted", respondedAt: now, updatedAt: now })
+            .where(eq(fosterProposals.id, proposal.id));
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await db.delete(fosterProposals).where(eq(fosterProposals.id, proposal.id));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2.3: withdrawVolunteer cascade — emits events WITHOUT caseId
+// ---------------------------------------------------------------------------
+
+describe("Task 2.3 — withdrawVolunteer cascade: events emitted WITHOUT caseId (parity quirk)", () => {
+  it("cancel-cascade during withdraw emits foster_proposal_resolved WITHOUT caseId", async () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Create a pending proposal for the volunteer.
+    const [proposal] = await db
+      .insert(fosterProposals)
+      .values({
+        publicToken: `FP-WITHDRAW-${Date.now()}`,
+        organizationId: orgId,
+        volunteerUserId,
+        petId,
+        proposedByUserId: proposerUserId,
+        proposedAt: now,
+        expiresAt,
+        status: "pending",
+        matchWarnings: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    try {
+      await db.transaction(async (tx) => {
+        await FosterRepository.withdrawVolunteer({ userId: volunteerUserId, now }, tx);
+      });
+
+      // Verify the proposal was cancelled.
+      const [updated] = await db
+        .select({
+          status: fosterProposals.status,
+          cancellationReason: fosterProposals.cancellationReason,
+        })
+        .from(fosterProposals)
+        .where(eq(fosterProposals.id, proposal.id));
+      expect(updated.status).toBe("cancelled");
+      expect(updated.cancellationReason).toBe("volunteer_withdrew");
+
+      // PARITY QUIRK: the emitted event must NOT have a caseId.
+      const events = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "foster_proposal_resolved")))
+        .orderBy(petEvents.occurredAt);
+
+      // Find the event for this proposal.
+      const withdrawEvent = events.find((e) => e.caseId === null);
+      expect(withdrawEvent).toBeDefined();
+      expect(withdrawEvent?.caseId).toBeNull();
+    } finally {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(fosterProposals).where(eq(fosterProposals.id, proposal.id));
+        // Reset volunteer status.
+        await tx
+          .update(fosterVolunteers)
+          .set({ status: "active", availableSlots: 2, updatedAt: now })
+          .where(eq(fosterVolunteers.id, volunteerId));
+      });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 2.4: expirer per-row tx + status recheck
+// ---------------------------------------------------------------------------
+
+describe("Task 2.4 — expirePendingProposals: per-row tx, status recheck, null actor", () => {
+  it("expires a pending proposal that is past its expiresAt and emits event with null recordedByUserId", async () => {
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+    const expiresAt = new Date(Date.now() - 60 * 1000); // 1 minute ago
+
+    const [proposal] = await db
+      .insert(fosterProposals)
+      .values({
+        publicToken: `FP-EXPIRE-${Date.now()}`,
+        organizationId: orgId,
+        volunteerUserId,
+        petId,
+        proposedByUserId: proposerUserId,
+        proposedAt: past,
+        expiresAt,
+        status: "pending",
+        matchWarnings: [],
+        createdAt: past,
+        updatedAt: past,
+      })
+      .returning();
+
+    try {
+      const stats = await FosterRepository.expirePendingProposals(new Date());
+
+      expect(stats.candidates).toBeGreaterThanOrEqual(1);
+      expect(stats.expired).toBeGreaterThanOrEqual(1);
+      expect(stats.errors).toBe(0);
+
+      // Verify proposal is now expired.
+      const [updated] = await db
+        .select({ status: fosterProposals.status })
+        .from(fosterProposals)
+        .where(eq(fosterProposals.id, proposal.id));
+      expect(updated.status).toBe("expired");
+
+      // Verify the event has null recordedByUserId (system actor).
+      const events = await db
+        .select({ recordedByUserId: petEvents.recordedByUserId, authorRole: petEvents.authorRole })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, petId), eq(petEvents.eventType, "foster_proposal_resolved")),
+        );
+      const expireEvent = events.find((e) => e.authorRole === "system");
+      expect(expireEvent).toBeDefined();
+      expect(expireEvent?.recordedByUserId).toBeNull();
+    } finally {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(fosterProposals).where(eq(fosterProposals.id, proposal.id));
+      });
+    }
+  });
+
+  it("skips a proposal that was accepted between candidate scan and per-row tx (status recheck)", async () => {
+    // We can't easily simulate the race in a unit test, but we can verify
+    // that a non-pending proposal is skipped (status recheck = effective guard).
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() - 60 * 1000);
+
+    // Insert an already-cancelled proposal (status already changed before expire).
+    const now = new Date();
+    const [proposal] = await db
+      .insert(fosterProposals)
+      .values({
+        publicToken: `FP-SKIP-${Date.now()}`,
+        organizationId: orgId,
+        volunteerUserId,
+        petId,
+        proposedByUserId: proposerUserId,
+        proposedAt: past,
+        expiresAt,
+        status: "cancelled",
+        cancelledAt: past,
+        cancelledByUserId: proposerUserId,
+        cancellationReason: "org_cancelled",
+        matchWarnings: [],
+        createdAt: past,
+        updatedAt: now,
+      })
+      .returning();
+
+    try {
+      const statsBefore = await FosterRepository.expirePendingProposals(new Date());
+      // The cancelled proposal should NOT be in candidates (it's not 'pending').
+      // We just verify the proposal's status hasn't been changed to 'expired'.
+      const [check] = await db
+        .select({ status: fosterProposals.status })
+        .from(fosterProposals)
+        .where(eq(fosterProposals.id, proposal.id));
+      expect(check.status).toBe("cancelled"); // untouched
+    } finally {
+      await db.delete(fosterProposals).where(eq(fosterProposals.id, proposal.id));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findVolunteerByUserId
+// ---------------------------------------------------------------------------
+
+describe("FosterRepository.findVolunteerByUserId", () => {
+  it("returns the volunteer row when it exists", async () => {
+    const result = await FosterRepository.findVolunteerByUserId(volunteerUserId);
+    expect(result).not.toBeNull();
+    expect(result?.userId).toBe(volunteerUserId);
+    expect(result?.availableSlots).toBeGreaterThanOrEqual(0);
+  });
+
+  it("returns null when no volunteer row exists for the user", async () => {
+    const result = await FosterRepository.findVolunteerByUserId(
+      "00000000-0000-0000-0000-000000000099",
+    );
+    expect(result).toBeNull();
+  });
+});

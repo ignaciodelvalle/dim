@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import {
   confirmWelfareAsSpamAction,
   passWelfareToTriageAction,
-} from "@/app/actions/welfare-moderation";
+} from "@/src/modules/welfare/actions";
 
 type Mode = "none" | "pass" | "spam";
 

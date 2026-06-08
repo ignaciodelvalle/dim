@@ -27,7 +27,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { type CaseKind, isCaseKind } from "@/lib/case-kinds";
+import { type CaseKind, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------
 // Case detail

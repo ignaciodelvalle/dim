@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { EVENT_TYPES } from "@/db/schema";
 import { CASE_ATTACHMENT_RULES, decideAttachment } from "@/lib/case-attachment";
-import { CASE_KINDS } from "@/lib/case-kinds";
+import { CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 
 describe("CASE_ATTACHMENT_RULES — coverage", () => {
   it("has a rule for every EVENT_TYPES value", () => {

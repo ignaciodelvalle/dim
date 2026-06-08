@@ -22,13 +22,13 @@ import { redirect } from "next/navigation";
 
 import { db, notifications, organizationMemberships, profiles, serviceOfferings } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { requireCapability } from "@/lib/capabilities";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken } from "@/lib/unique-token";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ============================================================================
 // Types

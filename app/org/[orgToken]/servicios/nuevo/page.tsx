@@ -6,8 +6,8 @@ import Link from "next/link";
 
 import { createServiceOfferingAction } from "@/app/actions/service-offerings";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { SERVICE_KINDS } from "@/lib/service-kinds";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ServiceOfferingForm } from "./ServiceOfferingForm";
 

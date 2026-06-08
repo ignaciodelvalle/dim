@@ -1,7 +1,7 @@
 "use client";
 
-import type { EventFormState } from "@/app/actions/events";
 import { Field, Input, Radio, Textarea } from "@/components/poncho";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 
 const initialState: EventFormState = { error: null };

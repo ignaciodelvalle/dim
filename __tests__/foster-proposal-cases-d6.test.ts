@@ -27,12 +27,6 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
-  acceptFosterProposalAction,
-  cancelFosterProposalAction,
-  proposeFosterAction,
-  rejectFosterProposalAction,
-} from "@/app/actions/foster-proposals";
-import {
   cases,
   db,
   fosterProposals,
@@ -45,9 +39,15 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { expireFosterProposals } from "@/lib/foster-proposal-expirer";
 import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
+import {
+  acceptFosterProposalAction,
+  cancelFosterProposalAction,
+  expireFosterProposalsAction as expireFosterProposals,
+  proposeFosterAction,
+  rejectFosterProposalAction,
+} from "@/src/modules/foster/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

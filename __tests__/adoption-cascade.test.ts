@@ -22,7 +22,6 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { submitAdoptionApplicationAction } from "@/app/actions/adoption-applications";
 import {
   db,
   notifications,
@@ -34,6 +33,7 @@ import {
   profiles,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { submitAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -268,7 +268,7 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
 
     // Coord finalizes to applicant1 (using their verified DNI).
     mockSessionAs(coordUserId);
-    const { finalizeAdoptionAction } = await import("@/app/actions/adoption");
+    const { finalizeAdoptionAction } = await import("@/src/modules/adoption/actions");
     const formData = new FormData();
     formData.set("adopterDni", "30000001");
     formData.set("adopterDisplayName", "Applicant One");

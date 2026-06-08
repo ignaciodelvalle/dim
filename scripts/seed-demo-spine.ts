@@ -79,7 +79,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import * as schemas from "../db/schema";
 import { generateApprovalRequestToken, generatePublicToken } from "../lib/publicToken";
-import { generateReferenceCode } from "../lib/welfare-codes";
+import { generateReferenceCode } from "../src/modules/welfare/domain/reference-code";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },

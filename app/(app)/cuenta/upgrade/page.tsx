@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { approvalRequests, db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { getActiveMemberships } from "@/lib/capabilities";
+import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { OrgCreateForm } from "./OrgCreateForm";
 import { VetUpgradeForm } from "./VetUpgradeForm";

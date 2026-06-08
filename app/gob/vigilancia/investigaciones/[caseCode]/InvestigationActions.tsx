@@ -8,7 +8,7 @@ import {
   addInvestigationNoteAction,
   closeInvestigationAction,
   escalateInvestigationAction,
-} from "@/app/actions/outbreak-investigation";
+} from "@/src/modules/surveillance/actions";
 
 type Mode = "none" | "add_note" | "escalate" | "close_resolved" | "close_dismissed";
 

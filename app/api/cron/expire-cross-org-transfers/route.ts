@@ -3,12 +3,8 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import {
-  type ExpireCrossOrgCandidate,
-  expireCrossOrgTransfer,
-  findExpiredCrossOrgTransfers,
-} from "@/lib/case-closers/expire-cross-org-transfers";
 import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +16,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
-  const result = await runCaseCron<ExpireCrossOrgCandidate>({
+  const result = await runCaseCron({
     name: CRON_NAME,
-    scan: () => findExpiredCrossOrgTransfers(),
-    processOne: (candidate) => expireCrossOrgTransfer(candidate),
+    scan: () => TransfersRepository.findExpirableCrossOrgCases(),
+    processOne: (candidate) => TransfersRepository.expireOneCrossOrgCase(candidate),
   });
 
   return NextResponse.json({

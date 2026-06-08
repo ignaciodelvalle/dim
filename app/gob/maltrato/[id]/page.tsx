@@ -15,7 +15,7 @@ import {
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 import { eq } from "drizzle-orm";
 
 import { AssignmentActions } from "./AssignmentActions";

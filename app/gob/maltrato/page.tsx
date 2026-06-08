@@ -27,7 +27,7 @@ import {
   WELFARE_REPORT_STATUSES,
   type WelfareReportKind,
   type WelfareReportSeverity,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 import { count, desc } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";

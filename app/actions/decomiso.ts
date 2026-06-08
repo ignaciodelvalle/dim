@@ -80,12 +80,12 @@ import {
   profiles,
 } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
 // Types

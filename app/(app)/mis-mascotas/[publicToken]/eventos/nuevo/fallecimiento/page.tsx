@@ -1,5 +1,5 @@
-import { createDeathRecordAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createDeathRecordAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DeathRecordForm } from "./DeathRecordForm";

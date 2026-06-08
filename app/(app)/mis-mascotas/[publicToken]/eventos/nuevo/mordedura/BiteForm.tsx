@@ -2,10 +2,10 @@
 
 import { useActionState, useState } from "react";
 
-import type { BiteFormState } from "@/app/actions/bite";
 import { LocationFields } from "@/components/LocationFields";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { BiteFormState } from "@/src/modules/surveillance/actions";
 
 const initialState: BiteFormState = { error: null };
 

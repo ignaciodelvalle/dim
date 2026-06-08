@@ -1,5 +1,5 @@
-import { setPetLostAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { setPetLostAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MarkLostWizard } from "./MarkLostWizard";

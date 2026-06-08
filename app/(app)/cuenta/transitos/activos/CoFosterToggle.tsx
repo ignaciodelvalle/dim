@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { setCoFosterAllowedAction } from "@/app/actions/foster-volunteers";
+import { setCoFosterAllowedAction } from "@/src/modules/foster/actions";
 
 export function CoFosterToggle({
   fosterOwnershipId,

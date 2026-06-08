@@ -10,12 +10,12 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { generateMpfExportAction } from "@/app/actions/welfare-export-mpf";
 import type { WelfareReport } from "@/db";
 import { auditLog, db, pets, profiles, welfareReports } from "@/db";
 import * as authGuards from "@/lib/auth-guards";
 import * as supabaseServer from "@/lib/supabase/server";
 import { MPF_EXPORT_SCHEMA_VERSION, welfareReportToMpfDto } from "@/lib/welfare-exports";
+import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // Hoist vi.mock calls so they apply before any imports are resolved.

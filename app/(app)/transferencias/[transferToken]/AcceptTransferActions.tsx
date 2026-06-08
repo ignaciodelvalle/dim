@@ -7,7 +7,7 @@ import {
   acceptPetTransferAction,
   cancelPetTransferAction,
   rejectPetTransferAction,
-} from "@/app/actions/pet-transfer";
+} from "@/src/modules/transfers/actions";
 
 export function AcceptTransferActions({
   transferToken,

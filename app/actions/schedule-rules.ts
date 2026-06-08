@@ -13,8 +13,8 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
-import { requireCapability } from "@/lib/capabilities";
 import { CreateScheduleRuleInput, UpdateScheduleRuleInput } from "@/lib/scheduling-schemas";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ============================================================================
 // Types

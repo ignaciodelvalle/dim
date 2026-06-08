@@ -18,8 +18,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { expireFosterProposals } from "@/lib/foster-proposal-expirer";
 import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
+import { expireFosterProposalsAction as expireFosterProposals } from "@/src/modules/foster/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

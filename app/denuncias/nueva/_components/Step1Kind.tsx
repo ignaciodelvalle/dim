@@ -7,7 +7,7 @@ import {
   WELFARE_REPORT_KINDS,
   type WelfareReportKind,
   welfareReportKindLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 
 const KIND_ICONS: Record<WelfareReportKind, string> = {
   abandonment: "🚪",

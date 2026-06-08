@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import type { ProfessionalCloseResult } from "@/app/actions/bite";
 import { Field, Select, Textarea } from "@/components/poncho";
+import type { ProfessionalCloseResult } from "@/src/modules/surveillance/actions";
 
 type FormAction = (formData: FormData) => Promise<ProfessionalCloseResult>;
 

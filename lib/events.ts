@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
 import { findDisease } from "@/lib/diseases";
-import { welfareReportKindLabel } from "@/lib/welfare";
+import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 /**
  * Drizzle WHERE clause that excludes the noise floor of "I scanned my own

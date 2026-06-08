@@ -2,10 +2,10 @@
 
 import { useActionState, useState } from "react";
 
-import type { EventFormState } from "@/app/actions/events";
 import { LocationFields } from "@/components/LocationFields";
 import { Field, Input, Select, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { EventFormState } from "@/src/modules/events/actions";
 
 import { AttachmentField } from "../AttachmentField";
 

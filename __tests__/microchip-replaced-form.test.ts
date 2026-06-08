@@ -69,7 +69,7 @@ vi.mock("@/lib/auth-guards", () => ({
   })),
 }));
 
-vi.mock("@/lib/capabilities", () => ({
+vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   getGrantedCapabilities: vi.fn(async () => new Set(["event.write", "pet.read_held"])),
 }));
 

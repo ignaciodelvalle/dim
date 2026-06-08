@@ -10,8 +10,8 @@ import Link from "next/link";
 
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { findServiceKind } from "@/lib/service-kinds";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { notFound } from "next/navigation";
 
 // ============================================================================

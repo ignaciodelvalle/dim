@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { type EndFosterFormState, endFosterAction } from "@/app/actions/foster";
+import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 
 const SELECTABLE_END_REASONS = [
   { value: "returned", label: "Devolución normal" },

@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 
-import { reportBiteFromOrgAction } from "@/app/actions/bite";
+import { reportBiteFromOrgAction } from "@/src/modules/surveillance/actions";
 
 import { OrgBiteForm } from "./OrgBiteForm";
 

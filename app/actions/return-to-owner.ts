@@ -35,9 +35,9 @@ import {
   profiles,
 } from "@/db";
 import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------

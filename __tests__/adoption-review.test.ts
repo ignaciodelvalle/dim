@@ -22,11 +22,6 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
-  approveAdoptionApplicationAction,
-  rejectAdoptionApplicationAction,
-  submitAdoptionApplicationAction,
-} from "@/app/actions/adoption-applications";
-import {
   db,
   notifications,
   organizationMemberships,
@@ -37,6 +32,11 @@ import {
   profiles,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import {
+  approveAdoptionApplicationAction,
+  rejectAdoptionApplicationAction,
+  submitAdoptionApplicationAction,
+} from "@/src/modules/adoption/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

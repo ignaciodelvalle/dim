@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { reportBiteAction } from "@/app/actions/bite";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { reportBiteAction } from "@/src/modules/surveillance/actions";
 
 import { BiteForm } from "./BiteForm";
 

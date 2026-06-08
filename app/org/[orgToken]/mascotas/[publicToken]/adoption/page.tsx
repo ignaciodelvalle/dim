@@ -5,7 +5,7 @@
 
 import { db, fosterProposals, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { FinalizeAdoptionForm } from "./FinalizeAdoptionForm";

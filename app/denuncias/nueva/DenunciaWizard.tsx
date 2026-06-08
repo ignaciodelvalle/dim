@@ -33,10 +33,10 @@
 
 import { useRef, useState } from "react";
 
-import { createWelfareReportAction } from "@/app/actions/welfare";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
-import type { WelfareReportKind } from "@/lib/welfare";
+import { createWelfareReportAction } from "@/src/modules/welfare/actions";
+import type { WelfareReportKind } from "@/src/modules/welfare/domain/types";
 
 import { Step1Kind } from "./_components/Step1Kind";
 import {

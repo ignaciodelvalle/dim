@@ -4,12 +4,15 @@ import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import {
+  isValidReferenceCodeFormat,
+  normalizeReferenceCode,
+} from "@/src/modules/welfare/domain/reference-code";
+import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
-import { isValidReferenceCodeFormat, normalizeReferenceCode } from "@/lib/welfare-codes";
+} from "@/src/modules/welfare/domain/types";
 import { eq } from "drizzle-orm";
 import dynamic from "next/dynamic";
 import Link from "next/link";

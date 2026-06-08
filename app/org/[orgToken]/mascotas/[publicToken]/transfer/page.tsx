@@ -5,7 +5,7 @@
 
 import { db, organizations, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";

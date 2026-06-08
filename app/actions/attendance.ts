@@ -28,9 +28,12 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import { type RequireCapabilitySuccess, requireCapability } from "@/lib/capabilities";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
+import {
+  type RequireCapabilitySuccess,
+  requireCapability,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ============================================================================
 // Result types

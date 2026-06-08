@@ -5,18 +5,15 @@
  * Idempotent (already-closed cases are excluded by the scan).
  */
 
-import {
-  expireCrossOrgTransfer,
-  findExpiredCrossOrgTransfers,
-} from "@/lib/case-closers/expire-cross-org-transfers";
 import { runCaseCron } from "@/lib/case-cron";
+import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 
 async function main() {
   const start = Date.now();
   const result = await runCaseCron({
     name: "expire_cross_org_transfers",
-    scan: () => findExpiredCrossOrgTransfers(),
-    processOne: (candidate) => expireCrossOrgTransfer(candidate),
+    scan: () => TransfersRepository.findExpirableCrossOrgCases(),
+    processOne: (candidate) => TransfersRepository.expireOneCrossOrgCase(candidate),
   });
   const ms = Date.now() - start;
   console.log(

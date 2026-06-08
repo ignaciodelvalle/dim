@@ -24,7 +24,6 @@
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
-import { requireCapability } from "@/lib/capabilities";
 import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -39,6 +38,7 @@ import { generatePublicToken } from "@/lib/publicToken";
 import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/unique-token";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { redirect } from "next/navigation";
 
 export type IntakeFormState = {

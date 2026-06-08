@@ -16,10 +16,6 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import {
-  setAdoptionListingStatusAction,
-  updateAdoptionListingContentAction,
-} from "@/app/actions/adoption-listing";
 import { WizardShell } from "@/components/poncho/Wizard";
 import {
   ADOPTION_AGE_BUCKETS,
@@ -32,6 +28,10 @@ import {
   energyLabel,
   sizeLabel,
 } from "@/lib/adoption-listing";
+import {
+  setAdoptionListingStatusAction,
+  updateAdoptionListingContentAction,
+} from "@/src/modules/adoption/actions";
 
 type Initial = {
   isPublished: boolean;

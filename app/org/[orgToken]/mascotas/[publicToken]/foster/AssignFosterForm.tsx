@@ -1,7 +1,7 @@
 "use client";
 
-import { type AssignFosterFormState, assignFosterAction } from "@/app/actions/foster";
 import { Field, Input, Select, Textarea } from "@/components/poncho";
+import { type AssignFosterFormState, assignFosterAction } from "@/src/modules/foster/actions";
 import { useActionState } from "react";
 
 const initialState: AssignFosterFormState = { error: null };

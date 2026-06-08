@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AdoptionListingCard } from "@/components/AdoptionListingCard";
 import { EmptyState } from "@/components/poncho/EmptyState";
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
-import type { queryAdoptionListing } from "@/lib/adoption-listing-query";
+import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // "Mascotas en adopción" panel (handoff P2-4).
 //

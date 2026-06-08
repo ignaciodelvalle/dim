@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { Checkbox } from "@/components/poncho";
+import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import {
   acceptFosterProposalAction,
   rejectFosterProposalAction,
-} from "@/app/actions/foster-proposals";
-import { Checkbox } from "@/components/poncho";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
+} from "@/src/modules/foster/actions";
 
 const REJECTION_REASONS = [
   { value: "capacity", label: "No tengo capacity ahora" },

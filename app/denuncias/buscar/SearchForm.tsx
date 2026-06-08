@@ -1,6 +1,9 @@
 "use client";
 
-import { isValidReferenceCodeFormat, normalizeReferenceCode } from "@/lib/welfare-codes";
+import {
+  isValidReferenceCodeFormat,
+  normalizeReferenceCode,
+} from "@/src/modules/welfare/domain/reference-code";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 

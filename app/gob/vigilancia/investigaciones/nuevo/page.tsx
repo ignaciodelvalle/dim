@@ -2,7 +2,7 @@
 
 import { Alert } from "@/components/poncho/Alert";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { ENO_DISEASES_AR } from "@/lib/eno-catalog";
+import { ENO_DISEASES_AR } from "@/src/modules/surveillance/domain/eno-catalog";
 
 import { OpenInvestigationForm } from "./OpenInvestigationForm";
 

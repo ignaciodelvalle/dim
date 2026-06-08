@@ -9,8 +9,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { V1_CASE_KINDS } from "@/lib/case-kinds";
-import { allLifecycles, getLifecycle } from "@/lib/case-lifecycles";
+import { V1_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
+import { allLifecycles, getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 
 describe("case-lifecycles — coverage", () => {
   for (const kind of V1_CASE_KINDS) {

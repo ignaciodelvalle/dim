@@ -225,8 +225,8 @@ describe("requireDecomisoPrincipal — export check", () => {
 });
 
 describe("WELFARE_DECOMISO_EXECUTE_CAPABILITY", () => {
-  it("is exported from lib/capabilities with value welfare.decomiso.execute", async () => {
-    const caps = await import("@/lib/capabilities");
+  it("is exported from domain/capabilities with value welfare.decomiso.execute", async () => {
+    const caps = await import("@/src/modules/organizations/domain/capabilities");
     expect(caps.WELFARE_DECOMISO_EXECUTE_CAPABILITY).toBe("welfare.decomiso.execute");
   });
 });

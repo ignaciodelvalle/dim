@@ -16,7 +16,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { type DisclosurePrefsInput, setPetLostWriter } from "@/app/actions/events";
 import {
   db,
   notifications,
@@ -30,6 +29,8 @@ import {
 } from "@/db";
 import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
 import { generatePublicToken } from "@/lib/publicToken";
+import type { DisclosurePrefsInput } from "@/src/modules/events/actions";
+import { setPetLostWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { leaveOrganizationAction } from "@/app/actions/org-memberships";
+import { leaveOrganizationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
   organizationId: string;

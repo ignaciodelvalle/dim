@@ -32,6 +32,10 @@ import { SymptomForm } from "./eventos/nuevo/sintoma/SymptomForm";
 import { VaccinationForm } from "./eventos/nuevo/vacuna/VaccinationForm";
 import { MarkLostWizard } from "./perdida/MarkLostWizard";
 
+import { createLibretaShareAction } from "@/app/actions/libreta-share";
+import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
+import { PetForm } from "@/components/PetForm";
+import type { Pet } from "@/db";
 import {
   createMedicationStartAction,
   createNoteAction,
@@ -40,12 +44,8 @@ import {
   createWeightAction,
   setPetFoundAction,
   setPetLostAction,
-} from "@/app/actions/events";
-import { createLibretaShareAction } from "@/app/actions/libreta-share";
-import { updatePetAction } from "@/app/actions/pets";
-import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
-import { PetForm } from "@/components/PetForm";
-import type { Pet } from "@/db";
+} from "@/src/modules/events/actions";
+import { updatePetAction } from "@/src/modules/pets/actions";
 
 import { ShareLibretaSheet } from "./_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "./_tier2-public/Tier2PublicView";

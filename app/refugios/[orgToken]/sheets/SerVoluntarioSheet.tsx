@@ -12,11 +12,14 @@
 
 import { useActionState, useEffect } from "react";
 
-import { type SubmitOrgContactState, submitOrgContactAction } from "@/app/actions/org-contact";
 import { Input } from "@/components/poncho/Input";
 import { Sheet } from "@/components/poncho/Sheet";
 import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
 import { Textarea } from "@/components/poncho/Textarea";
+import {
+  type SubmitOrgContactState,
+  submitOrgContactAction,
+} from "@/src/modules/organizations/actions";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface Props {

@@ -19,9 +19,9 @@
  * exactly one place owns "where do defaults come from" (the page).
  */
 
-import type { EventFormState } from "@/app/actions/events";
 import { Field, Input, Textarea } from "@/components/poncho";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 

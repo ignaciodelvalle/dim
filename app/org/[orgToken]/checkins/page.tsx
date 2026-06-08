@@ -8,7 +8,7 @@
 
 import { db, petEvents, pets, profiles, reminders } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { requireCapability } from "@/lib/capabilities";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 

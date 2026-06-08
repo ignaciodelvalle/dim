@@ -3,8 +3,8 @@
 // Auth-guard is mocked. Users provisioned via Supabase admin SDK.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, inArray } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
@@ -15,14 +15,14 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
 }));
 
+import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   addInvestigationNoteAction,
   closeInvestigationAction,
   escalateInvestigationAction,
   openOutbreakInvestigationAction,
-} from "@/app/actions/outbreak-investigation";
-import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+} from "@/src/modules/surveillance/actions";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -104,6 +104,40 @@ async function cleanupTestCasesForUsers(userIds: string[]) {
   if (caseIds.length > 0) {
     await db.delete(caseEvents).where(inArray(caseEvents.caseId, caseIds));
     await db.delete(cases).where(inArray(cases.id, caseIds));
+  }
+}
+
+/**
+ * Remove ALL open/escalated outbreak_investigation cases for a given disease
+ * + province + locality combo, regardless of who opened them.
+ *
+ * Used to make the duplicate-detection test self-isolating: any stale case
+ * left by a prior run (or by a different user in the same run) is cleared
+ * before the test creates its own fixture.
+ */
+async function cleanupOpenOutbreakCasesForJurisdiction(
+  diseaseCode: string,
+  province: string,
+  locality: string,
+) {
+  const openRows = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.caseKind, "outbreak_investigation"),
+        sql`${cases.status} IN ('open', 'escalated')`,
+        sql`${cases.openedReason} LIKE ${`manual [${diseaseCode}]:%`}`,
+        eq(cases.jurisdictionProvince, province),
+        eq(cases.jurisdictionLocality, locality),
+      ),
+    );
+  const ids = openRows.map((r) => r.id);
+  if (ids.length > 0) {
+    // caseEvents has ON DELETE CASCADE from cases, but explicit delete is
+    // more explicit and avoids relying on the migration having CASCADE set.
+    await db.delete(caseEvents).where(inArray(caseEvents.caseId, ids));
+    await db.delete(cases).where(inArray(cases.id, ids));
   }
 }
 
@@ -204,23 +238,40 @@ describe("openOutbreakInvestigationAction", () => {
     expect(result).toMatchObject({ error: expect.stringContaining("10 caracteres") });
   });
 
-  it("blocks duplicate open investigation for same (disease, jurisdiction)", async () => {
-    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
-      govtSession(govtUserId, "Córdoba", "Córdoba"),
-    );
+  // Nested describe gives this test its own beforeEach/afterEach lifecycle so
+  // stale open cases from a prior run (or from another file that left a
+  // hidatidosis/Córdoba row open) cannot interfere with the dedup assertion.
+  describe("blocks duplicate open investigation for same (disease, jurisdiction)", () => {
+    const DEDUP_DISEASE = "hidatidosis";
+    const DEDUP_PROVINCE = "Córdoba";
+    const DEDUP_LOCALITY = "Córdoba";
 
-    const first = await openOutbreakInvestigationAction({
-      diseaseCode: "hidatidosis",
-      reason: "Primera investigacion de hidatidosis en Córdoba.",
+    beforeEach(async () => {
+      await cleanupOpenOutbreakCasesForJurisdiction(DEDUP_DISEASE, DEDUP_PROVINCE, DEDUP_LOCALITY);
     });
-    expect(first).toMatchObject({ ok: true });
 
-    const second = await openOutbreakInvestigationAction({
-      diseaseCode: "hidatidosis",
-      reason: "Segunda investigacion de hidatidosis en Córdoba.",
+    afterEach(async () => {
+      await cleanupOpenOutbreakCasesForJurisdiction(DEDUP_DISEASE, DEDUP_PROVINCE, DEDUP_LOCALITY);
     });
-    expect(second).toMatchObject({ error: expect.stringContaining("hidatidosis") });
-    expect("error" in second).toBe(true);
+
+    it("first call succeeds, second call is rejected", async () => {
+      (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+        govtSession(govtUserId, DEDUP_PROVINCE, DEDUP_LOCALITY),
+      );
+
+      const first = await openOutbreakInvestigationAction({
+        diseaseCode: DEDUP_DISEASE,
+        reason: "Primera investigacion de hidatidosis en Córdoba.",
+      });
+      expect(first).toMatchObject({ ok: true });
+
+      const second = await openOutbreakInvestigationAction({
+        diseaseCode: DEDUP_DISEASE,
+        reason: "Segunda investigacion de hidatidosis en Córdoba.",
+      });
+      expect(second).toMatchObject({ error: expect.stringContaining(DEDUP_DISEASE) });
+      expect("error" in second).toBe(true);
+    });
   });
 
   it("admin bypasses jurisdiction requirement (national scope)", async () => {

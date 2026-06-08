@@ -1,5 +1,5 @@
-import { createClinicalInfoAction } from "@/app/actions/events";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { createClinicalInfoAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { ClinicalInfoForm } from "./ClinicalInfoForm";
 

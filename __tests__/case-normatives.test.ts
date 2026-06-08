@@ -11,8 +11,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { CASE_KINDS } from "@/lib/case-kinds";
 import { CASE_NORMATIVES, getNormativesForCase } from "@/lib/case-normatives";
+import { CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 
 describe("CASE_NORMATIVES — coverage", () => {
   for (const kind of CASE_KINDS) {

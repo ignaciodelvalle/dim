@@ -1,6 +1,9 @@
 "use client";
 
-import { type CapabilityActionState, decideCapabilityAction } from "@/app/actions/capabilities";
+import {
+  type CapabilityActionState,
+  decideCapabilityAction,
+} from "@/src/modules/organizations/actions";
 import { useActionState, useState } from "react";
 
 const initialState: CapabilityActionState = { error: null };

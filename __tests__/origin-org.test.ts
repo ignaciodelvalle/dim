@@ -12,7 +12,6 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-import { updateOrganizationForUser } from "@/app/actions/organizations";
 import {
   db,
   organizationMemberships,
@@ -24,6 +23,7 @@ import {
 } from "@/db";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
 import { createClient } from "@/lib/supabase/server";
+import { updateOrganizationForUser } from "@/src/modules/organizations/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

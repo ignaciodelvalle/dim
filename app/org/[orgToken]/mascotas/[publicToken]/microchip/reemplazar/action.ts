@@ -1,11 +1,11 @@
 "use server";
 
-import type { EventFormState } from "@/app/actions/events";
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { parseDateInput } from "@/lib/format";
+import type { EventFormState } from "@/src/modules/events/actions";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { type EndFosterFormState, endFosterAction } from "@/app/actions/foster";
+import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 import { useActionState } from "react";
 
 const initialState: EndFosterFormState = { error: null };

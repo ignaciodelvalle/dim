@@ -21,7 +21,7 @@ import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 
 // Schema version stamped in audit_log payloads so exports are reproducible.
 export const MPF_EXPORT_SCHEMA_VERSION = "2026-05-21";

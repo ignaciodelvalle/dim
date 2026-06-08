@@ -21,7 +21,7 @@
 //      every EVENT_TYPES value has a rule.
 
 import type { EventType } from "@/db/schema";
-import type { CaseKind } from "./case-kinds";
+import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 export type AttachmentMode =
   | "opens"

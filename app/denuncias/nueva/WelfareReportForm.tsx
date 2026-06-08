@@ -13,9 +13,9 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 
-import type { WelfareReportFormState } from "@/app/actions/welfare";
 import { LocationFields } from "@/components/LocationFields";
 import { Field, Input, Radio, Select, Textarea } from "@/components/poncho";
+import type { WelfareReportFormState } from "@/src/modules/welfare/actions";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -23,7 +23,7 @@ import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
-} from "@/lib/welfare";
+} from "@/src/modules/welfare/domain/types";
 
 const initialState: WelfareReportFormState = { error: null };
 

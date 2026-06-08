@@ -7,8 +7,8 @@ import Link from "next/link";
 
 import { db, serviceOfferings } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getGrantedCapabilities } from "@/lib/capabilities";
 import { findServiceKind } from "@/lib/service-kinds";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   pending_approval: {

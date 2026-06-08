@@ -17,9 +17,9 @@
 
 import { useState, useTransition } from "react";
 
-import { submitAdoptionApplicationAction } from "@/app/actions/adoption-applications";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { WizardShell } from "@/components/poncho/Wizard";
+import { submitAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 
 type HousingType = "casa_con_patio" | "casa_sin_patio" | "departamento" | "otro";
 
