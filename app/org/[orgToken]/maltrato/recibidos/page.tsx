@@ -1,10 +1,10 @@
 // Org inbox of welfare denuncias emitted by members of this org.
 // Read-only summary — case lifecycle lives in /casos/[publicCode].
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { cases, db, pets, welfareReports } from "@/db";
+import { cases, db, organizationMemberships, pets, welfareReports } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
 import {
@@ -29,13 +29,51 @@ const SEVERITY_TONES: Record<string, string> = {
   low: "text-gob-text-gray ",
 };
 
+// Welfare reports are sensitive — restrict the inbox to the same operative roles
+// allowed to file one. Volunteer/foster members do NOT see the org's denuncia inbox.
+const ALLOWED_ROLES = new Set(["admin", "coordinator", "member", "vet_individual"]);
+
 export default async function OrgMaltratoRecibidosPage({
   params,
 }: {
   params: Promise<{ orgToken: string }>;
 }) {
   const { orgToken } = await params;
-  const { organization } = await requireOrgAccessByToken(orgToken);
+  const { user, organization } = await requireOrgAccessByToken(orgToken);
+
+  const [membership] = await db
+    .select({ role: organizationMemberships.role })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, organization.id),
+        eq(organizationMemberships.userId, user.id),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  if (!membership || !ALLOWED_ROLES.has(membership.role)) {
+    return (
+      <main className="min-h-screen p-6 bg-white ">
+        <div className="max-w-2xl mx-auto pt-10 space-y-6">
+          <Link
+            href={`/org/${orgToken}`}
+            className="text-sm text-gob-text-muted hover:text-gob-text "
+          >
+            ← Volver al panel
+          </Link>
+          <h1 className="text-2xl font-semibold text-gob-text ">
+            Denuncias de maltrato — solo para roles institucionales
+          </h1>
+          <p className="rounded-lg border border-gob-warning bg-gob-warning/10 p-4 text-sm text-gob-warning-text ">
+            Tu rol actual dentro de la organización (<strong>{membership?.role ?? "—"}</strong>) no
+            habilita ver el registro de denuncias de la organización.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   const rows = await db
     .select({
