@@ -5,13 +5,18 @@
 // for them — bounce them to the portal their role does belong in. A future
 // spec will give them dedicated cross-pet surfaces (e.g. /admin/mascotas,
 // /gob/mascotas) with filters.
+//
+// Visual chrome: Libreta Nacional design system (LnShell + LnOwnerNav).
+// Auth + role gates are unchanged.
 
-import { eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-import { Sidebar, Topbar } from "@/components/poncho";
-import { OWNER_NAV } from "@/components/poncho/Layout/nav-presets";
-import { db, profiles } from "@/db";
+import { LnGuilloche } from "@/components/ui/DocElements";
+import { LnOwnerNav } from "@/components/ui/LnOwnerNav";
+import { LnOwnerSubBar } from "@/components/ui/LnOwnerSubBar";
+import { db, notifications, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AuthenticatedLayout({
@@ -39,18 +44,24 @@ export default async function AuthenticatedLayout({
       ? profile.displayName
       : (user.email?.split("@")[0] ?? "");
 
+  const [{ unreadCount }] = await db
+    .select({ unreadCount: count() })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, user.id),
+        isNull(notifications.readAt),
+        isNull(notifications.archivedAt),
+      ),
+    );
+
   return (
-    <div className="min-h-screen bg-white">
-      <Sidebar
-        nav={OWNER_NAV}
-        user={{ name: displayName, href: "/cuenta" }}
-        roleAccent="owner"
-        brand={{ title: "MiMAR", subtitle: "Mi Mascota Argentina" }}
-      />
-      <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar mobileDrawerNav={OWNER_NAV} brandTitle="MiMAR" />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
-      </div>
+    <div className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]">
+      <LnGuilloche />
+      {/* LnOwnerNav is a client component — reads usePathname for active state */}
+      <LnOwnerNav displayName={displayName} unreadCount={unreadCount} />
+      <LnOwnerSubBar />
+      <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );
 }
