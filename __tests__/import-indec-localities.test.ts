@@ -71,10 +71,14 @@ async function cleanupFixtureRows() {
 beforeEach(cleanupFixtureRows);
 afterAll(cleanupFixtureRows);
 
-// 30s timeout: the script does N+M synchronous queries (N for upsert checks,
-// M for the soft-delete scan over all indec_cppdyl rows). With ~4000 real
-// catalog rows present, that's notably slower than against an empty catalog.
-describe("import-indec-localities", { timeout: 30_000 }, () => {
+// Per-test timeouts: the script does N+M synchronous queries (N for upsert
+// checks, M for the soft-delete scan over all indec_cppdyl rows). With ~4000
+// real catalog rows present each test that triggers a full import can take
+// 30-45 s under load; tests that run two full imports need up to 90 s. Each
+// `it` carries an explicit budget — the dry-run test has no soft-delete scan
+// and stays fast.
+describe("import-indec-localities", () => {
+  // 60 s: one full import — upsert + soft-delete scan over ~4 k catalog rows.
   it("imports the fixture CSV: 5 valid rows, 1 skipped (paraje), 2 errored", async () => {
     global.fetch = vi.fn(async () => buildResponse());
     const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
@@ -119,8 +123,10 @@ describe("import-indec-localities", { timeout: 30_000 }, () => {
     expect(runs).toHaveLength(1);
     expect(runs[0].status).toBe("ok");
     expect(runs[0].insertedCount).toBe(5);
-  });
+  }, 60_000);
 
+  // 60 s: first run triggers a full soft-delete scan; second run is fast
+  // (all real rows already soft-deleted, nothing new to remove).
   it("is idempotent on re-run with the same CSV (5 noop, 0 changes)", async () => {
     global.fetch = vi.fn(async () => buildResponse());
     await runImport({ sourceUrl: "https://test.example/fixture.csv" });
@@ -132,8 +138,10 @@ describe("import-indec-localities", { timeout: 30_000 }, () => {
     expect(second.inserted).toBe(0);
     expect(second.updated).toBe(0);
     expect(second.noop).toBe(5);
-  });
+  }, 60_000);
 
+  // 90 s: beforeEach restores the full catalog before this test, so BOTH
+  // import runs face the complete soft-delete scan (~4 k rows each).
   it("soft-deletes rows that disappear from the new CSV", async () => {
     global.fetch = vi.fn(async () => buildResponse());
     await runImport({ sourceUrl: "https://test.example/fixture.csv" });
@@ -155,8 +163,9 @@ describe("import-indec-localities", { timeout: 30_000 }, () => {
       .from(arLocalities)
       .where(eq(arLocalities.indecId, "02002010"));
     expect(recoleta.removedAt).not.toBeNull();
-  });
+  }, 90_000);
 
+  // dry-run skips all DB writes and the soft-delete scan — stays fast.
   it("respects --dry-run: no writes, no run row persisted with finishedAt", async () => {
     global.fetch = vi.fn(async () => buildResponse());
     const stats = await runImport({
