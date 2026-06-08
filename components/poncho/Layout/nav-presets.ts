@@ -59,6 +59,11 @@ export function buildOrgNav(orgToken: string): NavItem[] {
       label: "Configuración",
       matchPrefix: `/org/${orgToken}/configuracion`,
     },
+    {
+      href: `/org/${orgToken}/maltrato/recibidos`,
+      label: "Maltrato",
+      matchPrefix: `/org/${orgToken}/maltrato`,
+    },
   ];
 }
 
@@ -78,6 +83,7 @@ export const GOB_NAV: NavItem[] = [
   { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
   { href: "/gob/servicios", label: "Catálogo", matchPrefix: "/gob/servicios" },
   { href: "/gob/historial", label: "Histórico", matchPrefix: "/gob/historial" },
+  { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
   { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
   {
     href: "/gob/organizaciones",

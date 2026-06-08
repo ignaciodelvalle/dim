@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { ADMIN_NAV, GOB_NAV, OWNER_NAV, buildOrgNav } from "./nav-presets";
 
 describe("buildOrgNav", () => {
-  it("produces exactly 8 items (includes Miembros + Cobertura + Configuración entries)", () => {
-    expect(buildOrgNav("ORG-ABC")).toHaveLength(8);
+  it("produces exactly 9 items (includes Miembros + Cobertura + Configuración + Maltrato entries)", () => {
+    expect(buildOrgNav("ORG-ABC")).toHaveLength(9);
   });
 
   it("does not contain an equipo entry (broken nav — ADR-4: no roadmap signal → remove)", () => {
@@ -32,7 +32,7 @@ describe("buildOrgNav", () => {
     expect(panel.href).toBe("/org/ORG-ABC");
   });
 
-  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración entries", () => {
+  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración, Maltrato entries", () => {
     const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
     expect(labels).toContain("Agenda");
     expect(labels).toContain("Mascotas");
@@ -41,6 +41,7 @@ describe("buildOrgNav", () => {
     expect(labels).toContain("Miembros");
     expect(labels).toContain("Cobertura");
     expect(labels).toContain("Configuración");
+    expect(labels).toContain("Maltrato");
   });
 
   it("Cobertura entry points to /org/<orgToken>/cobertura", () => {
@@ -55,6 +56,19 @@ describe("buildOrgNav", () => {
     const config = items.find((i) => i.label === "Configuración");
     expect(config).toBeDefined();
     expect(config?.href).toBe("/org/ORG-ABC/configuracion");
+  });
+
+  it("Maltrato entry points to /org/<orgToken>/maltrato/recibidos", () => {
+    const items = buildOrgNav("ORG-ABC");
+    const maltrato = items.find((i) => i.label === "Maltrato");
+    expect(maltrato).toBeDefined();
+    expect(maltrato?.href).toBe("/org/ORG-ABC/maltrato/recibidos");
+  });
+
+  it("Maltrato entry matchPrefix covers /org/<orgToken>/maltrato (highlights both recibidos and nuevo)", () => {
+    const items = buildOrgNav("ORG-ABC");
+    const maltrato = items.find((i) => i.label === "Maltrato");
+    expect(maltrato?.matchPrefix).toBe("/org/ORG-ABC/maltrato");
   });
 });
 
@@ -96,6 +110,7 @@ describe("GOB_NAV — no route regression", () => {
     "/gob/casos",
     "/gob/historial",
     "/gob/reglas",
+    "/gob/analytics",
   ];
 
   for (const route of expectedRoutes) {
@@ -104,13 +119,12 @@ describe("GOB_NAV — no route regression", () => {
     });
   }
 
-  it("has at least 12 items (no silent drops)", () => {
-    expect(GOB_NAV.length).toBeGreaterThanOrEqual(12);
+  it("has at least 13 items (no silent drops)", () => {
+    expect(GOB_NAV.length).toBeGreaterThanOrEqual(13);
   });
 
-  // Spec task 1.2: GOB_NAV has 0 dead hrefs — all entries verified against filesystem
-  it("does NOT contain /gob/analytics (no top-level nav entry; analytics is an orphan handled in PR2)", () => {
-    expect(hrefs).not.toContain("/gob/analytics");
+  it("contains /gob/analytics (wired to nav — was deferred in PR2)", () => {
+    expect(hrefs).toContain("/gob/analytics");
   });
 });
 
