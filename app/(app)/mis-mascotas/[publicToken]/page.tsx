@@ -67,6 +67,11 @@ import { PetTrackingPlaceholder } from "@/components/pet-profile/PetTrackingPlac
 import { PetTravelDocs } from "@/components/pet-profile/PetTravelDocs";
 import { PetWeightChart } from "@/components/pet-profile/PetWeightChart";
 import { PhysicalTagInterestCard } from "@/components/pet-profile/PhysicalTagInterestCard";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnSeal, LnSectionHead } from "@/components/ui/DocElements";
+import { LnHero } from "@/components/ui/Hero";
+import { LnMemorialChip } from "@/components/ui/StatusFlag";
+import { LnVitals } from "@/components/ui/Vitals";
 import {
   appointments,
   attachments,
@@ -101,7 +106,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { EventTimeline } from "./EventTimeline";
+import type { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
@@ -197,6 +202,193 @@ function trainingLevelLabel(level: string): string {
 // Deceased (in-memoriam) view — PRESERVED
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// LnMemorialTimeline — read-only timeline for the deceased memorial view
+// ---------------------------------------------------------------------------
+
+type MemorialEvent = {
+  id: string;
+  eventType: string;
+  payload: unknown;
+  occurredAt: Date | string;
+  notes: string | null;
+  attachmentUrl: string | null;
+};
+
+// Map event types to icon emoji and dot color for the memorial
+function memorialEventStyle(eventType: string): { color: string; icon: string } {
+  switch (eventType) {
+    case "vaccination_administered":
+      return { color: "var(--color-ln-azul)", icon: "💉" };
+    case "weight_recorded":
+      return { color: "var(--color-ln-celeste)", icon: "⚖️" };
+    case "sterilization_performed":
+      return { color: "var(--color-ln-rosa)", icon: "✂️" };
+    case "microchip_implanted":
+      return { color: "var(--color-ln-azul)", icon: "🔖" };
+    case "vet_visit_logged":
+      return { color: "var(--color-ln-ok)", icon: "🩺" };
+    case "medication_started":
+    case "medication_stopped":
+      return { color: "#6b4ea8", icon: "💊" };
+    case "note_added":
+      return { color: "#b0771a", icon: "📝" };
+    case "clinical_info_logged":
+      return { color: "var(--color-ln-celeste)", icon: "📋" };
+    case "death_recorded":
+      return { color: "#7a6a50", icon: "🍃" };
+    default:
+      return { color: "var(--color-ln-mute)", icon: "·" };
+  }
+}
+
+function LnMemorialTimeline({
+  events,
+  publicToken: _publicToken,
+}: {
+  events: MemorialEvent[];
+  publicToken: string;
+}) {
+  if (events.length === 0) {
+    return (
+      <p className="text-[13px]" style={{ color: "var(--color-ln-mute)" }}>
+        Sin eventos registrados.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0">
+      {events.map((ev, i) => {
+        const { color, icon } = memorialEventStyle(ev.eventType);
+        const date = ev.occurredAt instanceof Date ? ev.occurredAt : new Date(ev.occurredAt);
+        const monthAbbr = date
+          .toLocaleDateString("es-AR", { month: "short" })
+          .toUpperCase()
+          .replace(".", "");
+        const year = date.getFullYear();
+        const dateLabel = `${monthAbbr} ${year}`;
+        const summary = eventPayloadSummarySimple(ev.eventType, ev.payload);
+        const isDeathEvent = ev.eventType === "death_recorded";
+        const isLast = i === events.length - 1;
+
+        return (
+          <div
+            key={ev.id}
+            className="grid"
+            style={{ gridTemplateColumns: "88px 30px 1fr", gap: "0 0" }}
+          >
+            {/* Date column */}
+            <div
+              className="flex items-start justify-end pr-[14px] pt-[10px] font-[var(--font-ln-mono)] text-[11px] leading-[1.3] tracking-[.04em]"
+              style={{ color: "var(--color-ln-mute)" }}
+            >
+              {dateLabel}
+            </div>
+
+            {/* Dot + vertical connector */}
+            <div className="flex flex-col items-center">
+              <div
+                className="mt-[12px] flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full border-2 text-[11px]"
+                style={{
+                  borderColor: color,
+                  color: color,
+                  background: "var(--color-ln-card)",
+                }}
+              >
+                {icon}
+              </div>
+              {!isLast && (
+                <div
+                  className="w-px flex-1"
+                  style={{
+                    background: "var(--color-ln-line-2)",
+                    minHeight: 20,
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="pb-[18px] pl-[14px] pt-[10px]">
+              <p
+                className={[
+                  "m-0 text-[13.5px] font-semibold leading-tight",
+                  isDeathEvent ? "font-[var(--font-ln-serif)]" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ color: isDeathEvent ? "#7a6a50" : "var(--color-ln-ink)" }}
+              >
+                {summary.primary}
+              </p>
+              {summary.secondary && (
+                <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+                  {summary.secondary}
+                </p>
+              )}
+              {ev.notes && (
+                <p
+                  className="mt-[3px] text-[12px] italic"
+                  style={{ color: "var(--color-ln-mute)" }}
+                >
+                  {ev.notes}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Lightweight payload summary (avoids importing heavy lib/events in page.tsx path)
+function eventPayloadSummarySimple(
+  eventType: string,
+  payload: unknown,
+): { primary: string; secondary?: string } {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  switch (eventType) {
+    case "vaccination_administered":
+      return {
+        primary: typeof p.vaccine_name === "string" ? `Vacuna · ${p.vaccine_name}` : "Vacunación",
+        secondary: typeof p.vet_name === "string" ? p.vet_name : undefined,
+      };
+    case "weight_recorded":
+      return {
+        primary: typeof p.weight_kg === "number" ? `Peso · ${p.weight_kg} kg` : "Peso registrado",
+      };
+    case "sterilization_performed":
+      return { primary: "Esterilización" };
+    case "microchip_implanted":
+      return {
+        primary: "Microchip implantado",
+        secondary: typeof p.chip_id === "string" ? p.chip_id : undefined,
+      };
+    case "vet_visit_logged":
+      return { primary: "Visita al veterinario" };
+    case "medication_started":
+      return {
+        primary: typeof p.drug_name === "string" ? `Medicación · ${p.drug_name}` : "Medicación",
+      };
+    case "medication_stopped":
+      return {
+        primary:
+          typeof p.drug_name === "string" ? `Fin medicación · ${p.drug_name}` : "Fin de medicación",
+      };
+    case "note_added":
+      return { primary: "Nota", secondary: typeof p.text === "string" ? p.text : undefined };
+    case "death_recorded":
+      return {
+        primary: "Fallecimiento",
+        secondary: typeof p.cause === "string" ? `Causa: ${p.cause}` : undefined,
+      };
+    default:
+      return { primary: eventType };
+  }
+}
+
 function deceasedSubtitle(pet: Pet): string {
   const deceasedYear = pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null;
   if (pet.dateOfBirth && deceasedYear) {
@@ -220,67 +412,145 @@ function DeceasedView({
   photoUrl: string | null;
   eventsWithAttachments: Parameters<typeof EventTimeline>[0]["events"];
 }) {
-  return (
-    <div className="max-w-2xl mx-auto pt-6 space-y-8">
-      <Link
-        href="/mis-mascotas"
-        className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
-      >
-        ← Volver a mis mascotas
-      </Link>
+  // Derive birth and death years for the subtitle
+  const birthYear = pet.dateOfBirth ? new Date(pet.dateOfBirth).getFullYear() : null;
+  const deathYear = pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null;
+  const subtitle =
+    birthYear && deathYear ? `En memoria · ${birthYear} – ${deathYear}` : deceasedSubtitle(pet);
 
-      {/* In-memoriam hero — centered, muted */}
-      <section className="flex flex-col items-center gap-3 pt-4">
-        {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt={pet.name}
-            className="w-24 h-24 rounded-full object-cover opacity-80"
-          />
-        ) : (
-          <div className="w-24 h-24 rounded-full bg-gob-surface-alt flex items-center justify-center text-3xl font-semibold text-gob-text-muted opacity-80">
-            {pet.name.charAt(0).toUpperCase()}
+  return (
+    <div
+      className="min-h-screen"
+      style={{ background: "#faf8f3", fontFamily: "var(--font-ln-sans)" }}
+    >
+      {/* Desaturated guilloché */}
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+          filter: "grayscale(.5)",
+          opacity: 0.5,
+        }}
+      />
+
+      <div className="mx-auto max-w-2xl px-[24px] py-[28px] pb-[64px]">
+        {/* Back link */}
+        <Link
+          href="/mis-mascotas"
+          className="mb-[28px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+        >
+          ← Mis mascotas
+        </Link>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Memorial hero — centered                                         */}
+        {/* ---------------------------------------------------------------- */}
+        <div className="mb-[36px] flex flex-col items-center gap-[14px] pt-[12px] text-center">
+          {/* Photo: grayscale + sepia, opacity 0.82 */}
+          <div
+            className="overflow-hidden rounded-full border-2 border-[var(--color-ln-line-strong)]"
+            style={{
+              width: 150,
+              height: 150,
+              filter: "grayscale(1) sepia(.35)",
+              opacity: 0.82,
+            }}
+          >
+            {photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt={pet.name} className="h-full w-full object-cover" />
+            ) : (
+              <div
+                className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[56px] font-semibold text-[var(--color-ln-mute)]"
+                style={{
+                  background: "repeating-linear-gradient(135deg,#e7e2d6 0 6px,#f3f0e7 6px 12px)",
+                }}
+              >
+                {pet.name.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
-        )}
-        <div className="text-center space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">{pet.name}</h1>
-          <p className="text-sm text-gob-text-muted">{deceasedSubtitle(pet)}</p>
+
+          {/* Serif name 52px */}
+          <h1
+            className="m-0 font-[var(--font-ln-serif)] font-semibold leading-tight tracking-[-0.02em]"
+            style={{ fontSize: 52, color: "#2a2018" }}
+          >
+            {pet.name}
+          </h1>
+
+          {/* Italic subtitle */}
+          <p
+            className="font-[var(--font-ln-serif)] font-medium"
+            style={{ fontSize: 16, color: "#7a6a50", fontStyle: "italic" }}
+          >
+            {subtitle}
+          </p>
+
+          {/* Text links */}
+          <p
+            className="font-[var(--font-ln-sans)] text-[13px]"
+            style={{ color: "var(--color-ln-mute)" }}
+          >
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}/editar`}
+              className="text-[var(--color-ln-azul)] underline underline-offset-4 hover:text-[var(--color-ln-azul-700)]"
+            >
+              Editar mascota
+            </Link>
+            <span className="mx-[8px]" style={{ color: "#c0b89a" }}>
+              ·
+            </span>
+            <Link
+              href={`/p/${pet.publicToken}`}
+              target="_blank"
+              rel="noopener"
+              className="text-[var(--color-ln-azul)] underline underline-offset-4 hover:text-[var(--color-ln-azul-700)]"
+            >
+              Ver credencial pública
+            </Link>
+            <span className="mx-[8px]" style={{ color: "#c0b89a" }}>
+              ·
+            </span>
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}
+              className="text-[var(--color-ln-azul)] underline underline-offset-4 hover:text-[var(--color-ln-azul-700)]"
+            >
+              + Agregar nota
+            </Link>
+          </p>
         </div>
 
-        <p className="text-sm text-gob-text-muted pt-1">
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}/editar`}
-            className="underline underline-offset-4 hover:text-gob-text-gray"
+        {/* ---------------------------------------------------------------- */}
+        {/* Read-only libreta timeline                                        */}
+        {/* ---------------------------------------------------------------- */}
+        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[24px] py-[22px]">
+          {/* Eyebrow + heading */}
+          <p
+            className="mb-[4px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.14em]"
+            style={{ color: "var(--color-ln-mute)" }}
           >
-            Editar mascota
-          </Link>
-          {" · "}
-          <Link
-            href={`/p/${pet.publicToken}`}
-            target="_blank"
-            rel="noopener"
-            className="underline underline-offset-4 hover:text-gob-text-gray"
+            Libreta sanitaria
+          </p>
+          <h2
+            className="m-0 mb-[6px] font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
+            style={{ color: "#2a2018" }}
           >
-            Ver credencial pública
-          </Link>
-          {" · "}
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}
-            className="underline underline-offset-4 hover:text-gob-text-gray"
-          >
-            + Agregar nota
-          </Link>
-        </p>
-      </section>
+            Historial
+          </h2>
+          <p className="mb-[20px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+            Solo lectura. Los eventos registrados en vida se conservan.
+          </p>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight text-gob-text">Libreta sanitaria</h2>
-        <EventTimeline
-          events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
-          publicToken={pet.publicToken}
-          chips={LIBRETA_FILTER_CHIPS}
-        />
-      </section>
+          {/* Memorial timeline */}
+          <LnMemorialTimeline
+            events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
+            publicToken={pet.publicToken}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -642,16 +912,57 @@ export default async function PetDetailPage({
     .filter((e) => e.eventType === "medication_started")
     .map((e) => ({ ...e, attachmentUrl: null }));
 
+  // Build LnHero data from pet fields
+  // Note: pet.status is narrowed to "active" here (deceased + lost both have early returns above).
+  const lnPetStatus: "ok" | "sick" | "lost" | "pregnant" = (() => {
+    if (pet.pregnancyStatus === "in_progress") return "pregnant";
+    return "ok";
+  })();
+
+  const heroTags: Array<{ key: string; label: string; variant?: "celeste" | "gray" }> = [];
+  if (pet.microchipId) heroTags.push({ key: "chip", label: "Microchip verificado" });
+  if (pet.jurisdictionLocality)
+    heroTags.push({ key: "loc", label: pet.jurisdictionLocality, variant: "gray" });
+
+  const breedLine = [pet.breed, pet.sex ? sexLabel(pet.sex) : null, age, speciesLabel(pet.species)]
+    .filter(Boolean)
+    .join(" · ");
+
+  // Vitals: weight delta from weightHistory[0] vs weightHistory[1]
+  const latestWeight = weightHistory[weightHistory.length - 1];
+  const prevWeight = weightHistory[weightHistory.length - 2];
+  const weightDelta = latestWeight && prevWeight ? latestWeight.kg - prevWeight.kg : null;
+
+  // Last visit: find latest vet_visit_logged or vaccination event from typedEvents
+  const lastVisitEvent = typedEvents
+    .filter((e) => e.eventType === "vet_visit_logged" || e.eventType === "vaccination_administered")
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
+  const lastVisitDate = lastVisitEvent
+    ? new Date(lastVisitEvent.occurredAt).toLocaleDateString("es-AR", {
+        day: "numeric",
+        month: "short",
+      })
+    : "—";
+
+  // Vaccine count from petActiveReminders
+  const vaccineTotal = petActiveReminders.length;
+  const vaccineUpToDate = petActiveReminders.filter(
+    (r) => r.variant === "due_soon" || r.variant === "upcoming" || r.variant === "success",
+  ).length;
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4 pb-12">
-      {/* §4.9 (1) Back link */}
+    <div
+      className="mx-auto max-w-4xl pb-[48px] px-[16px] md:px-[32px]"
+      style={{ fontFamily: "var(--font-ln-sans)" }}
+    >
+      {/* Back link */}
       <Link
         href={
           accessPath === "org" && organization
             ? `/org/${organization.publicToken}/mascotas`
             : "/mis-mascotas"
         }
-        className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
+        className="mb-[18px] mt-[16px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
         data-section="back-link"
       >
         ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
@@ -659,7 +970,7 @@ export default async function PetDetailPage({
 
       {/* Org-mediated access notice */}
       {accessPath === "org" && organization && (
-        <div className="rounded border border-gob-info/30 bg-gob-info/10 px-3 py-2 text-sm text-gob-text">
+        <div className="mb-[14px] rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[14px] py-[10px] text-[13px] text-[var(--color-ln-ink-2)]">
           Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
           Cualquier evento que registres queda atribuido a la organización.
         </div>
@@ -671,33 +982,33 @@ export default async function PetDetailPage({
         <RabiesObservationBanner pet={pet} events={typedEvents} />
       )}
 
-      {/* §4.9 (2) Open cases section */}
-      <div data-section="cases">
+      {/* Open cases */}
+      <div data-section="cases" className="mb-[14px]">
         <PetOpenCasesSection petId={pet.id} />
       </div>
 
-      {/* Pregnancy card — conditional, above hero */}
+      {/* Pregnancy card */}
       {pregnancyCardData && (
-        <PregnancyInProgressCard
-          petPublicToken={pet.publicToken}
-          pregnancyStartedAt={pregnancyCardData.startedAt}
-          weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
-          expectedBirthAt={pregnancyCardData.expectedBirthAt}
-          lastClinicalAt={pregnancyCardData.lastClinicalAt}
-        />
+        <div className="mb-[14px]">
+          <PregnancyInProgressCard
+            petPublicToken={pet.publicToken}
+            pregnancyStartedAt={pregnancyCardData.startedAt}
+            weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
+            expectedBirthAt={pregnancyCardData.expectedBirthAt}
+            lastClinicalAt={pregnancyCardData.lastClinicalAt}
+          />
+        </div>
       )}
 
-      {/* §4.9 (3) PPP card — provincial export deferred. See
-            docs/superpowers/plans/2026-05-27-spec-later-tracker.md#ppp-card. */}
+      {/* PPP card */}
       {pet.potentiallyDangerousBreed && (
-        <div data-section="ppp-card">
+        <div data-section="ppp-card" className="mb-[14px]">
           <PpPCard
             petPublicToken={pet.publicToken}
             breed={pet.breed}
             events={typedEvents.map((e) => ({ ...e, attachmentUrl: null }))}
             isTransit={isTransit}
           />
-          {/* PPP CABA export CTA */}
           {accessPath === "owner" &&
             pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
               <PppExportCabaButton petPublicToken={pet.publicToken} />
@@ -705,10 +1016,9 @@ export default async function PetDetailPage({
         </div>
       )}
 
-      {/* §4.9 (4) Service Dog credential card — issuance model deferred. See
-            docs/superpowers/plans/2026-05-27-spec-later-tracker.md#service-dog-card. */}
+      {/* Service dog card */}
       {serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService && (
-        <div data-section="service-dog-card">
+        <div data-section="service-dog-card" className="mb-[14px]">
           <ServiceDogCredentialCard
             petPublicToken={pet.publicToken}
             petName={pet.name}
@@ -719,149 +1029,250 @@ export default async function PetDetailPage({
         </div>
       )}
 
-      {/* §4.9 (5) Hero — identity header */}
+      {/* ------------------------------------------------------------------ */}
+      {/* LN Hero                                                             */}
+      {/* ------------------------------------------------------------------ */}
       <div data-section="hero">
-        <PetProfileHero pet={heroData} />
+        <LnHero
+          name={pet.name}
+          status={lnPetStatus}
+          breed={breedLine}
+          photoSrc={photoUrl ?? undefined}
+          tags={heroTags}
+          actions={
+            <>
+              <Link
+                href={`/p/${pet.publicToken}`}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[7px] text-[12px] font-semibold text-[var(--color-ln-ink-2)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+              >
+                Compartir
+              </Link>
+              {pet.status === "active" && (
+                <Link
+                  href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
+                  className="inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-[12px] py-[7px] text-[12px] font-semibold text-white no-underline transition-colors hover:opacity-90"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-[6px] w-[6px] rounded-full bg-white"
+                  />
+                  Marcar perdida
+                </Link>
+              )}
+            </>
+          }
+        />
       </div>
 
-      {/* Quick-action buttons (Modo perdido / Compartir QR / Llamar vet) */}
+      {/* ------------------------------------------------------------------ */}
+      {/* LN Vitals strip                                                     */}
+      {/* ------------------------------------------------------------------ */}
+      <LnVitals
+        className="mb-[20px]"
+        cells={[
+          {
+            label: "Peso actual",
+            value: latestWeight ? latestWeight.kg : "—",
+            unit: latestWeight ? "kg" : undefined,
+            meta:
+              weightDelta !== null
+                ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)} vs anterior`
+                : undefined,
+          },
+          {
+            label: "Última visita",
+            value: lastVisitDate,
+          },
+          {
+            label: "Vacunas",
+            value: vaccineTotal > 0 ? `${vaccineUpToDate}` : "—",
+            unit: vaccineTotal > 0 ? `/ ${vaccineTotal} al día` : undefined,
+          },
+          {
+            label: "Edad",
+            value: age ?? "—",
+          },
+        ]}
+      />
+
+      {/* Quick-action buttons */}
       <PetQuickActions
         petPublicToken={pet.publicToken}
         petStatus={pet.status as "active" | "lost" | "deceased"}
         preferredVetPhone={viewerContacts?.preferredVetPhone ?? null}
       />
 
-      {/* In-page tabs — Resumen / Libreta / Vacunas / Historial.
-            PetDetailTabsPanel is a client component; the resumen content is
-            rendered server-side and passed as an RSC node (composition pattern).
-            Suspense boundary is required because PetDetailTabsPanel uses
-            useSearchParams() — Next 15 needs a boundary or it bails static rendering. */}
-      <Suspense fallback={<div className="h-12 bg-gob-surface-alt rounded animate-pulse" />}>
+      {/* ------------------------------------------------------------------ */}
+      {/* Tabs + body                                                         */}
+      {/* ------------------------------------------------------------------ */}
+      <Suspense
+        fallback={<div className="h-12 rounded-[4px] bg-[var(--color-ln-stripe)] animate-pulse" />}
+      >
         <PetDetailTabsPanel
           petPublicToken={pet.publicToken}
           historialCount={historialCount}
           initialTab={activeTab}
           isOwner={isOwner}
           resumenContent={
-            <div className="space-y-4">
-              {/* §4.9 (6) Achievements row + credentials */}
-              <div data-section="achievements">
-                <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
-              </div>
+            <div className="grid gap-[24px] py-[20px] lg:grid-cols-[1fr_280px]">
+              {/* LEFT: health status + note + functional widgets */}
+              <div className="flex flex-col gap-[20px]">
+                {/* Achievements */}
+                <div data-section="achievements">
+                  <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
+                </div>
 
-              {/* §4.9 (7) Estado actual — new section with tattoo (R5) */}
-              <div data-section="current-state">
-                <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
-              </div>
+                {/* Estado actual */}
+                <LnSectionHead num="01" title="Estado de salud" />
+                <div data-section="current-state">
+                  <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+                </div>
 
-              {/* §4.9 (8) Cuidados próximos — consolidates reminders + appointments + meds */}
-              <div data-section="upcoming-care">
-                <PetUpcomingCareSection
-                  reminders={petActiveReminders}
-                  appointments={upcomingAppointments}
-                  medicationDoses={pendingMedicationReminders.map((r) => ({
-                    reminderId: r.id,
-                    drugName: r.title,
-                    dueAt: r.dueAt,
-                  }))}
-                  petToken={pet.publicToken}
+                {/* Cuidados próximos */}
+                <div data-section="upcoming-care">
+                  <PetUpcomingCareSection
+                    reminders={petActiveReminders}
+                    appointments={upcomingAppointments}
+                    medicationDoses={pendingMedicationReminders.map((r) => ({
+                      reminderId: r.id,
+                      drugName: r.title,
+                      dueAt: r.dueAt,
+                    }))}
+                    petToken={pet.publicToken}
+                  />
+                </div>
+
+                {/* Health timeline */}
+                <div data-section="health-timeline">
+                  <PetHealthTimeline
+                    recentFive={recentFive}
+                    fullHistoryHref={`/mis-mascotas/${pet.publicToken}?tab=historial`}
+                    signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
+                  />
+                </div>
+
+                {/* Actions menu */}
+                <div data-section="actions-menu">
+                  <PetActionsMenu
+                    pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
+                    accessPath={accessPath === "org" ? "org" : "owner"}
+                    ownershipRole={ownershipRole}
+                    hasPendingReturnProposal={false}
+                  />
+                </div>
+
+                {/* Emergency card */}
+                <PetEmergencyCard
+                  editHref="/cuenta/editar"
+                  vet={
+                    viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
+                      ? {
+                          name: viewerContacts.preferredVetName,
+                          role: "Vet de cabecera",
+                          phone: viewerContacts.preferredVetPhone,
+                        }
+                      : null
+                  }
+                  emergencyContact={
+                    viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
+                      ? {
+                          name: viewerContacts.emergencyContactName,
+                          role: "Contacto emergencia",
+                          phone: viewerContacts.emergencyContactPhone,
+                        }
+                      : null
+                  }
+                  alerts={[]}
                 />
-              </div>
 
-              {/* §4.9 (9) Health timeline — collapsed by default, lazy signing.
-                  signTimelineAttachmentsForPet is bound to the pet's publicToken so
-                  the client component receives a (eventIds) => Promise<…> signer
-                  that satisfies the SignerFn type without server-only imports. */}
-              <div data-section="health-timeline">
-                <PetHealthTimeline
-                  recentFive={recentFive}
-                  fullHistoryHref={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-                  signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
+                {/* Medication doses */}
+                <MedicationDosesSection
+                  pet={pet}
+                  reminders={pendingMedicationReminders}
+                  sourceEvents={medicationSourceEvents}
                 />
-              </div>
 
-              {/* §4.9 (10) Actions menu — replaces inline action buttons */}
-              <div data-section="actions-menu">
-                <PetActionsMenu
-                  pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
-                  accessPath={accessPath === "org" ? "org" : "owner"}
-                  ownershipRole={ownershipRole}
-                  hasPendingReturnProposal={false}
-                />
-              </div>
+                {/* Weight sparkline */}
+                <PetWeightChart samples={weightHistory} />
 
-              {/* Auxiliary cards — below PetActionsMenu per design §5 */}
-
-              {/* v2 Emergency card */}
-              <PetEmergencyCard
-                editHref="/cuenta/editar"
-                vet={
-                  viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
-                    ? {
-                        name: viewerContacts.preferredVetName,
-                        role: "Vet de cabecera",
-                        phone: viewerContacts.preferredVetPhone,
-                      }
-                    : null
-                }
-                emergencyContact={
-                  viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
-                    ? {
-                        name: viewerContacts.emergencyContactName,
-                        role: "Contacto emergencia",
-                        phone: viewerContacts.emergencyContactPhone,
-                      }
-                    : null
-                }
-                alerts={[]}
-              />
-
-              {/* Medication doses — preserved (needed until MedicationDosesSection is refactored) */}
-              <MedicationDosesSection
-                pet={pet}
-                reminders={pendingMedicationReminders}
-                sourceEvents={medicationSourceEvents}
-              />
-
-              {/* v2 Weight sparkline */}
-              <PetWeightChart samples={weightHistory} />
-
-              <section>
+                {/* Link to libreta tab */}
                 <Link
                   href={`/mis-mascotas/${pet.publicToken}?tab=libreta`}
-                  className="block w-full text-center px-4 py-3 rounded-lg border border-gob-border text-sm font-medium text-gob-text-gray hover:bg-gob-surface-alt transition-colors"
+                  className="block w-full rounded-[3px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] py-[11px] text-center font-[var(--font-ln-mono)] text-[11.5px] font-semibold uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline transition-colors hover:bg-[var(--color-ln-line-2)]"
                 >
                   Ver libreta completa →
                 </Link>
-              </section>
 
-              {/* v2 Credential card */}
-              <PetCredentialCard
-                publicToken={pet.publicToken}
-                qrUrl={`/p/${pet.publicToken}.png`}
-                publicHref={`/p/${pet.publicToken}`}
-              />
-
-              {/* §4.20 placeholder — owner-only, captures demand for physical QR tag */}
-              {physicalTagInterest ? (
-                <PhysicalTagInterestCard
-                  petPublicToken={pet.publicToken}
-                  petName={pet.name}
-                  initialInterested={physicalTagInterest.interested}
-                  initialRequestedAt={physicalTagInterest.requestedAt}
+                {/* Credential card */}
+                <PetCredentialCard
+                  publicToken={pet.publicToken}
+                  qrUrl={`/p/${pet.publicToken}.png`}
+                  publicHref={`/p/${pet.publicToken}`}
                 />
-              ) : null}
 
-              {/* v2 Tracking placeholder */}
-              <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+                {/* Physical tag interest */}
+                {physicalTagInterest ? (
+                  <PhysicalTagInterestCard
+                    petPublicToken={pet.publicToken}
+                    petName={pet.name}
+                    initialInterested={physicalTagInterest.interested}
+                    initialRequestedAt={physicalTagInterest.requestedAt}
+                  />
+                ) : null}
 
-              {/* v2 Travel docs — TODO(spec-later): wire from pet_attachments or
-                  attachments with kind in ('passport','intl_cert') once the table
-                  decision lands. See docs/superpowers/plans/2026-05-27-spec-later-tracker.md#travel-docs. */}
-              <PetTravelDocs
-                uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
-                docs={[]}
-              />
+                {/* Tracking placeholder */}
+                <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+
+                {/* Travel docs */}
+                <PetTravelDocs
+                  uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
+                  docs={[]}
+                />
+              </div>
+
+              {/* RIGHT: Identificación + Sello card */}
+              <div className="flex flex-col gap-[16px]">
+                <LnCard>
+                  <LnCardHead title="Identificación" />
+                  <LnCardBody>
+                    <div className="space-y-[10px] font-[var(--font-ln-mono)] text-[12px] leading-[1.9]">
+                      {pet.microchipId && (
+                        <>
+                          <p className="text-[var(--color-ln-mute)]">MICROCHIP</p>
+                          <p className="mb-[6px] text-[var(--color-ln-ink)]">{pet.microchipId}</p>
+                        </>
+                      )}
+                      <p className="text-[var(--color-ln-mute)]">LIBRETA</p>
+                      <p className="mb-[6px] text-[var(--color-ln-ink)]">
+                        LIB-AR-{pet.publicToken.toUpperCase()}
+                      </p>
+                      {viewerContacts?.displayName && (
+                        <>
+                          <p className="text-[var(--color-ln-mute)]">TITULAR</p>
+                          <p className="text-[var(--color-ln-ink)]">{viewerContacts.displayName}</p>
+                        </>
+                      )}
+                    </div>
+                  </LnCardBody>
+                </LnCard>
+
+                {/* Sello "Inscripción válida" */}
+                <LnCard>
+                  <div className="flex items-center gap-[14px] px-[16px] py-[14px]">
+                    <LnSeal line1="Registro" line2="Nacional" size={52} />
+                    <div>
+                      <p className="font-[var(--font-ln-serif)] text-[13px] font-semibold text-[var(--color-ln-ink)]">
+                        Inscripción válida
+                      </p>
+                      <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">
+                        miMAR · Registro Nacional de Mascotas
+                      </p>
+                    </div>
+                  </div>
+                </LnCard>
+              </div>
             </div>
           }
         />

@@ -1,8 +1,14 @@
-// Libreta sanitaria view — renders pre-grouped events as collapsible sections
-// (grouped by clinical purpose) or as a flat chronological list. Grouping
-// happens in lib/libreta-sanitaria.ts; this component is render-only.
+// Libreta sanitaria view — Libreta Nacional redesign (handoff §4).
+//
+// Section 01 Registro de vacunación → LnVaccineLedger (ruled table).
+// Section 02 Historial clínico → LnTimeline (dot+icon by type, vertical connector).
+// Footer: "Asientos firmados digitalmente · inmutables" + export.
+//
+// Render logic (groupedEvents, agrupada/cronologica toggle) is UNCHANGED.
 
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
+import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
 import { eventPayloadSummary } from "@/lib/events";
 import { formatDate } from "@/lib/format";
 import {
@@ -19,12 +25,9 @@ type Event = {
   payload: unknown;
   occurredAt: Date | string;
   notes: string | null;
-  // Provenance fields — used to derive confidence tier (A3/plan 2026-05-22).
   authorRole: string;
   authorVerified: boolean;
   authorOrganizationId: string | null;
-  // SENASA alignment (compliance PR 3). Optional — populated by the new
-  // sanitary event form; legacy rows are null.
   tipoEventoCode?: string | null;
 };
 
@@ -42,89 +45,286 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
   const nonEmpty = LIBRETA_GROUPS.filter((g) => groupedEvents[g].length > 0);
   if (nonEmpty.length === 0) return <EmptyLibreta />;
 
+  // Separate vaccination group from the rest for the LnVaccineLedger treatment
+  const vaccinationEvents = groupedEvents.vacunas ?? [];
+  const otherGroups = nonEmpty.filter((g) => g !== "vacunas");
+
   return (
-    <div className="space-y-8">
-      {nonEmpty.map((group) => (
-        <LibretaGroupSection
-          key={group}
-          group={group}
-          events={groupedEvents[group]}
-          publicToken={publicToken}
-        />
+    <div className="space-y-[32px]">
+      {/* Section 01 — Vaccination ledger */}
+      {vaccinationEvents.length > 0 && (
+        <section>
+          <LnSectionHead
+            num="01"
+            title="Registro de vacunación"
+            meta="Asientos certificados"
+            className="mb-[16px]"
+          />
+          <LnVaccineLedger rows={vaccinationEvents.map(eventToVaccineRow)} />
+        </section>
+      )}
+
+      {/* Section 02+ — Clinical history as timeline */}
+      {otherGroups.map((group, idx) => (
+        <section key={group}>
+          <LnSectionHead
+            num={String(idx + (vaccinationEvents.length > 0 ? 2 : 1)).padStart(2, "0")}
+            title={LIBRETA_GROUP_LABELS[group]}
+            meta={`${groupedEvents[group].length} asiento${groupedEvents[group].length !== 1 ? "s" : ""}`}
+            className="mb-[16px]"
+          />
+          <LnTimelineSection events={groupedEvents[group]} publicToken={publicToken} />
+        </section>
       ))}
     </div>
   );
 }
 
-function LibretaGroupSection({
-  group,
+// ---------------------------------------------------------------------------
+// Vaccination row adapter
+// ---------------------------------------------------------------------------
+
+function eventToVaccineRow(event: Event): LnVaccineRow {
+  const p = (event.payload ?? {}) as Record<string, unknown>;
+  const occurredDate =
+    event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt);
+  const appliedAt = occurredDate.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  const nextDueRaw = p.next_due_at ?? p.next_due ?? null;
+  const nextDue =
+    nextDueRaw && typeof nextDueRaw === "string"
+      ? new Date(nextDueRaw).toLocaleDateString("es-AR", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : undefined;
+
+  // Derive vstamp status from next_due_at
+  let status: "ok" | "due" | "over" = "ok";
+  if (nextDueRaw) {
+    const next = new Date(nextDueRaw as string);
+    const now = new Date();
+    const daysUntil = (next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysUntil < 0) status = "over";
+    else if (daysUntil < 30) status = "due";
+    else status = "ok";
+  }
+
+  const vetName =
+    typeof p.administered_by === "string"
+      ? p.administered_by
+      : typeof p.vet_name === "string"
+        ? p.vet_name
+        : "—";
+
+  const vetLicense = typeof p.vet_license === "string" ? p.vet_license : undefined;
+
+  return {
+    id: event.id,
+    name:
+      typeof p.vaccine_name === "string"
+        ? p.vaccine_name
+        : (tipoEventoLabel(event.tipoEventoCode) ?? "Vacuna"),
+    dose: typeof p.dose === "string" ? p.dose : undefined,
+    appliedAt,
+    nextDue,
+    status,
+    vet: vetName,
+    vetLicense,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Timeline section for clinical events
+// ---------------------------------------------------------------------------
+
+function eventColor(eventType: string): string {
+  switch (eventType) {
+    case "weight_recorded":
+      return "var(--color-ln-celeste)";
+    case "vet_visit_logged":
+      return "var(--color-ln-ok)";
+    case "medication_started":
+    case "medication_stopped":
+      return "#6b4ea8";
+    case "note_added":
+      return "var(--color-ln-warn)";
+    case "sterilization_performed":
+      return "var(--color-ln-rosa)";
+    case "microchip_implanted":
+      return "var(--color-ln-azul)";
+    case "death_recorded":
+      return "var(--color-ln-mute)";
+    default:
+      return "var(--color-ln-celeste)";
+  }
+}
+
+function eventIcon(eventType: string): string {
+  switch (eventType) {
+    case "weight_recorded":
+      return "⚖️";
+    case "vet_visit_logged":
+      return "🩺";
+    case "medication_started":
+      return "💊";
+    case "medication_stopped":
+      return "✓";
+    case "note_added":
+      return "📝";
+    case "sterilization_performed":
+      return "✂️";
+    case "microchip_implanted":
+      return "🔖";
+    case "clinical_info_logged":
+      return "📋";
+    case "death_recorded":
+      return "🍃";
+    default:
+      return "·";
+  }
+}
+
+function LnTimelineSection({
   events,
-  publicToken,
+  publicToken: _publicToken,
 }: {
-  group: LibretaGroupKey;
   events: Event[];
   publicToken: string;
 }) {
+  if (events.length === 0) return null;
+
   return (
-    <section>
-      <h2 className="text-lg font-semibold text-gob-text  mb-3">
-        {LIBRETA_GROUP_LABELS[group]}{" "}
-        <span className="text-sm font-normal text-gob-text-muted">({events.length})</span>
-      </h2>
-      <ul className="space-y-1">
-        {events.map((event) => (
-          <LibretaEntry key={event.id} event={event} publicToken={publicToken} />
-        ))}
-      </ul>
-    </section>
+    <div className="flex flex-col gap-0">
+      {events.map((event, i) => {
+        const summary = eventPayloadSummary(event.eventType, event.payload);
+        const senasaLabel = tipoEventoLabel(event.tipoEventoCode);
+        const senasaNorma = tipoEventoNorma(event.tipoEventoCode);
+        const isEno = notificableEno(event.tipoEventoCode);
+        const confidenceTier = libretaConfidenceTier({
+          authorRole: event.authorRole,
+          authorVerified: event.authorVerified,
+          authorOrganizationId: event.authorOrganizationId,
+          payload: (event.payload ?? {}) as Record<string, unknown>,
+        });
+
+        const date =
+          event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt);
+        const dayStr = date.getDate().toString().padStart(2, "0");
+        const monthStr = date
+          .toLocaleDateString("es-AR", { month: "short" })
+          .toUpperCase()
+          .replace(".", "");
+        const yearStr = date.getFullYear();
+
+        const color = eventColor(event.eventType);
+        const icon = eventIcon(event.eventType);
+        const isLast = i === events.length - 1;
+
+        return (
+          <div key={event.id} className="grid" style={{ gridTemplateColumns: "96px 34px 1fr" }}>
+            {/* Date */}
+            <div
+              className="flex flex-col items-end justify-start pr-[16px] pt-[11px]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
+            >
+              <span
+                className="text-[11px] font-semibold leading-tight"
+                style={{ color: "var(--color-ln-ink-2)" }}
+              >
+                {dayStr} {monthStr}
+              </span>
+              <span className="text-[10px]" style={{ color: "var(--color-ln-mute)" }}>
+                {yearStr}
+              </span>
+            </div>
+
+            {/* Dot + line */}
+            <div className="flex flex-col items-center">
+              <div
+                className="mt-[11px] flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full border-2 text-[12px]"
+                style={{
+                  borderColor: color,
+                  color,
+                  background: "var(--color-ln-card)",
+                }}
+              >
+                {icon}
+              </div>
+              {!isLast && (
+                <div
+                  className="w-px flex-1"
+                  style={{
+                    background: "var(--color-ln-line-2)",
+                    minHeight: 18,
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Card */}
+            <div className="ml-[14px] mb-[14px] mt-[8px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[14px] py-[11px]">
+              <div className="flex flex-wrap items-center gap-[7px]">
+                <p
+                  className="m-0 text-[13px] font-semibold"
+                  style={{ color: "var(--color-ln-ink)" }}
+                >
+                  {senasaLabel ?? summary.primary ?? event.eventType}
+                </p>
+                <ConfidenceBadge tier={confidenceTier} />
+                {isEno && (
+                  <span
+                    className="rounded-full border border-[#f0dcb4] bg-[#fdf6ea] px-[7px] py-[1px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.08em]"
+                    style={{ color: "var(--color-ln-warn)" }}
+                    title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
+                  >
+                    ENO
+                  </span>
+                )}
+              </div>
+              {senasaNorma && (
+                <p
+                  className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px]"
+                  style={{ color: "var(--color-ln-mute)" }}
+                >
+                  {senasaNorma}
+                </p>
+              )}
+              {summary.secondary && (
+                <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+                  {summary.secondary}
+                </p>
+              )}
+              {event.notes && (
+                <p
+                  className="mt-[3px] text-[12px] italic"
+                  style={{ color: "var(--color-ln-mute)" }}
+                >
+                  {event.notes}
+                </p>
+              )}
+              <div
+                className="mt-[8px] flex flex-wrap items-center gap-[12px] font-[var(--font-ln-mono)] text-[10.5px]"
+                style={{ color: "var(--color-ln-mute)" }}
+              >
+                <time dateTime={date.toISOString()}>{formatDate(event.occurredAt)}</time>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
-function LibretaEntry({ event, publicToken: _publicToken }: { event: Event; publicToken: string }) {
-  const summary = eventPayloadSummary(event.eventType, event.payload);
-  const occurredIso =
-    typeof event.occurredAt === "string" ? event.occurredAt : event.occurredAt.toISOString();
-  const confidenceTier = libretaConfidenceTier({
-    authorRole: event.authorRole,
-    authorVerified: event.authorVerified,
-    authorOrganizationId: event.authorOrganizationId,
-    payload: (event.payload ?? {}) as Record<string, unknown>,
-  });
-  const senasaLabel = tipoEventoLabel(event.tipoEventoCode);
-  const senasaNorma = tipoEventoNorma(event.tipoEventoCode);
-  const isEnoNotifiable = notificableEno(event.tipoEventoCode);
-  return (
-    <li className="flex items-baseline justify-between gap-3 py-2 border-b border-gob-border-strong  last:border-b-0">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-medium text-gob-text ">
-            {senasaLabel ?? summary.primary ?? event.eventType}
-          </p>
-          <ConfidenceBadge tier={confidenceTier} />
-          {isEnoNotifiable && (
-            <span
-              className="inline-flex items-center rounded-full bg-gob-warning/15 text-gob-warning-text px-2 py-0.5 text-[10px] font-medium border border-gob-warning/40"
-              title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
-            >
-              ENO
-            </span>
-          )}
-        </div>
-        {senasaNorma && (
-          <p className="text-[11px] text-gob-text-muted mt-0.5 font-mono">{senasaNorma}</p>
-        )}
-        {summary.secondary && <p className="text-xs text-gob-text-gray ">{summary.secondary}</p>}
-        {event.notes && <p className="text-xs text-gob-text-muted  mt-1 italic">{event.notes}</p>}
-      </div>
-      <time
-        className="text-xs text-gob-text-muted  tabular-nums whitespace-nowrap"
-        dateTime={occurredIso}
-      >
-        {formatDate(event.occurredAt)}
-      </time>
-    </li>
-  );
-}
+// ---------------------------------------------------------------------------
+// Chronological view
+// ---------------------------------------------------------------------------
 
 function ChronologicalView({
   groupedEvents,
@@ -139,20 +339,48 @@ function ChronologicalView({
     (a, b) => occurredMs(b) - occurredMs(a),
   );
   if (all.length === 0) return <EmptyLibreta />;
+
+  // Separate vaccine events for ledger, rest for timeline
+  const vaccineEvents = all.filter((e) => e.eventType === "vaccination_administered");
+  const otherEvents = all.filter((e) => e.eventType !== "vaccination_administered");
+
   return (
-    <ul className="space-y-1">
-      {all.map((event) => (
-        <LibretaEntry key={event.id} event={event} publicToken={publicToken} />
-      ))}
-    </ul>
+    <div className="space-y-[32px]">
+      {vaccineEvents.length > 0 && (
+        <section>
+          <LnSectionHead num="01" title="Registro de vacunación" className="mb-[16px]" />
+          <LnVaccineLedger rows={vaccineEvents.map(eventToVaccineRow)} />
+        </section>
+      )}
+      {otherEvents.length > 0 && (
+        <section>
+          <LnSectionHead
+            num="02"
+            title="Historial clínico"
+            meta="orden cronológico"
+            className="mb-[16px]"
+          />
+          <LnTimelineSection events={otherEvents} publicToken={publicToken} />
+        </section>
+      )}
+    </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
+
 function EmptyLibreta() {
   return (
-    <div className="rounded-xl border border-dashed border-gob-border-strong  p-10 text-center">
-      <p className="text-gob-text-gray ">Todavía no hay registros en esta libreta.</p>
-      <p className="text-sm text-gob-text-muted  mt-1">
+    <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
+      <p
+        className="font-[var(--font-ln-mono)] text-[12px] uppercase tracking-[.06em]"
+        style={{ color: "var(--color-ln-mute)" }}
+      >
+        Todavía no hay registros en esta libreta.
+      </p>
+      <p className="mt-[6px] text-[13px]" style={{ color: "var(--color-ln-mute)" }}>
         Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá.
       </p>
     </div>

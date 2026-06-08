@@ -40,11 +40,15 @@ import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
 
 function TabLoadingSkeleton() {
   return (
-    <div className="space-y-4 py-6 animate-pulse" aria-busy="true" aria-label="Cargando...">
-      <div className="h-5 w-1/3 rounded bg-gob-surface-alt" />
-      <div className="h-4 w-full rounded bg-gob-surface-alt" />
-      <div className="h-4 w-5/6 rounded bg-gob-surface-alt" />
-      <div className="h-4 w-4/5 rounded bg-gob-surface-alt" />
+    <div
+      className="space-y-[14px] py-[24px] animate-pulse"
+      aria-busy="true"
+      aria-label="Cargando..."
+    >
+      <div className="h-[18px] w-1/3 rounded-[4px] bg-[var(--color-ln-stripe)]" />
+      <div className="h-[14px] w-full rounded-[4px] bg-[var(--color-ln-stripe)]" />
+      <div className="h-[14px] w-5/6 rounded-[4px] bg-[var(--color-ln-stripe)]" />
+      <div className="h-[14px] w-4/5 rounded-[4px] bg-[var(--color-ln-stripe)]" />
     </div>
   );
 }
@@ -55,7 +59,11 @@ function TabLoadingSkeleton() {
 
 function TabErrorState({ message }: { message: string }) {
   return (
-    <div className="py-8 text-center text-sm text-gob-danger" role="alert">
+    <div
+      className="py-[32px] text-center font-[var(--font-ln-mono)] text-[12px] uppercase tracking-[.06em]"
+      style={{ color: "var(--color-ln-err)" }}
+      role="alert"
+    >
       {message}
     </div>
   );
@@ -77,17 +85,17 @@ function LibretaPanel({
   onVistaChange: (v: "agrupada" | "cronologica") => void;
 }) {
   return (
-    <div className="space-y-6 pt-6">
+    <div className="space-y-[24px] py-[20px]">
       {/* View toggle — Por sección / Cronológica */}
-      <div className="flex items-center justify-end gap-1 text-xs print:hidden">
+      <div className="flex items-center justify-end gap-[6px] print:hidden">
         <button
           type="button"
           onClick={() => onVistaChange("agrupada")}
           className={[
-            "px-2.5 py-1 rounded-md transition-colors",
+            "rounded-[3px] border px-[10px] py-[5px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] transition-colors",
             vista === "agrupada"
-              ? "bg-gob-primary text-white"
-              : "text-gob-text-gray hover:bg-gob-surface-alt",
+              ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] text-white"
+              : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)]",
           ].join(" ")}
         >
           Por sección
@@ -96,10 +104,10 @@ function LibretaPanel({
           type="button"
           onClick={() => onVistaChange("cronologica")}
           className={[
-            "px-2.5 py-1 rounded-md transition-colors",
+            "rounded-[3px] border px-[10px] py-[5px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] transition-colors",
             vista === "cronologica"
-              ? "bg-gob-primary text-white"
-              : "text-gob-text-gray hover:bg-gob-surface-alt",
+              ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] text-white"
+              : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)]",
           ].join(" ")}
         >
           Cronológica
@@ -122,9 +130,19 @@ function LibretaPanel({
         <SharesManager petPublicToken={petPublicToken} shares={data.activeShares} />
       )}
 
-      {/* Print footer — hidden on screen, shown when printing the Libreta tab */}
-      <footer className="hidden print:block text-xs text-gob-text-muted pt-8 border-t border-gob-border">
-        Generada por MiMAR · {new Date().toLocaleString("es-AR")}
+      {/* LN Libreta footer */}
+      <footer className="mt-[8px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)] print:block">
+        <span>Asientos firmados digitalmente · inmutables</span>
+        <button
+          type="button"
+          className="cursor-pointer text-[var(--color-ln-azul)] normal-case no-underline hover:underline print:hidden"
+          onClick={() => window.print()}
+        >
+          Exportar libreta (PDF oficial)
+        </button>
+        <span className="hidden print:block text-[var(--color-ln-mute)]">
+          Generada por miMAR · {new Date().toLocaleString("es-AR")}
+        </span>
       </footer>
     </div>
   );
@@ -136,18 +154,27 @@ function LibretaPanel({
 
 function VacunasPanel({ data }: { data: VacunasTabData }) {
   return (
-    <div className="pt-6 space-y-4">
-      <header>
-        <h2 className="text-2xl font-semibold tracking-tight text-gob-text ">
+    <div className="space-y-[20px] py-[20px]">
+      <div>
+        <h2
+          className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
           Libreta de vacunas — {data.petName}
         </h2>
-        <p className="text-sm text-gob-text-gray  mt-1">
-          Historial completo de vacunaciones y próximos vencimientos.
+        <p
+          className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em]"
+          style={{ color: "var(--color-ln-mute)" }}
+        >
+          Historial completo y próximos vencimientos
         </p>
-      </header>
+      </div>
 
       {data.accessPath === "org" && data.organizationDisplayName && (
-        <div className="rounded border border-gob-info bg-gob-info/10 px-3 py-2 text-sm text-gob-azul-link   ">
+        <div
+          className="rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[14px] py-[10px] text-[13px]"
+          style={{ color: "var(--color-ln-ink-2)" }}
+        >
           Estás viendo la libreta de {data.petName} como miembro de{" "}
           <strong>{data.organizationDisplayName}</strong>. Vista de solo lectura.
         </div>
@@ -169,10 +196,20 @@ function VacunasPanel({ data }: { data: VacunasTabData }) {
 
 function HistorialPanel({ data }: { data: HistorialTabData }) {
   return (
-    <div className="space-y-4 pt-6">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight text-gob-text ">{data.petName}</h2>
-        <p className="text-sm text-gob-text-muted ">Historial completo de {data.petName}</p>
+    <div className="space-y-[20px] py-[20px]">
+      <div>
+        <h2
+          className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          {data.petName}
+        </h2>
+        <p
+          className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em]"
+          style={{ color: "var(--color-ln-mute)" }}
+        >
+          Historial completo · orden cronológico
+        </p>
       </div>
       <EventTimeline events={data.events} publicToken={data.petToken} />
     </div>

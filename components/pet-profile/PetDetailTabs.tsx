@@ -55,7 +55,7 @@ export function PetDetailTabs({
   return (
     <nav
       aria-label="Secciones del perfil"
-      className="sticky top-0 z-10 bg-white  border-b border-gob-border"
+      className="sticky top-0 z-10 border-b border-[var(--color-ln-line)] bg-[var(--color-ln-card)]"
       data-section="pet-detail-tabs"
     >
       <div className="flex gap-0">
@@ -68,10 +68,11 @@ export function PetDetailTabs({
               onClick={() => switchTab(tab.key)}
               aria-current={isActive ? "page" : undefined}
               className={[
-                "inline-flex items-center min-h-11 px-4 text-sm font-medium transition-colors border-b-2 -mb-px",
+                "inline-flex min-h-[44px] -mb-px cursor-pointer items-center gap-[7px] border-b-2 px-[18px] py-[10px] font-[var(--font-ln-sans)] text-[13px] font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
                 isActive
-                  ? "border-gob-primary text-gob-primary"
-                  : "border-transparent text-gob-text-muted  hover:text-gob-text  hover:border-gob-border-strong ",
+                  ? "border-b-[var(--color-ln-azul)] text-[var(--color-ln-azul)]"
+                  : "border-b-transparent text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)]",
               ]
                 .join(" ")
                 .trim()}
