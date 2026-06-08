@@ -1032,37 +1032,39 @@ export default async function PetDetailPage({
       {/* ------------------------------------------------------------------ */}
       {/* LN Hero                                                             */}
       {/* ------------------------------------------------------------------ */}
-      <LnHero
-        name={pet.name}
-        status={lnPetStatus}
-        breed={breedLine}
-        photoSrc={photoUrl ?? undefined}
-        tags={heroTags}
-        actions={
-          <>
-            <Link
-              href={`/p/${pet.publicToken}`}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[7px] text-[12px] font-semibold text-[var(--color-ln-ink-2)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
-            >
-              Compartir
-            </Link>
-            {pet.status === "active" && (
+      <div data-section="hero">
+        <LnHero
+          name={pet.name}
+          status={lnPetStatus}
+          breed={breedLine}
+          photoSrc={photoUrl ?? undefined}
+          tags={heroTags}
+          actions={
+            <>
               <Link
-                href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
-                className="inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-[12px] py-[7px] text-[12px] font-semibold text-white no-underline transition-colors hover:opacity-90"
+                href={`/p/${pet.publicToken}`}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[7px] text-[12px] font-semibold text-[var(--color-ln-ink-2)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
               >
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-[6px] w-[6px] rounded-full bg-white"
-                />
-                Marcar perdida
+                Compartir
               </Link>
-            )}
-          </>
-        }
-      />
+              {pet.status === "active" && (
+                <Link
+                  href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
+                  className="inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-[12px] py-[7px] text-[12px] font-semibold text-white no-underline transition-colors hover:opacity-90"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-[6px] w-[6px] rounded-full bg-white"
+                  />
+                  Marcar perdida
+                </Link>
+              )}
+            </>
+          }
+        />
+      </div>
 
       {/* ------------------------------------------------------------------ */}
       {/* LN Vitals strip                                                     */}
