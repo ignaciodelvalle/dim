@@ -38,15 +38,23 @@ let petId: string;
 let custodyOwnershipId: string;
 let volunteerUserId: string;
 let volunteerId: string;
-
-// Seeded admin user — always present after `pnpm db:bootstrap`.
-const SEEDED_ADMIN_USER_ID = "1a4d893c-6ef9-4120-b82a-999ded9935f1";
+let proposerUserId: string;
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  // Insert a test-owned proposer profile so FK columns don't depend on any seeded user.
+  proposerUserId = crypto.randomUUID();
+  await db.insert(profiles).values({
+    id: proposerUserId,
+    displayName: "FosterRepo Proposer",
+    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniVerified: false,
+    role: "owner",
+  });
+
   // Clean slate for crashed previous runs.
   await withMutationOverride(async (tx) => {
     const stalePets = await tx
@@ -138,6 +146,7 @@ afterAll(async () => {
     if (petId) await tx.delete(pets).where(eq(pets.id, petId));
     if (orgId) await tx.delete(organizations).where(eq(organizations.id, orgId));
     if (volunteerUserId) await tx.delete(profiles).where(eq(profiles.id, volunteerUserId));
+    if (proposerUserId) await tx.delete(profiles).where(eq(profiles.id, proposerUserId));
   });
 });
 
@@ -292,7 +301,7 @@ describe("Task 2.2 — CHECK foster_proposals_response_consistent: accept orderi
         organizationId: orgId,
         volunteerUserId,
         petId,
-        proposedByUserId: SEEDED_ADMIN_USER_ID,
+        proposedByUserId: proposerUserId,
         proposedAt: now,
         expiresAt,
         status: "pending",
@@ -356,7 +365,7 @@ describe("Task 2.2 — CHECK foster_proposals_response_consistent: accept orderi
         organizationId: orgId,
         volunteerUserId,
         petId,
-        proposedByUserId: SEEDED_ADMIN_USER_ID,
+        proposedByUserId: proposerUserId,
         proposedAt: now,
         expiresAt,
         status: "pending",
@@ -399,7 +408,7 @@ describe("Task 2.3 — withdrawVolunteer cascade: events emitted WITHOUT caseId 
         organizationId: orgId,
         volunteerUserId,
         petId,
-        proposedByUserId: SEEDED_ADMIN_USER_ID,
+        proposedByUserId: proposerUserId,
         proposedAt: now,
         expiresAt,
         status: "pending",
@@ -465,7 +474,7 @@ describe("Task 2.4 — expirePendingProposals: per-row tx, status recheck, null 
         organizationId: orgId,
         volunteerUserId,
         petId,
-        proposedByUserId: SEEDED_ADMIN_USER_ID,
+        proposedByUserId: proposerUserId,
         proposedAt: past,
         expiresAt,
         status: "pending",
@@ -521,12 +530,12 @@ describe("Task 2.4 — expirePendingProposals: per-row tx, status recheck, null 
         organizationId: orgId,
         volunteerUserId,
         petId,
-        proposedByUserId: SEEDED_ADMIN_USER_ID,
+        proposedByUserId: proposerUserId,
         proposedAt: past,
         expiresAt,
         status: "cancelled",
         cancelledAt: past,
-        cancelledByUserId: SEEDED_ADMIN_USER_ID,
+        cancelledByUserId: proposerUserId,
         cancellationReason: "org_cancelled",
         matchWarnings: [],
         createdAt: past,

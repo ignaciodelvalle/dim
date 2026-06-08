@@ -35,12 +35,23 @@ let orgId: string;
 let petId1: string;
 let petId2: string;
 let custodyOwnershipId1: string;
+let actorUserId: string;
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  // Insert a test-owned actor profile so FK columns don't depend on any seeded user.
+  actorUserId = crypto.randomUUID();
+  await db.insert(profiles).values({
+    id: actorUserId,
+    displayName: "AdoptionRepo Actor",
+    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniVerified: false,
+    role: "owner",
+  });
+
   // Ensure clean slate (handles crashed previous runs).
   await withMutationOverride(async (tx) => {
     const stalePets = await tx
@@ -127,6 +138,7 @@ afterAll(async () => {
       await tx.delete(pets).where(eq(pets.id, id));
     }
     if (orgId) await tx.delete(organizations).where(eq(organizations.id, orgId));
+    if (actorUserId) await tx.delete(profiles).where(eq(profiles.id, actorUserId));
   });
 });
 
@@ -198,9 +210,6 @@ describe("AdoptionRepository.findActiveFoster", () => {
   });
 });
 
-// admin@dim.test is seeded by scripts/seed-test-users.ts and always present.
-const SEEDED_ADMIN_USER_ID = "1a4d893c-6ef9-4120-b82a-999ded9935f1";
-
 describe("AdoptionRepository.setEligibility (with tx)", () => {
   it("updates the pet eligibility inside a transaction and rolls back on error", async () => {
     // Verify initial state.
@@ -221,7 +230,7 @@ describe("AdoptionRepository.setEligibility (with tx)", () => {
             ineligibleReasonNotes: null,
             ineligibleUntil: null,
             now: new Date(),
-            userId: SEEDED_ADMIN_USER_ID,
+            userId: actorUserId,
             orgId,
             orgVerified: true,
             previousState: null,
@@ -253,7 +262,7 @@ describe("AdoptionRepository.setEligibility (with tx)", () => {
           ineligibleReasonNotes: null,
           ineligibleUntil: null,
           now,
-          userId: SEEDED_ADMIN_USER_ID,
+          userId: actorUserId,
           orgId,
           orgVerified: true,
           previousState: null,
@@ -335,8 +344,6 @@ const ORG_DISPLAY_NAME = "Repo Test Refugio";
 // Pet name as inserted in beforeAll.
 const PET_NAME = "RepoTestPet1";
 
-const SEEDED_USER_ID = "1a4d893c-6ef9-4120-b82a-999ded9935f1";
-
 /**
  * Builds a minimal valid InsertAdoptionFinalizedArgs for parity tests.
  * Uses a fresh adopterUserId (stub profile) per call so tests don't conflict.
@@ -348,7 +355,7 @@ function makeFinalizeArgs(
   const dni = `${Math.floor(Math.random() * 90000000 + 10000000)}`;
   return {
     petId: petId1,
-    userId: SEEDED_USER_ID,
+    userId: actorUserId,
     orgId,
     orgVerified: true,
     custodyOwnershipId: custodyOwnershipId1,
