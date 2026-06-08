@@ -68,25 +68,27 @@ const ROWS: Array<{
 
 export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirstName }: Props) {
   return (
-    <section
-      aria-labelledby="lp-discl-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
-    >
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-discl-h" className="text-base font-semibold text-gob-text ">
+    <section aria-labelledby="lp-discl-h">
+      <div className="mb-[12px] flex items-baseline justify-between">
+        <h3
+          id="lp-discl-h"
+          className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
           Qué se muestra al público
-        </h2>
+        </h3>
         <Link
           href={publicHref}
           target="_blank"
           rel="noreferrer"
-          className="text-xs font-medium text-gob-azul-link hover:underline"
+          className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] no-underline hover:underline"
+          style={{ color: "var(--color-ln-azul)" }}
         >
           Ver como público →
         </Link>
       </div>
 
-      <ul className="space-y-1.5">
+      <ul className="flex flex-col gap-[7px]">
         {ROWS.map((row) => (
           <li key={row.key}>
             <form
@@ -94,22 +96,36 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
                 "use server";
                 await toggleAction(row.key, !prefs[row.key]);
               }}
-              className="flex items-center gap-3 rounded-lg bg-gob-surface-alt px-3 py-2 "
+              className="flex items-center gap-[10px] rounded-[4px] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-[12px] py-[9px]"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gob-text ">{row.label}</p>
-                <p className="text-xs text-gob-text-muted ">{row.description}</p>
+                <p
+                  className="text-[12.5px] font-semibold leading-tight"
+                  style={{ color: "var(--color-ln-ink)" }}
+                >
+                  {row.label}
+                </p>
+                <p className="text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
+                  {row.description}
+                </p>
               </div>
+              {/* Amber toggle knob — server-rendered, submit on click */}
               <button
                 type="submit"
                 role="switch"
                 aria-checked={prefs[row.key]}
                 aria-label={`Mostrar ${row.label.toLowerCase()}`}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-success focus-visible:ring-offset-2 ${prefs[row.key] ? "bg-gob-success" : "bg-gob-border-strong "}`}
+                className="relative mt-[1px] h-[21px] w-[38px] flex-shrink-0 cursor-pointer rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+                style={{
+                  background: prefs[row.key]
+                    ? "var(--color-ln-warn)"
+                    : "var(--color-ln-line-strong)",
+                }}
               >
                 <span
                   aria-hidden
-                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${prefs[row.key] ? "translate-x-5" : "translate-x-0.5"}`}
+                  className="absolute top-[2px] h-[17px] w-[17px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.2)] transition-[left] duration-150"
+                  style={{ left: prefs[row.key] ? 19 : 2 }}
                 />
               </button>
             </form>
@@ -117,7 +133,10 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
         ))}
       </ul>
 
-      <p className="mt-3 text-[11px] text-gob-text-muted ">
+      <p
+        className="mt-[10px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em]"
+        style={{ color: "var(--color-ln-mute)" }}
+      >
         {prefs.discloseFirstNameWhenLost
           ? `Hoy verán "Lo busca ${ownerFirstName}".`
           : "Hoy no se muestra tu nombre."}
