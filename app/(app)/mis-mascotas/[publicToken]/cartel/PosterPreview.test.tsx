@@ -1,7 +1,7 @@
 // Tests for <PosterPreview> — the printable lost-pet poster client component.
 //
-// Uses the same renderToStaticMarkup pattern as components/poncho/*.test.tsx:
-// we render server-style static HTML and assert structural invariants.
+// Uses the same renderToStaticMarkup pattern as the project's component smoke
+// tests: we render server-style static HTML and assert structural invariants.
 // No browser APIs needed — the "use client" directive is irrelevant for
 // renderToStaticMarkup (it renders synchronously in the test environment).
 

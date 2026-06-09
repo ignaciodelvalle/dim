@@ -4,8 +4,7 @@ import type { ReactNode } from "react";
 /**
  * LnEmptyState — generic empty state for lists, panels, and sections.
  *
- * Ported from components/poncho/EmptyState.tsx — public API preserved exactly.
- * Styling rewritten to LN tokens (no gob-* classes).
+ * Styled with LN tokens (no gob-* classes).
  *
  * Vertical centred structure:
  *  [large muted icon]

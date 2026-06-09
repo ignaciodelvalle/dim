@@ -4,8 +4,7 @@ import type { ReactNode } from "react";
 /**
  * LnBadge — read-only semantic pill for the Libreta Nacional design system.
  *
- * Ported from components/poncho/Badge.tsx — public API preserved exactly.
- * Styling rewritten to LN tokens (no gob-* classes).
+ * Styled with LN tokens (no gob-* classes).
  *
  * Variants:
  *  - info     → azul tenue / text-azul

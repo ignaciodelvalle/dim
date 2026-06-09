@@ -5,9 +5,6 @@
  *
  * Owns the top bar (back / step counter / optional cancel), the progress bar,
  * and the main content slot. Wizard state and step content are caller-supplied.
- *
- * Ported from components/poncho/Wizard/WizardShell.tsx; reskinned to LN tokens.
- * Public API is identical to the poncho version.
  */
 
 export type LnWizardShellProps = {

@@ -6,8 +6,7 @@ import type { ReactNode } from "react";
 /**
  * LnAlert — informative alert with semantic variants and dismiss support.
  *
- * Ported from components/poncho/Alert.tsx — public API preserved exactly.
- * Styling rewritten to LN tokens (no gob-* classes).
+ * Styled with LN tokens (no gob-* classes).
  *
  * Variants:
  *  - info    → azul tenue — neutral informative (default)
