@@ -15,6 +15,7 @@
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { listCasesForOrg } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
@@ -29,52 +30,60 @@ export default async function OrgCasosPage({ params }: PageProps) {
   const items = await listCasesForOrg(organization.id);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gob-text ">Casos</h1>
-        <p className="mt-1 text-sm text-gob-text-muted ">
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
+        <p className="text-[13px] text-ln-op-mute">
           Expedientes donde {organization.displayName} es la organización que abrió el caso o
           actualmente tiene custodia activa.
         </p>
       </header>
 
       {items.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-gob-border p-8 text-center text-sm text-gob-text-muted  ">
+        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
           Sin casos abiertos ni cerrados por ahora.
         </p>
       ) : (
-        <ul className="space-y-3">
-          {items.map((c) => (
-            <li
-              key={c.id}
-              className="flex flex-col gap-3 rounded-2xl border border-gob-border bg-white p-4   md:flex-row md:items-center md:justify-between"
-            >
-              <div className="flex flex-col gap-1">
-                <CaseBadge
-                  publicCode={c.publicCode}
-                  caseKind={c.caseKind}
-                  status={c.status}
-                  size="sm"
-                />
-                <span className="text-xs text-gob-text-muted ">
-                  Abierto el {formatDate(c.openedAt)}
-                  {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                </span>
-              </div>
-              {c.primaryPetPublicToken && c.primaryPetName ? (
-                <Link
-                  href={`/org/${orgToken}/mascotas/${c.primaryPetPublicToken}`}
-                  className="inline-flex items-center rounded-full bg-gob-surface-alt px-3 py-1.5 text-sm text-gob-text transition hover:bg-gob-border   "
+        <OpCard>
+          <OpCardHead
+            title="Expedientes"
+            actions={`${items.length} caso${items.length !== 1 ? "s" : ""}`}
+          />
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line">
+              {items.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
                 >
-                  🐾 {c.primaryPetName}
-                </Link>
-              ) : (
-                <span className="text-sm text-gob-text-muted ">Caso sin mascota registrada</span>
-              )}
-            </li>
-          ))}
-        </ul>
+                  <div className="flex flex-col gap-1">
+                    <CaseBadge
+                      publicCode={c.publicCode}
+                      caseKind={c.caseKind}
+                      status={c.status}
+                      size="sm"
+                    />
+                    <span className="text-[12px] text-ln-op-mute">
+                      Abierto el {formatDate(c.openedAt)}
+                      {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
+                    </span>
+                  </div>
+                  {c.primaryPetPublicToken && c.primaryPetName ? (
+                    <Link
+                      href={`/org/${orgToken}/mascotas/${c.primaryPetPublicToken}`}
+                      className="inline-flex items-center rounded-full bg-ln-op-stripe px-3 py-1.5 text-[12px] text-ln-op-ink transition hover:bg-ln-op-line no-underline"
+                    >
+                      🐾 {c.primaryPetName}
+                    </Link>
+                  ) : (
+                    <span className="text-[12px] text-ln-op-mute">Caso sin mascota registrada</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </OpCardBody>
+        </OpCard>
       )}
-    </main>
+    </div>
   );
 }
