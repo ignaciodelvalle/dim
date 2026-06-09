@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 
+import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
@@ -7,12 +8,12 @@ const ACTION_LABELS: Record<string, string> = {
   request_approved: "Solicitud aprobada",
   request_rejected: "Solicitud rechazada",
   request_viewed: "Solicitud vista",
-  revocation_vet: "Revocación matrícula",
-  revocation_org: "Revocación verificación org",
-  revocation_govt_assignment: "Revocación localidad govt",
-  deactivation_govt: "Desactivación cuenta govt",
-  deactivation_admin: "Desactivación cuenta admin",
-  pii_queried: "Búsqueda de PII",
+  revocation_vet: "Revocacion matricula",
+  revocation_org: "Revocacion verificacion org",
+  revocation_govt_assignment: "Revocacion localidad govt",
+  deactivation_govt: "Desactivacion cuenta govt",
+  deactivation_admin: "Desactivacion cuenta admin",
+  pii_queried: "Busqueda de PII",
   admin_seeded: "Admin inicializado",
   approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
 };
@@ -40,46 +41,52 @@ export default async function AdminHistorialPage() {
     .limit(1);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Mi historial</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Últimas {entries.length} acciones realizadas por{" "}
-            <span className="font-medium">{actor?.displayName ?? user.id}</span>.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mi historial</h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          Ultimas {entries.length} acciones realizadas por{" "}
+          <span className="font-semibold">{actor?.displayName ?? user.id}</span>.
+        </p>
+      </header>
 
-        {entries.length === 0 ? (
-          <p className="text-sm text-gob-text-muted ">No registraste acciones todavía.</p>
-        ) : (
-          <ul className="space-y-2">
-            {entries.map((entry) => (
-              <li
-                key={entry.id}
-                className="rounded-lg border border-gob-border  px-4 py-3 flex items-start justify-between gap-3"
-              >
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm text-gob-text ">
-                    {ACTION_LABELS[entry.action] ?? entry.action}
-                  </p>
-                  {entry.approvalRequestId && (
-                    <p className="text-xs text-gob-text-muted  font-mono">
-                      req: {entry.approvalRequestId}
+      {entries.length === 0 ? (
+        <p className="text-[13px] text-ln-op-mute">No registraste acciones todavia.</p>
+      ) : (
+        <OpCard>
+          <OpCardHead
+            title="Acciones registradas"
+            actions={<span className="text-[12px] text-ln-op-mute">{entries.length} entradas</span>}
+          />
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line-2">
+              {entries.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-[13px] text-ln-op-ink">
+                      {ACTION_LABELS[entry.action] ?? entry.action}
                     </p>
-                  )}
-                </div>
-                <time className="text-xs text-gob-text-muted  whitespace-nowrap">
-                  {new Date(entry.performedAt).toLocaleString("es-AR", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+                    {entry.approvalRequestId && (
+                      <p className="font-ln-mono text-[11px] text-ln-op-mute">
+                        req: {entry.approvalRequestId}
+                      </p>
+                    )}
+                  </div>
+                  <time className="whitespace-nowrap text-[12px] text-ln-op-mute">
+                    {new Date(entry.performedAt).toLocaleString("es-AR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          </OpCardBody>
+        </OpCard>
+      )}
+    </div>
   );
 }
