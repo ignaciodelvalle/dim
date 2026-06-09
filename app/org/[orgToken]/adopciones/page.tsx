@@ -13,6 +13,7 @@
 import { sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -40,15 +41,13 @@ export default async function AdoptionReviewIndexPage({
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-gob-text-gray ">{auth.error}</p>
-          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline">
-            ← Volver al panel
-          </Link>
-        </div>
-      </main>
+      <div className="max-w-2xl mx-auto space-y-4">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
+        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+          ← Volver al panel
+        </Link>
+      </div>
     );
   }
   const { organization } = auth;
@@ -107,71 +106,82 @@ export default async function AdoptionReviewIndexPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <header className="space-y-2">
-          <Link
-            href={`/org/${orgToken}`}
-            className="text-sm text-gob-text-muted hover:text-gob-text "
-          >
-            ← Panel de {organization.displayName}
-          </Link>
-          <h1 className="text-3xl font-semibold text-gob-text ">Postulaciones pendientes</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Personas que se postularon para adoptar mascotas en custodia. Entrá a cada postulación
-            para aprobarla o no avanzar con ella.
-          </p>
-        </header>
+    <div className="space-y-6">
+      {/* Page header */}
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulaciones pendientes</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Personas que se postularon para adoptar mascotas en custodia. Entrá a cada postulación
+          para aprobarla o no avanzar con ella.
+        </p>
+      </header>
 
-        {groups.size === 0 ? (
-          <div className="rounded-lg border border-gob-border  px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-gob-text ">No tenés postulaciones pendientes.</p>
-            <p className="text-xs text-gob-text-muted">
-              Cuando alguien se postule a una mascota publicada en /adoptar, aparece acá.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {Array.from(groups.values()).map((group) => (
-              <section key={group.petId} className="space-y-2">
-                <h2 className="text-lg font-semibold text-gob-text ">
-                  {group.petName}{" "}
-                  <span className="text-sm font-normal text-gob-text-muted">
-                    ({group.apps.length} pendiente
-                    {group.apps.length === 1 ? "" : "s"})
+      {groups.size === 0 ? (
+        <OpCard>
+          <OpCardBody>
+            <div className="py-6 text-center space-y-2">
+              <p className="text-[13px] font-medium text-ln-op-ink">
+                No tenés postulaciones pendientes.
+              </p>
+              <p className="text-[12px] text-ln-op-mute">
+                Cuando alguien se postule a una mascota publicada en /adoptar, aparece acá.
+              </p>
+            </div>
+          </OpCardBody>
+        </OpCard>
+      ) : (
+        <div className="space-y-6">
+          {Array.from(groups.values()).map((group) => (
+            <OpCard key={group.petId}>
+              <OpCardHead
+                title={group.petName}
+                actions={
+                  <span className="text-ln-op-mute font-normal">
+                    {group.apps.length} pendiente{group.apps.length === 1 ? "" : "s"}
                   </span>
-                </h2>
-                <ul className="space-y-2">
+                }
+              />
+              <OpCardBody className="p-0">
+                <ul className="divide-y divide-ln-op-line">
                   {group.apps.map((app) => (
                     <li
                       key={app.application_id}
-                      className="rounded-lg border border-gob-border  p-4 hover:shadow-sm"
+                      className="hover:bg-ln-op-stripe transition-colors"
                     >
                       <Link
                         href={`/org/${orgToken}/adopciones/${app.application_id}`}
-                        className="block space-y-1"
+                        className="block px-4 py-3 space-y-1"
                       >
                         <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium text-gob-text ">
+                          <p className="text-[13px] font-medium text-ln-op-ink">
                             {app.applicant_name ?? "Postulante"}
                           </p>
-                          <span className="text-xs text-gob-text-muted">
+                          <span className="text-[12px] text-ln-op-mute">
                             {new Date(app.submitted_at).toLocaleDateString("es-AR")}
                           </span>
                         </div>
-                        <p className="text-xs text-gob-text-gray ">
+                        <p className="text-[12px] text-ln-op-mute">
                           Vivienda: {housingTypeLabel(app.housing_type)}
                         </p>
                       </Link>
                     </li>
                   ))}
                 </ul>
-              </section>
-            ))}
-          </div>
-        )}
-      </div>
-    </main>
+              </OpCardBody>
+            </OpCard>
+          ))}
+        </div>
+      )}
+
+      <footer className="pt-4 border-t border-ln-op-line">
+        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+          ← Panel de {organization.displayName}
+        </Link>
+      </footer>
+    </div>
   );
 }
 
