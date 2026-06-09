@@ -10,6 +10,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -28,15 +29,13 @@ export default async function AdoptionReviewDetailPage({
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-gob-text-gray ">{auth.error}</p>
-          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline">
-            ← Volver al panel
-          </Link>
-        </div>
-      </main>
+      <div className="max-w-2xl mx-auto space-y-4">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
+        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+          ← Volver al panel
+        </Link>
+      </div>
     );
   }
   const { organization } = auth;
@@ -115,43 +114,52 @@ export default async function AdoptionReviewDetailPage({
   const petAlreadyFinalized = finalized.length > 0;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <Link
-          href={`/org/${orgToken}/adopciones`}
-          className="text-sm text-gob-text-muted hover:text-gob-text "
-        >
-          ← Volver a postulaciones
-        </Link>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <Link
+        href={`/org/${orgToken}/adopciones`}
+        className="text-[12px] text-ln-op-azul hover:underline"
+      >
+        ← Volver a postulaciones
+      </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold text-gob-text ">Postulación para {pet.name}</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Recibida el {new Date(application.recordedAt).toLocaleString("es-AR")}
-          </p>
-        </header>
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Recibida el {new Date(application.recordedAt).toLocaleString("es-AR")}
+        </p>
+      </header>
 
-        <section className="rounded-lg border border-gob-border  p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gob-text ">Postulante</h2>
-          <dl className="space-y-1 text-sm">
+      <OpCard>
+        <OpCardHead title="Postulante" />
+        <OpCardBody>
+          <dl className="space-y-2">
             <Row label="Nombre" value={applicant?.displayName ?? "(perfil no encontrado)"} />
             {applicant?.phone && <Row label="Teléfono" value={applicant.phone} />}
             <Row label="Tipo de vivienda" value={housingTypeLabel(payload.housing_type)} />
           </dl>
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        {(payload.other_pets || payload.daily_routine || payload.notes) && (
-          <section className="rounded-lg border border-gob-border  p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-gob-text ">Lo que nos contó</h2>
-            {payload.other_pets && <Block label="Otras mascotas" body={payload.other_pets} />}
-            {payload.daily_routine && <Block label="Día a día" body={payload.daily_routine} />}
-            {payload.notes && <Block label="Notas" body={payload.notes} />}
-          </section>
-        )}
+      {(payload.other_pets || payload.daily_routine || payload.notes) && (
+        <OpCard>
+          <OpCardHead title="Lo que nos contó" />
+          <OpCardBody>
+            <div className="space-y-4">
+              {payload.other_pets && <Block label="Otras mascotas" body={payload.other_pets} />}
+              {payload.daily_routine && <Block label="Día a día" body={payload.daily_routine} />}
+              {payload.notes && <Block label="Notas" body={payload.notes} />}
+            </div>
+          </OpCardBody>
+        </OpCard>
+      )}
 
-        {alreadyResolved ? (
-          <section className="rounded-lg border border-gob-border-strong  p-4 space-y-2">
-            <p className="text-sm font-medium text-gob-text ">
+      {alreadyResolved ? (
+        <OpCard>
+          <OpCardBody>
+            <p className="text-[13px] font-medium text-ln-op-ink">
               Esta postulación ya fue resuelta:{" "}
               {decision[0].outcome === "approved"
                 ? "aprobada"
@@ -160,41 +168,42 @@ export default async function AdoptionReviewDetailPage({
                   : "rechazada"}
               .
             </p>
-            <p className="text-xs text-gob-text-muted">
+            <p className="text-[12px] text-ln-op-mute mt-1">
               {new Date(decision[0].decided_at).toLocaleString("es-AR")}
               {decision[0].notes && ` · ${decision[0].notes}`}
             </p>
-          </section>
-        ) : petAlreadyFinalized ? (
-          <section className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4">
-            <p className="text-sm text-gob-warning-text ">
-              {pet.name} ya fue adoptado/a. No se pueden revisar más postulaciones para esta
-              mascota.
-            </p>
-          </section>
-        ) : (
-          <ReviewButtons
-            orgToken={orgToken}
-            applicationEventId={appEventId}
-            applicantName={applicant?.displayName ?? "el postulante"}
-          />
-        )}
+          </OpCardBody>
+        </OpCard>
+      ) : petAlreadyFinalized ? (
+        <OpBreach
+          title={`${pet.name} ya fue adoptado/a`}
+          detail="No se pueden revisar más postulaciones para esta mascota."
+        />
+      ) : (
+        <ReviewButtons
+          orgToken={orgToken}
+          applicationEventId={appEventId}
+          applicantName={applicant?.displayName ?? "el postulante"}
+        />
+      )}
 
-        <p className="text-xs text-gob-text-muted">
-          <Link href={`/org/${orgToken}/mascotas/${pet.publicToken}`} className="underline">
-            Ver ficha de {pet.name}
-          </Link>
-        </p>
-      </div>
-    </main>
+      <p className="text-[12px] text-ln-op-mute">
+        <Link
+          href={`/org/${orgToken}/mascotas/${pet.publicToken}`}
+          className="text-ln-op-azul hover:underline"
+        >
+          Ver ficha de {pet.name}
+        </Link>
+      </p>
+    </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <dt className="text-xs text-gob-text-muted w-32">{label}</dt>
-      <dd className="text-sm text-gob-text ">{value}</dd>
+      <dt className="text-[12px] text-ln-op-mute w-32">{label}</dt>
+      <dd className="text-[13px] text-ln-op-ink">{value}</dd>
     </div>
   );
 }
@@ -202,8 +211,8 @@ function Row({ label, value }: { label: string; value: string }) {
 function Block({ label, body }: { label: string; body: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs text-gob-text-muted">{label}</p>
-      <p className="text-sm text-gob-text-gray  whitespace-pre-wrap">{body}</p>
+      <p className="text-[12px] text-ln-op-mute">{label}</p>
+      <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{body}</p>
     </div>
   );
 }
