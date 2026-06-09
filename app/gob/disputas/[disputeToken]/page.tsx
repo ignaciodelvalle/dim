@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import {
   custodyDisputeParties,
   custodyDisputes,
@@ -11,7 +12,7 @@ import {
   profiles,
 } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";
 import { ResolveDisputeForm } from "./ResolveDisputeForm";
@@ -20,8 +21,8 @@ import { WithdrawDisputeButton } from "./WithdrawDisputeButton";
 const PARTY_ROLE_LABELS: Record<string, string> = {
   current_owner: "Dueño actual",
   claimant_owner: "Reclamante",
-  current_org_custody: "Organización en custodia",
-  claimant_org: "Organización reclamante",
+  current_org_custody: "Organizacion en custodia",
+  claimant_org: "Organizacion reclamante",
   witness: "Testigo",
 };
 
@@ -29,6 +30,14 @@ const STATUS_LABELS: Record<string, string> = {
   open: "Abierta",
   resolved: "Resuelta",
   withdrawn: "Retirada",
+};
+
+type StatusPillTone = "open" | "ok" | "neutral";
+
+const STATUS_TONE: Record<string, StatusPillTone> = {
+  open: "open",
+  resolved: "ok",
+  withdrawn: "neutral",
 };
 
 export default async function DisputeDetailPage({
@@ -70,7 +79,7 @@ export default async function DisputeDetailPage({
     .orderBy(custodyDisputeParties.addedAt);
 
   // Pet timeline filtered to custody-related events. Read-only context for the
-  // resolver — full history lives in the pet detail surfaces.
+  // resolver -- full history lives in the pet detail surfaces.
   const CUSTODY_EVENT_TYPES = [
     "pet_registered",
     "custody_transferred",
@@ -102,122 +111,119 @@ export default async function DisputeDetailPage({
     dispute.status === "open" && (profile.role === "admin" || dispute.raisedByUserId === user.id);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-8">
-        <header className="space-y-2">
-          <Link
-            href="/gob/disputas"
-            className="text-sm text-gob-text-muted  hover:text-gob-text  underline underline-offset-4"
-          >
-            ← Volver a la lista
-          </Link>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-semibold text-gob-text ">{pet.name}</h1>
-            <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded-full bg-gob-warning/10  text-gob-warning-text ">
-              {STATUS_LABELS[dispute.status] ?? dispute.status}
-            </span>
-          </div>
-          <p className="text-sm text-gob-text-gray ">
-            {pet.species}
-            {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
-            {dispute.jurisdictionProvince}
+    <div className="space-y-6 max-w-3xl">
+      <header className="space-y-2">
+        <Link
+          href="/gob/disputas"
+          className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
+        >
+          {"<-"} Volver a la lista
+        </Link>
+        <div className="flex items-center gap-3">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>
+          <OpPill tone={STATUS_TONE[dispute.status] ?? "neutral"}>
+            {STATUS_LABELS[dispute.status] ?? dispute.status}
+          </OpPill>
+        </div>
+        <p className="text-[13px] text-ln-op-mute">
+          {pet.species}
+          {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
+          {dispute.jurisdictionProvince}
+        </p>
+        <p className="text-[10px] text-ln-op-faint font-mono">{dispute.publicToken}</p>
+      </header>
+
+      {dispute.status === "open" && (
+        <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[13px] text-ln-op-warn">
+          Disputa abierta — la mascota queda bloqueada para transferencias o adopcion hasta que se
+          resuelva o retire.
+        </div>
+      )}
+
+      {dispute.status === "resolved" && dispute.resolutionSummary && (
+        <section className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
+          <p className="text-[13px] font-medium text-ln-op-ok">Resolucion: {dispute.resolution}</p>
+          <p className="text-[13px] text-ln-op-ok whitespace-pre-wrap">
+            {dispute.resolutionSummary}
           </p>
-          <p className="text-[10px] text-gob-text-muted  font-mono">{dispute.publicToken}</p>
-        </header>
-
-        {dispute.status === "open" && (
-          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-sm text-gob-warning-text ">
-            Disputa abierta — la mascota queda bloqueada para transferencias o adopción hasta que se
-            resuelva o retire.
-          </div>
-        )}
-
-        {dispute.status === "resolved" && dispute.resolutionSummary && (
-          <section className="rounded-lg border border-gob-success bg-gob-success/10   p-4 space-y-2">
-            <p className="text-sm font-medium text-gob-success ">
-              Resolución: {dispute.resolution}
-            </p>
-            <p className="text-sm text-gob-success  whitespace-pre-wrap">
-              {dispute.resolutionSummary}
-            </p>
-          </section>
-        )}
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gob-text ">Partes</h2>
-          {parties.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">Sin partes registradas todavía.</p>
-          ) : (
-            <ul className="space-y-2">
-              {parties.map(({ party, userProfile, org }) => (
-                <li
-                  key={party.id}
-                  className="rounded-lg border border-gob-border  px-4 py-3 space-y-1"
-                >
-                  <p className="text-sm font-medium text-gob-text ">
-                    {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
-                    <span className="ml-2 text-xs text-gob-text-muted font-normal">
-                      {PARTY_ROLE_LABELS[party.partyRole] ?? party.partyRole}
-                    </span>
-                  </p>
-                  {party.partyPositionSummary && (
-                    <p className="text-xs text-gob-text-gray ">{party.partyPositionSummary}</p>
-                  )}
-                  <p className="text-[10px] text-gob-text-muted ">
-                    Sumada el{" "}
-                    {new Date(party.addedAt).toLocaleDateString("es-AR", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          {canResolve && <AddPartyForm disputeToken={disputeToken} />}
         </section>
+      )}
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gob-text ">Historia de custodia</h2>
-          {timeline.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">Sin eventos de custodia previos.</p>
-          ) : (
-            <ul className="space-y-1.5 text-sm">
-              {timeline.map((e) => (
-                <li
-                  key={e.id}
-                  className="flex items-baseline justify-between gap-3 border-l-2 border-gob-border  pl-3 py-1"
-                >
-                  <span className="font-mono text-xs">{e.eventType}</span>
-                  <span className="text-xs text-gob-text-muted">
-                    {new Date(e.occurredAt).toLocaleDateString("es-AR", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                    {e.authorRole && (
-                      <span className="ml-2 text-gob-text-muted">· {e.authorRole}</span>
+      <section className="space-y-3">
+        <h2 className="text-[16px] font-semibold text-ln-op-ink">Partes</h2>
+        {parties.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">Sin partes registradas todavia.</p>
+        ) : (
+          <ul className="space-y-2">
+            {parties.map(({ party, userProfile, org }) => (
+              <li key={party.id}>
+                <OpCard>
+                  <OpCardBody>
+                    <p className="text-[13px] font-medium text-ln-op-ink">
+                      {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
+                      <span className="ml-2 text-[12px] text-ln-op-mute font-normal">
+                        {PARTY_ROLE_LABELS[party.partyRole] ?? party.partyRole}
+                      </span>
+                    </p>
+                    {party.partyPositionSummary && (
+                      <p className="text-[12px] text-ln-op-mute mt-1">
+                        {party.partyPositionSummary}
+                      </p>
                     )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                    <p className="text-[10px] text-ln-op-faint mt-1">
+                      Sumada el{" "}
+                      {new Date(party.addedAt).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </OpCardBody>
+                </OpCard>
+              </li>
+            ))}
+          </ul>
+        )}
+        {canResolve && <AddPartyForm disputeToken={disputeToken} />}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-[16px] font-semibold text-ln-op-ink">Historia de custodia</h2>
+        {timeline.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">Sin eventos de custodia previos.</p>
+        ) : (
+          <ul className="space-y-1.5 text-[13px]">
+            {timeline.map((e) => (
+              <li
+                key={e.id}
+                className="flex items-baseline justify-between gap-3 border-l-2 border-ln-op-line pl-3 py-1"
+              >
+                <span className="font-mono text-[12px] text-ln-op-ink-2">{e.eventType}</span>
+                <span className="text-[12px] text-ln-op-mute whitespace-nowrap">
+                  {new Date(e.occurredAt).toLocaleDateString("es-AR", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                  {e.authorRole && <span className="ml-2 text-ln-op-faint">· {e.authorRole}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {canResolve && (
+        <section className="space-y-3 pt-2 border-t border-ln-op-line">
+          <h2 className="text-[16px] font-semibold text-ln-op-ink">Resolver disputa</h2>
+          <ResolveDisputeForm disputeToken={disputeToken} />
+          {canWithdraw && (
+            <div className="pt-2">
+              <WithdrawDisputeButton disputeToken={disputeToken} />
+            </div>
           )}
         </section>
-
-        {canResolve && (
-          <section className="space-y-3 pt-2 border-t border-gob-border ">
-            <h2 className="text-lg font-semibold text-gob-text ">Resolver disputa</h2>
-            <ResolveDisputeForm disputeToken={disputeToken} />
-            {canWithdraw && (
-              <div className="pt-2">
-                <WithdrawDisputeButton disputeToken={disputeToken} />
-              </div>
-            )}
-          </section>
-        )}
-      </div>
-    </main>
+      )}
+    </div>
   );
 }
