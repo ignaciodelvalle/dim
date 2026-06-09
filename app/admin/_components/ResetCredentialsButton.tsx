@@ -2,7 +2,7 @@
 
 // Reset credentials button for institutional accounts.
 //
-// State machine: idle → resetting → done | error
+// State machine: idle -> resetting -> done | error
 // On success: renders MagicLinkResultPanel inline with the returned magic link.
 // Used on both /admin/govts/[userId] and /admin/admins/[userId] detail pages.
 
@@ -53,11 +53,11 @@ export function ResetCredentialsButton({
         type="button"
         onClick={handleReset}
         disabled={pending}
-        className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt  transition-colors disabled:opacity-50"
+        className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe disabled:opacity-50"
       >
         {pending ? "Generando link..." : "Resetear credentials"}
       </button>
-      {error && <p className="text-[10px] text-gob-danger ">{error}</p>}
+      {error && <p className="text-[10px] text-ln-op-danger">{error}</p>}
     </div>
   );
 

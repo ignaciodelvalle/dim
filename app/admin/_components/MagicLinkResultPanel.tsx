@@ -42,43 +42,43 @@ export function MagicLinkResultPanel({
   }
 
   return (
-    <div className="rounded-lg border border-gob-success bg-gob-success/10   p-6 space-y-4">
+    <div className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gob-success ">Cuenta institucional creada</h3>
-        <p className="text-sm text-gob-success  mt-1">
+        <h3 className="text-[16px] font-semibold text-ln-op-ok">Cuenta institucional creada</h3>
+        <p className="mt-1 text-[13px] text-ln-op-ok">
           {displayName} &middot; {email}
         </p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium text-gob-text-gray ">Link de acceso (magic link)</p>
+        <p className="text-[13px] font-medium text-ln-op-ink-2">Link de acceso (magic link)</p>
         <div className="flex gap-2">
           <code
             id="magic-link-display"
-            className="flex-1 text-xs bg-white  border border-gob-border-strong  rounded px-3 py-2 overflow-hidden text-ellipsis whitespace-nowrap block"
+            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-[11px] text-ln-op-ink"
           >
-            {magicLink || "(link no disponible — usá Resetear credentials)"}
+            {magicLink || "(link no disponible - usa Resetear credentials)"}
           </code>
           {magicLink && (
             <button
               type="button"
               onClick={handleCopy}
-              className="px-3 py-2 text-sm bg-gob-primary  text-white  rounded hover:bg-gob-border-strong  transition-colors shrink-0"
+              className="shrink-0 rounded-[6px] bg-ln-op-azul px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-ln-op-azul-700"
             >
               {copied ? "Copiado" : "Copiar"}
             </button>
           )}
         </div>
-        <p className="text-xs text-gob-text-muted ">
-          Compartilo manualmente con el operador. El link expira en 24h. Si lo perdés, podés
-          regenerarlo desde la página de detalle del operador.
+        <p className="text-[11px] text-ln-op-mute">
+          Compartilo manualmente con el operador. El link expira en 24h. Si lo perdes, podes
+          regenerarlo desde la pagina de detalle del operador.
         </p>
       </div>
 
       <div className="flex gap-3 pt-2">
         <a
           href={detailPath}
-          className="px-4 py-2 text-sm bg-gob-primary  text-white  rounded hover:bg-gob-border-strong  transition-colors"
+          className="rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
         >
           Ver cuenta
         </a>
@@ -86,7 +86,7 @@ export function MagicLinkResultPanel({
           <button
             type="button"
             onClick={onCreateAnother}
-            className="px-4 py-2 text-sm border border-gob-border-strong  rounded hover:bg-gob-surface-alt  transition-colors"
+            className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
           >
             Crear otra
           </button>
@@ -95,7 +95,7 @@ export function MagicLinkResultPanel({
           <button
             type="button"
             onClick={onReset}
-            className="px-4 py-2 text-sm border border-gob-border-strong  rounded hover:bg-gob-surface-alt  transition-colors"
+            className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
           >
             {resetLabel}
           </button>
