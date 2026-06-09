@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
 import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
+import { LnCallout } from "@/components/ui/DocElements";
 import { attachments, db, libretaShareTokens, petEvents, pets } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
@@ -87,13 +88,13 @@ export default async function PublicLibretaPage({
   const grouped = groupLibretaEvents(events);
 
   return (
-    <main className="min-h-screen p-6 bg-white">
-      <div className="max-w-2xl mx-auto pt-6 pb-20 space-y-6">
-        <div className="rounded-lg border border-gob-warning bg-gob-warning/10 px-3 py-2 text-xs text-gob-warning-text print:hidden">
-          Estas viendo la libreta sanitaria de <strong>{pet.name}</strong> con permiso del dueno/a.
+    <main className="min-h-screen bg-[var(--color-ln-paper)] p-6">
+      <div className="mx-auto max-w-2xl space-y-6 pb-20 pt-6">
+        <LnCallout tone="warn" className="print:hidden">
+          Estás viendo la libreta sanitaria de <strong>{pet.name}</strong> con permiso del dueño/a.
           {share.expiresAt &&
             ` Este enlace vence el ${share.expiresAt.toLocaleDateString("es-AR")}.`}
-        </div>
+        </LnCallout>
 
         <LibretaIdentityHeader pet={pet} photoUrl={photoUrl} ownerFirstName={null} />
 
@@ -103,10 +104,10 @@ export default async function PublicLibretaPage({
           vista="agrupada"
         />
 
-        <footer className="text-xs text-gob-text-muted pt-8 border-t border-gob-border">
+        <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           <p>Generada por MiMAR · {new Date().toLocaleString("es-AR")}</p>
           {share.expiresAt && <p>El enlace vence el {share.expiresAt.toLocaleString("es-AR")}.</p>}
-          <p className="font-mono text-[10px] mt-1">Token: {shareToken}</p>
+          <p className="mt-1 text-[10px]">Token: {shareToken}</p>
         </footer>
 
         <ViewLogger shareToken={shareToken} />
@@ -136,10 +137,10 @@ function TerminalShell({
     context.species === "dog" ? "Canino" : context.species === "cat" ? "Felino" : "Mascota";
   const createdAt = new Date(context.createdAtIso).toLocaleDateString("es-AR");
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-white">
-      <div className="max-w-md w-full text-center space-y-5">
+    <main className="flex min-h-screen items-center justify-center bg-[var(--color-ln-paper)] p-6">
+      <div className="w-full max-w-md space-y-5 text-center">
         <div className="mx-auto inline-block">
-          <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-gob-surface-alt ring-4 ring-gob-border-strong">
+          <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-stripe)] ring-4 ring-[var(--color-ln-line-strong)]">
             {context.photoUrl ? (
               <img
                 src={context.photoUrl}
@@ -155,22 +156,24 @@ function TerminalShell({
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-gob-text">{title}</h1>
-          <p className="text-sm text-gob-text-gray">
+          <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold text-[var(--color-ln-ink)]">
+            {title}
+          </h1>
+          <p className="text-[13px] text-[var(--color-ln-mute)]">
             Era un resumen médico temporal de <strong>{context.name}</strong> ({speciesLabel})
             compartido el {createdAt}.
           </p>
-          <p className="text-sm text-gob-text-gray">{description}</p>
+          <p className="text-[13px] text-[var(--color-ln-mute)]">{description}</p>
         </div>
 
         <Link
           href={`/p/${context.publicToken}`}
-          className="inline-block px-5 py-3 rounded-xl bg-gob-primary text-white text-sm font-semibold hover:bg-gob-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2"
+          className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-3 text-[13px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
         >
           Ver el perfil público de {context.name}
         </Link>
 
-        <p className="text-xs text-gob-text-muted">
+        <p className="text-[11px] text-[var(--color-ln-mute)]">
           Desde el perfil público podés escribirle a la dueña para pedir un acceso nuevo.
         </p>
       </div>

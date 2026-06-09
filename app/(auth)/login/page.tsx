@@ -57,18 +57,20 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-white ">
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-[var(--color-ln-paper)]">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Iniciar sesión</h1>
-          <p className="text-sm text-gob-text-gray ">
+          <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Iniciar sesión
+          </h1>
+          <p className="text-sm text-[var(--color-ln-ink-2)]">
             {intent === "apply"
               ? "Iniciá sesión para continuar con tu postulación."
               : "Bienvenido de vuelta a MiMAR"}
           </p>
         </div>
         <LoginForm returnTo={returnTo} />
-        <p className="text-center text-sm text-gob-text-gray ">
+        <p className="text-center text-sm text-[var(--color-ln-ink-2)]">
           ¿No tenés cuenta?{" "}
           <Link
             href={
@@ -76,7 +78,7 @@ export default async function LoginPage({
                 ? `/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`
                 : "/signup"
             }
-            className="font-medium text-gob-text  underline underline-offset-4"
+            className="font-medium text-[var(--color-ln-ink)] underline underline-offset-4"
           >
             Crear cuenta
           </Link>

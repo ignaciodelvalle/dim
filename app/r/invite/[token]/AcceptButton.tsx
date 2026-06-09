@@ -32,7 +32,7 @@ export function AcceptButton({ invitationToken }: Props) {
   return (
     <div className="space-y-2">
       {error && (
-        <p className="text-sm text-gob-danger text-center" role="alert">
+        <p className="text-sm text-[var(--color-ln-err)] text-center" role="alert">
           {error}
         </p>
       )}
