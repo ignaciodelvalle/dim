@@ -50,11 +50,11 @@ export function SterilizationAttendanceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-gob-text-gray  mb-1">Procedimiento</label>
+        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Procedimiento</label>
         <select
           name="procedure"
           defaultValue="castration"
-          className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
         >
           <option value="castration">Castración (macho)</option>
           <option value="spay">Ovariectomía / Castración (hembra)</option>
@@ -62,31 +62,31 @@ export function SterilizationAttendanceForm({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gob-text-gray  mb-1">Realizado por</label>
+        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Realizado por</label>
         <input
           name="performed_by"
           type="text"
           placeholder="Nombre del cirujano (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gob-text-gray  mb-1">
+        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Clínica / establecimiento
         </label>
         <input
           name="clinic"
           type="text"
           placeholder="Nombre del lugar (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-gob-border-strong  bg-white  text-sm focus:outline-none focus:ring-2 focus:ring-gob-success"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
         />
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-gob-success text-white text-sm font-medium hover:bg-gob-success disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Guardando…" : submitLabel}
       </button>
