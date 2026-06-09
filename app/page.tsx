@@ -55,13 +55,13 @@ export default async function Home() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col bg-white ">
+    <main className="min-h-screen flex flex-col bg-ln-paper">
       {/* Hero */}
       <section className="flex-1 flex flex-col items-center justify-center p-8 pt-20">
         <div className="max-w-3xl text-center space-y-6">
-          <h1 className="text-6xl font-bold tracking-tight text-gob-text ">MiMAR</h1>
-          <p className="text-xl text-gob-text-gray ">Mi Mascota Argentina</p>
-          <p className="text-base text-gob-text-muted  max-w-xl mx-auto leading-relaxed">
+          <h1 className="text-6xl font-bold tracking-tight text-ln-ink font-ln-serif">MiMAR</h1>
+          <p className="text-xl text-ln-ink-2">Mi Mascota Argentina</p>
+          <p className="text-base text-ln-mute max-w-xl mx-auto leading-relaxed">
             La credencial digital de salud para tu mascota. Para encontrarse, para cuidarse, para
             ayudarnos a cuidar a todas.
           </p>
@@ -72,14 +72,14 @@ export default async function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 max-w-2xl mx-auto">
             <Link
               href="/signup"
-              className="px-5 py-4 rounded-xl bg-gob-primary  text-white  font-semibold hover:opacity-90 transition-opacity"
+              className="px-5 py-4 rounded-xl bg-ln-azul text-white font-semibold hover:opacity-90 transition-opacity"
             >
               Soy dueño
               <span className="block text-xs font-normal opacity-70 mt-1">Crear mi cuenta</span>
             </Link>
             <Link
               href="/signup"
-              className="px-5 py-4 rounded-xl border-2 border-gob-border-strong  text-gob-text  font-semibold hover:bg-gob-surface-alt  transition-colors"
+              className="px-5 py-4 rounded-xl border-2 border-ln-line-strong text-ln-ink font-semibold hover:bg-ln-stripe transition-colors"
             >
               Soy refugio o vet
               <span className="block text-xs font-normal opacity-70 mt-1">
@@ -88,18 +88,16 @@ export default async function Home() {
             </Link>
             <Link
               href="/login"
-              className="px-5 py-4 rounded-xl border border-gob-border-strong  text-gob-text  font-medium hover:bg-gob-surface-alt  transition-colors"
+              className="px-5 py-4 rounded-xl border border-ln-line-strong text-ln-ink font-medium hover:bg-ln-stripe transition-colors"
             >
               Soy gobierno
-              <span className="block text-xs font-normal text-gob-text-muted mt-1">
-                Cuenta invitada
-              </span>
+              <span className="block text-xs font-normal text-ln-mute mt-1">Cuenta invitada</span>
             </Link>
           </div>
 
-          <p className="text-xs text-gob-text-muted  pt-2">
+          <p className="text-xs text-ln-mute pt-2">
             ¿Ya tenés cuenta?{" "}
-            <Link href="/login" className="underline underline-offset-4 hover:text-gob-text-gray">
+            <Link href="/login" className="underline underline-offset-4 hover:text-ln-ink-2">
               Iniciá sesión
             </Link>
           </p>
@@ -109,44 +107,44 @@ export default async function Home() {
             aria-label="Cómo funciona MiMAR"
             className="pt-10 grid grid-cols-1 md:grid-cols-3 gap-4 text-left"
           >
-            <div className="rounded-2xl border border-gob-border  p-4 space-y-2">
+            <div className="rounded-2xl border border-ln-line p-4 space-y-2">
               <div
-                className="h-10 w-10 rounded-full bg-gob-surface-alt  flex items-center justify-center text-xl"
+                className="h-10 w-10 rounded-full bg-ln-stripe flex items-center justify-center text-xl"
                 aria-hidden="true"
               >
                 🐾
               </div>
-              <p className="text-sm font-semibold text-gob-text ">1. Cargá tu mascota</p>
-              <p className="text-xs text-gob-text-gray  leading-relaxed">
+              <p className="text-sm font-semibold text-ln-ink">1. Cargá tu mascota</p>
+              <p className="text-xs text-ln-ink-2 leading-relaxed">
                 Datos básicos, foto, y microchip si tenés. Tarda menos de un minuto.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-gob-border  p-4 space-y-2">
+            <div className="rounded-2xl border border-ln-line p-4 space-y-2">
               <div
-                className="h-10 w-10 rounded-full bg-gob-surface-alt  flex items-center justify-center text-xl"
+                className="h-10 w-10 rounded-full bg-ln-stripe flex items-center justify-center text-xl"
                 aria-hidden="true"
               >
                 📱
               </div>
-              <p className="text-sm font-semibold text-gob-text ">2. Imprimí su QR</p>
-              <p className="text-xs text-gob-text-gray  leading-relaxed">
+              <p className="text-sm font-semibold text-ln-ink">2. Imprimí su QR</p>
+              <p className="text-xs text-ln-ink-2 leading-relaxed">
                 Pegalo en la chapita del collar. Es la credencial pública que muestra solo lo que
                 decidís compartir.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-gob-border  p-4 space-y-2">
+            <div className="rounded-2xl border border-ln-line p-4 space-y-2">
               <div
-                className="h-10 w-10 rounded-full bg-gob-surface-alt  flex items-center justify-center text-xl"
+                className="h-10 w-10 rounded-full bg-ln-stripe flex items-center justify-center text-xl"
                 aria-hidden="true"
               >
                 📍
               </div>
-              <p className="text-sm font-semibold text-gob-text ">
+              <p className="text-sm font-semibold text-ln-ink">
                 3. Si se pierde, todos pueden ayudar
               </p>
-              <p className="text-xs text-gob-text-gray  leading-relaxed">
+              <p className="text-xs text-ln-ink-2 leading-relaxed">
                 Quien la encuentre escanea el QR y ve cómo contactarte. Vecinos pueden reportar
                 dónde la vieron.
               </p>
@@ -157,7 +155,7 @@ export default async function Home() {
 
       {/* 4 theme blocks — what MiMAR does beyond the credential.
           Anchored sections so future deeplinks can target them. */}
-      <section aria-label="Más sobre MiMAR" className="bg-gob-surface-alt  py-16 px-8">
+      <section aria-label="Más sobre MiMAR" className="bg-ln-stripe py-16 px-8">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
           <ThemeBlock
             id="que-es-la-credencial"
@@ -195,17 +193,17 @@ export default async function Home() {
       </section>
 
       {/* Quiet links — denuncia + buscar with code. Both anonymous flows. */}
-      <section className="py-10 px-8 text-center bg-white ">
+      <section className="py-10 px-8 text-center bg-ln-paper">
         <div className="max-w-md mx-auto flex flex-col items-center gap-2">
           <Link
             href="/denuncias/nueva"
-            className="text-sm text-gob-text-muted  underline underline-offset-4 hover:text-gob-text-gray  transition-colors"
+            className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"
           >
             Denunciar maltrato animal
           </Link>
           <Link
             href="/denuncias/buscar"
-            className="text-sm text-gob-text-muted  underline underline-offset-4 hover:text-gob-text-gray  transition-colors"
+            className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"
           >
             Buscar mi denuncia con código →
           </Link>
@@ -213,34 +211,28 @@ export default async function Home() {
       </section>
 
       {/* Footer with legal references */}
-      <footer className="border-t border-gob-border  py-8 px-8 bg-white ">
+      <footer className="border-t border-ln-line py-8 px-8 bg-ln-paper">
         <div className="max-w-5xl mx-auto space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gob-text-muted ">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ln-mute">
             <p>© {new Date().getFullYear()} MiMAR — Mi Mascota Argentina</p>
             <div className="flex gap-4">
-              <Link
-                href="/privacidad"
-                className="underline underline-offset-4 hover:text-gob-text-gray"
-              >
+              <Link href="/privacidad" className="underline underline-offset-4 hover:text-ln-ink-2">
                 Privacidad
               </Link>
-              <Link
-                href="/terminos"
-                className="underline underline-offset-4 hover:text-gob-text-gray"
-              >
+              <Link href="/terminos" className="underline underline-offset-4 hover:text-ln-ink-2">
                 Términos
               </Link>
               <a
                 href="https://github.com/ignaciodelvalle/dim"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-gob-text-gray"
+                className="underline underline-offset-4 hover:text-ln-ink-2"
               >
                 GitHub
               </a>
             </div>
           </div>
-          <p className="text-[11px] text-gob-text-muted  leading-relaxed">
+          <p className="text-[11px] text-ln-mute leading-relaxed">
             MiMAR opera bajo el marco de la <strong>Ley 14.346</strong> (penalización del maltrato
             animal) y la <strong>Ley 25.326</strong> (protección de datos personales). El
             tratamiento de datos personales requiere consentimiento informado; las denuncias
@@ -268,19 +260,16 @@ function ThemeBlock({
   ctaHref: string;
 }) {
   return (
-    <article id={id} className="rounded-2xl bg-white  border border-gob-border  p-6 space-y-3">
+    <article id={id} className="rounded-2xl bg-ln-card border border-ln-line p-6 space-y-3">
       <div
-        className="h-12 w-12 rounded-full bg-gob-surface-alt  flex items-center justify-center text-2xl"
+        className="h-12 w-12 rounded-full bg-ln-stripe flex items-center justify-center text-2xl"
         aria-hidden
       >
         {icon}
       </div>
-      <h2 className="text-lg font-semibold text-gob-text ">{title}</h2>
-      <p className="text-sm text-gob-text-gray  leading-relaxed">{body}</p>
-      <Link
-        href={ctaHref}
-        className="inline-block text-sm font-medium text-gob-success  hover:underline"
-      >
+      <h2 className="text-lg font-semibold text-ln-ink">{title}</h2>
+      <p className="text-sm text-ln-ink-2 leading-relaxed">{body}</p>
+      <Link href={ctaHref} className="inline-block text-sm font-medium text-ln-ok hover:underline">
         {ctaLabel} →
       </Link>
     </article>
