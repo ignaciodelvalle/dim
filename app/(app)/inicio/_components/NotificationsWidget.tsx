@@ -24,23 +24,23 @@ export function NotificationsWidget({
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-medium text-gob-text ">
+        <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">
           Notificaciones
           {totalUnread > 0 && (
-            <span className="ml-2 text-xs font-normal text-gob-text-muted">
+            <span className="ml-2 text-xs font-normal text-[var(--color-ln-mute)]">
               ({totalUnread} sin leer)
             </span>
           )}
         </h2>
         <Link
           href="/notificaciones"
-          className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+          className="text-sm text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-ink)]"
         >
           Ver todas →
         </Link>
       </div>
       {notifications.length === 0 ? (
-        <div className="border border-dashed border-gob-border-strong  rounded-xl p-6 text-center text-sm text-gob-text-muted ">
+        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center text-sm text-[var(--color-ln-mute)]">
           No tenés nada sin leer.
         </div>
       ) : (

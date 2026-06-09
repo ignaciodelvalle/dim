@@ -47,5 +47,5 @@ supabase/snippets/Untitled*.sql
 .claude/
 
 # design handoff reference (local only — source for the Libreta Nacional redesign, not production)
-design_handoff_owner_libreta_nacional/
+design_handoff_*/
 install.cmd

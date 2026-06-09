@@ -57,14 +57,14 @@ export default async function DashboardPrimitivasPage() {
   await requireUserOrRedirect();
 
   return (
-    <main className="min-h-screen bg-gob-surface-alt p-6">
+    <main className="min-h-screen bg-[var(--color-ln-stripe)] p-6">
       <div className="max-w-5xl mx-auto space-y-8 pt-4 pb-12">
         {/* Título */}
         <header className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-ln-ink)]">
             Primitivas de dashboards (E1)
           </h1>
-          <p className="text-sm text-gob-text-muted">
+          <p className="text-sm text-[var(--color-ln-mute)]">
             Showcase de QA visual para las 5 primitivas del Chunk E1. Datos sintéticos — reemplazar
             con datos reales en las rutas de dashboard (E2–E5).
           </p>
@@ -76,7 +76,7 @@ export default async function DashboardPrimitivasPage() {
         <Panel aria-labelledby="metric-card-heading">
           <PanelHeader title={<span id="metric-card-heading">MetricCard — KPI tile</span>} />
           <PanelBody>
-            <p className="text-xs text-gob-text-muted mb-4">
+            <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               Tres tonos: neutral / warning / danger. Con delta y subline opcionales.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -120,10 +120,10 @@ export default async function DashboardPrimitivasPage() {
             }
           />
           <PanelBody>
-            <p className="text-xs text-gob-text-muted mb-4">
+            <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               3 provincias de muestra (CABA, Buenos Aires, Córdoba). Tiles vía demotiles MapLibre
               (v1 placeholder — E-D1). GeoJSON en{" "}
-              <code className="font-mono text-xs bg-gob-surface-alt px-1 rounded">
+              <code className="font-mono text-xs bg-[var(--color-ln-stripe)] px-1 rounded">
                 /geo/ar-provinces.geojson
               </code>
               .
@@ -148,7 +148,7 @@ export default async function DashboardPrimitivasPage() {
             title={<span id="timeseries-heading">TimeSeriesChart — Serie temporal recharts</span>}
           />
           <PanelBody>
-            <p className="text-xs text-gob-text-muted mb-4">
+            <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               12 puntos mensuales sintéticos. Variante &ldquo;area&rdquo;. Animaciones respetan
               prefers-reduced-motion.
             </p>
@@ -178,7 +178,7 @@ export default async function DashboardPrimitivasPage() {
             }
           />
           <PanelBody>
-            <p className="text-xs text-gob-text-muted mb-4">
+            <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               3 provincias de muestra. Seleccionar una provincia limpia la localidad. Cambios via
               router.replace preservando otros searchParams.
             </p>
@@ -196,7 +196,7 @@ export default async function DashboardPrimitivasPage() {
             title={<span id="period-picker-heading">PeriodPicker — Selector de período</span>}
           />
           <PanelBody>
-            <p className="text-xs text-gob-text-muted mb-4">
+            <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               Chips de presets (7d / 30d / 90d / Año en curso) + rango personalizado vía
               DateRangePicker. Activo por defecto: 30d.
             </p>
