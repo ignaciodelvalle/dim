@@ -48,7 +48,7 @@ export function MpfExportButton({ welfareReportId }: Props) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-gob-primary  bg-gob-primary/10  text-gob-primary  hover:bg-gob-primary/10  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-medium rounded-[6px] border border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul hover:bg-ln-op-celeste-050 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? (
           <>
@@ -97,13 +97,13 @@ export function MpfExportButton({ welfareReportId }: Props) {
         )}
       </button>
 
-      {error && <p className="text-xs text-gob-danger ">{error}</p>}
+      {error && <p className="text-[11px] text-ln-op-danger">{error}</p>}
       {success && (
-        <p className="text-xs text-gob-success ">
+        <p className="text-[11px] text-ln-op-ok">
           PDF generado. Se abrió en una nueva pestaña. El link expira en 24 horas.
         </p>
       )}
-      <p className="text-[10px] text-gob-text-muted">
+      <p className="text-[10px] text-ln-op-mute">
         PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal del MPF CABA (Ley
         14.346).
       </p>

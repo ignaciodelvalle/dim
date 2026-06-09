@@ -117,23 +117,23 @@ export function TriageActions({
   };
 
   return (
-    <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
-      <p className="text-sm font-medium">{titles[mode]}</p>
+    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+      <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholders[mode]}
-        className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+        className="w-full px-3 py-2 rounded border border-ln-op-line bg-white text-[13px] text-ln-op-ink"
       />
-      <p className="text-xs text-gob-text-muted tabular-nums">{notes.trim().length} caracteres</p>
-      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+      <p className="text-[11px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
+      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending || notes.trim().length < 10}
-          className="px-4 py-2 rounded bg-gob-primary  text-white  text-sm font-medium disabled:opacity-50"
+          className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50"
         >
           {pending ? "Procesando..." : "Confirmar"}
         </button>
@@ -141,7 +141,7 @@ export function TriageActions({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded border border-gob-border-strong  text-sm"
+          className="px-4 py-2 rounded-[4px] border border-ln-op-line text-[13px] text-ln-op-ink-2"
         >
           Cancelar
         </button>
@@ -161,15 +161,15 @@ function ActionButton({
 }) {
   const toneClass =
     tone === "primary"
-      ? "bg-gob-primary  text-white  hover:bg-gob-primary"
+      ? "bg-ln-op-azul text-white hover:opacity-90"
       : tone === "success"
-        ? "bg-gob-success text-white hover:bg-gob-success"
-        : "border border-gob-border-strong  text-gob-text-gray  hover:bg-gob-surface-alt ";
+        ? "bg-ln-op-ok text-white hover:opacity-90"
+        : "border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded text-sm font-medium ${toneClass}`}
+      className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium ${toneClass}`}
     >
       {children}
     </button>
