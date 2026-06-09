@@ -118,10 +118,15 @@ export function Step5Contact({
   return (
     <section className="space-y-5">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
+        <h1
+          className="text-2xl font-semibold tracking-tight text-[var(--color-ln-ink)]"
+          style={{ fontFamily: "var(--font-ln-serif)" }}
+        >
           ¿Cómo querés enviarla?
         </h1>
-        <p className="text-sm text-gob-text-muted">Podés enviar sin dar ningún dato personal.</p>
+        <p className="text-sm text-[var(--color-ln-mute)]">
+          Podés enviar sin dar ningún dato personal.
+        </p>
       </div>
 
       {/* Mode cards */}
@@ -130,22 +135,32 @@ export function Step5Contact({
         <button
           type="button"
           onClick={() => onContactModeChange("anonymous")}
-          className={`w-full text-left rounded-xl border-2 px-4 py-4 transition-colors ${
+          className={`w-full text-left rounded-[6px] border px-4 py-3.5 transition-colors ${
             contactMode === "anonymous"
-              ? "border-gob-primary bg-gob-surface-alt"
-              : "border-gob-border hover:border-gob-border-strong"
+              ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
+              : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
           }`}
         >
           <span className="flex items-center gap-3">
-            <span className="text-2xl leading-none flex-shrink-0" aria-hidden="true">
+            <span className="text-xl leading-none flex-shrink-0 w-6 text-center" aria-hidden="true">
               🕵️
             </span>
-            <span>
-              <span className="block text-sm font-semibold text-gob-text">Enviar anónima</span>
-              <span className="block text-xs text-gob-text-muted mt-0.5">
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
+                Enviar anónima
+              </span>
+              <span className="block text-xs text-[var(--color-ln-mute)] mt-0.5">
                 Sin datos de contacto. El código DEN-XXXX es tu única forma de seguimiento.
               </span>
             </span>
+            <span
+              className={`flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 ml-auto ${
+                contactMode === "anonymous"
+                  ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] shadow-[inset_0_0_0_3px_white]"
+                  : "border-[var(--color-ln-line-strong)]"
+              }`}
+              aria-hidden="true"
+            />
           </span>
         </button>
 
@@ -153,39 +168,48 @@ export function Step5Contact({
         <button
           type="button"
           onClick={() => onContactModeChange("with_contact")}
-          className={`w-full text-left rounded-xl border-2 px-4 py-4 transition-colors ${
+          className={`w-full text-left rounded-[6px] border px-4 py-3.5 transition-colors ${
             contactMode === "with_contact"
-              ? "border-gob-primary bg-gob-surface-alt"
-              : "border-gob-border hover:border-gob-border-strong"
+              ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
+              : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
           }`}
         >
           <span className="flex items-center gap-3">
-            <span className="text-2xl leading-none flex-shrink-0" aria-hidden="true">
+            <span className="text-xl leading-none flex-shrink-0 w-6 text-center" aria-hidden="true">
               📞
             </span>
-            <span>
-              <span className="block text-sm font-semibold text-gob-text">
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
                 Sumar mi contacto (más útil)
               </span>
-              <span className="block text-xs text-gob-text-muted mt-0.5">
+              <span className="block text-xs text-[var(--color-ln-mute)] mt-0.5">
                 Email o teléfono. Sin DNI. El equipo puede contactarte para más info.
               </span>
             </span>
+            <span
+              className={`flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 ml-auto ${
+                contactMode === "with_contact"
+                  ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] shadow-[inset_0_0_0_3px_white]"
+                  : "border-[var(--color-ln-line-strong)]"
+              }`}
+              aria-hidden="true"
+            />
           </span>
         </button>
       </div>
 
       {/* Contact fields — shown when mode is with_contact */}
       {contactMode === "with_contact" && (
-        <div className="rounded-xl border border-gob-border p-4 space-y-4">
-          <p className="text-xs text-gob-text-gray leading-relaxed">
+        <div className="rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4 space-y-4">
+          <p className="text-xs text-[var(--color-ln-ink-2)] leading-relaxed">
             Tu contacto es anónimo en el sentido de que no pedimos DNI ni nombre. Solo para que
             podamos avisarte si avanza la denuncia.
           </p>
           <div className="space-y-1.5">
             <label
               htmlFor="reporterContactPhone"
-              className="block text-sm font-medium text-gob-text"
+              className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               Teléfono (preferido)
             </label>
@@ -202,7 +226,8 @@ export function Step5Contact({
           <div className="space-y-1.5">
             <label
               htmlFor="reporterContactEmail"
-              className="block text-sm font-medium text-gob-text"
+              className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               Email (alternativo)
             </label>
@@ -219,7 +244,7 @@ export function Step5Contact({
           {contactMode === "with_contact" &&
             contactEmail.trim().length === 0 &&
             contactPhone.trim().length === 0 && (
-              <p className="text-xs text-gob-warning-text">
+              <p className="text-xs text-[var(--color-ln-warn)]">
                 Completá al menos un dato de contacto, o cambiá a "Enviar anónima".
               </p>
             )}
@@ -230,20 +255,23 @@ export function Step5Contact({
           Files are lifted into WizardState.evidenceFiles and appended to FormData
           in DenunciaWizard.handleSubmit. The file input is cleared after each
           selection to allow incremental adds (same pattern as WelfareReportForm). */}
-      <div className="space-y-3 rounded-xl border border-dashed border-gob-border p-4">
+      <div className="space-y-3 rounded-[6px] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] p-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gob-text">
+          <span className="text-sm font-semibold text-[var(--color-ln-ink)]">
             📎 Sumar fotos o videos{" "}
-            <span className="font-normal text-gob-text-muted">(opcional)</span>
+            <span className="font-normal text-[var(--color-ln-mute)]">(opcional)</span>
           </span>
           {evidenceFiles.length > 0 && (
-            <span className="text-xs text-gob-text-muted">
+            <span
+              className="text-xs text-[var(--color-ln-mute)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
+            >
               {evidenceFiles.length}/{MAX_EVIDENCE_FILES}
             </span>
           )}
         </div>
 
-        <p className="text-xs text-gob-text-muted">
+        <p className="text-xs text-[var(--color-ln-mute)]">
           Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF)
           y videos (MP4, WebM, MOV).
         </p>
@@ -256,11 +284,11 @@ export function Step5Contact({
           accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
           capture="environment"
           onChange={(e) => handleFilesSelected(e.target.files)}
-          className="block w-full text-xs text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-gob-surface-alt file:text-gob-text file:cursor-pointer"
+          className="block w-full text-xs text-[var(--color-ln-ink-2)] file:mr-3 file:px-3 file:py-1.5 file:rounded-[3px] file:border-0 file:bg-[var(--color-ln-stripe)] file:text-[var(--color-ln-ink)] file:cursor-pointer"
         />
 
         {evidenceError && (
-          <p className="text-xs text-gob-danger" role="alert">
+          <p className="text-xs text-[var(--color-ln-seal)]" role="alert">
             {evidenceError}
           </p>
         )}
@@ -274,14 +302,14 @@ export function Step5Contact({
                   <img
                     src={entry.objectUrl}
                     alt={entry.file.name}
-                    className="w-full aspect-square object-cover rounded-lg border border-gob-border"
+                    className="w-full aspect-square object-cover rounded-[5px] border border-[var(--color-ln-line-strong)]"
                   />
                 ) : (
-                  <div className="w-full aspect-square rounded-lg border border-gob-border bg-gob-surface-alt flex flex-col items-center justify-center gap-1 p-2">
+                  <div className="w-full aspect-square rounded-[5px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] flex flex-col items-center justify-center gap-1 p-2">
                     <span className="text-2xl select-none" aria-hidden="true">
                       ▶
                     </span>
-                    <p className="text-xs text-gob-text-muted text-center truncate w-full">
+                    <p className="text-xs text-[var(--color-ln-mute)] text-center truncate w-full">
                       {entry.file.name}
                     </p>
                   </div>
@@ -290,7 +318,7 @@ export function Step5Contact({
                   type="button"
                   onClick={() => removeEvidence(i)}
                   aria-label={`Quitar ${entry.file.name}`}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gob-text text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[var(--color-ln-ink)] text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 >
                   ×
                 </button>
@@ -302,7 +330,7 @@ export function Step5Contact({
 
       {error && (
         <p
-          className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[#fbe9e6] border border-[#f1c6bf] px-3 py-2"
           role="alert"
         >
           {error}
@@ -315,13 +343,13 @@ export function Step5Contact({
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit || isPending}
-          className="w-full px-4 py-4 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Enviando denuncia…" : "Enviar denuncia →"}
         </button>
       )}
 
-      <p className="text-xs text-gob-text-muted text-center leading-relaxed">
+      <p className="text-xs text-[var(--color-ln-mute)] text-center leading-relaxed">
         Al enviar confirmás que lo que describiste es lo que viste. No se requiere certeza — solo
         buena fe.
       </p>

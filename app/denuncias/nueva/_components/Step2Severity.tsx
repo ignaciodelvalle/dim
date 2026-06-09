@@ -21,8 +21,10 @@ type SeverityCard = {
   label: string;
   description: string;
   icon: string;
-  borderClass: string;
-  selectedBorderClass: string;
+  // Base (unselected) classes
+  baseClass: string;
+  // Selected classes
+  selectedClass: string;
 };
 
 const SEVERITY_CARDS: SeverityCard[] = [
@@ -31,24 +33,28 @@ const SEVERITY_CARDS: SeverityCard[] = [
     label: "Grave / urgente",
     description: "El animal está en peligro inmediato o hay heridas visibles",
     icon: "🚨",
-    borderClass: "border-gob-danger/30 hover:border-gob-danger/60",
-    selectedBorderClass: "border-gob-danger bg-gob-danger/10",
+    baseClass: "border-[#f1c6bf] bg-[#fbe9e6] text-[var(--color-ln-seal)]",
+    selectedClass:
+      "border-[#f1c6bf] bg-[#fbe9e6] text-[var(--color-ln-seal)] shadow-[0_0_0_3px_rgba(162,58,44,.16)]",
   },
   {
     value: "moderado",
     label: "Moderado",
     description: "Condiciones de vida malas, abandono, descuido sostenido",
     icon: "⚠️",
-    borderClass: "border-gob-warning/40 hover:border-gob-warning/70",
-    selectedBorderClass: "border-gob-warning bg-gob-warning/10",
+    baseClass: "border-[#f0dcb4] bg-[#fdf6ea] text-[var(--color-ln-warn)]",
+    selectedClass:
+      "border-[#f0dcb4] bg-[#fdf6ea] text-[var(--color-ln-warn)] shadow-[0_0_0_3px_rgba(176,119,26,.16)]",
   },
   {
     value: "sospecha",
     label: "Sospecha",
     description: "Creo que algo no está bien, pero no estoy seguro/a",
     icon: "🔍",
-    borderClass: "border-gob-border hover:border-gob-border-strong",
-    selectedBorderClass: "border-gob-primary bg-gob-surface-alt",
+    baseClass:
+      "border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink)]",
+    selectedClass:
+      "border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink)] shadow-[0_0_0_3px_rgba(14,90,153,.12)]",
   },
 ];
 
@@ -61,8 +67,15 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
   return (
     <section className="space-y-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Qué tan grave es?</h1>
-        <p className="text-sm text-gob-text-muted">Elegí la que más se acerca a lo que viste.</p>
+        <h1
+          className="text-2xl font-semibold tracking-tight text-[var(--color-ln-ink)]"
+          style={{ fontFamily: "var(--font-ln-serif)" }}
+        >
+          ¿Qué tan grave es?
+        </h1>
+        <p className="text-sm text-[var(--color-ln-mute)]">
+          Elegí la que más se acerca a lo que viste.
+        </p>
       </div>
 
       <ul className="space-y-3">
@@ -71,8 +84,8 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
           return (
             <li key={card.value}>
               <label
-                className={`flex items-start gap-3 rounded-xl border-2 px-4 py-4 cursor-pointer transition-colors ${
-                  isSelected ? card.selectedBorderClass : card.borderClass
+                className={`block rounded-[7px] border-2 px-4 py-3.5 cursor-pointer transition-shadow ${
+                  isSelected ? card.selectedClass : card.baseClass
                 }`}
               >
                 {/* Visually hidden radio — semantics carried by the label */}
@@ -84,14 +97,12 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
                   onChange={() => onSelect(card.value)}
                   className="sr-only"
                 />
-                <span className="text-2xl leading-none flex-shrink-0" aria-hidden="true">
+                <span className="text-xl leading-none" aria-hidden="true">
                   {card.icon}
                 </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-gob-text">{card.label}</span>
-                  <span className="block text-xs text-gob-text-gray mt-0.5 leading-relaxed">
-                    {card.description}
-                  </span>
+                <span className="block mt-1 text-sm font-semibold">{card.label}</span>
+                <span className="block text-xs mt-0.5 leading-relaxed opacity-80">
+                  {card.description}
                 </span>
               </label>
             </li>
@@ -99,7 +110,7 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
         })}
       </ul>
 
-      <p className="text-xs text-gob-text-muted text-center pt-2">
+      <p className="text-xs text-[var(--color-ln-mute)] text-center pt-2">
         No importa cuál elijas — todas las denuncias son revisadas por el equipo.
       </p>
     </section>
