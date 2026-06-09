@@ -6,7 +6,7 @@ import {
   buildSheetUrl,
   getDrawerWidth,
   getSheetIdFromSearchParams,
-} from "./Sheet.helpers";
+} from "./sheet-helpers";
 
 describe("getSheetIdFromSearchParams", () => {
   it("returns the sheet id when param is present (URLSearchParams)", () => {

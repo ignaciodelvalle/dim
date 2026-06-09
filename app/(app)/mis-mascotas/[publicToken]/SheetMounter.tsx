@@ -20,8 +20,9 @@
  * is dropped for the "sintoma" sheet.
  */
 
-import { Button, Sheet } from "@/components/poncho";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { Button } from "@/components/poncho";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 

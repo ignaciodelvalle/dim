@@ -10,9 +10,9 @@
  *   cancelar-turno
  */
 
-import { Sheet } from "@/components/poncho";
+import { Sheet } from "@/components/ui/VaulSheet";
 import { Button } from "@/components/poncho/Button";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 

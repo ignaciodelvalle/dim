@@ -1,23 +1,18 @@
 "use client";
 
-// Toast — thin wrapper around sonner that sets the DIM defaults (position,
+// Toaster — thin wrapper around sonner that sets the DIM defaults (position,
 // auto-dismiss, theme) so consumers don't have to think about them.
-// Sprint 6 PR-052.
 //
 // Usage:
-//   import { Toaster, toast } from "@/components/poncho/Toast";
+//   import { Toaster } from "@/components/Toaster";
 //   <Toaster />        ← mounted once in app/layout.tsx
+//
+// For firing toasts, import `toast` from sonner directly:
+//   import { toast } from "sonner";
 //   toast.success("Vacuna registrada")
 //   toast.error("Sesión expirada", { duration: 7000 })
-//   toast.info("Listo")
-//
-// We re-export `toast` from sonner directly so existing patterns (e.g.
-// `toast.promise`, `toast.dismiss`) keep working. The Toaster is our
-// configured one.
 
-import { Toaster as SonnerToaster, toast } from "sonner";
-
-export { toast };
+import { Toaster as SonnerToaster } from "sonner";
 
 export function Toaster() {
   return (

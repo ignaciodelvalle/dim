@@ -1,4 +1,4 @@
-// Pure helpers for Sheet component — extracted for unit testing.
+// Pure helpers for the Vaul-based Sheet component — extracted for unit testing.
 
 export type SheetSize = "sm" | "md" | "lg";
 

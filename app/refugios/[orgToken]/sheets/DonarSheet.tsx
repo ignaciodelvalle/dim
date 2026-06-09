@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { Sheet } from "@/components/poncho/Sheet";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import type { DonationMethods } from "@/lib/org-public-profile";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 

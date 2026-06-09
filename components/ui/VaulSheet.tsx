@@ -1,10 +1,10 @@
 "use client";
 
+import { getDrawerWidth } from "@/lib/sheet-helpers";
 import type { ReactNode } from "react";
 import { Drawer } from "vaul";
-import { getDrawerWidth } from "./Sheet.helpers";
 
-export type { SheetSize } from "./Sheet.helpers";
+export type { SheetSize } from "@/lib/sheet-helpers";
 
 export type SheetSide = "bottom" | "right";
 
@@ -30,7 +30,7 @@ export type SheetProps = {
   open: boolean;
   onClose: () => void;
   side?: SheetSide;
-  size?: import("./Sheet.helpers").SheetSize;
+  size?: import("@/lib/sheet-helpers").SheetSize;
   children: ReactNode;
 };
 
@@ -58,24 +58,21 @@ export function Sheet({ id, title, open, onClose, size = "md", children }: Sheet
             "h-[85dvh] w-full",
             // Desktop: right-drawer constrained width, full height
             `md:top-0 md:h-full ${widthClass}`,
-            "bg-gob-surface shadow-xl outline-none",
+            "bg-ln-card shadow-xl outline-none",
             "rounded-t-2xl md:rounded-none md:rounded-l-2xl",
           ].join(" ")}
         >
           {/* Drag handle — mobile only */}
-          <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-gob-border md:hidden" />
+          <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-ln-line md:hidden" />
 
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gob-border px-5 py-4">
-            <Drawer.Title
-              id={`sheet-title-${id}`}
-              className="text-base font-semibold text-gob-text"
-            >
+          <div className="flex items-center justify-between border-b border-ln-line px-5 py-4">
+            <Drawer.Title id={`sheet-title-${id}`} className="text-base font-semibold text-ln-ink">
               {title}
             </Drawer.Title>
             <Drawer.Close
               aria-label="Cerrar"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-gob-text-gray transition-colors hover:bg-gob-surface-alt hover:text-gob-text"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-ln-ink-2 transition-colors hover:bg-ln-stripe hover:text-ln-ink"
             >
               {/* Simple × glyph — no Icon dep to keep the component self-contained */}
               <span aria-hidden="true" className="text-lg leading-none">

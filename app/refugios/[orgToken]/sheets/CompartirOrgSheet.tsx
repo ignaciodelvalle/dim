@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { Sheet } from "@/components/poncho/Sheet";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // "Compartir refugio" — copy-link + native share (handoff P2-9).

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Caveat, IBM_Plex_Mono, IBM_Plex_Sans, IBM_Plex_Serif } from "next/font/google";
 
-import { Toaster } from "@/components/poncho/Toast";
+import { Toaster } from "@/components/Toaster";
 
 import "./globals.css";
 

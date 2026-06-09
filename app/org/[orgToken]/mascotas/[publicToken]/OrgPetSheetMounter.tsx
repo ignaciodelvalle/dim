@@ -12,8 +12,8 @@
  * Props are threaded from the server page so no client-side fetching is needed.
  */
 
-import { Sheet } from "@/components/poncho";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 

@@ -32,10 +32,8 @@ export {
 } from "./JurisdictionSwitcher";
 export { PeriodPicker, type PeriodPickerProps, type PeriodPreset } from "./PeriodPicker";
 export { Photo, type PhotoProps, type PhotoStatus, type PhotoSize } from "./Photo";
-export { Sheet, type SheetProps, type SheetSide, type SheetSize } from "./Sheet";
 export { SuccessScreen, type SuccessAction } from "./SuccessScreen";
 export { ErrorBoundary } from "./ErrorBoundary";
-export { Toaster, toast } from "./Toast";
 
 // Form primitives (Poncho PR-A) — Field + Input/Textarea/Select.
 // Grouped controls (Poncho PR-A.5) — Fieldset + Checkbox/Radio.

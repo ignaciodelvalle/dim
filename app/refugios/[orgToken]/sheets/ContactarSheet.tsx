@@ -13,8 +13,8 @@
 import { useActionState, useEffect } from "react";
 
 import { Input } from "@/components/poncho/Input";
-import { Sheet } from "@/components/poncho/Sheet";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { Textarea } from "@/components/poncho/Textarea";
 import {
   type SubmitOrgContactState,
