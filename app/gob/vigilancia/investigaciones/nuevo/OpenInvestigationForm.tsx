@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -42,7 +42,7 @@ export function OpenInvestigationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
-        <label htmlFor="diseaseCode" className="block text-sm font-medium text-gob-text">
+        <label htmlFor="diseaseCode" className="block text-[13px] font-medium text-ln-op-ink">
           Enfermedad (ENO)
         </label>
         <select
@@ -50,19 +50,19 @@ export function OpenInvestigationForm({
           value={diseaseCode}
           onChange={(e) => setDiseaseCode(e.target.value)}
           required
-          className="w-full px-3 py-2 rounded border border-gob-border bg-white text-sm"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         >
           <option value="">Seleccionar enfermedad...</option>
           {diseases.map((d) => (
             <option key={d.code} value={d.code}>
-              {d.label} â€” {d.severity === "critical" ? "critica" : "alta"} ({d.notifyHours}h)
+              {d.label} â€" {d.severity === "critical" ? "critica" : "alta"} ({d.notifyHours}h)
             </option>
           ))}
         </select>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="reason" className="block text-sm font-medium text-gob-text">
+        <label htmlFor="reason" className="block text-[13px] font-medium text-ln-op-ink">
           Motivo de apertura (minimo 10 caracteres)
         </label>
         <textarea
@@ -73,15 +73,15 @@ export function OpenInvestigationForm({
           required
           minLength={10}
           placeholder="Describe la situacion epidemiologica que motiva la apertura..."
-          className="w-full px-3 py-2 rounded border border-gob-border bg-white text-sm"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
-        <p className="text-xs text-gob-text-muted tabular-nums">
+        <p className="text-[12px] text-ln-op-mute tabular-nums">
           {reason.trim().length} caracteres
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="signalId" className="block text-sm font-medium text-gob-text">
+        <label htmlFor="signalId" className="block text-[13px] font-medium text-ln-op-ink">
           Signal vinculada (opcional)
         </label>
         <input
@@ -90,17 +90,17 @@ export function OpenInvestigationForm({
           value={signalId}
           onChange={(e) => setSignalId(e.target.value)}
           placeholder="ID del outbreak_signal event (si existe)"
-          className="w-full px-3 py-2 rounded border border-gob-border bg-white text-sm font-mono"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink"
         />
       </div>
 
-      {error && <output className="block text-sm text-gob-danger">{error}</output>}
+      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-3">
         <button
           type="submit"
           disabled={pending || !diseaseCode || reason.trim().length < 10}
-          className="px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
         >
           {pending ? "Abriendo..." : "Abrir investigacion"}
         </button>
@@ -108,7 +108,7 @@ export function OpenInvestigationForm({
           type="button"
           onClick={() => router.back()}
           disabled={pending}
-          className="px-4 py-2 rounded-lg border border-gob-border text-sm"
+          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Cancelar
         </button>
