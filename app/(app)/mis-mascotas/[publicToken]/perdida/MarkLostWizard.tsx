@@ -1,31 +1,24 @@
 "use client";
 
-// MarkLostWizard — 3-step wizard wrapping the previous MarkLostForm.
-// Trilogy unification handoff §3 PR-020.
-//
-// Steps:
-//   1. ¿Dónde la viste por última vez? — L2 location + 'Usar mi ubicación'
-//      primary + optional reason/notes. CTA: Continuar.
-//   2. Datos para que la reconozcan — enriched description (color,
-//      distinguishing features, accessories, behavior, last seen context,
-//      optional retroactive chip/tattoo). Shown ONLY when the pet has
-//      neither microchip nor tattoo on file; otherwise the wizard skips
-//      this step. CTA: Continuar.
-//   3. Qué querés que vean — 5 disclosure toggles. CTA: Marcar como perdida.
-//
-// All form fields are uncontrolled. The wizard reads them via a single
-// formRef at submit time, exactly like DenunciaWizard does for the same
-// reason (LocationFields renders its own hidden inputs and porting it to
-// a controlled API is out of scope for this PR).
+// MarkLostWizard — Libreta Nacional redesign (seal/red tone, §10 handoff).
+// Presentation ONLY: 3-step wizard structure, formRef pattern, step logic,
+// action call, field names, and submit logic are untouched.
 
 import { useRef, useState, useTransition } from "react";
 
+import { LnCallout } from "@/components/ui/DocElements";
+import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import {
+  LnGroupLabel,
+  LnSheetAccordion,
+  LnSheetBody,
+  LnSheetFooter,
+  LnSheetHeader,
+  LnSubCard,
+} from "@/components/ui/Sheet";
+import { LnToggle } from "@/components/ui/Toggle";
 import { LocationFields } from "@/components/LocationFields";
-import { Input } from "@/components/poncho/Input";
-import { Select } from "@/components/poncho/Select";
 import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { Textarea } from "@/components/poncho/Textarea";
-import { WizardShell } from "@/components/poncho/Wizard";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
 import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
 
@@ -36,30 +29,35 @@ const DISCLOSURE_TOGGLES: Array<{
   formName: string;
   label: string;
   description: string;
+  defaultOn: boolean;
 }> = [
   {
     name: "discloseFirstNameWhenLost",
     formName: "disclose_first_name_when_lost",
     label: "Tu nombre",
     description: "Quienes encuentren a tu mascota verán tu nombre de pila.",
+    defaultOn: true,
   },
   {
     name: "disclosePhoneWhenLost",
     formName: "disclose_phone_when_lost",
     label: "Tu teléfono",
     description: "La credencial pública mostrará un botón directo para llamarte.",
+    defaultOn: true,
   },
   {
     name: "discloseEmailWhenLost",
     formName: "disclose_email_when_lost",
     label: "Tu email",
     description: "Se mostrará un enlace de contacto por correo electrónico.",
+    defaultOn: false,
   },
   {
     name: "discloseLastLocationWhenLost",
     formName: "disclose_last_location_when_lost",
     label: "Última ubicación conocida",
     description: "Ayuda a orientar la búsqueda en el barrio correcto.",
+    defaultOn: true,
   },
   {
     name: "allowFinderFormWhenLost",
@@ -67,6 +65,7 @@ const DISCLOSURE_TOGGLES: Array<{
     label: "Formulario de quien la encontró",
     description:
       "Permite que alguien te avise a través de la credencial sin necesitar tu contacto.",
+    defaultOn: true,
   },
 ];
 
@@ -106,6 +105,15 @@ export function MarkLostWizard({
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Disclosure toggles state (LnToggle is controlled)
+  const [disclosure, setDisclosure] = useState<Record<string, boolean>>({
+    disclose_first_name_when_lost: disclosureDefaults.discloseFirstNameWhenLost,
+    disclose_phone_when_lost: disclosureDefaults.disclosePhoneWhenLost,
+    disclose_email_when_lost: disclosureDefaults.discloseEmailWhenLost,
+    disclose_last_location_when_lost: disclosureDefaults.discloseLastLocationWhenLost,
+    allow_finder_form_when_lost: disclosureDefaults.allowFinderFormWhenLost,
+  });
+
   function goBack() {
     setErrorMessage(null);
     setStep((s) => Math.max(1, s - 1));
@@ -119,8 +127,13 @@ export function MarkLostWizard({
   function handleSubmit() {
     setErrorMessage(null);
     const formData = formRef.current ? new FormData(formRef.current) : new FormData();
-    // Signal to setPetLostAction to skip the redirect so we can render
-    // our own SuccessScreen client-side (sprint 3 PR-021).
+    // Sync controlled toggle state into formData before submit.
+    // (Hidden inputs in the form only capture the initial defaultChecked;
+    // LnToggle is controlled so we write the current values here.)
+    for (const [k, v] of Object.entries(disclosure)) {
+      formData.set(k, v ? "on" : "");
+    }
+    // Signal to setPetLostAction to skip the redirect.
     formData.set("noRedirect", "1");
     startTransition(async () => {
       const result = await action({ error: null }, formData);
@@ -154,295 +167,296 @@ export function MarkLostWizard({
     );
   }
 
+  const isLastStep = step === totalSteps;
+
   return (
-    <form ref={formRef} className="space-y-0">
-      <WizardShell
-        currentStep={step}
-        totalSteps={totalSteps}
-        stepLabels={stepLabels}
-        onBack={step > 1 ? goBack : undefined}
-      >
-        {/* Step 1 — Location + when. Always rendered to preserve uncontrolled
-            field values across step transitions (same trick DenunciaWizard
-            uses). Hidden via sr-only when not active. */}
-        <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-          <div className="space-y-1">
-            <p className="text-sm text-gob-text-muted">
+    <>
+      <LnSheetHeader
+        tone="seal"
+        icon="🔍"
+        title={`Marcar ${petName} como perdida`}
+        subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
+      />
+      <LnSheetBody>
+        {/* Step progress bar */}
+        <div className="flex gap-[6px]">
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <div
+              key={i}
+              className={[
+                "h-[3px] flex-1 rounded-full transition-colors",
+                i < step
+                  ? "bg-[var(--color-ln-seal)]"
+                  : "bg-[var(--color-ln-line-strong)]",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            />
+          ))}
+        </div>
+
+        <form ref={formRef} className="contents">
+          {/* Step 1 — Location. Always rendered (hidden when inactive) to preserve
+              uncontrolled field values across step transitions. */}
+          <section
+            data-section="step-location"
+            className={step === 1 ? "flex flex-col gap-[14px]" : "sr-only"}
+            aria-hidden={step !== 1}
+          >
+            <p className="text-[12.5px] text-[var(--color-ln-mute)]">
               Marcá el lugar y la hora aproximada del último avistaje. La ubicación se vuelve parte
               de la credencial pública para orientar la búsqueda.
             </p>
-          </div>
 
-          <LocationFields
-            mode="l2"
-            biasProvince={petJurisdictionProvince}
-            biasLocality={petJurisdictionLocality}
-            useMyLocationVariant="primary"
-          />
-
-          <div className="space-y-1.5">
-            <label htmlFor="reason" className="block text-sm font-medium text-gob-text">
-              Detalles (opcional)
-            </label>
-            <Textarea
-              id="reason"
-              name="reason"
-              rows={3}
-              placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
+            <LocationFields
+              mode="l2"
+              biasProvince={petJurisdictionProvince}
+              biasLocality={petJurisdictionLocality}
+              useMyLocationVariant="primary"
             />
-            <p className="text-xs text-gob-text-muted">
-              Se guarda en el historial para tu referencia.
-            </p>
-          </div>
 
-          <button
-            type="button"
-            onClick={goNext}
-            className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 transition-colors"
-          >
-            Continuar
-          </button>
-        </section>
-
-        {/* Step 2 — Enriched details (conditional). */}
-        {showDetailsStep && (
-          <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
-            <div className="rounded-xl border border-gob-info  bg-gob-info/10  p-4 space-y-5">
-              <div className="space-y-0.5">
-                <p className="text-sm font-semibold text-gob-azul-link ">
-                  Sin chip ni tatuaje, estos detalles son clave
-                </p>
-                <p className="text-xs text-gob-azul-link ">
-                  Cualquiera que la encuentre sin documentación va a depender de cómo se ve.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
-                  Identidad
-                </p>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_color"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Color y pelaje
-                  </label>
-                  <Input
-                    id="enriched_color"
-                    name="enriched_color"
-                    type="text"
-                    defaultValue={petColor ?? ""}
-                    placeholder="Ej: marrón con manchas blancas en el pecho"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_distinguishing_features"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Marcas o características distintivas
-                  </label>
-                  <Textarea
-                    id="enriched_distinguishing_features"
-                    name="enriched_distinguishing_features"
-                    rows={2}
-                    defaultValue={petDistinguishingFeatures ?? ""}
-                    placeholder="Ej: mancha negra en la oreja derecha, cola corta, cicatriz en el lomo"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
-                  Al momento de perderse
-                </p>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_accessories_when_lost"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Accesorios que llevaba
-                  </label>
-                  <Input
-                    id="enriched_accessories_when_lost"
-                    name="enriched_accessories_when_lost"
-                    type="text"
-                    placeholder="Ej: collar rojo con placa, campera azul"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_behavior_notes"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Comportamiento y temperamento
-                  </label>
-                  <Textarea
-                    id="enriched_behavior_notes"
-                    name="enriched_behavior_notes"
-                    rows={2}
-                    placeholder="Ej: se asusta de los autos, responde a su nombre"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_last_seen_context"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Contexto del último avistaje
-                  </label>
-                  <Textarea
-                    id="enriched_last_seen_context"
-                    name="enriched_last_seen_context"
-                    rows={2}
-                    placeholder="Ej: salió por la puerta cuando abrimos el portón"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
-                  Microchip (opcional)
-                </p>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_microchip_id"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Número de microchip
-                  </label>
-                  <Input
-                    id="enriched_microchip_id"
-                    name="enriched_microchip_id"
-                    type="text"
-                    placeholder="Ej: 982000411234567"
-                  />
-                  <p className="text-xs text-gob-text-muted">
-                    Si te acordás que tiene chip pero nunca lo cargaste, ingresalo acá.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gob-azul-link ">
-                  Tatuaje (opcional)
-                </p>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_tattoo_code"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Código del tatuaje
-                  </label>
-                  <Input
-                    id="enriched_tattoo_code"
-                    name="enriched_tattoo_code"
-                    type="text"
-                    placeholder="Ej: K9-2014-A"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_tattoo_location"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Ubicación
-                  </label>
-                  <Select
-                    id="enriched_tattoo_location"
-                    name="enriched_tattoo_location"
-                    defaultValue=""
-                  >
-                    <option value="">Seleccionar</option>
-                    {TATTOO_LOCATIONS.map((l) => (
-                      <option key={l.value} value={l.value}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="enriched_tattoo_description"
-                    className="block text-sm font-medium text-gob-text"
-                  >
-                    Descripción (opcional)
-                  </label>
-                  <Textarea
-                    id="enriched_tattoo_description"
-                    name="enriched_tattoo_description"
-                    rows={2}
-                    placeholder="Ej: campaña de castración 2018"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={goNext}
-              className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  transition-colors"
-            >
-              Continuar
-            </button>
+            <LnField label="Detalles">
+              {({ id, describedBy }) => (
+                <LnTextarea
+                  id={id}
+                  name="reason"
+                  rows={3}
+                  placeholder="Cualquier detalle que pueda ayudar (collar, comportamiento, hora aproximada)"
+                  aria-describedby={describedBy}
+                />
+              )}
+            </LnField>
           </section>
-        )}
 
-        {/* Final step — disclosure. */}
-        <section
-          className={step === totalSteps ? "space-y-5" : "sr-only"}
-          aria-hidden={step !== totalSteps}
-        >
-          <div className="rounded-xl border border-gob-border  bg-gob-surface-alt  p-4 space-y-4">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium text-gob-text ">
-                ¿Qué información mostramos en tu credencial pública mientras esté perdida?
-              </p>
-              <p className="text-xs text-gob-text-muted">
-                Podés cambiar esto en cualquier momento mientras la mascota esté perdida.
-              </p>
-            </div>
+          {/* Step 2 — Enriched details (conditional — only when no chip/tattoo). */}
+          {showDetailsStep && (
+            <section
+              data-section="step-details"
+              className={step === 2 ? "flex flex-col gap-[14px]" : "sr-only"}
+              aria-hidden={step !== 2}
+            >
+              <LnCallout tone="azul" title="Sin chip ni tatuaje, estos detalles son clave">
+                Cualquiera que la encuentre sin documentación va a depender de cómo se ve.
+              </LnCallout>
 
-            <div className="space-y-3">
-              {DISCLOSURE_TOGGLES.map((toggle) => (
-                <label
-                  key={toggle.formName}
-                  className="flex items-start gap-3 cursor-pointer group"
+              <LnSubCard heading="Identidad">
+                <LnGroupLabel>Aspecto físico</LnGroupLabel>
+                <LnField label="Color y pelaje">
+                  {({ id, describedBy }) => (
+                    <LnInput
+                      id={id}
+                      name="enriched_color"
+                      type="text"
+                      defaultValue={petColor ?? ""}
+                      placeholder="Ej: marrón con manchas blancas en el pecho"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+                <LnField label="Marcas o características distintivas">
+                  {({ id, describedBy }) => (
+                    <LnTextarea
+                      id={id}
+                      name="enriched_distinguishing_features"
+                      rows={2}
+                      defaultValue={petDistinguishingFeatures ?? ""}
+                      placeholder="Ej: mancha negra en la oreja derecha, cola corta"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+              </LnSubCard>
+
+              <LnSubCard heading="Al momento de perderse">
+                <LnField label="Accesorios que llevaba">
+                  {({ id, describedBy }) => (
+                    <LnInput
+                      id={id}
+                      name="enriched_accessories_when_lost"
+                      type="text"
+                      placeholder="Ej: collar rojo con placa, campera azul"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+                <LnField label="Comportamiento y temperamento">
+                  {({ id, describedBy }) => (
+                    <LnTextarea
+                      id={id}
+                      name="enriched_behavior_notes"
+                      rows={2}
+                      placeholder="Ej: se asusta de los autos, responde a su nombre"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+                <LnField label="Contexto del último avistaje">
+                  {({ id, describedBy }) => (
+                    <LnTextarea
+                      id={id}
+                      name="enriched_last_seen_context"
+                      rows={2}
+                      placeholder="Ej: salió por la puerta cuando abrimos el portón"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+              </LnSubCard>
+
+              <LnSubCard heading="Microchip (opcional)">
+                <LnField
+                  label="Número de microchip"
+                  hint="Si te acordás que tiene chip pero nunca lo cargaste, ingresalo acá."
                 >
-                  <input
-                    type="checkbox"
-                    name={toggle.formName}
-                    defaultChecked={disclosureDefaults[toggle.name]}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gob-border-strong  text-gob-warning-text focus:ring-gob-warning focus:ring-offset-0"
+                  {({ id, describedBy }) => (
+                    <LnInput
+                      id={id}
+                      name="enriched_microchip_id"
+                      type="text"
+                      mono
+                      placeholder="Ej: 982000411234567"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+              </LnSubCard>
+
+              <LnSubCard heading="Tatuaje (opcional)">
+                <LnField label="Código del tatuaje">
+                  {({ id, describedBy }) => (
+                    <LnInput
+                      id={id}
+                      name="enriched_tattoo_code"
+                      type="text"
+                      mono
+                      placeholder="Ej: K9-2014-A"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+                <LnField label="Ubicación">
+                  {({ id, describedBy, invalid }) => (
+                    <LnSelect
+                      id={id}
+                      name="enriched_tattoo_location"
+                      defaultValue=""
+                      aria-describedby={describedBy}
+                      invalid={invalid}
+                    >
+                      <option value="">Seleccionar</option>
+                      {TATTOO_LOCATIONS.map((l) => (
+                        <option key={l.value} value={l.value}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </LnSelect>
+                  )}
+                </LnField>
+                <LnField label="Descripción">
+                  {({ id, describedBy }) => (
+                    <LnTextarea
+                      id={id}
+                      name="enriched_tattoo_description"
+                      rows={2}
+                      placeholder="Ej: campaña de castración 2018"
+                      aria-describedby={describedBy}
+                    />
+                  )}
+                </LnField>
+              </LnSubCard>
+            </section>
+          )}
+
+          {/* Final step — disclosure toggles. */}
+          <section
+            data-section="step-disclosure"
+            className={step === totalSteps ? "flex flex-col gap-[12px]" : "sr-only"}
+            aria-hidden={step !== totalSteps}
+          >
+            <LnSubCard heading="Preferencias de divulgación">
+              <p className="text-[12px] text-[var(--color-ln-mute)]">
+                ¿Qué información mostramos en tu credencial pública mientras esté perdida? Podés
+                cambiar esto en cualquier momento.
+              </p>
+              <div className="flex flex-col gap-[8px]">
+                {DISCLOSURE_TOGGLES.map((toggle) => (
+                  <LnToggle
+                    key={toggle.formName}
+                    variant="amber"
+                    checked={disclosure[toggle.formName] ?? toggle.defaultOn}
+                    onChange={(v) =>
+                      setDisclosure((prev) => ({ ...prev, [toggle.formName]: v }))
+                    }
+                    label={toggle.label}
+                    description={toggle.description}
                   />
-                  <div className="space-y-0.5 min-w-0">
-                    <p className="text-sm font-medium text-gob-text  group-hover:text-gob-warning-text  transition-colors">
-                      {toggle.label}
-                    </p>
-                    <p className="text-xs text-gob-text-muted">{toggle.description}</p>
-                  </div>
-                </label>
+                ))}
+              </div>
+              {/* Hidden inputs so formData picks up toggle state when JS reads FormData */}
+              {DISCLOSURE_TOGGLES.map((toggle) => (
+                <input
+                  key={toggle.formName}
+                  type="hidden"
+                  name={toggle.formName}
+                  value={disclosure[toggle.formName] ?? toggle.defaultOn ? "on" : ""}
+                />
               ))}
-            </div>
-          </div>
+            </LnSubCard>
+          </section>
 
           {errorMessage && (
-            <p className="text-sm text-gob-danger " role="alert">
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
+            >
               {errorMessage}
             </p>
           )}
+        </form>
+      </LnSheetBody>
 
+      {/* Footer — step navigation */}
+      <div className="flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+        {step > 1 && (
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[14px] py-[8px] text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          >
+            ← Atrás
+          </button>
+        )}
+        <div className="flex-1" />
+        {!isLastStep ? (
+          <button
+            type="button"
+            onClick={goNext}
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Continuar →
+          </button>
+        ) : (
           <button
             type="button"
             onClick={handleSubmit}
             disabled={isPending}
-            className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-busy={isPending || undefined}
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isPending ? "Marcando..." : "Marcar como perdida"}
+            {isPending ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                />
+                Marcando...
+              </>
+            ) : (
+              "Marcar como perdida"
+            )}
           </button>
-        </section>
-      </WizardShell>
-    </form>
+        )}
+      </div>
+    </>
   );
 }

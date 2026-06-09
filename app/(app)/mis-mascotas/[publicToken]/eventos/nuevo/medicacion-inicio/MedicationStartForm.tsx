@@ -1,6 +1,12 @@
 "use client";
 
-import { Field, Input, Select, Textarea } from "@/components/poncho";
+// MedicationStartForm — Libreta Nacional redesign (violet tone, §9 handoff).
+// Presentation ONLY: action, useActionState wiring, field names, and submit
+// logic are untouched.
+
+import { LnCallout } from "@/components/ui/DocElements";
+import { LnField, LnInput, LnRow, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/drugs";
 import { FREQUENCY_LABELS } from "@/lib/medication-schedule";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -11,6 +17,8 @@ import { AttachmentField } from "../AttachmentField";
 const initialState: EventFormState = { error: null };
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
+
+const FORM_ID = "medication-start-form";
 
 export function MedicationStartForm({
   action,
@@ -27,7 +35,6 @@ export function MedicationStartForm({
   const { key: idempotencyKey } = useIdempotencyKey();
 
   const now = new Date();
-  // Default firstDoseAt to current local datetime rounded down to the minute.
   const localDatetime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const today = now.toISOString().slice(0, 10);
 
@@ -55,205 +62,232 @@ export function MedicationStartForm({
   }
 
   return (
-    <form action={formAction} className="space-y-5">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      {/* Drug name with datalist */}
-      <Field
-        label="Medicamento"
-        required
-        help={
-          matchedDrug
-            ? `Categoría: ${matchedDrug.category}${
-                matchedDrug.brandNames?.length
-                  ? ` · Marcas: ${matchedDrug.brandNames.join(", ")}`
-                  : ""
-              }`
-            : undefined
-        }
-      >
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="drugName"
-            type="text"
-            list="drug-options"
-            required
-            placeholder="Amoxicilina, Metronidazol..."
-            onChange={handleDrugNameChange}
-            autoComplete="off"
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-      <datalist id="drug-options">
-        {catalogDrugs.map((d) => (
-          <option key={d.code} value={d.label} />
-        ))}
-      </datalist>
+    <>
+      <LnSheetHeader
+        tone="violeta"
+        icon="💊"
+        title="Inicio de medicación"
+        subtitle="Libreta sanitaria oficial"
+      />
+      <LnSheetBody>
+        <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
 
-      {/* Dose — pre-fills from catalog match */}
-      <Field
-        label="Dosis"
-        required
-        help={
-          matchedDrug
-            ? `Sugerencia basada en ${matchedDrug.label}. Ajustá según indicación veterinaria.`
-            : undefined
-        }
-      >
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="dose"
-            type="text"
+          {/* Drug name with datalist */}
+          <LnField
+            label="Medicamento"
             required
-            value={doseValue}
-            onChange={(e) => setDoseValue(e.target.value)}
-            placeholder="10 mg/kg, 1 comprimido..."
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      {/* Frequency — structured select */}
-      <Field label="Frecuencia" required>
-        {({ id, describedBy, invalid }) => (
-          <Select
-            id={id}
-            name="frequency"
-            required
-            value={frequency}
-            onChange={handleFrequencyChange}
-            aria-describedby={describedBy}
-            invalid={invalid}
+            hint={
+              matchedDrug
+                ? `Categoría: ${matchedDrug.category}${
+                    matchedDrug.brandNames?.length
+                      ? ` · Marcas: ${matchedDrug.brandNames.join(", ")}`
+                      : ""
+                  }`
+                : undefined
+            }
           >
-            <option value="">Seleccioná una frecuencia</option>
-            {(Object.entries(FREQUENCY_LABELS) as [string, string][]).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="drugName"
+                type="text"
+                list="drug-options"
+                required
+                placeholder="Amoxicilina, Metronidazol..."
+                onChange={handleDrugNameChange}
+                autoComplete="off"
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <datalist id="drug-options">
+            {catalogDrugs.map((d) => (
+              <option key={d.code} value={d.label} />
             ))}
-          </Select>
-        )}
-      </Field>
+          </datalist>
 
-      {/* Custom hours — revealed when frequency === "custom" */}
-      {showCustomHours && (
-        <Field label="Cada cuántas horas" required help="Ingresá un valor entre 1 y 24 horas.">
-          {({ id, describedBy, invalid }) => (
-            <Input
-              id={id}
-              name="customHours"
-              type="number"
-              min="1"
-              max="24"
+          <LnRow>
+            {/* Dose */}
+            <LnField
+              label="Dosis"
               required
-              placeholder="Ej. 8"
-              aria-describedby={describedBy}
-              invalid={invalid}
-            />
+              hint={
+                matchedDrug
+                  ? `Sugerencia: ${matchedDrug.label}. Ajustá según indicación.`
+                  : undefined
+              }
+            >
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="dose"
+                  type="text"
+                  required
+                  value={doseValue}
+                  onChange={(e) => setDoseValue(e.target.value)}
+                  placeholder="10 mg/kg, 1 comp..."
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                />
+              )}
+            </LnField>
+
+            {/* Frequency */}
+            <LnField label="Frecuencia" required>
+              {({ id, describedBy, invalid }) => (
+                <LnSelect
+                  id={id}
+                  name="frequency"
+                  required
+                  value={frequency}
+                  onChange={handleFrequencyChange}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                >
+                  <option value="">Seleccioná</option>
+                  {(Object.entries(FREQUENCY_LABELS) as [string, string][]).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </LnSelect>
+              )}
+            </LnField>
+          </LnRow>
+
+          {/* Custom hours — revealed when frequency === "custom" */}
+          {showCustomHours && (
+            <LnField
+              label="Cada cuántas horas"
+              required
+              hint="Ingresá un valor entre 1 y 24 horas."
+            >
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="customHours"
+                  type="number"
+                  min="1"
+                  max="24"
+                  required
+                  placeholder="Ej. 8"
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                />
+              )}
+            </LnField>
           )}
-        </Field>
-      )}
 
-      {/* First dose datetime */}
-      <Field
-        label="Primera dosis"
-        required
-        help="Desde este momento se van a generar los recordatorios de dosis."
-      >
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="firstDoseAt"
-            type="datetime-local"
+          {/* First dose datetime */}
+          <LnField
+            label="Primera dosis"
             required
-            defaultValue={localDatetime}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
+            hint="Desde este momento se van a generar los recordatorios de dosis."
+          >
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="firstDoseAt"
+                type="datetime-local"
+                required
+                mono
+                defaultValue={localDatetime}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
 
-      {/* Duration — optional */}
-      <Field
-        label="Duración del tratamiento (días)"
-        help="Sin duración: vamos a generar recordatorios para los próximos 14 días. Cuando termine el tratamiento, marcalo como fin y cancelamos los pendientes."
-      >
-        {({ id, describedBy }) => (
-          <Input
-            id={id}
-            name="durationDays"
-            type="number"
-            min="1"
-            max="90"
-            placeholder="Ej. 7"
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
+          <LnRow>
+            {/* Duration */}
+            <LnField
+              label="Duración (días)"
+              hint="Sin duración: 14 días de recordatorios."
+            >
+              {({ id, describedBy }) => (
+                <LnInput
+                  id={id}
+                  name="durationDays"
+                  type="number"
+                  min="1"
+                  max="90"
+                  placeholder="Ej. 7"
+                  aria-describedby={describedBy}
+                />
+              )}
+            </LnField>
 
-      {/* Prescribed by */}
-      <Field label="Prescripto por">
-        {({ id, describedBy }) => (
-          <Input
-            id={id}
-            name="prescribedBy"
-            type="text"
-            placeholder="Nombre del veterinario/a"
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
+            {/* Prescribed by */}
+            <LnField label="Prescripto por">
+              {({ id, describedBy }) => (
+                <LnInput
+                  id={id}
+                  name="prescribedBy"
+                  type="text"
+                  placeholder="Nombre del veterinario/a"
+                  aria-describedby={describedBy}
+                />
+              )}
+            </LnField>
+          </LnRow>
 
-      {/* Start date — "día de inicio" (may differ from firstDoseAt) */}
-      <Field
-        label="Día de inicio"
-        required
-        help="Fecha en que empezó el tratamiento (puede diferir de la primera dosis registrada)."
-      >
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="occurredAt"
-            type="date"
+          {/* Start date — "día de inicio" (may differ from firstDoseAt) */}
+          <LnField
+            label="Día de inicio"
             required
-            defaultValue={defaultOccurredAt ?? today}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
+            hint="Fecha en que empezó el tratamiento (puede diferir de la primera dosis registrada)."
+          >
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="occurredAt"
+                type="date"
+                required
+                mono
+                defaultValue={defaultOccurredAt ?? today}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
 
-      <Field label="Notas">
-        {({ id, describedBy }) => (
-          <Textarea
-            id={id}
-            name="notes"
-            rows={3}
-            defaultValue={defaultNotes ?? ""}
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
+          <LnCallout tone="warn" title="Recordatorios programados">
+            Sin duración, generamos recordatorios para los próximos 14 días. Cuando el tratamiento
+            termine, marcalo como fin y cancelamos los pendientes.
+          </LnCallout>
 
-      <AttachmentField />
+          <LnField label="Notas">
+            {({ id, describedBy }) => (
+              <LnTextarea
+                id={id}
+                name="notes"
+                rows={3}
+                defaultValue={defaultNotes ?? ""}
+                aria-describedby={describedBy}
+              />
+            )}
+          </LnField>
 
-      {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
-          {state.error}
-        </p>
-      )}
+          <AttachmentField />
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Guardando..." : "Registrar inicio de medicación"}
-      </button>
-    </form>
+          {state.error && (
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
+            >
+              {state.error}
+            </p>
+          )}
+        </form>
+      </LnSheetBody>
+      <LnSheetFooter
+        tone="violeta"
+        ctaLabel="Registrar inicio"
+        formId={FORM_ID}
+        isPending={isPending}
+      />
+    </>
   );
 }
