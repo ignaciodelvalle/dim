@@ -67,15 +67,24 @@ export function Step3Where({
   return (
     <section className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Dónde y cuándo?</h1>
-        <p className="text-sm text-gob-text-muted">Contanos lo que viste y dónde pasó.</p>
+        <h1
+          className="text-2xl font-semibold tracking-tight text-[var(--color-ln-ink)]"
+          style={{ fontFamily: "var(--font-ln-serif)" }}
+        >
+          ¿Dónde y cuándo?
+        </h1>
+        <p className="text-sm text-[var(--color-ln-mute)]">Contanos lo que viste y dónde pasó.</p>
       </div>
 
       {/* Description first — most important field */}
       <div className="space-y-1.5">
-        <label htmlFor="description" className="block text-sm font-medium text-gob-text">
+        <label
+          htmlFor="description"
+          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
+        >
           Contanos lo que viste{" "}
-          <span className="text-gob-danger ml-0.5" aria-hidden="true">
+          <span className="text-[var(--color-ln-seal)] ml-0.5" aria-hidden="true">
             *
           </span>
         </label>
@@ -92,20 +101,24 @@ export function Step3Where({
         />
         <p
           id="description-hint"
-          className={`text-xs ${description.length >= DESCRIPTION_TARGET ? "text-gob-text-muted" : "text-gob-text-muted"}`}
+          className="text-[10.5px] text-right text-[var(--color-ln-faint)]"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
         >
-          {description.length} caracteres
+          {description.length} / {DESCRIPTION_MAX}
           {description.length < 20 && description.length > 0 && (
-            <span className="text-gob-warning-text"> (mínimo 20)</span>
+            <span className="text-[var(--color-ln-warn)] ml-1">(mínimo 20)</span>
           )}
         </p>
       </div>
 
       {/* When */}
       <fieldset className="space-y-2">
-        <legend className="block text-sm font-medium text-gob-text mb-1">
+        <legend
+          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
+        >
           ¿Cuándo pasó?{" "}
-          <span className="text-gob-danger ml-0.5" aria-hidden="true">
+          <span className="text-[var(--color-ln-seal)] ml-0.5" aria-hidden="true">
             *
           </span>
         </legend>
@@ -114,23 +127,35 @@ export function Step3Where({
           return (
             <label
               key={opt.value}
-              className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+              className={`flex items-center gap-3 rounded-[6px] border px-4 py-2.5 cursor-pointer transition-colors ${
                 isSelected
-                  ? "border-gob-primary bg-gob-surface-alt"
-                  : "border-gob-border hover:border-gob-border-strong"
+                  ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)]"
+                  : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
               }`}
             >
+              <span
+                className={`flex-shrink-0 w-4 h-4 rounded-full border-2 ${
+                  isSelected
+                    ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] shadow-[inset_0_0_0_3px_white]"
+                    : "border-[var(--color-ln-line-strong)]"
+                }`}
+                aria-hidden="true"
+              />
               <input
                 type="radio"
                 name="occurredAtOption"
                 value={opt.value}
                 checked={isSelected}
                 onChange={() => onWhenChange(opt.value)}
-                className="mt-0.5 flex-shrink-0 accent-gob-primary"
+                className="sr-only"
               />
               <span>
-                <span className="block text-sm font-medium text-gob-text">{opt.label}</span>
-                <span className="block text-xs text-gob-text-muted mt-0.5">{opt.sublabel}</span>
+                <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
+                  {opt.label}
+                </span>
+                <span className="block text-xs text-[var(--color-ln-mute)] mt-0.5">
+                  {opt.sublabel}
+                </span>
               </span>
             </label>
           );
@@ -142,7 +167,10 @@ export function Step3Where({
           rule #1). Fields are uncontrolled; the wizard reads them via
           FormData at submit. */}
       <div className="space-y-1.5">
-        <p className="block text-sm font-medium text-gob-text mb-2">
+        <p
+          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
+        >
           Lugar (opcional pero muy útil)
         </p>
         <LocationFields mode="l2" allowAnonymous />
@@ -150,7 +178,7 @@ export function Step3Where({
 
       {error && (
         <p
-          className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[#fbe9e6] border border-[#f1c6bf] px-3 py-2"
           role="alert"
         >
           {error}
