@@ -122,26 +122,76 @@ export default async function PostularPage({
   }
 
   return (
-    <main className="bg-white">
-      <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      {/* Guilloché accent bar */}
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+
+      <div className="max-w-2xl mx-auto px-[24px] py-[28px] space-y-[18px]">
+        {/* Back link */}
         <Link
           href={`/adoptar/${petToken}`}
-          className="text-sm text-gob-text-muted hover:text-gob-text"
+          className="inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
+          style={{ color: "var(--color-ln-mute)" }}
         >
           ← Volver a la ficha
         </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
-            Postularte para adoptar a {pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray">
-            {org.displayName} recibe tu postulación y te contacta por mail para coordinar.
-          </p>
-        </header>
+        {/* Pet context strip */}
+        <div
+          className="flex items-center gap-[14px] rounded-[8px] border px-[18px] py-[16px]"
+          style={{
+            background: "var(--color-ln-card)",
+            borderColor: "var(--color-ln-line)",
+          }}
+        >
+          <div
+            className="flex-shrink-0 w-[64px] h-[64px] rounded-[8px] grid place-items-center font-[var(--font-ln-mono)] text-[8px]"
+            style={{
+              background: "repeating-linear-gradient(135deg,#e7e2d6 0 7px,#f1eee5 7px 14px)",
+              color: "var(--color-ln-mute)",
+            }}
+          >
+            {pet.name.slice(0, 4).toUpperCase()}
+          </div>
+          <div>
+            <p
+              className="mb-[4px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em]"
+              style={{ color: "var(--color-ln-mute)" }}
+            >
+              Postulación de adopción
+            </p>
+            <p
+              className="m-0 font-[var(--font-ln-serif)] font-semibold text-[22px] tracking-[-0.015em]"
+              style={{ color: "var(--color-ln-ink)" }}
+            >
+              Adoptar a {pet.name}
+            </p>
+            <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+              {org.displayName}
+            </p>
+          </div>
+        </div>
 
         {intentExpired && (
-          <output className="block rounded-lg border border-gob-warning/40 bg-gob-warning/10 p-3 text-sm text-gob-warning-text">
+          <output
+            className="block rounded-[5px] border border-l-[4px] px-[16px] py-[14px] text-[13px]"
+            style={{
+              background: "var(--color-ln-celeste-050)",
+              borderColor: "var(--color-ln-celeste-100)",
+              borderLeftColor: "var(--color-ln-azul)",
+              color: "var(--color-ln-ink-2)",
+            }}
+          >
             Tu intención de postulación expiró, pero tu cuenta sigue activa. Podés seguir desde acá
             sin problema.
           </output>
@@ -159,16 +209,33 @@ export default async function PostularPage({
 
 function InstitutionalBlocked({ petToken }: { petToken: string }) {
   return (
-    <main className="bg-white">
-      <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-gob-text">Esta cuenta no puede postularse</h1>
-        <p className="text-sm text-gob-text-gray">
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+        <h1
+          className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          Esta cuenta no puede postularse
+        </h1>
+        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
           Las cuentas institucionales (admin y autoridades sanitarias) no pueden postularse para
           adoptar. Si querés adoptar a título personal, creá una cuenta personal con otro email.
         </p>
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
+          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           Volver a la ficha
         </Link>
@@ -179,16 +246,33 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
 
 function NoLongerAvailable({ name }: { name: string }) {
   return (
-    <main className="bg-white">
-      <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-gob-text">{name} ya no está disponible</h1>
-        <p className="text-sm text-gob-text-gray">
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+        <h1
+          className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          {name} ya no está disponible
+        </h1>
+        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
           La publicación cambió desde que entraste a esta página. Volvé al listado y elegí otra
           mascota.
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
+          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
         </Link>
@@ -199,16 +283,33 @@ function NoLongerAvailable({ name }: { name: string }) {
 
 function AlreadyApplied({ name }: { name: string }) {
   return (
-    <main className="bg-white">
-      <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-gob-text">Ya postulaste para {name}</h1>
-        <p className="text-sm text-gob-text-gray">
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+        <h1
+          className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          Ya postulaste para {name}
+        </h1>
+        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
           El refugio recibió tu postulación y la está revisando. Te van a contactar por email cuando
           tengan novedades.
         </p>
         <Link
           href="/mis-mascotas/postulaciones"
-          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
+          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           Ver mis postulaciones
         </Link>

@@ -44,11 +44,14 @@ export default async function AdoptarPage({
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
 
   return (
-    <main className="bg-white">
-      <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-4xl font-semibold tracking-tight text-gob-text">Adoptar en MiMAR</h1>
-          <p className="text-sm text-gob-text-gray">
+    <main className="bg-[var(--color-ln-paper)]">
+      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        {/* Hero heading */}
+        <header className="space-y-2 max-w-[720px]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[42px] font-semibold leading-[1.05] tracking-[-0.025em] text-[var(--color-ln-ink)]">
+            Adoptar en <span className="text-[var(--color-ln-azul)]">miMAR</span>
+          </h1>
+          <p className="text-[16px] leading-[1.55] text-[var(--color-ln-ink-2)]">
             Mascotas publicadas por refugios verificados en Argentina. Si ves alguna que te resuene,
             postulate y el refugio te contacta.
           </p>
@@ -57,27 +60,29 @@ export default async function AdoptarPage({
         <AdoptionFiltersBar filters={filters} />
 
         {items.length === 0 ? (
-          <div className="rounded-lg border border-gob-border px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-gob-text">
+          <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
+            <p className="text-sm font-medium text-[var(--color-ln-ink)]">
               No encontramos mascotas con esos filtros.
             </p>
             {hasActiveFilters ? (
-              <Link href="/adoptar" className="text-sm text-gob-success underline">
+              <Link href="/adoptar" className="text-sm text-[var(--color-ln-azul)] underline">
                 Limpiar filtros
               </Link>
             ) : (
-              <p className="text-xs text-gob-text-muted">
+              <p className="text-xs text-[var(--color-ln-mute)]">
                 Volvé en unos días — los refugios suben mascotas seguido.
               </p>
             )}
           </div>
         ) : (
           <>
-            <p className="text-xs text-gob-text-muted">
-              {items.length} mascota{items.length === 1 ? "" : "s"}
-              {nextCursor ? " (mostrando los más recientes)" : ""}
+            <p className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+              <strong className="text-[var(--color-ln-ink)] font-semibold">
+                {items.length} mascota{items.length === 1 ? "" : "s"}
+              </strong>
+              {nextCursor ? " publicadas · mostrando las más recientes" : " publicadas"}
             </p>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px]">
               {items.map((item) => (
                 <AdoptionListingCard key={item.petId} item={item} />
               ))}
@@ -87,7 +92,7 @@ export default async function AdoptarPage({
               <div className="flex justify-center pt-4">
                 <Link
                   href={`/adoptar?${buildSearchParams(filters, nextCursor).toString()}`}
-                  className="px-5 py-2.5 rounded-lg border border-gob-border-strong text-sm font-medium hover:bg-gob-surface-alt"
+                  className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-5 py-2.5 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
                 >
                   Mostrar más
                 </Link>

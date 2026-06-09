@@ -49,18 +49,21 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
     <form
       action="/adoptar"
       method="GET"
-      className="rounded-lg border border-gob-border p-4 space-y-3"
+      className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <div>
-          <label htmlFor="species" className="block text-xs text-gob-text-muted mb-1">
+          <label
+            htmlFor="species"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
             Especie
           </label>
           <select
             id="species"
             name="species"
             defaultValue={filters.species ?? ""}
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Todas</option>
             {SPECIES_OPTIONS.map((o) => (
@@ -72,7 +75,10 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
         </div>
 
         <div>
-          <label htmlFor="provincia" className="block text-xs text-gob-text-muted mb-1">
+          <label
+            htmlFor="provincia"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
             Provincia
           </label>
           <input
@@ -81,12 +87,15 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             name="provincia"
             defaultValue={filters.province ?? ""}
             placeholder="Ej: Buenos Aires"
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
 
         <div>
-          <label htmlFor="localidad" className="block text-xs text-gob-text-muted mb-1">
+          <label
+            htmlFor="localidad"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
             Localidad
           </label>
           <input
@@ -95,19 +104,22 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             name="localidad"
             defaultValue={filters.locality ?? ""}
             placeholder="Ej: La Plata"
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
 
         <div>
-          <label htmlFor="edad" className="block text-xs text-gob-text-muted mb-1">
+          <label
+            htmlFor="edad"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
             Edad
           </label>
           <select
             id="edad"
             name="edad"
             defaultValue={filters.ageBucket ?? ""}
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Cualquiera</option>
             {ADOPTION_AGE_BUCKETS.map((b) => (
@@ -119,14 +131,17 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
         </div>
 
         <div>
-          <label htmlFor="talle" className="block text-xs text-gob-text-muted mb-1">
+          <label
+            htmlFor="talle"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
             Talle
           </label>
           <select
             id="talle"
             name="talle"
             defaultValue={filters.sizeEstimate ?? ""}
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Cualquiera</option>
             {ADOPTION_SIZE_ESTIMATES.map((s) => (
@@ -138,14 +153,17 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
         </div>
 
         <div>
-          <label htmlFor="energia" className="block text-xs text-gob-text-muted mb-1">
+          <label
+            htmlFor="energia"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
             Energía
           </label>
           <select
             id="energia"
             name="energia"
             defaultValue={filters.energyLevel ?? ""}
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Cualquiera</option>
             {ADOPTION_ENERGY_LEVELS.map((e) => (
@@ -157,7 +175,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs items-center pt-1">
+      <div className="flex flex-wrap gap-3 items-center pt-1">
         <FilterCheckbox
           name="con_chicos"
           checked={filters.goodWithKids === true}
@@ -189,14 +207,14 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
         {hasActiveFilters && (
           <Link
             href="/adoptar"
-            className="px-3 py-1.5 rounded text-xs border border-gob-border-strong hover:bg-gob-surface-alt"
+            className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
           >
             Limpiar
           </Link>
         )}
         <button
           type="submit"
-          className="px-4 py-1.5 rounded bg-gob-primary text-white text-xs font-medium"
+          className="rounded-[4px] bg-[var(--color-ln-azul)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
         >
           Aplicar filtros
         </button>
@@ -205,7 +223,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
   );
 }
 
-// Thin adapter over the Poncho <Checkbox> for the compact (text-xs) filter bar:
+// Thin adapter over the Poncho <Checkbox> for the compact filter bar:
 // keeps the terse name/checked/label call-site API and the bar's muted register
 // via labelClassName, while delegating the control styling to the primitive.
 function FilterCheckbox({
@@ -222,7 +240,7 @@ function FilterCheckbox({
       name={name}
       value="true"
       defaultChecked={checked}
-      labelClassName="text-xs! text-gob-text-gray!"
+      labelClassName="text-xs! text-[var(--color-ln-ink-2)]!"
     >
       {label}
     </Checkbox>
