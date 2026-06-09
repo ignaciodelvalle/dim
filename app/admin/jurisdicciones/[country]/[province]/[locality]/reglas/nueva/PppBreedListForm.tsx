@@ -62,16 +62,16 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
-      <p className="text-sm rounded-lg border border-gob-warning bg-gob-warning/10 px-4 py-3 text-gob-warning-text   ">
-        Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados
-        reciben notificación.
+      <p className="text-[13px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
+        Las mascotas con raza marcada se evaluan automaticamente al guardar. Los duenos afectados
+        reciben notificacion.
       </p>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-gob-text ">Razas consideradas PPP</legend>
-        <div className="max-h-72 overflow-y-auto rounded-lg border border-gob-border  p-3 space-y-1.5">
+        <legend className="text-[13px] font-medium text-ln-op-ink">Razas consideradas PPP</legend>
+        <div className="max-h-72 overflow-y-auto rounded-[6px] border border-ln-op-line p-3 space-y-1.5">
           {ALL_BREEDS.map((b) => (
-            <label key={b} className="flex items-center gap-2 text-sm">
+            <label key={b} className="flex items-center gap-2 text-[13px]">
               <input
                 type="checkbox"
                 name="breeds"
@@ -79,9 +79,9 @@ export function PppBreedListForm({
                 checked={breeds.includes(b)}
                 onChange={() => toggle(b)}
               />
-              <span className="text-gob-text ">{b}</span>
+              <span className="text-ln-op-ink">{b}</span>
               {DEFAULT_BREEDS_SET.has(b) && (
-                <span className="text-xs text-gob-text-muted ">(default AR ✓)</span>
+                <span className="text-[11px] text-ln-op-mute">(default AR)</span>
               )}
             </label>
           ))}
@@ -90,20 +90,20 @@ export function PppBreedListForm({
 
       {/* Inline add-breed row: label-less compact layout — Field not used (rule #2) */}
       <div className="space-y-1.5">
-        <p className="text-[0.88em] font-semibold text-gob-text-muted">Agregar raza no estándar</p>
+        <p className="text-[12px] font-semibold text-ln-op-mute">Agregar raza no estandar</p>
         <div className="flex gap-2">
           <Input
             id="customBreed"
             type="text"
             value={customBreed}
             onChange={(e) => setCustomBreed(e.target.value)}
-            placeholder="Boxer, Cimarrón Uruguayo…"
+            placeholder="Boxer, Cimarron Uruguayo..."
             className="flex-1"
           />
           <button
             type="button"
             onClick={addCustom}
-            className="px-3 py-2 rounded-lg border border-gob-border-strong  text-sm"
+            className="px-3 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
           >
             Agregar
           </button>
@@ -123,9 +123,9 @@ export function PppBreedListForm({
         )}
       </Field>
 
-      {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
+      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-[13px] text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -133,9 +133,9 @@ export function PppBreedListForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 transition-colors"
+        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-navy text-white font-semibold text-[13px] hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
-        {isPending ? "Guardando…" : mode === "create" ? "Crear regla" : "Guardar cambios"}
+        {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </button>
     </form>
   );

@@ -45,12 +45,12 @@ export function PppWeightThresholdForm({
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
-      <p className="text-sm text-gob-text-gray ">
-        Define un umbral de peso por sobre el cual el animal se considera PPP por tamaño. Dejá kg
-        vacío para no aplicar threshold (solo regla de razas).
+      <p className="text-[13px] text-ln-op-ink-2">
+        Define un umbral de peso por sobre el cual el animal se considera PPP por tamano. Deja kg
+        vacio para no aplicar threshold (solo regla de razas).
       </p>
 
-      <Field label="Peso mínimo (kg)">
+      <Field label="Peso minimo (kg)">
         {({ id, describedBy, invalid }) => (
           <Input
             id={id}
@@ -68,8 +68,8 @@ export function PppWeightThresholdForm({
 
       <Checkbox name="appliesIfBreedNotPPP" defaultChecked={initialAppliesIfBreedNotPPP}>
         Aplicar el threshold incluso a razas NO listadas en{" "}
-        <span className="font-mono text-xs">ppp_breed_list</span>. Si está desactivado, el threshold
-        solo agrega una segunda condición a las razas ya consideradas PPP.
+        <span className="font-mono text-[11px]">ppp_breed_list</span>. Si esta desactivado, el
+        threshold solo agrega una segunda condicion a las razas ya consideradas PPP.
       </Checkbox>
 
       <Field label="Notas internas">
@@ -85,9 +85,9 @@ export function PppWeightThresholdForm({
         )}
       </Field>
 
-      {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
+      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-[13px] text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -95,9 +95,9 @@ export function PppWeightThresholdForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 transition-colors"
+        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-navy text-white font-semibold text-[13px] hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
-        {isPending ? "Guardando…" : mode === "create" ? "Crear regla" : "Guardar cambios"}
+        {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </button>
     </form>
   );
