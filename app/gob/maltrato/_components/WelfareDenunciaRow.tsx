@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/poncho";
+import { OpPill } from "@/components/ui/dashboard";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -11,22 +11,25 @@ import type {
   WelfareReportStatus,
 } from "@/src/modules/welfare/domain/types";
 
-// Severity → Badge variant mapping per spec §B.4:
-// critical/high → danger, medium → warning, low → info, unknown → neutral.
-const SEVERITY_VARIANT: Record<WelfareReportSeverity, "danger" | "warning" | "info" | "neutral"> = {
+// Severity → OpPill tone mapping.
+// critical/high → danger, medium → open (warn), low → triaged (blue), unknown → neutral.
+const SEVERITY_TONE: Record<WelfareReportSeverity, "danger" | "open" | "triaged" | "neutral"> = {
   critical: "danger",
   high: "danger",
-  medium: "warning",
-  low: "info",
+  medium: "open",
+  low: "triaged",
 };
 
-const STATUS_TONE: Record<WelfareReportStatus, string> = {
-  open: "bg-gob-warning/10  text-gob-warning-text ",
-  triaged: "bg-gob-info/10  text-gob-azul-link ",
-  in_progress: "bg-gob-primary/10  text-gob-primary ",
-  closed: "bg-gob-success/10  text-gob-success ",
-  invalid: "bg-gob-surface-alt  text-gob-text-gray ",
-  duplicate: "bg-gob-surface-alt  text-gob-text-gray ",
+const STATUS_TONE: Record<
+  WelfareReportStatus,
+  "open" | "triaged" | "progress" | "closed" | "neutral"
+> = {
+  open: "open",
+  triaged: "triaged",
+  in_progress: "progress",
+  closed: "closed",
+  invalid: "neutral",
+  duplicate: "neutral",
 };
 
 /** Compact time-ago label for a past date, in Spanish. */
@@ -56,41 +59,36 @@ export type WelfareDenunciaRowProps = {
 };
 
 export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
-  const severityVariant = SEVERITY_VARIANT[report.severity] ?? "neutral";
+  const severityTone = SEVERITY_TONE[report.severity] ?? "neutral";
+  const statusTone = STATUS_TONE[report.status] ?? "neutral";
 
   return (
-    <li className="rounded-lg border border-gob-border ">
+    <li className="rounded-[6px] border border-ln-op-line bg-ln-op-card">
       <Link
         href={`/gob/maltrato/${report.id}`}
-        className="block px-4 py-3 hover:bg-gob-surface-alt  transition"
+        className="block px-4 py-3 hover:bg-ln-op-stripe transition"
       >
         <div className="flex items-baseline justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-gob-text ">
+              <p className="text-[13px] font-medium text-ln-op-ink">
                 {welfareReportKindLabel(report.kind)}
               </p>
-              <Badge variant={severityVariant}>{welfareReportSeverityLabel(report.severity)}</Badge>
+              <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
             </div>
-            <p className="text-xs text-gob-text-muted ">
+            <p className="text-[11px] text-ln-op-mute">
               {report.jurisdictionLocality && report.jurisdictionProvince
                 ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
                 : "Sin jurisdicción declarada"}
               {" · "}
               {timeAgo(new Date(report.createdAt))}
             </p>
-            <p className="text-[10px] text-gob-text-muted  font-mono">
+            <p className="text-[10px] text-ln-op-mute font-mono">
               {report.referenceCode}
               {report.assignedToUserId ? " · Asignada" : ""}
             </p>
           </div>
-          <span
-            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              STATUS_TONE[report.status] ?? ""
-            } shrink-0`}
-          >
-            {welfareReportStatusLabel(report.status)}
-          </span>
+          <OpPill tone={statusTone}>{welfareReportStatusLabel(report.status)}</OpPill>
         </div>
       </Link>
     </li>
