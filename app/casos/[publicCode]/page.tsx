@@ -94,14 +94,14 @@ export default async function CaseDetailPage({ params }: PageProps) {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="mb-3 text-sm text-gob-text-muted ">
-        <Link href="/" className="hover:underline">
+      <nav className="mb-3 font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
+        <Link href="/" className="hover:text-[var(--color-ln-ink-2)] hover:underline">
           Inicio
         </Link>
         <span className="mx-2">›</span>
         <span>Casos</span>
         <span className="mx-2">›</span>
-        <span className="font-mono">{detail.publicCode}</span>
+        <span className="text-[var(--color-ln-ink-2)]">{detail.publicCode}</span>
       </nav>
 
       {/* Header */}
@@ -111,8 +111,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
           caseKind={detail.caseKind}
           status={detail.status}
         />
-        <h1 className="mt-3 text-2xl font-bold text-gob-text ">{caseKindLabel(detail.caseKind)}</h1>
-        <p className="mt-1 text-sm text-gob-text-muted ">
+        <h1 className="mt-3 font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          {caseKindLabel(detail.caseKind)}
+        </h1>
+        <p className="mt-1 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
           Abierto el {formatDateTime(detail.openedAt)}
           {detail.closedAt ? ` · Cerrado el ${formatDateTime(detail.closedAt)}` : ""}
         </p>
@@ -120,37 +122,39 @@ export default async function CaseDetailPage({ params }: PageProps) {
 
       {/* Pet card OR subject descriptor */}
       {detail.pet ? (
-        <section className="mb-6 flex items-center gap-4 rounded-2xl border border-gob-border bg-white p-5  ">
+        <section className="mb-6 flex items-center gap-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5">
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={photoUrl}
               alt={detail.pet.name}
-              className="h-20 w-20 rounded-full object-cover ring-2 ring-gob-surface-alt "
+              className="h-20 w-20 rounded-full object-cover ring-2 ring-[var(--color-ln-line-strong)]"
             />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gob-surface-alt text-3xl ">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-ln-stripe)] text-3xl">
               🐾
             </div>
           )}
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-gob-text ">{detail.pet.name}</h2>
-            <p className="text-sm text-gob-text-muted ">
+            <h2 className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+              {detail.pet.name}
+            </h2>
+            <p className="text-[13px] text-[var(--color-ln-mute)]">
               {speciesLabel(detail.pet.species)} · {sexLabel(detail.pet.sex)}
             </p>
           </div>
           {petLink ? (
             <Link
               href={petLink}
-              className="inline-flex items-center rounded-full bg-gob-text px-4 py-2 text-sm font-medium text-white transition hover:bg-gob-text   "
+              className="inline-flex items-center rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)]"
             >
               Ver mascota →
             </Link>
           ) : null}
         </section>
       ) : (
-        <section className="mb-6 rounded-2xl border border-gob-border bg-white p-5  ">
-          <p className="text-sm text-gob-text-muted ">
+        <section className="mb-6 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5">
+          <p className="text-[13px] text-[var(--color-ln-mute)]">
             Sujeto:{" "}
             {detail.primarySubjectKind === "unowned_animal"
               ? "Animal sin identificar"
@@ -167,67 +171,69 @@ export default async function CaseDetailPage({ params }: PageProps) {
 
       {/* Actors + Normatives + Jurisdiction */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-gob-border bg-white p-4  ">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
+        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
+          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
             Partes
           </h3>
-          <ul className="mt-2 space-y-1 text-sm">
+          <ul className="mt-2 space-y-1 text-[13px]">
             {/* Personal names redacted for the anonymous public view. Public
                 organizations stay visible — they're identifiable entities
                 already linked from /refugios/. */}
             {!isPublic && detail.openedByUser ? (
-              <li className="text-gob-text ">
-                <span className="text-gob-text-muted ">Abrió: </span>
+              <li className="text-[var(--color-ln-ink)]">
+                <span className="text-[var(--color-ln-mute)]">Abrió: </span>
                 {detail.openedByUser.displayName}
               </li>
             ) : null}
             {detail.openedByOrganization ? (
-              <li className="text-gob-text ">
-                <span className="text-gob-text-muted ">Organización: </span>
+              <li className="text-[var(--color-ln-ink)]">
+                <span className="text-[var(--color-ln-mute)]">Organización: </span>
                 <Link
                   href={`/refugios/${detail.openedByOrganization.publicToken}`}
-                  className="hover:underline"
+                  className="text-[var(--color-ln-azul)] no-underline hover:underline"
                 >
                   {detail.openedByOrganization.displayName}
                 </Link>
               </li>
             ) : null}
             {!isPublic && detail.closedByUser ? (
-              <li className="text-gob-text ">
-                <span className="text-gob-text-muted ">Cerró: </span>
+              <li className="text-[var(--color-ln-ink)]">
+                <span className="text-[var(--color-ln-mute)]">Cerró: </span>
                 {detail.closedByUser.displayName}
               </li>
             ) : null}
             {isPublic && !detail.openedByOrganization ? (
-              <li className="text-gob-text-muted ">Datos de partes no disponibles</li>
+              <li className="text-[var(--color-ln-mute)]">Datos de partes no disponibles</li>
             ) : null}
             {!isPublic && !detail.openedByUser && !detail.openedByOrganization ? (
-              <li className="text-gob-text-muted ">Apertura automática del sistema</li>
+              <li className="text-[var(--color-ln-mute)]">Apertura automática del sistema</li>
             ) : null}
           </ul>
         </div>
-        <div className="rounded-2xl border border-gob-border bg-white p-4  ">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
+        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
+          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
             Jurisdicción
           </h3>
-          <p className="mt-2 text-sm text-gob-text ">
+          <p className="mt-2 text-[13px] text-[var(--color-ln-ink)]">
             {detail.jurisdictionLocality && detail.jurisdictionProvince
               ? `${detail.jurisdictionLocality}, ${detail.jurisdictionProvince}`
               : (detail.jurisdictionProvince ?? "Sin especificar")}
           </p>
         </div>
-        <div className="rounded-2xl border border-gob-border bg-white p-4  ">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
+        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
+          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
             Normativa aplicable
           </h3>
           {normatives.length === 0 ? (
-            <p className="mt-2 text-sm text-gob-text-muted ">Sin norma específica catalogada</p>
+            <p className="mt-2 text-[13px] text-[var(--color-ln-mute)]">
+              Sin norma específica catalogada
+            </p>
           ) : (
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-2 space-y-1 text-[13px]">
               {normatives.map((law) => (
-                <li key={law.id} className="text-gob-text ">
+                <li key={law.id} className="text-[var(--color-ln-ink)]">
                   <span className="font-medium">{law.label}</span>
-                  <span className="block text-xs text-gob-text-muted ">{law.scope}</span>
+                  <span className="block text-[11px] text-[var(--color-ln-mute)]">{law.scope}</span>
                 </li>
               ))}
             </ul>
@@ -238,41 +244,50 @@ export default async function CaseDetailPage({ params }: PageProps) {
       {/* Opened reason — hidden for anon: free-text may contain PII
           (denouncer descriptions, victim names, internal context). */}
       {!isPublic && detail.openedReason ? (
-        <section className="mb-6 rounded-2xl border border-gob-border bg-gob-surface-alt p-4  ">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted ">
+        <section className="mb-6 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4">
+          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
             Motivo de apertura
           </h3>
-          <p className="mt-2 text-sm text-gob-text ">{detail.openedReason}</p>
+          <p className="mt-2 text-[13px] text-[var(--color-ln-ink)]">{detail.openedReason}</p>
         </section>
       ) : null}
 
       {/* Timeline */}
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-gob-text ">Línea de tiempo</h3>
+        <h3 className="mb-3 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          Línea de tiempo
+        </h3>
         {detail.events.length === 0 ? (
-          <p className="text-sm text-gob-text-muted ">
+          <p className="text-[13px] text-[var(--color-ln-mute)]">
             Todavía no hay eventos registrados en este caso.
           </p>
         ) : (
           <ol className="space-y-3">
             {detail.events.map((e) => (
-              <li key={e.id} className="rounded-2xl border border-gob-border bg-white p-4  ">
+              <li
+                key={e.id}
+                className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
+              >
                 <div className="flex items-baseline justify-between">
-                  <span className="font-medium text-gob-text ">{eventTypeLabel(e.eventType)}</span>
-                  <time className="text-xs text-gob-text-muted ">
+                  <span className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">
+                    {eventTypeLabel(e.eventType)}
+                  </span>
+                  <time className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                     {formatDateTime(e.occurredAt)}
                   </time>
                 </div>
                 {(() => {
                   const summary = eventPayloadSummary(e.eventType, e.payload);
                   const text = [summary.primary, summary.secondary].filter(Boolean).join(" · ");
-                  return text ? <p className="mt-1 text-sm text-gob-text-muted ">{text}</p> : null;
+                  return text ? (
+                    <p className="mt-1 text-[12.5px] text-[var(--color-ln-mute)]">{text}</p>
+                  ) : null;
                 })()}
                 {/* Internal notes hidden for anon: they're free-form and
                     routinely contain PII (denouncer descriptions, internal
                     org coordination, addresses). */}
                 {!isPublic && e.notes ? (
-                  <p className="mt-2 rounded bg-gob-surface-alt p-2 text-xs text-gob-text-muted  ">
+                  <p className="mt-2 rounded-[3px] bg-[var(--color-ln-stripe)] p-2 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
                     {e.notes}
                   </p>
                 ) : null}
