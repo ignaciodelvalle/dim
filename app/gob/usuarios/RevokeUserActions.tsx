@@ -62,7 +62,7 @@ export function RevokeUserActions({
 
   if (mode === "done") {
     return (
-      <p className="text-xs text-gob-success ">
+      <p className="text-[12px] text-ln-op-ok">
         Rol vet revocado. {target.displayName} fue notificado.
       </p>
     );
@@ -83,7 +83,7 @@ export function RevokeUserActions({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-xs px-3 py-1.5 rounded-md border border-gob-danger  text-gob-danger  hover:opacity-90 transition-opacity"
+      className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-danger text-ln-op-danger hover:opacity-90 transition-opacity"
     >
       Revocar rol vet
     </button>
@@ -188,11 +188,11 @@ function RevokeVetForm({
   }
 
   return (
-    <div className="rounded border border-gob-danger  p-3 space-y-3 bg-gob-danger/10 ">
-      <p className="text-xs uppercase tracking-wider text-gob-danger ">
+    <div className="rounded-[6px] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
+      <p className="text-[10px] uppercase tracking-wider text-ln-op-danger">
         Revocar rol vet — {target.displayName}
       </p>
-      <p className="text-[10px] text-gob-danger ">
+      <p className="text-[10px] text-ln-op-danger">
         Esta accion es irreversible desde esta interfaz. El usuario quedarapor como dueno y recibira
         una notificacion con el motivo.
       </p>
@@ -202,7 +202,7 @@ function RevokeVetForm({
       <div className="space-y-1">
         <label
           htmlFor="revoke-user-evidence-files"
-          className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
+          className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
         >
           Evidencia (al menos 1 archivo)
         </label>
@@ -214,21 +214,21 @@ function RevokeVetForm({
           multiple
           onChange={handleFilesChange}
           disabled={uploading || pending}
-          className="text-xs text-gob-text-gray "
+          className="text-[12px] text-ln-op-ink-2"
         />
-        {uploading && <p className="text-[10px] text-gob-text-muted ">Subiendo...</p>}
+        {uploading && <p className="text-[10px] text-ln-op-mute">Subiendo...</p>}
         {uploadedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {uploadedFiles.map((f) => (
               <li
                 key={f.attachmentId}
-                className="flex items-center gap-2 text-[10px] text-gob-text-gray "
+                className="flex items-center gap-2 text-[10px] text-ln-op-ink-2"
               >
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
                   type="button"
                   onClick={() => removeFile(f.attachmentId)}
-                  className="text-gob-danger hover:underline shrink-0"
+                  className="text-ln-op-danger hover:underline shrink-0"
                 >
                   Quitar
                 </button>
@@ -241,20 +241,20 @@ function RevokeVetForm({
       <Checkbox
         checked={confirm}
         onChange={(e) => setConfirm(e.target.checked)}
-        labelClassName="text-xs! text-gob-danger!"
+        labelClassName="text-xs! text-ln-op-danger!"
       >
         Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta accion genera
         un registro permanente en el audit log.
       </Checkbox>
 
-      {error && <p className="text-xs text-gob-danger ">{error}</p>}
+      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="text-xs px-3 py-1.5 rounded-md bg-gob-danger  text-white hover:opacity-90 disabled:opacity-50"
+          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-danger text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Revocando..." : "Revocar"}
         </button>
@@ -262,7 +262,7 @@ function RevokeVetForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt "
+          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
         >
           Cancelar
         </button>
