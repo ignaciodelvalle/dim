@@ -1,124 +1,134 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/tattoo";
-import { Field, Input, Select, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
 import { useActionState } from "react";
+import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
-
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
+const FORM_ID = "tattoo-form";
 
 export function TattooForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <form action={formAction} className="space-y-5">
-      <Field label="Código del tatuaje" required>
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="tattooCode"
-            type="text"
-            required
-            placeholder="Ej: K9-2014-A"
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field label="Ubicación en el cuerpo">
-        {({ id, describedBy, invalid }) => (
-          <Select
-            id={id}
-            name="locationOnBody"
-            defaultValue=""
-            aria-describedby={describedBy}
-            invalid={invalid}
+    <>
+      <LnSheetHeader
+        tone="azul"
+        icon="🖊️"
+        title="Registrar tatuaje"
+        subtitle="Libreta sanitaria oficial"
+      />
+      <LnSheetBody>
+        <form id={FORM_ID} action={formAction} className="contents">
+          <LnField label="Código del tatuaje" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="tattooCode"
+                type="text"
+                required
+                placeholder="Ej: K9-2014-A"
+                aria-describedby={describedBy}
+                invalid={invalid}
+                mono
+              />
+            )}
+          </LnField>
+          <LnField label="Ubicación en el cuerpo">
+            {({ id, describedBy, invalid }) => (
+              <LnSelect
+                id={id}
+                name="locationOnBody"
+                defaultValue=""
+                aria-describedby={describedBy}
+                invalid={invalid}
+              >
+                <option value="">Sin especificar</option>
+                {TATTOO_LOCATIONS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </LnSelect>
+            )}
+          </LnField>
+          <LnField
+            label="Descripción / origen del tatuaje"
+            hint="Texto libre para anotar de dónde viene el tatuaje."
           >
-            <option value="">Sin especificar</option>
-            {TATTOO_LOCATIONS.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </Select>
-        )}
-      </Field>
-
-      <Field
-        label="Descripción / origen del tatuaje"
-        help="Opcional. Texto libre para anotar de dónde viene el tatuaje."
-      >
-        {({ id, describedBy, invalid }) => (
-          <Textarea
-            id={id}
-            name="description"
-            rows={3}
-            placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field label="Fecha del tatuaje (aproximada)">
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="recordedAt"
-            type="date"
-            defaultValue={today}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field label="Tatuado por (criadero / vet / campaña)">
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="recordedBy"
-            type="text"
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field
-        label="Foto del tatuaje"
-        required
-        help="Imagen de hasta 5 MB. Es lo que permite a quien encuentre a tu mascota verificar visualmente que coincide con el código."
-      >
-        {({ id }) => (
-          <input
-            id={id}
-            name="attachment"
-            type="file"
-            accept="image/*"
+            {({ id, describedBy, invalid }) => (
+              <LnTextarea
+                id={id}
+                name="description"
+                rows={3}
+                placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Fecha del tatuaje (aproximada)">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="recordedAt"
+                type="date"
+                mono
+                defaultValue={today}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Tatuado por (criadero / vet / campaña)">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="recordedBy"
+                type="text"
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          {/* Tattoo photo — required, shown with AttachmentField aesthetic */}
+          <LnField
+            label="Foto del tatuaje"
             required
-            className="block w-full text-sm text-gob-text-gray  file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gob-surface-alt  file:text-gob-text  hover:file:bg-gob-surface-alt  file:cursor-pointer"
-          />
-        )}
-      </Field>
-
-      {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
-          {state.error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Guardando..." : "Registrar tatuaje"}
-      </button>
-    </form>
+            hint="Imagen de hasta 5 MB. Permite verificar visualmente que coincide con el código."
+          >
+            {({ id }) => (
+              <input
+                id={id}
+                name="attachment"
+                type="file"
+                accept="image/*"
+                required
+                className="block w-full cursor-pointer rounded-[3px] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[12px] py-[10px] font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-mute)] file:mr-3 file:cursor-pointer file:rounded-[3px] file:border file:border-[var(--color-ln-line-strong)] file:bg-[var(--color-ln-card)] file:px-[10px] file:py-[5px] file:text-[11px] file:font-semibold file:text-[var(--color-ln-ink)]"
+              />
+            )}
+          </LnField>
+          {state.error && (
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
+            >
+              {state.error}
+            </p>
+          )}
+        </form>
+      </LnSheetBody>
+      <LnSheetFooter
+        tone="azul"
+        ctaLabel="Registrar tatuaje"
+        formId={FORM_ID}
+        isPending={isPending}
+      />
+    </>
   );
 }

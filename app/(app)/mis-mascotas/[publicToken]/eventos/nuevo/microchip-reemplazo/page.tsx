@@ -1,3 +1,4 @@
+import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import Link from "next/link";
 import { ReplaceMicrochipForm } from "./ReplaceMicrochipForm";
@@ -16,53 +17,33 @@ export default async function ReplaceMicrochipPage({
 
   if (!pet.microchipId) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-md mx-auto pt-8 space-y-8">
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-          >
-            ← Otro tipo de evento
-          </Link>
-          <div className="space-y-4">
-            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-              Reemplazar microchip
-            </h1>
-            <p className="text-sm text-gob-text-gray ">
+      <LnSheetWrap>
+        <LnSheetCard>
+          <div className="px-[18px] py-[24px] space-y-[12px]">
+            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+              Sin microchip registrado
+            </p>
+            <p className="text-[13px] text-[var(--color-ln-mute)]">
               {pet.name} no tiene microchip registrado todavía. Para reemplazarlo primero tenés que
               registrar el chip original.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/microchip`}
-              className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
+              className="inline-block rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-[14px] py-[8px] font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
             >
               Registrar microchip implantado
             </Link>
           </div>
-        </div>
-      </main>
+        </LnSheetCard>
+      </LnSheetWrap>
     );
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Otro tipo de evento
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Reemplazar microchip
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Registrá el cambio de chip de {pet.name}. El número anterior queda en el historial.
-          </p>
-        </div>
+    <LnSheetWrap>
+      <LnSheetCard>
         <ReplaceMicrochipForm action={boundAction} currentChip={pet.microchipId} />
-      </div>
-    </main>
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }

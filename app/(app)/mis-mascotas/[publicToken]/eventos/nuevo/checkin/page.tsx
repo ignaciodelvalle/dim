@@ -1,4 +1,5 @@
 import { recordPostAdoptionCheckinAction } from "@/app/actions/checkin";
+import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, petEvents, reminders } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -61,50 +62,35 @@ export default async function PostAdoptionCheckinPage({
 
   if (!openReminder) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-md mx-auto pt-8 space-y-6">
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}`}
-            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-          >
-            ← Volver al perfil
-          </Link>
-          <div className="space-y-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
+      <LnSheetWrap>
+        <LnSheetCard>
+          <div className="px-[18px] py-[24px] space-y-[10px]">
+            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
               Sin check-ins pendientes
-            </h1>
-            <p className="text-sm text-gob-text-gray ">
+            </p>
+            <p className="text-[13px] text-[var(--color-ln-mute)]">
               {pet.name} no tiene un check-in post-adopción pendiente en este momento. Si el refugio
               te pide otro seguimiento más adelante, te vamos a avisar.
             </p>
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}`}
+              className="inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
+            >
+              ← Volver al perfil
+            </Link>
           </div>
-        </div>
-      </main>
+        </LnSheetCard>
+      </LnSheetWrap>
     );
   }
 
   const boundAction = recordPostAdoptionCheckinAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver al perfil
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Check-in post-adopción
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            El refugio que te confió a {pet.name} está esperando este seguimiento. Llevá un minuto:
-            contales cómo está, sumá una foto si querés.
-          </p>
-        </div>
+    <LnSheetWrap>
+      <LnSheetCard>
         <CheckinForm action={boundAction} defaults={{ notes: sp.notes ?? null }} />
-      </div>
-    </main>
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }

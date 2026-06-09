@@ -12,6 +12,7 @@
 import Link from "next/link";
 
 import { recordPregnancyEndedAction, recordPregnancyStartedAction } from "@/app/actions/pregnancy";
+import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { requireOwnedPetByToken } from "@/lib/pets";
 
 import { PregnancyEndedForm } from "./PregnancyEndedForm";
@@ -71,31 +72,15 @@ export default async function NewPregnancyPage({
   const endedAction = recordPregnancyEndedAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Otro tipo de evento
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            {phase === "started" ? "Registrar embarazo" : "Cerrar embarazo"}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            {phase === "started"
-              ? `Vamos a abrir un seguimiento de embarazo para ${pet.name}.`
-              : `Registrar el cierre del embarazo activo de ${pet.name}.`}
-          </p>
-        </div>
+    <LnSheetWrap>
+      <LnSheetCard>
         {phase === "started" ? (
           <PregnancyStartedForm action={startedAction} />
         ) : (
           <PregnancyEndedForm action={endedAction} />
         )}
-      </div>
-    </main>
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }
 
@@ -109,26 +94,22 @@ function BlockedShell({
   showEndedLink?: boolean;
 }) {
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-6">
-        <Link
-          href={`/mis-mascotas/${publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Otro tipo de evento
-        </Link>
-        <p className="text-sm rounded-lg border border-gob-warning bg-gob-warning/10 px-4 py-3 text-gob-warning-text   ">
-          {message}
-        </p>
-        {showEndedLink && (
-          <Link
-            href={`/mis-mascotas/${publicToken}/eventos/nuevo/embarazo?phase=ended`}
-            className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
-          >
-            Registrar cierre del embarazo
-          </Link>
-        )}
-      </div>
-    </main>
+    <LnSheetWrap>
+      <LnSheetCard>
+        <div className="px-[18px] py-[24px] space-y-[12px]">
+          <p className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
+            {message}
+          </p>
+          {showEndedLink && (
+            <Link
+              href={`/mis-mascotas/${publicToken}/eventos/nuevo/embarazo?phase=ended`}
+              className="inline-block rounded-[3px] border border-[var(--color-ln-rosa)] bg-[var(--color-ln-rosa)] px-[14px] py-[8px] font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
+            >
+              Registrar cierre del embarazo
+            </Link>
+          )}
+        </div>
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }

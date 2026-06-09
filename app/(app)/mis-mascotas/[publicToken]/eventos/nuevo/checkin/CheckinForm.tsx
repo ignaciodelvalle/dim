@@ -4,14 +4,14 @@ import { useActionState } from "react";
 
 import type { CheckinFormState } from "@/app/actions/checkin";
 import { LocationFields } from "@/components/LocationFields";
-import { Field, Textarea } from "@/components/poncho";
+import { LnField, LnTextarea } from "@/components/ui/Field";
+import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
-
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: CheckinFormState = { error: null };
-
 type FormAction = (prev: CheckinFormState, formData: FormData) => Promise<CheckinFormState>;
+const FORM_ID = "checkin-form";
 
 export function CheckinForm({
   action,
@@ -24,46 +24,44 @@ export function CheckinForm({
   const { key: idempotencyKey } = useIdempotencyKey();
 
   return (
-    <form action={formAction} className="space-y-5">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <Field label="¿Cómo está?">
-        {({ id, describedBy, invalid }) => (
-          <Textarea
-            id={id}
-            name="notes"
-            rows={5}
-            defaultValue={defaults?.notes ?? ""}
-            placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <details className="rounded-lg border border-gob-border  p-3">
-        <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
-          Ubicación (opcional)
-        </summary>
-        <div className="mt-3">
-          <LocationFields mode="l1" />
-        </div>
-      </details>
-
-      <AttachmentField />
-
-      {state.error && (
-        <p className="text-sm text-gob-danger" role="alert">
-          {state.error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Enviando…" : "Enviar check-in"}
-      </button>
-    </form>
+    <>
+      <LnSheetHeader tone="azul" icon="📍" title="Check-in" subtitle="Libreta sanitaria oficial" />
+      <LnSheetBody>
+        <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+          <LnField label="¿Cómo está?">
+            {({ id, describedBy, invalid }) => (
+              <LnTextarea
+                id={id}
+                name="notes"
+                rows={5}
+                defaultValue={defaults?.notes ?? ""}
+                placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnSheetAccordion num="+" title="Ubicación">
+            <LocationFields mode="l1" />
+          </LnSheetAccordion>
+          <AttachmentField />
+          {state.error && (
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
+            >
+              {state.error}
+            </p>
+          )}
+        </form>
+      </LnSheetBody>
+      <LnSheetFooter
+        tone="azul"
+        ctaLabel="Enviar check-in"
+        formId={FORM_ID}
+        isPending={isPending}
+      />
+    </>
   );
 }
