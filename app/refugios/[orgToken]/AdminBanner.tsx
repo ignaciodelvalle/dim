@@ -15,7 +15,7 @@ export function AdminBanner({ orgToken }: Props) {
   return (
     <div
       aria-label="Banner para administradores del refugio"
-      className="bg-gob-celeste/10 border-b border-gob-celeste/30 px-4 py-2 text-sm text-gob-text"
+      className="bg-[var(--color-ln-celeste-050)] border-b border-[var(--color-ln-celeste-100)] px-4 py-2 text-sm text-[var(--color-ln-ink)]"
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
         <span>
@@ -24,7 +24,7 @@ export function AdminBanner({ orgToken }: Props) {
         </span>
         <Link
           href={`/org/${orgToken}`}
-          className="font-medium text-gob-azul-link hover:underline shrink-0"
+          className="font-medium text-[var(--color-ln-azul)] hover:underline shrink-0"
         >
           Ir al portal del refugio →
         </Link>

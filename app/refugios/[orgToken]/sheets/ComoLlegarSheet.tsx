@@ -34,7 +34,7 @@ export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) 
       <div className="space-y-4">
         {hasPoint ? (
           <>
-            <p className="text-sm text-gob-text-gray">
+            <p className="text-sm text-[var(--color-ln-ink-2)]">
               Elegí la app que prefieras para abrir la ruta. Se abre en una pestaña nueva.
             </p>
             <div className="flex flex-col gap-2">
@@ -42,7 +42,7 @@ export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) 
                 href={`https://www.google.com/maps/dir/?api=1&destination=${coord}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-gob-border bg-white px-4 py-3 text-center text-sm font-medium text-gob-text hover:bg-gob-surface-alt"
+                className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-3 text-center text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
               >
                 Abrir en Google Maps
               </a>
@@ -50,7 +50,7 @@ export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) 
                 href={`http://maps.apple.com/?daddr=${coord}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-gob-border bg-white px-4 py-3 text-center text-sm font-medium text-gob-text hover:bg-gob-surface-alt"
+                className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-3 text-center text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
               >
                 Abrir en Apple Maps
               </a>
@@ -58,14 +58,14 @@ export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) 
                 href={`https://waze.com/ul?ll=${coord}&navigate=yes`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-gob-border bg-white px-4 py-3 text-center text-sm font-medium text-gob-text hover:bg-gob-surface-alt"
+                className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-3 text-center text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
               >
                 Abrir en Waze
               </a>
             </div>
           </>
         ) : (
-          <p className="text-sm text-gob-text-muted">
+          <p className="text-sm text-[var(--color-ln-mute)]">
             {orgDisplayName} no compartió su ubicación exacta. Contactalos para coordinar.
           </p>
         )}

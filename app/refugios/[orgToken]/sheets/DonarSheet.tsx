@@ -69,21 +69,21 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
     >
       <div className="space-y-4">
         {rows.length === 0 ? (
-          <p className="text-sm text-gob-text-muted">
+          <p className="text-sm text-[var(--color-ln-mute)]">
             {orgDisplayName} todavía no publicó canales de donación.
           </p>
         ) : (
           <>
-            <p className="text-sm text-gob-text-gray">
+            <p className="text-sm text-[var(--color-ln-ink-2)]">
               Cualquier monto ayuda. {orgDisplayName} decide cómo se usa cada peso.
             </p>
             <ul className="space-y-2">
               {rows.map((row) => (
                 <li
                   key={row.label}
-                  className="rounded-xl border border-gob-border bg-gob-surface-alt p-3"
+                  className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3"
                 >
-                  <p className="text-[10px] uppercase tracking-wider text-gob-text-muted">
+                  <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
                     {row.label}
                   </p>
                   {row.href ? (
@@ -91,20 +91,20 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
                       href={row.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block text-sm font-medium text-gob-azul-link underline break-all"
+                      className="block text-sm font-medium text-[var(--color-ln-azul)] underline break-all"
                     >
                       Abrir link →
                     </a>
                   ) : (
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-mono text-gob-text break-all flex-1">
+                      <p className="text-sm font-[var(--font-ln-mono)] text-[var(--color-ln-ink)] break-all flex-1">
                         {row.value}
                       </p>
                       {row.copyable && (
                         <button
                           type="button"
                           onClick={() => copy(row.label, row.value)}
-                          className="text-xs text-gob-azul-link hover:underline shrink-0"
+                          className="text-xs text-[var(--color-ln-azul)] hover:underline shrink-0"
                         >
                           {copiedKey === row.label ? "✓" : "Copiar"}
                         </button>

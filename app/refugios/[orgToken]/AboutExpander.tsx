@@ -17,11 +17,13 @@ export function AboutExpander({ text, truncateAt }: Props) {
 
   return (
     <>
-      <p className="text-sm text-gob-text-gray whitespace-pre-line leading-relaxed">{shown}</p>
+      <p className="text-sm text-[var(--color-ln-ink-2)] whitespace-pre-line leading-relaxed">
+        {shown}
+      </p>
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="mt-2 text-sm font-medium text-gob-azul-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste focus-visible:ring-offset-2 rounded"
+        className="mt-2 text-sm font-medium text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] focus-visible:ring-offset-2 rounded"
       >
         {expanded ? "Ver menos" : "Ver más"}
       </button>

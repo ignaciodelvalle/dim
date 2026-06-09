@@ -424,34 +424,132 @@ export default async function PublicCredentialPage({
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Active credential — LN "warm libreta / document credential" render
+  // ---------------------------------------------------------------------------
+
+  const breedLine = [speciesLabel(pet.species), pet.breed, sexLabel(pet.sex)]
+    .filter(Boolean)
+    .join(" · ");
+  const ageLabel = ageYears !== null ? `${ageYears} año${ageYears === 1 ? "" : "s"}` : null;
+
   return (
-    <main className="min-h-screen p-6 bg-gob-surface-alt ">
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
       <ScanLogger publicToken={publicToken} />
-      <div className="max-w-md mx-auto pt-8 space-y-6">
-        {/* Tier 0+ emergency-info banner — owner-toggled. No PII beyond the
-            banner text itself. No drug names, no owner name, no contact.
-            Sticky on mobile (md:relative) so the warning stays visible while
-            a finder scrolls through the rest of the credential.
-            Sprint 5 PR-042 / doc 10 §3 punto 4. */}
+
+      {/* Guilloché band — LN security stripe */}
+      <div
+        aria-hidden="true"
+        className="h-[4px] flex-shrink-0"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+          opacity: 0.9,
+        }}
+      />
+
+      <div className="mx-auto max-w-[460px] px-[16px] py-[24px] pb-[56px]">
+        {/* ------------------------------------------------------------------ */}
+        {/* TIER 0+ emergency-info banner — sticky on mobile, always visible.  */}
+        {/* Non-hideable by design: the medical alert is the point of 0+.      */}
+        {/* Sprint 5 PR-042 / doc 10 §3 punto 4.                               */}
+        {/* ------------------------------------------------------------------ */}
         {pet.emergencyInfoVisible && (
           <div
-            className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-gob-danger/10 backdrop-blur border-b border-gob-danger   text-center md:static md:mx-0 md:-mt-0 md:px-4 md:py-3 md:bg-gob-danger/10 md:border md:rounded-xl"
             role="alert"
             data-section="emergency-banner"
+            className="sticky top-0 z-30 -mx-[16px] mb-[16px] md:static md:mx-0 md:mb-[16px] md:rounded-[4px]"
+            style={{
+              background: "#fbe9e6",
+              borderBottom: "1px solid #f1c6bf",
+              padding: "13px 18px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 11,
+            }}
           >
-            <p className="text-sm font-medium text-gob-danger ">
-              Esta mascota requiere atención médica
+            {/* Heartbeat icon */}
+            <span
+              aria-hidden="true"
+              style={{
+                fontSize: 18,
+                color: "var(--color-ln-seal)",
+                flexShrink: 0,
+                marginTop: 1,
+              }}
+            >
+              ♥
+            </span>
+            <div>
+              <p
+                style={{
+                  fontFamily: "var(--font-ln-serif)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--color-ln-ink)",
+                  margin: 0,
+                }}
+              >
+                Alerta médica
+              </p>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--color-ln-ink-2)",
+                  marginTop: 2,
+                  lineHeight: 1.45,
+                }}
+              >
+                Esta mascota requiere atención médica. Contactá al dueño escaneando el QR.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* DC13: Official custody disclaimer */}
+        {isUnderOfficialCustody && (
+          <div
+            role="alert"
+            data-section="custody-disclaimer"
+            className="mb-[16px] rounded-[4px]"
+            style={{
+              background: "#fdf2e0",
+              border: "1px solid #f0dcb4",
+              borderLeft: "3px solid var(--color-ln-warn)",
+              padding: "12px 16px",
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "var(--font-ln-mono)",
+                fontSize: 9.5,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--color-ln-warn)",
+                fontWeight: 600,
+                marginBottom: 4,
+              }}
+            >
+              Custodia oficial
             </p>
-            <p className="mt-0.5 text-xs text-gob-danger ">
-              Por favor contactá al dueño escaneando el QR mientras la cuidás.
+            <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--color-ln-ink)", margin: 0 }}>
+              Esta mascota está bajo custodia oficial.
+            </p>
+            {openCustodyEpisode?.authorityName && (
+              <p style={{ fontSize: 12, color: "var(--color-ln-ink-2)", marginTop: 4 }}>
+                Autoridad a cargo: {openCustodyEpisode.authorityName}
+              </p>
+            )}
+            <p style={{ fontSize: 11.5, color: "var(--color-ln-mute)", marginTop: 4 }}>
+              Comunicate con la autoridad sanitaria competente para más información.
             </p>
           </div>
         )}
 
-        {/* Permanent conditions — owner-toggled (disclose_conditions_publicly).
-            Helps a finder/vet/visitor understand the pet's lifelong needs at a
-            glance. Renders only when both the toggle is on AND there is at
-            least one condition recorded. */}
+        {/* Permanent conditions banner */}
         {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
           <PermanentConditionsBanner
             codes={pet.permanentConditions}
@@ -459,220 +557,534 @@ export default async function PublicCredentialPage({
           />
         )}
 
-        {/* DC13: Official custody disclaimer — rendered when this pet is under
-            an open custody_episode case initiated by a sanitary_authority org
-            (state seizure, Ley 14.346). Discriminator is case kind + opener
-            org_type — NOT notes text. No owner PII is revealed here. */}
-        {isUnderOfficialCustody && (
-          <div
-            role="alert"
-            className="rounded-xl border border-gob-warning  bg-gob-warning/10  px-4 py-3 space-y-1"
-            data-section="custody-disclaimer"
-          >
-            <p className="text-xs uppercase tracking-wider font-semibold text-gob-warning-text ">
-              Custodia oficial
-            </p>
-            <p className="text-sm font-medium text-gob-warning-text ">
-              Esta mascota está bajo custodia oficial.
-            </p>
-            {openCustodyEpisode?.authorityName && (
-              <p className="text-xs text-gob-warning-text ">
-                Autoridad a cargo: {openCustodyEpisode.authorityName}
-              </p>
-            )}
-            <p className="text-xs text-gob-text-gray ">
-              Para más información comunicate con la autoridad sanitaria competente.
-            </p>
-          </div>
-        )}
-
-        {/* Tier 2 público temporal — owner-opt-in widened medical projection.
-            Only renders during the active window (set by enableTier2PublicAction
-            for 24h in v1). Never exposes owner contact or notes. */}
-        {tier2Active && tier2EnabledUntil && (
-          <Tier2MedicalView
-            enabledUntil={tier2EnabledUntil}
-            vaccineSummary={{
-              active: tier2VaccineActive,
-              expired: 0,
-              dueSoon: 0,
-              missing: 0,
-            }}
-            isSterilized={tier2IsSterilized}
-            activeMedications={tier2ActiveMedications}
-            permanentConditions={pet.permanentConditions ?? []}
-            permanentConditionsOther={pet.permanentConditionsOther}
-          />
-        )}
-
-        {/* Credential header */}
-        <div className="text-center space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">
-            MiMAR · Credencial digital
-          </p>
-          <p className="text-xs font-mono text-gob-text-muted ">{pet.publicToken}</p>
-        </div>
-
-        {/* PPP badge — Ley CABA 4078 / Ley Prov 14.107. Renders when the pet is
-            subject to the PPP regime. Disclosure is required by law (the public
-            has a right to know). Only shown on the active-credential branch —
-            lost pets surface this context via LostPublicCredential. */}
+        {/* PPP badge — Ley CABA 4078 / Ley Prov 14.107 */}
         {pet.potentiallyDangerousBreed && (
-          <PppPublicBadge petName={pet.name} breed={pet.breed ?? null} />
-        )}
-
-        {/* Service dog banner — Ley 26.858. Renders only when the owner opted in
-            AND the credential is vigente AND the type is ANDIS-recognized. */}
-        {showServiceDogBanner && (
-          <section
-            aria-label="Banner de acceso — perro de asistencia"
-            className="rounded-2xl border-2 border-gob-primary bg-gob-primary/10  p-4 space-y-2"
-          >
-            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-gob-primary ">
-              Perro de Asistencia
-            </p>
-            <p className="text-base font-medium text-gob-primary  leading-snug">
-              Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
-              establecimiento, espacio privado de acceso público y transporte público.
-            </p>
-            <p className="text-xs text-gob-primary ">
-              Marco legal: <strong>Arts. 1 y 7, Ley 26.858</strong> · Reg. Decreto 792/2019 ·
-              Credencial RUPGA vigente (Res. ANDIS 2588/2022).
-            </p>
-            {rabiesAtRisk && (
-              <p className="text-xs text-gob-warning-text  border-t border-gob-primary  pt-2 mt-2">
-                Aviso: la vacunación antirrábica figura vencida en el registro. La credencial
-                requiere mantener la vacunación al día (Art. 8, Ley 26.858).
-              </p>
-            )}
-          </section>
-        )}
-
-        {/* T-4.3: Origin-org badge — shown only when org is verified AND tier0ShowOriginOrg is on.
-            No PII, no contact info, only the org display name (+ logo if available). */}
-        {showOriginOrg && originOrg && (
-          <div
-            className="flex items-center gap-3 rounded-xl border border-gob-border bg-white px-4 py-2.5"
-            data-section="origin-org-badge"
-          >
-            {originOrg.avatarUrl && (
-              <img
-                src={originOrg.avatarUrl}
-                alt=""
-                aria-hidden="true"
-                className="w-8 h-8 rounded-full object-cover shrink-0"
-              />
-            )}
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-gob-text-muted">
-                Refugio de origen
-              </p>
-              <p className="text-sm font-medium text-gob-text truncate">{originOrg.displayName}</p>
-            </div>
+          <div className="mb-[16px]">
+            <PppPublicBadge petName={pet.name} breed={pet.breed ?? null} />
           </div>
         )}
 
-        {/* Photo */}
-        <div className="flex justify-center">
+        {/* Service dog banner — Ley 26.858 */}
+        {showServiceDogBanner && <ServiceDogBanner rabiesAtRisk={rabiesAtRisk} />}
+
+        {/* ------------------------------------------------------------------ */}
+        {/* CREDENTIAL CARD                                                     */}
+        {/* ------------------------------------------------------------------ */}
+        <div
+          className="overflow-hidden rounded-[10px]"
+          style={{
+            background: "var(--color-ln-card)",
+            border: "1px solid var(--color-ln-line-strong)",
+            boxShadow: "0 6px 18px rgba(20,40,60,.08)",
+          }}
+        >
+          {/* Guilloché top band */}
+          <div
+            aria-hidden="true"
+            style={{
+              height: 8,
+              background:
+                "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+            }}
+          />
+
+          {/* Official header row: crest + brand + tier chip */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 16px",
+              borderBottom: "1px solid var(--color-ln-line-2)",
+            }}
+          >
+            {/* Crest circle */}
+            <div
+              aria-hidden="true"
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: "50%",
+                border: "1.5px solid var(--color-ln-azul)",
+                color: "var(--color-ln-azul)",
+                display: "grid",
+                placeItems: "center",
+                fontFamily: "var(--font-ln-serif)",
+                fontWeight: 600,
+                fontSize: 12,
+                background: "var(--color-ln-celeste-050)",
+                flexShrink: 0,
+              }}
+            >
+              m
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-ln-serif)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--color-ln-ink)",
+                }}
+              >
+                miMAR
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-ln-mono)",
+                  fontSize: 8,
+                  letterSpacing: ".14em",
+                  textTransform: "uppercase",
+                  color: "var(--color-ln-mute)",
+                  display: "block",
+                }}
+              >
+                Credencial pública
+              </span>
+            </div>
+            {/* Tier chip */}
+            <span
+              style={{
+                fontFamily: "var(--font-ln-mono)",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: ".08em",
+                color: tier2Active ? "var(--color-ln-ok)" : "var(--color-ln-azul)",
+                background: tier2Active ? "#eef6f0" : "var(--color-ln-celeste-050)",
+                border: `1px solid ${tier2Active ? "#c8e2d2" : "var(--color-ln-celeste-100)"}`,
+                padding: "3px 8px",
+                borderRadius: 999,
+              }}
+            >
+              {tier2Active ? "TIER 2 · MÉDICO" : "TIER 0 · IDENTIDAD"}
+            </span>
+          </div>
+
+          {/* Photo */}
           {photoUrl ? (
             <img
               src={photoUrl}
               alt={pet.name}
-              className="w-44 h-44 rounded-2xl object-cover ring-4 ring-white  shadow-lg"
+              style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }}
             />
           ) : (
-            <div className="w-44 h-44 rounded-2xl bg-gob-surface-alt  flex items-center justify-center text-5xl font-semibold text-gob-text-muted  ring-4 ring-white  shadow-lg">
-              {pet.name.charAt(0).toUpperCase()}
+            <div
+              style={{
+                width: "100%",
+                aspectRatio: "4/3",
+                display: "grid",
+                placeItems: "center",
+                background: "repeating-linear-gradient(135deg,#e7e2d6 0 11px,#f1eee5 11px 22px)",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-ln-serif)",
+                  fontSize: 56,
+                  fontWeight: 600,
+                  color: "var(--color-ln-mute)",
+                }}
+              >
+                {pet.name.charAt(0).toUpperCase()}
+              </span>
             </div>
           )}
-        </div>
 
-        {/* Pet identity */}
-        <div className="text-center space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{pet.name}</h1>
-          <p className="text-sm text-gob-text-gray ">
-            {speciesLabel(pet.species)}
-            {pet.breed && ` · ${pet.breed}`} · {sexLabel(pet.sex)}
-            {ageYears !== null && ` · ${ageYears} año${ageYears === 1 ? "" : "s"}`}
-          </p>
-        </div>
-
-        {/* Status badges */}
-        <div className="grid grid-cols-2 gap-3">
-          <Badge
-            label="Credencial"
-            value={pet.status === "active" ? "Válida ✓" : statusLabel(pet.status)}
-            tone={pet.status === "active" ? "good" : "warning"}
-          />
-          <Badge
-            label="Vacunación"
-            value={hasVaccinations ? "Con registros ✓" : "Sin registros"}
-            tone={hasVaccinations ? "good" : "warning"}
-          />
-          <Badge label="Microchip" value={hasMicrochip ? "Sí" : "No"} />
-          <Badge label="Tatuaje" value={hasTattoo ? "Sí" : "No"} />
-          <Badge label="Estado" value={statusLabel(pet.status)} />
-        </div>
-
-        {/* A.4: Vaccination confidence badge — only shown for institutional or
-            professional verified tier. Intentionally silent for self_reported. */}
-        {showVaccinationConfidence && latestVaccinationTier && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gob-text-muted ">Vacunación:</span>
-            <ConfidenceBadge tier={latestVaccinationTier} />
-          </div>
-        )}
-
-        {/* Active pet — the "found" form sits behind a disclosure so a casual
-            scan doesn't land on an open form. */}
-        <details className="group border border-gob-border  rounded-xl bg-white ">
-          <summary className="cursor-pointer select-none px-5 py-4 flex items-center justify-between gap-3 hover:bg-gob-surface-alt  rounded-xl transition-colors">
-            <div className="text-left space-y-0.5 min-w-0">
-              <p className="font-medium text-gob-text ">¿Encontraste a esta mascota?</p>
-              <p className="text-xs text-gob-text-gray ">Tocá acá para avisarle al dueño.</p>
-            </div>
-            <span
-              className="text-gob-text-muted  group-open:rotate-90 transition-transform shrink-0"
-              aria-hidden
+          {/* Name bar */}
+          <div style={{ padding: "15px 16px 12px" }}>
+            <div
+              style={{
+                fontFamily: "var(--font-ln-serif)",
+                fontWeight: 600,
+                fontSize: 27,
+                letterSpacing: "-.02em",
+                lineHeight: 1,
+                color: "var(--color-ln-ink)",
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+              }}
             >
-              ›
-            </span>
-          </summary>
-          <div className="px-5 pb-5 pt-1 border-t border-gob-border  space-y-3">
-            <FoundPetForm publicToken={publicToken} />
+              {pet.name}
+              {/* Status dot */}
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 11,
+                  height: 11,
+                  borderRadius: "50%",
+                  background: "var(--color-ln-ok)",
+                  boxShadow: "0 0 0 3px #e8f3ec",
+                  display: "inline-block",
+                  flexShrink: 0,
+                }}
+              />
+            </div>
+            <p style={{ fontSize: 13, color: "var(--color-ln-ink-2)", marginTop: 5 }}>
+              {breedLine}
+              {ageLabel && ` · ${ageLabel}`}
+            </p>
           </div>
-        </details>
 
-        {/* Footer */}
-        <p className="text-center text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">
-          Documento de Identificación para Mascotas
-        </p>
+          {/* Tier 2 enabled notice */}
+          {tier2Active && tier2EnabledUntil && (
+            <div
+              style={{
+                padding: "10px 16px",
+                background: "var(--color-ln-celeste-050)",
+                borderTop: "1px solid var(--color-ln-celeste-100)",
+                fontFamily: "var(--font-ln-mono)",
+                fontSize: 10,
+                color: "var(--color-ln-azul-700)",
+                letterSpacing: ".02em",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                lineHeight: 1.5,
+              }}
+            >
+              <span aria-hidden="true">🔓</span>
+              {`El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`}
+            </div>
+          )}
+
+          {/* Tier 2 medical summary */}
+          {tier2Active && tier2EnabledUntil && (
+            <div style={{ borderTop: "1px solid var(--color-ln-line-2)" }}>
+              <Tier2MedicalView
+                enabledUntil={tier2EnabledUntil}
+                vaccineSummary={{
+                  active: tier2VaccineActive,
+                  expired: 0,
+                  dueSoon: 0,
+                  missing: 0,
+                }}
+                isSterilized={tier2IsSterilized}
+                activeMedications={tier2ActiveMedications}
+                permanentConditions={pet.permanentConditions ?? []}
+                permanentConditionsOther={pet.permanentConditionsOther}
+              />
+            </div>
+          )}
+
+          {/* Identity section */}
+          <div
+            style={{
+              padding: "13px 16px",
+              borderTop: "1px solid var(--color-ln-line-2)",
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "var(--font-ln-mono)",
+                fontSize: 9.5,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--color-ln-mute)",
+                fontWeight: 600,
+                marginBottom: 9,
+              }}
+            >
+              Identidad registrada
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "11px 14px",
+              }}
+            >
+              <CredField label="Credencial" value={statusLabel(pet.status)} mono={false} />
+              <CredField
+                label="Vacunación"
+                value={hasVaccinations ? "Con registros" : "Sin registros"}
+                mono={false}
+              />
+              <CredField label="Microchip" value={hasMicrochip ? "Sí" : "No"} mono={false} />
+              <CredField label="Tatuaje" value={hasTattoo ? "Sí" : "No"} mono={false} />
+              <CredField label="Libreta" value={`LIB-AR-${pet.publicToken.toUpperCase()}`} mono />
+            </div>
+          </div>
+
+          {/* A.4: Vaccination confidence badge */}
+          {showVaccinationConfidence && latestVaccinationTier && (
+            <div
+              style={{
+                padding: "10px 16px",
+                borderTop: "1px solid var(--color-ln-line-2)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-ln-mono)",
+                  fontSize: 9.5,
+                  letterSpacing: ".08em",
+                  textTransform: "uppercase",
+                  color: "var(--color-ln-mute)",
+                  fontWeight: 600,
+                }}
+              >
+                Vacunación:
+              </span>
+              <ConfidenceBadge tier={latestVaccinationTier} />
+            </div>
+          )}
+
+          {/* T-4.3: Origin-org badge */}
+          {showOriginOrg && originOrg && (
+            <div
+              data-section="origin-org-badge"
+              style={{
+                padding: "12px 16px",
+                borderTop: "1px solid var(--color-ln-line-2)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              {originOrg.avatarUrl && (
+                <img
+                  src={originOrg.avatarUrl}
+                  alt=""
+                  aria-hidden="true"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <div style={{ minWidth: 0 }}>
+                <p
+                  style={{
+                    fontFamily: "var(--font-ln-mono)",
+                    fontSize: 9,
+                    letterSpacing: ".06em",
+                    textTransform: "uppercase",
+                    color: "var(--color-ln-mute)",
+                    margin: 0,
+                  }}
+                >
+                  Refugio de origen
+                </p>
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: "var(--color-ln-ink)",
+                    margin: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {originOrg.displayName}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* "Found this pet?" action area */}
+          <div
+            style={{
+              padding: "14px 16px",
+              background: "var(--color-ln-stripe)",
+              borderTop: "1px solid var(--color-ln-line)",
+            }}
+          >
+            <details className="group">
+              <summary
+                style={{
+                  listStyle: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  userSelect: "none",
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-ln-serif)",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "var(--color-ln-ink)",
+                      margin: 0,
+                    }}
+                  >
+                    ¿Encontraste a esta mascota?
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 11.5,
+                      color: "var(--color-ln-mute)",
+                      margin: "2px 0 0",
+                    }}
+                  >
+                    Tocá acá para avisarle al dueño.
+                  </p>
+                </div>
+                <span
+                  aria-hidden="true"
+                  className="group-open:rotate-90 transition-transform"
+                  style={{ color: "var(--color-ln-mute)", fontSize: 18, flexShrink: 0 }}
+                >
+                  ›
+                </span>
+              </summary>
+              <div
+                style={{
+                  paddingTop: 14,
+                  marginTop: 12,
+                  borderTop: "1px solid var(--color-ln-line)",
+                }}
+              >
+                <FoundPetForm publicToken={publicToken} />
+              </div>
+            </details>
+          </div>
+
+          {/* Credential footer */}
+          <div
+            style={{
+              padding: "12px 16px",
+              textAlign: "center",
+              fontFamily: "var(--font-ln-mono)",
+              fontSize: 9.5,
+              color: "var(--color-ln-faint)",
+              letterSpacing: ".02em",
+              lineHeight: 1.7,
+            }}
+          >
+            CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
+            <br />
+            {pet.publicToken.toUpperCase()} · República Argentina
+          </div>
+        </div>
+        {/* END CREDENTIAL CARD */}
       </div>
     </main>
   );
 }
 
-function Badge({
+// ---------------------------------------------------------------------------
+// CredField — mono label + value row inside the identity grid
+// ---------------------------------------------------------------------------
+
+function CredField({
   label,
   value,
-  tone = "neutral",
+  mono = false,
 }: {
   label: string;
   value: string;
-  tone?: "good" | "warning" | "neutral";
+  mono?: boolean;
 }) {
-  const toneClasses = {
-    good: "text-gob-success  bg-gob-success/10  border-gob-success ",
-    warning: "text-gob-warning-text  bg-gob-warning/10  border-gob-warning ",
-    neutral: "text-gob-text-gray  bg-white  border-gob-border ",
-  };
   return (
-    <div className={`border rounded-lg px-3 py-2 ${toneClasses[tone]}`}>
-      <p className="text-[10px] uppercase tracking-wider opacity-70">{label}</p>
-      <p className="text-sm font-medium">{value}</p>
+    <div>
+      <p
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9,
+          letterSpacing: ".06em",
+          textTransform: "uppercase",
+          color: "var(--color-ln-faint)",
+          margin: 0,
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          fontSize: mono ? 12 : 13.5,
+          fontFamily: mono ? "var(--font-ln-mono)" : "var(--font-ln-sans)",
+          fontWeight: 500,
+          color: "var(--color-ln-ink)",
+          marginTop: 1,
+          overflowWrap: "break-word",
+        }}
+      >
+        {value}
+      </p>
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// ServiceDogBanner — Ley 26.858 access notice (LN tone)
+// ---------------------------------------------------------------------------
+
+function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
+  return (
+    <section
+      aria-label="Banner de acceso — perro de asistencia"
+      className="mb-[16px] rounded-[4px]"
+      style={{
+        background: "var(--color-ln-celeste-050)",
+        border: "1px solid var(--color-ln-celeste-100)",
+        borderLeft: "3px solid var(--color-ln-azul)",
+        padding: "14px 16px",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9.5,
+          letterSpacing: ".1em",
+          textTransform: "uppercase",
+          color: "var(--color-ln-azul)",
+          fontWeight: 600,
+          marginBottom: 6,
+        }}
+      >
+        Perro de Asistencia
+      </p>
+      <p
+        style={{
+          fontFamily: "var(--font-ln-serif)",
+          fontSize: 14,
+          fontWeight: 600,
+          color: "var(--color-ln-ink)",
+          lineHeight: 1.45,
+          marginBottom: 6,
+        }}
+      >
+        Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
+        establecimiento, espacio privado de acceso público y transporte público.
+      </p>
+      <p style={{ fontSize: 11.5, color: "var(--color-ln-ink-2)" }}>
+        Marco legal:{" "}
+        <strong style={{ color: "var(--color-ln-ink)" }}>Arts. 1 y 7, Ley 26.858</strong> · Reg.
+        Decreto 792/2019 · Credencial RUPGA vigente (Res. ANDIS 2588/2022).
+      </p>
+      {rabiesAtRisk && (
+        <p
+          style={{
+            fontSize: 11.5,
+            color: "var(--color-ln-warn)",
+            borderTop: "1px solid var(--color-ln-celeste-100)",
+            paddingTop: 10,
+            marginTop: 10,
+          }}
+        >
+          Aviso: la vacunación antirrábica figura vencida en el registro. La credencial requiere
+          mantener la vacunación al día (Art. 8, Ley 26.858).
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PermanentConditionsBanner — special-needs chips (LN tone)
+// ---------------------------------------------------------------------------
 
 function PermanentConditionsBanner({
   codes,
@@ -685,21 +1097,49 @@ function PermanentConditionsBanner({
   if (safe.length === 0) return null;
   const hasOther = safe.includes("otra");
   return (
-    <section className="rounded-xl border border-gob-primary  bg-gob-primary/10  px-4 py-3 space-y-2">
-      <p className="text-xs uppercase tracking-wider font-semibold text-gob-primary ">
+    <section
+      className="mb-[16px] rounded-[4px]"
+      style={{
+        background: "var(--color-ln-celeste-050)",
+        border: "1px solid var(--color-ln-celeste-100)",
+        borderLeft: "3px solid var(--color-ln-azul)",
+        padding: "12px 16px",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9.5,
+          letterSpacing: ".1em",
+          textTransform: "uppercase",
+          color: "var(--color-ln-azul)",
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
         Necesidades especiales
       </p>
-      <div className="flex flex-wrap gap-1.5">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {safe.map((code) => (
           <span
             key={code}
-            className="text-xs font-medium px-2 py-0.5 rounded-full bg-gob-primary text-white"
+            style={{
+              display: "inline-flex",
+              padding: "4px 10px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 600,
+              background: "var(--color-ln-azul)",
+              color: "#fff",
+            }}
           >
             {permanentConditionShortLabel(code)}
           </span>
         ))}
       </div>
-      {hasOther && other && <p className="text-xs text-gob-primary ">{other}</p>}
+      {hasOther && other && (
+        <p style={{ fontSize: 12, color: "var(--color-ln-ink-2)", marginTop: 6 }}>{other}</p>
+      )}
     </section>
   );
 }
