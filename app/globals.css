@@ -94,51 +94,51 @@
   --color-ln-err: #c0392b;
   --color-ln-rosa: #b5497e;
 
-  /* Paleta oficial Poncho — colores específicos gob.ar.
-     Estos generan utilidades Tailwind como bg-gob-primary, text-gob-celeste, etc. */
-  --color-gob-primary: #242c4f;
-  --color-gob-primary-hover: #1a2240;
-  --color-gob-primary-active: #121830;
-  --color-gob-celeste: #37bbed;
-  --color-gob-azul-link: #0072bb;
-  --color-gob-azul-link-hover: #005a93;
+  /* Legacy Poncho token names, REPOINTED to the Libreta Nacional palette.
+     The class names (bg-gob-primary, text-gob-text, etc.) are kept so the
+     remaining poncho form primitives (Field/Input/Select/Sheet/Button/...)
+     inherit the LN look without editing every consumer. New code should use
+     ln-* / ln-op-* tokens directly; these aliases exist only to retire gob.ar. */
+  --color-gob-primary: #0e5a99; /* → ln-azul */
+  --color-gob-primary-hover: #0a4576; /* → ln-azul-700 */
+  --color-gob-primary-active: #0a3556; /* → ln-azul-900 */
+  --color-gob-celeste: #4e97d1; /* → ln-celeste */
+  --color-gob-azul-link: #0e5a99; /* → ln-azul */
+  --color-gob-azul-link-hover: #0a4576; /* → ln-azul-700 */
 
-  --color-gob-success: #2e7d33;
-  --color-gob-success-hover: #1b5e20;
-  --color-gob-danger: #c62828;
-  --color-gob-danger-hover: #962020;
-  --color-gob-warning: #e7ba61;
-  --color-gob-warning-text: #bb861c;
-  --color-gob-info: #2897d4;
+  --color-gob-success: #2e7d4f; /* → ln-ok */
+  --color-gob-success-hover: #225c3a;
+  --color-gob-danger: #a23a2c; /* → ln-seal */
+  --color-gob-danger-hover: #832e23;
+  --color-gob-warning: #e0a93e; /* warm amber bg */
+  --color-gob-warning-text: #b0771a; /* → ln-warn */
+  --color-gob-info: #4e97d1; /* → ln-celeste */
 
-  /* Neutros */
-  --color-gob-text: #000000;
-  --color-gob-text-gray: #444444;
-  --color-gob-text-muted: #555555;
-  --color-gob-border: #dddddd;
-  --color-gob-border-strong: #b5b5b5;
-  --color-gob-surface: #ffffff;
-  --color-gob-surface-alt: #f2f2f2;
+  /* Neutros → LN ink/line/paper scale */
+  --color-gob-text: #1b2a33; /* → ln-ink */
+  --color-gob-text-gray: #3c4b55; /* → ln-ink-2 */
+  --color-gob-text-muted: #6e7b84; /* → ln-mute */
+  --color-gob-border: #e4dfd3; /* → ln-line */
+  --color-gob-border-strong: #cfc8b8; /* → ln-line-strong */
+  --color-gob-surface: #ffffff; /* → ln-card */
+  --color-gob-surface-alt: #f6f4ed; /* → ln-stripe */
 
-  /* Tokens semánticos genéricos consumidos por la app.
-     Si una pantalla quiere salirse de la identidad gob.ar, toca solo estos. */
-  --color-background: #ffffff;
-  --color-foreground: #000000;
-  --color-muted: #555555;
-  --color-muted-foreground: #444444;
-  --color-accent: #242c4f;
-  --color-primary: #242c4f;
-  --color-success: #2e7d33;
-  --color-danger: #c62828;
-  --color-warning: #e7ba61;
-  --color-info: #2897d4;
-  --color-border: #dddddd;
-  /* Focus ring — Poncho v2 amarillo maíz (#FFCE1C). Switched from celeste
-   * #37bbed in PR-F to match the official gob.ar identity. The color
-   * contrast against #fff is sub-AA (1.5:1), so SC 1.4.11 compliance is
-   * carried by geometry: 3px outline + 2px offset is a non-color cue
-   * (size > 2x WCAG minimum). Audit: docs/a11y/contrast-audit.md. */
-  --color-ring: #ffce1c;
+  /* Generic semantic tokens consumed by the app — repointed to Libreta Nacional. */
+  --color-background: #fbfaf5; /* → ln-paper */
+  --color-foreground: #1b2a33; /* → ln-ink */
+  --color-muted: #6e7b84; /* → ln-mute */
+  --color-muted-foreground: #3c4b55; /* → ln-ink-2 */
+  --color-accent: #0e5a99; /* → ln-azul */
+  --color-primary: #0e5a99; /* → ln-azul */
+  --color-success: #2e7d4f; /* → ln-ok */
+  --color-danger: #a23a2c; /* → ln-seal */
+  --color-warning: #e0a93e; /* warm amber */
+  --color-info: #4e97d1; /* → ln-celeste */
+  --color-border: #e4dfd3; /* → ln-line */
+  /* Focus ring — Libreta Nacional azul (#0e5a99). Contrast vs #fff is ~4.9:1
+   * (AA), and the 3px outline + 2px offset geometry remains a non-color cue
+   * for SC 1.4.11. Audit: docs/a11y/contrast-audit.md. */
+  --color-ring: #0e5a99;
 
   /* Focus ring tokens (compliance PR 2 / Poncho PR-F). Decomposed into
    * color/width/offset so themes can tweak one axis. */
