@@ -66,7 +66,7 @@ export function Step4Subject({
           ¿Sobre quién?
         </h1>
         <p className="text-sm text-[var(--color-ln-mute)]">
-          Opcional — nos ayuda a actuar más rápido.
+          Esto es opcional, pero ayuda a la investigación. Si no sabés, podés saltearlo.
         </p>
       </div>
 

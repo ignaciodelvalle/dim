@@ -49,7 +49,7 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
           ¿Qué pasó?
         </h1>
         <p className="text-sm text-[var(--color-ln-mute)]">
-          Elegí la situación que mejor describe lo que viste.
+          Elegí lo que más se parece a lo que viste. Después podés contar el detalle.
         </p>
       </div>
 
