@@ -8,6 +8,9 @@ import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
+
+import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
+
 import { FinalizeAdoptionForm } from "./FinalizeAdoptionForm";
 
 export default async function AdoptionPage({
@@ -21,16 +24,16 @@ export default async function AdoptionPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("adoption.finalize")) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Para finalizar adopciones necesitás el permiso{" "}
-            <code className="text-xs">adoption.finalize</code>.
+            <code className="text-[11px]">adoption.finalize</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -54,15 +57,15 @@ export default async function AdoptionPage({
     .limit(1);
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Animal no disponible</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Animal no disponible</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -102,45 +105,61 @@ export default async function AdoptionPage({
     : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
+          <OpCrumbs
+            items={[
+              { label: "Mascotas", href: `/org/${orgToken}/mascotas` },
+              { label: pet.name, href: `/org/${orgToken}/mascotas/${publicToken}` },
+              { label: "Finalizar adopción" },
+            ]}
+          />
+          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-3xl font-semibold">Finalizar adopción: {pet.name}</h1>
-          <p className="text-sm text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            Finalizar adopción: {pet.name}
+          </h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Esta acción cierra la custodia del refugio y, si hay un tránsito activo, también lo
             cierra. Queda registrado como evento inmutable en la historia de {pet.name}.
           </p>
         </header>
 
         {!pet.adoptionEligible && (
-          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-sm space-y-1">
-            <p className="text-gob-warning-text ">
-              {pet.adoptionEligible === false
-                ? `Esta mascota está marcada como NO apta para adopción (motivo: ${pet.adoptionIneligibleReason ?? "sin motivo"}).`
-                : "Esta mascota no fue evaluada para adopción todavía."}
-            </p>
-            <Link
-              href={`/org/${orgToken}/mascotas/${publicToken}/eligibility`}
-              className="inline-block underline text-gob-warning-text "
-            >
-              Resolver elegibilidad
-            </Link>
-          </div>
+          <OpBreach
+            title={
+              pet.adoptionEligible === false
+                ? `Mascota NO apta para adopción (motivo: ${pet.adoptionIneligibleReason ?? "sin motivo"})`
+                : "Mascota sin evaluación de elegibilidad"
+            }
+            detail={
+              <Link
+                href={`/org/${orgToken}/mascotas/${publicToken}/eligibility`}
+                className="underline"
+              >
+                Resolver elegibilidad
+              </Link>
+            }
+          />
         )}
 
-        <FinalizeAdoptionForm
-          orgToken={orgToken}
-          publicToken={publicToken}
-          fosterShortcut={fosterShortcut}
-        />
+        <OpCard>
+          <OpCardHead title="Datos de adopción" />
+          <OpCardBody>
+            <FinalizeAdoptionForm
+              orgToken={orgToken}
+              publicToken={publicToken}
+              fosterShortcut={fosterShortcut}
+            />
+          </OpCardBody>
+        </OpCard>
 
-        <footer className="pt-4 border-t border-gob-border ">
+        <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-sm text-gob-text-gray underline "
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

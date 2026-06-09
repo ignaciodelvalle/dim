@@ -25,14 +25,16 @@ export function EndFosterForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <p className="text-sm text-gob-text-gray ">
+      <p className="text-[13px] text-ln-op-ink-2">
         Vas a cerrar el tránsito{fosterName ? ` de ${fosterName}` : ""}. El animal vuelve a figurar
         solo en custodia del refugio. Esta acción queda en el historial como evento inmutable.
       </p>
 
       <fieldset className="space-y-1">
-        <legend className="text-sm">¿Quién finalizó el tránsito?</legend>
-        <div className="flex flex-col gap-1 text-sm">
+        <legend className="text-[12px] font-medium text-ln-op-ink">
+          ¿Quién finalizó el tránsito?
+        </legend>
+        <div className="flex flex-col gap-1 text-[13px] text-ln-op-ink-2">
           {ENDED_BY_OPTIONS.map((option) => (
             <label key={option.value} className="flex items-center gap-2">
               <input
@@ -48,18 +50,18 @@ export function EndFosterForm({
       </fieldset>
 
       <label className="block space-y-1">
-        <span className="text-sm">Motivo (opcional)</span>
+        <span className="text-[12px] text-ln-op-mute">Motivo (opcional)</span>
         <textarea
           name="reason"
           rows={3}
           maxLength={500}
-          className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2"
+          className="w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           placeholder="Notas para el historial. El tránsito recibe el mensaje."
         />
       </label>
 
       {state.error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -67,7 +69,7 @@ export function EndFosterForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded bg-gob-danger text-white hover:bg-gob-danger disabled:opacity-50"
+        className="px-4 py-2 rounded-[6px] bg-ln-op-danger text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50"
       >
         {isPending ? "Cerrando…" : "Cerrar tránsito"}
       </button>

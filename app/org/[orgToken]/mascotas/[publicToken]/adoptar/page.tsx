@@ -6,6 +6,8 @@ import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 
+import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
+
 import { AdoptionListingForm } from "./AdoptionListingForm";
 
 export default async function AdoptarOrgPage({
@@ -19,16 +21,16 @@ export default async function AdoptarOrgPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("adoption.listing.manage")) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Para publicar adopciones necesitás el permiso{" "}
-            <code className="text-xs">adoption.listing.manage</code>.
+            <code className="text-[11px]">adoption.listing.manage</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -81,52 +83,56 @@ export default async function AdoptarOrgPage({
   const isPaused = pet.adoptionListedAt !== null && pet.adoptionListingPausedAt !== null;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-6">
-        <Link
-          href={`/org/${orgToken}/mascotas`}
-          className="text-sm text-gob-text-muted hover:text-gob-text "
-        >
-          ← Volver al listado
-        </Link>
-
+    <main className="min-h-screen bg-ln-op-page p-6">
+      <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
+          <OpCrumbs
+            items={[
+              { label: "Mascotas", href: `/org/${orgToken}/mascotas` },
+              { label: pet.name, href: `/org/${orgToken}/mascotas/${publicToken}` },
+              { label: "Publicar en adopción" },
+            ]}
+          />
+          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-3xl font-semibold text-gob-text ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
             Publicar en adopción · {pet.name}
           </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Esto controla la aparición de {pet.name} en <code className="text-xs">/adoptar</code> +
-            ficha pública.
+          <p className="text-[13px] text-ln-op-ink-2">
+            Esto controla la aparición de {pet.name} en{" "}
+            <code className="text-[11px]">/adoptar</code> + ficha pública.
           </p>
         </header>
 
-        <section className="rounded-lg border border-gob-border-strong  p-4 space-y-2">
-          <p className="text-sm font-medium text-gob-text ">Estado actual</p>
-          <p className="text-sm text-gob-text-gray ">
-            {isPublished
-              ? "Publicada y visible en /adoptar."
-              : isPaused
-                ? "Pausada — contenido conservado, no aparece en /adoptar."
-                : "No publicada — sin presencia en /adoptar."}
-          </p>
-        </section>
+        <OpCard>
+          <OpCardHead title="Estado actual" />
+          <OpCardBody>
+            <p className="text-[13px] text-ln-op-ink-2">
+              {isPublished
+                ? "Publicada y visible en /adoptar."
+                : isPaused
+                  ? "Pausada — contenido conservado, no aparece en /adoptar."
+                  : "No publicada — sin presencia en /adoptar."}
+            </p>
+          </OpCardBody>
+        </OpCard>
 
         {!canPublish && (
-          <section className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-            <p className="text-sm font-medium text-gob-warning-text ">Bloqueos para publicar</p>
-            <ul className="text-xs text-gob-warning-text  space-y-1 list-disc pl-5">
-              {blockingReasons.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-            <p className="text-xs text-gob-warning-text  pt-1">
-              Podés igual editar la historia y los requisitos para tenerlos listos cuando la mascota
-              califique.
-            </p>
-          </section>
+          <OpBreach
+            title="Bloqueos para publicar"
+            detail={
+              <ul className="mt-1 space-y-0.5 list-disc pl-4">
+                {blockingReasons.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+                <li className="mt-1 list-none pl-0 opacity-80">
+                  Podés igual editar la historia y los requisitos para tenerlos listos cuando la
+                  mascota califique.
+                </li>
+              </ul>
+            }
+          />
         )}
 
         <AdoptionListingForm
@@ -148,6 +154,15 @@ export default async function AdoptarOrgPage({
           canPublish={canPublish}
           petSex={pet.sex}
         />
+
+        <footer className="pt-4 border-t border-ln-op-line">
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
+            ← Volver al listado
+          </Link>
+        </footer>
       </div>
     </main>
   );

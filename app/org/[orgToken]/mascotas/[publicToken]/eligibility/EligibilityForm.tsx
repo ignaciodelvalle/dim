@@ -76,10 +76,10 @@ export function EligibilityForm({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-gob-border-strong  p-3 text-sm">
-        <p className="text-gob-text-gray ">
+      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 text-[13px]">
+        <p className="text-ln-op-ink-2">
           Estado actual:{" "}
-          <strong>
+          <strong className="text-ln-op-ink">
             {current.eligible === true
               ? "Apta"
               : current.eligible === false
@@ -90,15 +90,15 @@ export function EligibilityForm({
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium text-gob-text ">Decisión</p>
+        <p className="text-[12px] font-medium text-ln-op-ink">Decisión</p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setDecision("eligible")}
-            className={`px-3 py-1.5 rounded-lg border text-sm ${
+            className={`px-3 py-1.5 rounded-[6px] border text-[12px] ${
               decision === "eligible"
-                ? "bg-gob-success text-white border-gob-success"
-                : "border-gob-border-strong "
+                ? "bg-ln-op-ok text-white border-ln-op-ok"
+                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
             }`}
           >
             Apta para adopción
@@ -106,10 +106,10 @@ export function EligibilityForm({
           <button
             type="button"
             onClick={() => setDecision("not_eligible")}
-            className={`px-3 py-1.5 rounded-lg border text-sm ${
+            className={`px-3 py-1.5 rounded-[6px] border text-[12px] ${
               decision === "not_eligible"
-                ? "bg-gob-primary  text-white  border-gob-border-strong "
-                : "border-gob-border-strong "
+                ? "bg-ln-op-azul text-white border-ln-op-azul"
+                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
             }`}
           >
             NO apta
@@ -120,14 +120,17 @@ export function EligibilityForm({
       {decision === "not_eligible" && (
         <div className="space-y-3">
           <div>
-            <label htmlFor="elig-reason" className="block text-sm font-medium text-gob-text mb-1">
+            <label
+              htmlFor="elig-reason"
+              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+            >
               Motivo
             </label>
             <select
               id="elig-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as Reason)}
-              className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             >
               {REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
@@ -137,8 +140,11 @@ export function EligibilityForm({
             </select>
           </div>
           <div>
-            <label htmlFor="elig-notes" className="block text-sm font-medium text-gob-text mb-1">
-              Notas {reason === "other" && <span className="text-gob-danger">*</span>}
+            <label
+              htmlFor="elig-notes"
+              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+            >
+              Notas {reason === "other" && <span className="text-ln-op-danger">*</span>}
             </label>
             <textarea
               id="elig-notes"
@@ -146,11 +152,14 @@ export function EligibilityForm({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder={reason === "other" ? "Describí el motivo" : "Notas (opcional)"}
-              className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
           <div>
-            <label htmlFor="elig-until" className="block text-sm font-medium text-gob-text mb-1">
+            <label
+              htmlFor="elig-until"
+              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+            >
               Hasta (opcional)
             </label>
             <input
@@ -158,24 +167,24 @@ export function EligibilityForm({
               type="date"
               value={until}
               onChange={(e) => setUntil(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+              className="px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
-            <p className="text-xs text-gob-text-muted mt-1">
+            <p className="text-[11px] text-ln-op-mute mt-1">
               Si lo dejás vacío, queda no-apta hasta que la marques manualmente otra vez.
             </p>
           </div>
         </div>
       )}
 
-      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
-      {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
+      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+      {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-4 py-2 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary disabled:opacity-50"
+          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
         >
           {pending ? "Guardando..." : "Confirmar elegibilidad"}
         </button>
@@ -183,7 +192,7 @@ export function EligibilityForm({
           type="button"
           onClick={() => router.push(`/org/${orgToken}/mascotas`)}
           disabled={pending}
-          className="px-4 py-2 rounded-lg border border-gob-border-strong "
+          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe"
         >
           Cancelar
         </button>

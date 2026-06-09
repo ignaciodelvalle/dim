@@ -135,7 +135,7 @@ export function AdoptionListingForm({
       <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
         <form onSubmit={saveContent} className="space-y-4">
           <div>
-            <label htmlFor="story" className="block text-sm font-medium text-gob-text mb-1">
+            <label htmlFor="story" className="block text-[12px] font-medium text-ln-op-ink mb-1">
               Historia
             </label>
             <textarea
@@ -144,13 +144,16 @@ export function AdoptionListingForm({
               onChange={(e) => setStory(e.target.value)}
               rows={5}
               placeholder="Contá quién es esta mascota, cómo llegó al refugio, qué la hace especial."
-              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
-            <p className="text-xs text-gob-text-muted mt-1 tabular-nums">{story.length} / 5000</p>
+            <p className="text-[11px] text-ln-op-mute mt-1 tabular-nums">{story.length} / 5000</p>
           </div>
 
           <div>
-            <label htmlFor="requirements" className="block text-sm font-medium text-gob-text mb-1">
+            <label
+              htmlFor="requirements"
+              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+            >
               Requisitos para adoptar
             </label>
             <textarea
@@ -159,20 +162,20 @@ export function AdoptionListingForm({
               onChange={(e) => setRequirements(e.target.value)}
               rows={3}
               placeholder="Mayores de edad, entrevista previa, compromiso de castración, etc."
-              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label htmlFor="age" className="block text-xs text-gob-text-muted mb-1">
+              <label htmlFor="age" className="block text-[11px] text-ln-op-mute mb-1">
                 Edad
               </label>
               <select
                 id="age"
                 value={ageBucket}
                 onChange={(e) => setAgeBucket(e.target.value as AgeBucket | "")}
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+                className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_AGE_BUCKETS.map((b) => (
@@ -183,14 +186,14 @@ export function AdoptionListingForm({
               </select>
             </div>
             <div>
-              <label htmlFor="size" className="block text-xs text-gob-text-muted mb-1">
+              <label htmlFor="size" className="block text-[11px] text-ln-op-mute mb-1">
                 Talle
               </label>
               <select
                 id="size"
                 value={sizeEstimate}
                 onChange={(e) => setSizeEstimate(e.target.value as SizeEstimate | "")}
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+                className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_SIZE_ESTIMATES.map((s) => (
@@ -201,14 +204,14 @@ export function AdoptionListingForm({
               </select>
             </div>
             <div>
-              <label htmlFor="energy" className="block text-xs text-gob-text-muted mb-1">
+              <label htmlFor="energy" className="block text-[11px] text-ln-op-mute mb-1">
                 Energía
               </label>
               <select
                 id="energy"
                 value={energyLevel}
                 onChange={(e) => setEnergyLevel(e.target.value as EnergyLevel | "")}
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+                className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_ENERGY_LEVELS.map((e) => (
@@ -221,7 +224,7 @@ export function AdoptionListingForm({
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gob-text ">Convivencia</legend>
+            <legend className="text-[12px] font-medium text-ln-op-ink">Convivencia</legend>
             <TriState
               label="¿Se lleva bien con chicos?"
               value={goodWithKids}
@@ -241,7 +244,7 @@ export function AdoptionListingForm({
           </fieldset>
 
           <div>
-            <label htmlFor="fee" className="block text-xs text-gob-text-muted mb-1">
+            <label htmlFor="fee" className="block text-[11px] text-ln-op-mute mb-1">
               Aporte de adopción (ARS, opcional)
             </label>
             <input
@@ -251,20 +254,20 @@ export function AdoptionListingForm({
               value={feeArs}
               onChange={(e) => setFeeArs(e.target.value)}
               placeholder="Ej: 15000"
-              className="w-40 px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+              className="w-40 px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
-            <p className="text-xs text-gob-text-muted mt-1">
+            <p className="text-[11px] text-ln-op-mute mt-1">
               Para cubrir vacunas, castración, traslado. Dejá vacío si no aplica.
             </p>
           </div>
 
-          {error && <output className="block text-sm text-gob-danger ">{error}</output>}
-          {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
+          {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+          {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
 
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded bg-gob-primary  text-white  text-sm font-medium disabled:opacity-50"
+            className="w-full px-4 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar y continuar"}
           </button>
@@ -273,39 +276,39 @@ export function AdoptionListingForm({
 
       {/* Step 2 — Status / publish */}
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
-        <div className="rounded-lg border border-gob-border  p-4 space-y-2 text-sm">
-          <p className="font-semibold text-gob-text ">Lo que vas a publicar</p>
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-gob-text-muted">Historia</dt>
-            <dd className="col-span-2">
+        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-2 text-[13px]">
+          <p className="font-semibold text-ln-op-ink">Lo que vas a publicar</p>
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-[12px]">
+            <dt className="text-ln-op-mute">Historia</dt>
+            <dd className="col-span-2 text-ln-op-ink-2">
               {story ? `${story.slice(0, 80)}${story.length > 80 ? "…" : ""}` : "Sin definir"}
             </dd>
-            <dt className="text-gob-text-muted">Edad</dt>
-            <dd className="col-span-2">
+            <dt className="text-ln-op-mute">Edad</dt>
+            <dd className="col-span-2 text-ln-op-ink-2">
               {ageBucket ? ageBucketLabel(ageBucket as AgeBucket, petSex) : "—"}
             </dd>
-            <dt className="text-gob-text-muted">Talle</dt>
-            <dd className="col-span-2">
+            <dt className="text-ln-op-mute">Talle</dt>
+            <dd className="col-span-2 text-ln-op-ink-2">
               {sizeEstimate ? sizeLabel(sizeEstimate as SizeEstimate) : "—"}
             </dd>
-            <dt className="text-gob-text-muted">Energía</dt>
-            <dd className="col-span-2">
+            <dt className="text-ln-op-mute">Energía</dt>
+            <dd className="col-span-2 text-ln-op-ink-2">
               {energyLevel ? energyLabel(energyLevel as EnergyLevel) : "—"}
             </dd>
-            <dt className="text-gob-text-muted">Aporte</dt>
-            <dd className="col-span-2">{feeArs || "—"}</dd>
+            <dt className="text-ln-op-mute">Aporte</dt>
+            <dd className="col-span-2 text-ln-op-ink-2">{feeArs || "—"}</dd>
           </dl>
         </div>
 
-        <section className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
-          <p className="text-sm font-medium text-gob-text ">Visibilidad pública</p>
+        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+          <p className="text-[13px] font-medium text-ln-op-ink">Visibilidad pública</p>
           <div className="flex flex-wrap gap-2">
             {!initial.isPublished && (
               <button
                 type="button"
                 onClick={() => runStatus("publish")}
                 disabled={pending || !canPublish}
-                className="px-3 py-1.5 rounded text-sm bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
+                className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
                 title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
               >
                 Publicar adopción
@@ -317,7 +320,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("pause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm border border-gob-warning text-gob-warning-text   font-medium hover:bg-gob-warning/10  disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-warn-bd text-ln-op-warn font-medium hover:bg-ln-op-warn-bg disabled:opacity-50"
                 >
                   Pausar
                 </button>
@@ -325,7 +328,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   font-medium hover:bg-gob-danger/10  disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
                 >
                   Despublicar
                 </button>
@@ -337,7 +340,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
                 >
                   Reanudar
                 </button>
@@ -345,27 +348,27 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   font-medium hover:bg-gob-danger/10  disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
                 >
                   Despublicar
                 </button>
               </>
             )}
           </div>
-          <p className="text-xs text-gob-text-muted">
+          <p className="text-[11px] text-ln-op-mute">
             Pausar conserva la historia y el contenido. Despublicar borra el timestamp de
             publicación (los textos siguen guardados para una futura republicación).
           </p>
           {!canPublish && !initial.isPublished && (
-            <p className="text-xs text-gob-warning-text ">
+            <p className="text-[11px] text-ln-op-warn">
               Hay bloqueos pendientes (mascota perdida, fallecida, no eligible, en disputa o
               observación antirrábica). Resolvé antes de publicar.
             </p>
           )}
-        </section>
+        </div>
 
-        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
-        {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
+        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+        {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
       </section>
     </WizardShell>
   );
@@ -381,8 +384,8 @@ function TriState({
   onChange: (v: boolean | null) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="flex-1 text-gob-text-gray ">{label}</span>
+    <div className="flex items-center gap-3 text-[12px]">
+      <span className="flex-1 text-ln-op-ink-2">{label}</span>
       <div className="flex gap-1">
         {(
           [
@@ -395,10 +398,10 @@ function TriState({
             key={opt.l}
             type="button"
             onClick={() => onChange(opt.v)}
-            className={`px-2 py-1 rounded border text-xs ${
+            className={`px-2 py-1 rounded-[4px] border text-[11px] ${
               value === opt.v
-                ? "bg-gob-primary  text-white  border-gob-border-strong "
-                : "border-gob-border-strong "
+                ? "bg-ln-op-azul text-white border-ln-op-azul"
+                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
             }`}
           >
             {opt.l}
