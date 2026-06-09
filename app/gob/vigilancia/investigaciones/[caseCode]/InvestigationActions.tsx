@@ -117,19 +117,19 @@ export function InvestigationActions({
   };
 
   return (
-    <div className="rounded-lg border border-gob-border-strong p-4 space-y-3">
-      <p className="text-sm font-medium">{titles[mode]}</p>
+    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+      <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
 
       {mode === "add_note" && (
         <div className="space-y-1.5">
-          <label htmlFor="entry-type" className="block text-xs font-medium text-gob-text-muted">
+          <label htmlFor="entry-type" className="block text-[12px] font-medium text-ln-op-mute">
             Tipo de registro
           </label>
           <select
             id="entry-type"
             value={entryType}
             onChange={(e) => setEntryType(e.target.value as InvestigationNoteEntryType)}
-            className="w-full px-3 py-2 rounded border border-gob-border bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
           >
             {ENTRY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -142,7 +142,7 @@ export function InvestigationActions({
 
       {mode === "close_resolved" && (
         <div className="space-y-1.5">
-          <label htmlFor="final-report" className="block text-xs font-medium text-gob-text-muted">
+          <label htmlFor="final-report" className="block text-[12px] font-medium text-ln-op-mute">
             Informe final (si no lo registraste antes)
           </label>
           <textarea
@@ -151,13 +151,13 @@ export function InvestigationActions({
             onChange={(e) => setFinalReport(e.target.value)}
             rows={3}
             placeholder="Texto del informe epidemiologico final (opcional si ya existe un registro previo)..."
-            className="w-full px-3 py-2 rounded border border-gob-border bg-white text-sm"
+            className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
           />
         </div>
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="notes" className="block text-xs font-medium text-gob-text-muted">
+        <label htmlFor="notes" className="block text-[12px] font-medium text-ln-op-mute">
           {mode === "add_note" ? "Detalle (minimo 5 caracteres)" : "Motivo (minimo 10 caracteres)"}
         </label>
         <textarea
@@ -170,12 +170,12 @@ export function InvestigationActions({
               ? "Describi el hallazgo, resultado o medida registrada..."
               : "Explica el motivo..."
           }
-          className="w-full px-3 py-2 rounded border border-gob-border bg-white text-sm"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
-        <p className="text-xs text-gob-text-muted tabular-nums">{notes.trim().length} caracteres</p>
+        <p className="text-[12px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       </div>
 
-      {error && <output className="block text-sm text-gob-danger">{error}</output>}
+      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
         <button
@@ -184,7 +184,7 @@ export function InvestigationActions({
           disabled={
             pending || (mode === "add_note" ? notes.trim().length < 5 : notes.trim().length < 10)
           }
-          className="px-4 py-2 rounded bg-gob-primary text-white text-sm font-medium disabled:opacity-50"
+          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
         >
           {pending ? "Procesando..." : "Confirmar"}
         </button>
@@ -192,7 +192,7 @@ export function InvestigationActions({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded border border-gob-border-strong text-sm"
+          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Cancelar
         </button>
@@ -212,17 +212,17 @@ function ActionButton({
 }) {
   const toneClass =
     tone === "primary"
-      ? "bg-gob-primary text-white"
+      ? "bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
       : tone === "success"
-        ? "bg-gob-success text-white"
+        ? "bg-ln-op-ok text-white hover:opacity-90"
         : tone === "warning"
-          ? "bg-gob-warning/20 text-gob-warning-text border border-gob-warning/30"
-          : "border border-gob-border-strong text-gob-text-gray hover:bg-gob-surface-alt";
+          ? "bg-ln-op-warn-bg text-ln-op-warn border border-ln-op-warn-bd hover:opacity-90"
+          : "border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded text-sm font-medium ${toneClass}`}
+      className={`px-3 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${toneClass}`}
     >
       {children}
     </button>

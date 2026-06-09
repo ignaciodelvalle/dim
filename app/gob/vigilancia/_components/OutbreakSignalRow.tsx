@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
-import { Badge } from "@/components/poncho";
+import { OpCodeBadge } from "@/components/ui/dashboard";
 import { computeConfidence } from "@/lib/event-confidence";
 import type { SurveillanceSignal } from "@/lib/govt-dashboards";
 
@@ -35,29 +35,29 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
   });
 
   return (
-    <li className="border-b border-gob-border last:border-b-0">
+    <li className="border-b border-ln-op-line-2 last:border-b-0">
       <Link
         href={href}
-        className="flex items-start justify-between gap-3 px-1 py-3 rounded-lg hover:bg-gob-surface-alt transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-1"
+        className="flex items-start justify-between gap-3 px-1 py-3 rounded-[6px] hover:bg-ln-op-stripe transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1"
       >
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gob-text truncate">
+            <span className="text-[13px] font-semibold text-ln-op-ink truncate">
               {signal.diseaseName}
             </span>
-            <Badge variant="warning">{signal.diseaseCode}</Badge>
+            <OpCodeBadge tone="warn">{signal.diseaseCode}</OpCodeBadge>
             <ConfidenceBadge tier={confidenceTier} />
           </div>
-          <p className="text-xs text-gob-text-gray truncate">
+          <p className="text-[12px] text-ln-op-ink-2 truncate">
             {signal.petName} · {signal.petSpecies}
           </p>
-          <p className="text-xs text-gob-text-muted truncate">
+          <p className="text-[12px] text-ln-op-mute truncate">
             {signal.locality ?? "—"}, {signal.province ?? "—"}
           </p>
         </div>
         <time
           dateTime={signal.detectedAt.toISOString()}
-          className="text-xs text-gob-text-muted tabular-nums whitespace-nowrap shrink-0"
+          className="text-[12px] text-ln-op-mute tabular-nums whitespace-nowrap shrink-0"
         >
           {timeAgo(signal.detectedAt)}
         </time>
@@ -65,7 +65,7 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
       <div className="px-1 pb-2">
         <Link
           href={`/gob/vigilancia/investigaciones/nuevo?diseaseCode=${signal.diseaseCode}&signalId=${signal.signalEventId}`}
-          className="text-xs text-gob-azul-link hover:underline"
+          className="text-[12px] text-ln-op-azul hover:underline"
         >
           Abrir investigacion →
         </Link>
