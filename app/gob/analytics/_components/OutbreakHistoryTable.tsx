@@ -1,6 +1,6 @@
 // Plain server component -- receives pre-fetched rows from the page.
 
-import { EmptyState } from "@/components/poncho";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpPill } from "@/components/ui/dashboard";
 import type { OutbreakHistoryRow } from "@/lib/govt-dashboards";
 
@@ -11,7 +11,7 @@ type Props = {
 export function OutbreakHistoryTable({ rows }: Props) {
   if (rows.length === 0) {
     return (
-      <EmptyState
+      <LnEmptyState
         icon="shield-check"
         title="Sin brotes historicos"
         description="No hay signals de brotes registrados en tu cobertura."

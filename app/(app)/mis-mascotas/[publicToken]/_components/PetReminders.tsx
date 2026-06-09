@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { ReminderCard } from "@/components/ReminderCard";
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
 
 // ---------------------------------------------------------------------------
@@ -59,8 +59,8 @@ export function PetReminders({
   if (reminders.length === 0) return null;
 
   return (
-    <Panel aria-labelledby="pet-reminders-heading">
-      <PanelHeader
+    <LnCard aria-labelledby="pet-reminders-heading">
+      <LnCardHead
         title={<span id="pet-reminders-heading">Próximas vacunas</span>}
         actions={
           <div className="flex items-center gap-3 text-sm">
@@ -79,7 +79,7 @@ export function PetReminders({
           </div>
         }
       />
-      <PanelBody>
+      <LnCardBody>
         <ul className="grid gap-3">
           {reminders.map((r) => (
             <li key={r.reminderId}>
@@ -111,7 +111,7 @@ export function PetReminders({
             </li>
           ))}
         </ul>
-      </PanelBody>
-    </Panel>
+      </LnCardBody>
+    </LnCard>
   );
 }

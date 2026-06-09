@@ -16,9 +16,9 @@
 import { useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { Checkbox, Input, Select, Textarea } from "@/components/poncho";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import {
   type ReportBiteFromOrgFormState,
   reportBiteFromOrgAction,
@@ -91,7 +91,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
   if (state.ok && state.petToken) {
     const obsEnd = computeObservationEndIso(occurredAt);
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title="Incidente registrado"
         description={
           obsEnd
@@ -114,7 +114,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
   }
 
   return (
-    <WizardShell
+    <LnWizardShell
       currentStep={step}
       totalSteps={TOTAL_STEPS}
       stepLabels={STEP_LABELS}
@@ -127,7 +127,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             Token público de la mascota
             <span className="text-ln-op-danger ml-0.5">*</span>
           </label>
-          <Input
+          <LnInput
             id="petPublicToken"
             type="text"
             required
@@ -156,7 +156,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           <label htmlFor="occurredAt" className="block text-[13px] font-medium text-ln-op-ink">
             Fecha del incidente<span className="text-ln-op-danger ml-0.5">*</span>
           </label>
-          <Input
+          <LnInput
             id="occurredAt"
             type="date"
             required
@@ -184,7 +184,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           >
             Lugar
           </label>
-          <Input
+          <LnInput
             id="locationDescription"
             type="text"
             value={locationDescription}
@@ -253,7 +253,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               >
                 Nombre
               </label>
-              <Input
+              <LnInput
                 id="victimContactName"
                 type="text"
                 value={victimContactName}
@@ -267,7 +267,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               >
                 Teléfono
               </label>
-              <Input
+              <LnInput
                 id="victimContactPhone"
                 type="tel"
                 value={victimContactPhone}
@@ -281,7 +281,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               >
                 Edad aproximada
               </label>
-              <Input
+              <LnInput
                 id="victimAgeEstimate"
                 type="text"
                 value={victimAgeEstimate}
@@ -296,7 +296,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           <label htmlFor="severity" className="block text-[13px] font-medium text-ln-op-ink">
             Severidad<span className="text-ln-op-danger ml-0.5">*</span>
           </label>
-          <Select
+          <LnSelect
             id="severity"
             value={severity}
             onChange={(e) => setSeverity(e.target.value)}
@@ -308,14 +308,14 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             <option value="minor">Leve — sin sangrado, rasguño</option>
             <option value="moderate">Moderada — sangrado, requiere atención</option>
             <option value="severe">Grave — heridas profundas, hospital</option>
-          </Select>
+          </LnSelect>
         </div>
 
         <div className="space-y-1.5">
           <label htmlFor="injuriesSummary" className="block text-[13px] font-medium text-ln-op-ink">
             Resumen clínico de las heridas
           </label>
-          <Textarea
+          <LnTextarea
             id="injuriesSummary"
             value={injuriesSummary}
             onChange={(e) => setInjuriesSummary(e.target.value)}
@@ -325,16 +325,16 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         <div className="space-y-1.5">
-          <Checkbox checked={vetInvolved} onChange={(e) => setVetInvolved(e.target.checked)}>
+          <LnCheckbox checked={vetInvolved} onChange={(e) => setVetInvolved(e.target.checked)}>
             Intervino un profesional veterinario en el incidente o atención posterior.
-          </Checkbox>
+          </LnCheckbox>
         </div>
 
         <div className="space-y-1.5">
           <label htmlFor="context" className="block text-[13px] font-medium text-ln-op-ink">
             Contexto adicional
           </label>
-          <Textarea
+          <LnTextarea
             id="context"
             value={context}
             onChange={(e) => setContext(e.target.value)}
@@ -356,7 +356,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       {/* Step 4 — Confirmar + submit */}
       <section className={step === 4 ? "space-y-4" : "sr-only"} aria-hidden={step !== 4}>
         <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-4 space-y-2">
-          <Checkbox
+          <LnCheckbox
             checked={confirmObservation}
             onChange={(e) => setConfirmObservation(e.target.checked)}
             labelClassName="text-ln-op-ink-2!"
@@ -364,7 +364,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             Entiendo que esto inicia un período de observación antirrábica obligatorio de 10 días
             (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987) y se notifica al dueño y a la autoridad
             sanitaria correspondiente.
-          </Checkbox>
+          </LnCheckbox>
         </div>
 
         {state.error && (
@@ -382,6 +382,6 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           {pending ? "Reportando..." : "Confirmar mordedura"}
         </button>
       </section>
-    </WizardShell>
+    </LnWizardShell>
   );
 }

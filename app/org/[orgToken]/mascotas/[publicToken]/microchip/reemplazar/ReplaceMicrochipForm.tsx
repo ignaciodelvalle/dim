@@ -1,6 +1,6 @@
 "use client";
 
-import { Field, Input, Radio, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 
@@ -49,22 +49,22 @@ export function ReplaceMicrochipForm({
         </p>
         <div className="flex flex-col gap-2">
           {VET_REASONS.map((r) => (
-            <Radio key={r.value} name="reason" value={r.value} required>
+            <LnRadio key={r.value} name="reason" value={r.value} required>
               <span className="space-y-0.5">
                 {r.label}
                 {r.hint && <span className="block text-xs! text-ln-op-mute!">{r.hint}</span>}
               </span>
-            </Radio>
+            </LnRadio>
           ))}
         </div>
       </div>
 
-      <Field
+      <LnField
         label="Nuevo número de microchip"
-        help='Dejalo vacío si solo se revoca el chip (válido para "Solicitud del dueño/a" o "Falla del dispositivo").'
+        hint='Dejalo vacío si solo se revoca el chip (válido para "Solicitud del dueño/a" o "Falla del dispositivo").'
       >
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="newChipNumber"
             type="text"
@@ -73,11 +73,11 @@ export function ReplaceMicrochipForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Realizado por">
+      <LnField label="Realizado por">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="replacedBy"
             type="text"
@@ -85,11 +85,11 @@ export function ReplaceMicrochipForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Fecha del reemplazo" required>
+      <LnField label="Fecha del reemplazo" required>
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="replacedAt"
             type="date"
@@ -99,11 +99,11 @@ export function ReplaceMicrochipForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Notas" help="Máx. 300 caracteres.">
+      <LnField label="Notas" hint="Máx. 300 caracteres.">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="notes"
             rows={3}
@@ -112,7 +112,7 @@ export function ReplaceMicrochipForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.error && (
         <p className="text-[13px] text-ln-op-danger" role="alert">

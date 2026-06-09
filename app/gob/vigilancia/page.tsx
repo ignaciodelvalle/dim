@@ -4,7 +4,7 @@ import { MapChoropleth } from "@/components/charts/MapChoropleth";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { EmptyState } from "@/components/poncho";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -208,7 +208,7 @@ export default async function GobVigilanciaPage({
           <OpCardBody className="p-0">
             {signals.length === 0 ? (
               <div className="px-4 py-3">
-                <EmptyState
+                <LnEmptyState
                   icon="shield-check"
                   title="Sin signals activos en este período"
                   description="No se detectaron señales de zoonosis en el rango seleccionado."

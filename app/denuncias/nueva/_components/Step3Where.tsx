@@ -6,7 +6,7 @@
 // - Textarea for description (maps to welfareReports.description).
 
 import { LocationFields } from "@/components/LocationFields";
-import { Textarea } from "@/components/poncho";
+import { LnTextarea } from "@/components/ui/Field";
 
 export type WhenOption = "now" | "today_yesterday" | "several_days_ago";
 
@@ -88,7 +88,7 @@ export function Step3Where({
             *
           </span>
         </label>
-        <Textarea
+        <LnTextarea
           id="description"
           name="description"
           rows={5}

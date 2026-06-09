@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { Field, Input } from "@/components/poncho";
+import { LnField, LnInput } from "@/components/ui/Field";
 
 // The action receives the full input including petPublicToken; callers
 // bind (or wrap) it so the component only supplies expiresInDays + label.
@@ -90,9 +90,9 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
       </p>
 
       {/* Label field */}
-      <Field label="Para qué es este link">
+      <LnField label="Para qué es este link">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="label"
             type="text"
@@ -102,7 +102,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {/* Duration radio */}
       <fieldset className="space-y-2">

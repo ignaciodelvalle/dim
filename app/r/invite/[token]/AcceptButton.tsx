@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { Button } from "@/components/poncho";
+import { LnButton } from "@/components/ui/Button";
 import { acceptInvitationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -36,15 +36,15 @@ export function AcceptButton({ invitationToken }: Props) {
           {error}
         </p>
       )}
-      <Button
+      <LnButton
         type="button"
-        variant="success"
+        variant="ok"
         loading={pending}
         onClick={handleAccept}
         className="w-full"
       >
         Aceptar invitación
-      </Button>
+      </LnButton>
     </div>
   );
 }

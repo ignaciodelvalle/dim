@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { Badge, Photo } from "@/components/poncho";
+import { LnBadge } from "@/components/ui/Badge";
+import { LnPhoto } from "@/components/ui/Photo";
 import type { Pet } from "@/db";
 import { speciesLabel } from "@/lib/format";
 import { petStatusToPhotoStatus } from "@/lib/poncho-status";
@@ -26,45 +27,45 @@ function PriorityBadgeView({ badge }: { badge: PriorityBadge }) {
   if (badge.kind === "lost") {
     return (
       <span className="animate-pulse motion-reduce:animate-none">
-        <Badge variant="danger" aria-label="Mascota perdida">
+        <LnBadge variant="danger" aria-label="Mascota perdida">
           URGENTE · perdido
-        </Badge>
+        </LnBadge>
       </span>
     );
   }
   if (badge.kind === "deceased") {
     return (
-      <Badge variant="neutral" aria-label="Mascota fallecida">
+      <LnBadge variant="neutral" aria-label="Mascota fallecida">
         En memoria
-      </Badge>
+      </LnBadge>
     );
   }
   if (badge.kind === "vaccine") {
     switch (badge.variant) {
       case "upcoming":
         return (
-          <Badge variant="info" aria-label="Tiene vacunas a programar en próximos 14 días">
+          <LnBadge variant="info" aria-label="Tiene vacunas a programar en próximos 14 días">
             Vacunas próximas
-          </Badge>
+          </LnBadge>
         );
       case "due_soon":
         return (
-          <Badge variant="warning" aria-label="Tiene una vacuna que vence pronto">
+          <LnBadge variant="warning" aria-label="Tiene una vacuna que vence pronto">
             Vacuna pronto
-          </Badge>
+          </LnBadge>
         );
       case "overdue":
         return (
-          <Badge variant="danger" aria-label="Tiene una vacuna vencida">
+          <LnBadge variant="danger" aria-label="Tiene una vacuna vencida">
             Vacuna vencida
-          </Badge>
+          </LnBadge>
         );
       case "overdue_critical":
         return (
           <span className="animate-pulse motion-reduce:animate-none">
-            <Badge variant="danger" aria-label="Tiene una vacuna obligatoria vencida">
+            <LnBadge variant="danger" aria-label="Tiene una vacuna obligatoria vencida">
               URGENTE
-            </Badge>
+            </LnBadge>
           </span>
         );
       default:
@@ -93,7 +94,7 @@ export function PetCard({
         href={`/mis-mascotas/${pet.publicToken}`}
         className="block border border-ln-line  rounded-xl p-4 flex items-center gap-4 hover:bg-ln-stripe  transition-colors"
       >
-        <Photo
+        <LnPhoto
           status={petStatusToPhotoStatus(pet.status)}
           alt={pet.name}
           src={photoUrl ?? undefined}

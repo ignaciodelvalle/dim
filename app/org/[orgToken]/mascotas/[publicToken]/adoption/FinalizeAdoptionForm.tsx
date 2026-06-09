@@ -1,6 +1,6 @@
 "use client";
 
-import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
+import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import {
   type FinalizeAdoptionFormState,
   finalizeAdoptionAction,
@@ -26,7 +26,7 @@ export function FinalizeAdoptionForm({
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
       {fosterShortcut && (
         <section className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
-          <Checkbox
+          <LnCheckbox
             id="use-foster-shortcut"
             checked={useFosterShortcut}
             onChange={(e) => setUseFosterShortcut(e.target.checked)}
@@ -38,7 +38,7 @@ export function FinalizeAdoptionForm({
               El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos el
               paso de pedirte el DNI.
             </span>
-          </Checkbox>
+          </LnCheckbox>
           {useFosterShortcut && (
             <input type="hidden" name="adopterUserId" value={fosterShortcut.adopterUserId} />
           )}
@@ -50,13 +50,13 @@ export function FinalizeAdoptionForm({
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
             Adoptante
           </h2>
-          <Field
+          <LnField
             label="DNI"
             required
-            help="Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil preliminar que podrá reclamar más adelante."
+            hint="Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil preliminar que podrá reclamar más adelante."
           >
             {({ id, describedBy, invalid }) => (
-              <Input
+              <LnInput
                 id={id}
                 name="adopterDni"
                 required={!useFosterShortcut}
@@ -66,11 +66,11 @@ export function FinalizeAdoptionForm({
                 invalid={invalid}
               />
             )}
-          </Field>
+          </LnField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Nombre completo" required>
+            <LnField label="Nombre completo" required>
               {({ id, describedBy, invalid }) => (
-                <Input
+                <LnInput
                   id={id}
                   name="adopterDisplayName"
                   required={!useFosterShortcut}
@@ -79,12 +79,17 @@ export function FinalizeAdoptionForm({
                   invalid={invalid}
                 />
               )}
-            </Field>
-            <Field label="Teléfono">
+            </LnField>
+            <LnField label="Teléfono">
               {({ id, describedBy }) => (
-                <Input id={id} name="adopterPhone" maxLength={30} aria-describedby={describedBy} />
+                <LnInput
+                  id={id}
+                  name="adopterPhone"
+                  maxLength={30}
+                  aria-describedby={describedBy}
+                />
               )}
-            </Field>
+            </LnField>
           </div>
         </section>
       )}
@@ -93,12 +98,12 @@ export function FinalizeAdoptionForm({
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
           Seguimiento
         </h2>
-        <Field
+        <LnField
           label="Meses de seguimiento post-adopción"
-          help="Generará recordatorios de check-in con el adoptante (default: 6)."
+          hint="Generará recordatorios de check-in con el adoptante (default: 6)."
         >
           {({ id, describedBy }) => (
-            <Input
+            <LnInput
               id={id}
               name="followupMonths"
               type="number"
@@ -108,10 +113,10 @@ export function FinalizeAdoptionForm({
               aria-describedby={describedBy}
             />
           )}
-        </Field>
-        <Field label="Notas del contrato">
+        </LnField>
+        <LnField label="Notas del contrato">
           {({ id, describedBy }) => (
-            <Textarea
+            <LnTextarea
               id={id}
               name="notes"
               rows={3}
@@ -120,10 +125,10 @@ export function FinalizeAdoptionForm({
               aria-describedby={describedBy}
             />
           )}
-        </Field>
-        <Field
+        </LnField>
+        <LnField
           label="Contrato firmado (PDF o imagen)"
-          help="Si lo subís, queda enlazado al evento de adopción y al expediente del animal."
+          hint="Si lo subís, queda enlazado al evento de adopción y al expediente del animal."
         >
           {({ id, describedBy }) => (
             <input
@@ -135,7 +140,7 @@ export function FinalizeAdoptionForm({
               className="block w-full text-[12px] text-ln-op-ink-2 file:mr-3 file:rounded-[4px] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-[12px]"
             />
           )}
-        </Field>
+        </LnField>
       </section>
 
       {state.error && (

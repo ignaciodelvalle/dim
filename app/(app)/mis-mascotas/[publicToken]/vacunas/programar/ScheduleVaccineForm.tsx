@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReminderFormState } from "@/app/actions/reminders";
-import { Field, Input, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { vaccinesForSpecies } from "@/lib/lookups";
 import { useActionState } from "react";
 
@@ -21,9 +21,9 @@ export function ScheduleVaccineForm({
 
   return (
     <form action={formAction} className="space-y-5">
-      <Field label="Vacuna" required>
+      <LnField label="Vacuna" required>
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="vaccineName"
             type="text"
@@ -35,16 +35,16 @@ export function ScheduleVaccineForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
       <datalist id="schedule-vaccine-options">
         {vaccines.map((v) => (
           <option key={v.name} value={v.name} />
         ))}
       </datalist>
 
-      <Field label="Fecha estimada" required>
+      <LnField label="Fecha estimada" required>
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="dueAt"
             type="date"
@@ -53,11 +53,11 @@ export function ScheduleVaccineForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Notas">
+      <LnField label="Notas">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="description"
             rows={3}
@@ -66,7 +66,7 @@ export function ScheduleVaccineForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.error && (
         <p className="text-sm text-[var(--color-ln-err)]" role="alert">

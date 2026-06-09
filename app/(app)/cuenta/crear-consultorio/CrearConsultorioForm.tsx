@@ -15,8 +15,8 @@ import { useActionState, useRef, useState } from "react";
 
 import { type UpgradeFormState, createClinicAction } from "@/app/actions/upgrade";
 import { LocationFields } from "@/components/LocationFields";
-import { Input } from "@/components/poncho";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnInput } from "@/components/ui/Field";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -49,7 +49,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
 
   return (
     <form ref={formRef} action={formAction}>
-      <WizardShell
+      <LnWizardShell
         currentStep={step}
         totalSteps={TOTAL_STEPS}
         stepLabels={STEP_LABELS}
@@ -136,7 +136,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
             {pending ? "Creando consultorio..." : "Crear consultorio"}
           </button>
         </section>
-      </WizardShell>
+      </LnWizardShell>
     </form>
   );
 }
@@ -163,7 +163,7 @@ function Field({
       <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
         {label}
       </label>
-      <Input id={id} name={name} type={type} required={required} defaultValue={defaultValue} />
+      <LnInput id={id} name={name} type={type} required={required} defaultValue={defaultValue} />
       {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );

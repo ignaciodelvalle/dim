@@ -28,7 +28,7 @@ import {
   bulkVaccinateAction,
 } from "@/app/actions/bulk-pet-events";
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 import { OpStateBadge } from "@/components/ui/dashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ export function OrgMascotasBulkList({
             >
               <div className="flex items-start gap-2">
                 {canBulkSelect && (
-                  <Checkbox
+                  <LnCheckbox
                     id={`row-${card.publicToken}`}
                     checked={isSelected}
                     onChange={() => toggle(card.publicToken)}

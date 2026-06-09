@@ -6,8 +6,8 @@
 import Link from "next/link";
 
 import { ReminderCard } from "@/components/ReminderCard";
-import { EmptyState } from "@/components/poncho/EmptyState";
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { computeConfidence } from "@/lib/event-confidence";
 import type { ActiveReminderRow, VaccinationHistoryRow } from "@/lib/owner-dashboard";
 import { VacunaTimelineDot } from "./VacunaTimelineDot";
@@ -64,8 +64,8 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
     <div className="space-y-6">
       {/* Panel 1 — Próximas (only when there are active reminders) */}
       {upcomingReminders.length > 0 && (
-        <Panel aria-labelledby="proximas-vacunas-heading">
-          <PanelHeader
+        <LnCard aria-labelledby="proximas-vacunas-heading">
+          <LnCardHead
             title={<span id="proximas-vacunas-heading">Próximas vacunas</span>}
             actions={
               <Link
@@ -76,7 +76,7 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
               </Link>
             }
           />
-          <PanelBody>
+          <LnCardBody>
             <ul className="grid gap-3">
               {upcomingReminders.map((r) => (
                 <li key={r.reminderId}>
@@ -90,16 +90,16 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
                 </li>
               ))}
             </ul>
-          </PanelBody>
-        </Panel>
+          </LnCardBody>
+        </LnCard>
       )}
 
       {/* Panel 2 — Histórico (always shown) */}
-      <Panel aria-labelledby="historico-vacunas-heading">
-        <PanelHeader title={<span id="historico-vacunas-heading">Histórico</span>} />
-        <PanelBody>
+      <LnCard aria-labelledby="historico-vacunas-heading">
+        <LnCardHead title={<span id="historico-vacunas-heading">Histórico</span>} />
+        <LnCardBody>
           {history.length === 0 ? (
-            <EmptyState
+            <LnEmptyState
               title="Sin vacunas registradas"
               description="Cuando registres una vacuna acá vas a ver el histórico completo."
               action={
@@ -134,8 +134,8 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
               ))}
             </ol>
           )}
-        </PanelBody>
-      </Panel>
+        </LnCardBody>
+      </LnCard>
     </div>
   );
 }

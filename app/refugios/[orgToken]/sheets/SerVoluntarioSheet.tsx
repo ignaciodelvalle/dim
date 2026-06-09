@@ -12,8 +12,8 @@
 
 import { useActionState, useEffect } from "react";
 
-import { Input } from "@/components/poncho/Input";
-import { Textarea } from "@/components/poncho/Textarea";
+import { LnInput } from "@/components/ui/Field";
+import { LnTextarea } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import {
@@ -77,7 +77,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
               >
                 Tu nombre <span className="text-[var(--color-ln-mute)] text-xs">(opcional)</span>
               </label>
-              <Input
+              <LnInput
                 id="vol-inquirerName"
                 name="inquirerName"
                 type="text"
@@ -93,7 +93,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
               >
                 Tu email <span className="text-[var(--color-ln-err)] ml-0.5">*</span>
               </label>
-              <Input
+              <LnInput
                 id="vol-inquirerEmail"
                 name="inquirerEmail"
                 type="email"
@@ -112,7 +112,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
                 Contales en qué te interesa ayudar{" "}
                 <span className="text-[var(--color-ln-err)] ml-0.5">*</span>
               </label>
-              <Textarea
+              <LnTextarea
                 id="vol-message"
                 name="message"
                 required

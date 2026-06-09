@@ -4,7 +4,8 @@
 
 import { useState, useTransition } from "react";
 
-import { Button, Checkbox, Field, Input, Select } from "@/components/poncho";
+import { LnButton } from "@/components/ui/Button";
+import { LnCheckbox, LnField, LnInput, LnSelect } from "@/components/ui/Field";
 import { OpCallout } from "@/components/ui/dashboard";
 import { inviteMemberAction } from "@/src/modules/organizations/actions";
 
@@ -86,9 +87,9 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
             Este link vence en 14 días. Solo puede ser aceptado por la cuenta con el email indicado.
           </p>
         </div>
-        <Button
+        <LnButton
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
           onClick={() => {
             setInviteUrl(null);
@@ -99,16 +100,16 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
           }}
         >
           Invitar a otra persona
-        </Button>
+        </LnButton>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-1">
-      <Field label="Email" required>
+      <LnField label="Email" required>
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             type="email"
             value={email}
@@ -119,11 +120,11 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
             required
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Rol" required>
+      <LnField label="Rol" required>
         {({ id, describedBy, invalid }) => (
-          <Select
+          <LnSelect
             id={id}
             value={role}
             onChange={(e) => setRole(e.target.value)}
@@ -136,17 +137,17 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
                 {r.label}
               </option>
             ))}
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
       <div className="pb-4">
-        <Checkbox
+        <LnCheckbox
           checked={canWritePetEvents}
           onChange={(e) => setCanWritePetEvents(e.target.checked)}
         >
           Puede registrar eventos clínicos/sanitarios
-        </Checkbox>
+        </LnCheckbox>
       </div>
 
       {error && (
@@ -158,9 +159,9 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
         </p>
       )}
 
-      <Button type="submit" variant="primary" loading={pending} className="w-full">
+      <LnButton type="submit" variant="primary" loading={pending} className="w-full">
         Crear invitación
-      </Button>
+      </LnButton>
     </form>
   );
 }

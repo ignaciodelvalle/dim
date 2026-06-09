@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { EmptyState } from "@/components/poncho";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/case-queries";
@@ -63,7 +63,7 @@ export default async function GobInvestigacionesPage() {
         <OpCardBody className="p-0">
           {investigations.length === 0 ? (
             <div className="px-4 py-3">
-              <EmptyState
+              <LnEmptyState
                 icon="shield-check"
                 title="Sin investigaciones en este periodo"
                 description="No hay investigaciones de brote en tu cobertura en los ultimos 90 dias."

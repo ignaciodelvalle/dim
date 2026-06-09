@@ -20,7 +20,7 @@ import { useId, useRef, useState, useTransition } from "react";
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN } from "@/components/MotivoField";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 import { createClient } from "@/lib/supabase/client";
 
 export interface BulkRevokableItem {
@@ -79,7 +79,7 @@ export function BulkRevokeList<T extends BulkRevokableItem>({
             <li key={item.id} className="rounded-lg border border-ln-op-line px-4 py-3">
               <div className="flex items-start gap-3">
                 {revocable ? (
-                  <Checkbox
+                  <LnCheckbox
                     checked={selected.has(item.id)}
                     onChange={() => toggle(item.id)}
                     aria-label={`Seleccionar ${item.label} para revocación masiva`}
@@ -336,7 +336,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
               )}
             </div>
 
-            <Checkbox
+            <LnCheckbox
               checked={confirm}
               onChange={(e) => setConfirm(e.target.checked)}
               labelClassName="text-xs! text-ln-op-ink-2!"
@@ -344,7 +344,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
               Confirmo que esta revocación afecta a {selectedItems.length}{" "}
               {targetKindLabel(targetKind, selectedItems.length)} y entiendo que cada afectado va a
               recibir una notificación con el motivo.
-            </Checkbox>
+            </LnCheckbox>
 
             {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 

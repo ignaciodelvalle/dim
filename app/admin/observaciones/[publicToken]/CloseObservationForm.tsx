@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Field, Select, Textarea } from "@/components/poncho";
+import { LnField, LnSelect, LnTextarea } from "@/components/ui/Field";
 import type { ProfessionalCloseResult } from "@/src/modules/surveillance/actions";
 
 type FormAction = (formData: FormData) => Promise<ProfessionalCloseResult>;
@@ -25,9 +25,9 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       }}
       className="space-y-4"
     >
-      <Field label="Outcome" required>
+      <LnField label="Outcome" required>
         {({ id, describedBy, invalid }) => (
-          <Select
+          <LnSelect
             id={id}
             name="outcome"
             required
@@ -46,13 +46,13 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
             <option value="lost_to_followup">
               {"Sin seguimiento — animal perdido o sin contacto"}
             </option>
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Notas de cierre">
+      <LnField label="Notas de cierre">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="closureNotes"
             rows={4}
@@ -61,7 +61,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {error && (
         <p className="text-[12px] text-ln-op-danger" role="alert">

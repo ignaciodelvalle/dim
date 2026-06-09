@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { Button } from "@/components/poncho";
+import { Icon } from "@/components/Icon";
+import { LnButton } from "@/components/ui/Button";
 import { IconSearch } from "./IconSearch";
 
 /**
@@ -213,68 +214,73 @@ export default function DesignPage() {
 
         <h3 className="mt-6 mb-3 text-lg font-bold">Variantes</h3>
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary">Primario</Button>
-          <Button variant="success">Avanzar</Button>
-          <Button variant="danger">Eliminar</Button>
-          <Button variant="secondary">Secundario</Button>
-          <Button variant="link">Cancelar</Button>
-          <Button variant="tag">Etiqueta</Button>
+          <LnButton variant="primary">Primario</LnButton>
+          <LnButton variant="ok">Avanzar</LnButton>
+          <LnButton variant="seal">Eliminar</LnButton>
+          <LnButton variant="ghost">Secundario</LnButton>
+          <LnButton variant="ghost">Cancelar</LnButton>
+          <LnButton variant="ghost">Etiqueta</LnButton>
         </div>
 
         <h3 className="mt-8 mb-3 text-lg font-bold">Tamaños</h3>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="primary" size="sm">
+          <LnButton variant="primary" size="sm">
             Chico
-          </Button>
-          <Button variant="primary" size="md">
+          </LnButton>
+          <LnButton variant="primary" size="md">
             Mediano
-          </Button>
-          <Button variant="primary" size="lg">
+          </LnButton>
+          <LnButton variant="primary" size="lg">
             Grande
-          </Button>
+          </LnButton>
         </div>
 
         <h3 className="mt-8 mb-3 text-lg font-bold">Estados</h3>
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" disabled>
+          <LnButton variant="primary" disabled>
             Deshabilitado
-          </Button>
-          <Button variant="primary" loading>
+          </LnButton>
+          <LnButton variant="primary" loading>
             Cargando…
-          </Button>
-          <Button variant="success" loading>
+          </LnButton>
+          <LnButton variant="ok" loading>
             Guardando vacuna
-          </Button>
+          </LnButton>
         </div>
 
         <h3 className="mt-8 mb-3 text-lg font-bold">Con íconos</h3>
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" iconLeft="vacuna">
+          <LnButton variant="primary">
+            <Icon name="vacuna" size="1.1em" decorative />
             Vacunar
-          </Button>
-          <Button variant="success" iconRight="credenciales">
+          </LnButton>
+          <LnButton variant="ok">
             Ver libreta
-          </Button>
-          <Button variant="danger" iconLeft="denuncia">
+            <Icon name="credenciales" size="1.1em" decorative />
+          </LnButton>
+          <LnButton variant="seal">
+            <Icon name="denuncia" size="1.1em" decorative />
             Denunciar
-          </Button>
-          <Button variant="secondary" iconLeft="lupa">
+          </LnButton>
+          <LnButton variant="ghost">
+            <Icon name="lupa" size="1.1em" decorative />
             Buscar mascota
-          </Button>
+          </LnButton>
         </div>
 
         <h3 className="mt-8 mb-3 text-lg font-bold">Patrón de cancelar vs eliminar</h3>
         <div className="rounded-md border border-ln-line p-4">
           <p className="mb-3 text-sm">¿Eliminar la vacuna del registro?</p>
           <div className="flex flex-wrap gap-3">
-            <Button variant="link">Cancelar</Button>
-            <Button variant="danger" iconLeft="denuncia">
+            <LnButton variant="ghost">Cancelar</LnButton>
+            <LnButton variant="seal">
+              <Icon name="denuncia" size="1.1em" decorative />
               Eliminar
-            </Button>
+            </LnButton>
           </div>
           <p className="mt-3 text-xs text-ln-mute">
-            "Cancelar" usa <code>link</code> (neutro, sin peso visual). "Eliminar" usa{" "}
-            <code>danger</code> (outline rojo, terminante). Nunca dos botones destacados juntos.
+            "Cancelar" usa <code>ghost</code> (neutro, sin peso visual). "Eliminar" usa{" "}
+            <code>seal</code> (rojo, terminante). Nunca dos botones destacados juntos.
           </p>
         </div>
       </section>

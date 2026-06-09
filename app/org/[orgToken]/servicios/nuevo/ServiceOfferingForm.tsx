@@ -16,8 +16,8 @@
 import { useActionState, useState } from "react";
 
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
-import { Checkbox, Input, Select, Textarea } from "@/components/poncho";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import type { ServiceKindDef } from "@/lib/service-kinds";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
@@ -42,7 +42,7 @@ export function ServiceOfferingForm({
 
   return (
     <form action={formAction}>
-      <WizardShell
+      <LnWizardShell
         currentStep={step}
         totalSteps={TOTAL_STEPS}
         stepLabels={STEP_LABELS}
@@ -60,21 +60,21 @@ export function ServiceOfferingForm({
             <label htmlFor="serviceKind" className="block text-[13px] font-medium text-ln-op-ink">
               Tipo de servicio <span className="text-ln-op-danger">*</span>
             </label>
-            <Select id="serviceKind" name="serviceKind" required>
+            <LnSelect id="serviceKind" name="serviceKind" required>
               <option value="">— Seleccioná un tipo —</option>
               {serviceKinds.map((k) => (
                 <option key={k.code} value={k.code}>
                   {k.label}
                 </option>
               ))}
-            </Select>
+            </LnSelect>
           </div>
 
           <div className="space-y-1">
             <label htmlFor="displayName" className="block text-[13px] font-medium text-ln-op-ink">
               Nombre del servicio <span className="text-ln-op-danger">*</span>
             </label>
-            <Input
+            <LnInput
               id="displayName"
               name="displayName"
               type="text"
@@ -89,7 +89,7 @@ export function ServiceOfferingForm({
             <label htmlFor="description" className="block text-[13px] font-medium text-ln-op-ink">
               Descripción <span className="text-ln-op-mute font-normal">(opcional)</span>
             </label>
-            <Textarea
+            <LnTextarea
               id="description"
               name="description"
               maxLength={500}
@@ -118,7 +118,7 @@ export function ServiceOfferingForm({
               >
                 Duración (minutos) <span className="text-ln-op-danger">*</span>
               </label>
-              <Input
+              <LnInput
                 id="durationMinutes"
                 name="durationMinutes"
                 type="number"
@@ -135,7 +135,7 @@ export function ServiceOfferingForm({
               >
                 Capacidad por turno <span className="text-ln-op-danger">*</span>
               </label>
-              <Input
+              <LnInput
                 id="slotCapacity"
                 name="slotCapacity"
                 type="number"
@@ -152,7 +152,7 @@ export function ServiceOfferingForm({
               Precio (ARS){" "}
               <span className="text-ln-op-mute font-normal">— vacío para campaña gratuita</span>
             </label>
-            <Input
+            <LnInput
               id="priceArs"
               name="priceArs"
               type="number"
@@ -176,12 +176,12 @@ export function ServiceOfferingForm({
           <div className="space-y-1">
             <span className="block text-[13px] font-medium text-ln-op-ink">Especies elegibles</span>
             <div className="flex gap-4">
-              <Checkbox name="eligibilitySpecies" value="dog" defaultChecked>
+              <LnCheckbox name="eligibilitySpecies" value="dog" defaultChecked>
                 Perros
-              </Checkbox>
-              <Checkbox name="eligibilitySpecies" value="cat" defaultChecked>
+              </LnCheckbox>
+              <LnCheckbox name="eligibilitySpecies" value="cat" defaultChecked>
                 Gatos
-              </Checkbox>
+              </LnCheckbox>
             </div>
           </div>
 
@@ -193,7 +193,7 @@ export function ServiceOfferingForm({
               >
                 Edad mínima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
-              <Input
+              <LnInput
                 id="eligibilityAgeMinMonths"
                 name="eligibilityAgeMinMonths"
                 type="number"
@@ -209,7 +209,7 @@ export function ServiceOfferingForm({
               >
                 Edad máxima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
-              <Input
+              <LnInput
                 id="eligibilityAgeMaxMonths"
                 name="eligibilityAgeMaxMonths"
                 type="number"
@@ -236,7 +236,7 @@ export function ServiceOfferingForm({
             </a>
           </div>
         </section>
-      </WizardShell>
+      </LnWizardShell>
     </form>
   );
 }

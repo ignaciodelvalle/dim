@@ -1,6 +1,6 @@
 "use client";
 
-import { Field, Select, Textarea } from "@/components/poncho";
+import { LnField, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
   type TransferCustodyFormState,
   transferCustodyAction,
@@ -32,13 +32,13 @@ export function TransferCustodyForm({
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
           Destino
         </h2>
-        <Field
+        <LnField
           label="Organización destino"
           required
-          help="Solo organizaciones verificadas. Si la que buscás no aparece, primero tiene que verificarse."
+          hint="Solo organizaciones verificadas. Si la que buscás no aparece, primero tiene que verificarse."
         >
           {({ id, describedBy, invalid }) => (
-            <Select
+            <LnSelect
               id={id}
               name="destinationOrgId"
               required
@@ -54,9 +54,9 @@ export function TransferCustodyForm({
                   {d.displayName}
                 </option>
               ))}
-            </Select>
+            </LnSelect>
           )}
-        </Field>
+        </LnField>
 
         <fieldset className="space-y-2">
           <legend className="text-[12px] text-ln-op-ink-2">Rol en el destino</legend>
@@ -90,9 +90,9 @@ export function TransferCustodyForm({
           </label>
         </fieldset>
 
-        <Field label="Notas">
+        <LnField label="Notas">
           {({ id, describedBy, invalid }) => (
-            <Textarea
+            <LnTextarea
               id={id}
               name="notes"
               rows={3}
@@ -102,7 +102,7 @@ export function TransferCustodyForm({
               invalid={invalid}
             />
           )}
-        </Field>
+        </LnField>
       </section>
 
       <p className="text-[11px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">

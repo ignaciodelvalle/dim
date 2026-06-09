@@ -20,7 +20,7 @@
  * is dropped for the "sintoma" sheet.
  */
 
-import { Button } from "@/components/poncho";
+import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -311,12 +311,12 @@ function MarkFoundConfirmation({
         modo identidad básica (Tier 0). Podés volver a marcarla como perdida si hace falta.
       </p>
       <form action={action} className="flex gap-2">
-        <Button type="submit" variant="success">
+        <LnButton type="submit" variant="ok">
           Confirmar
-        </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>
+        </LnButton>
+        <LnButton type="button" variant="ghost" onClick={onCancel}>
           Cancelar
-        </Button>
+        </LnButton>
       </form>
     </div>
   );

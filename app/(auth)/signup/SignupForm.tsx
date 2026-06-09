@@ -2,7 +2,7 @@
 
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
 import { PetForm } from "@/components/PetForm";
-import { Input } from "@/components/poncho";
+import { LnInput } from "@/components/ui/Field";
 import { createPetAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -182,7 +182,7 @@ function Field({
       <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
         {label}
       </label>
-      <Input
+      <LnInput
         id={id}
         name={name}
         type={type}

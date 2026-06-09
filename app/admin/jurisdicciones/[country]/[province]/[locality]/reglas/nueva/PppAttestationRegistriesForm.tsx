@@ -7,7 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
-import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
+import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -119,21 +119,21 @@ export function PppAttestationRegistriesForm({
         <legend className="text-[13px] font-medium text-ln-op-ink">Agregar registro</legend>
         {/* Inline add-registry row: compact grid alongside Checkbox — Field not used (rule #2) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <Input
+          <LnInput
             type="text"
             placeholder="ID (caba_4078, prov_14107...)"
             value={newId}
             onChange={(e) => setNewId(e.target.value)}
           />
-          <Input
+          <LnInput
             type="text"
             placeholder="Label visible"
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
           />
-          <Checkbox checked={newRequired} onChange={() => setNewRequired((v) => !v)}>
+          <LnCheckbox checked={newRequired} onChange={() => setNewRequired((v) => !v)}>
             Required
-          </Checkbox>
+          </LnCheckbox>
         </div>
         <button
           type="button"
@@ -144,9 +144,9 @@ export function PppAttestationRegistriesForm({
         </button>
       </fieldset>
 
-      <Field label="Notas internas">
+      <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="notes"
             defaultValue={initialNotes}
@@ -155,7 +155,7 @@ export function PppAttestationRegistriesForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (

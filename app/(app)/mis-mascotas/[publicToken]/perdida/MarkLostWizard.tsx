@@ -7,7 +7,6 @@
 import { useRef, useState, useTransition } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
@@ -18,6 +17,7 @@ import {
   LnSheetHeader,
   LnSubCard,
 } from "@/components/ui/Sheet";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggle } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
 import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
@@ -155,7 +155,7 @@ export function MarkLostWizard({
       `${shareText} ${typeof window !== "undefined" ? window.location.origin : ""}/p/${petPublicToken}`,
     )}`;
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title={`Activamos la búsqueda de ${petName}`}
         description="Su perfil público ya muestra el aviso. Más gente va a poder ayudarte a encontrarla."
         next={[

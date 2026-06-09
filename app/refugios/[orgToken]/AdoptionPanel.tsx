@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 import { AdoptionListingCard } from "@/components/AdoptionListingCard";
-import { EmptyState } from "@/components/poncho/EmptyState";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // "Mascotas en adopción" panel (handoff P2-4) — Libreta Nacional look.
@@ -49,7 +49,7 @@ export function AdoptionPanel({ orgToken, displayName, items, hasMore }: Props) 
       <LnCard>
         <LnCardBody>
           {items.length === 0 ? (
-            <EmptyState
+            <LnEmptyState
               title={`${displayName} no tiene mascotas publicadas en adopción en este momento.`}
               description="Cuando publiquen una, va a aparecer acá."
               action={

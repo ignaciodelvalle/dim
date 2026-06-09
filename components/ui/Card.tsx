@@ -24,11 +24,17 @@ import type { ReactNode } from "react";
 export type LnCardProps = {
   className?: string;
   children: ReactNode;
+  "aria-labelledby"?: string;
 };
 
-export function LnCard({ className = "", children }: LnCardProps) {
+export function LnCard({
+  className = "",
+  children,
+  "aria-labelledby": ariaLabelledBy,
+}: LnCardProps) {
   return (
     <div
+      aria-labelledby={ariaLabelledBy}
       className={[
         "overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] shadow-[0_1px_0_rgba(0,0,0,.02)]",
         className,

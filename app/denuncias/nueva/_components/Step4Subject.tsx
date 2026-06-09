@@ -15,7 +15,7 @@ import {
   type PublicLookupResult,
   lookupPetForDenunciaAction,
 } from "@/app/actions/pet-lookup-public";
-import { Input, Textarea } from "@/components/poncho";
+import { LnInput, LnTextarea } from "@/components/ui/Field";
 
 const LOOKUP_DEBOUNCE_MS = 300;
 const LOOKUP_MIN_LEN = 8;
@@ -147,7 +147,7 @@ export function Step4Subject({
                 (opcional)
               </span>
             </label>
-            <Input
+            <LnInput
               id="subjectPetToken"
               name="subjectPetToken"
               type="text"
@@ -170,7 +170,7 @@ export function Step4Subject({
             >
               Descripción del animal
             </label>
-            <Textarea
+            <LnTextarea
               id="subjectDescription"
               name="subjectDescription"
               rows={3}
@@ -191,7 +191,7 @@ export function Step4Subject({
           >
             Describí al animal
           </label>
-          <Textarea
+          <LnTextarea
             id="subjectDescription"
             name="subjectDescription"
             rows={3}
@@ -211,7 +211,7 @@ export function Step4Subject({
           >
             Describí el lugar o situación
           </label>
-          <Textarea
+          <LnTextarea
             id="subjectDescription"
             name="subjectDescription"
             rows={3}

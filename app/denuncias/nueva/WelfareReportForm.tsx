@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
-import { Field, Input, Radio, Select, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
 import type { WelfareReportFormState } from "@/src/modules/welfare/actions";
 import {
   WELFARE_REPORT_KINDS,
@@ -147,37 +147,43 @@ export function WelfareReportForm({
       )}
 
       {/* Kind */}
-      <Field label="Tipo de situación" required>
+      <LnField label="Tipo de situación" required>
         {({ id, describedBy, invalid }) => (
-          <Select id={id} name="kind" required aria-describedby={describedBy} invalid={invalid}>
+          <LnSelect id={id} name="kind" required aria-describedby={describedBy} invalid={invalid}>
             <option value="">Seleccioná una opción</option>
             {WELFARE_REPORT_KINDS.map((k) => (
               <option key={k} value={k}>
                 {welfareReportKindLabel(k)}
               </option>
             ))}
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
       {/* Severity */}
-      <Field label="Gravedad" required>
+      <LnField label="Gravedad" required>
         {({ id, describedBy, invalid }) => (
-          <Select id={id} name="severity" required aria-describedby={describedBy} invalid={invalid}>
+          <LnSelect
+            id={id}
+            name="severity"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
             <option value="">Seleccioná una opción</option>
             {WELFARE_REPORT_SEVERITIES.map((s) => (
               <option key={s} value={s}>
                 {welfareReportSeverityLabel(s)}
               </option>
             ))}
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
       {/* Description */}
-      <Field label="¿Qué pasó?" required help={`${description.length} caracteres (mínimo 20)`}>
+      <LnField label="¿Qué pasó?" required hint={`${description.length} caracteres (mínimo 20)`}>
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="description"
             rows={5}
@@ -190,7 +196,7 @@ export function WelfareReportForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {/* Subject kind */}
       <fieldset className="mb-7">
@@ -202,7 +208,7 @@ export function WelfareReportForm({
         </legend>
         <div className="space-y-2 mt-1">
           {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
-            <Radio
+            <LnRadio
               key={sk}
               name="subjectKind"
               value={sk}
@@ -210,16 +216,16 @@ export function WelfareReportForm({
               onChange={() => setSubjectKind(sk)}
             >
               {welfareReportSubjectKindLabel(sk)}
-            </Radio>
+            </LnRadio>
           ))}
         </div>
       </fieldset>
 
       {/* Conditional subject fields */}
       {subjectKind === "registered_pet" && (
-        <Field label="Código MiMAR de la mascota">
+        <LnField label="Código MiMAR de la mascota">
           {({ id, describedBy }) => (
-            <Input
+            <LnInput
               id={id}
               name="subjectPetToken"
               type="text"
@@ -227,11 +233,11 @@ export function WelfareReportForm({
               aria-describedby={describedBy}
             />
           )}
-        </Field>
+        </LnField>
       )}
 
       {subjectKind !== "registered_pet" && (
-        <Field
+        <LnField
           label={
             subjectKind === "unowned_animal"
               ? "Descripción del animal"
@@ -242,7 +248,7 @@ export function WelfareReportForm({
           required
         >
           {({ id, describedBy, invalid }) => (
-            <Textarea
+            <LnTextarea
               id={id}
               name="subjectDescription"
               rows={3}
@@ -258,13 +264,13 @@ export function WelfareReportForm({
               invalid={invalid}
             />
           )}
-        </Field>
+        </LnField>
       )}
 
       {/* Observed symptoms (optional) */}
-      <Field label="¿Notaste síntomas en el animal?">
+      <LnField label="¿Notaste síntomas en el animal?">
         {({ id, describedBy }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="observedSymptoms"
             rows={3}
@@ -272,23 +278,23 @@ export function WelfareReportForm({
             aria-describedby={describedBy}
           />
         )}
-      </Field>
+      </LnField>
 
       {/* Location */}
       <LocationFields mode="l2" />
 
       {/* Occurred at */}
-      <Field label="¿Cuándo pasó o desde cuándo viene pasando?">
+      <LnField label="¿Cuándo pasó o desde cuándo viene pasando?">
         {({ id, describedBy }) => (
-          <Input id={id} name="occurredAt" type="date" aria-describedby={describedBy} />
+          <LnInput id={id} name="occurredAt" type="date" aria-describedby={describedBy} />
         )}
-      </Field>
+      </LnField>
 
-      {/* Evidence (multimedia) — file input stays native (file:* classes), Field
-          handles label/id/help wiring; evidenceError surfaces as the field error. */}
-      <Field
+      {/* Evidence (multimedia) — file input stays native (file:* classes), LnField
+          handles label/id/hint wiring; evidenceError surfaces as the field error. */}
+      <LnField
         label="Evidencia"
-        help={`Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`}
+        hint={`Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`}
         error={evidenceError ?? undefined}
       >
         {({ id }) => (
@@ -341,7 +347,7 @@ export function WelfareReportForm({
             )}
           </>
         )}
-      </Field>
+      </LnField>
 
       {/* Optional contact (collapsible) */}
       <div className="border border-ln-line rounded-lg">
@@ -359,9 +365,9 @@ export function WelfareReportForm({
               No es obligatorio. Dejás tus datos solo si querés que te contactemos sobre esta
               denuncia.
             </p>
-            <Field label="Email de contacto">
+            <LnField label="Email de contacto">
               {({ id, describedBy }) => (
-                <Input
+                <LnInput
                   id={id}
                   name="reporterContactEmail"
                   type="email"
@@ -369,10 +375,10 @@ export function WelfareReportForm({
                   aria-describedby={describedBy}
                 />
               )}
-            </Field>
-            <Field label="Teléfono de contacto">
+            </LnField>
+            <LnField label="Teléfono de contacto">
               {({ id, describedBy }) => (
-                <Input
+                <LnInput
                   id={id}
                   name="reporterContactPhone"
                   type="tel"
@@ -380,7 +386,7 @@ export function WelfareReportForm({
                   aria-describedby={describedBy}
                 />
               )}
-            </Field>
+            </LnField>
           </div>
         )}
       </div>
