@@ -1,8 +1,9 @@
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
+import { LnCard, LnCardBody } from "@/components/ui/Card";
+import { LnSectionHead } from "@/components/ui/DocElements";
 
 import { AboutExpander } from "./AboutExpander";
 
-// "Sobre nosotros" panel (handoff P2-3).
+// "Sobre nosotros" panel (handoff P2-3) — Libreta Nacional look.
 //
 // Render-or-don't-render: when org.description is null or whitespace,
 // the panel doesn't render at all (no EmptyState — silence is the
@@ -22,17 +23,19 @@ export function AboutPanel({ description }: Props) {
   const needsExpander = trimmed.length > TRUNCATE_AT;
 
   return (
-    <Panel aria-labelledby="sobre-nosotros-title">
-      <PanelHeader title={<span id="sobre-nosotros-title">Sobre nosotros</span>} />
-      <PanelBody>
-        {needsExpander ? (
-          <AboutExpander text={trimmed} truncateAt={TRUNCATE_AT} />
-        ) : (
-          <p className="text-sm text-gob-text-gray whitespace-pre-line leading-relaxed">
-            {trimmed}
-          </p>
-        )}
-      </PanelBody>
-    </Panel>
+    <section aria-label="Sobre nosotros">
+      <LnSectionHead title="Sobre nosotros" className="mb-4" />
+      <LnCard>
+        <LnCardBody>
+          {needsExpander ? (
+            <AboutExpander text={trimmed} truncateAt={TRUNCATE_AT} />
+          ) : (
+            <p className="text-sm text-[var(--color-ln-ink-2)] whitespace-pre-line leading-relaxed">
+              {trimmed}
+            </p>
+          )}
+        </LnCardBody>
+      </LnCard>
+    </section>
   );
 }

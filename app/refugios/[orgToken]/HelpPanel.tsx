@@ -1,9 +1,10 @@
 import Link from "next/link";
 
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
+import { LnCard, LnCardBody } from "@/components/ui/Card";
+import { LnSectionHead } from "@/components/ui/DocElements";
 import type { OrgPublicProfile } from "@/lib/org-public-profile";
 
-// "Cómo ayudar" panel (handoff P2-7).
+// "Cómo ayudar" panel (handoff P2-7) — Libreta Nacional look.
 //
 // Quad-grid of CTAs (2 cols mobile, 4 cols desktop). Cards that don't
 // apply (e.g. no donation_methods → no "Doná") are omitted silently —
@@ -72,24 +73,26 @@ export function HelpPanel({ org, isAuthed }: Props) {
   });
 
   return (
-    <Panel aria-labelledby="ayudar-title">
-      <PanelHeader title={<span id="ayudar-title">Cómo ayudar</span>} />
-      <PanelBody>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {cards.map((card) => (
-            <Link
-              key={card.key}
-              href={card.href}
-              className="flex flex-col items-center justify-center gap-2 rounded-xl border border-gob-border bg-white px-4 py-6 text-center hover:bg-gob-surface-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste focus-visible:ring-offset-2 transition-colors"
-            >
-              <span aria-hidden className="text-3xl">
-                {card.emoji}
-              </span>
-              <span className="text-sm font-medium text-gob-text">{card.label}</span>
-            </Link>
-          ))}
-        </div>
-      </PanelBody>
-    </Panel>
+    <section aria-label="Cómo ayudar">
+      <LnSectionHead title="Cómo ayudar" className="mb-4" />
+      <LnCard>
+        <LnCardBody>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {cards.map((card) => (
+              <Link
+                key={card.key}
+                href={card.href}
+                className="flex flex-col items-center justify-center gap-2 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-6 text-center hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+              >
+                <span aria-hidden className="text-3xl">
+                  {card.emoji}
+                </span>
+                <span className="text-sm font-medium text-[var(--color-ln-ink)]">{card.label}</span>
+              </Link>
+            ))}
+          </div>
+        </LnCardBody>
+      </LnCard>
+    </section>
   );
 }

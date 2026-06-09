@@ -1,40 +1,40 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/poncho/Badge";
+import { LnGuilloche } from "@/components/ui/DocElements";
 import type { OrgPublicProfile } from "@/lib/org-public-profile";
 import { orgLogoUrl } from "@/lib/storage";
 
-// Hero del refugio público (handoff P2-2).
+// Hero del refugio público — Libreta Nacional institutional band look.
 //
-// Layout responsive:
-//   - mobile (< md): logo 64×64 arriba → name 3xl → locality xs → chips
-//     wrap → trust copy → buttons stacked full-width
-//   - desktop (≥ md): logo 96×96 a la izquierda, columna derecha con
-//     name 4xl + chips inline + buttons inline
+// Layout:
+//   - guilloché accent bar (4px top, full-width)
+//   - azul gradient band (96px, repeating diagonal cross-hatch)
+//   - logo overlap: 88×88 rounded-[14px] avatar rising from the band
+//   - info row: serif org name + verified chip + org-type chip + year chip
+//   - meta line: locality, legal name (secondary)
+//   - action buttons: primary "Contactar" + ghost "Compartir"
+//   - stats row: card grid below (adoptions count, services count)
+//     — rendered only when items > 0 (passed from page)
 //
-// Chips (en orden):
-//   - ✓ Verificado (siempre — la visibility gate ya filtra)
-//   - 🏠 Refugio  o  🌎 Red de rescate (según orgType)
-//   - 📅 Desde {año} (sólo si verifiedAt > 1 año atrás)
-//
-// Botones:
-//   - "Contactar al refugio" (primary) → ?sheet=contactar (P2-8)
-//   - "Compartir" (secondary) → ?sheet=compartir-org (P2-9)
-//
-// Trust copy literal del handoff §P2-2. Logo fallback = inicial del
-// displayName sobre fondo gob-primary cuando no hay logo storage path.
+// OrgHero receives `adoptionCount` and `serviceCount` from the parent
+// page so the stats row can be populated without an extra query here.
 
 interface Props {
   org: OrgPublicProfile;
   /** Pre-rendered locality + province display string from the page so
    * we don't re-resolve the province name here. */
   localityLabel: string | null;
+  /** Number of pets currently in the adoption listing (from page query). */
+  adoptionCount: number;
+  /** Number of public service offerings (from page query). */
+  serviceCount: number;
 }
 
 const TRUST_COPY =
   "Refugio verificado por MiMAR. Las postulaciones llegan directo al equipo del refugio, que coordina los próximos pasos por email con cada candidato.";
 
-export function OrgHero({ org, localityLabel }: Props) {
+export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Props) {
   const logoUrl = orgLogoUrl(org.logoStoragePath);
   const initial = org.displayName.charAt(0).toUpperCase();
 
@@ -45,64 +45,120 @@ export function OrgHero({ org, localityLabel }: Props) {
 
   const orgTypeChipLabel = org.orgType === "shelter" ? "🏠 Refugio" : "🌎 Red de rescate";
 
+  const showStats = adoptionCount > 0 || serviceCount > 0;
+
   return (
-    <header className="space-y-4 md:flex md:items-start md:gap-6 md:space-y-0">
-      {/* Logo — 64x64 mobile (within the flow), 96x96 desktop (left col) */}
-      <div className="shrink-0">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt={`Logo de ${org.displayName}`}
-            className="h-16 w-16 md:h-24 md:w-24 rounded-full object-cover border border-gob-border-strong bg-white"
-          />
-        ) : (
-          <div
-            role="img"
-            aria-label={`Logo de ${org.displayName}`}
-            className="h-16 w-16 md:h-24 md:w-24 rounded-full bg-gob-primary text-white text-2xl md:text-3xl font-semibold flex items-center justify-center border border-gob-border-strong"
-          >
-            {initial}
-          </div>
-        )}
-      </div>
+    <header className="overflow-hidden rounded-[8px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+      {/* Guilloché top accent */}
+      <LnGuilloche />
 
-      {/* Right column on desktop / stacked content on mobile */}
-      <div className="flex-1 space-y-3">
-        <div className="space-y-1">
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-gob-text">
-            {org.displayName}
-          </h1>
-          {org.legalName && org.legalName !== org.displayName && (
-            <p className="text-xs text-gob-text-muted">{org.legalName}</p>
+      {/* Institutional band — diagonal cross-hatch over azul gradient */}
+      <div
+        aria-hidden="true"
+        className="h-[96px]"
+        style={{
+          background:
+            "repeating-linear-gradient(135deg,rgba(255,255,255,.4) 0 1px,transparent 1px 10px)," +
+            "linear-gradient(120deg,var(--color-ln-azul-900),var(--color-ln-azul) 60%,var(--color-ln-celeste))",
+        }}
+      />
+
+      {/* Main content — logo overlaps the band by margin-top: -36px */}
+      <div className="flex flex-col gap-4 px-6 pb-5 md:flex-row md:items-flex-end md:gap-5">
+        {/* Logo — overlaps the band */}
+        <div className="-mt-9 shrink-0">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={`Logo de ${org.displayName}`}
+              className="h-[88px] w-[88px] rounded-[14px] border-[3px] border-[var(--color-ln-card)] object-cover bg-[var(--color-ln-card)]"
+            />
+          ) : (
+            <div
+              role="img"
+              aria-label={`Logo de ${org.displayName}`}
+              className="h-[88px] w-[88px] rounded-[14px] border-[3px] border-[var(--color-ln-card)] bg-[var(--color-ln-azul)] text-white text-[38px] font-semibold flex items-center justify-center font-[var(--font-ln-serif)]"
+            >
+              {initial}
+            </div>
           )}
-          {localityLabel && <p className="text-xs text-gob-text-muted">{localityLabel}</p>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="?sheet=verificacion-info" className="focus:outline-none">
-            <Badge variant="success">✓ Verificado</Badge>
-          </Link>
-          <Badge variant="neutral">{orgTypeChipLabel}</Badge>
-          {showYearChip && verifiedYear && <Badge variant="neutral">📅 Desde {verifiedYear}</Badge>}
-        </div>
+        {/* Info + actions */}
+        <div className="flex-1 space-y-3 pt-2 md:pt-3">
+          {/* Name + chips */}
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-[var(--font-ln-serif)] text-[26px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)] leading-tight">
+                {org.displayName}
+              </h1>
+              {/* Verified chip (inline with name) */}
+              <Link href="?sheet=verificacion-info" className="focus:outline-none">
+                <Badge variant="success">✓ Verificado</Badge>
+              </Link>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="neutral">{orgTypeChipLabel}</Badge>
+              {showYearChip && verifiedYear && (
+                <Badge variant="neutral">📅 Desde {verifiedYear}</Badge>
+              )}
+            </div>
+            {(localityLabel || (org.legalName && org.legalName !== org.displayName)) && (
+              <p className="text-[13px] text-[var(--color-ln-mute)]">
+                {[
+                  localityLabel,
+                  org.legalName && org.legalName !== org.displayName ? org.legalName : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
+          </div>
 
-        <p className="text-xs text-gob-text-muted max-w-prose leading-relaxed">{TRUST_COPY}</p>
+          {/* Trust copy */}
+          <p className="text-[12px] text-[var(--color-ln-ink-2)] max-w-prose leading-relaxed">
+            {TRUST_COPY}
+          </p>
 
-        <div className="flex flex-col sm:flex-row gap-2 pt-1">
-          <Link
-            href="?sheet=contactar"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-gob-primary text-white text-sm font-semibold px-4 py-2.5 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste focus-visible:ring-offset-2 transition-opacity"
-          >
-            ✉ Contactar al refugio
-          </Link>
-          <Link
-            href="?sheet=compartir-org"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gob-border bg-white text-gob-text text-sm font-medium px-4 py-2.5 hover:bg-gob-surface-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste focus-visible:ring-offset-2 transition-colors"
-          >
-            ↗ Compartir
-          </Link>
+          {/* CTA buttons */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Link
+              href="?sheet=contactar"
+              className="inline-flex items-center justify-center gap-2 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+            >
+              ✉ Contactar al refugio
+            </Link>
+            <Link
+              href="?sheet=compartir-org"
+              className="inline-flex items-center justify-center gap-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+            >
+              ↗ Compartir
+            </Link>
+          </div>
         </div>
       </div>
+
+      {/* Stats row — only when there's something to show */}
+      {showStats && (
+        <div className="grid grid-cols-2 border-t border-[var(--color-ln-line)] sm:grid-cols-4">
+          <div className="border-r border-[var(--color-ln-line-2)] px-[18px] py-[15px]">
+            <div className="font-[var(--font-ln-serif)] text-[26px] font-semibold leading-none text-[var(--color-ln-azul)]">
+              {adoptionCount}
+            </div>
+            <div className="mt-[5px] text-[12px] text-[var(--color-ln-mute)]">
+              En adopción ahora
+            </div>
+          </div>
+          {serviceCount > 0 && (
+            <div className="border-r border-[var(--color-ln-line-2)] px-[18px] py-[15px] sm:border-r-0 md:border-r">
+              <div className="font-[var(--font-ln-serif)] text-[26px] font-semibold leading-none text-[var(--color-ln-azul)]">
+                {serviceCount}
+              </div>
+              <div className="mt-[5px] text-[12px] text-[var(--color-ln-mute)]">Servicios</div>
+            </div>
+          )}
+        </div>
+      )}
     </header>
   );
 }

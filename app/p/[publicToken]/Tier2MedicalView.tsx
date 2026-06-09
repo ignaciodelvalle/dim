@@ -8,6 +8,9 @@
 // (Tier 0). This view adds vaccines vigentes, esterilización, medicación
 // activa, condiciones permanentes — NEVER owner contact, address, DNI,
 // or free-text notes.
+//
+// AGGREGATE ONLY: active vaccine count + sterilized yes/no. Per-vaccine
+// rows are NOT shown here — the projection doesn't expose them at this tier.
 
 import {
   PERMANENT_CONDITIONS,
@@ -18,7 +21,7 @@ import {
 interface Props {
   /** ISO when the window closes; surfaced as a soft countdown. */
   enabledUntil: Date;
-  /** Per-vaccine snapshot (catalog name + last dose + status). */
+  /** Per-vaccine snapshot — aggregate counts only (active, expired, dueSoon, missing). */
   vaccineSummary: {
     active: number;
     expired: number;
@@ -58,101 +61,228 @@ export function Tier2MedicalView({
     minute: "2-digit",
   });
 
-  return (
-    <section
-      aria-labelledby="tier2-h"
-      className="rounded-2xl border-2 border-gob-success  bg-gob-success/10/70  p-4 space-y-4"
-    >
-      <header className="space-y-0.5">
-        <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-gob-success ">
-          Información médica · habilitada por el dueño
-        </p>
-        <h2 id="tier2-h" className="text-base font-semibold text-gob-text ">
-          Resumen médico vigente
-        </h2>
-        <p className="text-xs text-gob-text-gray ">
-          Visible hasta el <strong>{untilLabel}</strong>.
-        </p>
-      </header>
+  // Determine vaccine tone based on summary
+  const vaccineTone: "ok" | "warn" | "danger" =
+    vaccineSummary.expired > 0 ? "danger" : vaccineSummary.missing > 0 ? "warn" : "ok";
 
-      <dl className="grid grid-cols-2 gap-3">
-        <Stat
+  const vaccineSubLabel =
+    vaccineSummary.expired > 0
+      ? `${vaccineSummary.expired} vencida${vaccineSummary.expired === 1 ? "" : "s"}`
+      : vaccineSummary.missing > 0
+        ? `${vaccineSummary.missing} faltante${vaccineSummary.missing === 1 ? "" : "s"}`
+        : `${vaccineSummary.active} al día`;
+
+  return (
+    <section aria-labelledby="tier2-h" style={{ padding: "13px 16px" }}>
+      {/* Section eyebrow */}
+      <p
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9.5,
+          letterSpacing: ".1em",
+          textTransform: "uppercase",
+          color: "var(--color-ln-ok)",
+          fontWeight: 600,
+          marginBottom: 4,
+        }}
+      >
+        Información médica · habilitada por el dueño
+      </p>
+      <h2
+        id="tier2-h"
+        style={{
+          fontFamily: "var(--font-ln-serif)",
+          fontSize: 16,
+          fontWeight: 600,
+          color: "var(--color-ln-ink)",
+          margin: "0 0 2px",
+        }}
+      >
+        Resumen médico vigente
+      </h2>
+      <p
+        style={{
+          fontSize: 11.5,
+          color: "var(--color-ln-mute)",
+          margin: "0 0 12px",
+        }}
+      >
+        Visible hasta el <strong style={{ color: "var(--color-ln-ink-2)" }}>{untilLabel}</strong>.
+      </p>
+
+      {/* Aggregate stats grid */}
+      <dl
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "10px 12px",
+          marginBottom: conditionLabels.length > 0 || activeMedications.length > 0 ? 12 : 0,
+        }}
+      >
+        <MedStat
           label="Vacunación"
-          value={vaccineSummary.expired || vaccineSummary.missing || vaccineSummary.active}
-          sub={
-            vaccineSummary.expired
-              ? `${vaccineSummary.expired} vencida${vaccineSummary.expired === 1 ? "" : "s"}`
-              : vaccineSummary.missing
-                ? `${vaccineSummary.missing} faltante${vaccineSummary.missing === 1 ? "" : "s"}`
-                : `${vaccineSummary.active} al día`
-          }
-          tone={vaccineSummary.expired ? "danger" : vaccineSummary.missing ? "warning" : "ok"}
+          value={String(vaccineSummary.active || vaccineSummary.expired || vaccineSummary.missing)}
+          sub={vaccineSubLabel}
+          tone={vaccineTone}
         />
-        <Stat
+        <MedStat
           label="Esterilización"
-          value={isSterilized ? 1 : 0}
+          value={isSterilized ? "Sí" : "No"}
           sub={isSterilized ? "Castrado/a" : "No registrada"}
           tone={isSterilized ? "ok" : "neutral"}
         />
       </dl>
 
+      {/* Active medications */}
       {activeMedications.length > 0 && (
-        <Block label="Medicación activa">
-          <ul className="text-sm text-gob-text  space-y-0.5">
+        <MedBlock label="Medicación activa">
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
             {activeMedications.map((drug) => (
-              <li key={drug}>· {drug}</li>
+              <li
+                key={drug}
+                style={{
+                  fontSize: 13,
+                  color: "var(--color-ln-ink)",
+                  padding: "4px 0",
+                  borderBottom: "1px solid var(--color-ln-line-2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                }}
+              >
+                <span aria-hidden="true" style={{ color: "var(--color-ln-azul)", fontSize: 10 }}>
+                  ●
+                </span>
+                {drug}
+              </li>
             ))}
           </ul>
-        </Block>
+        </MedBlock>
       )}
 
+      {/* Permanent conditions */}
       {conditionLabels.length > 0 && (
-        <Block label="Condiciones permanentes">
-          <p className="text-sm text-gob-text ">{conditionLabels.join(" · ")}</p>
-        </Block>
+        <MedBlock label="Condiciones permanentes">
+          <p style={{ fontSize: 13, color: "var(--color-ln-ink)", margin: 0, lineHeight: 1.5 }}>
+            {conditionLabels.join(" · ")}
+          </p>
+        </MedBlock>
       )}
 
-      <p className="text-[11px] text-gob-text-muted ">
-        Esta vista no expone contacto del dueño, dirección, ni notas privadas.
+      {/* Privacy notice */}
+      <p
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9.5,
+          color: "var(--color-ln-faint)",
+          letterSpacing: ".02em",
+          marginTop: 10,
+          lineHeight: 1.5,
+        }}
+      >
+        Esta vista no expone contacto del dueño, dirección ni notas privadas.
       </p>
     </section>
   );
 }
 
-function Stat({
+// ---------------------------------------------------------------------------
+// MedStat — aggregate stat cell (vaccine count / sterilized flag)
+// ---------------------------------------------------------------------------
+
+function MedStat({
   label,
   value,
   sub,
   tone,
 }: {
   label: string;
-  value: number;
+  value: string;
   sub: string;
-  tone: "ok" | "warning" | "danger" | "neutral";
+  tone: "ok" | "warn" | "danger" | "neutral";
 }) {
-  const toneClass =
+  const valueColor =
     tone === "danger"
-      ? "text-gob-danger "
-      : tone === "warning"
-        ? "text-gob-warning-text "
+      ? "var(--color-ln-err)"
+      : tone === "warn"
+        ? "var(--color-ln-warn)"
         : tone === "ok"
-          ? "text-gob-success "
-          : "text-gob-text-gray ";
+          ? "var(--color-ln-ok)"
+          : "var(--color-ln-ink-2)";
+
   return (
-    <div className="rounded-lg bg-white  border border-gob-border  px-3 py-2">
-      <dt className="text-[10px] uppercase tracking-wider font-semibold text-gob-text-muted ">
+    <div
+      style={{
+        borderRadius: 4,
+        background: "var(--color-ln-stripe)",
+        border: "1px solid var(--color-ln-line)",
+        padding: "10px 12px",
+      }}
+    >
+      <dt
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9,
+          letterSpacing: ".08em",
+          textTransform: "uppercase",
+          fontWeight: 600,
+          color: "var(--color-ln-mute)",
+          marginBottom: 4,
+        }}
+      >
         {label}
       </dt>
-      <dd className={`text-2xl font-semibold leading-tight ${toneClass}`}>{value}</dd>
-      <p className="text-xs text-gob-text-gray ">{sub}</p>
+      <dd
+        style={{
+          fontFamily: "var(--font-ln-serif)",
+          fontSize: 22,
+          fontWeight: 600,
+          lineHeight: 1,
+          color: valueColor,
+          margin: 0,
+        }}
+      >
+        {value}
+      </dd>
+      <p
+        style={{
+          fontSize: 11.5,
+          color: "var(--color-ln-mute)",
+          marginTop: 3,
+        }}
+      >
+        {sub}
+      </p>
     </div>
   );
 }
 
-function Block({ label, children }: { label: string; children: React.ReactNode }) {
+// ---------------------------------------------------------------------------
+// MedBlock — labeled content block inside Tier2MedicalView
+// ---------------------------------------------------------------------------
+
+function MedBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-white  border border-gob-border  px-3 py-2 space-y-1">
-      <p className="text-[10px] uppercase tracking-wider font-semibold text-gob-text-muted ">
+    <div
+      style={{
+        borderRadius: 4,
+        background: "var(--color-ln-stripe)",
+        border: "1px solid var(--color-ln-line)",
+        padding: "10px 12px",
+        marginBottom: 10,
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--font-ln-mono)",
+          fontSize: 9,
+          letterSpacing: ".08em",
+          textTransform: "uppercase",
+          fontWeight: 600,
+          color: "var(--color-ln-mute)",
+          marginBottom: 6,
+        }}
+      >
         {label}
       </p>
       {children}
