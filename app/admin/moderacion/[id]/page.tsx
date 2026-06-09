@@ -1,7 +1,15 @@
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import {
+  OpBreach,
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCrumbs,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -18,9 +26,18 @@ import { eq } from "drizzle-orm";
 
 import { ModerationActions } from "./ModerationActions";
 
+type SeverityTone = "danger" | "open" | "neutral";
+
+const SEVERITY_PILL: Record<string, SeverityTone> = {
+  critical: "danger",
+  high: "open",
+  medium: "open",
+  low: "neutral",
+};
+
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-gob-border  bg-gob-surface-alt  animate-pulse" />
+    <div className="h-64 w-full animate-pulse rounded-[6px] border border-ln-op-line bg-ln-op-stripe" />
   ),
 });
 
@@ -52,70 +69,88 @@ export default async function ModeracionDetailPage({
   );
 
   const isResolved = report.moderationResolvedAt !== null;
+  const severityTone: SeverityTone = SEVERITY_PILL[report.severity] ?? "neutral";
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <Link href="/admin/moderacion" className="text-sm text-gob-text-muted hover:text-gob-text ">
-          ← Volver a moderación
-        </Link>
+    <div className="space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Moderación", href: "/admin/moderacion" },
+          { label: report.referenceCode ?? id, mono: true },
+        ]}
+      />
 
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold text-gob-text ">
-            {welfareReportKindLabel(report.kind)} ·{" "}
-            <span className="font-normal text-gob-text-muted">
-              {welfareReportSeverityLabel(report.severity)}
-            </span>
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {"Admin · Moderación"}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            {welfareReportKindLabel(report.kind)}
           </h1>
-          <p className="text-[10px] font-mono text-gob-text-muted">
-            {report.referenceCode} · creada {formatDateTime(report.createdAt)} · flagged{" "}
-            {report.flaggedAt && formatDateTime(report.flaggedAt)}
-          </p>
-        </header>
+          <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
+        </div>
+        <p className="font-mono text-[10px] text-ln-op-faint">
+          {report.referenceCode}
+          {" · creada "}
+          {formatDateTime(report.createdAt)}
+          {" · flagged "}
+          {report.flaggedAt && formatDateTime(report.flaggedAt)}
+        </p>
+      </header>
 
-        <section className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gob-warning-text ">
-            Razones del flag
-          </p>
-          <ul className="text-sm text-gob-warning-text  space-y-0.5 list-disc pl-5">
+      {/* Flag reasons */}
+      <OpBreach
+        title="Razones del flag"
+        detail={
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
             {reasons.map((reason) => (
               <li key={reason}>{reasonLabel(reason as FlagReason)}</li>
             ))}
           </ul>
-        </section>
+        }
+      />
 
-        <section className="rounded-lg border border-gob-border  p-4 space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">¿Qué pasó?</h2>
-          <p className="text-sm text-gob-text  whitespace-pre-wrap">{report.description}</p>
+      {/* Description */}
+      <OpCard>
+        <OpCardHead title="¿Qué pasó?" />
+        <OpCardBody>
+          <p className="whitespace-pre-wrap text-[13px] text-ln-op-ink">{report.description}</p>
           {report.occurredAt && (
-            <p className="text-xs text-gob-text-muted">
-              Ocurrió el {formatDate(report.occurredAt)}
+            <p className="mt-2 text-[11px] text-ln-op-mute">
+              {"Ocurrió el "}
+              {formatDate(report.occurredAt)}
             </p>
           )}
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        <section className="rounded-lg border border-gob-border  p-4 space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">Sujeto</h2>
-          <p className="text-sm">
+      {/* Subject */}
+      <OpCard>
+        <OpCardHead title="Sujeto" />
+        <OpCardBody>
+          <p className="text-[13px] text-ln-op-ink">
             {welfareReportSubjectKindLabel(report.subjectKind)}
             {report.subjectPetId && (
-              <span className="text-gob-text-muted font-mono text-xs">
-                {" "}
-                · {report.subjectPetId}
+              <span className="ml-2 font-mono text-[11px] text-ln-op-mute">
+                {report.subjectPetId}
               </span>
             )}
           </p>
           {report.subjectDescription && (
-            <p className="text-sm text-gob-text-gray  whitespace-pre-wrap">
+            <p className="mt-1 whitespace-pre-wrap text-[12px] text-ln-op-ink-2">
               {report.subjectDescription}
             </p>
           )}
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        {(locationPoint || report.jurisdictionProvince || report.locationAddress) && (
-          <section className="rounded-lg border border-gob-border  p-4 space-y-3">
-            <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">Lugar</h2>
-            <div className="text-sm text-gob-text-gray  space-y-1">
+      {/* Location */}
+      {(locationPoint || report.jurisdictionProvince || report.locationAddress) && (
+        <OpCard>
+          <OpCardHead title="Lugar" />
+          <OpCardBody className="space-y-3">
+            <div className="space-y-1 text-[12px] text-ln-op-ink-2">
               {report.locationAddress && <p>{report.locationAddress}</p>}
               {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                 <p>
@@ -126,18 +161,19 @@ export default async function ModeracionDetailPage({
               )}
             </div>
             {locationPoint && <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />}
-          </section>
-        )}
+          </OpCardBody>
+        </OpCard>
+      )}
 
-        {attachments.length > 0 && (
-          <section className="rounded-lg border border-gob-border  p-4 space-y-2">
-            <h2 className="text-xs uppercase tracking-wider text-gob-text-muted">
-              Evidencia ({attachments.length})
-            </h2>
-            <ul className="space-y-1.5 text-sm">
+      {/* Attachments */}
+      {attachments.length > 0 && (
+        <OpCard>
+          <OpCardHead title={`Evidencia (${attachments.length})`} />
+          <OpCardBody>
+            <ul className="space-y-1.5">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="font-mono text-xs truncate">
+                  <span className="truncate font-mono text-[11px] text-ln-op-mute">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (
@@ -145,31 +181,34 @@ export default async function ModeracionDetailPage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs underline"
+                      className="text-[12px] font-semibold text-ln-op-azul underline underline-offset-4"
                     >
-                      Abrir →
+                      {"Abrir ->"}
                     </a>
                   ) : (
-                    <span className="text-xs text-gob-text-muted">(no disponible)</span>
+                    <span className="text-[11px] text-ln-op-faint">(no disponible)</span>
                   )}
                 </li>
               ))}
             </ul>
-          </section>
-        )}
+          </OpCardBody>
+        </OpCard>
+      )}
 
-        {isResolved ? (
-          <p className="text-sm text-gob-text-muted">
-            Esta denuncia ya fue moderada el{" "}
-            {report.moderationResolvedAt && formatDateTime(report.moderationResolvedAt)}.
-          </p>
-        ) : (
-          <section className="space-y-3 pt-2 border-t border-gob-border ">
-            <h2 className="text-lg font-semibold text-gob-text ">Resolución</h2>
+      {/* Resolution */}
+      {isResolved ? (
+        <OpCallout
+          title="Denuncia moderada"
+          body={`Esta denuncia ya fue moderada el ${report.moderationResolvedAt && formatDateTime(report.moderationResolvedAt)}.`}
+        />
+      ) : (
+        <OpCard>
+          <OpCardHead title="Resolución" />
+          <OpCardBody>
             <ModerationActions welfareReportId={report.id} />
-          </section>
-        )}
-      </div>
-    </main>
+          </OpCardBody>
+        </OpCard>
+      )}
+    </div>
   );
 }

@@ -1,8 +1,10 @@
 import { db, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { eq } from "drizzle-orm";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { OpCallout, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
+
 import { ReplaceMicrochipForm } from "./ReplaceMicrochipForm";
 import { replaceMicrochipAdminAction } from "./action";
 
@@ -21,49 +23,62 @@ export default async function ReplaceMicrochipAdminPage({
 
   if (!pet.microchipId) {
     return (
-      <main className="px-6 py-8">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <Link
-            href={`/admin/observaciones/${pet.publicToken}`}
-            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-          >
-            ← Volver
-          </Link>
-          <header className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-              Reemplazar microchip — {pet.name}
-            </h1>
-            <p className="text-sm text-gob-text-gray ">
-              {pet.name} no tiene microchip registrado todavía.
-            </p>
-          </header>
-        </div>
-      </main>
+      <div className="space-y-6">
+        <OpCrumbs
+          items={[
+            { label: "Observaciones", href: "/admin/observaciones" },
+            { label: pet.name, href: `/admin/observaciones/${pet.publicToken}` },
+            { label: "Reemplazar microchip" },
+          ]}
+        />
+        <header className="space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            {"Admin · Microchip"}
+          </p>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            {"Reemplazar microchip — "}
+            {pet.name}
+          </h1>
+        </header>
+        <OpCallout
+          title="Sin microchip registrado"
+          body={`${pet.name} no tiene microchip registrado todavía.`}
+        />
+      </div>
     );
   }
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Link
-          href={`/admin/observaciones/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver
-        </Link>
+    <div className="space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Observaciones", href: "/admin/observaciones" },
+          { label: pet.name, href: `/admin/observaciones/${pet.publicToken}` },
+          { label: "Reemplazar microchip" },
+        ]}
+      />
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Reemplazar microchip — {pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Acción administrativa. Todas las razones están disponibles, incluidas fraude y
-            duplicado. Quedará registrado en el log de auditoría.
-          </p>
-        </header>
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {"Admin · Microchip"}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          {"Reemplazar microchip — "}
+          {pet.name}
+        </h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          {
+            "Acción administrativa. Todas las razones están disponibles, incluidas fraude y duplicado. Quedará registrado en el log de auditoría."
+          }
+        </p>
+      </header>
 
-        <ReplaceMicrochipForm action={boundAction} currentChip={pet.microchipId} />
-      </div>
-    </main>
+      <OpCard>
+        <OpCardHead title="Datos del reemplazo" />
+        <OpCardBody>
+          <ReplaceMicrochipForm action={boundAction} currentChip={pet.microchipId} />
+        </OpCardBody>
+      </OpCard>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpBreach, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
@@ -15,12 +16,14 @@ const STATUS_LABEL: Record<RabiesObservationStatus, string> = {
   completed_lost_to_followup: "Sin seguimiento",
 };
 
-const STATUS_TONE: Record<RabiesObservationStatus, string> = {
-  in_progress: "bg-gob-warning/10 text-gob-warning-text  ",
-  completed_negative: "bg-gob-success/10 text-gob-success  ",
-  completed_positive_rabies: "bg-gob-danger/10 text-gob-danger  ",
-  completed_dead: "bg-gob-danger/10 text-gob-danger  ",
-  completed_lost_to_followup: "bg-gob-surface-alt text-gob-text-gray  ",
+type PillTone = "open" | "ok" | "danger" | "neutral";
+
+const STATUS_PILL: Record<RabiesObservationStatus, PillTone> = {
+  in_progress: "open",
+  completed_negative: "ok",
+  completed_positive_rabies: "danger",
+  completed_dead: "danger",
+  completed_lost_to_followup: "neutral",
 };
 
 function formatRelative(date: Date | null): string {
@@ -56,15 +59,18 @@ export default async function ObservacionesPage() {
   if (profile.role === "govt") {
     if (jurisdictions.length === 0) {
       return (
-        <main className="px-6 py-8">
-          <div className="max-w-5xl mx-auto space-y-4">
-            <h1 className="text-3xl font-semibold text-gob-text ">Observaciones antirrábicas</h1>
-            <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  px-4 py-3 text-sm text-gob-warning-text ">
-              Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al
-              menos una.
-            </div>
-          </div>
-        </main>
+        <div className="space-y-6">
+          <header className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+              {"Admin · Vigilancia"}
+            </p>
+            <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
+          </header>
+          <OpBreach
+            title="Sin localidades asignadas"
+            detail="Pedí a un administrador que te asigne al menos una localidad para operar."
+          />
+        </div>
       );
     }
     const pairs = jurisdictions.map(
@@ -90,14 +96,18 @@ export default async function ObservacionesPage() {
 
   if (rows.length === 0) {
     return (
-      <main className="px-6 py-8">
-        <div className="max-w-5xl mx-auto space-y-4">
-          <h1 className="text-3xl font-semibold text-gob-text ">Observaciones antirrábicas</h1>
-          <p className="text-sm text-gob-text-muted ">
-            No hay observaciones activas ni cierres recientes en tu cobertura.
+      <div className="space-y-6">
+        <header className="space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            {"Admin · Vigilancia"}
           </p>
-        </div>
-      </main>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
+        </header>
+        <OpCallout
+          title="Sin observaciones activas"
+          body="No hay observaciones activas ni cierres recientes en tu cobertura."
+        />
+      </div>
     );
   }
 
@@ -142,68 +152,72 @@ export default async function ObservacionesPage() {
   for (const o of ownerRows) ownerByPet.set(o.petId, o.displayName);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Observaciones antirrábicas
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas
-            requieren cierre profesional cuando hubo síntomas escalables; las completadas se
-            muestran como referencia (últimos 30 días).
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {"Admin · Vigilancia"}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas
+          requieren cierre profesional cuando hubo síntomas escalables; las completadas se muestran
+          como referencia (últimos 30 días).
+        </p>
+      </header>
 
-        <ul className="space-y-2">
-          {rows.map((r) => {
-            const started = startedByPet.get(r.petId);
-            const status = (r.status ?? "in_progress") as RabiesObservationStatus;
-            return (
-              <li key={r.petId} className="rounded-lg border border-gob-border  px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="text-sm font-medium text-gob-text ">
-                      {r.petName}{" "}
-                      <span className="text-xs text-gob-text-muted ">· {r.species}</span>
-                    </p>
-                    <p className="text-xs text-gob-text-muted ">
-                      {r.locality ?? "—"}, {r.province ?? "—"}
-                    </p>
-                    {ownerByPet.get(r.petId) && (
-                      <p className="text-xs text-gob-text-muted ">
-                        Dueño/a: {ownerByPet.get(r.petId)}
+      <ul className="space-y-2">
+        {rows.map((r) => {
+          const started = startedByPet.get(r.petId);
+          const status = (r.status ?? "in_progress") as RabiesObservationStatus;
+          return (
+            <li key={r.petId}>
+              <OpCard>
+                <OpCardBody>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-[13px] font-semibold text-ln-op-ink">
+                        {r.petName}{" "}
+                        <span className="text-[12px] font-normal text-ln-op-mute">
+                          {"· "}
+                          {r.species}
+                        </span>
                       </p>
-                    )}
-                    <p className="text-xs text-gob-text-muted ">
-                      Inicio: {formatRelative(started?.occurredAt ?? null)}
-                      {started?.observationUntil
-                        ? ` · Cierre estimado: ${started.observationUntil.toLocaleDateString("es-AR")}`
-                        : null}
-                    </p>
-                    <p className="text-[10px] font-mono text-gob-text-muted ">{r.petPublicToken}</p>
+                      <p className="text-[12px] text-ln-op-mute">
+                        {r.locality ?? "—"}, {r.province ?? "—"}
+                      </p>
+                      {ownerByPet.get(r.petId) && (
+                        <p className="text-[12px] text-ln-op-mute">
+                          {"Dueño/a: "}
+                          {ownerByPet.get(r.petId)}
+                        </p>
+                      )}
+                      <p className="text-[12px] text-ln-op-mute">
+                        {"Inicio: "}
+                        {formatRelative(started?.occurredAt ?? null)}
+                        {started?.observationUntil
+                          ? ` · Cierre estimado: ${started.observationUntil.toLocaleDateString("es-AR")}`
+                          : null}
+                      </p>
+                      <p className="font-mono text-[10px] text-ln-op-faint">{r.petPublicToken}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
+                      <OpPill tone={STATUS_PILL[status]}>{STATUS_LABEL[status]}</OpPill>
+                      {status === "in_progress" && (
+                        <Link
+                          href={`/admin/observaciones/${r.petPublicToken}`}
+                          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                        >
+                          {"Cerrar profesionalmente ->"}
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${STATUS_TONE[status]}`}
-                    >
-                      {STATUS_LABEL[status]}
-                    </span>
-                    {status === "in_progress" && (
-                      <Link
-                        href={`/admin/observaciones/${r.petPublicToken}`}
-                        className="text-xs underline underline-offset-2 text-gob-text-gray  hover:text-gob-text "
-                      >
-                        Cerrar profesionalmente
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </main>
+                </OpCardBody>
+              </OpCard>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
