@@ -1,6 +1,11 @@
+// Proposal detail — Libreta Nacional redesign.
+// ProposalActions (client component) unchanged.
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { eq } from "drizzle-orm";
@@ -16,12 +21,7 @@ export default async function ProposalDetailPage({
   const { proposalToken } = await params;
 
   const [row] = await db
-    .select({
-      proposal: fosterProposals,
-      pet: pets,
-      org: organizations,
-      proposer: profiles,
-    })
+    .select({ proposal: fosterProposals, pet: pets, org: organizations, proposer: profiles })
     .from(fosterProposals)
     .innerJoin(pets, eq(pets.id, fosterProposals.petId))
     .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
@@ -37,74 +37,101 @@ export default async function ProposalDetailPage({
   const warnings = (proposal.matchWarnings ?? []) as string[];
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-6">
-        <Link
-          href="/cuenta/transitos/propuestas"
-          className="text-sm text-gob-text-muted hover:text-gob-text "
-        >
-          ← Volver a propuestas
-        </Link>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta/transitos/propuestas"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Propuestas
+      </Link>
 
-        <header className="space-y-2">
-          <p className="text-sm text-gob-text-muted">{org.displayName} te propone cuidar a</p>
-          <h1 className="text-2xl font-semibold text-gob-text ">{pet.name}</h1>
-          <p className="text-sm text-gob-text-gray ">
-            {pet.species}
-            {pet.breed && ` · ${pet.breed}`}
-            {pet.sex && ` · ${pet.sex}`}
-          </p>
-        </header>
+      {/* Header */}
+      <div className="mb-[24px]">
+        <p className="mb-[4px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+          {org.displayName} te propone cuidar a
+        </p>
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          {pet.name}
+        </h1>
+        <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">
+          {pet.species}
+          {pet.breed && ` · ${pet.breed}`}
+          {pet.sex && ` · ${pet.sex}`}
+        </p>
+      </div>
 
-        <section className="rounded-lg border border-gob-border-strong  p-4 space-y-2 text-sm">
-          <p>
-            <span className="text-gob-text-muted">Propuesto por:</span> {proposer.displayName}
-          </p>
-          <p>
-            <span className="text-gob-text-muted">Duración estimada:</span>{" "}
-            {proposal.proposedDurationWeeks
-              ? `${proposal.proposedDurationWeeks} semanas`
-              : "Sin definir"}
-          </p>
-          <p>
-            <span className="text-gob-text-muted">Expira:</span>{" "}
-            {expires.toLocaleDateString("es-AR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
-          {proposal.proposedNotes && (
-            <div>
-              <p className="text-gob-text-muted">Notas del refugio:</p>
-              <p className="text-gob-text  whitespace-pre-wrap mt-1">{proposal.proposedNotes}</p>
-            </div>
-          )}
-        </section>
+      {/* Details card */}
+      <LnCard className="mb-[20px]">
+        <LnCardHead title="Detalles de la propuesta" />
+        <LnCardBody>
+          <dl className="flex flex-col gap-[10px]">
+            <DetailRow label="Propuesto por">{proposer.displayName}</DetailRow>
+            <DetailRow label="Duración estimada">
+              {proposal.proposedDurationWeeks
+                ? `${proposal.proposedDurationWeeks} semanas`
+                : "Sin definir"}
+            </DetailRow>
+            <DetailRow label="Expira">
+              {expires.toLocaleDateString("es-AR", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </DetailRow>
+            {proposal.proposedNotes && (
+              <DetailRow label="Notas del refugio">
+                <span className="whitespace-pre-wrap">{proposal.proposedNotes}</span>
+              </DetailRow>
+            )}
+          </dl>
+        </LnCardBody>
+      </LnCard>
 
-        {warnings.length > 0 && (
-          <section className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-            <p className="text-sm font-medium text-gob-warning-text ">Avisos del matching</p>
-            <ul className="text-sm text-gob-warning-text  space-y-1 list-disc pl-5">
+      {/* Warnings */}
+      {warnings.length > 0 && (
+        <div className="mb-[20px]">
+          <LnCallout tone="warn" title="Avisos del matching">
+            <ul className="mt-[6px] flex flex-col gap-[4px]">
               {warnings.map((w) => (
-                <li key={w}>{w}</li>
+                <li key={w} className="text-[12px]">
+                  · {w}
+                </li>
               ))}
             </ul>
-          </section>
-        )}
+          </LnCallout>
+        </div>
+      )}
 
-        {proposal.status === "pending" ? (
-          <ProposalActions
-            proposalPublicToken={proposal.publicToken}
-            petName={pet.name}
-            orgName={org.displayName}
-          />
-        ) : (
-          <p className="text-sm text-gob-text-muted">
-            Esta propuesta está en estado <strong>{proposal.status}</strong>.
-          </p>
-        )}
-      </div>
-    </main>
+      {/* Actions */}
+      {proposal.status === "pending" ? (
+        <ProposalActions
+          proposalPublicToken={proposal.publicToken}
+          petName={pet.name}
+          orgName={org.displayName}
+        />
+      ) : (
+        <p className="text-[13px] text-[var(--color-ln-mute)]">
+          Esta propuesta está en estado <strong>{proposal.status}</strong>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        {label}
+      </dt>
+      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+    </div>
   );
 }

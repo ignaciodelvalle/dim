@@ -1,10 +1,10 @@
 // Pet transfer detail / accept-reject page (handoff P3-2).
-//
-// Receiver lands here from the email magic-link or from their in-app
-// notification. Senders see read-only state + a cancel button while pending.
+// Presentation redesign only — data fetching and AcceptTransferActions unchanged.
 
 import Link from "next/link";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getTransferForViewerAction as getTransferForViewer } from "@/src/modules/transfers/actions";
 import { AcceptTransferActions } from "./AcceptTransferActions";
@@ -46,19 +46,17 @@ export default async function TransferPage({
 
   if (!result.ok) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-md mx-auto pt-10 space-y-4">
-          <Link
-            href="/mis-mascotas"
-            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
-          >
-            ← Mis mascotas
-          </Link>
-          <div className="rounded-lg border border-gob-danger bg-gob-danger/10 p-4 text-sm text-gob-danger   ">
-            {result.error}
-          </div>
-        </div>
-      </main>
+      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+        <Link
+          href="/transferencias"
+          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Transferencias
+        </Link>
+        <LnCallout tone="warn" title="No se pudo cargar la transferencia">
+          {result.error}
+        </LnCallout>
+      </div>
     );
   }
 
@@ -66,64 +64,83 @@ export default async function TransferPage({
   const statusLabel = STATUS_LABELS[transfer.status] ?? transfer.status;
   const reasonLabel = transfer.reason ? (REASON_LABELS[transfer.reason] ?? transfer.reason) : null;
 
-  return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-10 space-y-6">
-        <Link
-          href="/mis-mascotas"
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
-        >
-          ← Mis mascotas
-        </Link>
+  const statusBadgeClass =
+    transfer.status === "accepted"
+      ? "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]"
+      : transfer.status === "pending"
+        ? "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]"
+        : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
 
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-gob-text-muted ">
-            Transferencia · {statusLabel}
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
+  return (
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/transferencias"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Transferencias
+      </Link>
+
+      {/* Header */}
+      <div className="mb-[24px] flex items-start justify-between gap-3">
+        <div>
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {transfer.isRecipient
               ? `Recibiste a ${transfer.petName}`
               : `Transferencia de ${transfer.petName}`}
           </h1>
           {transfer.fromDisplayName && transfer.isRecipient && (
-            <p className="text-sm text-gob-text-gray ">
+            <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">
               {transfer.fromDisplayName} te quiere transferir esta mascota.
             </p>
           )}
-        </header>
-
-        <dl className="space-y-3 text-sm">
-          {reasonLabel && (
-            <div>
-              <dt className="text-xs text-gob-text-muted ">Motivo</dt>
-              <dd className="text-gob-text ">{reasonLabel}</dd>
-            </div>
-          )}
-          {transfer.note && (
-            <div>
-              <dt className="text-xs text-gob-text-muted ">Comentario</dt>
-              <dd className="text-gob-text ">{transfer.note}</dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-xs text-gob-text-muted ">Vence</dt>
-            <dd className="text-gob-text ">{formatExpiresAt(transfer.expiresAt)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gob-text-muted ">Email del receptor</dt>
-            <dd className="font-mono text-gob-text ">{transfer.toEmail}</dd>
-          </div>
-        </dl>
-
-        {transfer.status === "pending" && (
-          <AcceptTransferActions
-            transferToken={transfer.publicToken}
-            isRecipient={transfer.isRecipient}
-            isSender={transfer.isSender}
-            petToken={transfer.petToken}
-          />
-        )}
+        </div>
+        <span
+          className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
+        >
+          {statusLabel}
+        </span>
       </div>
-    </main>
+
+      {/* Details */}
+      <LnCard className="mb-[20px]">
+        <LnCardHead title="Detalle de la transferencia" />
+        <LnCardBody>
+          <dl className="flex flex-col gap-[12px]">
+            {reasonLabel && <DetailRow label="Motivo">{reasonLabel}</DetailRow>}
+            {transfer.note && <DetailRow label="Comentario">{transfer.note}</DetailRow>}
+            <DetailRow label="Vence">{formatExpiresAt(transfer.expiresAt)}</DetailRow>
+            <DetailRow label="Email del receptor">
+              <span className="font-[var(--font-ln-mono)] text-[12.5px]">{transfer.toEmail}</span>
+            </DetailRow>
+          </dl>
+        </LnCardBody>
+      </LnCard>
+
+      {/* Actions */}
+      {transfer.status === "pending" && (
+        <AcceptTransferActions
+          transferToken={transfer.publicToken}
+          isRecipient={transfer.isRecipient}
+          isSender={transfer.isSender}
+          petToken={transfer.petToken}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        {label}
+      </dt>
+      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+    </div>
   );
 }

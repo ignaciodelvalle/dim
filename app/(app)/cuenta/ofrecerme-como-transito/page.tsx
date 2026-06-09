@@ -1,5 +1,9 @@
+// Ofrecerme como hogar de tránsito — Libreta Nacional redesign.
+// FosterVolunteerWizard (client component) unchanged.
+
 import Link from "next/link";
 
+import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterVolunteers, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { eq } from "drizzle-orm";
@@ -12,11 +16,9 @@ export default async function OfrecermeComoTransitoPage() {
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
   if (!profile) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-10">
-          <p className="text-sm text-gob-danger">No se encontró tu perfil.</p>
-        </div>
-      </main>
+      <div className="mx-auto max-w-2xl px-[32px] py-[28px]">
+        <p className="text-[13px] text-[var(--color-ln-err)]">No se encontró tu perfil.</p>
+      </div>
     );
   }
 
@@ -33,56 +35,57 @@ export default async function OfrecermeComoTransitoPage() {
     : [];
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <Link
-          href="/cuenta"
-          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
-        >
-          ← Volver a mi cuenta
-        </Link>
-        <header>
-          <h1 className="text-2xl font-semibold text-gob-text ">
-            Ofrecerme como hogar de tránsito
-          </h1>
-          <p className="mt-2 text-sm text-gob-text-gray ">
-            Inscribite en el pool de voluntarios. Los refugios cerca tuyo te van a poder proponer
-            tránsitos según tus preferencias.
-          </p>
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        {!ready ? (
-          <PreCheckChecklist checks={checks} />
-        ) : (
-          <FosterVolunteerWizard
-            initial={
-              existing
-                ? {
-                    status: existing.status as "active" | "paused" | "withdrawn",
-                    availableSlots: existing.availableSlots,
-                    jurisdictionProvince: existing.jurisdictionProvince,
-                    jurisdictionLocality: existing.jurisdictionLocality,
-                    acceptsDogs: existing.acceptsDogs,
-                    acceptsCats: existing.acceptsCats,
-                    acceptsOtherSpecies: existing.acceptsOtherSpecies,
-                    acceptsSizeSmall: existing.acceptsSizeSmall,
-                    acceptsSizeMedium: existing.acceptsSizeMedium,
-                    acceptsSizeLarge: existing.acceptsSizeLarge,
-                    acceptsPuppies: existing.acceptsPuppies,
-                    acceptsSeniors: existing.acceptsSeniors,
-                    acceptsChronicConditions: existing.acceptsChronicConditions,
-                    acceptsDangerousBreeds: existing.acceptsDangerousBreeds,
-                    maxDurationWeeks: existing.maxDurationWeeks,
-                    householdOtherPets: existing.householdOtherPets,
-                    householdKids: existing.householdKids,
-                    notes: existing.notes,
-                  }
-                : null
-            }
-          />
-        )}
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Ofrecerme como hogar de tránsito
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Inscribite en el pool de voluntarios. Los refugios cerca tuyo te van a poder proponer
+          tránsitos según tus preferencias.
+        </p>
       </div>
-    </main>
+
+      {!ready ? (
+        <PreCheckChecklist checks={checks} />
+      ) : (
+        <FosterVolunteerWizard
+          initial={
+            existing
+              ? {
+                  status: existing.status as "active" | "paused" | "withdrawn",
+                  availableSlots: existing.availableSlots,
+                  jurisdictionProvince: existing.jurisdictionProvince,
+                  jurisdictionLocality: existing.jurisdictionLocality,
+                  acceptsDogs: existing.acceptsDogs,
+                  acceptsCats: existing.acceptsCats,
+                  acceptsOtherSpecies: existing.acceptsOtherSpecies,
+                  acceptsSizeSmall: existing.acceptsSizeSmall,
+                  acceptsSizeMedium: existing.acceptsSizeMedium,
+                  acceptsSizeLarge: existing.acceptsSizeLarge,
+                  acceptsPuppies: existing.acceptsPuppies,
+                  acceptsSeniors: existing.acceptsSeniors,
+                  acceptsChronicConditions: existing.acceptsChronicConditions,
+                  acceptsDangerousBreeds: existing.acceptsDangerousBreeds,
+                  maxDurationWeeks: existing.maxDurationWeeks,
+                  householdOtherPets: existing.householdOtherPets,
+                  householdKids: existing.householdKids,
+                  notes: existing.notes,
+                }
+              : null
+          }
+        />
+      )}
+    </div>
   );
 }
 
@@ -102,7 +105,10 @@ function PreCheckChecklist({
       label: "Tu cuenta es personal con rol dueño",
       cta: checks.isPersonalOwner
         ? null
-        : { href: "/cuenta", text: "Las cuentas institucionales no pueden ser voluntarios." },
+        : {
+            href: "/cuenta",
+            text: "Las cuentas institucionales no pueden ser voluntarios.",
+          },
     },
     {
       ok: checks.dniVerified,
@@ -122,25 +128,27 @@ function PreCheckChecklist({
   ];
 
   return (
-    <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-3">
-      <p className="text-sm font-medium text-gob-warning-text ">
-        Antes de inscribirte como voluntario necesitamos lo siguiente:
-      </p>
-      <ul className="space-y-2 text-sm">
+    <LnCallout tone="warn" title="Antes de inscribirte necesitamos lo siguiente:">
+      <ul className="mt-[8px] flex flex-col gap-[8px]">
         {items.map((item) => (
-          <li key={item.label} className="flex items-start gap-2">
-            <span className={item.ok ? "text-gob-success " : "text-gob-warning-text "}>
+          <li key={item.label} className="flex items-center gap-[8px]">
+            <span
+              className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[12px] ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
+            >
               {item.ok ? "✓" : "○"}
             </span>
-            <span className="flex-1 text-gob-text ">{item.label}</span>
+            <span className="flex-1 text-[12.5px] text-[var(--color-ln-ink-2)]">{item.label}</span>
             {item.cta && (
-              <Link href={item.cta.href} className="text-gob-warning-text  underline text-xs">
+              <Link
+                href={item.cta.href}
+                className="flex-shrink-0 text-[11.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
                 {item.cta.text}
               </Link>
             )}
           </li>
         ))}
       </ul>
-    </div>
+    </LnCallout>
   );
 }

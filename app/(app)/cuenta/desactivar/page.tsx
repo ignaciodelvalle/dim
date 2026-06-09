@@ -1,15 +1,15 @@
+// Desactivar cuenta — Libreta Nacional redesign.
+// GovtSelfDeactivateForm (client component) unchanged.
+
 import { and, count, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { LnCallout } from "@/components/ui/DocElements";
 import { db, govtAssignments, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 import { GovtSelfDeactivateForm } from "./GovtSelfDeactivateForm";
-
-// Server component gate: only active institutional govt accounts reach the form.
-// Queries coverage per locality so the UI can show the per-row status without
-// a separate client-side fetch.
 
 export default async function DesactivarPage() {
   const { user } = await requireUserOrRedirect();
@@ -25,7 +25,6 @@ export default async function DesactivarPage() {
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  // Gate: must be active institutional govt
   if (
     !profile ||
     profile.role !== "govt" ||
@@ -35,7 +34,6 @@ export default async function DesactivarPage() {
     redirect("/cuenta");
   }
 
-  // Load active assignments for the caller
   const myAssignments = await db
     .select({
       province: govtAssignments.jurisdictionProvince,
@@ -44,8 +42,6 @@ export default async function DesactivarPage() {
     .from(govtAssignments)
     .where(and(eq(govtAssignments.userId, user.id), isNull(govtAssignments.revokedAt)));
 
-  // For each assignment, count OTHER active govts covering the same (province, locality).
-  // "Active" means: their assignment is not revoked AND their profile is not deactivated.
   const localitiesWithCoverage = await Promise.all(
     myAssignments.map(async (a) => {
       const [{ otherCount }] = await db
@@ -71,26 +67,31 @@ export default async function DesactivarPage() {
   );
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <Link
-          href="/cuenta"
-          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
-        >
-          ← Volver a mi cuenta
-        </Link>
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-            Desactivar mi cuenta
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Hola, <strong>{profile.displayName}</strong>. Esta accion es irreversible desde este
-            panel. Si necesitás reactivar tu cuenta, contacta a un administrador.
-          </p>
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        <GovtSelfDeactivateForm localities={localitiesWithCoverage} />
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Desactivar mi cuenta
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Hola, <strong>{profile.displayName}</strong>. Esta acción es irreversible desde este
+          panel. Si necesitás reactivar tu cuenta, contactá a un administrador.
+        </p>
       </div>
-    </main>
+
+      <LnCallout tone="warn" title="Esta acción es irreversible" className="mb-[24px]">
+        Al desactivar tu cuenta, perdés acceso al panel de operador gubernamental.
+      </LnCallout>
+
+      <GovtSelfDeactivateForm localities={localitiesWithCoverage} />
+    </div>
   );
 }

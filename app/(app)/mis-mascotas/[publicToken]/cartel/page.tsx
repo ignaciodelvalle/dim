@@ -31,22 +31,20 @@ export default async function CartelPage({
   // Guard: poster only makes sense when the pet is marked lost.
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen p-6 bg-white">
-        <div className="max-w-md mx-auto pt-12 space-y-6 text-center">
-          <p className="text-lg font-semibold text-gob-text">
-            {pet.name} no está marcada como perdida.
-          </p>
-          <p className="text-sm text-gob-text-gray">
-            Marcala como perdida primero para generar el cartel.
-          </p>
-          <Link
-            href={`/mis-mascotas/${publicToken}?sheet=marcar-perdida`}
-            className="inline-block px-5 py-2.5 rounded-lg bg-gob-warning text-white font-medium hover:bg-gob-warning transition-colors"
-          >
-            Marcar como perdida
-          </Link>
-        </div>
-      </main>
+      <div className="mx-auto max-w-md px-[32px] py-[48px] text-center">
+        <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+          {pet.name} no está marcada como perdida.
+        </p>
+        <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+          Marcala como perdida primero para generar el cartel.
+        </p>
+        <Link
+          href={`/mis-mascotas/${publicToken}?sheet=marcar-perdida`}
+          className="mt-[20px] inline-flex items-center rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
+        >
+          Marcar como perdida
+        </Link>
+      </div>
     );
   }
 
@@ -97,7 +95,7 @@ export default async function CartelPage({
   });
 
   return (
-    <div className="min-h-screen bg-gob-surface-alt print:bg-white">
+    <div className="min-h-screen bg-[var(--color-ln-stripe)] print:bg-white">
       <PosterPreview
         publicToken={publicToken}
         petName={pet.name}

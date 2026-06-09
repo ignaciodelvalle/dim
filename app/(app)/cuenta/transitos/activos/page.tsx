@@ -1,5 +1,9 @@
+// Tránsitos activos — Libreta Nacional redesign.
+// CoFosterToggle (client component) unchanged.
+
 import Link from "next/link";
 
+import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
@@ -9,12 +13,8 @@ import { CoFosterToggle } from "./CoFosterToggle";
 export default async function TransitosActivosPage() {
   const { user } = await requireUserOrRedirect();
 
-  // Pets where this user has an ACTIVE foster ownership row.
   const rows = await db
-    .select({
-      ownership: ownerships,
-      pet: pets,
-    })
+    .select({ ownership: ownerships, pet: pets })
     .from(ownerships)
     .innerJoin(pets, eq(pets.id, ownerships.petId))
     .where(
@@ -25,8 +25,6 @@ export default async function TransitosActivosPage() {
       ),
     );
 
-  // For each pet, also fetch the active shelter_custody org (the refugio
-  // we're cuidando the pet for). The pet may not have one if it's a vecino-foster.
   const orgMap = new Map<string, { displayName: string; publicToken: string }>();
   if (rows.length > 0) {
     const petIds = rows.map((r) => r.pet.id);
@@ -53,75 +51,85 @@ export default async function TransitosActivosPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto pt-10 space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-gob-text ">Tránsitos activos</h1>
-          <p className="mt-2 text-sm text-gob-text-gray ">
-            Mascotas que estás cuidando hoy. Tenés los mismos permisos sobre la libreta sanitaria y
-            eventos que un dueño mientras dure el tránsito.
-          </p>
-        </header>
+    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        {rows.length === 0 ? (
-          <p className="text-sm text-gob-text-muted py-8 text-center">
-            No tenés tránsitos activos.{" "}
-            <Link href="/cuenta/transitos/propuestas" className="underline hover:text-gob-text ">
-              Mirá tus propuestas
-            </Link>
-            .
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {rows.map(({ ownership, pet }) => {
-              const org = orgMap.get(pet.id);
-              return (
-                <li
-                  key={ownership.id}
-                  className="rounded-lg border border-gob-border-strong  p-4 space-y-3"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div className="space-y-1">
-                      <Link
-                        href={`/mis-mascotas/${pet.publicToken}`}
-                        className="font-medium text-gob-text  hover:underline"
-                      >
-                        {pet.name}
-                      </Link>
-                      <p className="text-xs text-gob-text-muted">
-                        {pet.species}
-                        {pet.breed && ` · ${pet.breed}`}
-                        {org && (
-                          <>
-                            {" · "}
-                            <span>refugio: {org.displayName}</span>
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  </div>
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Tránsitos activos
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Mascotas que estás cuidando hoy. Tenés los mismos permisos sobre la libreta sanitaria y
+          eventos que un dueño mientras dure el tránsito.
+        </p>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
+          <p className="text-[13px] text-[var(--color-ln-mute)]">No tenés tránsitos activos.</p>
+          <Link
+            href="/cuenta/transitos/propuestas"
+            className="mt-[10px] inline-block text-[12.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            Mirá tus propuestas →
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-[12px]">
+          {rows.map(({ ownership, pet }) => {
+            const org = orgMap.get(pet.id);
+            return (
+              <div
+                key={ownership.id}
+                className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]"
+              >
+                <div className="px-[16px] py-[14px]">
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}`}
+                    className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)] no-underline hover:underline"
+                  >
+                    {pet.name}
+                  </Link>
+                  <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                    {pet.species}
+                    {pet.breed && ` · ${pet.breed}`}
+                    {org && ` · refugio: ${org.displayName}`}
+                  </p>
+                </div>
+                <div className="border-t border-[var(--color-ln-line-2)] px-[16px] py-[12px]">
                   <CoFosterToggle
                     fosterOwnershipId={ownership.id}
                     initial={ownership.allowCoFoster}
                   />
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        <footer className="pt-4 border-t border-gob-border  space-y-2 text-sm">
-          <p className="text-gob-text-gray ">
-            <Link href="/cuenta/transitos/propuestas" className="underline hover:text-gob-text ">
-              Propuestas
-            </Link>
-            {" · "}
-            <Link href="/cuenta/transitos/historial" className="underline hover:text-gob-text ">
-              Historial
-            </Link>
-          </p>
-        </footer>
+      {/* Nav footer */}
+      <div className="mt-[32px] flex gap-[20px] border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[11px]">
+        <Link
+          href="/cuenta/transitos/propuestas"
+          className="text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          Propuestas
+        </Link>
+        <Link
+          href="/cuenta/transitos/historial"
+          className="text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          Historial
+        </Link>
       </div>
-    </main>
+    </div>
   );
 }

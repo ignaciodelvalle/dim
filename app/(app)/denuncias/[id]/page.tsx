@@ -1,3 +1,12 @@
+// Welfare report detail — Libreta Nacional redesign.
+// Presentation only; data fetching, actions, ReporterCommentForm, and LocationMap unchanged.
+
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
 import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { caseEvents, cases } from "@/db/schema";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -12,53 +21,41 @@ import {
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
 import { and, desc, eq } from "drizzle-orm";
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
 import { type CommentFormState, ReporterCommentForm } from "./_components/ReporterCommentForm";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-gob-border  bg-gob-surface-alt  animate-pulse" />
+    <div className="w-full h-[240px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
 
-// Status badge color mapping — matches mis-denuncias page.
+// LN status badge class mapping.
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
-      return "bg-gob-success/10  text-gob-success ";
+      return "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]";
     case "invalid":
     case "duplicate":
-      return "bg-gob-surface-alt  text-gob-text-muted ";
+      return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
     case "in_progress":
-      return "bg-gob-info/10  text-gob-azul-link ";
+      return "border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]";
     case "triaged":
-      return "bg-gob-warning/10  text-gob-warning-text ";
+      return "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]";
     default:
-      return "bg-gob-surface-alt  text-gob-text-gray ";
+      return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]";
   }
 }
 
 function severityBadgeClass(severity: string): string {
   switch (severity) {
     case "critical":
-      return "bg-gob-danger/10  text-gob-danger ";
+      return "border-[#f1c6bf] bg-[#fbe9e6] text-[var(--color-ln-err)]";
     case "high":
-      return "bg-gob-warning/10  text-gob-warning-text ";
     case "medium":
-      return "bg-gob-warning/10  text-gob-warning-text ";
+      return "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]";
     default:
-      return "bg-gob-surface-alt  text-gob-text-gray ";
+      return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
   }
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="text-xs uppercase tracking-wider font-semibold text-gob-text-muted ">
-      {children}
-    </h2>
-  );
 }
 
 export default async function WelfareReportDetailPage({
@@ -73,7 +70,6 @@ export default async function WelfareReportDetailPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Fetch report — only the reporter can see their own submissions.
   const [report] = await db
     .select()
     .from(welfareReports)
@@ -81,7 +77,6 @@ export default async function WelfareReportDetailPage({
     .limit(1);
   if (!report) notFound();
 
-  // Fetch subject pet info if applicable.
   let subjectPet: { publicToken: string; name: string } | null = null;
   if (report.subjectPetId) {
     const [petRow] = await db
@@ -92,7 +87,6 @@ export default async function WelfareReportDetailPage({
     subjectPet = petRow ?? null;
   }
 
-  // Fetch attachments + generate signed URLs.
   const attachmentRows = await db
     .select()
     .from(welfareReportAttachments)
@@ -105,7 +99,6 @@ export default async function WelfareReportDetailPage({
     })),
   );
 
-  // Fetch reporter comments from the case timeline.
   let reporterComments: Array<{
     id: string;
     notes: string | null;
@@ -142,8 +135,6 @@ export default async function WelfareReportDetailPage({
 
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
-  // Bound server action — ties the reportId to this report so the client form
-  // does not need to pass it as a hidden field (avoids tamper risk).
   async function commentAction(
     _prev: CommentFormState,
     formData: FormData,
@@ -156,206 +147,234 @@ export default async function WelfareReportDetailPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-6 space-y-8">
-        {/* Back link */}
-        <Link
-          href="/denuncias/mias"
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
-        >
-          ← Mis denuncias
-        </Link>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/denuncias/mias"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mis denuncias
+      </Link>
 
-        {/* Header */}
-        <header className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
+      {/* Header */}
+      <div className="mb-[24px]">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {welfareReportKindLabel(report.kind)}
           </h1>
-          {/* Reference code + share hint */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <p className="text-sm text-gob-text-muted ">
-              Código de seguimiento:{" "}
-              <span className="font-mono tracking-wide text-gob-text-gray ">
-                {report.referenceCode}
-              </span>
-            </p>
-            <a
-              href={`/denuncias/codigo/${report.referenceCode}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs underline underline-offset-4 text-gob-text-muted  hover:text-gob-text-gray  transition-colors"
-            >
-              Compartir este link
-            </a>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-shrink-0 flex-wrap gap-[6px]">
             <span
-              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusBadgeClass(report.status)}`}
+              className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
             >
               {welfareReportStatusLabel(report.status)}
             </span>
             <span
-              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${severityBadgeClass(report.severity)}`}
+              className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${severityBadgeClass(report.severity)}`}
             >
               {welfareReportSeverityLabel(report.severity)}
             </span>
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gob-text-muted ">
-            <span>Enviada {formatDateTime(report.createdAt)}</span>
-            {report.occurredAt && <span>Ocurrió el {formatDate(report.occurredAt)}</span>}
-          </div>
-          {/* Case link — shown when this report has a linked case */}
-          {casePublicCode && (
-            <Link
-              href={`/casos/${casePublicCode}`}
-              className="inline-block text-xs underline underline-offset-4 text-gob-text-muted  hover:text-gob-text-gray  transition-colors"
-            >
-              Ver caso {casePublicCode} →
-            </Link>
-          )}
-        </header>
+        </div>
 
-        {/* Integration-pending notice — shown prominently below the header */}
-        <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  px-5 py-4 text-sm text-gob-warning-text  leading-relaxed">
+        <div className="mt-[8px] flex flex-wrap items-center gap-x-[14px] gap-y-[4px]">
+          <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+            Código <span className="text-[var(--color-ln-ink-2)]">{report.referenceCode}</span>
+          </p>
+          <a
+            href={`/denuncias/codigo/${report.referenceCode}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            Compartir link ↗
+          </a>
+        </div>
+        <p className="mt-[4px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          Enviada {formatDateTime(report.createdAt)}
+          {report.occurredAt && ` · Ocurrió el ${formatDate(report.occurredAt)}`}
+        </p>
+        {casePublicCode && (
+          <Link
+            href={`/casos/${casePublicCode}`}
+            className="mt-[4px] inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            Ver caso {casePublicCode} →
+          </Link>
+        )}
+      </div>
+
+      {/* Integration-pending notice */}
+      <div className="mb-[24px]">
+        <LnCallout tone="warn">
           Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
           canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
           enviado cuando la integración esté disponible.
-        </div>
+        </LnCallout>
+      </div>
 
+      <div className="flex flex-col gap-[20px]">
         {/* Description */}
-        <section className="space-y-2">
-          <SectionLabel>¿Qué pasó?</SectionLabel>
-          <p className="text-gob-text  leading-relaxed whitespace-pre-wrap">{report.description}</p>
-        </section>
+        <LnCard>
+          <LnCardHead title="¿Qué pasó?" />
+          <LnCardBody>
+            <p className="text-[13.5px] text-[var(--color-ln-ink-2)] leading-relaxed whitespace-pre-wrap">
+              {report.description}
+            </p>
+          </LnCardBody>
+        </LnCard>
 
         {/* Subject */}
-        <section className="space-y-2">
-          <SectionLabel>¿Sobre quién?</SectionLabel>
-          <p className="text-sm text-gob-text-gray ">
-            {welfareReportSubjectKindLabel(report.subjectKind)}
-          </p>
-          {report.subjectKind === "registered_pet" && subjectPet && (
-            <Link
-              href={`/mis-mascotas/${subjectPet.publicToken}`}
-              className="inline-flex items-center gap-1 text-sm underline underline-offset-2 text-gob-text-gray  hover:text-gob-text "
-            >
-              {subjectPet.name}
-              <span className="text-xs font-mono text-gob-text-muted">
-                {subjectPet.publicToken}
-              </span>
-            </Link>
-          )}
-          {report.subjectDescription && (
-            <p className="text-sm text-gob-text-gray ">{report.subjectDescription}</p>
-          )}
-        </section>
+        <LnCard>
+          <LnCardHead title="¿Sobre quién?" />
+          <LnCardBody>
+            <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+              {welfareReportSubjectKindLabel(report.subjectKind)}
+            </p>
+            {report.subjectKind === "registered_pet" && subjectPet && (
+              <Link
+                href={`/mis-mascotas/${subjectPet.publicToken}`}
+                className="mt-[6px] inline-flex items-center gap-[6px] text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                {subjectPet.name}
+                <span className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                  {subjectPet.publicToken}
+                </span>
+              </Link>
+            )}
+            {report.subjectDescription && (
+              <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+                {report.subjectDescription}
+              </p>
+            )}
+          </LnCardBody>
+        </LnCard>
 
         {/* Location */}
         {hasLocation && (
-          <section className="space-y-2">
-            <SectionLabel>Lugar</SectionLabel>
-            <div className="text-sm text-gob-text-gray  space-y-1">
-              {report.locationAddress && <p>{report.locationAddress}</p>}
-              {(report.jurisdictionLocality || report.jurisdictionProvince) && (
-                <p>
-                  {[report.jurisdictionLocality, report.jurisdictionProvince]
-                    .filter(Boolean)
-                    .join(", ")}
-                </p>
-              )}
-              {locationPoint && (
-                <>
-                  <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
-                  <p className="text-xs text-gob-text-muted  font-mono">
-                    {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
+          <LnCard>
+            <LnCardHead title="Lugar" />
+            <LnCardBody>
+              <div className="flex flex-col gap-[8px]">
+                {report.locationAddress && (
+                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                    {report.locationAddress}
                   </p>
-                </>
-              )}
-            </div>
-          </section>
+                )}
+                {(report.jurisdictionLocality || report.jurisdictionProvince) && (
+                  <p className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-mute)]">
+                    {[report.jurisdictionLocality, report.jurisdictionProvince]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                )}
+                {locationPoint && (
+                  <>
+                    <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+                    <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                      {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
+                    </p>
+                  </>
+                )}
+              </div>
+            </LnCardBody>
+          </LnCard>
         )}
 
         {/* Contact */}
         {hasContact && (
-          <section className="space-y-2">
-            <SectionLabel>Contacto que dejaste</SectionLabel>
-            <div className="text-sm text-gob-text-gray  space-y-1">
-              {report.reporterContactEmail && <p>{report.reporterContactEmail}</p>}
-              {report.reporterContactPhone && <p>{report.reporterContactPhone}</p>}
-            </div>
-          </section>
+          <LnCard>
+            <LnCardHead title="Contacto que dejaste" />
+            <LnCardBody>
+              <div className="flex flex-col gap-[6px]">
+                {report.reporterContactEmail && (
+                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                    {report.reporterContactEmail}
+                  </p>
+                )}
+                {report.reporterContactPhone && (
+                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                    {report.reporterContactPhone}
+                  </p>
+                )}
+              </div>
+            </LnCardBody>
+          </LnCard>
         )}
 
         {/* Evidence gallery */}
         {attachments.length > 0 && (
-          <section className="space-y-3">
-            <SectionLabel>Evidencia adjunta</SectionLabel>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {attachments.map((a) =>
-                a.signedUrl ? (
-                  a.mimeType.startsWith("video/") ? (
-                    <div
-                      key={a.id}
-                      className="rounded-lg overflow-hidden border border-gob-border "
-                    >
-                      {/* biome-ignore lint/a11y/useMediaCaption: evidence video, no captions available */}
-                      <video
-                        src={a.signedUrl}
-                        controls
-                        className="w-full aspect-video object-cover bg-gob-surface-alt "
-                      />
-                      {a.originalFilename && (
-                        <p className="px-2 py-1 text-xs text-gob-text-muted  truncate">
-                          {a.originalFilename}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <a
-                      key={a.id}
-                      href={a.signedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-lg overflow-hidden border border-gob-border  hover:opacity-90 transition-opacity"
-                    >
-                      <img
-                        src={a.signedUrl}
-                        alt={a.originalFilename ?? "Evidencia adjunta"}
-                        className="w-full aspect-square object-cover bg-gob-surface-alt "
-                      />
-                    </a>
-                  )
-                ) : null,
-              )}
-            </div>
-          </section>
+          <LnCard>
+            <LnCardHead title="Evidencia adjunta" />
+            <LnCardBody>
+              <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3">
+                {attachments.map((a) =>
+                  a.signedUrl ? (
+                    a.mimeType.startsWith("video/") ? (
+                      <div
+                        key={a.id}
+                        className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]"
+                      >
+                        {/* biome-ignore lint/a11y/useMediaCaption: evidence video, no captions available */}
+                        <video
+                          src={a.signedUrl}
+                          controls
+                          className="w-full aspect-video object-cover bg-[var(--color-ln-stripe)]"
+                        />
+                        {a.originalFilename && (
+                          <p className="px-[8px] py-[4px] font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)] truncate">
+                            {a.originalFilename}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <a
+                        key={a.id}
+                        href={a.signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] hover:opacity-90 transition-opacity"
+                      >
+                        <img
+                          src={a.signedUrl}
+                          alt={a.originalFilename ?? "Evidencia adjunta"}
+                          className="w-full aspect-square object-cover bg-[var(--color-ln-stripe)]"
+                        />
+                      </a>
+                    )
+                  ) : null,
+                )}
+              </div>
+            </LnCardBody>
+          </LnCard>
         )}
 
-        {/* Reporter comments — shown only when the report has a linked case */}
+        {/* Reporter comments */}
         {report.caseId && (
-          <section className="space-y-4">
-            <SectionLabel>Tus comentarios sobre el caso</SectionLabel>
-
-            {reporterComments.length > 0 && (
-              <ol className="space-y-3">
-                {reporterComments.map((c) => (
-                  <li
-                    key={c.id}
-                    className="rounded-xl border border-gob-border  bg-gob-surface-alt  px-4 py-3 space-y-1"
-                  >
-                    <p className="text-sm text-gob-text  whitespace-pre-wrap">{c.notes}</p>
-                    <time className="block text-xs text-gob-text-muted ">
-                      {formatDateTime(c.occurredAt)}
-                    </time>
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            <ReporterCommentForm action={commentAction} />
-          </section>
+          <LnCard>
+            <LnCardHead title="Tus comentarios sobre el caso" />
+            <LnCardBody>
+              {reporterComments.length > 0 && (
+                <ol className="mb-[16px] flex flex-col gap-[10px]">
+                  {reporterComments.map((c) => (
+                    <li
+                      key={c.id}
+                      className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[12px]"
+                    >
+                      <p className="text-[13px] text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
+                        {c.notes}
+                      </p>
+                      <time className="mt-[4px] block font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+                        {formatDateTime(c.occurredAt)}
+                      </time>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <ReporterCommentForm action={commentAction} />
+            </LnCardBody>
+          </LnCard>
         )}
       </div>
-    </main>
+    </div>
   );
 }

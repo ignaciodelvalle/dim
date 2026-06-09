@@ -1,7 +1,11 @@
-import { requireOwnedPetByToken } from "@/lib/pets";
-import { setPetLostAction } from "@/src/modules/events/actions";
+// Marcar como perdida — Libreta Nacional redesign.
+// Presentation only; MarkLostWizard and server action unchanged.
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
+
+import { requireOwnedPetByToken } from "@/lib/pets";
+import { setPetLostAction } from "@/src/modules/events/actions";
 import { MarkLostWizard } from "./MarkLostWizard";
 
 export default async function MarkPetLostPage({
@@ -22,9 +26,6 @@ export default async function MarkPetLostPage({
 
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
 
-  // Pre-fill disclosure preference toggles from the pet's current values.
-  // New pets start at schema defaults (first_name=true, phone=true,
-  // email=false, last_location=true, finder_form=true).
   const disclosureDefaults = {
     discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
     disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
@@ -34,37 +35,39 @@ export default async function MarkPetLostPage({
   };
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver a {pet.name}
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Marcar como perdida
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Al marcar a {pet.name} como perdida, su credencial pública mostrará la información que
-            elijas a continuación. Podés cambiarla en cualquier momento o revertir el estado cuando
-            aparezca.
-          </p>
-        </div>
-        <MarkLostWizard
-          action={boundAction}
-          disclosureDefaults={disclosureDefaults}
-          petName={pet.name}
-          petPublicToken={pet.publicToken}
-          petHasMicrochip={!!pet.microchipId}
-          petHasTattoo={!!pet.tattooCode}
-          petColor={pet.color ?? null}
-          petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
-          petJurisdictionProvince={pet.jurisdictionProvince ?? null}
-          petJurisdictionLocality={pet.jurisdictionLocality ?? null}
-        />
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← {pet.name}
+      </Link>
+
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Marcar como perdida
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Al marcar a {pet.name} como perdida, su credencial pública mostrará la información que
+          elijas a continuación. Podés cambiarla en cualquier momento o revertir el estado cuando
+          aparezca.
+        </p>
       </div>
-    </main>
+
+      <MarkLostWizard
+        action={boundAction}
+        disclosureDefaults={disclosureDefaults}
+        petName={pet.name}
+        petPublicToken={pet.publicToken}
+        petHasMicrochip={!!pet.microchipId}
+        petHasTattoo={!!pet.tattooCode}
+        petColor={pet.color ?? null}
+        petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
+        petJurisdictionProvince={pet.jurisdictionProvince ?? null}
+        petJurisdictionLocality={pet.jurisdictionLocality ?? null}
+      />
+    </div>
   );
 }

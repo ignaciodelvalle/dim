@@ -1,7 +1,11 @@
+// Mis postulaciones para adoptar — Libreta Nacional redesign.
+// Presentation only; all data fetching and status derivation logic unchanged.
+
 import Link from "next/link";
 
 import { sql } from "drizzle-orm";
 
+import { LnCallout } from "@/components/ui/DocElements";
 import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
@@ -12,13 +16,6 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 // D17 enforced strictly: at no point do we expose how many other
 // applications exist for the same pet, who else applied, or any queue
 // position. The applicant only sees THEIR OWN row.
-//
-// State derivation:
-//   - approved      → there is a later _approved with application_event_id = me
-//   - finalized_to_me → adoption_finalized for this pet AND adopter_user_id = me
-//   - auto_rejected → later _rejected with auto_generated=true (the F5.5 cascade)
-//   - rejected      → later _rejected (manual)
-//   - pending       → none of the above
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +34,29 @@ type ApplicationRow = {
   stillListed: boolean;
 };
 
+const STATUS_CONFIG: Record<ApplicationStatus, { label: string; cls: string }> = {
+  pending: {
+    label: "En revisión",
+    cls: "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]",
+  },
+  approved: {
+    label: "Aprobada",
+    cls: "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]",
+  },
+  finalized_to_me: {
+    label: "¡Finalizada!",
+    cls: "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]",
+  },
+  auto_rejected: {
+    label: "Cerrada",
+    cls: "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
+  },
+  rejected: {
+    label: "No avanzó",
+    cls: "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
+  },
+};
+
 export default async function MisPostulacionesPage({
   searchParams,
 }: {
@@ -46,9 +66,6 @@ export default async function MisPostulacionesPage({
   const params = await searchParams;
   const justSubmittedId = params.nueva ?? null;
 
-  // One SQL pass: gather every _submitted authored by the user along with
-  // any later resolution. The OUTER joins on a per-row CASE allow us to do
-  // status derivation in DB-land instead of fanning out to per-row queries.
   const rows = await db.execute<{
     application_id: string;
     pet_public_token: string;
@@ -176,124 +193,114 @@ export default async function MisPostulacionesPage({
     }));
 
   return (
-    <main className="min-h-screen bg-white ">
-      <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
-        <Link href="/mis-mascotas" className="text-sm text-gob-text-muted hover:text-gob-text ">
-          ← Mis mascotas
-        </Link>
+    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/mis-mascotas"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mis mascotas
+      </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Mis postulaciones para adoptar
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Acá ves el estado de tus postulaciones. El refugio te contacta por email cuando avanza.
-          </p>
-        </header>
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Mis postulaciones para adoptar
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Acá ves el estado de tus postulaciones. El refugio te contacta por email cuando avanza.
+        </p>
+      </div>
 
-        {justSubmittedId && (
-          <output className="block rounded-lg border border-gob-success bg-gob-success/10   p-4 text-sm text-gob-success ">
+      {justSubmittedId && (
+        <div className="mb-[20px]">
+          <LnCallout tone="azul">
             ¡Postulación enviada! El refugio la recibió y te va a contactar por mail. Mientras tanto
             podés seguir viendo otras mascotas en{" "}
-            <Link href="/adoptar" className="underline">
+            <Link
+              href="/adoptar"
+              className="text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
               /adoptar
             </Link>
             .
-          </output>
-        )}
+          </LnCallout>
+        </div>
+      )}
 
-        {applications.length === 0 ? (
-          <div className="rounded-lg border border-gob-border  px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-gob-text ">
-              Todavía no te postulaste para adoptar.
-            </p>
-            <Link
-              href="/adoptar"
-              className="inline-block px-4 py-2 rounded-lg bg-gob-success text-white text-sm font-medium hover:bg-gob-success"
-            >
-              Ver mascotas en adopción
-            </Link>
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {applications.map((app) => (
-              <ApplicationCard
+      {applications.length === 0 ? (
+        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[24px] py-[40px] text-center">
+          <p className="font-[var(--font-ln-serif)] text-[16px] text-[var(--color-ln-ink-2)]">
+            Todavía no te postulaste para adoptar.
+          </p>
+          <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+            Encontrá mascotas que buscan hogar y postulate con un click.
+          </p>
+          <Link
+            href="/adoptar"
+            className="mt-[16px] inline-flex items-center rounded-[4px] border border-[#c8e2d2] bg-[#eef6f0] px-[16px] py-[8px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
+          >
+            Ver mascotas en adopción
+          </Link>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+          {applications.map((app) => {
+            const config = STATUS_CONFIG[app.status];
+            const isHighlight = app.applicationId === justSubmittedId;
+            return (
+              <div
                 key={app.applicationId}
-                app={app}
-                highlight={app.applicationId === justSubmittedId}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+                className={`flex flex-col gap-[6px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] last:border-b-0 ${isHighlight ? "bg-[var(--color-ln-celeste-050)]" : ""}`}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                    {app.petName}
+                  </p>
+                  <span
+                    className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${config.cls}`}
+                  >
+                    {config.label}
+                  </span>
+                </div>
+                <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                  Refugio: {app.orgDisplayName}
+                </p>
+                <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                  Enviada el {app.submittedAt.toLocaleDateString("es-AR")}
+                  {app.decisionAt && (
+                    <>
+                      {" · "}Última actualización: {app.decisionAt.toLocaleDateString("es-AR")}
+                    </>
+                  )}
+                </p>
+                <StatusBody status={app.status} app={app} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
-function ApplicationCard({ app, highlight }: { app: ApplicationRow; highlight: boolean }) {
-  return (
-    <li
-      className={`rounded-lg border p-4 space-y-2 ${
-        highlight ? "border-gob-success bg-gob-success/10  " : "border-gob-border "
-      }`}
-    >
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-base font-semibold text-gob-text ">{app.petName}</h2>
-        <StatusBadge status={app.status} />
-      </div>
-      <p className="text-xs text-gob-text-gray ">Refugio: {app.orgDisplayName}</p>
-      <p className="text-xs text-gob-text-muted">
-        Enviada el {app.submittedAt.toLocaleDateString("es-AR")}
-        {app.decisionAt && (
-          <>
-            {" · "}Última actualización: {app.decisionAt.toLocaleDateString("es-AR")}
-          </>
-        )}
-      </p>
-      <StatusBody status={app.status} app={app} />
-    </li>
-  );
-}
-
-function StatusBadge({ status }: { status: ApplicationStatus }) {
-  const map: Record<ApplicationStatus, { label: string; cls: string }> = {
-    pending: {
-      label: "En revisión",
-      cls: "border-gob-warning text-gob-warning-text  ",
-    },
-    approved: {
-      label: "Aprobada",
-      cls: "border-gob-success text-gob-success  ",
-    },
-    finalized_to_me: {
-      label: "¡Finalizada!",
-      cls: "border-gob-success bg-gob-success/10 text-gob-success   ",
-    },
-    auto_rejected: {
-      label: "Cerrada",
-      cls: "border-gob-border-strong text-gob-text-gray  ",
-    },
-    rejected: {
-      label: "No avanzó",
-      cls: "border-gob-border-strong text-gob-text-gray  ",
-    },
-  };
-  const { label, cls } = map[status];
-  return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
-  );
-}
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function StatusBody({ status, app }: { status: ApplicationStatus; app: ApplicationRow }) {
   if (status === "pending") {
     return (
-      <p className="text-xs text-gob-text-gray ">
+      <p className="text-[12.5px] text-[var(--color-ln-mute)]">
         El refugio está revisando tu postulación.
         {app.stillListed && (
           <>
             {" "}
             Mientras tanto podés ver la ficha de{" "}
-            <Link href={`/adoptar/${app.petPublicToken}`} className="underline">
+            <Link
+              href={`/adoptar/${app.petPublicToken}`}
+              className="text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
               {app.petName}
             </Link>
             .
@@ -304,16 +311,19 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "approved") {
     return (
-      <p className="text-xs text-gob-success ">
+      <p className="text-[12.5px] text-[var(--color-ln-ok)]">
         El refugio aprobó tu postulación. Coordinan los próximos pasos por email.
       </p>
     );
   }
   if (status === "finalized_to_me") {
     return (
-      <p className="text-xs text-gob-success ">
+      <p className="text-[12.5px] text-[var(--color-ln-ok)]">
         ¡Adoptaste a {app.petName}! Mirá su libreta digital en{" "}
-        <Link href="/mis-mascotas" className="underline">
+        <Link
+          href="/mis-mascotas"
+          className="text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
           Mis mascotas
         </Link>
         .
@@ -322,13 +332,16 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "auto_rejected") {
     return (
-      <p className="text-xs text-gob-text-gray ">
-        {app.petName} encontró hogar con otra postulación. Sabemos que es decepcionante. Mirá{" "}
-        <Link href={`/adoptar?org=${app.orgPublicToken}`} className="underline">
+      <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+        {app.petName} encontró hogar con otra postulación. Mirá{" "}
+        <Link
+          href={`/adoptar?org=${app.orgPublicToken}`}
+          className="text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
           otras mascotas de {app.orgDisplayName}
         </Link>{" "}
         o{" "}
-        <Link href="/adoptar" className="underline">
+        <Link href="/adoptar" className="text-[var(--color-ln-azul)] no-underline hover:underline">
           el listado completo
         </Link>
         .
@@ -336,9 +349,9 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
     );
   }
   return (
-    <p className="text-xs text-gob-text-gray ">
+    <p className="text-[12.5px] text-[var(--color-ln-mute)]">
       El refugio no avanzó con esta postulación.{" "}
-      <Link href="/adoptar" className="underline">
+      <Link href="/adoptar" className="text-[var(--color-ln-azul)] no-underline hover:underline">
         Ver otras en adopción
       </Link>
       .

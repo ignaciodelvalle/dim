@@ -1,17 +1,6 @@
-// Full-screen presentation mode for the service-dog credential.
-//
-// Optimised for showing to a doorperson / receptionist: chrome-free,
-// neutral background, large readable type, all data loaded server-side
-// (works offline after the initial load).
-//
-// Auth: owner-only via requirePetAccess (same pattern as vacunas page).
-// A non-owner visitor gets notFound() — the page is private by design.
-//
-// QR toggle: hidden by default behind a <details> disclosure. SVG is
-// rendered server-side via the `qrcode` library so the page works without
-// client-side JS once the SVG is in the DOM.
-//
-// Spec §4.8 — "Modo presentación". Pet profile v2 Slice C, Commit 4.
+// Modo presentación — credencial de perro de asistencia.
+// Libreta Nacional redesign. Full-screen chrome-free layout preserved.
+// gob-* token references replaced with LN semantic tokens.
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -34,9 +23,6 @@ export default async function AsistenciaPresentarPage({
 
   const access = await requirePetAccess(publicToken);
   if (!access.ok) notFound();
-  // Owner-only: fosters / co-owners / caretakers are denied. The credential
-  // is legal-identity for the owner's disability accommodation — only the
-  // owner should be presenting it.
   if (access.accessPath !== "owner") notFound();
 
   const pet = access.pet;
@@ -47,12 +33,10 @@ export default async function AsistenciaPresentarPage({
     .where(eq(petServiceDog.petId, pet.id))
     .limit(1);
 
-  // Guard: redirect back to /asistencia when there is no presentable credential.
   if (!isCredentialPresentable(serviceDog ?? null)) {
     redirect(`/mis-mascotas/${publicToken}/asistencia`);
   }
 
-  // Pet photo
   const [photoAttachment] = pet.primaryPhotoId
     ? await db
         .select({ storagePath: attachments.storagePath })
@@ -73,25 +57,25 @@ export default async function AsistenciaPresentarPage({
   });
 
   return (
-    <main className="min-h-screen bg-white text-gob-text flex flex-col">
-      {/* Minimal top bar — back link only, easy to dismiss visually */}
-      <div className="px-4 pt-4">
+    <main className="flex min-h-screen flex-col bg-[var(--color-ln-canvas)] text-[var(--color-ln-ink)]">
+      {/* Minimal top bar */}
+      <div className="px-[16px] pt-[16px]">
         <Link
           href={`/mis-mascotas/${publicToken}/asistencia`}
-          className="text-xs text-gob-text-muted hover:text-gob-text-gray transition-colors"
+          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
         >
           ← Volver
         </Link>
       </div>
 
       {/* Presentation content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-6 max-w-lg mx-auto w-full">
+      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-[24px] px-[24px] py-[32px]">
         {/* Credential title */}
-        <div className="text-center space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted">
+        <div className="text-center">
+          <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
             Credencial de perro de asistencia
           </p>
-          <p className="text-xs font-medium text-gob-success uppercase tracking-wider">
+          <p className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
             Ley 26.858
           </p>
         </div>
@@ -102,86 +86,88 @@ export default async function AsistenciaPresentarPage({
           <img
             src={photoUrl}
             alt={pet.name}
-            className="h-36 w-36 rounded-full object-cover ring-4 ring-gob-success shadow-md"
+            className="h-[144px] w-[144px] rounded-full object-cover shadow-md ring-4 ring-[var(--color-ln-ok)]"
           />
         ) : (
-          <div className="flex h-36 w-36 items-center justify-center rounded-full bg-gob-success/10 text-6xl ring-4 ring-gob-success shadow-md">
+          <div className="flex h-[144px] w-[144px] items-center justify-center rounded-full bg-[#eef6f0] text-6xl shadow-md ring-4 ring-[var(--color-ln-ok)]">
             🦮
           </div>
         )}
 
         {/* Pet name and service type */}
-        <div className="text-center space-y-1">
-          <h1 className="text-4xl font-semibold tracking-tight text-gob-text">{pet.name}</h1>
-          <p className="text-lg text-gob-success">{serviceTypeLabel}</p>
+        <div className="text-center">
+          <h1 className="font-[var(--font-ln-serif)] text-[40px] font-semibold tracking-tight text-[var(--color-ln-ink)]">
+            {pet.name}
+          </h1>
+          <p className="mt-[4px] text-[18px] text-[var(--color-ln-ok)]">{serviceTypeLabel}</p>
         </div>
 
         {/* Credential fields */}
-        <dl className="w-full divide-y divide-gob-border text-sm">
+        <dl className="w-full divide-y divide-[var(--color-ln-line)]">
           {pet.microchipId && (
-            <div className="flex justify-between py-2.5">
-              <dt className="text-gob-text-muted">Microchip</dt>
-              <dd className="font-mono text-gob-text">{pet.microchipId}</dd>
+            <div className="flex justify-between py-[10px]">
+              <dt className="text-[13px] text-[var(--color-ln-mute)]">Microchip</dt>
+              <dd className="font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)]">
+                {pet.microchipId}
+              </dd>
             </div>
           )}
           {serviceDog.rupgaCredential && (
-            <div className="flex justify-between py-2.5">
-              <dt className="text-gob-text-muted">RUPGA</dt>
-              <dd className="font-mono text-gob-text">{serviceDog.rupgaCredential}</dd>
+            <div className="flex justify-between py-[10px]">
+              <dt className="text-[13px] text-[var(--color-ln-mute)]">RUPGA</dt>
+              <dd className="font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)]">
+                {serviceDog.rupgaCredential}
+              </dd>
             </div>
           )}
-          <div className="flex justify-between py-2.5">
-            <dt className="text-gob-text-muted">Centro de entrenamiento</dt>
-            <dd className="text-gob-text text-right max-w-[55%]">{serviceDog.trainingCenter}</dd>
+          <div className="flex justify-between py-[10px]">
+            <dt className="text-[13px] text-[var(--color-ln-mute)]">Centro de entrenamiento</dt>
+            <dd className="max-w-[55%] text-right text-[13px] text-[var(--color-ln-ink)]">
+              {serviceDog.trainingCenter}
+            </dd>
           </div>
           {serviceDog.credentialIssueDate && (
-            <div className="flex justify-between py-2.5">
-              <dt className="text-gob-text-muted">Emitida</dt>
-              <dd className="text-gob-text">{formatDate(serviceDog.credentialIssueDate)}</dd>
+            <div className="flex justify-between py-[10px]">
+              <dt className="text-[13px] text-[var(--color-ln-mute)]">Emitida</dt>
+              <dd className="text-[13px] text-[var(--color-ln-ink)]">
+                {formatDate(serviceDog.credentialIssueDate)}
+              </dd>
             </div>
           )}
           {serviceDog.credentialExpiryDate && (
-            <div className="flex justify-between py-2.5">
-              <dt className="text-gob-text-muted">Vence</dt>
-              <dd className="text-gob-text">{formatDate(serviceDog.credentialExpiryDate)}</dd>
+            <div className="flex justify-between py-[10px]">
+              <dt className="text-[13px] text-[var(--color-ln-mute)]">Vence</dt>
+              <dd className="text-[13px] text-[var(--color-ln-ink)]">
+                {formatDate(serviceDog.credentialExpiryDate)}
+              </dd>
             </div>
           )}
         </dl>
 
         {/* Legal text */}
-        <p className="text-xs text-center text-gob-text-muted leading-relaxed max-w-sm">
+        <p className="max-w-sm text-center text-[12px] leading-relaxed text-[var(--color-ln-mute)]">
           Esta credencial habilita el acceso, deambulación y permanencia con este perro en todos los
           espacios públicos y privados de uso público (Arts. 1 y 7, Ley 26.858).
         </p>
 
-        {/* QR toggle — server-rendered SVG, native <details> disclosure (no JS needed) */}
-        <QrToggle publicVerifyUrl={publicVerifyUrl} qrSvg={qrSvg} />
+        {/* QR toggle — server-rendered SVG, native disclosure */}
+        <details className="w-full text-center">
+          <summary className="cursor-pointer font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
+            Mostrar QR de verificación
+          </summary>
+          <div className="mt-[12px] flex flex-col items-center gap-[8px]">
+            <div
+              className="rounded-[4px] bg-white p-[8px] shadow-sm"
+              aria-label={`QR de verificación para ${publicVerifyUrl}`}
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated SVG from the qrcode library
+              dangerouslySetInnerHTML={{ __html: qrSvg }}
+            />
+            <p className="max-w-xs break-all font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+              {publicVerifyUrl}
+            </p>
+          </div>
+        </details>
       </div>
     </main>
-  );
-}
-
-// QR toggle uses <details>/<summary> — native HTML disclosure widget that works
-// without JS. The SVG is rendered server-side and injected with
-// dangerouslySetInnerHTML; the URL appears underneath as a fallback for users
-// who can't scan.
-function QrToggle({ publicVerifyUrl, qrSvg }: { publicVerifyUrl: string; qrSvg: string }) {
-  return (
-    <details className="w-full text-center">
-      <summary className="cursor-pointer text-xs text-gob-success hover:text-gob-success select-none">
-        Mostrar QR de verificación
-      </summary>
-      <div className="mt-3 flex flex-col items-center gap-2">
-        <div
-          className="rounded-md bg-white p-2 shadow-sm"
-          aria-label={`QR de verificación para ${publicVerifyUrl}`}
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated SVG from the qrcode library
-          dangerouslySetInnerHTML={{ __html: qrSvg }}
-        />
-        <p className="font-mono text-[10px] text-gob-text-muted break-all max-w-xs">
-          {publicVerifyUrl}
-        </p>
-      </div>
-    </details>
   );
 }

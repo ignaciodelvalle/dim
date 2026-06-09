@@ -1,7 +1,11 @@
+// Crear consultorio — Libreta Nacional redesign.
+// CrearConsultorioForm (client component) unchanged.
+
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
@@ -20,12 +24,10 @@ export default async function CrearConsultorioPage() {
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  // Only verified vets without an existing admin/coordinator membership can use this page.
   if (!profile || profile.role !== "vet" || !profile.matriculaVerified) {
     redirect("/cuenta");
   }
 
-  // If the vet already has a clinic, send them straight to it.
   const [adminMembership] = await db
     .select({ publicToken: organizations.publicToken })
     .from(organizationMemberships)
@@ -46,30 +48,31 @@ export default async function CrearConsultorioPage() {
   const defaultName = `Consultorio ${profile.displayName}`;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Crear consultorio
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Completá los datos de tu consultorio para empezar a ofrecer servicios en MiMAR.
-          </p>
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        <section className="rounded-lg border border-gob-border  p-6">
-          <CrearConsultorioForm defaultName={defaultName} />
-        </section>
-
-        <div className="pt-2">
-          <Link
-            href="/cuenta"
-            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
-          >
-            ← Volver a mi cuenta
-          </Link>
-        </div>
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Crear consultorio
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Completá los datos de tu consultorio para empezar a ofrecer servicios en MiMAR.
+        </p>
       </div>
-    </main>
+
+      <LnCard>
+        <LnCardHead title="Datos del consultorio" />
+        <LnCardBody>
+          <CrearConsultorioForm defaultName={defaultName} />
+        </LnCardBody>
+      </LnCard>
+    </div>
   );
 }

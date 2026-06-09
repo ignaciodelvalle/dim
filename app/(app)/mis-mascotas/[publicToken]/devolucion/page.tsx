@@ -1,9 +1,8 @@
-// Devolucion page — owner surface for accepting or rejecting a
-// return-to-owner proposal from a refugio or vecino.
-//
-// Access: requireUserOrRedirect + must be the active owner of this pet.
-// Shows: proposal card with actor info, notes, date, and accept/reject CTAs.
+// Devolucion — Libreta Nacional redesign.
+// Presentation only; ReturnAcceptanceCard and data fetching unchanged.
 
+import { LnButton } from "@/components/ui/Button";
+import { LnCallout } from "@/components/ui/DocElements";
 import { type Pet, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
@@ -21,25 +20,22 @@ const ROLE_LABELS: Record<string, string> = {
 function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
   const roleLabel = ROLE_LABELS[role] ?? role;
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-4">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="text-sm text-gob-text-muted hover:text-gob-text "
-        >
-          ← Volver al perfil
-        </Link>
-        <h1 className="text-2xl font-semibold text-gob-text ">Devolución de {pet.name}</h1>
-        <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 text-sm text-gob-warning-text  space-y-2">
-          <p className="font-medium">Aceptar una devolución es acción del dueño legal.</p>
-          <p>
-            Tu vínculo actual con <strong>{pet.name}</strong> es de <strong>{roleLabel}</strong>. Si
-            el dueño original ya no es el correcto, primero hay que completar la transferencia
-            formal de custodia antes de aceptar la devolución.
-          </p>
-        </div>
-      </div>
-    </main>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Volver al perfil
+      </Link>
+      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+        Devolución de {pet.name}
+      </h1>
+      <LnCallout tone="warn" title="Aceptar una devolución es acción del dueño legal.">
+        Tu vínculo actual con <strong>{pet.name}</strong> es de <strong>{roleLabel}</strong>. Si el
+        dueño original ya no es el correcto, primero hay que completar la transferencia formal de
+        custodia antes de aceptar la devolución.
+      </LnCallout>
+    </div>
   );
 }
 
@@ -51,9 +47,6 @@ export default async function DevolucionPage({
   const { publicToken } = await params;
   const { user } = await requireUserOrRedirect();
 
-  // Two-step access: resolve any active ownership first so non-owners
-  // (foster, shelter_custody, caretaker) get a friendly explainer
-  // instead of a bare 404. Real outsiders still 404.
   const [accessRow] = await db
     .select({ pet: pets, role: ownerships.role })
     .from(pets)
@@ -73,7 +66,6 @@ export default async function DevolucionPage({
   }
   const pet = accessRow.pet;
 
-  // Find the latest custody_transfer_proposed event.
   const [latestProposal] = await db
     .select()
     .from(petEvents)
@@ -81,7 +73,6 @@ export default async function DevolucionPage({
     .orderBy(desc(petEvents.occurredAt))
     .limit(1);
 
-  // Check if it has already been closed by a subsequent transfer.
   let isPending = false;
   if (latestProposal) {
     const [subsequentTransfer] = await db
@@ -100,24 +91,26 @@ export default async function DevolucionPage({
 
   if (!isPending) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Sin propuestas pendientes</h1>
-          <p className="text-gob-text-gray ">
+      <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+        <div className="mb-[20px] text-center">
+          <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+            Sin propuestas pendientes
+          </p>
+          <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
             No hay propuestas de devolución activas para {pet.name}.
           </p>
-          <Link
-            href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
-          >
-            Volver a mis mascotas
+        </div>
+        <div className="flex justify-center">
+          <Link href="/mis-mascotas">
+            <LnButton variant="primary" size="md">
+              Volver a mis mascotas
+            </LnButton>
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
-  // latestProposal is defined here — isPending=true requires it to be set.
   if (!latestProposal) notFound();
   const proposalPayload = latestProposal.payload as Record<string, unknown>;
   const fromUserId = (proposalPayload.from_user_id as string | null) ?? null;
@@ -126,7 +119,6 @@ export default async function DevolucionPage({
   const proposedAt =
     (proposalPayload.proposed_at as string | null) ?? latestProposal.occurredAt.toISOString();
 
-  // Resolve actor display name.
   let actorName = "Alguien";
   if (fromUserId) {
     const [profile] = await db
@@ -146,30 +138,34 @@ export default async function DevolucionPage({
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-lg mx-auto space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-semibold">Devolución de {pet.name}</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Alguien tiene a {pet.name} y quiere devolvértela. Confirmá cuando la tengas físicamente.
-          </p>
-        </header>
-
-        <ReturnAcceptanceCard
-          petPublicToken={publicToken}
-          petName={pet.name}
-          actorName={actorName}
-          proposalNotes={proposalNotes}
-          proposedAt={proposedAt}
-          backUrl="/mis-mascotas"
-        />
-
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link href="/mis-mascotas" className="text-sm text-gob-text-gray underline ">
-            ← Volver a mis mascotas
-          </Link>
-        </footer>
+    <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Devolución de {pet.name}
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Alguien tiene a {pet.name} y quiere devolvértela. Confirmá cuando la tengas físicamente.
+        </p>
       </div>
-    </main>
+
+      <ReturnAcceptanceCard
+        petPublicToken={publicToken}
+        petName={pet.name}
+        actorName={actorName}
+        proposalNotes={proposalNotes}
+        proposedAt={proposedAt}
+        backUrl="/mis-mascotas"
+      />
+
+      <div className="mt-[24px] border-t border-[var(--color-ln-line-2)] pt-[16px]">
+        <Link
+          href="/mis-mascotas"
+          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Mis mascotas
+        </Link>
+      </div>
+    </div>
   );
 }

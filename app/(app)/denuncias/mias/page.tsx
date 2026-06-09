@@ -1,3 +1,10 @@
+// Mis denuncias — Libreta Nacional redesign.
+// Presentation only; data fetching unchanged.
+
+import Link from "next/link";
+
+import { LnButton } from "@/components/ui/Button";
+import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
 import { db, welfareReports } from "@/db";
 import { formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -7,23 +14,22 @@ import {
   welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
 import { and, desc, eq } from "drizzle-orm";
-import Link from "next/link";
 
-// Status badge color mapping — neutral by default; green for closed; muted for invalid/duplicate.
+// Status badge class mapping using LN tokens.
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
-      return "bg-gob-success/10  text-gob-success ";
+      return "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]";
     case "invalid":
     case "duplicate":
-      return "bg-gob-surface-alt  text-gob-text-muted ";
+      return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
     case "in_progress":
-      return "bg-gob-info/10  text-gob-azul-link ";
+      return "border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]";
     case "triaged":
-      return "bg-gob-warning/10  text-gob-warning-text ";
+      return "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]";
     default:
       // open
-      return "bg-gob-surface-alt  text-gob-text-gray ";
+      return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]";
   }
 }
 
@@ -35,17 +41,13 @@ export default async function MisDenunciasPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-gob-text-gray ">Necesitás iniciar sesión para ver tus denuncias.</p>
-          <Link
-            href="/login"
-            className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
-          >
-            Iniciar sesión
+      <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+        <LnCallout tone="warn" title="Necesitás iniciar sesión">
+          <Link href="/login" className="text-[var(--color-ln-azul)] no-underline hover:underline">
+            Iniciar sesión →
           </Link>
-        </div>
-      </main>
+        </LnCallout>
+      </div>
     );
   }
 
@@ -57,85 +59,91 @@ export default async function MisDenunciasPage() {
     .limit(50);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <header className="space-y-1">
-          <Link
-            href="/mis-mascotas"
-            className="text-sm text-gob-text-muted  hover:text-gob-text  transition-colors"
-          >
-            ← Mis mascotas
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">Mis denuncias</h1>
-          <p className="text-sm text-gob-text-gray ">
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/mis-mascotas"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mis mascotas
+      </Link>
+
+      {/* Header */}
+      <div className="mb-[28px] flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Mis denuncias
+          </h1>
+          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
             {reports.length === 0
               ? "Sin denuncias enviadas."
               : `${reports.length} denuncia${reports.length === 1 ? "" : "s"} enviada${reports.length === 1 ? "" : "s"}.`}
           </p>
-        </header>
-
-        {reports.length === 0 ? (
-          <div className="border border-dashed border-gob-border-strong  rounded-xl p-10 text-center space-y-3">
-            <p className="text-gob-text-gray ">Aún no enviaste denuncias.</p>
-            <Link
-              href="/denuncias/nueva"
-              className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
-            >
-              Enviar una
-            </Link>
-          </div>
-        ) : (
-          <ul className="space-y-4">
-            {reports.map((report) => (
-              <li key={report.id}>
-                <Link
-                  href={`/denuncias/${report.id}`}
-                  className="block border border-gob-border  rounded-xl p-4 space-y-2 hover:bg-gob-surface-alt  transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium text-gob-text ">
-                      {welfareReportKindLabel(report.kind)}
-                    </p>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadgeClass(report.status)}`}
-                      >
-                        {welfareReportStatusLabel(report.status)}
-                      </span>
-                      <span className="text-gob-text-muted  text-sm">›</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gob-text-muted ">
-                    {welfareReportSeverityLabel(report.severity)}
-                  </p>
-
-                  <p className="text-xs font-mono tracking-wide text-gob-text-muted ">
-                    Código {report.referenceCode}
-                  </p>
-
-                  <p className="text-sm text-gob-text-gray  line-clamp-3">
-                    {report.description.length > 200
-                      ? `${report.description.slice(0, 200)}…`
-                      : report.description}
-                  </p>
-
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gob-text-muted ">
-                    <span>{formatDateTime(report.createdAt)}</span>
-                    {(report.jurisdictionProvince || report.jurisdictionLocality) && (
-                      <span>
-                        {[report.jurisdictionLocality, report.jurisdictionProvince]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        </div>
+        <Link href="/denuncias/nueva" className="flex-shrink-0 mt-[4px]">
+          <LnButton variant="primary" size="sm">
+            Nueva denuncia
+          </LnButton>
+        </Link>
       </div>
-    </main>
+
+      {reports.length === 0 ? (
+        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[24px] py-[40px] text-center">
+          <p className="font-[var(--font-ln-serif)] text-[16px] text-[var(--color-ln-ink-2)]">
+            Aún no enviaste denuncias.
+          </p>
+          <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+            Podés reportar maltrato, abandono u otras situaciones de riesgo para animales.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+          {reports.map((report) => (
+            <Link
+              key={report.id}
+              href={`/denuncias/${report.id}`}
+              className="flex items-start justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                  {welfareReportKindLabel(report.kind)}
+                </p>
+                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                  {welfareReportSeverityLabel(report.severity)}
+                  {" · "}
+                  {report.referenceCode}
+                </p>
+                <p className="mt-[4px] text-[12.5px] text-[var(--color-ln-ink-2)] line-clamp-2">
+                  {report.description.length > 150
+                    ? `${report.description.slice(0, 150)}…`
+                    : report.description}
+                </p>
+                <p className="mt-[4px] font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+                  {formatDateTime(report.createdAt)}
+                  {(report.jurisdictionLocality || report.jurisdictionProvince) && (
+                    <>
+                      {" · "}
+                      {[report.jurisdictionLocality, report.jurisdictionProvince]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </>
+                  )}
+                </p>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-[8px]">
+                <span
+                  className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
+                >
+                  {welfareReportStatusLabel(report.status)}
+                </span>
+                <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                  ›
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

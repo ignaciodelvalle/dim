@@ -1,18 +1,9 @@
-// Transfers inbox — /transferencias
-//
-// Lists all incoming pet ownership transfers for the authenticated user:
-//   - Active (pending) — transfers awaiting acceptance or rejection.
-//   - History — resolved transfers (accepted / rejected / expired / cancelled).
-//
-// The inbox query uses a dual OR to handle both cases:
-//   1. Registered recipient: toOwnerId = user.id
-//   2. Not-yet-registered recipient: toOwnerId IS NULL AND toOwnerEmail = caller's email
-//
-// This mirrors acceptPetTransferAction / rejectPetTransferAction in
-// app/actions/pet-transfer.ts and countPendingTransfers in lib/owner-dashboard.ts.
+// Transferencias hub — Libreta Nacional redesign.
+// Data fetching unchanged.
 
 import Link from "next/link";
 
+import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, petTransfers, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
@@ -33,9 +24,6 @@ export default async function TransferenciasHubPage() {
   const { data: authData } = await supabase.auth.getUser();
   const callerEmail = (authData?.user?.email ?? "").toLowerCase();
 
-  // Recipient match predicate: always match by toOwnerId; include the email
-  // branch only when callerEmail is non-empty (defense-in-depth against
-  // phone-only / OAuth-without-email accounts where email could be "").
   const recipientMatch = callerEmail
     ? or(
         eq(petTransfers.toOwnerId, user.id),
@@ -43,9 +31,6 @@ export default async function TransferenciasHubPage() {
       )
     : eq(petTransfers.toOwnerId, user.id);
 
-  // Active: pending transfers where the caller is the intended recipient.
-  // Dual OR: resolved recipients (toOwnerId set) OR unregistered recipients
-  // (toOwnerId NULL but email matches).
   const activeRows = await db
     .select({
       transfer: petTransfers,
@@ -60,10 +45,6 @@ export default async function TransferenciasHubPage() {
     .where(and(eq(petTransfers.status, "pending"), recipientMatch))
     .orderBy(desc(petTransfers.initiatedAt));
 
-  // History: resolved transfers.  Once accepted/rejected the toOwnerId is
-  // always resolved, so matching by userId alone is sufficient.  We
-  // additionally include the email OR for symmetry (e.g. edge-case where a
-  // row was rejected before the user ever logged in and toOwnerId stayed NULL).
   const historyRows = await db
     .select({
       transfer: petTransfers,
@@ -78,102 +59,121 @@ export default async function TransferenciasHubPage() {
     .orderBy(desc(petTransfers.respondedAt));
 
   return (
-    <main className="min-h-screen p-6 bg-white">
-      <div className="max-w-3xl mx-auto pt-10 space-y-8">
-        <header>
-          <Link
-            href="/mis-mascotas"
-            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 mb-4"
-          >
-            ← Mis mascotas
-          </Link>
-          <h1 className="text-2xl font-semibold text-gob-text">Transferencias recibidas</h1>
-          <p className="mt-2 text-sm text-gob-text-gray">
-            Mascotas que alguien quiere transferirte. Tenés 7 días para aceptar o rechazar cada
-            propuesta.
-          </p>
-        </header>
+    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/mis-mascotas"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mis mascotas
+      </Link>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium text-gob-text">Pendientes</h2>
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Transferencias recibidas
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Mascotas que alguien quiere transferirte. Tenés 7 días para aceptar o rechazar cada
+          propuesta.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-[32px]">
+        {/* Pending */}
+        <section>
+          <LnSectionHead
+            num="01"
+            title="Pendientes"
+            meta={activeRows.length > 0 ? `${activeRows.length}` : undefined}
+            className="mb-[16px]"
+          />
           {activeRows.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">No tenés transferencias pendientes.</p>
+            <p className="text-[13px] text-[var(--color-ln-mute)]">
+              No tenés transferencias pendientes.
+            </p>
           ) : (
-            <ul className="space-y-2">
+            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
               {activeRows.map(({ transfer, petName, petToken, petSpecies, fromDisplayName }) => (
-                <li
+                <Link
                   key={transfer.id}
-                  className="rounded-lg border border-gob-border-strong p-4 hover:bg-gob-surface-alt transition-colors"
+                  href={`/transferencias/${transfer.publicToken}`}
+                  className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
-                  <Link href={`/transferencias/${transfer.publicToken}`} className="block">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <p className="font-medium text-gob-text">
-                          {petName}{" "}
-                          <span className="text-gob-text-muted font-normal text-sm">
-                            ({petSpecies})
-                          </span>
-                        </p>
-                        {fromDisplayName && (
-                          <p className="text-xs text-gob-text-muted">De: {fromDisplayName}</p>
-                        )}
-                        <p className="text-xs text-gob-text-muted">
-                          Vence{" "}
-                          {new Date(transfer.expiresAt).toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </p>
-                      </div>
-                      <span className="shrink-0 inline-block rounded-full bg-gob-warning/20 text-gob-warning text-xs font-medium px-2 py-0.5">
-                        Pendiente
+                  <div className="min-w-0">
+                    <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
+                      {petName}{" "}
+                      <span className="font-[var(--font-ln-sans)] text-[13px] font-normal text-[var(--color-ln-mute)]">
+                        ({petSpecies})
                       </span>
-                    </div>
-                  </Link>
-                </li>
+                    </p>
+                    {fromDisplayName && (
+                      <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">
+                        De: {fromDisplayName}
+                      </p>
+                    )}
+                    <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                      Vence{" "}
+                      {new Date(transfer.expiresAt).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-[8px]">
+                    <span className="inline-flex items-center rounded-[2px] border border-[#f0dcb4] bg-[#fdf2e0] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+                      Pendiente
+                    </span>
+                    <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                      ›
+                    </span>
+                  </div>
+                </Link>
               ))}
-            </ul>
+            </div>
           )}
         </section>
 
+        {/* History */}
         {historyRows.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-lg font-medium text-gob-text">Historial</h2>
-            <ul className="space-y-2">
+          <section>
+            <LnSectionHead num="02" title="Historial" className="mb-[16px]" />
+            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
               {historyRows.map(({ transfer, petName, fromDisplayName }) => (
-                <li key={transfer.id} className="rounded-lg border border-gob-border p-3 text-sm">
-                  <Link
-                    href={`/transferencias/${transfer.publicToken}`}
-                    className="flex items-baseline justify-between gap-2"
+                <Link
+                  key={transfer.id}
+                  href={`/transferencias/${transfer.publicToken}`}
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                >
+                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                    {petName}
+                    {fromDisplayName && (
+                      <span className="text-[var(--color-ln-mute)]"> · {fromDisplayName}</span>
+                    )}
+                    {" · "}
+                    <span
+                      className={
+                        transfer.status === "accepted"
+                          ? "text-[var(--color-ln-ok)]"
+                          : "text-[var(--color-ln-mute)]"
+                      }
+                    >
+                      {STATUS_LABELS[transfer.status] ?? transfer.status}
+                    </span>
+                  </p>
+                  <span
+                    aria-hidden="true"
+                    className="flex-shrink-0 text-[14px] text-[var(--color-ln-mute)]"
                   >
-                    <p className="text-gob-text-gray">
-                      {petName}
-                      {fromDisplayName && (
-                        <span className="text-gob-text-muted font-normal">
-                          {" "}
-                          · {fromDisplayName}
-                        </span>
-                      )}
-                      {" · "}
-                      <span
-                        className={
-                          transfer.status === "accepted"
-                            ? "text-gob-success"
-                            : "text-gob-text-muted"
-                        }
-                      >
-                        {STATUS_LABELS[transfer.status] ?? transfer.status}
-                      </span>
-                    </p>
-                    <span className="shrink-0 text-xs text-gob-text-muted">→</span>
-                  </Link>
-                </li>
+                    ›
+                  </span>
+                </Link>
               ))}
-            </ul>
+            </div>
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }

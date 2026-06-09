@@ -1,12 +1,11 @@
-// Owner-only event detail screen — AGENTS.md → v1 screens §"Event Detail".
-// Renders the primary/secondary labels from lib/events.ts, occurred vs.
-// recorded timestamps, every payload field as a key-value list, attachments,
-// and (when location_lat/lng are present) an OSM map. credential_scanned
-// events surface their scan-context fields for owner audit visibility.
-//
-// Stable URL: /mis-mascotas/{publicToken}/eventos/{eventId}. Safe to share
-// across devices as long as the recipient is also signed in as the owner.
+// Event detail screen — Libreta Nacional redesign.
+// Presentation only; data fetching and payload rendering logic unchanged.
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { attachments, db, petEvents } from "@/db";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDateTime } from "@/lib/format";
@@ -15,18 +14,10 @@ import { requireOwnedPetByToken } from "@/lib/pets";
 import { eventAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq } from "drizzle-orm";
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 
-// MapLibre is heavy and only relevant when the event carries a location.
-// next/dynamic with a loading placeholder + the MapLibre runtime imported
-// inside LocationMap's useEffect means the bundle only fetches MapLibre at
-// view time. SSR returns the placeholder div, the client hydrates and
-// lazy-loads. (Next 15 forbids `ssr: false` in Server Components.)
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-gob-border  bg-gob-surface-alt  animate-pulse" />
+    <div className="w-full h-[240px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
 
@@ -37,7 +28,6 @@ export default async function EventDetailPage({
 }) {
   const { publicToken, eventId } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  // The (app) layout already redirects unauthenticated users to /login.
   const { pet } = session;
 
   const [event] = await db
@@ -64,135 +54,172 @@ export default async function EventDetailPage({
   );
 
   const point = readPoint(event);
-
   const payload = (event.payload ?? {}) as Record<string, unknown>;
   const payloadEntries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-6 space-y-6">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver al historial de {pet.name}
-        </Link>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}?tab=historial`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Historial de {pet.name}
+      </Link>
 
-        <header className="space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">
-            {eventTypeLabel(event.eventType)}
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">{heading}</h1>
-          {summary.secondary && <p className="text-sm text-gob-text-gray ">{summary.secondary}</p>}
-        </header>
-
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
-          <Detail label="Ocurrió" value={formatDateTime(event.occurredAt)} />
-          <Detail label="Registrado" value={formatDateTime(event.recordedAt)} />
-        </section>
-
-        {event.notes && (
-          <section className="space-y-1.5">
-            <h2 className="text-xs uppercase tracking-wider text-gob-text-muted ">Notas</h2>
-            <p className="text-sm text-gob-text  whitespace-pre-wrap">{event.notes}</p>
-          </section>
-        )}
-
-        <section className="space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted ">Ubicación</h2>
-          {point ? (
-            <LocationMap lat={point.lat} lng={point.lng} />
-          ) : (
-            <p className="text-sm text-gob-text-muted  italic">Sin ubicación registrada.</p>
-          )}
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="text-xs uppercase tracking-wider text-gob-text-muted ">Detalle</h2>
-          {payloadEntries.length === 0 ? (
-            <p className="text-sm text-gob-text-muted  italic">Sin campos adicionales.</p>
-          ) : (
-            <dl className="border border-gob-border  rounded-xl divide-y divide-gob-border ">
-              {payloadEntries.map(([key, value]) => (
-                <div key={key} className="px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-3">
-                  <dt className="text-xs font-mono text-gob-text-muted  break-all">{key}</dt>
-                  <dd className="sm:col-span-2 text-sm text-gob-text  break-words">
-                    <PayloadValue value={value} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </section>
-
-        {attachmentUrls.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-xs uppercase tracking-wider text-gob-text-muted ">
-              Adjuntos ({attachmentUrls.length})
-            </h2>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {attachmentUrls.map((a) =>
-                a.url ? (
-                  <li key={a.id}>
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="block">
-                      {a.mimeType.startsWith("image/") ? (
-                        <img
-                          src={a.url}
-                          alt="Adjunto"
-                          className="w-full h-48 rounded-lg border border-gob-border  object-cover"
-                        />
-                      ) : (
-                        <span className="flex items-center justify-center w-full h-24 rounded-lg border border-gob-border  bg-gob-surface-alt  text-sm text-gob-text-gray  underline underline-offset-4">
-                          Ver adjunto ({a.mimeType})
-                        </span>
-                      )}
-                    </a>
-                  </li>
-                ) : (
-                  <li
-                    key={a.id}
-                    className="flex items-center justify-center w-full h-24 rounded-lg border border-dashed border-gob-border  text-xs text-gob-text-muted "
-                  >
-                    Adjunto no disponible
-                  </li>
-                ),
-              )}
-            </ul>
-          </section>
+      {/* Header */}
+      <div className="mb-[24px]">
+        <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+          {eventTypeLabel(event.eventType)}
+        </p>
+        <h1 className="mt-[4px] font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          {heading}
+        </h1>
+        {summary.secondary && (
+          <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">{summary.secondary}</p>
         )}
       </div>
-    </main>
-  );
-}
 
-function Detail({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-wider text-gob-text-muted ">{label}</dt>
-      <dd className="text-sm text-gob-text ">{value || "—"}</dd>
+      <div className="flex flex-col gap-[16px]">
+        {/* Timestamps */}
+        <LnCard>
+          <LnCardHead title="Fechas" />
+          <LnCardBody>
+            <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
+              <Detail label="Ocurrió" value={formatDateTime(event.occurredAt)} />
+              <Detail label="Registrado" value={formatDateTime(event.recordedAt)} />
+            </div>
+          </LnCardBody>
+        </LnCard>
+
+        {/* Notes */}
+        {event.notes && (
+          <LnCard>
+            <LnCardHead title="Notas" />
+            <LnCardBody>
+              <p className="text-[13.5px] text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
+                {event.notes}
+              </p>
+            </LnCardBody>
+          </LnCard>
+        )}
+
+        {/* Location */}
+        <LnCard>
+          <LnCardHead title="Ubicación" />
+          <LnCardBody>
+            {point ? (
+              <LocationMap lat={point.lat} lng={point.lng} />
+            ) : (
+              <p className="text-[13px] text-[var(--color-ln-mute)] italic">
+                Sin ubicación registrada.
+              </p>
+            )}
+          </LnCardBody>
+        </LnCard>
+
+        {/* Payload detail */}
+        <LnCard>
+          <LnCardHead title="Detalle" />
+          <LnCardBody>
+            {payloadEntries.length === 0 ? (
+              <p className="text-[13px] text-[var(--color-ln-mute)] italic">
+                Sin campos adicionales.
+              </p>
+            ) : (
+              <dl className="divide-y divide-[var(--color-ln-line-2)]">
+                {payloadEntries.map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="grid grid-cols-1 gap-[4px] py-[10px] first:pt-0 last:pb-0 sm:grid-cols-3 sm:gap-[12px]"
+                  >
+                    <dt className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)] break-all">
+                      {key}
+                    </dt>
+                    <dd className="text-[13px] text-[var(--color-ln-ink-2)] break-words sm:col-span-2">
+                      <PayloadValue value={value} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </LnCardBody>
+        </LnCard>
+
+        {/* Attachments */}
+        {attachmentUrls.length > 0 && (
+          <LnCard>
+            <LnCardHead title={`Adjuntos (${attachmentUrls.length})`} />
+            <LnCardBody>
+              <ul className="grid grid-cols-1 gap-[10px] sm:grid-cols-2">
+                {attachmentUrls.map((a) =>
+                  a.url ? (
+                    <li key={a.id}>
+                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="block">
+                        {a.mimeType.startsWith("image/") ? (
+                          <img
+                            src={a.url}
+                            alt="Adjunto"
+                            className="h-[192px] w-full rounded-[4px] border border-[var(--color-ln-line)] object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-[96px] w-full items-center justify-center rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline">
+                            Ver adjunto ({a.mimeType})
+                          </span>
+                        )}
+                      </a>
+                    </li>
+                  ) : (
+                    <li
+                      key={a.id}
+                      className="flex h-[96px] w-full items-center justify-center rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] text-[12px] text-[var(--color-ln-mute)]"
+                    >
+                      Adjunto no disponible
+                    </li>
+                  ),
+                )}
+              </ul>
+            </LnCardBody>
+          </LnCard>
+        )}
+      </div>
     </div>
   );
 }
 
-// Stringify a payload value for display. Booleans render Sí/No, arrays
-// comma-join, nested objects pretty-print as monospaced JSON.
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function Detail({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        {label}
+      </dt>
+      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
+    </div>
+  );
+}
+
 function PayloadValue({ value }: { value: unknown }) {
   if (typeof value === "boolean") return <>{value ? "Sí" : "No"}</>;
   if (typeof value === "string" || typeof value === "number") return <>{String(value)}</>;
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="italic text-gob-text-muted">vacío</span>;
+    if (value.length === 0)
+      return <span className="italic text-[var(--color-ln-mute)]">vacío</span>;
     if (value.every((v) => typeof v === "string" || typeof v === "number")) {
       return <>{value.join(", ")}</>;
     }
     return (
-      <pre className="text-[11px] font-mono whitespace-pre-wrap text-gob-text-gray ">
+      <pre className="font-[var(--font-ln-mono)] text-[11px] whitespace-pre-wrap text-[var(--color-ln-ink-2)]">
         {JSON.stringify(value, null, 2)}
       </pre>
     );
   }
   if (value && typeof value === "object") {
     return (
-      <pre className="text-[11px] font-mono whitespace-pre-wrap text-gob-text-gray ">
+      <pre className="font-[var(--font-ln-mono)] text-[11px] whitespace-pre-wrap text-[var(--color-ln-ink-2)]">
         {JSON.stringify(value, null, 2)}
       </pre>
     );

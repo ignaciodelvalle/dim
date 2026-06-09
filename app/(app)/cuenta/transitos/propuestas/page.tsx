@@ -1,18 +1,25 @@
+// Propuestas de tránsito inbox — Libreta Nacional redesign.
+
 import Link from "next/link";
 
+import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+
+const STATUS_LABELS = {
+  pending: "Pendiente",
+  accepted: "Aceptada",
+  rejected: "Rechazada",
+  expired: "Expirada",
+  cancelled: "Cancelada",
+} as const;
 
 export default async function PropuestasInboxPage() {
   const { user } = await requireUserOrRedirect();
 
   const proposals = await db
-    .select({
-      proposal: fosterProposals,
-      pet: pets,
-      org: organizations,
-    })
+    .select({ proposal: fosterProposals, pet: pets, org: organizations })
     .from(fosterProposals)
     .innerJoin(pets, eq(pets.id, fosterProposals.petId))
     .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
@@ -23,87 +30,108 @@ export default async function PropuestasInboxPage() {
   const past = proposals.filter((p) => p.proposal.status !== "pending");
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto pt-10 space-y-8">
-        <header>
-          <h1 className="text-2xl font-semibold text-gob-text ">Propuestas de tránsito</h1>
-          <p className="mt-2 text-sm text-gob-text-gray ">
-            Los refugios te proponen cuidar mascotas que tienen en custodia. Tenés 7 días para
-            responder antes de que la propuesta expire.
-          </p>
-        </header>
+    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium text-gob-text ">Activas</h2>
-          {active.length === 0 && (
-            <p className="text-sm text-gob-text-muted ">No tenés propuestas pendientes.</p>
-          )}
-          <ul className="space-y-2">
-            {active.map(({ proposal, pet, org }) => (
-              <li
-                key={proposal.id}
-                className="rounded-lg border border-gob-border-strong  p-4 hover:bg-gob-surface-alt  transition-colors"
-              >
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Propuestas de tránsito
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Los refugios te proponen cuidar mascotas que tienen en custodia. Tenés 7 días para
+          responder antes de que la propuesta expire.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-[32px]">
+        {/* Active */}
+        <section>
+          <LnSectionHead
+            num="01"
+            title="Activas"
+            meta={
+              active.length > 0
+                ? `${active.length} pendiente${active.length !== 1 ? "s" : ""}`
+                : undefined
+            }
+            className="mb-[16px]"
+          />
+          {active.length === 0 ? (
+            <p className="text-[13px] text-[var(--color-ln-mute)]">
+              No tenés propuestas pendientes.
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+              {active.map(({ proposal, pet, org }) => (
                 <Link
+                  key={proposal.id}
                   href={`/cuenta/transitos/propuestas/${proposal.publicToken}`}
-                  className="block"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
-                  <div className="flex items-baseline justify-between">
-                    <div>
-                      <p className="font-medium text-gob-text ">
-                        {org.displayName}{" "}
-                        <span className="text-gob-text-muted  font-normal">→ {pet.name}</span>
-                      </p>
-                      <p className="text-xs text-gob-text-muted  mt-1">
-                        Especie: {pet.species}
-                        {proposal.proposedDurationWeeks &&
-                          ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
-                        · Expira{" "}
-                        {new Date(proposal.expiresAt).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </p>
-                    </div>
-                    <span className="text-xs text-gob-text-muted">→</span>
+                  <div>
+                    <p className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">
+                      {org.displayName}{" "}
+                      <span className="font-normal text-[var(--color-ln-mute)]">→ {pet.name}</span>
+                    </p>
+                    <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                      {pet.species}
+                      {proposal.proposedDurationWeeks &&
+                        ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
+                      · Expira{" "}
+                      {new Date(proposal.expiresAt).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </p>
                   </div>
+                  <span
+                    aria-hidden="true"
+                    className="flex-shrink-0 text-[16px] text-[var(--color-ln-mute)]"
+                  >
+                    ›
+                  </span>
                 </Link>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+          )}
         </section>
 
+        {/* History */}
         {past.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-lg font-medium text-gob-text ">Historial</h2>
-            <ul className="space-y-2">
+          <section>
+            <LnSectionHead num="02" title="Historial" className="mb-[16px]" />
+            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
               {past.map(({ proposal, pet, org }) => (
-                <li key={proposal.id} className="rounded-lg border border-gob-border  p-3 text-sm">
-                  <p className="text-gob-text-gray ">
-                    {org.displayName} · {pet.name} ·{" "}
-                    <span
-                      className={
-                        proposal.status === "accepted" ? "text-gob-success " : "text-gob-text-muted"
-                      }
-                    >
-                      {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
-                        proposal.status}
-                    </span>
+                <div
+                  key={proposal.id}
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] last:border-b-0"
+                >
+                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                    {org.displayName} · {pet.name}
                   </p>
-                </li>
+                  <span
+                    className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em] ${
+                      proposal.status === "accepted"
+                        ? "text-[var(--color-ln-ok)]"
+                        : "text-[var(--color-ln-mute)]"
+                    }`}
+                  >
+                    {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
+                      proposal.status}
+                  </span>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }
-
-const STATUS_LABELS = {
-  pending: "Pendiente",
-  accepted: "Aceptada",
-  rejected: "Rechazada",
-  expired: "Expirada",
-  cancelled: "Cancelada",
-} as const;
