@@ -48,7 +48,7 @@ type Deps = {
 export async function registerPet(
   input: RegisterPetInput,
   deps: Deps,
-): Promise<UseCaseResult<{ petId: string; eventId: string }>> {
+): Promise<UseCaseResult<{ petId: string; eventId: string; publicToken: string }>> {
   const { repo, actor, transaction } = deps;
   const { user } = actor;
   const { parsed, potentiallyDangerousBreed, uploadedPath, uploadMimeType, uploadSize } = input;
@@ -104,5 +104,5 @@ export async function registerPet(
     };
   }
 
-  return { ok: true, value: { petId, eventId }, notifications: pendingNotifications };
+  return { ok: true, value: { petId, eventId, publicToken }, notifications: pendingNotifications };
 }

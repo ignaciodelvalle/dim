@@ -180,7 +180,8 @@ export async function createPetAction(
 
   await flushNotifications(result.notifications);
 
-  redirect("/mis-mascotas");
+  const newPublicToken = (result.value as NonNullable<typeof result.value>).publicToken;
+  redirect(`/mis-mascotas/${newPublicToken}?recienCreado=true`);
 }
 
 // ---------------------------------------------------------------------------
