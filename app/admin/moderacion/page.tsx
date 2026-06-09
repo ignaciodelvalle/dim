@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
@@ -9,11 +10,13 @@ import {
 } from "@/src/modules/welfare/domain/types";
 import { and, desc, isNotNull, isNull } from "drizzle-orm";
 
-const SEVERITY_TONE: Record<string, string> = {
-  critical: "text-gob-danger ",
-  high: "text-gob-warning-text ",
-  medium: "text-gob-warning-text ",
-  low: "text-gob-text-gray ",
+type SeverityTone = "danger" | "open" | "neutral";
+
+const SEVERITY_PILL: Record<string, SeverityTone> = {
+  critical: "danger",
+  high: "open",
+  medium: "open",
+  low: "neutral",
 };
 
 export default async function ModeracionListPage() {
@@ -30,64 +33,71 @@ export default async function ModeracionListPage() {
     .limit(500);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold text-gob-text ">Moderación de denuncias</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Denuncias anónimas que las heurísticas marcaron para revisión antes de entrar a la cola
-            de triage. Solo admin las ve. Resolvé pasándolas a triage normal o cerrándolas como
-            spam.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {"Admin · Moderación"}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">{"Moderación de denuncias"}</h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          Denuncias anónimas que las heurísticas marcaron para revisión antes de entrar a la cola de
+          triage. Solo admin las ve. Resolvé pasándolas a triage normal o cerrándolas como spam.
+        </p>
+      </header>
 
-        {rows.length === 0 ? (
-          <p className="text-sm text-gob-text-muted py-8 text-center">
-            No hay denuncias pendientes de moderación.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {rows.map((r) => {
-              const reasons = (r.flagReasons as string[]) ?? [];
-              return (
-                <li
-                  key={r.id}
-                  className="rounded-lg border border-gob-warning  bg-gob-warning/10/40 "
-                >
+      {rows.length === 0 ? (
+        <OpCallout title="Cola vacía" body="No hay denuncias pendientes de moderación." />
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((r) => {
+            const reasons = (r.flagReasons as string[]) ?? [];
+            const severityTone: SeverityTone = SEVERITY_PILL[r.severity] ?? "neutral";
+            return (
+              <li key={r.id}>
+                <OpCard accent="warn">
                   <Link
                     href={`/admin/moderacion/${r.id}`}
-                    className="block px-4 py-3 hover:bg-gob-warning/10  transition"
+                    className="block no-underline transition-colors hover:bg-ln-op-stripe"
                   >
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium text-gob-text ">
-                          {welfareReportKindLabel(r.kind)}{" "}
-                          <span className={`text-xs ${SEVERITY_TONE[r.severity] ?? ""}`}>
-                            · {welfareReportSeverityLabel(r.severity)}
-                          </span>
-                        </p>
-                        <ul className="text-xs text-gob-warning-text  space-y-0.5">
-                          {reasons.map((reason) => (
-                            <li key={reason}>• {reasonLabel(reason as FlagReason)}</li>
-                          ))}
-                        </ul>
-                        <p className="text-[10px] text-gob-text-muted  font-mono">
-                          {r.referenceCode} ·{" "}
-                          {r.flaggedAt &&
-                            new Date(r.flaggedAt).toLocaleString("es-AR", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })}
-                        </p>
+                    <OpCardBody>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-[13px] font-semibold text-ln-op-ink">
+                              {welfareReportKindLabel(r.kind)}
+                            </p>
+                            <OpPill tone={severityTone}>
+                              {welfareReportSeverityLabel(r.severity)}
+                            </OpPill>
+                          </div>
+                          <ul className="space-y-0.5">
+                            {reasons.map((reason) => (
+                              <li key={reason} className="text-[12px] text-ln-op-warn">
+                                {"• "}
+                                {reasonLabel(reason as FlagReason)}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="font-mono text-[10px] text-ln-op-faint">
+                            {r.referenceCode}
+                            {" · "}
+                            {r.flaggedAt &&
+                              new Date(r.flaggedAt).toLocaleString("es-AR", {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              })}
+                          </p>
+                        </div>
+                        <span className="text-[12px] font-semibold text-ln-op-azul">{"->"}</span>
                       </div>
-                    </div>
+                    </OpCardBody>
                   </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-    </main>
+                </OpCard>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
