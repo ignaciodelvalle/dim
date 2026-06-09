@@ -49,7 +49,7 @@ export function ServiceOfferingForm({
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {state.error && (
-          <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+          <p className="text-[13px] rounded-[6px] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
             {state.error}
           </p>
         )}
@@ -57,8 +57,8 @@ export function ServiceOfferingForm({
         {/* Step 1 — Tipo + nombre + descripción */}
         <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
           <div className="space-y-1">
-            <label htmlFor="serviceKind" className="block text-sm font-medium">
-              Tipo de servicio <span className="text-gob-danger">*</span>
+            <label htmlFor="serviceKind" className="block text-[13px] font-medium text-ln-op-ink">
+              Tipo de servicio <span className="text-ln-op-danger">*</span>
             </label>
             <Select id="serviceKind" name="serviceKind" required>
               <option value="">— Seleccioná un tipo —</option>
@@ -71,8 +71,8 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="displayName" className="block text-sm font-medium">
-              Nombre del servicio <span className="text-gob-danger">*</span>
+            <label htmlFor="displayName" className="block text-[13px] font-medium text-ln-op-ink">
+              Nombre del servicio <span className="text-ln-op-danger">*</span>
             </label>
             <Input
               id="displayName"
@@ -86,8 +86,8 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="description" className="block text-sm font-medium">
-              Descripción <span className="text-gob-text-muted font-normal">(opcional)</span>
+            <label htmlFor="description" className="block text-[13px] font-medium text-ln-op-ink">
+              Descripción <span className="text-ln-op-mute font-normal">(opcional)</span>
             </label>
             <Textarea
               id="description"
@@ -102,7 +102,7 @@ export function ServiceOfferingForm({
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-5 py-3 rounded bg-gob-primary text-white   text-sm font-medium"
+            className="w-full px-5 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
           >
             Continuar
           </button>
@@ -112,8 +112,11 @@ export function ServiceOfferingForm({
         <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label htmlFor="durationMinutes" className="block text-sm font-medium">
-                Duración (minutos) <span className="text-gob-danger">*</span>
+              <label
+                htmlFor="durationMinutes"
+                className="block text-[13px] font-medium text-ln-op-ink"
+              >
+                Duración (minutos) <span className="text-ln-op-danger">*</span>
               </label>
               <Input
                 id="durationMinutes"
@@ -126,8 +129,11 @@ export function ServiceOfferingForm({
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="slotCapacity" className="block text-sm font-medium">
-                Capacidad por turno <span className="text-gob-danger">*</span>
+              <label
+                htmlFor="slotCapacity"
+                className="block text-[13px] font-medium text-ln-op-ink"
+              >
+                Capacidad por turno <span className="text-ln-op-danger">*</span>
               </label>
               <Input
                 id="slotCapacity"
@@ -142,9 +148,9 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="priceArs" className="block text-sm font-medium">
+            <label htmlFor="priceArs" className="block text-[13px] font-medium text-ln-op-ink">
               Precio (ARS){" "}
-              <span className="text-gob-text-muted font-normal">— vacío para campaña gratuita</span>
+              <span className="text-ln-op-mute font-normal">— vacío para campaña gratuita</span>
             </label>
             <Input
               id="priceArs"
@@ -159,7 +165,7 @@ export function ServiceOfferingForm({
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-5 py-3 rounded bg-gob-primary text-white   text-sm font-medium"
+            className="w-full px-5 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
           >
             Continuar
           </button>
@@ -168,7 +174,7 @@ export function ServiceOfferingForm({
         {/* Step 3 — Elegibilidad + submit */}
         <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
           <div className="space-y-1">
-            <span className="block text-sm font-medium">Especies elegibles</span>
+            <span className="block text-[13px] font-medium text-ln-op-ink">Especies elegibles</span>
             <div className="flex gap-4">
               <Checkbox name="eligibilitySpecies" value="dog" defaultChecked>
                 Perros
@@ -181,9 +187,11 @@ export function ServiceOfferingForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label htmlFor="eligibilityAgeMinMonths" className="block text-sm font-medium">
-                Edad mínima (meses){" "}
-                <span className="text-gob-text-muted font-normal">(opcional)</span>
+              <label
+                htmlFor="eligibilityAgeMinMonths"
+                className="block text-[13px] font-medium text-ln-op-ink"
+              >
+                Edad mínima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
               <Input
                 id="eligibilityAgeMinMonths"
@@ -195,9 +203,11 @@ export function ServiceOfferingForm({
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="eligibilityAgeMaxMonths" className="block text-sm font-medium">
-                Edad máxima (meses){" "}
-                <span className="text-gob-text-muted font-normal">(opcional)</span>
+              <label
+                htmlFor="eligibilityAgeMaxMonths"
+                className="block text-[13px] font-medium text-ln-op-ink"
+              >
+                Edad máxima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
               <Input
                 id="eligibilityAgeMaxMonths"
@@ -214,13 +224,13 @@ export function ServiceOfferingForm({
             <button
               type="submit"
               disabled={isPending}
-              className="flex-1 px-5 py-3 rounded bg-gob-success text-white text-sm font-medium disabled:opacity-50"
+              className="flex-1 px-5 py-3 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
             >
               {isPending ? "Enviando…" : "Crear servicio"}
             </button>
             <a
               href={`/org/${orgToken}/servicios`}
-              className="text-sm text-gob-text-gray underline "
+              className="text-[12px] text-ln-op-azul hover:underline"
             >
               Cancelar
             </a>

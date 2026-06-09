@@ -6,31 +6,25 @@ import { and, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import {
+  OpBreach,
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { db, organizations, serviceOfferings } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  pending_approval: {
-    label: "Pendiente de aprobación",
-    className: "text-gob-warning-text bg-gob-warning/10 border-gob-warning   ",
-  },
-  approved: {
-    label: "Aprobado",
-    className: "text-gob-success bg-gob-success/10 border-gob-success   ",
-  },
-  rejected: {
-    label: "Rechazado",
-    className: "text-gob-danger bg-gob-danger/10 border-gob-danger   ",
-  },
-  paused: {
-    label: "Pausado",
-    className: "text-gob-text bg-gob-surface-alt border-gob-border-strong   ",
-  },
-  archived: {
-    label: "Archivado",
-    className: "text-gob-text-gray bg-gob-surface-alt border-gob-border   ",
-  },
+type StatusTone = "open" | "ok" | "danger" | "neutral";
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  pending_approval: { label: "Pendiente de aprobación", tone: "open" },
+  approved: { label: "Aprobado", tone: "ok" },
+  rejected: { label: "Rechazado", tone: "danger" },
+  paused: { label: "Pausado", tone: "neutral" },
+  archived: { label: "Archivado", tone: "neutral" },
 };
 
 function formatDate(d: Date | string | null): string {
@@ -64,117 +58,118 @@ export default async function OfferingDetailPage({
 
   const { offering } = row;
   const kind = findServiceKind(offering.serviceKind);
-  const statusConfig = STATUS_LABELS[offering.status] ?? STATUS_LABELS.pending_approval;
+  const statusConfig = STATUS_CONFIG[offering.status] ?? STATUS_CONFIG.pending_approval;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            {organization.displayName} · Servicios
-          </p>
-          <h1 className="text-3xl font-semibold">{offering.displayName}</h1>
-          <p className="text-sm text-gob-text-muted">
-            {kind?.label ?? offering.serviceKind} · Enviado el {formatDate(offering.submittedAt)}
-          </p>
-        </header>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName} · Servicios
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          {kind?.label ?? offering.serviceKind} · Enviado el {formatDate(offering.submittedAt)}
+        </p>
+      </header>
 
-        {/* Status banner */}
-        <div className={`text-sm rounded border px-3 py-2 ${statusConfig.className}`}>
-          <strong>{statusConfig.label}</strong>
-          {offering.status === "pending_approval" && (
-            <span>
-              {" "}
-              — La autoridad revisará tu solicitud y te notificaremos por email y en el panel.
-            </span>
-          )}
-          {offering.status === "approved" && (
-            <span>
-              {" "}
-              — Ya podés{" "}
-              <Link
-                href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
-                className="underline font-medium"
-              >
-                configurar la agenda
-              </Link>{" "}
-              y empezar a recibir reservas.
-            </span>
-          )}
-          {offering.status === "rejected" && offering.rejectionReason && (
-            <span> — Motivo: {offering.rejectionReason}</span>
-          )}
-        </div>
-
-        {/* Details grid */}
-        <section className="rounded border border-gob-border  divide-y divide-gob-border ">
-          <Row label="Token público" value={offering.publicToken} mono />
-          <Row label="Tipo de servicio" value={kind?.label ?? offering.serviceKind} />
-          <Row
-            label="Precio"
-            value={
-              offering.priceArs !== null
-                ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
-                : "Campaña gratuita"
-            }
-          />
-          <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
-          <Row
-            label="Capacidad por turno"
-            value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
-          />
-          {offering.description && <Row label="Descripción" value={offering.description} />}
-          {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
-            <Row
-              label="Especies"
-              value={offering.eligibilitySpecies
-                .map((s) => (s === "dog" ? "Perros" : "Gatos"))
-                .join(", ")}
-            />
-          )}
-          {(offering.eligibilityAgeMinMonths !== null ||
-            offering.eligibilityAgeMaxMonths !== null) && (
-            <Row
-              label="Rango de edad"
-              value={[
-                offering.eligibilityAgeMinMonths !== null
-                  ? `desde ${offering.eligibilityAgeMinMonths} meses`
-                  : null,
-                offering.eligibilityAgeMaxMonths !== null
-                  ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            />
-          )}
-          {offering.reviewedAt && (
-            <Row label="Revisado el" value={formatDate(offering.reviewedAt)} />
-          )}
-        </section>
-
-        {/* CTA for approved offerings */}
+      {/* Status banner */}
+      <div className="flex items-center gap-3">
+        <OpPill tone={statusConfig.tone}>{statusConfig.label}</OpPill>
+        {offering.status === "pending_approval" && (
+          <span className="text-[12px] text-ln-op-mute">
+            La autoridad revisará tu solicitud y te notificaremos por email y en el panel.
+          </span>
+        )}
         {offering.status === "approved" && (
-          <div>
+          <span className="text-[12px] text-ln-op-mute">
+            Ya podés{" "}
             <Link
               href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
-              className="inline-block px-4 py-2 rounded bg-gob-primary text-white   text-sm"
+              className="text-ln-op-azul hover:underline font-medium"
             >
-              Configurar agenda →
-            </Link>
-          </div>
+              configurar la agenda
+            </Link>{" "}
+            y empezar a recibir reservas.
+          </span>
         )}
-
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link
-            href={`/org/${orgToken}/servicios`}
-            className="text-sm text-gob-text-gray underline "
-          >
-            ← Volver a mis servicios
-          </Link>
-        </footer>
+        {offering.status === "rejected" && offering.rejectionReason && (
+          <span className="text-[12px] text-ln-op-danger">Motivo: {offering.rejectionReason}</span>
+        )}
       </div>
-    </main>
+
+      {/* Details grid */}
+      <OpCard>
+        <OpCardHead title="Datos del servicio" />
+        <OpCardBody className="p-0">
+          <dl className="divide-y divide-ln-op-line">
+            <Row label="Token público" value={offering.publicToken} mono />
+            <Row label="Tipo de servicio" value={kind?.label ?? offering.serviceKind} />
+            <Row
+              label="Precio"
+              value={
+                offering.priceArs !== null
+                  ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
+                  : "Campaña gratuita"
+              }
+            />
+            <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
+            <Row
+              label="Capacidad por turno"
+              value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
+            />
+            {offering.description && <Row label="Descripción" value={offering.description} />}
+            {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
+              <Row
+                label="Especies"
+                value={offering.eligibilitySpecies
+                  .map((s) => (s === "dog" ? "Perros" : "Gatos"))
+                  .join(", ")}
+              />
+            )}
+            {(offering.eligibilityAgeMinMonths !== null ||
+              offering.eligibilityAgeMaxMonths !== null) && (
+              <Row
+                label="Rango de edad"
+                value={[
+                  offering.eligibilityAgeMinMonths !== null
+                    ? `desde ${offering.eligibilityAgeMinMonths} meses`
+                    : null,
+                  offering.eligibilityAgeMaxMonths !== null
+                    ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            )}
+            {offering.reviewedAt && (
+              <Row label="Revisado el" value={formatDate(offering.reviewedAt)} />
+            )}
+          </dl>
+        </OpCardBody>
+      </OpCard>
+
+      {/* CTA for approved offerings */}
+      {offering.status === "approved" && (
+        <div>
+          <Link
+            href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          >
+            Configurar agenda →
+          </Link>
+        </div>
+      )}
+
+      <footer className="pt-4 border-t border-ln-op-line">
+        <Link
+          href={`/org/${orgToken}/servicios`}
+          className="text-[12px] text-ln-op-azul hover:underline"
+        >
+          ← Volver a mis servicios
+        </Link>
+      </footer>
+    </div>
   );
 }
 
@@ -189,8 +184,8 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
-      <dt className="text-xs text-gob-text-muted shrink-0 w-36">{label}</dt>
-      <dd className={`text-sm flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dt className="text-[12px] text-ln-op-mute shrink-0 w-36">{label}</dt>
+      <dd className={`text-[13px] text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );
 }

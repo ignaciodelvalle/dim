@@ -40,12 +40,12 @@ export function MaterializeNowButton({ offeringToken, materializeAction }: Props
         type="button"
         onClick={handleClick}
         disabled={isPending}
-        className="inline-flex items-center gap-2 rounded border border-gob-border-strong bg-white px-3 py-1.5 text-sm font-medium text-gob-text-gray shadow-sm hover:bg-gob-surface-alt disabled:cursor-not-allowed disabled:opacity-60    "
+        className="inline-flex items-center gap-2 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
       >
         {isPending ? "Materializando…" : "Materializar ahora"}
       </button>
       {message && (
-        <p className={`text-xs ${message.ok ? "text-gob-success " : "text-gob-danger "}`}>
+        <p className={`text-[12px] ${message.ok ? "text-ln-op-ok" : "text-ln-op-danger"}`}>
           {message.text}
         </p>
       )}
