@@ -34,8 +34,8 @@ export function ServiceDogCredentialCard({
   const expiringSoon = isExpiringWithin(serviceDog.credentialExpiryDate, 30);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-gob-success bg-white shadow-sm  ">
-      <header className="flex items-baseline justify-between gap-3 bg-gob-success px-4 py-2 text-white ">
+    <section className="overflow-hidden rounded-2xl border border-ln-ok bg-ln-card shadow-sm  ">
+      <header className="flex items-baseline justify-between gap-3 bg-ln-ok px-4 py-2 text-white ">
         <h2 className="text-xs font-semibold uppercase tracking-wider">
           Credencial de perro de asistencia
         </h2>
@@ -48,47 +48,47 @@ export function ServiceDogCredentialCard({
           <img
             src={photoUrl}
             alt={petName}
-            className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-gob-success "
+            className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-ln-ok "
           />
         ) : (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gob-success/10 text-3xl ">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#eef6f0] text-3xl ">
             🦮
           </div>
         )}
         <dl className="flex-1 space-y-0.5 text-xs">
           <dt className="sr-only">Nombre</dt>
-          <dd className="text-base font-semibold text-gob-text ">{petName}</dd>
+          <dd className="text-base font-semibold text-ln-ink ">{petName}</dd>
           <dt className="sr-only">Tipo</dt>
-          <dd className="text-sm text-gob-success ">
+          <dd className="text-sm text-ln-ok ">
             {SERVICE_TYPE_LABELS[serviceDog.serviceType] ?? serviceDog.serviceType}
           </dd>
           {microchipId ? (
             <>
-              <dt className="mt-2 text-gob-text-muted ">Microchip</dt>
-              <dd className="font-mono text-gob-text-gray ">{microchipId}</dd>
+              <dt className="mt-2 text-ln-mute ">Microchip</dt>
+              <dd className="font-mono text-ln-ink-2 ">{microchipId}</dd>
             </>
           ) : null}
           {serviceDog.rupgaCredential ? (
             <>
-              <dt className="mt-1 text-gob-text-muted ">RUPGA</dt>
-              <dd className="font-mono text-gob-text-gray ">{serviceDog.rupgaCredential}</dd>
+              <dt className="mt-1 text-ln-mute ">RUPGA</dt>
+              <dd className="font-mono text-ln-ink-2 ">{serviceDog.rupgaCredential}</dd>
             </>
           ) : null}
-          <dt className="mt-1 text-gob-text-muted ">Centro de entrenamiento</dt>
-          <dd className="text-gob-text-gray ">{serviceDog.trainingCenter}</dd>
+          <dt className="mt-1 text-ln-mute ">Centro de entrenamiento</dt>
+          <dd className="text-ln-ink-2 ">{serviceDog.trainingCenter}</dd>
           {serviceDog.credentialIssueDate ? (
             <>
-              <dt className="mt-1 text-gob-text-muted ">Emitida</dt>
-              <dd className="text-gob-text-gray ">{formatDate(serviceDog.credentialIssueDate)}</dd>
+              <dt className="mt-1 text-ln-mute ">Emitida</dt>
+              <dd className="text-ln-ink-2 ">{formatDate(serviceDog.credentialIssueDate)}</dd>
             </>
           ) : null}
           {serviceDog.credentialExpiryDate ? (
             <>
-              <dt className="mt-1 text-gob-text-muted ">Vence</dt>
-              <dd className="text-gob-text-gray ">
+              <dt className="mt-1 text-ln-mute ">Vence</dt>
+              <dd className="text-ln-ink-2 ">
                 {formatDate(serviceDog.credentialExpiryDate)}
                 {expiringSoon ? (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-gob-warning/10 px-2 py-0.5 text-[10px] font-medium text-gob-warning-text  ">
+                  <span className="ml-2 inline-flex items-center rounded-full bg-[#fdf2e0] px-2 py-0.5 text-[10px] font-medium text-ln-warn  ">
                     Renovar pronto
                   </span>
                 ) : null}
@@ -98,24 +98,24 @@ export function ServiceDogCredentialCard({
         </dl>
       </div>
 
-      <div className="border-t border-gob-success bg-gob-success/10/60 px-4 py-3 text-[11px] text-gob-success   ">
+      <div className="border-t border-ln-ok bg-[#eef6f0] px-4 py-3 text-[11px] text-ln-ok   ">
         Esta credencial habilita el acceso, deambulación y permanencia de la mascota en todos los
         espacios públicos y privados de uso público, conforme a la Ley 26.858.
       </div>
 
-      <div className="border-t border-gob-success px-4 py-2 ">
+      <div className="border-t border-ln-ok px-4 py-2 ">
         <Link
           href={`/mis-mascotas/${petPublicToken}/asistencia`}
-          className="text-xs font-medium text-gob-success hover:text-gob-success  "
+          className="text-xs font-medium text-ln-ok hover:text-ln-ok/80  "
         >
           Gestionar credencial →
         </Link>
       </div>
 
-      <div className="border-t border-gob-success px-4 py-2 ">
+      <div className="border-t border-ln-ok px-4 py-2 ">
         <Link
           href={buildPresentarHref(petPublicToken)}
-          className="text-xs font-medium text-gob-success hover:text-gob-success  "
+          className="text-xs font-medium text-ln-ok hover:text-ln-ok/80  "
         >
           Presentar credencial →
         </Link>

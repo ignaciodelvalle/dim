@@ -27,19 +27,19 @@ const KIND_ICON: Record<CaseKind, string> = {
 const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
   open: {
     label: "Abierto",
-    classes: "bg-gob-success/10 text-gob-success ring-1 ring-gob-success   ",
+    classes: "bg-[#eef6f0] text-ln-ok ring-1 ring-ln-ok   ",
   },
   escalated: {
     label: "Escalado",
-    classes: "bg-gob-warning/10 text-gob-warning-text ring-1 ring-gob-warning   ",
+    classes: "bg-[#fdf2e0] text-ln-warn ring-1 ring-ln-warn   ",
   },
   closed: {
     label: "Cerrado",
-    classes: "bg-gob-surface-alt text-gob-text ring-1 ring-gob-border   ",
+    classes: "bg-ln-stripe text-ln-ink ring-1 ring-ln-line   ",
   },
   merged: {
     label: "Fusionado",
-    classes: "bg-gob-surface-alt text-gob-text ring-1 ring-gob-border   ",
+    classes: "bg-ln-stripe text-ln-ink ring-1 ring-ln-line   ",
   },
 };
 
@@ -56,12 +56,12 @@ export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) 
   return (
     <Link
       href={`/casos/${publicCode}`}
-      className={`inline-flex items-center rounded-full bg-white ring-1 ring-gob-border transition hover:bg-gob-surface-alt    ${sizeClasses}`}
+      className={`inline-flex items-center rounded-full bg-ln-card ring-1 ring-ln-line transition hover:bg-ln-stripe    ${sizeClasses}`}
     >
       <span aria-hidden>{KIND_ICON[caseKind]}</span>
-      <span className="font-mono font-semibold text-gob-text ">{publicCode}</span>
-      <span className="text-gob-text-muted ">·</span>
-      <span className="text-gob-text ">{caseKindLabel(caseKind)}</span>
+      <span className="font-mono font-semibold text-ln-ink ">{publicCode}</span>
+      <span className="text-ln-mute ">·</span>
+      <span className="text-ln-ink ">{caseKindLabel(caseKind)}</span>
       <span
         className={`ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusStyle.classes}`}
       >

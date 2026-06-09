@@ -26,27 +26,27 @@ export function NotificationCard({
   return (
     <article
       className={`border rounded-xl p-4 flex gap-3 transition-colors ${
-        unread ? `${tone.unreadBg} ${tone.unreadBorder}` : "bg-white  border-gob-border "
+        unread ? `${tone.unreadBg} ${tone.unreadBorder}` : "bg-ln-card  border-ln-line "
       }`}
     >
       <div className={`w-1 self-stretch rounded-full ${tone.bar}`} aria-hidden />
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5 min-w-0">
-            <h3 className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-gob-text `}>
+            <h3 className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-ln-ink `}>
               {notification.title}
             </h3>
-            <p className="text-[11px] uppercase tracking-wider text-gob-text-muted ">
+            <p className="text-[11px] uppercase tracking-wider text-ln-mute ">
               {notificationSeverityLabel(notification.severity)} · {notification.notificationType}
             </p>
           </div>
-          <time className="text-xs text-gob-text-muted  shrink-0">
+          <time className="text-xs text-ln-mute  shrink-0">
             {relativeTime(notification.createdAt)}
           </time>
         </div>
 
         {notification.body && (
-          <p className="text-sm text-gob-text-gray  leading-relaxed">{notification.body}</p>
+          <p className="text-sm text-ln-ink-2  leading-relaxed">{notification.body}</p>
         )}
 
         <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -55,7 +55,7 @@ export function NotificationCard({
               href={notification.ctaUrl}
               target={notification.ctaUrl.startsWith("http") ? "_blank" : undefined}
               rel={notification.ctaUrl.startsWith("http") ? "noopener noreferrer" : undefined}
-              className="px-3 py-1.5 rounded-lg bg-gob-primary  text-white  text-xs font-medium hover:bg-gob-primary  transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-ln-azul  text-white  text-xs font-medium hover:bg-ln-azul-700  transition-colors"
             >
               {notification.ctaLabel}
               {notification.ctaUrl.startsWith("http") && " ↗"}
@@ -64,7 +64,7 @@ export function NotificationCard({
           {relatedPet && (
             <Link
               href={`/mis-mascotas/${relatedPet.publicToken}`}
-              className="px-3 py-1.5 rounded-lg border border-gob-border-strong  text-xs text-gob-text-gray  hover:bg-gob-surface-alt  transition-colors"
+              className="px-3 py-1.5 rounded-lg border border-ln-line-strong  text-xs text-ln-ink-2  hover:bg-ln-stripe  transition-colors"
             >
               Ver {relatedPet.name}
             </Link>
@@ -73,7 +73,7 @@ export function NotificationCard({
             <form action={markRead}>
               <button
                 type="submit"
-                className="text-xs text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+                className="text-xs text-ln-ink-2  underline underline-offset-4 hover:text-ln-ink "
               >
                 Marcar como leída
               </button>
@@ -82,7 +82,7 @@ export function NotificationCard({
           <form action={archive}>
             <button
               type="submit"
-              className="text-xs text-gob-text-muted  underline underline-offset-4 hover:text-gob-text-gray "
+              className="text-xs text-ln-mute  underline underline-offset-4 hover:text-ln-ink-2 "
             >
               Archivar
             </button>
@@ -97,27 +97,27 @@ function severityClasses(severity: string) {
   switch (severity) {
     case "warning":
       return {
-        bar: "bg-gob-warning",
-        unreadBg: "bg-gob-warning/10 ",
-        unreadBorder: "border-gob-warning ",
+        bar: "bg-ln-warn",
+        unreadBg: "bg-[#fdf2e0] ",
+        unreadBorder: "border-ln-warn ",
       };
     case "urgent":
       return {
-        bar: "bg-gob-danger",
-        unreadBg: "bg-gob-danger/10 ",
-        unreadBorder: "border-gob-danger ",
+        bar: "bg-ln-err",
+        unreadBg: "bg-[#fbe9e6] ",
+        unreadBorder: "border-ln-err ",
       };
     case "success":
       return {
-        bar: "bg-gob-success",
-        unreadBg: "bg-gob-success/10 ",
-        unreadBorder: "border-gob-success ",
+        bar: "bg-ln-ok",
+        unreadBg: "bg-[#eef6f0] ",
+        unreadBorder: "border-ln-ok ",
       };
     default:
       return {
-        bar: "bg-gob-info",
-        unreadBg: "bg-gob-info/10 ",
-        unreadBorder: "border-gob-info ",
+        bar: "bg-ln-celeste",
+        unreadBg: "bg-ln-celeste/10 ",
+        unreadBorder: "border-ln-celeste ",
       };
   }
 }
