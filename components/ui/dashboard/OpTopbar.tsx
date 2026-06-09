@@ -13,7 +13,7 @@ type Props = {
   scope?: {
     code: string;
     label?: string;
-    variant?: "default" | "superadmin";
+    variant?: "default" | "superadmin" | "org";
   };
   /** Right-side actions slot. */
   actions?: ReactNode;
