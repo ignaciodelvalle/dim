@@ -46,13 +46,15 @@ export function ReplaceMicrochipForm({
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="rounded-lg border border-gob-border  bg-gob-surface-alt  px-4 py-3 text-sm text-gob-text-gray ">
-        Chip actual: <span className="font-mono font-medium text-gob-text ">{currentChip}</span>
+      {/* Current chip info row */}
+      <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[12px] text-ln-op-ink-2">
+        Chip actual: <span className="font-mono font-semibold text-ln-op-ink">{currentChip}</span>
       </div>
 
       <div className="space-y-1.5">
-        <p className="text-[0.88em] font-semibold text-gob-text-muted">
-          Motivo del reemplazo<span className="text-gob-danger ml-0.5">*</span>
+        <p className="text-[12px] font-semibold text-ln-op-ink-2">
+          Motivo del reemplazo
+          <span className="ml-0.5 text-ln-op-danger">*</span>
         </p>
         <div className="flex flex-col gap-2">
           {ADMIN_REASONS.map((r) => (
@@ -64,8 +66,8 @@ export function ReplaceMicrochipForm({
               onChange={() => setSelectedReason(r.value)}
             >
               <span className="space-y-0.5">
-                {r.label}
-                {r.hint && <span className="block text-xs! text-gob-text-muted!">{r.hint}</span>}
+                <span>{r.label}</span>
+                {r.hint && <span className="block text-[11px] text-ln-op-mute">{r.hint}</span>}
               </span>
             </Radio>
           ))}
@@ -74,7 +76,7 @@ export function ReplaceMicrochipForm({
 
       <Field
         label="Nuevo número de microchip"
-        help="Dejalo vacío para revocar sin reemplazar (válido para fraude, falla del dispositivo o solicitud del dueño/a)."
+        help="Dejálo vacío para revocar sin reemplazar (válido para fraude, falla del dispositivo o solicitud del dueño/a)."
       >
         {({ id, describedBy, invalid }) => (
           <Input
@@ -137,14 +139,17 @@ export function ReplaceMicrochipForm({
       </Field>
 
       {isFraud && (
-        <div className="rounded-lg border border-gob-danger  bg-gob-danger/10  px-4 py-3 text-sm text-gob-danger ">
+        <div
+          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-[12px] text-ln-op-danger"
+          role="alert"
+        >
           Esta acción notifica a todos los administradores activos y abre un caso de investigación
           automáticamente.
         </div>
       )}
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-[12px] text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -152,7 +157,7 @@ export function ReplaceMicrochipForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-[6px] bg-ln-op-navy px-4 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
       </button>

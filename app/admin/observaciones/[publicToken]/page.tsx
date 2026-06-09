@@ -1,7 +1,14 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import {
+  OpBreach,
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCrumbs,
+} from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
@@ -62,97 +69,103 @@ export default async function ObservationDetailPage({
   const boundAction = professionalCloseRabiesObservationAction.bind(null, pet.publicToken);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Link
-          href="/admin/observaciones"
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver al listado
-        </Link>
+    <div className="space-y-6">
+      <OpCrumbs
+        items={[{ label: "Observaciones", href: "/admin/observaciones" }, { label: pet.name }]}
+      />
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Cierre profesional — {pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Como {profile.role === "admin" ? "administrador" : "autoridad sanitaria"}, podés cerrar
-            con cualquier outcome.
-          </p>
-        </header>
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {"Admin · Vigilancia · Cierre profesional"}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          {"Cierre profesional — "}
+          {pet.name}
+        </h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          {"Como "}
+          {profile.role === "admin" ? "administrador" : "autoridad sanitaria"}
+          {", podés cerrar con cualquier outcome."}
+        </p>
+      </header>
 
-        <section className="rounded-xl border border-gob-border  p-4 space-y-2">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted ">
-            Datos de la mascota
-          </p>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+      {/* Pet data card */}
+      <OpCard>
+        <OpCardHead title="Datos de la mascota" />
+        <OpCardBody>
+          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-gob-text-muted">Especie</dt>
-              <dd className="text-gob-text ">{pet.species}</dd>
+              <dt className="text-[11px] text-ln-op-mute">Especie</dt>
+              <dd className="text-[13px] text-ln-op-ink">{pet.species}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gob-text-muted">Jurisdicción</dt>
-              <dd className="text-gob-text ">
+              <dt className="text-[11px] text-ln-op-mute">{"Jurisdicción"}</dt>
+              <dd className="text-[13px] text-ln-op-ink">
                 {pet.jurisdictionLocality ?? "—"}, {pet.jurisdictionProvince ?? "—"}
               </dd>
             </div>
             {ownerRow && (
               <div>
-                <dt className="text-xs text-gob-text-muted">Dueño/a</dt>
-                <dd className="text-gob-text ">{ownerRow.displayName}</dd>
+                <dt className="text-[11px] text-ln-op-mute">{"Dueño/a"}</dt>
+                <dd className="text-[13px] text-ln-op-ink">{ownerRow.displayName}</dd>
               </div>
             )}
             <div>
-              <dt className="text-xs text-gob-text-muted">Token público</dt>
-              <dd className="font-mono text-xs text-gob-text-gray ">{pet.publicToken}</dd>
+              <dt className="text-[11px] text-ln-op-mute">{"Token público"}</dt>
+              <dd className="font-mono text-[11px] text-ln-op-mute">{pet.publicToken}</dd>
             </div>
           </dl>
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        <section className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-warning-text ">
-            Observación activa
-          </p>
-          <p className="text-sm text-gob-warning-text ">
-            {observationUntil
-              ? `Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}`
-              : "Sin fecha de cierre."}
-          </p>
-        </section>
+      {/* Active observation callout */}
+      <OpCallout
+        title="Observación activa"
+        body={
+          observationUntil
+            ? `Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}`
+            : "Sin fecha de cierre."
+        }
+      />
 
-        {escalatingSymptoms.length > 0 && (
-          <section className="rounded-xl border border-gob-danger  bg-gob-danger/10  p-4 space-y-2">
-            <p className="text-xs uppercase tracking-wider text-gob-danger ">
-              Síntomas registrados durante la observación
-            </p>
-            <ul className="space-y-1 text-sm text-gob-danger ">
+      {/* Escalating symptoms */}
+      {escalatingSymptoms.length > 0 && (
+        <OpBreach
+          title={`Síntomas registrados durante la observación (${escalatingSymptoms.length})`}
+          detail={
+            <ul className="mt-1 space-y-0.5">
               {escalatingSymptoms.map((s) => {
                 const payload = s.payload as Record<string, unknown>;
                 const alerted = (payload.alerted_disease_codes as string[]) ?? [];
                 const text = (payload.free_text as string) ?? "—";
                 return (
-                  <li key={s.id} className="space-y-0.5">
-                    <p>
-                      {new Date(s.occurredAt).toLocaleString("es-AR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
-                      {alerted.length > 0 && (
-                        <span className="ml-2 text-xs uppercase tracking-wider">
-                          {alerted.join(", ")}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs">{text}</p>
+                  <li key={s.id}>
+                    {new Date(s.occurredAt).toLocaleString("es-AR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                    {alerted.length > 0 && (
+                      <span className="ml-2 text-[10px] uppercase tracking-wider">
+                        {alerted.join(", ")}
+                      </span>
+                    )}
+                    {" — "}
+                    {text}
                   </li>
                 );
               })}
             </ul>
-          </section>
-        )}
+          }
+        />
+      )}
 
-        <CloseObservationForm action={boundAction} />
-      </div>
-    </main>
+      {/* Closure form */}
+      <OpCard>
+        <OpCardHead title="Cerrar observación" />
+        <OpCardBody>
+          <CloseObservationForm action={boundAction} />
+        </OpCardBody>
+      </OpCard>
+    </div>
   );
 }

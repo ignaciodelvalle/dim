@@ -47,14 +47,14 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
         <button
           type="button"
           onClick={() => setMode("pass")}
-          className="px-3 py-1.5 rounded text-sm bg-gob-success text-white font-medium hover:bg-gob-success"
+          className="rounded-[6px] bg-ln-op-ok px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
         >
           Pasar a triage
         </button>
         <button
           type="button"
           onClick={() => setMode("spam")}
-          className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   font-medium hover:bg-gob-danger/10 "
+          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-1.5 text-[12px] font-semibold text-ln-op-danger transition-opacity hover:opacity-80"
         >
           Confirmar como spam
         </button>
@@ -67,29 +67,30 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
     mode === "pass"
       ? "Por qué considerás que es legítima a pesar del flag (mínimo 10 caracteres)."
       : "Por qué confirmás que es spam — pattern observado, frecuencia, etc. (mínimo 10).";
-  const buttonClass =
+
+  const confirmClass =
     mode === "pass"
-      ? "bg-gob-success text-white hover:bg-gob-success"
-      : "bg-gob-primary  text-white  hover:bg-gob-primary";
+      ? "bg-ln-op-ok text-white hover:opacity-90"
+      : "bg-ln-op-navy text-white hover:opacity-90";
 
   return (
-    <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
-      <p className="text-sm font-medium">{title}</p>
+    <div className="space-y-3">
+      <p className="text-[13px] font-semibold text-ln-op-ink">{title}</p>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+        className="w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[12px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
-      <p className="text-xs text-gob-text-muted tabular-nums">{notes.trim().length} caracteres</p>
-      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+      <p className="text-[11px] tabular-nums text-ln-op-mute">{notes.trim().length} caracteres</p>
+      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending || notes.trim().length < 10}
-          className={`px-4 py-2 rounded text-sm font-medium disabled:opacity-50 ${buttonClass}`}
+          className={`rounded-[6px] px-4 py-2 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${confirmClass}`}
         >
           {pending ? "Procesando..." : "Confirmar"}
         </button>
@@ -97,7 +98,7 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded border border-gob-border-strong  text-sm"
+          className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[12px] text-ln-op-ink-2 hover:bg-ln-op-stripe disabled:opacity-50"
         >
           Cancelar
         </button>
