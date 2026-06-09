@@ -11,6 +11,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
@@ -27,6 +28,13 @@ const CLOSED_REASON_LABEL: Record<string, string> = {
   cancelled: "Cancelada",
   auto_expired: "Expirada (30d sin respuesta)",
   merged: "Fusionada",
+};
+
+const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "warn"> = {
+  open: "open",
+  escalated: "warn",
+  closed: "neutral",
+  merged: "neutral",
 };
 
 export default async function OrgTransferenciasSalientesPage({
@@ -62,77 +70,80 @@ export default async function OrgTransferenciasSalientesPage({
   const handshakeRows = rows;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto pt-10 space-y-6">
-        <Link
-          href={`/org/${orgToken}`}
-          className="text-sm text-gob-text-muted hover:text-gob-text "
-        >
-          ← Volver al panel
-        </Link>
+    <div className="space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Panel", href: `/org/${orgToken}` },
+          { label: "Transferencias salientes" },
+        ]}
+      />
 
-        <header className="flex items-baseline justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-              Transferencias salientes
-            </h1>
-            <p className="text-sm text-gob-text-gray ">
-              Propuestas que {organization.displayName} envió a otras organizaciones.
-            </p>
-          </div>
-          <Link
-            href={`/org/${orgToken}/transferencias/nueva`}
-            className="inline-flex items-center rounded-md bg-gob-success px-3 py-1.5 text-sm font-medium text-white hover:bg-gob-success"
-          >
-            + Nueva propuesta
-          </Link>
-        </header>
-
-        <nav className="text-xs text-gob-text-muted  flex gap-3">
-          <span className="font-medium text-gob-text ">Salientes</span>
-          <Link href={`/org/${orgToken}/transferencias/recibidas`} className="hover:text-gob-text ">
-            Entrantes →
-          </Link>
-        </nav>
-
-        {handshakeRows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gob-border-strong  p-8 text-center text-sm text-gob-text-muted">
-            Todavía no propusiste ninguna transferencia.
+      <header className="flex items-baseline justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferencias salientes</h1>
+          <p className="text-[13px] text-ln-op-mute">
+            Propuestas que {organization.displayName} envió a otras organizaciones.
           </p>
-        ) : (
-          <ul className="space-y-3">
-            {handshakeRows.map((r) => (
-              <li key={r.caseId} className="rounded-lg border border-gob-border  p-4 space-y-2">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gob-text ">
-                      {r.petName ?? "(sin pet)"}{" "}
-                      <span className="font-mono text-xs text-gob-text-muted ">
-                        · {r.publicCode}
-                      </span>
-                    </p>
-                    <p className="text-xs text-gob-text-muted ">
-                      Abierta el {formatDate(r.openedAt)}
-                      {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
-                    </p>
-                  </div>
-                  <span className="text-xs uppercase tracking-wider px-2 py-0.5 rounded bg-gob-surface-alt text-gob-text-gray  ">
-                    {r.status === "closed" && r.closedReason
-                      ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
-                      : (STATUS_LABEL[r.status] ?? r.status)}
-                  </span>
-                </div>
-                <Link
-                  href={`/casos/${r.publicCode}`}
-                  className="inline-block text-xs underline text-gob-text-gray  hover:text-gob-text"
-                >
-                  Ver caso →
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+        </div>
+        <Link
+          href={`/org/${orgToken}/transferencias/nueva`}
+          className="inline-flex items-center rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+        >
+          + Nueva propuesta
+        </Link>
+      </header>
+
+      <nav className="flex gap-4 text-[12px]">
+        <span className="font-semibold text-ln-op-ink">Salientes</span>
+        <Link
+          href={`/org/${orgToken}/transferencias/recibidas`}
+          className="text-ln-op-azul hover:underline no-underline"
+        >
+          Entrantes →
+        </Link>
+      </nav>
+
+      {handshakeRows.length === 0 ? (
+        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+          Todavía no propusiste ninguna transferencia.
+        </p>
+      ) : (
+        <OpCard>
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line">
+              {handshakeRows.map((r) => {
+                const statusLabel =
+                  r.status === "closed" && r.closedReason
+                    ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
+                    : (STATUS_LABEL[r.status] ?? r.status);
+                return (
+                  <li key={r.caseId} className="flex items-start justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-[13px] font-medium text-ln-op-ink">
+                        {r.petName ?? "(sin pet)"}{" "}
+                        <span className="font-mono text-[12px] text-ln-op-mute">
+                          · {r.publicCode}
+                        </span>
+                      </p>
+                      <p className="text-[12px] text-ln-op-mute">
+                        Abierta el {formatDate(r.openedAt)}
+                        {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
+                      </p>
+                      <Link
+                        href={`/casos/${r.publicCode}`}
+                        className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
+                      >
+                        Ver caso →
+                      </Link>
+                    </div>
+                    <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>{statusLabel}</OpPill>
+                  </li>
+                );
+              })}
+            </ul>
+          </OpCardBody>
+        </OpCard>
+      )}
+    </div>
   );
 }

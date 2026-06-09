@@ -51,6 +51,9 @@ interface Props {
 const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Mascota", "Destino", "Razón y notas"];
 
+const selectCls =
+  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+
 export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, receivers }: Props) {
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState(1);
@@ -113,21 +116,21 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
     >
       {/* Step 1 — Mascota recap */}
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-        <div className="rounded-lg border border-gob-border  p-4">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">Vas a transferir</p>
-          <p className="mt-1 text-lg font-semibold text-gob-text ">{petName}</p>
-          <p className="mt-2 text-xs text-gob-text-muted">
+        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4">
+          <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
+          <p className="mt-1 text-[16px] font-semibold text-ln-op-ink">{petName}</p>
+          <p className="mt-2 text-[12px] text-ln-op-mute">
             Token: <span className="font-mono">{petPublicToken}</span>
           </p>
         </div>
-        <p className="text-sm text-gob-text-gray ">
+        <p className="text-[13px] text-ln-op-ink-2">
           Esta propuesta crea un handshake con otra organización. La transferencia se concreta solo
           si el destinatario acepta.
         </p>
         <button
           type="button"
           onClick={() => setStep(2)}
-          className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           Continuar
         </button>
@@ -136,7 +139,10 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       {/* Step 2 — Destino */}
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
         <div>
-          <label htmlFor="receiverOrgId" className="block text-sm font-medium text-gob-text mb-1">
+          <label
+            htmlFor="receiverOrgId"
+            className="mb-1 block text-[13px] font-medium text-ln-op-ink"
+          >
             Organización destinataria
           </label>
           <select
@@ -144,7 +150,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             value={receiverOrgId}
             onChange={(e) => setReceiverOrgId(e.target.value)}
             required
-            className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text   "
+            className={selectCls}
           >
             <option value="">Elegí una organización verificada…</option>
             {receivers.map((r) => (
@@ -154,7 +160,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-gob-text-muted ">
+          <p className="mt-1 text-[12px] text-ln-op-mute">
             Solo aparecen orgs verificadas activas. Sin auto-selección por proximidad.
           </p>
         </div>
@@ -162,7 +168,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           type="button"
           onClick={() => setStep(3)}
           disabled={!receiverOrgId}
-          className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50 transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -171,7 +177,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       {/* Step 3 — Razón + notas */}
       <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
         <div>
-          <label htmlFor="reason" className="block text-sm font-medium text-gob-text mb-1">
+          <label htmlFor="reason" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
             Motivo de la transferencia
           </label>
           <select
@@ -179,7 +185,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             required
-            className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text   "
+            className={selectCls}
           >
             <option value="">Elegí un motivo…</option>
             {REASON_OPTIONS.map((opt) => (
@@ -191,7 +197,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         <div>
-          <label htmlFor="notes" className="block text-sm font-medium text-gob-text mb-1">
+          <label htmlFor="notes" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
             Notas{reasonRequiresNotes ? " (obligatorias)" : " (opcional)"}
           </label>
           <textarea
@@ -201,11 +207,11 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             rows={4}
             required={reasonRequiresNotes}
             placeholder="Contexto para que el destinatario evalúe — visible al receiver."
-            className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm text-gob-text   "
+            className="w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           />
         </div>
 
-        <div className="rounded-lg border border-gob-warning bg-gob-warning/10 p-3 text-xs text-gob-warning-text   ">
+        <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2">
           <p>
             La propuesta expira en <strong>30 días</strong> si no recibe respuesta del destinatario.{" "}
             {petName} sigue bajo tu custodia hasta que la organización destinataria acepte.
@@ -213,7 +219,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         {error && (
-          <p className="rounded-lg border border-gob-danger bg-gob-danger/10 p-3 text-sm text-gob-danger   ">
+          <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-[13px] text-ln-op-danger">
             {error}
           </p>
         )}
@@ -222,7 +228,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="w-full px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? "Enviando…" : "Confirmar transferencia"}
         </button>

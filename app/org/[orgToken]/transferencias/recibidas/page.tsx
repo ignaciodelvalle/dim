@@ -17,9 +17,10 @@
 // S5 extension: decomiso badge + custody_episode proposals (2026-06-04).
 // ---------------------------------------------------------------------------
 
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
@@ -158,125 +159,109 @@ export default async function OrgTransferenciasEntrantesPage({
   );
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto pt-10 space-y-6">
+    <div className="space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Panel", href: `/org/${orgToken}` },
+          { label: "Transferencias", href: `/org/${orgToken}/transferencias` },
+          { label: "Entrantes" },
+        ]}
+      />
+
+      <header className="space-y-1">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferencias entrantes</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Propuestas dirigidas a {organization.displayName}.
+        </p>
+      </header>
+
+      <nav className="flex gap-4 text-[12px]">
         <Link
-          href={`/org/${orgToken}`}
-          className="text-sm text-gob-text-muted hover:text-gob-text "
+          href={`/org/${orgToken}/transferencias`}
+          className="text-ln-op-azul hover:underline no-underline"
         >
-          ← Volver al panel
+          ← Salientes
         </Link>
+        <span className="font-semibold text-ln-op-ink">Entrantes</span>
+      </nav>
 
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-            Transferencias entrantes
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Propuestas dirigidas a {organization.displayName}.
-          </p>
-        </header>
+      {allRows.length === 0 ? (
+        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+          No tenés propuestas de transferencia entrantes.
+        </p>
+      ) : (
+        <OpCard>
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line">
+              {allRows.map((r) => {
+                const isDecomiso =
+                  r.caseKind === "custody_episode" && r.senderOrgType === "sanitary_authority";
 
-        <nav className="text-xs text-gob-text-muted  flex gap-3">
-          <Link href={`/org/${orgToken}/transferencias`} className="hover:text-gob-text ">
-            ← Salientes
-          </Link>
-          <span className="font-medium text-gob-text ">Entrantes</span>
-        </nav>
+                const statusLabel =
+                  r.status === "closed" && r.closedReason
+                    ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
+                    : (STATUS_LABEL[r.status] ?? r.status);
 
-        {allRows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gob-border-strong  p-8 text-center text-sm text-gob-text-muted">
-            No tenés propuestas de transferencia entrantes.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {allRows.map((r) => {
-              const isDecomiso =
-                r.caseKind === "custody_episode" && r.senderOrgType === "sanitary_authority";
+                return (
+                  <li key={r.caseId} className="px-4 py-3 space-y-2">
+                    {isDecomiso && (
+                      <OpBreach
+                        title="DECOMISO — Custodia estatal · Ley 14.346"
+                        detail={
+                          r.status === "open"
+                            ? "Tenés 7 días para aceptar o rechazar esta custodia estatal."
+                            : undefined
+                        }
+                      />
+                    )}
 
-              return (
-                <li
-                  key={r.caseId}
-                  className={`rounded-lg border p-4 space-y-2 ${
-                    isDecomiso ? "border-gob-danger bg-gob-danger/5 " : "border-gob-border "
-                  }`}
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      {/* DECOMISO badge — rendered only for state seizure handoffs */}
-                      {isDecomiso && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-gob-danger text-white ">
-                            DECOMISO
-                          </span>
-                          <span className="text-xs text-gob-danger  font-medium">
-                            Custodia estatal — Ley 14.346
-                          </span>
-                        </div>
-                      )}
-
-                      <p className="text-sm font-medium text-gob-text ">
-                        {r.petName ?? "(sin pet)"}
-                      </p>
-
-                      <p className="text-xs text-gob-text-muted ">
-                        {isDecomiso ? (
-                          <>
-                            Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
-                            {r.seizureMotive
-                              ? ` · Motivo: ${SEIZURE_MOTIVE_LABEL[r.seizureMotive] ?? r.seizureMotive}`
-                              : ""}
-                          </>
-                        ) : (
-                          <>
-                            De <strong>{r.senderOrgName ?? "—"}</strong>
-                            {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
-                          </>
-                        )}
-                      </p>
-
-                      <p className="text-xs text-gob-text-muted ">
-                        Recibida el {formatDate(r.openedAt)}
-                        {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
-                      </p>
-
-                      {!isDecomiso && r.notes ? (
-                        <p className="mt-1 text-xs italic text-gob-text-gray ">"{r.notes}"</p>
-                      ) : null}
-
-                      {isDecomiso && r.status === "open" && (
-                        <p className="text-xs text-gob-danger  font-medium">
-                          Tenés 7 días para aceptar o rechazar esta custodia estatal.
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-[13px] font-medium text-ln-op-ink">
+                          {r.petName ?? "(sin pet)"}
                         </p>
-                      )}
+                        <p className="text-[12px] text-ln-op-mute">
+                          {isDecomiso ? (
+                            <>
+                              Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
+                              {r.seizureMotive
+                                ? ` · Motivo: ${SEIZURE_MOTIVE_LABEL[r.seizureMotive] ?? r.seizureMotive}`
+                                : ""}
+                            </>
+                          ) : (
+                            <>
+                              De <strong>{r.senderOrgName ?? "—"}</strong>
+                              {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
+                            </>
+                          )}
+                        </p>
+                        <p className="text-[12px] text-ln-op-mute">
+                          Recibida el {formatDate(r.openedAt)}
+                          {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
+                        </p>
+                        {!isDecomiso && r.notes ? (
+                          <p className="text-[12px] italic text-ln-op-ink-2">"{r.notes}"</p>
+                        ) : null}
+                        <Link
+                          href={`/casos/${r.publicCode}`}
+                          className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
+                        >
+                          Ver caso →
+                        </Link>
+                      </div>
+                      <OpPill
+                        tone={r.status === "open" ? (isDecomiso ? "danger" : "warn") : "neutral"}
+                      >
+                        {statusLabel}
+                      </OpPill>
                     </div>
-
-                    <span
-                      className={`shrink-0 text-xs uppercase tracking-wider px-2 py-0.5 rounded ${
-                        r.status === "open"
-                          ? isDecomiso
-                            ? "bg-gob-danger/10 text-gob-danger  "
-                            : "bg-gob-warning/10 text-gob-warning-text  "
-                          : "bg-gob-surface-alt text-gob-text-gray  "
-                      }`}
-                    >
-                      {r.status === "closed" && r.closedReason
-                        ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
-                        : (STATUS_LABEL[r.status] ?? r.status)}
-                    </span>
-                  </div>
-
-                  <Link
-                    href={`/casos/${r.publicCode}`}
-                    className="inline-block text-xs underline text-gob-text-gray  hover:text-gob-text"
-                  >
-                    Ver caso →
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-    </main>
+                  </li>
+                );
+              })}
+            </ul>
+          </OpCardBody>
+        </OpCard>
+      )}
+    </div>
   );
 }
