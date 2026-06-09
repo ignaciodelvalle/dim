@@ -30,13 +30,16 @@ export function AcceptTransferActions({
     return (
       <div className="space-y-3">
         {error && (
-          <p className="text-sm text-gob-danger " role="alert">
+          <p className="text-sm text-[var(--color-ln-err)]" role="alert">
             {error}
           </p>
         )}
         {showRejectReason ? (
-          <div className="space-y-2 rounded-lg border border-gob-border bg-gob-surface-alt p-3  ">
-            <label htmlFor="reject-reason" className="block text-xs font-medium text-gob-text ">
+          <div className="space-y-2 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
+            <label
+              htmlFor="reject-reason"
+              className="block text-xs font-medium text-[var(--color-ln-ink)]"
+            >
               Motivo (opcional)
             </label>
             <input
@@ -45,13 +48,13 @@ export function AcceptTransferActions({
               maxLength={500}
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full rounded border border-gob-border-strong bg-white px-2 py-1 text-sm  "
+              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2 py-1 text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setShowRejectReason(false)}
-                className="flex-1 rounded border border-gob-border-strong bg-white px-3 py-1.5 text-xs font-medium text-gob-text   "
+                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)]"
               >
                 Atrás
               </button>
@@ -71,7 +74,7 @@ export function AcceptTransferActions({
                     router.refresh();
                   });
                 }}
-                className="flex-1 rounded bg-gob-danger px-3 py-1.5 text-xs font-medium text-white hover:bg-gob-danger disabled:opacity-50"
+                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {pending ? "Enviando…" : "Confirmar rechazo"}
               </button>
@@ -83,7 +86,7 @@ export function AcceptTransferActions({
               type="button"
               disabled={pending}
               onClick={() => setShowRejectReason(true)}
-              className="flex-1 rounded-lg border border-gob-danger bg-white px-3 py-2 text-sm font-medium text-gob-danger hover:bg-gob-danger/10 disabled:opacity-50   "
+              className="flex-1 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[#fbe9e6] disabled:opacity-50"
             >
               Rechazar
             </button>
@@ -101,7 +104,7 @@ export function AcceptTransferActions({
                   router.refresh();
                 });
               }}
-              className="flex-1 rounded-lg bg-gob-success px-3 py-2 text-sm font-medium text-white hover:bg-gob-success disabled:opacity-50"
+              className="flex-1 rounded-[3px] bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {pending ? "Aceptando…" : "Aceptar"}
             </button>
@@ -115,11 +118,11 @@ export function AcceptTransferActions({
     return (
       <div className="space-y-3">
         {error && (
-          <p className="text-sm text-gob-danger " role="alert">
+          <p className="text-sm text-[var(--color-ln-err)]" role="alert">
             {error}
           </p>
         )}
-        <p className="text-sm text-gob-text-gray ">Esperando respuesta del receptor.</p>
+        <p className="text-sm text-[var(--color-ln-ink-2)]">Esperando respuesta del receptor.</p>
         <button
           type="button"
           disabled={pending}
@@ -139,7 +142,7 @@ export function AcceptTransferActions({
               router.refresh();
             });
           }}
-          className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2 text-sm font-medium text-gob-text hover:bg-gob-surface-alt disabled:opacity-50   "
+          className="w-full rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
         >
           {pending ? "Cancelando…" : "Cancelar transferencia"}
         </button>

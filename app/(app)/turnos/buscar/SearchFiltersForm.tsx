@@ -58,14 +58,14 @@ export function SearchFiltersForm({
     <form method="GET" className="space-y-3">
       <div className="flex flex-wrap gap-2 items-end">
         <div className="space-y-1">
-          <label htmlFor="service_kind_sel" className="text-xs text-gob-text-muted ">
+          <label htmlFor="service_kind_sel" className="text-xs text-[var(--color-ln-mute)]">
             Servicio
           </label>
           <select
             id="service_kind_sel"
             name="service_kind"
             defaultValue={currentServiceKind}
-            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
+            className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           >
             {SERVICE_KINDS.map((k) => (
               <option key={k.code} value={k.code}>
@@ -82,7 +82,7 @@ export function SearchFiltersForm({
             additionally mirror the pick into `locality` and `province` hidden
             inputs which are the names the BuscarTurnosPage searchParams expect. */}
         <div className="space-y-1">
-          <label htmlFor="locality_picker" className="text-xs text-gob-text-muted ">
+          <label htmlFor="locality_picker" className="text-xs text-[var(--color-ln-mute)]">
             Localidad
           </label>
           <div className="w-64">
@@ -105,7 +105,7 @@ export function SearchFiltersForm({
 
         <button
           type="submit"
-          className="text-sm px-4 py-1.5 rounded bg-gob-primary  text-white  hover:bg-gob-primary  transition-colors"
+          className="text-sm px-4 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
         >
           Buscar
         </button>
@@ -114,7 +114,7 @@ export function SearchFiltersForm({
       {/* Fase 10: additional filters — fecha_desde + solo_gratis */}
       <div className="flex flex-wrap gap-4 items-end">
         <div className="space-y-1">
-          <label htmlFor="fecha_desde_inp" className="text-xs text-gob-text-muted ">
+          <label htmlFor="fecha_desde_inp" className="text-xs text-[var(--color-ln-mute)]">
             Desde
           </label>
           <input
@@ -122,7 +122,7 @@ export function SearchFiltersForm({
             name="fecha_desde"
             type="date"
             defaultValue={currentFechaDesde}
-            className="text-sm border border-gob-border  rounded px-2 py-1.5 bg-white  text-gob-text "
+            className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           />
         </div>
         <Checkbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>
