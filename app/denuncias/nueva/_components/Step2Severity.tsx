@@ -74,7 +74,7 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
           ¿Qué tan grave es?
         </h1>
         <p className="text-sm text-[var(--color-ln-mute)]">
-          Elegí la que más se acerca a lo que viste.
+          Es tu mejor estimación. El equipo prioriza y verifica.
         </p>
       </div>
 
