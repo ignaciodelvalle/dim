@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { Sidebar, Topbar } from "@/components/poncho";
 import { GOB_NAV } from "@/components/poncho/Layout/nav-presets";
+import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
@@ -14,14 +14,14 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 export default async function GobiernoLayout({ children }: { children: React.ReactNode }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const scopeLabel =
+  const scopeCode =
     profile.role === "admin"
-      ? "Universal"
+      ? "UNIVERSAL"
       : jurisdictions.length === 0
-        ? "Sin localidades asignadas"
+        ? "SIN LOCALIDADES"
         : jurisdictions.length === 1
           ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
-          : `${jurisdictions.length} localidades`;
+          : `${jurisdictions.length} LOCALIDADES`;
 
   // profiles.displayName is NOT NULL — always present.
   const [profileRow] = await db
@@ -30,24 +30,23 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
     .where(eq(profiles.id, profile.id))
     .limit(1);
 
-  // Meta-strip: role + scope + cross-portal links — rendered in the Topbar actions slot.
-  const metaStrip = (
-    <div className="flex items-center gap-4">
-      <p className="text-xs text-gob-text-gray">
-        <span className="font-medium">{profile.role}</span>
-        <span className="text-gob-text-muted"> · </span>
-        {scopeLabel}
-      </p>
-      <div className="flex items-center gap-3 text-xs">
+  const displayName = profileRow?.displayName ?? "";
+
+  // Right-side actions: role + scope + cross-portal links.
+  const actions = (
+    <div className="flex items-center gap-4 text-xs text-ln-op-mute">
+      <span>
+        <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
+        <span className="mx-1">·</span>
+        {scopeCode}
+      </span>
+      <div className="flex items-center gap-3">
         {profile.role === "admin" && (
-          <Link href="/admin" className="text-gob-text-muted hover:text-gob-primary no-underline">
+          <Link href="/admin" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
             Ir a Admin →
           </Link>
         )}
-        <Link
-          href="/mis-mascotas"
-          className="text-gob-text-muted hover:text-gob-primary no-underline"
-        >
+        <Link href="/mis-mascotas" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
           ← Salir
         </Link>
       </div>
@@ -55,17 +54,35 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   );
 
   return (
-    <div className="min-h-screen bg-white">
-      <Sidebar
-        nav={GOB_NAV}
-        user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }}
-        roleAccent="gob"
-        brand={{ title: "MiMAR", subtitle: "Gobierno" }}
-      />
-      <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar mobileDrawerNav={GOB_NAV} brandTitle="MiMAR" actions={metaStrip} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
-      </div>
-    </div>
+    <OpShell
+      variant="gob"
+      rail={
+        <OpRail
+          nav={GOB_NAV}
+          variant="gob"
+          brandSubtitle="Gobierno"
+          user={{
+            name: displayName,
+            role: profile.role.toUpperCase(),
+          }}
+        />
+      }
+      topbar={
+        <OpTopbar
+          crumbs={[{ label: "Panel" }]}
+          scope={{
+            code: profile.role === "admin" ? "SUPERADMIN" : "GOB",
+            label: scopeCode,
+            variant: profile.role === "admin" ? "superadmin" : "default",
+          }}
+          actions={actions}
+          mobileNav={GOB_NAV}
+          variant="gob"
+          brandSubtitle="Gobierno"
+        />
+      }
+    >
+      {children}
+    </OpShell>
   );
 }
