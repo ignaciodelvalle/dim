@@ -174,7 +174,7 @@ export default async function RefugioPage({
   return (
     <>
       {viewerIsAdminOrCoordinator && <AdminBanner orgToken={orgToken} />}
-      <main className="min-h-screen bg-gob-surface">
+      <main className="min-h-screen bg-[var(--color-ln-paper)]">
         <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
           {/* JSON-LD — rendered as a literal script in document head context
               so crawlers can index the structured data. */}
@@ -186,12 +186,17 @@ export default async function RefugioPage({
 
           <Link
             href="/adoptar"
-            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
+            className="inline-block font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] mb-4"
           >
             ← Volver a adopciones
           </Link>
 
-          <OrgHero org={org} localityLabel={localityLabel} />
+          <OrgHero
+            org={org}
+            localityLabel={localityLabel}
+            adoptionCount={items.length}
+            serviceCount={offerings.length}
+          />
 
           {org.description && <AboutPanel description={org.description} />}
 

@@ -1,9 +1,10 @@
 import Link from "next/link";
 
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
+import { LnCard, LnCardBody } from "@/components/ui/Card";
+import { LnSectionHead } from "@/components/ui/DocElements";
 import type { OrgPublicProfile } from "@/lib/org-public-profile";
 
-// "Dónde estamos" panel (handoff P2-6).
+// "Dónde estamos" panel (handoff P2-6) — Libreta Nacional look.
 //
 // Three render branches:
 //   1. lat/lng set AND disclose_address=true (gated by queryOrgPublicProfile,
@@ -46,38 +47,42 @@ export function LocationPanel({ org, localityLabel }: Props) {
   if (!hasPoint && !localityLabel) return null;
 
   return (
-    <Panel aria-labelledby="ubicacion-title">
-      <PanelHeader title={<span id="ubicacion-title">Dónde estamos</span>} />
-      <PanelBody>
-        {hasPoint && org.latitude != null && org.longitude != null ? (
-          <>
-            <iframe
-              title={`Mapa con la ubicación de ${org.displayName}${
-                localityLabel ? ` en ${localityLabel}` : ""
-              }`}
-              src={buildOsmEmbedSrc(org.latitude, org.longitude)}
-              className="rounded-xl w-full aspect-video md:aspect-[21/9] border border-gob-border bg-gob-surface-alt"
-              loading="lazy"
-              referrerPolicy="no-referrer"
-            />
-            {localityLabel && (
-              <p className="mt-3 text-sm font-medium text-gob-text">{localityLabel}</p>
-            )}
-            <Link
-              href="?sheet=como-llegar"
-              className="inline-flex items-center gap-1 mt-2 text-sm text-gob-azul-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste rounded"
-            >
-              Cómo llegar →
-            </Link>
-          </>
-        ) : (
-          localityLabel && (
-            <p className="text-sm text-gob-text">
-              Operan en <span className="font-medium">{localityLabel}</span>.
-            </p>
-          )
-        )}
-      </PanelBody>
-    </Panel>
+    <section aria-label="Dónde estamos">
+      <LnSectionHead title="Dónde estamos" className="mb-4" />
+      <LnCard>
+        <LnCardBody>
+          {hasPoint && org.latitude != null && org.longitude != null ? (
+            <>
+              <iframe
+                title={`Mapa con la ubicación de ${org.displayName}${
+                  localityLabel ? ` en ${localityLabel}` : ""
+                }`}
+                src={buildOsmEmbedSrc(org.latitude, org.longitude)}
+                className="rounded-[4px] w-full aspect-video md:aspect-[21/9] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+              {localityLabel && (
+                <p className="mt-3 text-sm font-medium text-[var(--color-ln-ink)]">
+                  {localityLabel}
+                </p>
+              )}
+              <Link
+                href="?sheet=como-llegar"
+                className="inline-flex items-center gap-1 mt-2 text-sm text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] rounded"
+              >
+                Cómo llegar →
+              </Link>
+            </>
+          ) : (
+            localityLabel && (
+              <p className="text-sm text-[var(--color-ln-ink)]">
+                Operan en <span className="font-medium">{localityLabel}</span>.
+              </p>
+            )
+          )}
+        </LnCardBody>
+      </LnCard>
+    </section>
   );
 }
