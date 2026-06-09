@@ -168,6 +168,64 @@
   /* Tipos */
   --text-base: 16px;
   --leading-base: 1.5;
+
+  /* =========================================================================
+     Libreta Nacional · Tier Operador (gob + admin)
+     Tokens derivados 1:1 de design_handoff_gob_admin_operador/redesign-a-gob.css
+     Naming: --color-ln-op-* for navy tier, --color-ln-tl-* for org teal.
+     ========================================================================= */
+
+  /* Rail / chrome — navy */
+  --color-ln-op-navy: #0a3556;
+  --color-ln-op-navy-2: #0c2f4a;
+  --color-ln-op-azul: #0e5a99;
+  --color-ln-op-azul-700: #0a4576;
+  --color-ln-op-celeste: #4e97d1;
+  --color-ln-op-celeste-100: #dcebf7;
+  --color-ln-op-celeste-050: #eff6fc;
+
+  /* Page canvas */
+  --color-ln-op-page: #eef1f4;
+  --color-ln-op-card: #ffffff;
+  --color-ln-op-stripe: #f7f9fb;
+  --color-ln-op-line: #dbe1e7;
+  --color-ln-op-line-2: #e8ecf0;
+
+  /* Text */
+  --color-ln-op-ink: #16252f;
+  --color-ln-op-ink-2: #36454f;
+  --color-ln-op-mute: #66727c;
+  --color-ln-op-faint: #95a0a8;
+
+  /* Rail text (on navy background) */
+  --color-ln-op-rail-text: #dce6f1;
+  --color-ln-op-rail-mute: #7c93ac;
+
+  /* Semantic status */
+  --color-ln-op-danger: #b71c1c;
+  --color-ln-op-danger-bg: #fce7e8;
+  --color-ln-op-danger-bd: #f2c4c6;
+  --color-ln-op-warn: #9c6700;
+  --color-ln-op-warn-bg: #fff4da;
+  --color-ln-op-warn-bd: #f1da9c;
+  --color-ln-op-ok: #1e7a3e;
+  --color-ln-op-ok-bg: #e5f4eb;
+  --color-ln-op-ok-bd: #c2e2cd;
+  --color-ln-op-viol: #6a4c93;
+  --color-ln-op-viol-bg: #ece5f5;
+  --color-ln-op-viol-bd: #d8c9ec;
+  --color-ln-op-blue-bg: #eaf3fb;
+  --color-ln-op-blue-bd: #cadff0;
+
+  /* Severity scale */
+  --color-ln-op-sev-crit: #b71c1c;
+  --color-ln-op-sev-high: #dc6e16;
+  --color-ln-op-sev-med: #9c6700;
+  --color-ln-op-sev-low: #1e7a3e;
+
+  /* Org teal override (redesign-a-org.css: .gob.is-org) */
+  --color-ln-tl-rail: #0b3b42;
+  --color-ln-tl-accent: #5fd0b0;
 }
 
 /* Dark mode desactivado en el redesign Poncho.
