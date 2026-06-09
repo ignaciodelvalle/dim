@@ -34,13 +34,15 @@ export function ReporterCommentForm({ action }: { action: CommentFormAction }) {
       </Field>
 
       {state.success && (
-        <p className="text-sm text-gob-success  font-medium">Comentario enviado correctamente.</p>
+        <p className="text-sm text-[var(--color-ln-ok)] font-medium">
+          Comentario enviado correctamente.
+        </p>
       )}
 
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando..." : "Enviar comentario"}
       </button>

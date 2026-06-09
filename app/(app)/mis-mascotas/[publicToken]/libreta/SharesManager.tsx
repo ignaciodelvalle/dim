@@ -74,7 +74,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
   return (
     <section className="space-y-4 print:hidden">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold text-gob-text ">Compartir libreta</h2>
+        <h2 className="text-sm font-semibold text-[var(--color-ln-ink)]">Compartir libreta</h2>
         {!creating && (
           <button
             type="button"
@@ -82,7 +82,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               setCreating(true);
               setCopiedToken(null);
             }}
-            className="text-xs px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90 transition-opacity"
+            className="text-xs px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Nuevo enlace
           </button>
@@ -91,9 +91,12 @@ export function SharesManager({ petPublicToken, shares }: Props) {
 
       {/* Create form */}
       {creating && (
-        <form action={createAction} className="space-y-3 rounded-lg border border-gob-border  p-4">
+        <form
+          action={createAction}
+          className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4"
+        >
           <div className="space-y-1">
-            <label className="text-xs text-gob-text-gray " htmlFor="share-label">
+            <label className="text-xs text-[var(--color-ln-ink-2)]" htmlFor="share-label">
               Etiqueta (opcional)
             </label>
             <input
@@ -103,12 +106,12 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej: Para Dra. Perez"
-              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-1.5 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
 
           <fieldset className="space-y-1">
-            <legend className="text-xs text-gob-text-gray ">Duracion</legend>
+            <legend className="text-xs text-[var(--color-ln-ink-2)]">Duracion</legend>
             <div className="flex flex-wrap gap-2">
               {DURATION_OPTIONS.map((opt) => (
                 <label key={String(opt.days)} className="flex items-center gap-1.5 cursor-pointer">
@@ -121,7 +124,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                       setExpiresInDays(opt.days);
                       if (opt.days !== null) setNoExpiryConfirmed(false);
                     }}
-                    className="accent-gob-primary "
+                    className="accent-[var(--color-ln-azul)]"
                   />
                   <span className="text-xs">{opt.label}</span>
                 </label>
@@ -131,30 +134,30 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               <Checkbox
                 checked={noExpiryConfirmed}
                 onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
-                labelClassName="text-xs! text-gob-warning-text!"
+                labelClassName="text-xs! text-[var(--color-ln-warn)]!"
               >
                 Confirmo que este enlace no vence nunca
               </Checkbox>
             )}
           </fieldset>
 
-          {createError && <p className="text-xs text-gob-danger ">{createError}</p>}
+          {createError && <p className="text-xs text-[var(--color-ln-err)]">{createError}</p>}
 
           {newShareToken && (
             <div className="space-y-1">
-              <p className="text-xs text-gob-success  font-medium">
+              <p className="text-xs text-[var(--color-ln-ok)] font-medium">
                 Enlace generado. Copia y envialo.
               </p>
               <div className="flex items-center gap-2">
                 <input
                   readOnly
                   value={buildShareUrl(newShareToken)}
-                  className="flex-1 text-xs font-mono rounded-md border border-gob-border  bg-gob-surface-alt  px-3 py-1.5 focus:outline-none"
+                  className="flex-1 text-xs font-mono rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => copyToClipboard(newShareToken)}
-                  className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === newShareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -166,7 +169,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
             <button
               type="submit"
               disabled={createPending || (expiresInDays === null && !noExpiryConfirmed)}
-              className="text-xs px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-50"
             >
               {createPending ? "Creando..." : "Crear enlace"}
             </button>
@@ -178,7 +181,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 setExpiresInDays(30);
                 setNoExpiryConfirmed(false);
               }}
-              className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
+              className="text-xs px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
             >
               Cancelar
             </button>
@@ -192,13 +195,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
           {shares.map((share) => (
             <li
               key={share.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-gob-border  px-3 py-2.5"
+              className="flex items-start justify-between gap-3 rounded-[4px] border border-[var(--color-ln-line)] px-3 py-2.5"
             >
               <div className="space-y-0.5 min-w-0">
-                <p className="text-xs font-medium text-gob-text  truncate">
+                <p className="text-xs font-medium text-[var(--color-ln-ink)] truncate">
                   {share.label ?? "Sin etiqueta"}
                 </p>
-                <p className="text-[10px] text-gob-text-muted ">
+                <p className="text-[10px] text-[var(--color-ln-mute)]">
                   {share.expiresAt
                     ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR")}`
                     : "Sin vencimiento"}
@@ -214,7 +217,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 <button
                   type="button"
                   onClick={() => copyToClipboard(share.shareToken)}
-                  className="text-[10px] px-2 py-1 rounded border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
+                  className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === share.shareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -224,7 +227,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                     type="submit"
                     disabled={revokePending && revokingId === share.id}
                     onClick={() => setRevokingId(share.id)}
-                    className="text-[10px] px-2 py-1 rounded border border-gob-danger  text-gob-danger  hover:bg-gob-danger/10  transition-colors disabled:opacity-50"
+                    className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[#fbe9e6] transition-colors disabled:opacity-50"
                   >
                     Revocar
                   </button>
@@ -235,13 +238,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
         </ul>
       ) : (
         !creating && (
-          <p className="text-xs text-gob-text-muted ">
+          <p className="text-xs text-[var(--color-ln-mute)]">
             No hay enlaces activos. Crea uno para compartir la libreta.
           </p>
         )
       )}
 
-      {revokeError && <p className="text-xs text-gob-danger ">{revokeError}</p>}
+      {revokeError && <p className="text-xs text-[var(--color-ln-err)]">{revokeError}</p>}
     </section>
   );
 }

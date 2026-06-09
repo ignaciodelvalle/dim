@@ -56,20 +56,20 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {error && (
         <div
           role="alert"
-          className="rounded-md bg-gob-danger/10  border border-gob-danger  px-4 py-3"
+          className="rounded-[4px] bg-[#fbe9e6] border border-[var(--color-ln-seal)] px-4 py-3"
         >
-          <p className="text-sm text-gob-danger ">{error}</p>
+          <p className="text-sm text-[var(--color-ln-seal)]">{error}</p>
         </div>
       )}
 
       {/* My localities — coverage status per row */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-gob-text ">
+        <h2 className="text-sm font-semibold text-[var(--color-ln-ink)]">
           Mis localidades actualmente asignadas
         </h2>
 
         {localities.length === 0 ? (
-          <p className="text-sm text-gob-text-muted ">No tenés localidades asignadas.</p>
+          <p className="text-sm text-[var(--color-ln-mute)]">No tenés localidades asignadas.</p>
         ) : (
           <ul className="space-y-2">
             {localities.map((loc) => {
@@ -77,23 +77,23 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
               return (
                 <li
                   key={`${loc.province}/${loc.locality}`}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                  className={`flex items-center justify-between rounded-[4px] border px-4 py-3 ${
                     covered
-                      ? "border-gob-success  bg-gob-success/10 "
-                      : "border-gob-danger  bg-gob-danger/10 "
+                      ? "border-[var(--color-ln-ok)] bg-[#eef6f0]"
+                      : "border-[var(--color-ln-seal)] bg-[#fbe9e6]"
                   }`}
                 >
-                  <span className="text-sm text-gob-text-gray ">
+                  <span className="text-sm text-[var(--color-ln-ink-2)]">
                     {loc.province} / {loc.locality}
                   </span>
                   {covered ? (
-                    <span className="text-xs font-medium text-gob-success ">
+                    <span className="text-xs font-medium text-[var(--color-ln-ok)]">
                       {loc.otherActiveGovtCount === 1
                         ? "1 otro govt activo"
                         : `${loc.otherActiveGovtCount} otros govts activos`}
                     </span>
                   ) : (
-                    <span className="text-xs font-medium text-gob-danger ">
+                    <span className="text-xs font-medium text-[var(--color-ln-seal)]">
                       Solo vos cubrís esta localidad
                     </span>
                   )}
@@ -108,10 +108,12 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {hasUncoveredLocality && (
         <div
           role="alert"
-          className="rounded-lg border border-gob-danger  bg-gob-danger/10  px-5 py-4 space-y-2"
+          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-5 py-4 space-y-2"
         >
-          <p className="text-sm font-semibold text-gob-danger ">No podés desactivarte todavía.</p>
-          <p className="text-sm text-gob-danger ">
+          <p className="text-sm font-semibold text-[var(--color-ln-seal)]">
+            No podés desactivarte todavía.
+          </p>
+          <p className="text-sm text-[var(--color-ln-seal)]">
             Una o más localidades quedarían sin govt si te desactivás. Pedile a tu administrador que
             asigne otro govt a esas localidades antes de continuar.
           </p>
@@ -122,8 +124,8 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {canProceed && (
         <>
           {/* Confirmation text */}
-          <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-5 space-y-2">
-            <p className="text-sm font-semibold text-gob-warning-text ">
+          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 space-y-2">
+            <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
               Si confirmás la desactivación:
             </p>
             <ul className="space-y-1.5">
@@ -133,8 +135,11 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
                 "Los pedidos pendientes en tus localidades van a la cola de los otros govts o, como fallback, a la del admin.",
                 "Tu usuario en el sistema se conserva (no se borra) pero no vas a poder acceder a esta sección.",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-sm text-gob-warning-text ">
-                  <span aria-hidden className="mt-0.5 shrink-0 text-gob-warning">
+                <li
+                  key={item}
+                  className="flex items-start gap-2 text-sm text-[var(--color-ln-warn)]"
+                >
+                  <span aria-hidden className="mt-0.5 shrink-0">
                     •
                   </span>
                   {item}
@@ -145,8 +150,12 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
 
           {/* Motivo (optional) */}
           <div>
-            <label htmlFor="reason" className="block text-sm font-medium text-gob-text-gray  mb-1">
-              Motivo <span className="text-xs font-normal text-gob-text-muted ">(opcional)</span>
+            <label
+              htmlFor="reason"
+              className="block text-sm font-medium text-[var(--color-ln-ink-2)] mb-1"
+            >
+              Motivo{" "}
+              <span className="text-xs font-normal text-[var(--color-ln-mute)]">(opcional)</span>
             </label>
             <textarea
               id="reason"
@@ -154,7 +163,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               placeholder="Contanos por qué desactivás tu cuenta..."
-              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary  resize-none"
+              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
             />
           </div>
 
@@ -171,14 +180,14 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
           <button
             type="submit"
             disabled={!confirmed || loading}
-            className="px-5 py-2 text-sm bg-gob-danger hover:bg-gob-danger text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2 text-sm bg-[var(--color-ln-seal)] text-white rounded-[3px] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Procesando..." : "Desactivar cuenta"}
           </button>
         )}
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-gob-border-strong  rounded-md hover:bg-gob-surface-alt  transition-colors"
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

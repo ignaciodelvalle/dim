@@ -77,11 +77,11 @@ function CancelarTurnoConfirmation({
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-gob-text-gray">
+      <p className="text-sm text-[var(--color-ln-ink-2)]">
         ¿Seguro que querés cancelar este turno? Esta acción no se puede deshacer.
       </p>
       {error && (
-        <p className="text-sm text-gob-danger" role="alert">
+        <p className="text-sm text-[var(--color-ln-err)]" role="alert">
           {error}
         </p>
       )}

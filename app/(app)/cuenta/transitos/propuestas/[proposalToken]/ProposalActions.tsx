@@ -59,8 +59,6 @@ export function ProposalActions({
       }
       setAcceptedRemaining(result.remainingSlots);
       if (result.cascadeCancelledProposals.length > 0) {
-        // Surface the cascade-cancel side effect alongside the success
-        // screen's description so the user knows what else happened.
         setOkMessage(
           `${result.cascadeCancelledProposals.length} propuesta(s) pendiente(s) se cancelaron por falta de capacity.`,
         );
@@ -86,8 +84,6 @@ export function ProposalActions({
     });
   }
 
-  // Acceptance success → render full SuccessScreen with cascade detail in
-  // the description when applicable (sprint 6 PR-053).
   if (acceptedRemaining !== null) {
     const baseDescription = `Aceptaste el tránsito de ${petName}. Te quedan ${acceptedRemaining} slot(s) disponibles para nuevas propuestas.`;
     return (
@@ -102,11 +98,9 @@ export function ProposalActions({
     );
   }
 
-  // Rejection path keeps the lightweight inline confirmation — no follow-up
-  // actions to surface beyond the message itself.
   if (okMessage) {
     return (
-      <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
+      <p className="text-sm rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] px-3 py-2 text-[var(--color-ln-ok)]">
         {okMessage}
       </p>
     );
@@ -114,8 +108,8 @@ export function ProposalActions({
 
   if (mode === "accept") {
     return (
-      <div className="rounded-lg border border-gob-success bg-gob-success/10/50   p-4 space-y-3">
-        <h3 className="font-medium text-gob-success ">Aceptar tránsito de {petName}</h3>
+      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-3">
+        <h3 className="font-medium text-[var(--color-ln-ok)]">Aceptar tránsito de {petName}</h3>
         <Checkbox checked={allowCoFoster} onChange={(e) => setAllowCoFoster(e.target.checked)}>
           Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo
           después.
@@ -125,15 +119,15 @@ export function ProposalActions({
           onChange={(e) => setAcceptNotes(e.target.value)}
           rows={2}
           placeholder="Notas para el refugio (opcional)"
-          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+          className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
-        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+        {error && <output className="block text-sm text-[var(--color-ln-err)]">{error}</output>}
         <div className="flex gap-2">
           <button
             type="button"
             onClick={accept}
             disabled={pending}
-            className="px-4 py-2 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50"
+            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
           >
             {pending ? "Aceptando..." : "Confirmar aceptación"}
           </button>
@@ -141,7 +135,7 @@ export function ProposalActions({
             type="button"
             onClick={() => setMode("none")}
             disabled={pending}
-            className="px-4 py-2 rounded-lg border border-gob-border-strong "
+            className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cancelar
           </button>
@@ -152,17 +146,20 @@ export function ProposalActions({
 
   if (mode === "reject") {
     return (
-      <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
-        <h3 className="font-medium text-gob-text ">Rechazar propuesta</h3>
+      <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] p-4 space-y-3">
+        <h3 className="font-medium text-[var(--color-ln-ink)]">Rechazar propuesta</h3>
         <div>
-          <label htmlFor="reject-reason" className="block text-sm font-medium text-gob-text mb-1">
+          <label
+            htmlFor="reject-reason"
+            className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
+          >
             Motivo
           </label>
           <select
             id="reject-reason"
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value as RejectionReason)}
-            className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           >
             {REJECTION_REASONS.map((r) => (
               <option key={r.value} value={r.value}>
@@ -176,15 +173,15 @@ export function ProposalActions({
           onChange={(e) => setRejectNotes(e.target.value)}
           rows={2}
           placeholder="Notas (opcional)"
-          className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+          className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
-        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+        {error && <output className="block text-sm text-[var(--color-ln-err)]">{error}</output>}
         <div className="flex gap-2">
           <button
             type="button"
             onClick={reject}
             disabled={pending}
-            className="px-4 py-2 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary disabled:opacity-50"
+            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
           >
             {pending ? "Enviando..." : "Confirmar rechazo"}
           </button>
@@ -192,7 +189,7 @@ export function ProposalActions({
             type="button"
             onClick={() => setMode("none")}
             disabled={pending}
-            className="px-4 py-2 rounded-lg border border-gob-border-strong "
+            className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cancelar
           </button>
@@ -206,14 +203,14 @@ export function ProposalActions({
       <button
         type="button"
         onClick={() => setMode("accept")}
-        className="px-4 py-2 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success"
+        className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 transition-colors"
       >
         Aceptar propuesta
       </button>
       <button
         type="button"
         onClick={() => setMode("reject")}
-        className="px-4 py-2 rounded-lg border border-gob-border-strong  hover:bg-gob-surface-alt "
+        className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
       >
         Rechazar
       </button>

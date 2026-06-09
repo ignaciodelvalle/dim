@@ -44,13 +44,13 @@ export function PrivacySection({ prefs }: Props) {
   return (
     <section
       aria-labelledby="privacy-heading"
-      className="rounded-lg border border-gob-border p-6 space-y-4"
+      className="rounded-[4px] border border-[var(--color-ln-line)] p-6 space-y-4"
     >
       <div>
-        <h2 id="privacy-heading" className="text-base font-semibold text-gob-text">
+        <h2 id="privacy-heading" className="text-base font-semibold text-[var(--color-ln-ink)]">
           Privacidad
         </h2>
-        <p className="text-xs text-gob-text-muted mt-1">
+        <p className="text-xs text-[var(--color-ln-mute)] mt-1">
           Controlá qué información mostramos sobre vos y a quién dejamos contactarte.
         </p>
       </div>
@@ -65,12 +65,12 @@ export function PrivacySection({ prefs }: Props) {
                   "use server";
                   await updatePrivacyPrefAction(row.key, !value);
                 }}
-                className="flex items-center gap-3 rounded-lg bg-gob-surface-alt px-3 py-2"
+                className="flex items-center gap-3 rounded-[4px] bg-[var(--color-ln-stripe)] px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gob-text">{row.label}</p>
+                  <p className="text-sm font-medium text-[var(--color-ln-ink)]">{row.label}</p>
                   {row.description && (
-                    <p className="text-xs text-gob-text-muted mt-0.5">{row.description}</p>
+                    <p className="text-xs text-[var(--color-ln-mute)] mt-0.5">{row.description}</p>
                   )}
                 </div>
                 <button
@@ -78,8 +78,8 @@ export function PrivacySection({ prefs }: Props) {
                   role="switch"
                   aria-checked={value}
                   aria-label={row.label}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2 ${
-                    value ? "bg-gob-primary" : "bg-gob-border-strong"
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2 ${
+                    value ? "bg-[var(--color-ln-azul)]" : "bg-[var(--color-ln-line-strong)]"
                   }`}
                 >
                   <span
@@ -95,10 +95,10 @@ export function PrivacySection({ prefs }: Props) {
         })}
       </ul>
 
-      <div className="pt-3 border-t border-gob-border">
+      <div className="pt-3 border-t border-[var(--color-ln-line)]">
         <a
           href="/cuenta/privacidad"
-          className="text-sm text-gob-azul-link hover:underline underline-offset-2"
+          className="text-sm text-[var(--color-ln-azul)] hover:underline underline-offset-2"
         >
           Datos personales (Ley 25.326): descargar mis datos o eliminar mi cuenta →
         </a>

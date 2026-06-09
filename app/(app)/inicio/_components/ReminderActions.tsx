@@ -57,7 +57,7 @@ export function ReminderActions({ reminderId, petToken, title, variant }: Props)
     <div className={variant === "banner" ? "flex flex-wrap items-center gap-2" : "flex gap-1.5"}>
       <a
         href={scheduleHref}
-        className={`${buttonBase} px-3 py-1.5 border border-gob-border text-gob-text hover:bg-gob-surface-alt`}
+        className={`${buttonBase} px-3 py-1.5 border border-[var(--color-ln-line-strong)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]`}
       >
         Agendar
       </a>
@@ -65,7 +65,7 @@ export function ReminderActions({ reminderId, petToken, title, variant }: Props)
         type="button"
         onClick={postpone}
         disabled={pending}
-        className={`${buttonBase} px-3 py-1.5 text-gob-text-muted hover:text-gob-text disabled:opacity-50`}
+        className={`${buttonBase} px-3 py-1.5 text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)] disabled:opacity-50`}
       >
         {pending ? "Posponiendo…" : "Posponer 7 días"}
       </button>
@@ -73,12 +73,12 @@ export function ReminderActions({ reminderId, petToken, title, variant }: Props)
         href={registerHref}
         className={`${buttonBase} ${
           variant === "banner" ? "px-5 py-2 text-sm" : "px-3 py-1.5"
-        } bg-gob-primary text-white hover:bg-gob-primary-hover`}
+        } bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]`}
       >
         Registrar
       </a>
       {error && (
-        <span className="text-xs text-gob-danger ml-2" role="alert">
+        <span className="text-xs text-[var(--color-ln-err)] ml-2" role="alert">
           {error}
         </span>
       )}

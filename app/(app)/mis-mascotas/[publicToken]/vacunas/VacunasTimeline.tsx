@@ -70,7 +70,7 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
             actions={
               <Link
                 href={`/mis-mascotas/${petToken}/vacunas/programar`}
-                className="text-sm text-gob-info underline-offset-4 hover:underline"
+                className="text-sm text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
               >
                 + Programar
               </Link>
@@ -105,7 +105,7 @@ export function VacunasTimeline({ petName, petToken, upcomingReminders, history 
               action={
                 <Link
                   href={`/mis-mascotas/${petToken}/vacunas/programar`}
-                  className="inline-block px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="inline-block px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
                 >
                   Programar primera vacuna
                 </Link>

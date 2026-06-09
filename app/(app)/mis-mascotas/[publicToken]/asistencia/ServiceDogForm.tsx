@@ -132,9 +132,9 @@ export function ServiceDogForm({
   return (
     <div className="space-y-4">
       {isVigente && initial?.inService && (
-        <div className="rounded-lg border border-gob-border-strong  p-4 space-y-3">
-          <p className="text-sm font-medium text-gob-text ">Banner público de acceso</p>
-          <p className="text-xs text-gob-text-gray ">
+        <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] p-4 space-y-3">
+          <p className="text-sm font-medium text-[var(--color-ln-ink)]">Banner público de acceso</p>
+          <p className="text-xs text-[var(--color-ln-ink-2)]">
             Cuando lo activás, el banner aparece en{" "}
             <code className="font-mono">/p/{petPublicToken}</code> con el texto del derecho de
             acceso (Arts. 1 y 7, Ley 26.858). Podés mostrarlo en la puerta de un local o transporte.
@@ -144,10 +144,10 @@ export function ServiceDogForm({
               type="button"
               onClick={() => toggleVisibility("full_banner")}
               disabled={pending || initial.publicVisibility === "full_banner"}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-3 py-1 rounded-[3px] text-sm ${
                 initial.publicVisibility === "full_banner"
-                  ? "bg-gob-success text-white"
-                  : "border border-gob-border-strong  hover:bg-gob-surface-alt "
+                  ? "bg-[var(--color-ln-ok)] text-white"
+                  : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
               } disabled:opacity-60`}
             >
               Activar banner público
@@ -156,10 +156,10 @@ export function ServiceDogForm({
               type="button"
               onClick={() => toggleVisibility("private_only")}
               disabled={pending || initial.publicVisibility === "private_only"}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-3 py-1 rounded-[3px] text-sm ${
                 initial.publicVisibility === "private_only"
-                  ? "bg-gob-primary  text-white "
-                  : "border border-gob-border-strong  hover:bg-gob-surface-alt "
+                  ? "bg-[var(--color-ln-azul)] text-white"
+                  : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
               } disabled:opacity-60`}
             >
               Mantener privado
@@ -177,14 +177,17 @@ export function ServiceDogForm({
       >
         <fieldset disabled={isRevoked} className="space-y-4 disabled:opacity-50">
           <div>
-            <label htmlFor="service-type" className="block text-sm font-medium text-gob-text mb-1">
+            <label
+              htmlFor="service-type"
+              className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
+            >
               Tipo de servicio
             </label>
             <select
               id="service-type"
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value as ServiceDogType)}
-              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             >
               {SERVICE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -192,7 +195,7 @@ export function ServiceDogForm({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gob-text-muted mt-1">
+            <p className="text-xs text-[var(--color-ln-mute)] mt-1">
               Las 5 categorías ANDIS habilitan el banner público. "Otro" guarda los datos pero no
               renderiza banner (Res. ANDIS 2588/2022).
             </p>
@@ -201,7 +204,7 @@ export function ServiceDogForm({
           <div>
             <label
               htmlFor="training-center"
-              className="block text-sm font-medium text-gob-text mb-1"
+              className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
             >
               Centro de entrenamiento *
             </label>
@@ -212,9 +215,9 @@ export function ServiceDogForm({
               value={trainingCenter}
               onChange={(e) => setTrainingCenter(e.target.value)}
               placeholder="Ej: Bocalan Argentina, IGDF/ADI miembro"
-              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
-            <p className="text-xs text-gob-text-muted mt-1">
+            <p className="text-xs text-[var(--color-ln-mute)] mt-1">
               ANDIS reconoce centros miembros de IGDF (International Guide Dog Federation) o ADI
               (Assistance Dogs International).
             </p>
@@ -224,7 +227,7 @@ export function ServiceDogForm({
             <div>
               <label
                 htmlFor="training-cert-date"
-                className="block text-sm font-medium text-gob-text mb-1"
+                className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
               >
                 Fecha del certificado del centro
               </label>
@@ -233,13 +236,13 @@ export function ServiceDogForm({
                 type="date"
                 value={trainingCertDate}
                 onChange={(e) => setTrainingCertDate(e.target.value)}
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
             <div>
               <label
                 htmlFor="rupga-credential"
-                className="block text-sm font-medium text-gob-text mb-1"
+                className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
               >
                 Número RUPGA
               </label>
@@ -249,14 +252,17 @@ export function ServiceDogForm({
                 value={rupgaCredential}
                 onChange={(e) => setRupgaCredential(e.target.value)}
                 placeholder="Si ya tenés"
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm font-mono"
+                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm font-mono outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="cred-issue" className="block text-sm font-medium text-gob-text mb-1">
+              <label
+                htmlFor="cred-issue"
+                className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
+              >
                 Emisión de la credencial
               </label>
               <input
@@ -264,11 +270,14 @@ export function ServiceDogForm({
                 type="date"
                 value={credentialIssueDate}
                 onChange={(e) => setCredentialIssueDate(e.target.value)}
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
             <div>
-              <label htmlFor="cred-expiry" className="block text-sm font-medium text-gob-text mb-1">
+              <label
+                htmlFor="cred-expiry"
+                className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
+              >
                 Vencimiento de la credencial
               </label>
               <input
@@ -276,13 +285,16 @@ export function ServiceDogForm({
                 type="date"
                 value={credentialExpiryDate}
                 onChange={(e) => setCredentialExpiryDate(e.target.value)}
-                className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="sd-notes" className="block text-sm font-medium text-gob-text mb-1">
+            <label
+              htmlFor="sd-notes"
+              className="block text-sm font-medium text-[var(--color-ln-ink)] mb-1"
+            >
               Notas (opcional)
             </label>
             <textarea
@@ -290,19 +302,21 @@ export function ServiceDogForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
         </fieldset>
 
-        {error && <output className="block text-sm text-gob-danger ">{error}</output>}
-        {okMessage && <output className="block text-sm text-gob-success ">{okMessage}</output>}
+        {error && <output className="block text-sm text-[var(--color-ln-err)]">{error}</output>}
+        {okMessage && (
+          <output className="block text-sm text-[var(--color-ln-ok)]">{okMessage}</output>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"
             disabled={pending || isRevoked}
-            className="px-4 py-2 rounded bg-gob-primary  text-white  text-sm font-medium disabled:opacity-50"
+            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar datos"}
           </button>
@@ -311,7 +325,7 @@ export function ServiceDogForm({
               type="button"
               onClick={submitForVerification}
               disabled={pending}
-              className="px-4 py-2 rounded bg-gob-success text-white text-sm font-medium hover:bg-gob-success disabled:opacity-50"
+              className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
               Solicitar verificación
             </button>
@@ -321,7 +335,7 @@ export function ServiceDogForm({
               type="button"
               onClick={retire}
               disabled={pending}
-              className="px-4 py-2 rounded border border-gob-danger text-gob-danger   text-sm hover:bg-gob-danger/10  disabled:opacity-50"
+              className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] text-sm hover:bg-[#fbe9e6] disabled:opacity-50"
             >
               Retirar del servicio
             </button>

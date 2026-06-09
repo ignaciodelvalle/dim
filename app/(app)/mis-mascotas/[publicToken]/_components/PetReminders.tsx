@@ -66,13 +66,13 @@ export function PetReminders({
           <div className="flex items-center gap-3 text-sm">
             <Link
               href={`/mis-mascotas/${petToken}/vacunas/programar`}
-              className="text-gob-info underline-offset-4 hover:underline"
+              className="text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
             >
               + Programar
             </Link>
             <Link
               href={`/mis-mascotas/${petToken}?tab=vacunas`}
-              className="text-gob-info underline-offset-4 hover:underline"
+              className="text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
             >
               Ver libreta →
             </Link>
@@ -93,14 +93,14 @@ export function PetReminders({
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/mis-mascotas/${petToken}/eventos/nuevo/vacuna?reminderId=${r.reminderId}`}
-                      className="px-3 py-1.5 rounded-lg bg-gob-primary  text-white  text-xs font-medium hover:bg-gob-primary  transition-colors"
+                      className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-xs font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
                     >
                       Registrar
                     </Link>
                     <form action={deleteVaccineReminderAction.bind(null, petToken, r.reminderId)}>
                       <button
                         type="submit"
-                        className="px-3 py-1.5 rounded-lg border border-gob-border  text-gob-text-gray  text-xs font-medium hover:bg-gob-surface-alt  transition-colors"
+                        className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] text-xs font-medium hover:bg-[var(--color-ln-stripe)] transition-colors"
                       >
                         Eliminar
                       </button>

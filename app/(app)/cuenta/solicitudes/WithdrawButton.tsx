@@ -31,7 +31,7 @@ export function WithdrawButton({ requestId }: Props) {
       type="button"
       onClick={handleClick}
       disabled={pending}
-      className="inline-flex items-center px-3 py-1.5 rounded-md border border-gob-border-strong text-xs font-medium text-gob-text-gray bg-white hover:bg-gob-surface-alt disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      className="inline-flex items-center px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)] text-xs font-medium text-[var(--color-ln-ink-2)] bg-[var(--color-ln-card)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
     >
       {pending ? "Retirando…" : "Retirar solicitud"}
     </button>

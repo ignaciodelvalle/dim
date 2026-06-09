@@ -14,7 +14,7 @@ import { looksLikeArPhone } from "@/lib/ar-phone";
 function PhoneFormatWarning({ value }: { value: string }) {
   if (!value || looksLikeArPhone(value)) return null;
   return (
-    <p className="mt-1 text-xs text-gob-warning-text">
+    <p className="mt-1 text-xs text-[var(--color-ln-warn)]">
       Formato inusual para Argentina — guardamos igual, revisalo si querés.
     </p>
   );
@@ -166,21 +166,24 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Success banner */}
       {successMessage && (
-        <div className="rounded-md bg-gob-success/10  border border-gob-success  px-4 py-3">
-          <p className="text-sm text-gob-success ">{successMessage}</p>
+        <div className="rounded-[4px] bg-[#eef6f0] border border-[var(--color-ln-ok)] px-4 py-3">
+          <p className="text-sm text-[var(--color-ln-ok)]">{successMessage}</p>
         </div>
       )}
 
       {/* Global error */}
       {globalError && (
-        <div className="rounded-md bg-gob-danger/10  border border-gob-danger  px-4 py-3">
-          <p className="text-sm text-gob-danger ">{globalError}</p>
+        <div className="rounded-[4px] bg-[#fbe9e6] border border-[var(--color-ln-seal)] px-4 py-3">
+          <p className="text-sm text-[var(--color-ln-seal)]">{globalError}</p>
         </div>
       )}
 
       {/* Avatar upload */}
       <div className="space-y-2">
-        <label htmlFor="avatarUpload" className="block text-sm font-medium text-gob-text-gray ">
+        <label
+          htmlFor="avatarUpload"
+          className="block text-sm font-medium text-[var(--color-ln-ink-2)]"
+        >
           Foto de perfil
         </label>
         <div className="flex items-center gap-4">
@@ -188,10 +191,10 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
             <img
               src={avatarPreview}
               alt="Vista previa"
-              className="w-16 h-16 rounded-full object-cover border border-gob-border  shrink-0"
+              className="w-16 h-16 rounded-full object-cover border border-[var(--color-ln-line)] shrink-0"
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-gob-surface-alt  border border-gob-border  flex items-center justify-center text-xl font-semibold text-gob-text-gray  shrink-0">
+            <div className="w-16 h-16 rounded-full bg-[var(--color-ln-stripe)] border border-[var(--color-ln-line)] flex items-center justify-center text-xl font-semibold text-[var(--color-ln-ink-2)] shrink-0">
               {displayNameInitials || "?"}
             </div>
           )}
@@ -199,12 +202,14 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="text-sm text-gob-text  underline underline-offset-4 hover:opacity-70 transition-opacity"
+              className="text-sm text-[var(--color-ln-ink)] underline underline-offset-4 hover:opacity-70 transition-opacity"
             >
               {avatarPreview ? "Cambiar foto" : "Subir foto"}
             </button>
-            <p className="text-xs text-gob-text-muted ">JPEG, PNG o WebP · máx. 2 MB</p>
-            {fieldErrors.avatar && <p className="text-xs text-gob-danger ">{fieldErrors.avatar}</p>}
+            <p className="text-xs text-[var(--color-ln-mute)]">JPEG, PNG o WebP · máx. 2 MB</p>
+            {fieldErrors.avatar && (
+              <p className="text-xs text-[var(--color-ln-err)]">{fieldErrors.avatar}</p>
+            )}
           </div>
         </div>
         <input
@@ -219,8 +224,11 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
 
       {/* displayName */}
       <div>
-        <label htmlFor="displayName" className="block text-sm font-medium text-gob-text-gray  mb-1">
-          Nombre de display <span className="text-gob-danger">*</span>
+        <label
+          htmlFor="displayName"
+          className="block text-sm font-medium text-[var(--color-ln-ink-2)] mb-1"
+        >
+          Nombre de display <span className="text-[var(--color-ln-seal)]">*</span>
         </label>
         <input
           id="displayName"
@@ -231,11 +239,11 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           minLength={2}
           maxLength={80}
           placeholder="Tu nombre o apodo"
-          className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           aria-describedby={fieldErrors.displayName ? "displayName-error" : undefined}
         />
         {fieldErrors.displayName && (
-          <p id="displayName-error" className="mt-1 text-xs text-gob-danger ">
+          <p id="displayName-error" className="mt-1 text-xs text-[var(--color-ln-err)]">
             {fieldErrors.displayName}
           </p>
         )}
@@ -243,8 +251,12 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
 
       {/* phone */}
       <div>
-        <label htmlFor="phone" className="block text-sm font-medium text-gob-text-gray  mb-1">
-          Teléfono <span className="text-xs font-normal text-gob-text-muted ">(opcional)</span>
+        <label
+          htmlFor="phone"
+          className="block text-sm font-medium text-[var(--color-ln-ink-2)] mb-1"
+        >
+          Teléfono{" "}
+          <span className="text-xs font-normal text-[var(--color-ln-mute)]">(opcional)</span>
         </label>
         <input
           id="phone"
@@ -252,11 +264,11 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="+54 9 11 1234-5678"
-          className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
         />
         {fieldErrors.phone && (
-          <p id="phone-error" className="mt-1 text-xs text-gob-danger ">
+          <p id="phone-error" className="mt-1 text-xs text-[var(--color-ln-err)]">
             {fieldErrors.phone}
           </p>
         )}
@@ -265,11 +277,11 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
 
       {/* Emergency / vet contact group — appears on <PetEmergencyCard>
           of every pet detail. Tap-to-call linkable. */}
-      <fieldset className="space-y-3 rounded-md border border-gob-border  p-4">
-        <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-gob-text-muted ">
+      <fieldset className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4">
+        <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-ln-mute)]">
           Contactos para emergencias
         </legend>
-        <p className="text-xs text-gob-text-muted ">
+        <p className="text-xs text-[var(--color-ln-mute)]">
           Aparecen en la credencial de cada mascota. Si una mascota está perdida y un finder escanea
           el QR, podemos mostrarle estos contactos (según tus preferencias de privacidad).
         </p>
@@ -278,7 +290,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           <div>
             <label
               htmlFor="preferredVetName"
-              className="block text-xs font-medium text-gob-text-gray  mb-1"
+              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
             >
               Veterinario/a de cabecera
             </label>
@@ -289,13 +301,13 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
               onChange={(e) => setPreferredVetName(e.target.value)}
               maxLength={80}
               placeholder="Dra. Pérez"
-              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
           <div>
             <label
               htmlFor="preferredVetPhone"
-              className="block text-xs font-medium text-gob-text-gray  mb-1"
+              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
             >
               Teléfono del vet
             </label>
@@ -305,14 +317,14 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
               value={preferredVetPhone}
               onChange={(e) => setPreferredVetPhone(e.target.value)}
               placeholder="+54 9 11 1234-5678"
-              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
             <PhoneFormatWarning value={preferredVetPhone} />
           </div>
           <div>
             <label
               htmlFor="emergencyContactName"
-              className="block text-xs font-medium text-gob-text-gray  mb-1"
+              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
             >
               Contacto de emergencia
             </label>
@@ -323,13 +335,13 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
               onChange={(e) => setEmergencyContactName(e.target.value)}
               maxLength={80}
               placeholder="Lucía F."
-              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
           <div>
             <label
               htmlFor="emergencyContactPhone"
-              className="block text-xs font-medium text-gob-text-gray  mb-1"
+              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
             >
               Teléfono del contacto
             </label>
@@ -339,7 +351,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
               value={emergencyContactPhone}
               onChange={(e) => setEmergencyContactPhone(e.target.value)}
               placeholder="+54 9 11 1234-5678"
-              className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
             <PhoneFormatWarning value={emergencyContactPhone} />
           </div>
@@ -351,13 +363,13 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2 text-sm bg-gob-primary  text-white  rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2 text-sm bg-[var(--color-ln-azul)] text-white rounded-[3px] hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Guardando..." : "Guardar cambios"}
         </button>
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-gob-border-strong  rounded-md hover:bg-gob-surface-alt "
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

@@ -53,11 +53,12 @@ function buildStatusText(daysUntilDue: number): string {
 // ---------------------------------------------------------------------------
 
 const BANNER_TONE: Record<ActiveReminderRow["variant"], string> = {
-  upcoming: "bg-gob-info/10 border-gob-info/30 text-gob-text",
-  due_soon: "bg-gob-warning/20 border-gob-warning/40 text-gob-text",
-  overdue: "bg-gob-danger/10 border-gob-danger/40 text-gob-text",
-  overdue_critical: "bg-gob-danger/15 border-gob-danger/60 text-gob-text",
-  success: "bg-gob-success/10 border-gob-success/30 text-gob-text",
+  upcoming:
+    "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-azul)] text-[var(--color-ln-ink)]",
+  due_soon: "bg-[#fdf2e0] border-[var(--color-ln-warn)] text-[var(--color-ln-ink)]",
+  overdue: "bg-[#fbe9e6] border-[var(--color-ln-seal)] text-[var(--color-ln-ink)]",
+  overdue_critical: "bg-[#fbe9e6] border-[var(--color-ln-seal)] text-[var(--color-ln-ink)]",
+  success: "bg-[#eef6f0] border-[var(--color-ln-ok)] text-[var(--color-ln-ink)]",
 };
 
 function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
@@ -72,7 +73,9 @@ function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
           {reminder.title} de {reminder.petName}{" "}
           {buildStatusText(reminder.daysUntilDue).toLowerCase()}
         </p>
-        <p className="mt-0.5 text-xs text-gob-text-muted">Vence el {formatDueAt(reminder.dueAt)}</p>
+        <p className="mt-0.5 text-xs text-[var(--color-ln-mute)]">
+          Vence el {formatDueAt(reminder.dueAt)}
+        </p>
       </div>
       <ReminderActions
         reminderId={reminder.reminderId}
@@ -112,7 +115,7 @@ export function RemindersSection({
       <PanelHeader
         title={<span id="reminders-heading">Recordatorios</span>}
         actions={
-          <span className="text-sm text-gob-text-gray font-normal">
+          <span className="text-sm text-[var(--color-ln-ink-2)] font-normal">
             {totalCount} {totalCount === 1 ? "recordatorio" : "recordatorios"}
           </span>
         }
@@ -142,7 +145,7 @@ export function RemindersSection({
 
         {overflow.length > 0 && (
           <details className="mt-3">
-            <summary className="cursor-pointer text-sm text-gob-text-gray hover:text-gob-text select-none">
+            <summary className="cursor-pointer text-sm text-[var(--color-ln-ink-2)] hover:text-[var(--color-ln-ink)] select-none">
               Ver {overflow.length} más
             </summary>
             <ul className="grid gap-3 mt-3">

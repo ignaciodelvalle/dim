@@ -48,15 +48,15 @@ export function VetSelfResignForm() {
       {error && (
         <div
           role="alert"
-          className="rounded-md bg-gob-danger/10  border border-gob-danger  px-4 py-3"
+          className="rounded-[4px] bg-[#fbe9e6] border border-[var(--color-ln-seal)] px-4 py-3"
         >
-          <p className="text-sm text-gob-danger ">{error}</p>
+          <p className="text-sm text-[var(--color-ln-seal)]">{error}</p>
         </div>
       )}
 
       {/* Warning — consequence list (warning-first design) */}
-      <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-5 space-y-3">
-        <p className="text-sm font-semibold text-gob-warning-text ">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 space-y-3">
+        <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Estas son las consecuencias de renunciar:
         </p>
         <ul className="space-y-1.5">
@@ -66,8 +66,8 @@ export function VetSelfResignForm() {
             "Tus mascotas propias siguen siendo tuyas.",
             "Para volver a tener el rol vet, vas a tener que solicitarlo de cero y ser aprobado/a nuevamente.",
           ].map((item) => (
-            <li key={item} className="flex items-start gap-2 text-sm text-gob-warning-text ">
-              <span aria-hidden className="mt-0.5 shrink-0 text-gob-warning">
+            <li key={item} className="flex items-start gap-2 text-sm text-[var(--color-ln-warn)]">
+              <span aria-hidden className="mt-0.5 shrink-0">
                 •
               </span>
               {item}
@@ -78,8 +78,11 @@ export function VetSelfResignForm() {
 
       {/* Motivo (optional) */}
       <div>
-        <label htmlFor="reason" className="block text-sm font-medium text-gob-text-gray  mb-1">
-          Motivo <span className="text-xs font-normal text-gob-text-muted ">(opcional)</span>
+        <label
+          htmlFor="reason"
+          className="block text-sm font-medium text-[var(--color-ln-ink-2)] mb-1"
+        >
+          Motivo <span className="text-xs font-normal text-[var(--color-ln-mute)]">(opcional)</span>
         </label>
         <textarea
           id="reason"
@@ -87,7 +90,7 @@ export function VetSelfResignForm() {
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           placeholder="Contanos por qué renunciás..."
-          className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary  resize-none"
+          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
         />
       </div>
 
@@ -101,13 +104,13 @@ export function VetSelfResignForm() {
         <button
           type="submit"
           disabled={!confirmed || loading}
-          className="px-5 py-2 text-sm bg-gob-danger hover:bg-gob-danger text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2 text-sm bg-[var(--color-ln-seal)] text-white rounded-[3px] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Procesando..." : "Renunciar"}
         </button>
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-gob-border-strong  rounded-md hover:bg-gob-surface-alt  transition-colors"
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

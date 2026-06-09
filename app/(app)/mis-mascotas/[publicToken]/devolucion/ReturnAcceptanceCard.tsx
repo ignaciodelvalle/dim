@@ -47,11 +47,11 @@ export function ReturnAcceptanceCard({
   // Accepted successfully — show success.
   if (acceptState.error === null && !acceptState.autoCancelled && acceptState !== acceptInitial) {
     return (
-      <div className="rounded border border-gob-success bg-gob-success/10   p-4 space-y-2">
-        <p className="text-gob-success  font-medium">
+      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-2">
+        <p className="text-[var(--color-ln-ok)] font-medium">
           Devolución confirmada. {petName} está de vuelta con vos.
         </p>
-        <a href={backUrl} className="text-sm underline text-gob-success ">
+        <a href={backUrl} className="text-sm underline text-[var(--color-ln-ok)]">
           Ir a mis mascotas
         </a>
       </div>
@@ -61,10 +61,10 @@ export function ReturnAcceptanceCard({
   // Auto-cancelled — show explanation banner.
   if (acceptState.autoCancelled) {
     return (
-      <div className="rounded border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-        <p className="text-gob-warning-text  font-medium">La propuesta ya no es válida</p>
-        <p className="text-gob-warning-text  text-sm">{acceptState.autoCancelReason}</p>
-        <a href={backUrl} className="text-sm underline text-gob-warning-text ">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+        <p className="text-[var(--color-ln-warn)] font-medium">La propuesta ya no es válida</p>
+        <p className="text-[var(--color-ln-warn)] text-sm">{acceptState.autoCancelReason}</p>
+        <a href={backUrl} className="text-sm underline text-[var(--color-ln-warn)]">
           Volver a mis mascotas
         </a>
       </div>
@@ -74,11 +74,11 @@ export function ReturnAcceptanceCard({
   // Rejected successfully.
   if (rejectState.success) {
     return (
-      <div className="rounded border border-gob-border-strong bg-gob-surface-alt   p-4 space-y-2">
-        <p className="text-gob-text  font-medium">
+      <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] p-4 space-y-2">
+        <p className="text-[var(--color-ln-ink)] font-medium">
           Propuesta rechazada. {actorName} fue notificado.
         </p>
-        <a href={backUrl} className="text-sm underline text-gob-text-gray ">
+        <a href={backUrl} className="text-sm underline text-[var(--color-ln-ink-2)]">
           Volver a mis mascotas
         </a>
       </div>
@@ -88,15 +88,15 @@ export function ReturnAcceptanceCard({
   return (
     <div className="space-y-4">
       {/* Proposal card */}
-      <div className="rounded border border-gob-border  p-4 space-y-3">
+      <div className="rounded-[4px] border border-[var(--color-ln-line)] p-4 space-y-3">
         <div className="space-y-1">
-          <p className="text-sm text-gob-text-muted uppercase tracking-wide">
+          <p className="text-sm text-[var(--color-ln-mute)] uppercase tracking-wide">
             Propuesta de devolución
           </p>
           <p className="text-base font-semibold">
             {actorName} está listo para devolverte a {petName}
           </p>
-          <p className="text-xs text-gob-text-muted">
+          <p className="text-xs text-[var(--color-ln-mute)]">
             Propuesta el{" "}
             {new Date(proposedAt).toLocaleDateString("es-AR", {
               dateStyle: "long",
@@ -105,7 +105,7 @@ export function ReturnAcceptanceCard({
         </div>
 
         {proposalNotes && (
-          <div className="rounded bg-gob-surface-alt  p-3 text-sm text-gob-text-gray  whitespace-pre-line">
+          <div className="rounded-[4px] bg-[var(--color-ln-stripe)] p-3 text-sm text-[var(--color-ln-ink-2)] whitespace-pre-line">
             {proposalNotes}
           </div>
         )}
@@ -113,7 +113,7 @@ export function ReturnAcceptanceCard({
 
       {/* Accept action */}
       {acceptState.error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-3 py-2 text-[var(--color-ln-seal)]">
           {acceptState.error}
         </p>
       )}
@@ -122,7 +122,7 @@ export function ReturnAcceptanceCard({
         <button
           type="submit"
           disabled={acceptPending}
-          className="w-full py-3 rounded bg-gob-success text-white hover:bg-gob-success disabled:opacity-50 font-medium transition-colors"
+          className="w-full py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white hover:opacity-90 disabled:opacity-50 font-medium transition-colors"
         >
           {acceptPending ? "Confirmando…" : "Marcar como recibida"}
         </button>
@@ -133,16 +133,22 @@ export function ReturnAcceptanceCard({
         <button
           type="button"
           onClick={() => setShowRejectForm(true)}
-          className="text-sm text-gob-text-muted underline hover:text-gob-text-gray "
+          className="text-sm text-[var(--color-ln-mute)] underline hover:text-[var(--color-ln-ink-2)]"
         >
           Rechazar propuesta
         </button>
       )}
 
       {showRejectForm && (
-        <form action={rejectFormAction} className="space-y-3 rounded border border-gob-border  p-4">
+        <form
+          action={rejectFormAction}
+          className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4"
+        >
           <div className="space-y-1">
-            <label htmlFor="reason" className="block text-sm font-medium text-gob-text-gray ">
+            <label
+              htmlFor="reason"
+              className="block text-sm font-medium text-[var(--color-ln-ink-2)]"
+            >
               Motivo del rechazo
             </label>
             <textarea
@@ -152,24 +158,26 @@ export function ReturnAcceptanceCard({
               required
               maxLength={500}
               placeholder="Explicá por qué rechazás la propuesta..."
-              className="w-full rounded border border-gob-border-strong  bg-white  px-3 py-2 text-sm resize-y"
+              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm resize-y outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
 
-          {rejectState.error && <p className="text-sm text-gob-danger ">{rejectState.error}</p>}
+          {rejectState.error && (
+            <p className="text-sm text-[var(--color-ln-err)]">{rejectState.error}</p>
+          )}
 
           <div className="flex gap-2">
             <button
               type="submit"
               disabled={rejectPending}
-              className="px-4 py-2 rounded bg-gob-primary text-white   disabled:opacity-50 text-sm"
+              className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 text-sm"
             >
               {rejectPending ? "Enviando…" : "Confirmar rechazo"}
             </button>
             <button
               type="button"
               onClick={() => setShowRejectForm(false)}
-              className="px-4 py-2 rounded border border-gob-border-strong  text-sm"
+              className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm"
             >
               Cancelar
             </button>
