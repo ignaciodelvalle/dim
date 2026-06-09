@@ -1,12 +1,11 @@
-// /turnos/buscar/[offeringToken] — Offering detail + 60-day slot grid (Fase 4).
-//
-// Shows the full offering info and a grid of available slots for the next
-// 60 days, grouped by day. Each available slot links to the confirmation page.
+// /turnos/buscar/[offeringToken] — Libreta Nacional redesign.
 
 import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -45,7 +44,6 @@ export default async function OfferingDetailPage({
   const now = new Date();
   const windowEnd = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
 
-  // Fetch all available slots in the 60-day window.
   const availableSlots = await db
     .select({
       id: timeSlots.id,
@@ -64,7 +62,6 @@ export default async function OfferingDetailPage({
     )
     .orderBy(timeSlots.startsAt);
 
-  // Group slots by day (YYYY-MM-DD in Buenos Aires time).
   const groupedByDay = new Map<string, typeof availableSlots>();
   for (const slot of availableSlots) {
     const dayKey = slot.startsAt.toLocaleDateString("es-AR", {
@@ -90,97 +87,101 @@ export default async function OfferingDetailPage({
   const backParams = new URLSearchParams({ service_kind: offering.serviceKind });
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-8 space-y-8">
-        <Link
-          href={`/turnos/buscar?${backParams.toString()}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
-        >
-          ← Volver a resultados
-        </Link>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/turnos/buscar?${backParams.toString()}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Resultados
+      </Link>
 
-        {/* Offering header */}
-        <div className="flex items-start gap-4">
-          {offering.organizationId && org?.avatarUrl && (
-            <img
-              src={org.avatarUrl}
-              alt={org.displayName}
-              className="w-16 h-16 rounded-full object-cover shrink-0"
-            />
-          )}
-          <div className="space-y-1 flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold text-gob-text ">{offering.displayName}</h1>
-            <p className="text-sm text-gob-text-muted ">{providerLabel}</p>
-            <p className="text-xs text-gob-text-muted ">
-              {kindDef?.label ?? offering.serviceKind}
-              {offering.priceArs !== null
-                ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
-                : " · Gratuito"}
-              {` · ${offering.durationMinutes} min`}
-              {org?.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
+      {/* Header */}
+      <div className="mb-[24px] flex items-start gap-[16px]">
+        {offering.organizationId && org?.avatarUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={org.avatarUrl}
+            alt={org.displayName}
+            className="h-[56px] w-[56px] flex-shrink-0 rounded-full object-cover border border-[var(--color-ln-line-strong)]"
+          />
+        )}
+        <div>
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+            {offering.displayName}
+          </h1>
+          <p className="mt-[3px] text-[13px] text-[var(--color-ln-mute)]">{providerLabel}</p>
+          <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+            {kindDef?.label ?? offering.serviceKind}
+            {offering.priceArs !== null
+              ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
+              : " · Gratuito"}
+            {` · ${offering.durationMinutes} min`}
+            {org?.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
+          </p>
+          {offering.description && (
+            <p className="mt-[6px] text-[12.5px] text-[var(--color-ln-ink-2)]">
+              {offering.description}
             </p>
-            {offering.description && (
-              <p className="text-sm text-gob-text-gray  pt-1">{offering.description}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Slot grid */}
-        <div className="space-y-6">
-          <h2 className="text-lg font-medium text-gob-text ">Turnos disponibles</h2>
-          {groupedByDay.size === 0 ? (
-            <p className="text-sm text-gob-text-gray ">
-              No hay turnos disponibles en los próximos 60 días.
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {Array.from(groupedByDay.entries()).map(([dayLabel, slots]) => {
-                // Parse a proper date label using the first slot's date.
-                // biome-ignore lint/style/noNonNullAssertion: groupedByDay only contains non-empty slot arrays.
-                const firstSlot = slots[0]!;
-                const dayHeading = firstSlot.startsAt.toLocaleDateString("es-AR", {
-                  timeZone: "America/Argentina/Buenos_Aires",
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                });
-
-                return (
-                  <div key={dayLabel} className="space-y-2">
-                    <p className="text-sm font-medium text-gob-text-gray  capitalize">
-                      {dayHeading}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {slots.map((slot) => {
-                        const timeLabel = slot.startsAt.toLocaleTimeString("es-AR", {
-                          timeZone: "America/Argentina/Buenos_Aires",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
-                        const remaining = slot.capacity - slot.bookingsCount;
-                        return (
-                          <Link
-                            key={slot.id}
-                            href={`/turnos/buscar/${offeringToken}/reservar/${slot.id}`}
-                            className="inline-flex flex-col items-center px-4 py-2.5 rounded-lg border border-gob-border  hover:border-gob-border-strong  hover:bg-gob-surface-alt  transition-colors text-center"
-                          >
-                            <span className="text-sm font-medium text-gob-text ">{timeLabel}</span>
-                            {slot.capacity > 1 && (
-                              <span className="text-xs text-gob-text-muted ">
-                                {remaining} lugar{remaining === 1 ? "" : "es"}
-                              </span>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )}
         </div>
       </div>
-    </main>
+
+      {/* Slot grid */}
+      <LnSectionHead title="Turnos disponibles" className="mb-[20px]" />
+
+      {groupedByDay.size === 0 ? (
+        <p className="text-[13px] text-[var(--color-ln-mute)]">
+          No hay turnos disponibles en los próximos 60 días.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-[24px]">
+          {Array.from(groupedByDay.entries()).map(([dayLabel, slots]) => {
+            // biome-ignore lint/style/noNonNullAssertion: groupedByDay only contains non-empty slot arrays.
+            const firstSlot = slots[0]!;
+            const dayHeading = firstSlot.startsAt.toLocaleDateString("es-AR", {
+              timeZone: "America/Argentina/Buenos_Aires",
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            });
+
+            return (
+              <div key={dayLabel}>
+                <p className="mb-[10px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] capitalize">
+                  {dayHeading}
+                </p>
+                <div className="flex flex-wrap gap-[8px]">
+                  {slots.map((slot) => {
+                    const timeLabel = slot.startsAt.toLocaleTimeString("es-AR", {
+                      timeZone: "America/Argentina/Buenos_Aires",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                    const remaining = slot.capacity - slot.bookingsCount;
+                    return (
+                      <Link
+                        key={slot.id}
+                        href={`/turnos/buscar/${offeringToken}/reservar/${slot.id}`}
+                        className="inline-flex flex-col items-center rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[14px] py-[10px] no-underline hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)] transition-colors"
+                      >
+                        <span className="font-[var(--font-ln-mono)] text-[13px] font-semibold text-[var(--color-ln-ink)]">
+                          {timeLabel}
+                        </span>
+                        {slot.capacity > 1 && (
+                          <span className="mt-[1px] font-[var(--font-ln-mono)] text-[9.5px] text-[var(--color-ln-mute)]">
+                            {remaining} lugar{remaining === 1 ? "" : "es"}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

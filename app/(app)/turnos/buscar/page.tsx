@@ -1,22 +1,10 @@
-// /turnos/buscar — Owner-facing service search (Fase 4 + Fase 10 polish).
-//
-// Query params:
-//   service_kind  (required) — filters by serviceKind
-//   province      (optional) — filters by jurisdictionProvince
-//   locality      (optional) — filters by jurisdictionLocality
-//   fecha_desde   (optional, Fase 10) — only show slots >= YYYY-MM-DD
-//   solo_gratis   (optional, Fase 10) — true = only show free (campaign) offerings
-//
-// If province/locality are absent, we try to default to the user's first
-// owned pet's jurisdiction. If the user has no pets or the params are blank,
-// the empty-state prompts them to provide a service kind first.
-//
-// For each approved offering we show up to 7 days of available slots
-// (bookings_count < capacity AND starts_at >= now()).
+// /turnos/buscar — Libreta Nacional redesign.
+// SearchFiltersForm (client component) unchanged.
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/service-kinds";
@@ -38,11 +26,9 @@ export default async function BuscarTurnosPage({
   const params = await searchParams;
 
   const serviceKind = params.service_kind?.trim() ?? "";
-  // Fase 10 filters
   const fechaDesde = params.fecha_desde?.trim() ?? "";
   const soloGratis = params.solo_gratis === "true";
 
-  // Resolve province/locality: params → user's first pet's jurisdiction.
   let province = params.province?.trim() ?? "";
   let locality = params.locality?.trim() ?? "";
 
@@ -64,52 +50,46 @@ export default async function BuscarTurnosPage({
     }
   }
 
-  // Render empty state when service_kind is missing.
   if (!serviceKind) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-10 space-y-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Buscar turno</h1>
-          <p className="text-sm text-gob-text-gray ">Indicá qué servicio buscás.</p>
-          <ServiceKindSelector />
+      <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+        <div className="mb-[24px]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Buscar turno
+          </h1>
+          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+            Indicá qué servicio buscás.
+          </p>
+        </div>
+        <ServiceKindSelector />
+        <div className="mt-[32px]">
           <Link
             href="/mis-mascotas"
-            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
+            className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
-            ← Volver a mis mascotas
+            ← Mis mascotas
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   const now = new Date();
   const windowEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  // Fase 10: fecha_desde — clamp the slot window start to the requested date.
   const slotWindowStart =
     fechaDesde && /^\d{4}-\d{2}-\d{2}$/.test(fechaDesde)
       ? new Date(Math.max(now.getTime(), new Date(fechaDesde).getTime()))
       : now;
 
-  // Build offering filter conditions.
   const offeringConditions = [
     eq(serviceOfferings.serviceKind, serviceKind),
     eq(serviceOfferings.status, "approved"),
   ] as ReturnType<typeof eq>[];
 
-  if (province) {
-    offeringConditions.push(eq(serviceOfferings.jurisdictionProvince, province));
-  }
-  if (locality) {
-    offeringConditions.push(eq(serviceOfferings.jurisdictionLocality, locality));
-  }
+  if (province) offeringConditions.push(eq(serviceOfferings.jurisdictionProvince, province));
+  if (locality) offeringConditions.push(eq(serviceOfferings.jurisdictionLocality, locality));
+  if (soloGratis) offeringConditions.push(isNull(serviceOfferings.priceArs));
 
-  // Fase 10: solo_gratis filter — only free (campaign) offerings.
-  if (soloGratis) {
-    offeringConditions.push(isNull(serviceOfferings.priceArs));
-  }
-
-  // Fetch approved offerings matching the filter.
   const offeringRows = await db
     .select({
       offering: serviceOfferings,
@@ -129,9 +109,7 @@ export default async function BuscarTurnosPage({
     .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
     .where(and(...offeringConditions));
 
-  // Fetch slots for the next 7 days for each offering.
   const offeringIds = offeringRows.map((r) => r.offering.id);
-
   type TimeSlotRow = typeof timeSlots.$inferSelect;
   const slotsByOffering = new Map<string, TimeSlotRow[]>();
 
@@ -155,7 +133,6 @@ export default async function BuscarTurnosPage({
     }
   }
 
-  // Filter offerings to those that actually have available slots in window.
   const offeringsWithSlots = offeringRows.filter(
     (r) => (slotsByOffering.get(r.offering.id)?.length ?? 0) > 0,
   );
@@ -164,16 +141,21 @@ export default async function BuscarTurnosPage({
   const locationLabel = locality ? locality : province ? province : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            {kindDef?.label ?? serviceKind}
-          </h1>
-          {locationLabel && <p className="text-sm text-gob-text-muted ">{locationLabel}</p>}
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Header */}
+      <div className="mb-[20px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          {kindDef?.label ?? serviceKind}
+        </h1>
+        {locationLabel && (
+          <p className="mt-[4px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+            {locationLabel}
+          </p>
+        )}
+      </div>
 
-        {/* Search form — allows refining filters */}
+      {/* Filters */}
+      <div className="mb-[24px]">
         <SearchFiltersForm
           currentServiceKind={serviceKind}
           currentProvince={province}
@@ -181,98 +163,101 @@ export default async function BuscarTurnosPage({
           currentFechaDesde={fechaDesde}
           currentSoloGratis={soloGratis}
         />
+      </div>
 
-        {offeringsWithSlots.length === 0 ? (
-          <p className="text-sm text-gob-text-gray  py-6">
-            {locationLabel
-              ? `Sin servicios disponibles en ${locationLabel}. Probá otra localidad.`
-              : "No hay turnos disponibles para este servicio en los próximos 7 días."}
-          </p>
-        ) : (
-          <ul className="space-y-4">
-            {offeringsWithSlots.map(({ offering, org, provider }) => {
-              const slots = slotsByOffering.get(offering.id) ?? [];
-              const providerLabel =
-                offering.organizationId && org
-                  ? org.displayName
-                  : provider
-                    ? `Dr/a. ${provider.displayName.split(" ")[0]}${provider.matriculaNumber ? ` · Mat. ${provider.matriculaNumber}` : ""}`
-                    : "Profesional independiente";
+      {/* Results */}
+      {offeringsWithSlots.length === 0 ? (
+        <p className="py-[24px] text-[13px] text-[var(--color-ln-mute)]">
+          {locationLabel
+            ? `Sin servicios disponibles en ${locationLabel}. Probá otra localidad.`
+            : "No hay turnos disponibles para este servicio en los próximos 7 días."}
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+          {offeringsWithSlots.map(({ offering, org, provider }) => {
+            const slots = slotsByOffering.get(offering.id) ?? [];
+            const providerLabel =
+              offering.organizationId && org
+                ? org.displayName
+                : provider
+                  ? `Dr/a. ${provider.displayName.split(" ")[0]}${provider.matriculaNumber ? ` · Mat. ${provider.matriculaNumber}` : ""}`
+                  : "Profesional independiente";
 
-              return (
-                <li
-                  key={offering.id}
-                  className="border border-gob-border  rounded-xl overflow-hidden"
-                >
-                  <Link
-                    href={`/turnos/buscar/${offering.publicToken}`}
-                    className="block px-4 py-3 hover:bg-gob-surface-alt  transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-0.5">
-                        <p className="font-medium text-gob-text ">{offering.displayName}</p>
-                        <p className="text-xs text-gob-text-muted ">
-                          {providerLabel}
-                          {offering.priceArs !== null
-                            ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
-                            : " · Gratuito"}
-                          {` · ${offering.durationMinutes} min`}
-                        </p>
-                      </div>
-                      {/* Fase 10: only show logo when tier_0_show_branding AND verified */}
-                      {offering.organizationId &&
-                        org?.avatarUrl &&
-                        org.tier0ShowBranding &&
-                        org.verified && (
-                          <img
-                            src={org.avatarUrl}
-                            alt={org.displayName}
-                            className="w-10 h-10 rounded-full object-cover shrink-0"
-                          />
-                        )}
-                    </div>
-                    <p className="mt-2 text-xs text-gob-success ">
-                      {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
-                      {slots.length === 1 ? "" : "s"} en los próximos 7 días →
-                    </p>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+            return (
+              <Link
+                key={offering.id}
+                href={`/turnos/buscar/${offering.publicToken}`}
+                className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
+                    {offering.displayName}
+                  </p>
+                  <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    {providerLabel}
+                    {offering.priceArs !== null
+                      ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
+                      : " · Gratuito"}
+                    {` · ${offering.durationMinutes} min`}
+                  </p>
+                  <p className="mt-[4px] text-[12px] text-[var(--color-ln-ok)]">
+                    {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
+                    {slots.length === 1 ? "" : "s"} en 7 días
+                  </p>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-[10px]">
+                  {offering.organizationId &&
+                    org?.avatarUrl &&
+                    org.tier0ShowBranding &&
+                    org.verified && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={org.avatarUrl}
+                        alt={org.displayName}
+                        className="h-[36px] w-[36px] rounded-full object-cover"
+                      />
+                    )}
+                  <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                    ›
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
+      <div className="mt-[32px]">
         <Link
           href="/mis-mascotas"
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
+          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
-          ← Volver a mis mascotas
+          ← Mis mascotas
         </Link>
       </div>
-    </main>
+    </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
 // Sub-components
-// ────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
 
 function ServiceKindSelector() {
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-gob-text-gray ">¿Qué servicio buscás?</p>
-      <ul className="space-y-2">
-        {SERVICE_KINDS.map((kind) => (
-          <li key={kind.code}>
-            <Link
-              href={`/turnos/buscar?service_kind=${kind.code}`}
-              className="block px-4 py-2.5 rounded-lg border border-gob-border  text-sm text-gob-text  hover:bg-gob-surface-alt  transition-colors"
-            >
-              {kind.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+      {SERVICE_KINDS.map((kind) => (
+        <Link
+          key={kind.code}
+          href={`/turnos/buscar?service_kind=${kind.code}`}
+          className="flex items-center justify-between border-b border-[var(--color-ln-line-2)] px-[16px] py-[13px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+        >
+          <span className="text-[13.5px] text-[var(--color-ln-ink)]">{kind.label}</span>
+          <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+            ›
+          </span>
+        </Link>
+      ))}
     </div>
   );
 }

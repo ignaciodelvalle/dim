@@ -1,13 +1,14 @@
-// /turnos/buscar/[offeringToken]/reservar/[slotId] — Booking confirmation (Fase 4).
-//
-// Shows offering + slot info, lets the user pick which pet to book for,
-// then submits via bookSlotAction.
+// Confirmar reserva — Libreta Nacional redesign.
 
 import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { bookSlotAction } from "@/app/actions/booking";
+import { LnButton } from "@/components/ui/Button";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
+import { LnField } from "@/components/ui/Field";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -20,7 +21,6 @@ export default async function ReservarTurnoPage({
   const { user } = await requireUserOrRedirect();
   const { offeringToken, slotId } = await params;
 
-  // Fetch offering.
   const [offeringRow] = await db
     .select({
       offering: serviceOfferings,
@@ -41,7 +41,6 @@ export default async function ReservarTurnoPage({
 
   if (!offeringRow || offeringRow.offering.status !== "approved") notFound();
 
-  // Fetch slot.
   const [slot] = await db.select().from(timeSlots).where(eq(timeSlots.id, slotId)).limit(1);
 
   if (
@@ -54,7 +53,6 @@ export default async function ReservarTurnoPage({
     notFound();
   }
 
-  // Fetch user's owned pets.
   const userPets = await db
     .select({ pet: pets })
     .from(pets)
@@ -86,73 +84,80 @@ export default async function ReservarTurnoPage({
   });
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/turnos/buscar/${offeringToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
-        >
-          ← Volver a los turnos
-        </Link>
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/turnos/buscar/${offeringToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Volver a los turnos
+      </Link>
 
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-gob-text ">Confirmar reserva</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Revisá los datos antes de confirmar. La reserva es inmediata.
-          </p>
-        </div>
-
-        {/* Summary card */}
-        <div className="rounded-xl border border-gob-border  p-4 space-y-3">
-          <div>
-            <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Servicio</p>
-            <p className="font-medium text-gob-text ">{offering.displayName}</p>
-            <p className="text-xs text-gob-text-muted">{kindDef?.label ?? offering.serviceKind}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Prestador</p>
-            <p className="text-sm text-gob-text ">{providerLabel}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Fecha y hora</p>
-            <p className="text-sm text-gob-text  capitalize">
-              {slotDate} a las {slotTime}
-            </p>
-          </div>
-          {offering.priceArs !== null && (
-            <div>
-              <p className="text-xs text-gob-text-muted  uppercase tracking-wide">Precio</p>
-              <p className="text-sm text-gob-text ">
-                ${Number(offering.priceArs).toLocaleString("es-AR")}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Booking form */}
-        {userPets.length === 0 ? (
-          <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
-            <p className="text-sm text-gob-warning-text ">
-              Para reservar un turno necesitás tener al menos una mascota registrada.
-            </p>
-            <Link
-              href="/mis-mascotas/nueva"
-              className="inline-block text-sm text-gob-warning-text  underline underline-offset-4"
-            >
-              Registrar mascota →
-            </Link>
-          </div>
-        ) : (
-          <BookingForm slotId={slotId} userPets={userPets.map((r) => r.pet)} />
-        )}
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Confirmar reserva
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Revisá los datos antes de confirmar. La reserva es inmediata.
+        </p>
       </div>
-    </main>
+
+      {/* Summary card */}
+      <LnCard className="mb-[20px]">
+        <LnCardHead title="Resumen del turno" />
+        <LnCardBody>
+          <dl className="flex flex-col gap-[12px]">
+            <DetailRow label="Servicio">
+              <span className="font-medium">{offering.displayName}</span>
+              <span className="ml-[6px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                {kindDef?.label ?? offering.serviceKind}
+              </span>
+            </DetailRow>
+            <DetailRow label="Prestador">{providerLabel}</DetailRow>
+            <DetailRow label="Fecha y hora">
+              <span className="capitalize">{slotDate}</span> a las {slotTime}
+            </DetailRow>
+            {offering.priceArs !== null && (
+              <DetailRow label="Precio">
+                ${Number(offering.priceArs).toLocaleString("es-AR")}
+              </DetailRow>
+            )}
+          </dl>
+        </LnCardBody>
+      </LnCard>
+
+      {/* Booking form */}
+      {userPets.length === 0 ? (
+        <LnCallout tone="warn" title="Necesitás una mascota registrada">
+          <Link
+            href="/mis-mascotas/nueva"
+            className="text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            Registrar mascota →
+          </Link>
+        </LnCallout>
+      ) : (
+        <BookingForm slotId={slotId} userPets={userPets.map((r) => r.pet)} />
+      )}
+    </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// BookingForm — client wrapper isn't needed; pure server form with hidden fields
-// ────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        {label}
+      </dt>
+      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+    </div>
+  );
+}
 
 function BookingForm({
   slotId,
@@ -169,16 +174,19 @@ function BookingForm({
   }
 
   return (
-    <form action={submit} className="space-y-4">
-      <div className="space-y-1">
-        <label htmlFor="pet_select" className="text-sm font-medium text-gob-text-gray ">
-          ¿Para qué mascota es el turno?
+    <form action={submit} className="flex flex-col gap-[16px]">
+      <div>
+        <label
+          htmlFor="pet_select"
+          className="mb-[6px] block font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+        >
+          ¿Para qué mascota?
         </label>
         <select
           id="pet_select"
           name="petId"
           required
-          className="w-full text-sm border border-gob-border  rounded-lg px-3 py-2 bg-white  text-gob-text "
+          className="w-full appearance-none rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[10px] font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         >
           <option value="">Elegí una mascota…</option>
           {userPets.map((pet) => (
@@ -189,12 +197,9 @@ function BookingForm({
         </select>
       </div>
 
-      <button
-        type="submit"
-        className="w-full py-3 rounded-xl bg-gob-primary  text-white  font-medium hover:bg-gob-primary  transition-colors"
-      >
+      <LnButton type="submit" variant="primary" size="lg" block>
         Confirmar reserva
-      </button>
+      </LnButton>
     </form>
   );
 }

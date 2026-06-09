@@ -1,14 +1,12 @@
-// /mis-turnos — Owner's appointment list (Fase 4).
-//
-// Shows all appointments for the authenticated user, sectioned into:
-//   - Próximos: confirmed + slot starts_at >= now()
-//   - Pasados: attended OR (confirmed + slot starts_at < now())
-//   - Cancelados: cancelled or no-show
+// /mis-turnos — Libreta Nacional redesign.
+// AppointmentCard (component) is unchanged.
 
 import { desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { AppointmentCard } from "@/components/AppointmentCard";
+import { LnButton } from "@/components/ui/Button";
+import { LnSectionHead } from "@/components/ui/DocElements";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
@@ -66,80 +64,79 @@ export default async function MisTurnosPage() {
   );
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-10">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Mis turnos</h1>
-          <p className="text-sm text-gob-text-gray ">
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Header */}
+      <div className="mb-[24px] flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Mis turnos
+          </h1>
+          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
             {rows.length === 0
               ? "Todavía no tenés turnos reservados."
               : `${rows.length} turno${rows.length === 1 ? "" : "s"} en total.`}
           </p>
-        </header>
+        </div>
+        <Link href="/turnos/buscar">
+          <LnButton variant="primary" size="md">
+            Buscar turnos
+          </LnButton>
+        </Link>
+      </div>
 
-        {rows.length === 0 && (
-          <div className="border border-dashed border-gob-border-strong  rounded-xl p-10 text-center space-y-3">
-            <p className="text-gob-text-gray ">
-              Reservá tu primer turno buscando un servicio disponible.
-            </p>
-            <Link
-              href="/turnos/buscar"
-              className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
-            >
-              Buscar turnos
-            </Link>
-          </div>
-        )}
+      {rows.length === 0 && (
+        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
+          <p className="text-[13px] text-[var(--color-ln-mute)]">
+            Reservá tu primer turno buscando un servicio disponible.
+          </p>
+        </div>
+      )}
 
+      <div className="flex flex-col gap-[32px]">
         {upcoming.length > 0 && (
-          <Section title="Próximos">
-            {upcoming.map((r) => (
-              <AppointmentCard key={r.appointment.id} row={r} />
-            ))}
-          </Section>
+          <section>
+            <LnSectionHead num="01" title="Próximos" className="mb-[14px]" />
+            <ul className="flex flex-col gap-[10px]">
+              {upcoming.map((r) => (
+                <AppointmentCard key={r.appointment.id} row={r} />
+              ))}
+            </ul>
+          </section>
         )}
 
         {past.length > 0 && (
-          <Section title="Pasados">
-            {past.map((r) => (
-              <AppointmentCard key={r.appointment.id} row={r} />
-            ))}
-          </Section>
+          <section>
+            <LnSectionHead num="02" title="Pasados" className="mb-[14px]" />
+            <ul className="flex flex-col gap-[10px]">
+              {past.map((r) => (
+                <AppointmentCard key={r.appointment.id} row={r} />
+              ))}
+            </ul>
+          </section>
         )}
 
         {cancelled.length > 0 && (
-          <Section title="Cancelados">
-            {cancelled.map((r) => (
-              <AppointmentCard key={r.appointment.id} row={r} />
-            ))}
-          </Section>
+          <section>
+            <LnSectionHead num="03" title="Cancelados" className="mb-[14px]" />
+            <ul className="flex flex-col gap-[10px]">
+              {cancelled.map((r) => (
+                <AppointmentCard key={r.appointment.id} row={r} />
+              ))}
+            </ul>
+          </section>
         )}
-
-        <div className="pt-4 border-t border-gob-border ">
-          <Link
-            href="/mis-mascotas"
-            className="text-sm text-gob-text-gray  underline underline-offset-4"
-          >
-            ← Volver a mis mascotas
-          </Link>
-        </div>
       </div>
-    </main>
+
+      {/* Footer */}
+      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+        <span>Agenda de turnos</span>
+        <Link
+          href="/mis-mascotas"
+          className="normal-case text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Mis mascotas
+        </Link>
+      </div>
+    </div>
   );
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ────────────────────────────────────────────────────────────────────────────
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-medium text-gob-text ">{title}</h2>
-      <ul className="space-y-2">{children}</ul>
-    </section>
-  );
-}
-
-// AppointmentRow + AppointmentCard moved to components/AppointmentCard.tsx
-// — shared with /inicio dashboard. Import re-exported at top.

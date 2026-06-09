@@ -1,7 +1,5 @@
-// /mis-turnos/[appointmentToken] — Appointment detail (Fase 4).
-//
-// Shows full appointment info: pet, offering, slot, provider, status.
-// Cancellation is handled via URL-state sheet (?sheet=cancelar-turno).
+// /mis-turnos/[appointmentToken] — Libreta Nacional redesign.
+// CancelButton, MisTurnosSheetMounter (client components) unchanged.
 
 import { eq } from "drizzle-orm";
 import Link from "next/link";
@@ -9,6 +7,8 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -52,8 +52,6 @@ export default async function AppointmentDetailPage({
     .limit(1);
 
   if (!row) notFound();
-
-  // Ownership check — users can only see their own appointments.
   if (row.appointment.ownerUserId !== user.id) notFound();
 
   const { appointment, slot, offering, pet, org, provider } = row;
@@ -79,13 +77,9 @@ export default async function AppointmentDetailPage({
     minute: "2-digit",
   });
 
-  const statusBadge = STATUS_BADGE[appointment.status] ?? STATUS_BADGE.confirmed;
+  const statusConfig = STATUS_CONFIG[appointment.status] ?? STATUS_CONFIG.confirmed;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
-  // QR check-in (handoff P4-9 / D10). Encodes the appointment token so
-  // the clinic's check-in flow can resolve it via a single scan. The
-  // alphanumeric code below the QR is the fallback when the scanner
-  // can't read a screen (glare, small phone, etc).
   const showCheckInQr = appointment.status === "confirmed";
   const qrSvg = showCheckInQr
     ? await QRCode.toString(`mimar://appointment/${appointmentToken}`, {
@@ -97,138 +91,146 @@ export default async function AppointmentDetailPage({
     : null;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href="/mis-turnos"
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4"
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/mis-turnos"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mis turnos
+      </Link>
+
+      {/* Header */}
+      <div className="mb-[24px] flex items-start justify-between gap-3">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          {offering.displayName}
+        </h1>
+        <span
+          className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
         >
-          ← Volver a mis turnos
-        </Link>
+          {statusConfig.label}
+        </span>
+      </div>
 
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold text-gob-text ">{offering.displayName}</h1>
-          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}>
-            {statusBadge.label}
-          </span>
-        </div>
-
-        {/* Details */}
-        <dl className="space-y-4">
-          <DetailRow label="Mascota">
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}`}
-              className="underline underline-offset-4 hover:text-gob-text-gray "
-            >
-              {pet.name}
-            </Link>
-          </DetailRow>
-
-          <DetailRow label="Tipo de servicio">{kindDef?.label ?? offering.serviceKind}</DetailRow>
-
-          <DetailRow label="Prestador">{providerLabel}</DetailRow>
-
-          <DetailRow label="Fecha y hora">
-            <span className="capitalize">{slotDate}</span> a las {slotTime}
-          </DetailRow>
-
-          <DetailRow label="Duración">{offering.durationMinutes} minutos</DetailRow>
-
-          {offering.priceArs !== null ? (
-            <DetailRow label="Precio">
-              ${Number(offering.priceArs).toLocaleString("es-AR")}
+      {/* Details */}
+      <LnCard className="mb-[20px]">
+        <LnCardHead title="Detalle del turno" />
+        <LnCardBody>
+          <dl className="flex flex-col gap-[12px]">
+            <DetailRow label="Mascota">
+              <Link
+                href={`/mis-mascotas/${pet.publicToken}`}
+                className="text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                {pet.name}
+              </Link>
             </DetailRow>
-          ) : (
-            <DetailRow label="Precio">Gratuito</DetailRow>
-          )}
+            <DetailRow label="Tipo de servicio">{kindDef?.label ?? offering.serviceKind}</DetailRow>
+            <DetailRow label="Prestador">{providerLabel}</DetailRow>
+            <DetailRow label="Fecha y hora">
+              <span className="capitalize">{slotDate}</span> a las {slotTime}
+            </DetailRow>
+            <DetailRow label="Duración">{offering.durationMinutes} minutos</DetailRow>
+            <DetailRow label="Precio">
+              {offering.priceArs !== null
+                ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
+                : "Gratuito"}
+            </DetailRow>
+            {org?.jurisdictionLocality && (
+              <DetailRow label="Localidad">{org.jurisdictionLocality}</DetailRow>
+            )}
+            {org?.phone && <DetailRow label="Teléfono">{org.phone}</DetailRow>}
+            {!org && provider?.phone && <DetailRow label="Teléfono">{provider.phone}</DetailRow>}
+          </dl>
+        </LnCardBody>
+      </LnCard>
 
-          {org?.jurisdictionLocality && (
-            <DetailRow label="Localidad">{org.jurisdictionLocality}</DetailRow>
-          )}
-
-          {org?.phone && <DetailRow label="Teléfono contacto">{org.phone}</DetailRow>}
-          {!org && provider?.phone && (
-            <DetailRow label="Teléfono contacto">{provider.phone}</DetailRow>
-          )}
-        </dl>
-
-        {/* QR check-in card (handoff P4-9 / D10). Only visible while the
-            appointment is confirmed (not after attended/cancelled). */}
-        {showCheckInQr && qrSvg && (
-          <section
-            aria-labelledby="checkin-h"
-            className="rounded-2xl border border-gob-border  bg-white  p-5 space-y-3"
-          >
-            <h2 id="checkin-h" className="text-base font-semibold text-gob-text ">
-              Para check-in en la clínica
-            </h2>
-            <p className="text-xs text-gob-text-gray ">
+      {/* QR check-in */}
+      {showCheckInQr && qrSvg && (
+        <LnCard className="mb-[20px]">
+          <LnCardHead title="Check-in en la clínica" label="QR" />
+          <LnCardBody className="flex flex-col items-center gap-[10px]">
+            <p className="self-start text-[12.5px] text-[var(--color-ln-ink-2)]">
               Mostrá este QR cuando llegues. Si el escáner no lo lee, dictá el código de abajo.
             </p>
             <div
-              className="mx-auto w-fit p-2 bg-white rounded-lg border border-gob-border"
+              className="rounded-[4px] border border-[var(--color-ln-line)] bg-white p-[8px]"
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="text-center text-lg font-mono font-bold tracking-widest text-gob-text  select-all">
+            <p className="select-all text-center font-[var(--font-ln-mono)] text-[18px] font-bold tracking-widest text-[var(--color-ln-ink)]">
               {appointmentToken}
             </p>
-          </section>
-        )}
+          </LnCardBody>
+        </LnCard>
+      )}
 
-        {/* Cancellation — Fase 6 */}
-        {canCancel && (
-          <div className="pt-2 border-t border-gob-border ">
-            <Suspense>
-              <CancelButton />
-            </Suspense>
-          </div>
-        )}
+      {/* Attended notice */}
+      {appointment.status === "attended" && (
+        <div className="mb-[20px]">
+          <LnCallout tone="azul">
+            Asististe a este turno. El registro médico quedó guardado en la libreta de {pet.name}.
+          </LnCallout>
+        </div>
+      )}
 
-        {appointment.status === "attended" && (
-          <div className="rounded-xl border border-gob-info  bg-gob-info/10  p-4">
-            <p className="text-sm text-gob-azul-link ">
-              Asististe a este turno. El registro médico quedó guardado en la libreta de {pet.name}.
-            </p>
-          </div>
-        )}
-      </div>
-      {/* Sheet mounter — reads ?sheet= param and renders the matching sheet */}
+      {/* Cancel */}
+      {canCancel && (
+        <div className="border-t border-[var(--color-ln-line-2)] pt-[16px]">
+          <Suspense>
+            <CancelButton />
+          </Suspense>
+        </div>
+      )}
+
+      {/* Sheet mounter */}
       <Suspense>
         <MisTurnosSheetMounter appointmentToken={appointmentToken} />
       </Suspense>
-    </main>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ────────────────────────────────────────────────────────────────────────────
-
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs text-gob-text-muted  uppercase tracking-wide">{label}</dt>
-      <dd className="text-sm text-gob-text  mt-0.5">{children}</dd>
     </div>
   );
 }
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        {label}
+      </dt>
+      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+    </div>
+  );
+}
+
+type StatusConfig = { label: string; bg: string; text: string; border: string };
+
+const STATUS_CONFIG: Record<string, StatusConfig> = {
   confirmed: {
     label: "Confirmado",
-    className: "bg-gob-success/10 text-gob-success  ",
+    bg: "bg-[#eef6f0]",
+    text: "text-[var(--color-ln-ok)]",
+    border: "border-[#c8e2d2]",
   },
   attended: {
     label: "Asistido",
-    className: "bg-gob-info/10 text-gob-azul-link  ",
+    bg: "bg-[var(--color-ln-celeste-050)]",
+    text: "text-[var(--color-ln-azul)]",
+    border: "border-[var(--color-ln-celeste-100)]",
   },
   cancelled: {
     label: "Cancelado",
-    className: "bg-gob-surface-alt text-gob-text  ",
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
   },
   no_show: {
     label: "No asistió",
-    className: "bg-gob-danger/10 text-gob-danger  ",
+    bg: "bg-[#fbe9e6]",
+    text: "text-[var(--color-ln-err)]",
+    border: "border-[#f1c6bf]",
   },
 };
