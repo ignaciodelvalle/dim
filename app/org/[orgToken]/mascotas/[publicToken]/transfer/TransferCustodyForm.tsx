@@ -29,7 +29,7 @@ export function TransferCustodyForm({
   return (
     <form action={formAction} className="space-y-5">
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gob-text-muted">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
           Destino
         </h2>
         <Field
@@ -59,7 +59,7 @@ export function TransferCustodyForm({
         </Field>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm">Rol en el destino</legend>
+          <legend className="text-[12px] text-ln-op-ink-2">Rol en el destino</legend>
           <label className="flex items-start gap-2">
             <input
               type="radio"
@@ -69,8 +69,10 @@ export function TransferCustodyForm({
               className="mt-1"
             />
             <span>
-              <span className="block text-sm font-medium">Custodia temporal</span>
-              <span className="block text-xs text-gob-text-muted">
+              <span className="block text-[13px] font-medium text-ln-op-ink">
+                Custodia temporal
+              </span>
+              <span className="block text-[11px] text-ln-op-mute">
                 El destino se hace cargo con vistas a rehoming (igual que un intake).
               </span>
             </span>
@@ -78,8 +80,10 @@ export function TransferCustodyForm({
           <label className="flex items-start gap-2">
             <input type="radio" name="newRole" value="owner" className="mt-1" />
             <span>
-              <span className="block text-sm font-medium">Dueño/a permanente</span>
-              <span className="block text-xs text-gob-text-muted">
+              <span className="block text-[13px] font-medium text-ln-op-ink">
+                Dueño/a permanente
+              </span>
+              <span className="block text-[11px] text-ln-op-mute">
                 El destino mantiene al animal indefinidamente (santuario, decomiso sin rehoming).
               </span>
             </span>
@@ -101,13 +105,13 @@ export function TransferCustodyForm({
         </Field>
       </section>
 
-      <p className="text-xs rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
+      <p className="text-[11px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
         Si el animal tiene tránsito activo, ese registro se cierra automáticamente y se notifica al
         tránsito.
       </p>
 
       {state.error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -115,7 +119,7 @@ export function TransferCustodyForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded bg-gob-primary text-white   disabled:opacity-50"
+        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
       >
         {isPending ? "Transfiriendo…" : "Transferir custodia"}
       </button>
