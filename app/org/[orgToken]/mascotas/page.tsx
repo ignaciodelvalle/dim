@@ -13,6 +13,8 @@ import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructu
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
+
 import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
 
 const ROLE_PRIORITY: Record<string, number> = {
@@ -51,16 +53,16 @@ export default async function OrgMascotasPage({
 
   if (!canRead) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Para ver el listado de animales necesitás el permiso{" "}
-            <code className="text-xs">pet.read_held</code>.
+            <code className="text-[11px]">pet.read_held</code>.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al panel
           </Link>
@@ -159,15 +161,18 @@ export default async function OrgMascotasPage({
   const pendingProposalPetIdsArray = Array.from(pendingProposalPetIds);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-              {organization.displayName}
-            </p>
-            <h1 className="text-3xl font-semibold">Animales en custodia</h1>
-            <p className="text-sm text-gob-text-gray ">
+            <OpCrumbs
+              items={[
+                { label: "Panel", href: `/org/${orgToken}` },
+                { label: "Animales en custodia" },
+              ]}
+            />
+            <h1 className="text-[22px] font-semibold text-ln-op-ink">Animales en custodia</h1>
+            <p className="text-[13px] text-ln-op-ink-2">
               {cards.length === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."
                 : `${cards.length} animal${cards.length === 1 ? "" : "es"} bajo custodia activa.`}
@@ -176,7 +181,7 @@ export default async function OrgMascotasPage({
           {canIntake && (
             <Link
               href={`/org/${orgToken}/intake`}
-              className="px-4 py-2 rounded bg-gob-primary text-white   text-sm"
+              className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700"
             >
               Registrar ingreso
             </Link>
@@ -184,31 +189,62 @@ export default async function OrgMascotasPage({
         </header>
 
         {recentlyCreated && (
-          <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
-            Ingreso registrado. Token público: <code>{recentlyCreated}</code>.
-          </p>
+          <OpCallout
+            title="Ingreso registrado"
+            body={
+              <>
+                Token público: <code className="font-ln-mono">{recentlyCreated}</code>.
+              </>
+            }
+            icon="✓"
+          />
         )}
         {recentlyFostered && (
-          <p className="text-sm rounded border border-gob-info bg-gob-info/10 px-3 py-2 text-gob-azul-link   ">
-            Tránsito asignado para <code>{recentlyFostered}</code>.
-          </p>
+          <OpCallout
+            title="Tránsito asignado"
+            body={
+              <>
+                Tránsito asignado para <code className="font-ln-mono">{recentlyFostered}</code>.
+              </>
+            }
+            icon="🏠"
+          />
         )}
         {recentlyFosterEnded && (
-          <p className="text-sm rounded border border-gob-border-strong bg-gob-surface-alt px-3 py-2 text-gob-text   ">
-            Tránsito cerrado para <code>{recentlyFosterEnded}</code>.
-          </p>
+          <OpCallout
+            title="Tránsito cerrado"
+            body={
+              <>
+                Tránsito cerrado para <code className="font-ln-mono">{recentlyFosterEnded}</code>.
+              </>
+            }
+            icon="✓"
+          />
         )}
         {recentlyTransferred && (
-          <p className="text-sm rounded border border-gob-border-strong bg-gob-surface-alt px-3 py-2 text-gob-text   ">
-            Custodia transferida para <code>{recentlyTransferred}</code>. El animal sale del listado
-            y aparece en el destino.
-          </p>
+          <OpCallout
+            title="Custodia transferida"
+            body={
+              <>
+                Custodia transferida para{" "}
+                <code className="font-ln-mono">{recentlyTransferred}</code>. El animal sale del
+                listado y aparece en el destino.
+              </>
+            }
+            icon="→"
+          />
         )}
         {recentlyAdopted && (
-          <p className="text-sm rounded border border-gob-success bg-gob-success/10 px-3 py-2 text-gob-success   ">
-            Adopción finalizada para <code>{recentlyAdopted}</code>. El animal pasa a un nuevo dueño
-            y sale del listado de custodia.
-          </p>
+          <OpCallout
+            title="Adopción finalizada"
+            body={
+              <>
+                Adopción finalizada para <code className="font-ln-mono">{recentlyAdopted}</code>. El
+                animal pasa a un nuevo dueño y sale del listado de custodia.
+              </>
+            }
+            icon="✓"
+          />
         )}
 
         <OrgMascotasBulkList
@@ -243,8 +279,11 @@ export default async function OrgMascotasPage({
           canEventWrite={canEventWrite}
         />
 
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
+        <footer className="pt-4 border-t border-ln-op-line">
+          <Link
+            href={`/org/${orgToken}`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
             ← Volver al panel
           </Link>
         </footer>
