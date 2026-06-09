@@ -88,9 +88,7 @@ export function BulkApprovalQueueList({
 
   if (items.length === 0) {
     return (
-      <p className="text-sm text-gob-text-muted ">
-        Cuando lleguen nuevas solicitudes vas a verlas acá.
-      </p>
+      <p className="text-sm text-ln-op-mute">Cuando lleguen nuevas solicitudes vas a verlas acá.</p>
     );
   }
 
@@ -99,11 +97,11 @@ export function BulkApprovalQueueList({
 
   return (
     <div className="space-y-3 pb-32">
-      <div className="flex items-center gap-3 text-xs text-gob-text-muted">
+      <div className="flex items-center gap-3 text-xs text-ln-op-mute">
         <button
           type="button"
           onClick={allSelected ? clear : selectAll}
-          className="underline hover:text-gob-text "
+          className="underline hover:text-ln-op-ink"
         >
           {allSelected ? "Deseleccionar todo" : `Seleccionar todo (${items.length})`}
         </button>
@@ -116,7 +114,7 @@ export function BulkApprovalQueueList({
             <li
               key={item.publicToken}
               className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${
-                isSelected ? "border-gob-border-strong  bg-gob-surface-alt " : "border-gob-border "
+                isSelected ? "border-ln-op-line bg-ln-op-stripe" : "border-ln-op-line"
               }`}
             >
               <Checkbox
@@ -130,11 +128,11 @@ export function BulkApprovalQueueList({
                 href={`${detailUrlPrefix}/${item.publicToken}`}
                 className="flex-1 min-w-0 space-y-0.5"
               >
-                <p className="text-sm font-medium text-gob-text ">{item.typeLabel}</p>
-                <p className="text-xs text-gob-text-muted ">
+                <p className="text-sm font-medium text-ln-op-ink">{item.typeLabel}</p>
+                <p className="text-xs text-ln-op-mute">
                   {item.applicantName} · {item.jurisdiction}
                 </p>
-                <p className="text-[10px] text-gob-text-muted  font-mono">
+                <p className="text-[10px] text-ln-op-mute font-mono">
                   {item.publicToken} · {item.createdAt}
                 </p>
               </Link>
@@ -146,7 +144,7 @@ export function BulkApprovalQueueList({
       {lastResult && <ResultPanel result={lastResult} onDismiss={() => setLastResult(null)} />}
 
       {someSelected && (
-        <div className="fixed bottom-0 left-0 right-0 border-t border-gob-border  bg-white  z-50">
+        <div className="fixed bottom-0 left-0 right-0 border-t border-ln-op-line bg-ln-op-card z-50">
           <div className="max-w-5xl mx-auto px-6 py-3 space-y-3">
             {mode === "none" && (
               <div className="flex items-center justify-between gap-3">
@@ -158,21 +156,21 @@ export function BulkApprovalQueueList({
                   <button
                     type="button"
                     onClick={clear}
-                    className="text-xs text-gob-text-muted hover:text-gob-text "
+                    className="text-xs text-ln-op-mute hover:text-ln-op-ink"
                   >
                     Limpiar
                   </button>
                   <button
                     type="button"
                     onClick={() => setMode("reject")}
-                    className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger hover:bg-gob-danger/10   "
+                    className="px-3 py-1.5 rounded text-sm border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg"
                   >
                     Rechazar
                   </button>
                   <button
                     type="button"
                     onClick={() => setMode("approve")}
-                    className="px-3 py-1.5 rounded text-sm bg-gob-success text-white hover:bg-gob-success"
+                    className="px-3 py-1.5 rounded text-sm bg-ln-op-ok text-white hover:bg-ln-op-ok"
                   >
                     Aprobar
                   </button>
@@ -187,7 +185,7 @@ export function BulkApprovalQueueList({
                 value={decisionNotes}
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar aprobación"
-                confirmClass="bg-gob-success text-white hover:bg-gob-success"
+                confirmClass="bg-ln-op-ok text-white hover:bg-ln-op-ok"
                 pending={pending}
                 onConfirm={runApprove}
                 onCancel={() => setMode("none")}
@@ -201,7 +199,7 @@ export function BulkApprovalQueueList({
                 value={decisionNotes}
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar rechazo"
-                confirmClass="bg-gob-primary  text-white  hover:bg-gob-primary"
+                confirmClass="bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                 confirmDisabled={decisionNotes.trim().length < 5}
                 pending={pending}
                 onConfirm={runReject}
@@ -246,14 +244,14 @@ function ConfirmRow({
         onChange={(e) => onChange(e.target.value)}
         rows={2}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+        className="w-full px-3 py-2 rounded-lg border border-ln-op-line bg-ln-op-card text-sm"
       />
       <div className="flex gap-2 justify-end">
         <button
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="px-3 py-1.5 rounded text-sm border border-gob-border-strong "
+          className="px-3 py-1.5 rounded text-sm border border-ln-op-line"
         >
           Cancelar
         </button>
@@ -272,7 +270,7 @@ function ConfirmRow({
 
 function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () => void }) {
   return (
-    <div className="rounded-lg border border-gob-border-strong  p-3 space-y-2 text-sm">
+    <div className="rounded-lg border border-ln-op-line p-3 space-y-2 text-sm">
       <div className="flex items-baseline justify-between">
         <p className="font-medium">
           {result.succeeded.length} OK · {result.failed.length} fallaron
@@ -280,13 +278,13 @@ function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () 
         <button
           type="button"
           onClick={onDismiss}
-          className="text-xs text-gob-text-muted hover:text-gob-text "
+          className="text-xs text-ln-op-mute hover:text-ln-op-ink"
         >
           Cerrar
         </button>
       </div>
       {result.failed.length > 0 && (
-        <ul className="text-xs text-gob-danger  space-y-0.5">
+        <ul className="text-xs text-ln-op-danger space-y-0.5">
           {result.failed.map((f) => (
             <li key={f.id}>
               <span className="font-mono">{f.id}</span> — {f.reason}
@@ -294,7 +292,7 @@ function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () 
           ))}
         </ul>
       )}
-      <p className="text-[10px] text-gob-text-muted font-mono">bulk: {result.bulkActionId}</p>
+      <p className="text-[10px] text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
     </div>
   );
 }
