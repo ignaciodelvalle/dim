@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 
+import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { resolveBusinessRule } from "@/lib/business-rules-resolver";
@@ -16,12 +17,12 @@ export const dynamic = "force-dynamic";
 const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
   ppp_breed_list: "Lista de razas PPP",
   ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestación requeridos",
+  ppp_attestation_required_registries: "Registros de atestacion requeridos",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
   default: "Default nacional",
-  country: "Override país (AR)",
+  country: "Override pais (AR)",
   province: "Override provincia",
   locality: "Override localidad",
 };
@@ -55,50 +56,50 @@ export default async function GobReglasPage() {
   );
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-semibold text-gob-text ">
-            Reglas que aplican a tu jurisdicción
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Vista de solo lectura. La administración de reglas la hace el admin nacional desde{" "}
-            <Link href="/admin/jurisdicciones" className="underline underline-offset-4">
-              /admin/jurisdicciones
-            </Link>
-            .
-          </p>
-        </header>
-
-        {groups.map((g, idx) => (
-          <section
-            key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}
-            className="rounded-2xl border border-gob-border  overflow-hidden"
+    <div className="space-y-6 max-w-3xl">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          MiMAR Gobierno · Reglas
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Reglas que aplican a tu jurisdiccion
+        </h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          Vista de solo lectura. La administracion de reglas la hace el admin nacional desde{" "}
+          <Link
+            href="/admin/jurisdicciones"
+            className="underline underline-offset-4 text-ln-op-azul"
           >
-            <div className="px-4 py-3 bg-gob-surface-alt  border-b border-gob-border ">
-              <h2 className="text-sm font-semibold text-gob-text ">
-                AR · {g.scope.province ?? "(nivel país)"} ·{" "}
-                {g.scope.locality ?? "(toda la provincia)"}
-              </h2>
-            </div>
-            <ul className="divide-y divide-gob-border ">
+            /admin/jurisdicciones
+          </Link>
+          .
+        </p>
+      </header>
+
+      {groups.map((g, idx) => (
+        <OpCard key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}>
+          <OpCardHead
+            title={`AR · ${g.scope.province ?? "(nivel pais)"} · ${g.scope.locality ?? "(toda la provincia)"}`}
+          />
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line-2">
               {g.resolved.map(({ ruleType, payload, source }) => (
                 <li key={ruleType} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium text-gob-text  text-sm">
+                    <p className="text-[13px] font-medium text-ln-op-ink">
                       {RULE_TYPE_LABEL[ruleType]}
                     </p>
-                    <span className="text-xs text-gob-text-muted ">{SOURCE_LABEL[source]}</span>
+                    <span className="text-[12px] text-ln-op-mute">{SOURCE_LABEL[source]}</span>
                   </div>
-                  <pre className="text-xs bg-gob-surface-alt  rounded p-3 overflow-x-auto">
+                  <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
                     {JSON.stringify(payload, null, 2)}
                   </pre>
                 </li>
               ))}
             </ul>
-          </section>
-        ))}
-      </div>
-    </main>
+          </OpCardBody>
+        </OpCard>
+      ))}
+    </div>
   );
 }

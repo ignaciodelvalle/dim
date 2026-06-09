@@ -25,7 +25,7 @@ export function ProposeUserActions({
 
   if (!canProposeVet) {
     return (
-      <p className="text-xs text-gob-text-muted ">
+      <p className="text-[12px] text-ln-op-mute">
         Sin acciones disponibles desde tu rol para este usuario.
       </p>
     );
@@ -48,11 +48,11 @@ function ActionButton({
   tone?: "default" | "danger";
 }) {
   const base =
-    "text-xs px-3 py-1.5 rounded-md transition-opacity hover:opacity-90 disabled:opacity-50";
+    "text-[12px] px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-90 disabled:opacity-50";
   const variant =
     tone === "danger"
-      ? "border border-gob-warning  text-gob-warning-text "
-      : "border border-gob-border  text-gob-text-gray ";
+      ? "border border-ln-op-warn text-ln-op-warn"
+      : "border border-ln-op-line text-ln-op-ink-2";
   return (
     <button type="button" onClick={onClick} className={`${base} ${variant}`}>
       {children}
@@ -75,7 +75,7 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
 
   if (submitted) {
     return (
-      <p className="text-xs text-gob-success ">
+      <p className="text-[12px] text-ln-op-ok">
         Solicitud creada. {target.displayName} fue notificado.
       </p>
     );
@@ -99,8 +99,8 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
   }
 
   return (
-    <div className="rounded border border-gob-border  p-3 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-gob-text-muted ">
+    <div className="rounded-[6px] border border-ln-op-line p-3 space-y-2">
+      <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
         Proponer rol vet para {target.displayName}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -136,20 +136,20 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
           inputMode="numeric"
         />
       </div>
-      {error && <p className="text-xs text-gob-danger ">{error}</p>}
+      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending}
-          className="text-xs px-3 py-1.5 rounded-md bg-gob-primary  text-white  hover:opacity-90 disabled:opacity-50"
+          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors disabled:opacity-50"
         >
           {pending ? "Creando..." : "Crear solicitud"}
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt "
+          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
         >
           Cancelar
         </button>
@@ -172,10 +172,7 @@ function Field({
   const id = useId();
   return (
     <div className="space-y-1">
-      <label
-        htmlFor={id}
-        className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
-      >
+      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
       <input
@@ -184,7 +181,7 @@ function Field({
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-gob-border  bg-white  px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gob-primary "
+        className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );
@@ -204,10 +201,7 @@ function Textarea({
   const id = useId();
   return (
     <div className="space-y-1">
-      <label
-        htmlFor={id}
-        className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
-      >
+      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
       <textarea
@@ -215,7 +209,7 @@ function Textarea({
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-gob-border  bg-white  px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gob-primary "
+        className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );
