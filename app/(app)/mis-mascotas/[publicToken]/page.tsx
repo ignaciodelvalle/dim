@@ -1222,8 +1222,8 @@ export default async function PetDetailPage({
                   />
                 ) : null}
 
-                {/* Tracking placeholder */}
-                <PetTrackingPlaceholder href={`/mis-mascotas/${pet.publicToken}/tracking`} />
+                {/* Tracking placeholder — display-only until the pairing flow ships. */}
+                <PetTrackingPlaceholder />
 
                 {/* Travel docs */}
                 <PetTravelDocs
