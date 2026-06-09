@@ -3,9 +3,12 @@
 // re-checks `intake.create` defensively so this page is best-effort UX, not
 // the security boundary.
 
+import Link from "next/link";
+
+import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import Link from "next/link";
+
 import { IntakeForm } from "./IntakeForm";
 
 export default async function IntakePage({
@@ -18,47 +21,52 @@ export default async function IntakePage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("intake.create")) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-[13px] text-ln-op-mute">
             Para registrar ingresos necesitás el permiso{" "}
-            <code className="text-xs">intake.create</code>. Pedíselo a un administrador desde el
-            panel.
+            <code className="text-[12px] font-mono">intake.create</code>. Pedíselo a un
+            administrador desde el panel.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al panel
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            {organization.displayName}
-          </p>
-          <h1 className="text-3xl font-semibold">Registrar ingreso</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Cargá los datos básicos del animal y el motivo de ingreso. La organización queda como
-            custodia temporal hasta que se asigne tránsito o se concrete una adopción.
-          </p>
-        </header>
+    <div className="max-w-2xl space-y-6">
+      <OpCrumbs
+        items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Registrar ingreso" }]}
+      />
 
-        <IntakeForm orgToken={orgToken} />
+      <header className="space-y-1">
+        <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
+          {organization.displayName}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Registrar ingreso</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Cargá los datos básicos del animal y el motivo de ingreso. La organización queda como
+          custodia temporal hasta que se asigne tránsito o se concrete una adopción.
+        </p>
+      </header>
 
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
-            ← Volver al panel
-          </Link>
-        </footer>
-      </div>
-    </main>
+      <IntakeForm orgToken={orgToken} />
+
+      <footer className="pt-4 border-t border-ln-op-line">
+        <Link
+          href={`/org/${orgToken}`}
+          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+        >
+          ← Volver al panel
+        </Link>
+      </footer>
+    </div>
   );
 }

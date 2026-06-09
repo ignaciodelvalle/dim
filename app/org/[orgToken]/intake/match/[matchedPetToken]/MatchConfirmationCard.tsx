@@ -7,10 +7,11 @@
 //   "Es la misma mascota" → confirmChipMatchAction(decision='same')
 //   "No es la misma"     → confirmChipMatchAction(decision='not_same')
 
+import { useState, useTransition } from "react";
+
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
+import { OpBreach, OpPill } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { useState } from "react";
 
 type Props = {
   matchedPetToken: string;
@@ -73,48 +74,42 @@ export function MatchConfirmationCard({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-gob-warning bg-gob-warning/10   p-4 space-y-1">
-        <p className="text-sm font-semibold text-gob-warning-text ">
-          Posible coincidencia detectada
-        </p>
-        <p className="text-sm text-gob-warning-text ">
-          El microchip ya figura en MiMAR asociado a la siguiente mascota.
-        </p>
-      </div>
+      <OpBreach
+        title="Posible coincidencia detectada"
+        detail="El microchip ya figura en MiMAR asociado a la siguiente mascota."
+      />
 
-      <div className="rounded-xl border border-gob-border  overflow-hidden">
+      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card overflow-hidden">
         {petPhotoUrl && (
-          <div className="aspect-video overflow-hidden bg-gob-surface-alt ">
+          <div className="aspect-video overflow-hidden bg-ln-op-stripe">
             <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
           </div>
         )}
 
         <div className="p-4 space-y-3">
           <div>
-            <h2 className="text-2xl font-semibold">{petName}</h2>
-            {speciesLine && <p className="text-sm text-gob-text-gray ">{speciesLine}</p>}
-            {details && <p className="text-sm text-gob-text-muted ">{details}</p>}
+            <h2 className="text-[18px] font-semibold text-ln-op-ink">{petName}</h2>
+            {speciesLine && <p className="text-[13px] text-ln-op-ink-2">{speciesLine}</p>}
+            {details && <p className="text-[12px] text-ln-op-mute">{details}</p>}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gob-danger/10 text-gob-danger  ">
-              Perdida
-            </span>
+            <OpPill tone="danger">Perdida</OpPill>
           </div>
 
           {ownerFirstName && (
-            <p className="text-sm">
-              <span className="text-gob-text-muted">Dueno/a: </span>
+            <p className="text-[13px] text-ln-op-ink">
+              <span className="text-ln-op-mute">Dueno/a: </span>
               <span className="font-medium">{ownerFirstName}</span>
             </p>
           )}
 
           {lastLocationText && (
-            <p className="text-sm">
-              <span className="text-gob-text-muted">Ultima ubicacion conocida: </span>
+            <p className="text-[13px] text-ln-op-ink">
+              <span className="text-ln-op-mute">Ultima ubicacion conocida: </span>
               <span>{lastLocationText}</span>
               {lastLocationDate && (
-                <span className="text-gob-text-muted ml-1">
+                <span className="text-ln-op-mute ml-1">
                   ({new Date(lastLocationDate).toLocaleDateString("es-AR")})
                 </span>
               )}
@@ -124,7 +119,7 @@ export function MatchConfirmationCard({
       </div>
 
       {error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
           {error}
         </p>
       )}
@@ -134,7 +129,7 @@ export function MatchConfirmationCard({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50 transition-colors"
+          className="flex-1 rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
         </button>
@@ -142,13 +137,13 @@ export function MatchConfirmationCard({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 px-4 py-3 rounded-lg border border-gob-warning bg-gob-warning/10 text-gob-warning-text font-medium hover:bg-gob-warning/10 disabled:opacity-50     transition-colors"
+          className="flex-1 rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 px-4 py-3 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-warn/20 disabled:opacity-50"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>
       </div>
 
-      <p className="text-xs text-gob-text-muted ">
+      <p className="text-[12px] text-ln-op-mute">
         Si es la misma mascota, se notificara al dueno/a para coordinar la devolucion. Si no es la
         misma, esta accion queda registrada y podes continuar el ingreso normalmente.
       </p>

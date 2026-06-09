@@ -39,7 +39,8 @@ const INTAKE_REASONS = [
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 
-const inputCls = "w-full rounded border border-gob-border-strong  bg-white  px-3 py-2";
+const inputCls =
+  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
@@ -134,13 +135,13 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     >
       {/* Step 1 — Identificación */}
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-        <p className="text-sm text-gob-text-gray ">
+        <p className="text-[13px] text-ln-op-ink-2">
           Si la mascota tiene microchip o tatuaje, ingrésalos. Si el chip coincide con una mascota
           perdida en MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-sm">Número de microchip</span>
+            <span className="text-[13px] text-ln-op-ink">Número de microchip</span>
             <input
               type="text"
               value={microchipId}
@@ -151,7 +152,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm">País del chip</span>
+            <span className="text-[13px] text-ln-op-ink">País del chip</span>
             <input
               type="text"
               value={microchipCountryCode}
@@ -162,7 +163,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </label>
         </div>
         <label className="block space-y-1">
-          <span className="text-sm">Código de tatuaje</span>
+          <span className="text-[13px] text-ln-op-ink">Código de tatuaje</span>
           <input
             type="text"
             value={tattooCode}
@@ -171,14 +172,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             placeholder="Ej: K9-2014, A1B2"
             className={inputCls}
           />
-          <span className="text-xs text-gob-text-muted">
+          <span className="text-[12px] text-ln-op-mute">
             Opcional. Se verificará contra registros existentes antes de guardar.
           </span>
         </label>
         <button
           type="button"
           onClick={() => setStep(2)}
-          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           {microchipId ? "Continuar (chequearemos el chip al confirmar)" : "Continuar sin chip"}
         </button>
@@ -188,7 +189,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-sm">Nombre o alias temporal *</span>
+            <span className="text-[13px] text-ln-op-ink">Nombre o alias temporal *</span>
             <input
               type="text"
               value={name}
@@ -200,7 +201,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm">Especie *</span>
+            <span className="text-[13px] text-ln-op-ink">Especie *</span>
             <select
               value={species}
               onChange={(e) => setSpecies(e.target.value)}
@@ -218,10 +219,10 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         <fieldset className="space-y-1">
-          <legend className="text-sm">Sexo</legend>
-          <div className="flex flex-wrap gap-3 text-sm">
+          <legend className="text-[13px] text-ln-op-ink">Sexo</legend>
+          <div className="flex flex-wrap gap-3 text-[13px]">
             {(["unknown", "male", "female"] as const).map((v) => (
-              <label key={v} className="flex items-center gap-1">
+              <label key={v} className="flex items-center gap-1 text-ln-op-ink">
                 <input
                   type="radio"
                   name="sex"
@@ -237,7 +238,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-sm">Edad — años</span>
+            <span className="text-[13px] text-ln-op-ink">Edad — años</span>
             <input
               type="number"
               min={0}
@@ -248,7 +249,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm">Edad — meses</span>
+            <span className="text-[13px] text-ln-op-ink">Edad — meses</span>
             <input
               type="number"
               min={0}
@@ -262,7 +263,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-sm">Raza</span>
+            <span className="text-[13px] text-ln-op-ink">Raza</span>
             <input
               type="text"
               value={breed}
@@ -272,7 +273,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-sm">Color / pelaje</span>
+            <span className="text-[13px] text-ln-op-ink">Color / pelaje</span>
             <input
               type="text"
               value={color}
@@ -284,7 +285,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         <label className="block space-y-1">
-          <span className="text-sm">Señas particulares</span>
+          <span className="text-[13px] text-ln-op-ink">Señas particulares</span>
           <textarea
             value={distinguishingFeatures}
             onChange={(e) => setDistinguishingFeatures(e.target.value)}
@@ -299,7 +300,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={() => setStep(3)}
           disabled={!name || !species}
-          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium disabled:opacity-50 transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -308,10 +309,10 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       {/* Step 3 — Estado */}
       <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
         <fieldset className="space-y-1">
-          <legend className="text-sm">Motivo del ingreso *</legend>
-          <div className="flex flex-col gap-1 text-sm">
+          <legend className="text-[13px] text-ln-op-ink">Motivo del ingreso *</legend>
+          <div className="flex flex-col gap-1 text-[13px]">
             {INTAKE_REASONS.map((r) => (
-              <label key={r.value} className="flex items-center gap-2">
+              <label key={r.value} className="flex items-center gap-2 text-ln-op-ink">
                 <input
                   type="radio"
                   name="intakeReason"
@@ -326,7 +327,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </fieldset>
 
         <fieldset className="space-y-1">
-          <legend className="text-sm">Rol de la organización</legend>
+          <legend className="text-[13px] text-ln-op-ink">Rol de la organización</legend>
           <div className="flex flex-col gap-2">
             <Radio
               name="custodyRole"
@@ -336,7 +337,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             >
               <span className="space-y-0.5">
                 <span className="block font-medium">Custodia temporal</span>
-                <span className="block text-xs! text-gob-text-muted!">
+                <span className="block text-[12px]! text-ln-op-mute!">
                   El animal queda bajo cuidado del refugio hasta que se concrete una adopción.
                 </span>
               </span>
@@ -349,7 +350,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             >
               <span className="space-y-0.5">
                 <span className="block font-medium">Dueño/a permanente</span>
-                <span className="block text-xs! text-gob-text-muted!">
+                <span className="block text-[12px]! text-ln-op-mute!">
                   El animal queda registrado a nombre de la organización (santuario, adopción
                   institucional).
                 </span>
@@ -359,7 +360,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </fieldset>
 
         <label className="block space-y-1">
-          <span className="text-sm">Fecha del ingreso</span>
+          <span className="text-[13px] text-ln-op-ink">Fecha del ingreso</span>
           <input
             type="date"
             value={occurredAt}
@@ -369,7 +370,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-sm">Condición al ingreso</span>
+          <span className="text-[13px] text-ln-op-ink">Condición al ingreso</span>
           <textarea
             value={intakeCondition}
             onChange={(e) => setIntakeCondition(e.target.value)}
@@ -381,7 +382,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-sm">Jurisdicción / lugar de rescate</span>
+          <span className="text-[13px] text-ln-op-ink">Jurisdicción / lugar de rescate</span>
           <input
             type="text"
             value={rescueJurisdiction}
@@ -396,7 +397,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={() => setStep(4)}
           disabled={!intakeReason}
-          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium disabled:opacity-50 transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -404,39 +405,39 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
       {/* Step 4 — Confirmar */}
       <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-lg border border-gob-border  p-4 space-y-2 text-sm">
-          <p className="font-semibold text-gob-text ">Resumen del ingreso</p>
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-gob-text-muted">Nombre</dt>
-            <dd className="col-span-2">{name || "—"}</dd>
-            <dt className="text-gob-text-muted">Especie</dt>
-            <dd className="col-span-2">{species || "—"}</dd>
-            <dt className="text-gob-text-muted">Microchip</dt>
-            <dd className="col-span-2 font-mono">{microchipId || "(sin chip)"}</dd>
-            <dt className="text-gob-text-muted">Tatuaje</dt>
-            <dd className="col-span-2 font-mono">{tattooCode || "(sin tatuaje)"}</dd>
-            <dt className="text-gob-text-muted">Motivo</dt>
-            <dd className="col-span-2">
+        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
+          <p className="text-[13px] font-semibold text-ln-op-ink">Resumen del ingreso</p>
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-[12px]">
+            <dt className="text-ln-op-mute">Nombre</dt>
+            <dd className="col-span-2 text-ln-op-ink">{name || "—"}</dd>
+            <dt className="text-ln-op-mute">Especie</dt>
+            <dd className="col-span-2 text-ln-op-ink">{species || "—"}</dd>
+            <dt className="text-ln-op-mute">Microchip</dt>
+            <dd className="col-span-2 font-mono text-ln-op-ink">{microchipId || "(sin chip)"}</dd>
+            <dt className="text-ln-op-mute">Tatuaje</dt>
+            <dd className="col-span-2 font-mono text-ln-op-ink">{tattooCode || "(sin tatuaje)"}</dd>
+            <dt className="text-ln-op-mute">Motivo</dt>
+            <dd className="col-span-2 text-ln-op-ink">
               {INTAKE_REASONS.find((r) => r.value === intakeReason)?.label ?? "—"}
             </dd>
-            <dt className="text-gob-text-muted">Rol</dt>
-            <dd className="col-span-2">
+            <dt className="text-ln-op-mute">Rol</dt>
+            <dd className="col-span-2 text-ln-op-ink">
               {custodyRole === "shelter_custody" ? "Custodia temporal" : "Dueño/a permanente"}
             </dd>
-            <dt className="text-gob-text-muted">Fecha</dt>
-            <dd className="col-span-2">{occurredAt}</dd>
+            <dt className="text-ln-op-mute">Fecha</dt>
+            <dd className="col-span-2 text-ln-op-ink">{occurredAt}</dd>
           </dl>
         </div>
 
         {state.warning === "CHIP_MATCH_ACTIVE" && (
-          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-xs text-gob-warning-text ">
+          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2">
             El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
             admin antes de continuar.
           </div>
         )}
 
         {state.warning === "TATTOO_MATCH_POSSIBLE" && state.matchedPetToken && (
-          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-3 text-xs text-gob-warning-text  space-y-2">
+          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2 space-y-2">
             <p>
               <strong>Posible coincidencia por tatuaje.</strong> El código que ingresaste coincide
               con una mascota ya registrada en MiMAR. Verificá con la foto antes de continuar.
@@ -446,12 +447,12 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
                 href={`/p/${state.matchedPetToken}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline font-medium"
+                className="underline font-medium text-ln-op-azul"
               >
                 Ver credencial pública de la mascota coincidente
               </a>
             </p>
-            <p className="text-gob-text-muted">
+            <p className="text-ln-op-mute">
               Si confirmás que son animales distintos, hacé clic en &ldquo;Crear ingreso&rdquo; para
               continuar.
             </p>
@@ -459,7 +460,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         )}
 
         {state.error && (
-          <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+          <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
             {state.error}
           </p>
         )}
@@ -468,7 +469,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="w-full px-4 py-3 rounded bg-gob-primary text-white   font-medium disabled:opacity-50 transition-colors"
+          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Registrando…" : "Crear ingreso"}
         </button>
