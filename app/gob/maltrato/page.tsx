@@ -1,16 +1,7 @@
 import { Suspense } from "react";
 
-import {
-  EmptyState,
-  JurisdictionSwitcher,
-  MetricCard,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  PeriodPicker,
-  Tabs,
-  TabsContent,
-} from "@/components/poncho";
+import { JurisdictionSwitcher, PeriodPicker, Tabs, TabsContent } from "@/components/poncho";
+import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -204,8 +195,6 @@ export default async function GobMaltratoPage({
     return `/gob/maltrato?${params.toString()}`;
   }
 
-  const panelListId = "panel-maltrato-lista-titulo";
-
   const TABS = [
     { value: "urgent" as const, label: "Urgentes" },
     { value: "mine" as const, label: "Mías" },
@@ -217,11 +206,11 @@ export default async function GobMaltratoPage({
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Page header */}
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
+        <header className="space-y-1">
+          <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
             Denuncias de maltrato
           </h1>
-          <p className="text-sm text-gob-text-gray">
+          <p className="text-[12px] text-ln-op-mute">
             Cola de triage bajo Ley Nacional 14.346.{" "}
             {profile.role === "admin"
               ? "Vista universal — todas las jurisdicciones."
@@ -231,7 +220,7 @@ export default async function GobMaltratoPage({
 
         {/* No-scope warning */}
         {noScope && (
-          <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  px-4 py-3 text-sm text-gob-warning-text ">
+          <div className="rounded-[6px] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-[12px] text-ln-op-warn">
             Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
             una.
           </div>
@@ -243,42 +232,36 @@ export default async function GobMaltratoPage({
           <PeriodPicker defaultPreset="30d" />
         </div>
 
-        {/* 4 metric cards */}
+        {/* 4 metric KPI tiles */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard
+          <OpKpi
             label="Sin asignar"
             value={String(metrics.unassignedCount)}
-            tone={metrics.unassignedCount > 0 ? "warning" : "neutral"}
+            tone={metrics.unassignedCount > 0 ? "warn" : "neutral"}
             href="/gob/maltrato?queue=urgent"
           />
-          <MetricCard
+          <OpKpi
             label="Mías"
             value={String(metrics.myCount)}
-            tone="info"
+            tone="blue"
             href="/gob/maltrato?queue=mine"
           />
-          <MetricCard
-            label="En investigación"
-            value={String(metrics.inProgressCount)}
-            tone="neutral"
-          />
-          <MetricCard label="Cerradas (30d)" value={String(metrics.closedMonth)} tone="success" />
+          <OpKpi label="En investigación" value={String(metrics.inProgressCount)} tone="neutral" />
+          <OpKpi label="Cerradas (30d)" value={String(metrics.closedMonth)} tone="ok" />
         </div>
 
-        {/* Queue tabs + list panel */}
+        {/* Queue tabs + list card */}
         <Suspense>
           <Tabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
             {TABS.map((tab) => (
               <TabsContent key={tab.value} value={tab.value}>
-                <Panel aria-labelledby={panelListId} className="mt-4">
-                  <PanelHeader title={<span id={panelListId}>Denuncias ({totalCount})</span>} />
-                  <PanelBody>
+                <OpCard className="mt-4">
+                  <OpCardHead title={`Denuncias (${totalCount})`} />
+                  <OpCardBody>
                     {rows.length === 0 ? (
-                      <EmptyState
-                        icon="file-text"
-                        title="Sin denuncias en esta cola"
-                        description="No hay denuncias que coincidan con los filtros seleccionados."
-                      />
+                      <p className="text-[12px] text-ln-op-mute py-4 text-center">
+                        No hay denuncias que coincidan con los filtros seleccionados.
+                      </p>
                     ) : (
                       <ul className="space-y-2">
                         {rows.map((r) => (
@@ -289,23 +272,23 @@ export default async function GobMaltratoPage({
                     {totalPages > 1 && (
                       <nav
                         aria-label="Paginación de denuncias"
-                        className="mt-4 flex items-center justify-between gap-2 text-sm"
+                        className="mt-4 flex items-center justify-between gap-2 text-[12px]"
                       >
-                        <span className="text-gob-text-gray">
+                        <span className="text-ln-op-mute">
                           Página {currentPage} de {totalPages} ({totalCount} denuncias)
                         </span>
                         <div className="flex gap-2">
                           {currentPage > 1 ? (
                             <a
                               href={pageUrl(currentPage - 1)}
-                              className="rounded border border-gob-border px-3 py-1 text-gob-text hover:bg-gob-surface-hover"
+                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
                             >
                               Anterior
                             </a>
                           ) : (
                             <span
                               aria-disabled="true"
-                              className="rounded border border-gob-border px-3 py-1 text-gob-text-gray opacity-50 cursor-not-allowed"
+                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-mute opacity-50 cursor-not-allowed"
                             >
                               Anterior
                             </span>
@@ -313,14 +296,14 @@ export default async function GobMaltratoPage({
                           {hasMore ? (
                             <a
                               href={pageUrl(currentPage + 1)}
-                              className="rounded border border-gob-border px-3 py-1 text-gob-text hover:bg-gob-surface-hover"
+                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
                             >
                               Siguiente
                             </a>
                           ) : (
                             <span
                               aria-disabled="true"
-                              className="rounded border border-gob-border px-3 py-1 text-gob-text-gray opacity-50 cursor-not-allowed"
+                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-mute opacity-50 cursor-not-allowed"
                             >
                               Siguiente
                             </span>
@@ -328,8 +311,8 @@ export default async function GobMaltratoPage({
                         </div>
                       </nav>
                     )}
-                  </PanelBody>
-                </Panel>
+                  </OpCardBody>
+                </OpCard>
               </TabsContent>
             ))}
           </Tabs>
