@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 
+import { OpCrumbs } from "@/components/ui/dashboard";
 import { reportBiteFromOrgAction } from "@/src/modules/surveillance/actions";
 
 import { OrgBiteForm } from "./OrgBiteForm";
@@ -25,27 +26,20 @@ export default async function NewOrgBitePage({
   const boundAction = reportBiteFromOrgAction.bind(null, orgToken);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Link
-          href={`/org/${orgToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver al portal
-        </Link>
+    <div className="max-w-2xl space-y-6">
+      <OpCrumbs
+        items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Reportar mordedura" }]}
+      />
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Reportar mordedura
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Registrar una mordedura que presenciaste o conocés clínicamente. Inicia automáticamente
-            el período de observación antirrábica de 10 días según la legislación vigente.
-          </p>
-        </header>
+      <header className="space-y-2">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Reportar mordedura</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Registrar una mordedura que presenciaste o conocés clínicamente. Inicia automáticamente el
+          período de observación antirrábica de 10 días según la legislación vigente.
+        </p>
+      </header>
 
-        <OrgBiteForm action={boundAction} orgToken={orgToken} />
-      </div>
-    </main>
+      <OrgBiteForm action={boundAction} orgToken={orgToken} />
+    </div>
   );
 }
