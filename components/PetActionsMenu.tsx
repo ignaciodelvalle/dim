@@ -10,9 +10,9 @@ import { type PetActionsMenuInput, deriveActionItems } from "./PetActionsMenu.he
 export type { PetActionsMenuInput };
 
 const VARIANT_CLASSES: Record<"primary" | "default" | "danger", string> = {
-  primary: "bg-gob-success text-white hover:bg-gob-success  ",
-  default: "border border-gob-border bg-white text-gob-text-gray hover:bg-gob-surface-alt    ",
-  danger: "border border-gob-danger bg-white text-gob-danger hover:bg-gob-danger/10",
+  primary: "bg-ln-ok text-white hover:bg-ln-ok/90  ",
+  default: "border border-ln-line bg-ln-card text-ln-ink-2 hover:bg-ln-stripe    ",
+  danger: "border border-ln-err bg-ln-card text-ln-err hover:bg-[#fbe9e6]",
 };
 
 export function PetActionsMenu(props: PetActionsMenuInput) {
@@ -23,9 +23,9 @@ export function PetActionsMenu(props: PetActionsMenuInput) {
   return (
     <section
       aria-labelledby="pp-actions-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
-      <h2 id="pp-actions-h" className="mb-3 text-base font-semibold text-gob-text ">
+      <h2 id="pp-actions-h" className="mb-3 text-base font-semibold text-ln-ink ">
         Acciones
       </h2>
       <ul className="flex flex-col gap-2">

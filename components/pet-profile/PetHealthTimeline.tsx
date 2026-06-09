@@ -53,10 +53,10 @@ interface Props {
 function SkeletonRow() {
   return (
     <div className="flex items-center gap-3 py-2.5 animate-pulse">
-      <div className="h-8 w-8 shrink-0 rounded-lg bg-gob-surface-alt " />
+      <div className="h-8 w-8 shrink-0 rounded-lg bg-ln-stripe " />
       <div className="flex-1 space-y-1.5">
-        <div className="h-3 w-1/2 rounded bg-gob-surface-alt " />
-        <div className="h-2 w-1/3 rounded bg-gob-surface-alt " />
+        <div className="h-3 w-1/2 rounded bg-ln-stripe " />
+        <div className="h-2 w-1/3 rounded bg-ln-stripe " />
       </div>
     </div>
   );
@@ -81,7 +81,7 @@ function EventRow({
   return (
     <Link
       href={href}
-      className="flex items-start gap-3 py-2.5 transition-colors hover:bg-gob-surface-alt "
+      className="flex items-start gap-3 py-2.5 transition-colors hover:bg-ln-stripe "
     >
       {signedUrl ? (
         <img
@@ -93,15 +93,15 @@ function EventRow({
       ) : (
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-surface-alt text-sm "
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ln-stripe text-sm "
         >
           •
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-gob-text ">{label}</span>
+        <span className="block text-sm font-medium text-ln-ink ">{label}</span>
       </span>
-      <span className="shrink-0 text-[11px] text-gob-text-muted ">{dateLabel}</span>
+      <span className="shrink-0 text-[11px] text-ln-mute ">{dateLabel}</span>
     </Link>
   );
 }
@@ -133,20 +133,20 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
   return (
     <section
       aria-labelledby="pp-timeline-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <details onToggle={handleToggle as unknown as React.ToggleEventHandler<HTMLDetailsElement>}>
         <summary className="flex cursor-pointer list-none items-center justify-between">
-          <h2 id="pp-timeline-h" className="text-base font-semibold text-gob-text ">
+          <h2 id="pp-timeline-h" className="text-base font-semibold text-ln-ink ">
             Últimos eventos · {events.length}
           </h2>
           <div className="flex items-center gap-2">
             {latest && (
-              <span className="rounded-full bg-gob-surface-alt px-2 py-0.5 text-xs text-gob-text-gray  ">
+              <span className="rounded-full bg-ln-stripe px-2 py-0.5 text-xs text-ln-ink-2  ">
                 {formatTimelineDate(latest.occurredAt)}
               </span>
             )}
-            <span aria-hidden className="text-xs text-gob-text-muted ">
+            <span aria-hidden className="text-xs text-ln-mute ">
               ▸
             </span>
           </div>
@@ -162,7 +162,7 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
               ))}
             </ul>
           ) : (
-            <ul className="divide-y divide-gob-border ">
+            <ul className="divide-y divide-ln-line ">
               {events.map((ev) => (
                 <li key={ev.id}>
                   <EventRow
@@ -175,10 +175,10 @@ export function PetHealthTimeline({ recentFive, fullHistoryHref, signAttachments
             </ul>
           )}
 
-          <div className="mt-3 border-t border-gob-border-strong pt-3 ">
+          <div className="mt-3 border-t border-ln-line-strong pt-3 ">
             <Link
               href={fullHistoryHref}
-              className="text-xs font-medium text-gob-azul-link hover:underline"
+              className="text-xs font-medium text-ln-azul hover:underline"
             >
               Ver historial completo →
             </Link>

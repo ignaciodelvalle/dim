@@ -25,7 +25,7 @@ export function PregnancyInProgressCard({
   return (
     <section
       aria-label="Embarazo en seguimiento"
-      className="rounded-2xl border border-gob-danger bg-gob-danger/10 p-5 text-gob-danger    space-y-3"
+      className="rounded-2xl border border-ln-err bg-[#fbe9e6] p-5 text-ln-err    space-y-3"
     >
       <header className="flex items-center gap-2">
         <span aria-hidden className="text-xl">
@@ -44,13 +44,13 @@ export function PregnancyInProgressCard({
       <div className="flex flex-wrap gap-2 pt-1">
         <Link
           href={`/mis-mascotas/${petPublicToken}/eventos/nuevo/embarazo?phase=ended`}
-          className="px-3 py-1.5 rounded-lg bg-gob-danger/15 text-white   text-sm font-medium hover:bg-gob-danger/15  transition-colors"
+          className="px-3 py-1.5 rounded-lg bg-ln-err/15 text-white   text-sm font-medium hover:bg-ln-err/15  transition-colors"
         >
           Registrar parto / cierre
         </Link>
         <Link
           href={`/mis-mascotas/${petPublicToken}/eventos/nuevo/clinico`}
-          className="px-3 py-1.5 rounded-lg border border-gob-danger  text-sm font-medium hover:bg-gob-danger/10  transition-colors"
+          className="px-3 py-1.5 rounded-lg border border-ln-err  text-sm font-medium hover:bg-[#fbe9e6]  transition-colors"
         >
           Anotar control veterinario
         </Link>
@@ -62,7 +62,7 @@ export function PregnancyInProgressCard({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="text-gob-danger ">{label}</dt>
+      <dt className="text-ln-err ">{label}</dt>
       <dd className="font-medium">{children}</dd>
     </div>
   );

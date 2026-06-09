@@ -48,9 +48,9 @@ export function AdoptionListingCard({
   const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
 
   return (
-    <li className="rounded-xl border border-gob-border overflow-hidden bg-white hover:shadow-lg transition-shadow">
+    <li className="rounded-xl border border-ln-line overflow-hidden bg-ln-card hover:shadow-lg transition-shadow">
       <Link href={`/adoptar/${item.petPublicToken}`} className="block">
-        <div className="aspect-square bg-gob-surface-alt relative">
+        <div className="aspect-square bg-ln-stripe relative">
           {photoUrl ? (
             <img
               src={photoUrl}
@@ -58,19 +58,19 @@ export function AdoptionListingCard({
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-5xl text-gob-text-muted">
+            <div className="absolute inset-0 flex items-center justify-center text-5xl text-ln-mute">
               {item.name.charAt(0).toUpperCase()}
             </div>
           )}
           {(item.isSterilized || item.microchipId) && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gob-success text-white">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
                   {sterilizedLabel}
                 </span>
               )}
               {item.microchipId && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gob-info text-white">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
                   Con chip
                 </span>
               )}
@@ -79,25 +79,25 @@ export function AdoptionListingCard({
         </div>
         <div className="p-4 space-y-2">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold text-gob-text">{item.name}</h2>
+            <h2 className="text-lg font-semibold text-ln-ink">{item.name}</h2>
             {provinceLabel && (
-              <span className="text-xs text-gob-text-muted">
+              <span className="text-xs text-ln-mute">
                 {item.jurisdictionLocality
                   ? `${item.jurisdictionLocality}, ${provinceLabel}`
                   : provinceLabel}
               </span>
             )}
           </div>
-          {facts.length > 0 && <p className="text-xs text-gob-text-gray">{facts.join(" · ")}</p>}
+          {facts.length > 0 && <p className="text-xs text-ln-ink-2">{facts.join(" · ")}</p>}
           {variant === "default" && item.adoptionStory && (
-            <p className="text-xs text-gob-text-gray line-clamp-3">{item.adoptionStory}</p>
+            <p className="text-xs text-ln-ink-2 line-clamp-3">{item.adoptionStory}</p>
           )}
           {showPublisher && (
-            <p className="text-[11px] text-gob-text-muted pt-1 border-t border-gob-surface-alt">
+            <p className="text-[11px] text-ln-mute pt-1 border-t border-ln-stripe">
               Publica:{" "}
               <Link
                 href={`/refugios/${item.orgPublicToken}`}
-                className="underline hover:text-gob-text"
+                className="underline hover:text-ln-ink"
               >
                 {item.orgDisplayName}
               </Link>

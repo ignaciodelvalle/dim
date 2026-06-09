@@ -33,7 +33,7 @@ export function AchievementsSection({ earned, credentials = [] }: Props) {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-gob-text-muted">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ln-mute">
         Logros y credenciales
       </h2>
       <ul className="flex flex-wrap gap-2">
@@ -56,7 +56,7 @@ export function AchievementsSection({ earned, credentials = [] }: Props) {
 
 function CredentialBadge({ credential }: { credential: CredentialChip }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-gob-info bg-gob-info/10 px-3 py-1.5 text-sm font-medium text-gob-azul-link   ">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-celeste bg-ln-celeste/10 px-3 py-1.5 text-sm font-medium text-ln-azul   ">
       <span aria-hidden>{credential.icon}</span>
       <span>{credential.label}</span>
     </span>
@@ -74,7 +74,7 @@ function AchievementChip({ achievement }: { achievement: EarnedAchievement }) {
     <span
       title={tooltip}
       className={[
-        "inline-flex items-center gap-1.5 rounded-full border border-gob-warning bg-gob-warning/10 px-3 py-1.5 text-sm font-medium text-gob-warning-text transition hover:bg-gob-warning/10    ",
+        "inline-flex items-center gap-1.5 rounded-full border border-ln-warn bg-[#fdf2e0] px-3 py-1.5 text-sm font-medium text-ln-warn transition hover:bg-[#fdf2e0]    ",
         pulse ? "animate-pulse" : "",
       ]
         .filter(Boolean)
@@ -83,7 +83,7 @@ function AchievementChip({ achievement }: { achievement: EarnedAchievement }) {
       <span aria-hidden>{achievement.icon}</span>
       <span>{achievement.label}</span>
       {achievement.count && achievement.count > 1 ? (
-        <span className="ml-0.5 text-xs text-gob-warning-text ">×{achievement.count}</span>
+        <span className="ml-0.5 text-xs text-ln-warn ">×{achievement.count}</span>
       ) : null}
     </span>
   );

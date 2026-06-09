@@ -75,13 +75,13 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
   return (
     <section
       aria-labelledby="lp-feed-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-feed-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="lp-feed-h" className="text-base font-semibold text-ln-ink ">
           Actividad
         </h2>
-        <Link href={caseHref} className="text-xs font-medium text-gob-azul-link hover:underline">
+        <Link href={caseHref} className="text-xs font-medium text-ln-azul hover:underline">
           Ver caso →
         </Link>
       </div>
@@ -92,12 +92,12 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
       </div>
 
       {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
+        <p className="rounded-xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute ">
           Cuando alguien escanee la chapita o reporte un avistaje, vas a verlo acá.
         </p>
       ) : (
         <>
-          <ul className="divide-y divide-gob-border ">
+          <ul className="divide-y divide-ln-line ">
             {items.map((it) => (
               <li key={`${it.kind}-${it.id}`}>
                 <FeedRow item={it} />
@@ -105,7 +105,7 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
             ))}
           </ul>
           {items.length >= LOST_SCAN_FEED_CAP && (
-            <p className="mt-2 text-xs text-gob-text-muted">
+            <p className="mt-2 text-xs text-ln-mute">
               Mostrando los {LOST_SCAN_FEED_CAP} más recientes.
             </p>
           )}
@@ -120,22 +120,22 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
     return (
       <Link
         href={item.href}
-        className="flex items-start gap-3 py-2.5 transition-colors hover:bg-gob-surface-alt "
+        className="flex items-start gap-3 py-2.5 transition-colors hover:bg-ln-stripe "
       >
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-warning/10 text-gob-warning-text  "
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#fdf2e0] text-ln-warn  "
         >
           ✉
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gob-text ">Mensaje de {item.finderName}</p>
-          <p className="mt-0.5 line-clamp-2 text-xs text-gob-text-muted ">
+          <p className="text-sm font-medium text-ln-ink ">Mensaje de {item.finderName}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-ln-mute ">
             {item.snippet}
             {item.distanceLabel && <span> · {item.distanceLabel} del último punto</span>}
           </p>
         </div>
-        <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
+        <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
       </Link>
     );
   }
@@ -149,13 +149,13 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
       <div className="flex items-start gap-3 py-2.5">
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-success/10 text-gob-success  "
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef6f0] text-ln-ok  "
         >
           👀
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gob-text ">Avistaje reportado</p>
-          <p className="mt-0.5 text-xs text-gob-text-muted ">
+          <p className="text-sm font-medium text-ln-ink ">Avistaje reportado</p>
+          <p className="mt-0.5 text-xs text-ln-mute ">
             {item.localityLabel ?? item.description ?? "Sin descripción"}
             {item.localityLabel && item.description && <span> · {item.description}</span>}
             {osmHref && (
@@ -163,7 +163,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
                 href={osmHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-1 text-gob-azul-link hover:underline"
+                className="ml-1 text-ln-azul hover:underline"
               >
                 Ver en mapa
               </a>
@@ -182,17 +182,17 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
               />
             </div>
           ) : item.photoStoragePath ? (
-            <p className="mt-1 text-xs text-gob-text-muted">
+            <p className="mt-1 text-xs text-ln-mute">
               <span>📷 foto adjunta</span>
             </p>
           ) : null}
           {item.finderContact && (
-            <p className="mt-1 text-xs text-gob-text-muted">
+            <p className="mt-1 text-xs text-ln-mute">
               <span>📞 {item.finderContact}</span>
             </p>
           )}
         </div>
-        <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
+        <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
       </div>
     );
   }
@@ -201,28 +201,28 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
     <div className="flex items-start gap-3 py-2.5">
       <span
         aria-hidden
-        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-info/10 text-gob-azul-link  "
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ln-celeste/10 text-ln-azul  "
       >
         📱
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gob-text ">
+        <p className="text-sm font-medium text-ln-ink ">
           {item.count > 1 ? `QR escaneado · ${item.count} veces` : "QR escaneado"}
         </p>
-        <p className="mt-0.5 text-xs text-gob-text-muted ">
+        <p className="mt-0.5 text-xs text-ln-mute ">
           {item.localityLabel ?? "Ubicación desconocida"}
         </p>
       </div>
-      <p className="shrink-0 text-[11px] text-gob-text-muted ">{relativeShort(item.at)}</p>
+      <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
     </div>
   );
 }
 
 function CountBox({ value, label }: { value: number; label: string }) {
   return (
-    <div className="rounded-lg bg-gob-surface-alt px-3 py-2 text-center ">
-      <p className="text-xl font-semibold text-gob-text ">{value}</p>
-      <p className="text-[11px] text-gob-text-muted ">{label}</p>
+    <div className="rounded-lg bg-ln-stripe px-3 py-2 text-center ">
+      <p className="text-xl font-semibold text-ln-ink ">{value}</p>
+      <p className="text-[11px] text-ln-mute ">{label}</p>
     </div>
   );
 }

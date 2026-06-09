@@ -26,29 +26,29 @@ export type PetHeroPet = {
 };
 
 const RING_BG: Record<PetState, string> = {
-  ok: "from-gob-surface-alt to-transparent",
-  info: "from-gob-info/10 to-transparent",
-  attention: "from-gob-warning/10 to-transparent",
-  urgent: "from-gob-danger/10 to-transparent",
+  ok: "from-ln-stripe to-transparent",
+  info: "from-ln-celeste/10 to-transparent",
+  attention: "from-ln-warn/10 to-transparent",
+  urgent: "from-ln-err/10 to-transparent",
 };
 
 const RING_BORDER: Record<PetState, string> = {
-  ok: "ring-gob-border-strong ",
-  info: "ring-gob-azul-link ",
-  attention: "ring-gob-warning ",
-  urgent: "ring-gob-danger ",
+  ok: "ring-ln-line-strong ",
+  info: "ring-ln-azul ",
+  attention: "ring-ln-warn ",
+  urgent: "ring-ln-err ",
 };
 
 const BADGE: Record<PetState, string> = {
-  ok: "bg-gob-surface-alt text-gob-text  ",
-  info: "bg-gob-info text-white",
-  attention: "bg-gob-warning text-gob-warning-text",
-  urgent: "bg-gob-danger text-white",
+  ok: "bg-ln-stripe text-ln-ink  ",
+  info: "bg-ln-celeste text-white",
+  attention: "bg-ln-warn text-white",
+  urgent: "bg-ln-err text-white",
 };
 
 export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-gob-border bg-white p-5 text-center  ">
+    <section className="relative overflow-hidden rounded-2xl border border-ln-line bg-ln-card p-5 text-center  ">
       <div
         aria-hidden
         className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${RING_BG[pet.state]} `}
@@ -56,12 +56,12 @@ export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
 
       <div className="relative mx-auto mb-3 inline-block">
         <span
-          className={`flex h-[148px] w-[148px] items-center justify-center overflow-hidden rounded-full bg-white ring-[5px]  ${RING_BORDER[pet.state]}`}
+          className={`flex h-[148px] w-[148px] items-center justify-center overflow-hidden rounded-full bg-ln-card ring-[5px]  ${RING_BORDER[pet.state]}`}
         >
           {pet.photoUrl ? (
             <img src={pet.photoUrl} alt={pet.name} className="h-full w-full object-cover" />
           ) : (
-            <span className="text-6xl font-semibold text-gob-text-gray ">
+            <span className="text-6xl font-semibold text-ln-ink-2 ">
               {pet.name.charAt(0).toUpperCase()}
             </span>
           )}
@@ -75,10 +75,10 @@ export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
         )}
       </div>
 
-      <h1 className="relative mt-3 text-2xl font-semibold tracking-tight text-gob-text ">
+      <h1 className="relative mt-3 text-2xl font-semibold tracking-tight text-ln-ink ">
         {pet.name}
       </h1>
-      <p className="relative mt-1 text-sm text-gob-text-muted ">
+      <p className="relative mt-1 text-sm text-ln-mute ">
         {[pet.species, pet.breed, pet.ageLabel, pet.weightLabel].filter(Boolean).join(" · ")}
       </p>
     </section>
