@@ -137,9 +137,9 @@ export function WelfareReportForm({
   return (
     <form action={formAction} className="space-y-6">
       {isAnonymous && (
-        <p className="text-sm text-gob-text-gray bg-gob-surface-alt rounded-lg px-4 py-3">
+        <p className="text-sm text-ln-ink-2 bg-ln-stripe rounded-lg px-4 py-3">
           Estás denunciando de forma anónima. Si querés seguimiento, podés{" "}
-          <Link href="/login" className="underline underline-offset-2 hover:text-gob-text">
+          <Link href="/login" className="underline underline-offset-2 hover:text-ln-ink">
             iniciar sesión
           </Link>{" "}
           o dejar un contacto opcional abajo.
@@ -194,9 +194,9 @@ export function WelfareReportForm({
 
       {/* Subject kind */}
       <fieldset className="mb-7">
-        <legend className="mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">
+        <legend className="mb-2.5 text-[0.88em] font-semibold text-ln-mute">
           ¿Sobre quién?
-          <span className="ml-1 text-gob-danger" aria-hidden="true">
+          <span className="ml-1 text-ln-err" aria-hidden="true">
             *
           </span>
         </legend>
@@ -300,12 +300,12 @@ export function WelfareReportForm({
               multiple
               accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
               onChange={(e) => handleFilesSelected(e.target.files)}
-              className="text-sm text-gob-text-gray file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-gob-border-strong file:bg-white file:text-gob-text-gray file:text-sm file:cursor-pointer hover:file:bg-gob-surface-alt"
+              className="text-sm text-ln-ink-2 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-ln-line-strong file:bg-ln-card file:text-ln-ink-2 file:text-sm file:cursor-pointer hover:file:bg-ln-stripe"
             />
 
             {evidenceFiles.length > 0 && (
               <div className="space-y-2 mt-2">
-                <p className="text-xs text-gob-text-muted">
+                <p className="text-xs text-ln-mute">
                   {evidenceFiles.length} de {MAX_EVIDENCE_FILES} archivos seleccionados
                 </p>
                 <div className="grid grid-cols-3 gap-2">
@@ -316,12 +316,12 @@ export function WelfareReportForm({
                         <img
                           src={entry.objectUrl}
                           alt={entry.file.name}
-                          className="w-full aspect-square object-cover rounded-lg border border-gob-border"
+                          className="w-full aspect-square object-cover rounded-lg border border-ln-line"
                         />
                       ) : (
-                        <div className="w-full aspect-square rounded-lg border border-gob-border bg-gob-surface-alt flex flex-col items-center justify-center gap-1 p-2">
+                        <div className="w-full aspect-square rounded-lg border border-ln-line bg-ln-stripe flex flex-col items-center justify-center gap-1 p-2">
                           <span className="text-2xl select-none">▶</span>
-                          <p className="text-xs text-gob-text-muted text-center truncate w-full">
+                          <p className="text-xs text-ln-mute text-center truncate w-full">
                             {entry.file.name}
                           </p>
                         </div>
@@ -330,7 +330,7 @@ export function WelfareReportForm({
                         type="button"
                         onClick={() => removeEvidence(i)}
                         aria-label={`Quitar ${entry.file.name}`}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gob-primary text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-ln-azul text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                       >
                         ×
                       </button>
@@ -344,18 +344,18 @@ export function WelfareReportForm({
       </Field>
 
       {/* Optional contact (collapsible) */}
-      <div className="border border-gob-border rounded-lg">
+      <div className="border border-ln-line rounded-lg">
         <button
           type="button"
           onClick={() => setShowContact((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gob-text-gray hover:bg-gob-surface-alt rounded-lg transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-ln-ink-2 hover:bg-ln-stripe rounded-lg transition-colors"
         >
           <span>Contacto opcional</span>
-          <span className="text-gob-text-muted">{showContact ? "▲" : "▼"}</span>
+          <span className="text-ln-mute">{showContact ? "▲" : "▼"}</span>
         </button>
         {showContact && (
-          <div className="px-4 pb-4 space-y-4 border-t border-gob-border pt-4">
-            <p className="text-xs text-gob-text-muted">
+          <div className="px-4 pb-4 space-y-4 border-t border-ln-line pt-4">
+            <p className="text-xs text-ln-mute">
               No es obligatorio. Dejás tus datos solo si querés que te contactemos sobre esta
               denuncia.
             </p>
@@ -386,7 +386,7 @@ export function WelfareReportForm({
       </div>
 
       {state.error && (
-        <p className="text-sm text-gob-danger" role="alert">
+        <p className="text-sm text-ln-err" role="alert">
           {state.error}
         </p>
       )}
@@ -394,7 +394,7 @@ export function WelfareReportForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-lg bg-ln-azul text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando..." : "Enviar denuncia"}
       </button>
