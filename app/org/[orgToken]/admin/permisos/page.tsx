@@ -2,6 +2,14 @@
 // plus the most recent approvals (so an admin can revoke without scrolling
 // through the audit trail). Layout gates on capability.grant.
 
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCodeBadge,
+  OpCrumbs,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
@@ -21,13 +29,6 @@ const ROLE_LABELS: Record<string, string> = {
 const LABEL_BY_CAPABILITY = new Map(
   CAPABILITY_CATALOG.map((entry) => [entry.capability as string, entry.label]),
 );
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Pendiente",
-  approved: "Concedido",
-  denied: "Denegado",
-  revoked: "Revocado",
-};
 
 function formatDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
@@ -74,98 +75,111 @@ export default async function PermisosPage({
   const approved = rows.filter((r) => r.status === "approved");
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto space-y-8">
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            Administración · {organization.displayName}
-          </p>
-          <h1 className="text-3xl font-semibold">Solicitudes de permisos</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <OpCrumbs
+          items={[
+            { label: "Panel", href: `/org/${orgToken}` },
+            { label: "Administración" },
+            { label: "Permisos" },
+          ]}
+        />
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
+        </p>
+      </div>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">
-            Pendientes <span className="text-sm text-gob-text-muted">({pending.length})</span>
-          </h2>
+      {/* Pending */}
+      <OpCard accent={pending.length > 0 ? "warn" : undefined}>
+        <OpCardHead
+          title={
+            <>
+              Pendientes{" "}
+              <span className="text-[12px] text-ln-op-mute font-normal">({pending.length})</span>
+            </>
+          }
+        />
+        <OpCardBody className="p-0">
           {pending.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">No hay solicitudes pendientes.</p>
+            <p className="px-4 py-4 text-[13px] text-ln-op-mute">No hay solicitudes pendientes.</p>
           ) : (
-            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
+            <ul className="divide-y divide-ln-op-line">
               {pending.map((row) => (
-                <li key={row.id} className="px-3 py-3 space-y-2">
+                <li key={row.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium">
-                        {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}
-                        <span className="ml-2 text-xs text-gob-text-muted">{row.capability}</span>
+                      <p className="text-[13px] font-medium text-ln-op-ink">
+                        {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
+                        <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
-                      <p className="text-xs text-gob-text-gray ">
+                      <p className="text-[12px] text-ln-op-mute">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} ·{" "}
                         {formatDate(row.requestedAt)}
                       </p>
                       {row.requestedReason && (
-                        <p className="text-xs italic text-gob-text-muted">
+                        <p className="text-[12px] italic text-ln-op-faint">
                           "{row.requestedReason}"
                         </p>
                       )}
                     </div>
-                    <span className="text-xs text-gob-warning-text  shrink-0">
-                      {STATUS_LABELS.pending}
-                    </span>
+                    <OpPill tone="open">Pendiente</OpPill>
                   </div>
                   <DecideForm grantId={row.id} pending={true} approved={false} />
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">
-            Concedidos activos{" "}
-            <span className="text-sm text-gob-text-muted">({approved.length})</span>
-          </h2>
+      {/* Approved / active grants */}
+      <OpCard>
+        <OpCardHead
+          title={
+            <>
+              Concedidos activos{" "}
+              <span className="text-[12px] text-ln-op-mute font-normal">({approved.length})</span>
+            </>
+          }
+        />
+        <OpCardBody className="p-0">
           {approved.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">
+            <p className="px-4 py-4 text-[13px] text-ln-op-mute">
               Ningún permiso concedido fuera del rol admin.
             </p>
           ) : (
-            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
+            <ul className="divide-y divide-ln-op-line">
               {approved.map((row) => (
-                <li key={row.id} className="px-3 py-3 space-y-2">
+                <li key={row.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium">
-                        {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}
-                        <span className="ml-2 text-xs text-gob-text-muted">{row.capability}</span>
+                      <p className="text-[13px] font-medium text-ln-op-ink">
+                        {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
+                        <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
-                      <p className="text-xs text-gob-text-gray ">
+                      <p className="text-[12px] text-ln-op-mute">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} · concedido{" "}
                         {row.decidedAt ? formatDate(row.decidedAt) : "—"}
                       </p>
                     </div>
-                    <span className="text-xs text-gob-success  shrink-0">
-                      {STATUS_LABELS.approved}
-                    </span>
+                    <OpPill tone="ok">Concedido</OpPill>
                   </div>
                   <DecideForm grantId={row.id} pending={false} approved={true} />
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
-            ← Volver al panel
-          </Link>
-        </footer>
-      </div>
-    </main>
+      <footer className="pt-2">
+        <Link href={`/org/${orgToken}`} className="text-[13px] text-ln-op-azul hover:underline">
+          ← Volver al panel
+        </Link>
+      </footer>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 
 import { EditOrgForm } from "./EditOrgForm";
@@ -22,24 +23,26 @@ export default async function OrgConfigPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <nav className="text-xs text-gob-text-muted">
-          <Link href={`/org/${orgToken}`} className="hover:underline">
-            Panel
-          </Link>
-          {" / "}
-          <span>Configuración</span>
-        </nav>
-        <h1 className="text-2xl font-semibold text-gob-text">Configuración de la organización</h1>
-        <p className="text-sm text-gob-text-gray">
-          Editá el perfil público de <strong>{organization.displayName}</strong>.
+        <OpCrumbs
+          items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Configuración" }]}
+        />
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Configuración de la organización
+        </h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Editá el perfil público de{" "}
+          <strong className="text-ln-op-ink-2">{organization.displayName}</strong>.
         </p>
       </div>
 
-      <div className="rounded-lg border border-gob-border bg-white p-6">
-        <EditOrgForm organization={organization} />
-      </div>
+      <OpCard>
+        <OpCardHead title="Perfil de la organización" />
+        <OpCardBody>
+          <EditOrgForm organization={organization} />
+        </OpCardBody>
+      </OpCard>
 
-      <p className="text-xs text-gob-text-muted">
+      <p className="text-[12px] text-ln-op-mute">
         El tipo de organización, la jurisdicción y el estado de verificación son gestionados por el
         equipo de MiMAR.
       </p>
