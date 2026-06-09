@@ -70,26 +70,26 @@ export async function IntentApplyBanner() {
   return (
     <section
       aria-labelledby="intent-apply-banner-h"
-      className="rounded-2xl border border-gob-primary/40 bg-gob-primary/5 p-4 flex items-center gap-3"
+      className="rounded-[4px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-4 flex items-center gap-3"
       data-section="intent-apply-banner"
     >
       {photoUrl ? (
         <img src={photoUrl} alt="" className="h-12 w-12 rounded-full object-cover flex-shrink-0" />
       ) : (
         <div
-          className="h-12 w-12 rounded-full bg-gob-surface-alt flex-shrink-0"
+          className="h-12 w-12 rounded-full bg-[var(--color-ln-stripe)] flex-shrink-0"
           aria-hidden="true"
         />
       )}
       <div className="flex-1 min-w-0">
-        <p id="intent-apply-banner-h" className="text-sm font-semibold text-gob-text">
+        <p id="intent-apply-banner-h" className="text-sm font-semibold text-[var(--color-ln-ink)]">
           Continuá tu postulación a {pet.name}
         </p>
-        <p className="text-xs text-gob-text-muted">
+        <p className="text-xs text-[var(--color-ln-mute)]">
           {org.displayName} ·{" "}
           <Link
             href={`/adoptar/${pet.publicToken}`}
-            className="underline underline-offset-2 hover:text-gob-text"
+            className="underline underline-offset-2 hover:text-[var(--color-ln-ink)]"
           >
             Ver ficha
           </Link>
@@ -97,7 +97,7 @@ export async function IntentApplyBanner() {
       </div>
       <Link
         href={`/adoptar/${pet.publicToken}/postular`}
-        className="flex-shrink-0 px-3 py-2 rounded-lg bg-gob-primary text-white text-xs font-semibold hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2"
+        className="flex-shrink-0 px-3 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-xs font-semibold hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
       >
         Continuar →
       </Link>
@@ -105,7 +105,7 @@ export async function IntentApplyBanner() {
         <button
           type="submit"
           aria-label="Descartar este recordatorio"
-          className="flex-shrink-0 w-8 h-8 rounded-full text-gob-text-muted hover:bg-gob-surface-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2"
+          className="flex-shrink-0 w-8 h-8 rounded-full text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
         >
           ×
         </button>
