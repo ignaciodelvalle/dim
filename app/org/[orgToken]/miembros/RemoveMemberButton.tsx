@@ -37,7 +37,7 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-full border border-gob-danger px-3 py-1 text-xs font-medium text-gob-danger transition-colors hover:bg-gob-danger hover:text-white"
+        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
       >
         Quitar
       </button>
@@ -46,11 +46,11 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs text-gob-text-muted">
+      <p className="text-[12px] text-ln-op-mute">
         ¿Quitar a <strong>{displayName}</strong> de la organización?
       </p>
       {error && (
-        <p className="text-xs text-gob-danger" role="alert">
+        <p className="text-[12px] text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
@@ -59,7 +59,7 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
           type="button"
           onClick={handleRemove}
           disabled={pending}
-          className="rounded-full bg-gob-danger px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-gob-danger disabled:opacity-60"
+          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Quitando..." : "Confirmar"}
         </button>
@@ -70,7 +70,7 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
             setError(null);
           }}
           disabled={pending}
-          className="rounded-full border border-gob-border-strong px-3 py-1 text-xs font-medium text-gob-text transition-colors hover:bg-gob-surface-alt disabled:opacity-60"
+          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>

@@ -43,16 +43,16 @@ export function EventWriteToggle({ organizationId, membershipId, canWrite }: Pro
         aria-pressed={canWrite}
         title={canWrite ? "Quitar acceso a eventos clínicos" : "Dar acceso a eventos clínicos"}
         className={[
-          "rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60",
+          "rounded-[4px] px-3 py-[5px] text-[12px] font-medium transition-colors disabled:opacity-60",
           canWrite
-            ? "bg-gob-success-light border border-gob-success text-gob-success hover:bg-gob-success hover:text-white"
-            : "border border-gob-border text-gob-text-muted hover:bg-gob-surface-alt",
+            ? "border border-ln-op-ok-bd bg-ln-op-ok-bg text-ln-op-ok hover:bg-ln-op-ok hover:text-white"
+            : "border border-ln-op-line text-ln-op-mute hover:bg-ln-op-stripe",
         ].join(" ")}
       >
         {pending ? "..." : canWrite ? "Clínica ✓" : "Clínica"}
       </button>
       {error && (
-        <p className="text-xs text-gob-danger" role="alert">
+        <p className="text-[12px] text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
