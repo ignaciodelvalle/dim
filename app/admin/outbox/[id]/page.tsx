@@ -9,6 +9,16 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import {
+  OpBreach,
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCodeBadge,
+  OpCrumbs,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents } from "@/db";
 import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
 
@@ -17,15 +27,15 @@ import { retryOutboxRowAction } from "../actions";
 const TARGET_KIND_LABEL: Record<string, string> = {
   govt_webhook: "Webhook govt",
   eno_authority: "Autoridad ENO",
-  audit_export: "Exportación auditoría",
+  audit_export: "Exportacion auditoria",
   internal_dashboard: "Dashboard interno",
 };
 
-const BREACH_CUE_SYMBOL: Record<string, string> = {
-  delivered: "🟢",
-  ok: "🟡",
-  breach: "🔴",
-  failed: "⛔",
+type PillTone = "ok" | "neutral" | "danger" | "escalated";
+const STATUS_PILL_TONE: Record<string, PillTone> = {
+  pending: "neutral",
+  delivered: "ok",
+  failed: "escalated",
 };
 
 function fmt(d: Date | null): string {
@@ -73,7 +83,6 @@ export default async function AdminOutboxDetailPage({
     .limit(1);
 
   const cue = buildBreachCue(row.status, row.slaDueAt);
-  const symbol = BREACH_CUE_SYMBOL[cue];
   const jurisdiction = [row.targetJurisdictionLocality, row.targetJurisdictionProvince]
     .filter(Boolean)
     .join(", ");
@@ -81,172 +90,189 @@ export default async function AdminOutboxDetailPage({
   const canRetry = row.status === "pending" || row.status === "failed";
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <Link href="/admin/outbox" className="text-sm text-gob-text-muted hover:text-gob-text ">
-          ← Volver al outbox
-        </Link>
+    <div className="max-w-3xl space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Outbox", href: "/admin/outbox" },
+          { label: TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind },
+        ]}
+      />
 
-        {/* Header */}
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-gob-text ">
-            {symbol} {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
-          </h1>
-          <p className="text-sm text-gob-text-muted ">
-            {jurisdiction || "Sin jurisdicción"} · {buildStatusLabel(row.status)}
-          </p>
-          <p className="text-[10px] font-mono text-gob-text-muted ">{row.id}</p>
-        </header>
+      {/* SLA breach banner */}
+      {cue === "breach" && (
+        <OpBreach
+          title="Incumplimiento de SLA detectado"
+          detail={`Este item supero el deadline de entrega. Estado: ${buildStatusLabel(row.status)}.`}
+        />
+      )}
 
-        {/* Delivery state */}
-        <section className="rounded-lg border border-gob-border  p-4 space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gob-text-muted">
-            Estado de entrega
-          </h2>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <dt className="text-gob-text-muted">Estado</dt>
-            <dd className="text-gob-text ">{buildStatusLabel(row.status)}</dd>
+      {/* Header */}
+      <header className="space-y-1">
+        <div className="flex items-center gap-2">
+          <OpPill tone={STATUS_PILL_TONE[row.status] ?? "neutral"}>
+            {buildStatusLabel(row.status)}
+          </OpPill>
+        </div>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
+        </h1>
+        <p className="text-[13px] text-ln-op-ink-2">{jurisdiction || "Sin jurisdiccion"}</p>
+        <OpCodeBadge tone="neutral">{row.id}</OpCodeBadge>
+      </header>
 
-            <dt className="text-gob-text-muted">Intentos</dt>
-            <dd className="text-gob-text ">{row.attempts}</dd>
+      {/* Delivery state */}
+      <OpCard>
+        <OpCardHead title="Estado de entrega" />
+        <OpCardBody>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <dt className="text-[12px] text-ln-op-mute">Estado</dt>
+            <dd className="text-[13px] text-ln-op-ink">{buildStatusLabel(row.status)}</dd>
 
-            <dt className="text-gob-text-muted">Último intento</dt>
-            <dd className="text-gob-text ">{fmt(row.lastAttemptAt)}</dd>
+            <dt className="text-[12px] text-ln-op-mute">Intentos</dt>
+            <dd className="text-[13px] text-ln-op-ink">{row.attempts}</dd>
 
-            <dt className="text-gob-text-muted">Próximo reintento</dt>
-            <dd className="text-gob-text ">{fmt(row.nextRetryAt)}</dd>
+            <dt className="text-[12px] text-ln-op-mute">Ultimo intento</dt>
+            <dd className="text-[13px] text-ln-op-ink">{fmt(row.lastAttemptAt)}</dd>
 
-            <dt className="text-gob-text-muted">Entregado</dt>
-            <dd className="text-gob-text ">{fmt(row.deliveredAt)}</dd>
+            <dt className="text-[12px] text-ln-op-mute">Proximo reintento</dt>
+            <dd className="text-[13px] text-ln-op-ink">{fmt(row.nextRetryAt)}</dd>
 
-            <dt className="text-gob-text-muted">Creado</dt>
-            <dd className="text-gob-text ">{fmt(row.createdAt)}</dd>
+            <dt className="text-[12px] text-ln-op-mute">Entregado</dt>
+            <dd className="text-[13px] text-ln-op-ink">{fmt(row.deliveredAt)}</dd>
 
-            <dt className="text-gob-text-muted">SLA vence</dt>
-            <dd className="text-gob-text ">
+            <dt className="text-[12px] text-ln-op-mute">Creado</dt>
+            <dd className="text-[13px] text-ln-op-ink">{fmt(row.createdAt)}</dd>
+
+            <dt className="text-[12px] text-ln-op-mute">SLA vence</dt>
+            <dd className="text-[13px] text-ln-op-ink">
               {fmt(row.slaDueAt)}
               {cue === "breach" && (
-                <span className="ml-2 text-gob-danger font-semibold text-xs">(INCUMPLIDO)</span>
+                <span className="ml-2 text-ln-op-danger font-semibold text-[11px]">
+                  (INCUMPLIDO)
+                </span>
               )}
             </dd>
           </dl>
 
           {row.lastError && (
             <div className="mt-3 space-y-1">
-              <p className="text-xs font-semibold text-gob-text-muted uppercase tracking-wider">
-                Último error
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                Ultimo error
               </p>
-              <pre className="rounded bg-gob-surface-alt  p-3 text-xs text-gob-danger  overflow-auto whitespace-pre-wrap break-words">
+              <pre className="rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-[11px] text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
                 {row.lastError}
               </pre>
             </div>
           )}
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        {/* Payload snapshot */}
-        <section className="rounded-lg border border-gob-border  p-4 space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gob-text-muted">
-            Payload snapshot
-          </h2>
-          <pre className="rounded bg-gob-surface-alt  p-3 text-xs text-gob-text-gray  overflow-auto whitespace-pre-wrap break-words">
+      {/* Payload snapshot */}
+      <OpCard>
+        <OpCardHead title="Payload snapshot" />
+        <OpCardBody>
+          <pre className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
             {JSON.stringify(row.payloadSnapshot, null, 2)}
           </pre>
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        {/* Source event — type, timestamps, author provenance, full payload */}
-        <section className="rounded-lg border border-gob-border  p-4 space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gob-text-muted">
-            Evento origen
-          </h2>
+      {/* Source event — type, timestamps, author provenance, full payload */}
+      <OpCard>
+        <OpCardHead title="Evento origen" />
+        <OpCardBody>
           {sourceEvent ? (
             <>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <dt className="text-gob-text-muted">Tipo</dt>
-                <dd className="font-mono text-xs text-gob-text ">{sourceEvent.eventType}</dd>
-                <dt className="text-gob-text-muted">Ocurrido</dt>
-                <dd className="text-gob-text ">{fmt(sourceEvent.occurredAt)}</dd>
-                <dt className="text-gob-text-muted">Registrado</dt>
-                <dd className="text-gob-text ">{fmt(sourceEvent.recordedAt)}</dd>
-                <dt className="text-gob-text-muted">Rol del autor</dt>
-                <dd className="text-gob-text ">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <dt className="text-[12px] text-ln-op-mute">Tipo</dt>
+                <dd>
+                  <OpCodeBadge tone="blue">{sourceEvent.eventType}</OpCodeBadge>
+                </dd>
+                <dt className="text-[12px] text-ln-op-mute">Ocurrido</dt>
+                <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.occurredAt)}</dd>
+                <dt className="text-[12px] text-ln-op-mute">Registrado</dt>
+                <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.recordedAt)}</dd>
+                <dt className="text-[12px] text-ln-op-mute">Rol del autor</dt>
+                <dd className="text-[13px] text-ln-op-ink flex items-center gap-1.5">
                   {sourceEvent.authorRole}
-                  {sourceEvent.authorVerified && (
-                    <span className="ml-1.5 text-[10px] text-gob-success  font-semibold uppercase">
-                      verificado
-                    </span>
-                  )}
+                  {sourceEvent.authorVerified && <OpPill tone="ok">verificado</OpPill>}
                 </dd>
                 {sourceEvent.authorOrganizationId && (
                   <>
-                    <dt className="text-gob-text-muted">Organización</dt>
-                    <dd className="font-mono text-xs text-gob-text-muted">
+                    <dt className="text-[12px] text-ln-op-mute">Organizacion</dt>
+                    <dd className="font-mono text-[11px] text-ln-op-mute">
                       {sourceEvent.authorOrganizationId}
                     </dd>
                   </>
                 )}
                 {sourceEvent.recordedByUserId && (
                   <>
-                    <dt className="text-gob-text-muted">Usuario</dt>
-                    <dd className="font-mono text-xs text-gob-text-muted">
+                    <dt className="text-[12px] text-ln-op-mute">Usuario</dt>
+                    <dd className="font-mono text-[11px] text-ln-op-mute">
                       {sourceEvent.recordedByUserId}
                     </dd>
                   </>
                 )}
-                <dt className="text-gob-text-muted">Pet ID</dt>
-                <dd className="font-mono text-xs text-gob-text-muted">{sourceEvent.petId}</dd>
-                <dt className="text-gob-text-muted">Event ID</dt>
-                <dd className="font-mono text-xs text-gob-text-muted">{sourceEvent.id}</dd>
+                <dt className="text-[12px] text-ln-op-mute">Pet ID</dt>
+                <dd className="font-mono text-[11px] text-ln-op-mute">{sourceEvent.petId}</dd>
+                <dt className="text-[12px] text-ln-op-mute">Event ID</dt>
+                <dd className="font-mono text-[11px] text-ln-op-mute">{sourceEvent.id}</dd>
               </dl>
 
               {/* Event payload — the canonical record of what actually happened */}
-              <div className="space-y-1 pt-1">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gob-text-muted">
+              <div className="space-y-1 pt-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                   Payload del evento
                 </p>
-                <pre className="rounded bg-gob-surface-alt  p-3 text-xs text-gob-text-gray  overflow-auto whitespace-pre-wrap break-words">
+                <pre className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(sourceEvent.payload, null, 2)}
                 </pre>
               </div>
             </>
           ) : (
-            <p className="text-sm text-gob-text-muted">
+            <p className="text-[13px] text-ln-op-mute">
               Evento origen no encontrado (puede haber sido eliminado).
             </p>
           )}
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        {/* Manual retry */}
-        {canRetry && (
-          <section className="rounded-lg border border-gob-warning  bg-gob-warning/10  p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-gob-warning-text ">Reintentar manualmente</h2>
-            <p className="text-xs text-gob-warning-text ">
-              Este botón no entrega la notificación de forma sincrónica. Resetea{" "}
-              <code className="font-mono">next_retry_at = now()</code> y{" "}
-              <code className="font-mono">status = pending</code> para que el cron de drenaje lo
-              procese en el próximo ciclo (máximo 5 min).
-            </p>
-            <form
-              action={async () => {
-                "use server";
-                await retryOutboxRowAction(row.id);
-              }}
-            >
-              <button
-                type="submit"
-                className="text-sm px-4 py-2 rounded-md bg-gob-warning  text-white hover:opacity-90 font-medium"
+      {/* Manual retry */}
+      {canRetry && (
+        <OpCallout
+          icon={<span>&#9888;</span>}
+          title="Reintentar manualmente"
+          body={
+            <span className="space-y-2 block">
+              <span className="block">
+                Este boton no entrega la notificacion de forma sincronica. Resetea{" "}
+                <code className="font-mono text-[10px]">next_retry_at = now()</code> y{" "}
+                <code className="font-mono text-[10px]">status = pending</code> para que el cron de
+                drenaje lo procese en el proximo ciclo (maximo 5 min).
+              </span>
+              <form
+                action={async () => {
+                  "use server";
+                  await retryOutboxRowAction(row.id);
+                }}
               >
-                Reintentar ahora
-              </button>
-            </form>
-          </section>
-        )}
+                <button
+                  type="submit"
+                  className="text-[13px] px-4 py-2 rounded-[6px] bg-ln-op-navy text-white font-semibold hover:opacity-90 mt-2"
+                >
+                  Reintentar ahora
+                </button>
+              </form>
+            </span>
+          }
+        />
+      )}
 
-        {row.status === "delivered" && (
-          <p className="text-sm text-gob-success ">
-            Esta fila ya fue entregada exitosamente. No se requiere acción.
-          </p>
-        )}
-      </div>
-    </main>
+      {row.status === "delivered" && (
+        <p className="text-[13px] text-ln-op-ok font-semibold">
+          Esta fila ya fue entregada exitosamente. No se requiere accion.
+        </p>
+      )}
+    </div>
   );
 }

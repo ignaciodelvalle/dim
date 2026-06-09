@@ -1,3 +1,4 @@
+import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import {
   fetchCronRuns,
   fetchDecisionsMetrics,
@@ -7,16 +8,16 @@ import {
 } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
+type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {
   ok: "OK",
-  failed: "Falló",
+  failed: "Fallo",
   running: "Corriendo",
 };
-
-const STATUS_TONE: Record<string, string> = {
-  ok: "text-gob-success ",
-  failed: "text-gob-danger ",
-  running: "text-gob-warning-text ",
+const STATUS_TONE: Record<string, CronTone> = {
+  ok: "ok",
+  failed: "danger",
+  running: "open",
 };
 
 export default async function AdminSistemaPage() {
@@ -31,55 +32,89 @@ export default async function AdminSistemaPage() {
   ]);
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-8">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-semibold text-gob-text ">Salud del sistema</h1>
-          <p className="text-sm text-gob-text-gray ">Métricas operativas en vivo. Solo admin.</p>
-        </header>
+    <div className="space-y-8">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Admin {"·"} Sistema
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del sistema</h1>
+        <p className="text-[13px] text-ln-op-ink-2">Metricas operativas en vivo. Solo admin.</p>
+      </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Card title="Usuarios">
-            <Stat label="Personal" value={users.totalPersonal} />
-            <Stat label="Institucional activo" value={users.totalInstitutionalActive} />
-            <Stat
+      {/* Top KPIs */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <OpKpi label="Usuarios personales" value={users.totalPersonal} />
+        <OpKpi
+          label="Cola pendiente"
+          value={queue.pendingTotal}
+          tone={queue.pendingTotal > 0 ? "warn" : "neutral"}
+          sub={
+            queue.oldestPendingDaysAgo != null
+              ? `Mas vieja: ${queue.oldestPendingDaysAgo}d`
+              : undefined
+          }
+        />
+        <OpKpi
+          label="Decisiones 7d"
+          value={decisions.approved7d + decisions.rejected7d}
+          tone="ok"
+          sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <OpCard>
+          <OpCardHead title="Usuarios" />
+          <OpCardBody>
+            <StatRow label="Personal" value={users.totalPersonal} />
+            <StatRow label="Institucional activo" value={users.totalInstitutionalActive} />
+            <StatRow
               label="Nuevos · 24h / 7d / 30d"
               value={`${users.new24h} / ${users.new7d} / ${users.new30d}`}
             />
-          </Card>
+          </OpCardBody>
+        </OpCard>
 
-          <Card title="Cola de aprobaciones">
-            <Stat label="Pendientes" value={queue.pendingTotal} />
-            <Stat label="Más vieja (días)" value={queue.oldestPendingDaysAgo ?? "—"} />
-            <Stat
+        <OpCard>
+          <OpCardHead title="Cola de aprobaciones" />
+          <OpCardBody>
+            <StatRow label="Pendientes" value={queue.pendingTotal} />
+            <StatRow label="Mas vieja (dias)" value={queue.oldestPendingDaysAgo ?? "—"} />
+            <StatRow
               label="14d+ / 30d+ / 60d+"
               value={`${queue.pending14dPlus} / ${queue.pending30dPlus} / ${queue.pending60dPlus}`}
             />
-          </Card>
+          </OpCardBody>
+        </OpCard>
 
-          <Card title="Decisiones">
-            <Stat
+        <OpCard>
+          <OpCardHead title="Decisiones" />
+          <OpCardBody>
+            <StatRow
               label="Aprobadas · 7d / 30d"
               value={`${decisions.approved7d} / ${decisions.approved30d}`}
             />
-            <Stat
+            <StatRow
               label="Rechazadas · 7d / 30d"
               value={`${decisions.rejected7d} / ${decisions.rejected30d}`}
             />
-            <Stat label="Revocaciones · 30d" value={decisions.revocations30d} />
-          </Card>
+            <StatRow label="Revocaciones · 30d" value={decisions.revocations30d} />
+          </OpCardBody>
+        </OpCard>
 
-          <Card title="Crons">
+        <OpCard>
+          <OpCardHead title="Crons" />
+          <OpCardBody>
             {crons.length === 0 ? (
-              <p className="text-sm text-gob-text-muted">
+              <p className="text-[13px] text-ln-op-mute">
                 Sin runs registrados. La tabla <code>cron_runs</code> aparece en Fase 14.
               </p>
             ) : (
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-1">
                 {crons.map((c) => (
                   <li key={c.cronName} className="flex items-baseline justify-between gap-3">
-                    <span className="text-gob-text-gray ">{c.cronName}</span>
-                    <span className="tabular-nums text-xs">
+                    <span className="text-[12px] text-ln-op-ink-2">{c.cronName}</span>
+                    <span className="tabular-nums text-[11px] flex items-center gap-1.5">
                       {c.lastRunAt
                         ? new Date(c.lastRunAt).toLocaleString("es-AR", {
                             day: "numeric",
@@ -89,43 +124,63 @@ export default async function AdminSistemaPage() {
                           })
                         : "—"}
                       {c.lastStatus && (
-                        <span className={`ml-2 ${STATUS_TONE[c.lastStatus] ?? ""}`}>
+                        <OpPill tone={STATUS_TONE[c.lastStatus] ?? "neutral"}>
                           {STATUS_LABEL[c.lastStatus] ?? c.lastStatus}
-                        </span>
+                        </OpPill>
                       )}
                       {c.itemsProcessed != null && (
-                        <span className="ml-2 text-gob-text-muted">· {c.itemsProcessed} items</span>
+                        <span className="text-ln-op-mute">
+                          {"·"} {c.itemsProcessed} items
+                        </span>
                       )}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-          </Card>
-        </section>
+          </OpCardBody>
+        </OpCard>
+      </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gob-text ">Actividad por govt</h2>
-          {govts.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">No hay govts activos.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gob-border ">
-              <table className="w-full text-sm">
-                <thead className="bg-gob-surface-alt ">
-                  <tr className="text-left text-xs uppercase tracking-wider text-gob-text-muted">
-                    <th className="px-3 py-2">Govt</th>
-                    <th className="px-3 py-2">Localidades</th>
-                    <th className="px-3 py-2">Decisiones 30d</th>
-                    <th className="px-3 py-2">Última acción</th>
+      <section className="space-y-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Actividad por govt
+        </p>
+        {govts.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">No hay govts activos.</p>
+        ) : (
+          <OpCard>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-ln-op-line">
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                      Govt
+                    </th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                      Localidades
+                    </th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                      Decisiones 30d
+                    </th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                      Ultima accion
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {govts.map((g) => (
-                    <tr key={g.userId} className="border-t border-gob-border ">
-                      <td className="px-3 py-2 font-medium">{g.displayName}</td>
-                      <td className="px-3 py-2 tabular-nums">{g.localitiesCount}</td>
-                      <td className="px-3 py-2 tabular-nums">{g.decisions30d}</td>
-                      <td className="px-3 py-2 text-xs text-gob-text-muted">
+                    <tr key={g.userId} className="border-t border-ln-op-line">
+                      <td className="px-3 py-2 text-[13px] font-medium text-ln-op-ink">
+                        {g.displayName}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-[12px] text-ln-op-ink-2">
+                        {g.localitiesCount}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-[12px] text-ln-op-ink-2">
+                        {g.decisions30d}
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-ln-op-mute">
                         {g.lastActionAt
                           ? new Date(g.lastActionAt).toLocaleDateString("es-AR", {
                               day: "numeric",
@@ -139,27 +194,18 @@ export default async function AdminSistemaPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-gob-border  p-4 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-gob-text-muted">{title}</p>
-      <div className="space-y-1">{children}</div>
+          </OpCard>
+        )}
+      </section>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs text-gob-text-gray ">{label}</span>
-      <span className="text-sm font-medium tabular-nums">{value}</span>
+      <span className="text-[12px] text-ln-op-mute">{label}</span>
+      <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">{value}</span>
     </div>
   );
 }
