@@ -62,13 +62,13 @@ export default async function ColaPage({
           {activeType && (
             <Link
               href="/gob/cola"
-              className="inline-flex items-center gap-1 text-xs text-gob-text-muted  hover:text-gob-text  underline underline-offset-4"
+              className="inline-flex items-center gap-1 text-[12px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
             >
               ← Ver todas las solicitudes
             </Link>
           )}
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">{pageTitle}</h1>
-          <p className="text-sm text-gob-text-gray ">{subtitle}</p>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">{pageTitle}</h1>
+          <p className="text-[13px] text-ln-op-mute">{subtitle}</p>
         </header>
 
         <BulkApprovalQueueList

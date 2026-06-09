@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { logRequestViewedForAuthority } from "@/app/actions/admin-decisions";
+import { OpCard, OpCardBody, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { approvalRequests, db, organizations, profiles } from "@/db";
 import { canDecideRequest } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -22,6 +23,13 @@ const STATUS_LABELS: Record<string, string> = {
   approved: "Aprobada",
   rejected: "Rechazada",
   withdrawn: "Retirada",
+};
+
+const STATUS_PILL_TONE: Record<string, "open" | "ok" | "danger" | "neutral"> = {
+  pending: "open",
+  approved: "ok",
+  rejected: "danger",
+  withdrawn: "neutral",
 };
 
 export default async function ReviewRequestPage({
@@ -74,59 +82,74 @@ export default async function ReviewRequestPage({
   return (
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-6">
+        {/* Back link */}
         <div>
           <Link
             href="/gob/cola"
-            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+            className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
           >
             ← Volver a la cola
           </Link>
         </div>
 
+        {/* Page header */}
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
-            {STATUS_LABELS[request.status] ?? request.status}
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
+          <div className="flex items-center gap-2">
+            <OpPill tone={STATUS_PILL_TONE[request.status] ?? "neutral"}>
+              {STATUS_LABELS[request.status] ?? request.status}
+            </OpPill>
+          </div>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
             {TYPE_LABELS[request.type] ?? request.type}
           </h1>
-          <p className="text-xs text-gob-text-muted ">
-            <span className="font-mono">{request.publicToken}</span> ·{" "}
-            {request.jurisdictionLocality}, {request.jurisdictionProvince} · creada{" "}
-            {new Date(request.createdAt).toLocaleString("es-AR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            })}
+          <p className="text-[12px] text-ln-op-mute flex flex-wrap gap-x-2 gap-y-1 items-center">
+            <OpCodeBadge tone="neutral">{request.publicToken}</OpCodeBadge>
+            <span>·</span>
+            <span>
+              {request.jurisdictionLocality}, {request.jurisdictionProvince}
+            </span>
+            <span>·</span>
+            <span>
+              creada{" "}
+              {new Date(request.createdAt).toLocaleString("es-AR", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })}
+            </span>
           </p>
         </header>
 
+        {/* Applicant */}
         <Section title="Aplicante">
-          <p className="text-sm text-gob-text ">{applicant?.displayName ?? "Usuario"}</p>
-          <p className="text-xs text-gob-text-muted ">Rol actual: {applicant?.role ?? "owner"}</p>
+          <p className="text-[13px] text-ln-op-ink">{applicant?.displayName ?? "Usuario"}</p>
+          <p className="text-[12px] text-ln-op-mute">Rol actual: {applicant?.role ?? "owner"}</p>
         </Section>
 
+        {/* Target org */}
         {targetOrg && (
           <Section title="Organización a verificar">
-            <p className="text-sm text-gob-text ">{targetOrg.displayName}</p>
-            <p className="text-xs text-gob-text-muted ">
-              {targetOrg.legalName} · {targetOrg.orgType}
+            <p className="text-[13px] text-ln-op-ink">{targetOrg.displayName}</p>
+            <p className="text-[12px] text-ln-op-mute">
+              {targetOrg.legalName} · <OpCodeBadge tone="neutral">{targetOrg.orgType}</OpCodeBadge>
             </p>
           </Section>
         )}
 
+        {/* Payload */}
         <Section title="Payload">
-          <pre className="text-[11px] leading-relaxed rounded-md bg-gob-surface-alt  p-3 overflow-x-auto text-gob-text-gray ">
+          <pre className="text-[11px] leading-relaxed rounded-[6px] bg-ln-op-stripe border border-ln-op-line p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
             {JSON.stringify(request.payload, null, 2)}
           </pre>
         </Section>
 
+        {/* Decision section */}
         {request.status === "pending" ? (
           <Section title="Decidir">
             <ReviewActions publicToken={request.publicToken} />
           </Section>
         ) : (
           <Section title="Decisión">
-            <p className="text-sm text-gob-text ">
+            <p className="text-[13px] text-ln-op-ink">
               {STATUS_LABELS[request.status]}
               {request.decidedAt &&
                 ` el ${new Date(request.decidedAt).toLocaleString("es-AR", {
@@ -135,7 +158,7 @@ export default async function ReviewRequestPage({
                 })}`}
             </p>
             {request.decisionNotes && (
-              <p className="text-xs text-gob-text-gray  mt-1">Notas: {request.decisionNotes}</p>
+              <p className="text-[12px] text-ln-op-mute mt-1">Notas: {request.decisionNotes}</p>
             )}
           </Section>
         )}
@@ -147,8 +170,10 @@ export default async function ReviewRequestPage({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">{title}</h2>
-      <div className="rounded-lg border border-gob-border  p-4 space-y-1">{children}</div>
+      <h2 className="text-[10px] uppercase tracking-[0.18em] font-bold text-ln-op-mute">{title}</h2>
+      <OpCard>
+        <OpCardBody className="space-y-1">{children}</OpCardBody>
+      </OpCard>
     </section>
   );
 }
