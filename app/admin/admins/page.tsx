@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { eq } from "drizzle-orm";
 
+import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,25 +42,25 @@ export default async function AdminsPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
+            <h1 className="text-[20px] font-semibold tracking-tight text-ln-op-ink">
               Administradores
             </h1>
-            <p className="text-sm text-gob-text-gray ">
+            <p className="text-[12px] text-ln-op-ink-2">
               Operadores institucionales con acceso de administrador.
             </p>
           </div>
           <Link
             href="/admin/admins/new"
-            className="px-4 py-2 text-sm bg-gob-primary  text-white  rounded-md hover:opacity-90 shrink-0"
+            className="px-4 py-2 text-[12px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
           >
             + Crear admin
           </Link>
         </header>
 
         {activeAdmins.length === 0 ? (
-          <div className="text-center py-12 rounded-lg border border-dashed border-gob-border ">
-            <p className="text-sm text-gob-text-muted ">No hay administradores activos.</p>
-            <p className="text-xs text-gob-text-muted  mt-1">
+          <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
+            <p className="text-[12px] text-ln-op-mute">No hay administradores activos.</p>
+            <p className="text-[12px] text-ln-op-mute mt-1">
               Para el bootstrap inicial, usa Supabase Studio para asignar el primer admin
               manualmente.
             </p>
@@ -74,7 +75,7 @@ export default async function AdminsPage() {
 
         {deactivatedAdmins.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-sm text-gob-text-muted  hover:text-gob-text-gray  select-none">
+            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
               Desactivados ({deactivatedAdmins.length})
             </summary>
             <ul className="mt-2 space-y-2">
@@ -85,9 +86,9 @@ export default async function AdminsPage() {
           </details>
         )}
 
-        <p className="text-xs text-gob-text-muted ">
-          <Link href="/admin" className="underline underline-offset-4 hover:text-gob-text-gray ">
-            &larr; Volver al dashboard
+        <p className="text-[12px] text-ln-op-mute">
+          <Link href="/admin" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+            {"<-"} Volver al dashboard
           </Link>
         </p>
       </div>
@@ -109,33 +110,27 @@ function AdminRow({ admin }: AdminRowProps) {
   const isActive = admin.deactivatedAt === null;
 
   return (
-    <li className="rounded-lg border border-gob-border  px-4 py-3 flex items-center justify-between gap-4">
-      <div className="min-w-0 space-y-0.5 flex items-center gap-2">
-        <div>
-          <Link
-            href={`/admin/admins/${admin.id}`}
-            className="text-sm font-medium text-gob-text  hover:underline underline-offset-4"
-          >
-            {admin.displayName}
-          </Link>
-          {admin.isSelf && (
-            <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-gob-warning/10 text-gob-warning-text   rounded">
-              Vos
-            </span>
-          )}
-          <p className="text-xs text-gob-text-muted ">{admin.email}</p>
-        </div>
-      </div>
+    <li>
+      <OpCard>
+        <OpCardBody className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-0.5 flex items-center gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/admin/admins/${admin.id}`}
+                  className="text-[13px] font-semibold text-ln-op-azul hover:underline underline-offset-4"
+                >
+                  {admin.displayName}
+                </Link>
+                {admin.isSelf && <OpPill tone="open">Vos</OpPill>}
+              </div>
+              <p className="text-[12px] text-ln-op-mute">{admin.email}</p>
+            </div>
+          </div>
 
-      <span
-        className={`px-2 py-0.5 rounded uppercase tracking-wider text-[10px] shrink-0 ${
-          isActive
-            ? "bg-gob-success/10 text-gob-success  "
-            : "bg-gob-surface-alt text-gob-text-gray  "
-        }`}
-      >
-        {isActive ? "Activo" : "Desactivado"}
-      </span>
+          <OpPill tone={isActive ? "ok" : "neutral"}>{isActive ? "Activo" : "Desactivado"}</OpPill>
+        </OpCardBody>
+      </OpCard>
     </li>
   );
 }
