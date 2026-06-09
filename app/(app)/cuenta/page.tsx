@@ -1,3 +1,11 @@
+// Cuenta hub — Libreta Nacional redesign.
+//
+// Layout: serif page title → identity card (avatar + name + email + role badges)
+//   → verifications section → privacy section → quick-actions list (LnRegRow style)
+//   → vet clinic banner → sheet mounter.
+//
+// Data fetching, server actions, and CuentaSheetMounter are unchanged.
+
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -6,10 +14,13 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnSectionHead } from "@/components/ui/DocElements";
+
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { PrivacySection } from "./_components/PrivacySection";
 
-// Role display labels — Argentine Spanish, gendered in context where possible.
+// Role display labels
 const ROLE_LABELS: Record<string, string> = {
   owner: "Dueño/a",
   vet: "Veterinario/a",
@@ -27,18 +38,15 @@ export default async function CuentaPage() {
 
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
 
-  // Fetch email from auth.users via admin SDK — profiles table doesn't store it.
   let email = "";
   try {
     const adminClient = createAdminClient();
     const { data } = await adminClient.auth.admin.getUserById(user.id);
     email = data?.user?.email ?? "";
   } catch {
-    // Non-critical — email display degrades gracefully
+    // Non-critical
   }
 
-  // Determine if this vet already has an admin/coordinator membership.
-  // Used to conditionally show the "Creá tu consultorio" banner.
   let vetNeedsClinic = false;
   if (profile?.role === "vet" && profile.matriculaVerified) {
     const [adminRow] = await db
@@ -56,10 +64,9 @@ export default async function CuentaPage() {
   }
 
   if (!profile) {
-    // Should never happen once authenticated, but defensive.
     return (
-      <div className="max-w-4xl mx-auto pt-10">
-        <p className="text-sm text-gob-danger">
+      <div className="mx-auto max-w-4xl px-[32px] py-[28px]">
+        <p className="text-[13px] text-[var(--color-ln-err)]">
           No se encontró tu perfil. Cerrá sesión e intentá de nuevo.
         </p>
       </div>
@@ -76,210 +83,239 @@ export default async function CuentaPage() {
   const accountTypeLabel = ACCOUNT_TYPE_LABELS[profile.accountType] ?? profile.accountType;
 
   return (
-    <div className="max-w-4xl mx-auto pt-10 space-y-10">
-      {/* Header — avatar + name + email + badges */}
-      <header className="space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
-          Bienvenido/a, {profile.displayName}
+    <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
+      {/* ------------------------------------------------------------------ */}
+      {/* Page header                                                         */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Mi cuenta
         </h1>
-
-        <div className="flex items-center gap-4">
-          {/* Avatar */}
-          {profile.avatarUrl ? (
-            <img
-              src={profile.avatarUrl}
-              alt={profile.displayName}
-              className="w-16 h-16 rounded-full object-cover shrink-0 border border-gob-border"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-gob-surface-alt border border-gob-border flex items-center justify-center text-2xl font-semibold text-gob-text-gray shrink-0">
-              {initials}
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <p className="text-base font-medium text-gob-text">{profile.displayName}</p>
-            {email && <p className="text-sm text-gob-text-muted">{email}</p>}
-            <div className="flex flex-wrap gap-2 pt-0.5">
-              <Badge>{roleLabel}</Badge>
-              <Badge variant="secondary">{accountTypeLabel}</Badge>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Identity verifications — read-only */}
-      <section className="rounded-lg border border-gob-border p-6 space-y-4">
-        <h2 className="text-base font-semibold text-gob-text">Verificaciones de identidad</h2>
-
-        <div className="space-y-3">
-          {/* DNI */}
-          {profile.dniNumber ? (
-            <div className="flex items-center gap-2">
-              <VerificationBadge verified={profile.dniVerified} />
-              <span className="text-sm text-gob-text-gray">
-                DNI{" "}
-                <span className="font-mono">
-                  {profile.dniVerified ? `••••${profile.dniNumber.slice(-3)}` : profile.dniNumber}
-                </span>{" "}
-                {profile.dniVerified ? "verificado" : "sin verificar"}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-gob-text-muted" />
-              <span className="text-sm text-gob-text-muted">
-                DNI no provisto —{" "}
-                <Link
-                  href="?sheet=verificar-dni"
-                  className="underline underline-offset-2 text-gob-text-gray hover:text-gob-text"
-                >
-                  Verificar ahora
-                </Link>
-              </span>
-            </div>
-          )}
-
-          {/* Matrícula veterinaria */}
-          {profile.matriculaNumber ? (
-            <div className="flex items-center gap-2">
-              <VerificationBadge verified={profile.matriculaVerified} />
-              <span className="text-sm text-gob-text-gray">
-                Matrícula M.N. {profile.matriculaNumber}
-                {profile.matriculaJurisdiccion && ` (${profile.matriculaJurisdiccion})`}{" "}
-                {profile.matriculaVerified ? "verificada" : "— pendiente de verificación"}
-              </span>
-            </div>
-          ) : profile.role === "vet" ? (
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-gob-warning" />
-              <span className="text-sm text-gob-text-muted">Matrícula no cargada</span>
-            </div>
-          ) : null}
-        </div>
-      </section>
-
-      {/* Privacy controls — D3-3 */}
-      <PrivacySection
-        prefs={{
-          discloseNameCredential: profile.discloseNameCredential,
-          disclosePhoneCredential: profile.disclosePhoneCredential,
-          allowOrgContact: profile.allowOrgContact,
-          allowLostAlertsInZone: profile.allowLostAlertsInZone,
-        }}
-      />
-
-      {/* Vet onboarding banner — shown only when the vet has no clinic yet */}
-      {vetNeedsClinic && (
-        <section className="rounded-lg border border-gob-border p-5 flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-gob-text">
-              ¿Vas a ofrecer servicios profesionales?
-            </p>
-            <p className="text-xs text-gob-text-muted">
-              Creá tu consultorio para publicar servicios, gestionar turnos y emitir eventos en
-              libretas sanitarias.
-            </p>
-          </div>
-          <Link
-            href="/cuenta/crear-consultorio"
-            className="shrink-0 px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            Crear consultorio →
-          </Link>
-        </section>
-      )}
-
-      {/* Quick actions */}
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold text-gob-text">Acciones rápidas</h2>
-
-        <div className="space-y-2">
-          {/* editar-perfil — opens inline sheet (?sheet=editar-perfil) */}
-          <ActionCard
-            href="?sheet=editar-perfil"
-            label="Editar mi información"
-            description="Nombre, teléfono y foto de perfil"
-          />
-          <ActionCard
-            href="/cuenta/memberships"
-            label="Mis organizaciones"
-            description="Refugios, clínicas y redes en las que participás"
-          />
-          <ActionCard
-            href="/cuenta/solicitudes"
-            label="Mis solicitudes"
-            description="Estado de tus solicitudes de rol"
-          />
-          {profile.role === "owner" && (
-            /* solicitar-upgrade-vet — opens inline sheet (?sheet=solicitar-upgrade-vet) */
-            <ActionCard
-              href="?sheet=solicitar-upgrade-vet"
-              label="Convertirme en profesional / organización"
-              description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
-            />
-          )}
-          <ActionCard
-            href="/cuenta/privacidad"
-            label="Privacidad y derechos"
-            description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
-          />
-          {profile.role === "owner" && profile.accountType === "personal" && (
-            <>
-              <ActionCard
-                href="/cuenta/ofrecerme-como-transito"
-                label="Ofrecerme como hogar de tránsito"
-                description="Inscribite en el pool de voluntarios para cuidar mascotas en custodia"
-              />
-              <ActionCard
-                href="/cuenta/transitos/propuestas"
-                label="Propuestas de tránsito"
-                description="Refugios proponiéndote cuidar mascotas"
-              />
-              <ActionCard
-                href="/cuenta/transitos/activos"
-                label="Tránsitos activos"
-                description="Mascotas que estás cuidando ahora"
-              />
-              <ActionCard
-                href="/cuenta/transitos/historial"
-                label="Historial de tránsitos"
-                description="Tránsitos terminados y propuestas no concretadas"
-              />
-            </>
-          )}
-          {profile.role === "vet" && (
-            /* renunciar-rol — opens inline sheet (?sheet=renunciar-rol) */
-            <ActionCard
-              href="?sheet=renunciar-rol"
-              label="Renunciar a rol veterinario"
-              description="Volvés a rol dueño/a"
-            />
-          )}
-          {profile.role === "govt" && profile.accountType === "institutional" && (
-            // desactivar — stays as full page (needs per-locality coverage data)
-            <ActionCard
-              href="/cuenta/desactivar"
-              label="Desactivar mi cuenta"
-              description="Desactiva tu cuenta de operador govt"
-            />
-          )}
-        </div>
-      </section>
-
-      {/* Back link */}
-      <div className="pt-2">
-        <Link
-          href="/mis-mascotas"
-          className="text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text transition-colors"
-        >
-          ← Volver a mis mascotas
-        </Link>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Perfil, verificaciones y configuración.
+        </p>
       </div>
 
-      {/* Sheet mounter — driven by ?sheet=<id> URL param.
-          Renders nothing when the param is absent or unknown.
-          Suspense is required because CuentaSheetMounter uses useSearchParams. */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Identity card                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <LnCard className="mb-[28px]">
+        <LnCardHead title="Datos de la cuenta" />
+        <LnCardBody>
+          <div className="flex items-center gap-[16px]">
+            {/* Avatar */}
+            {profile.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.avatarUrl}
+                alt={profile.displayName}
+                className="h-[64px] w-[64px] flex-shrink-0 rounded-full border border-[var(--color-ln-line-strong)] object-cover"
+              />
+            ) : (
+              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink-2)]">
+                {initials}
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <p className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+                {profile.displayName}
+              </p>
+              {email && (
+                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+                  {email}
+                </p>
+              )}
+              <div className="mt-[8px] flex flex-wrap gap-[6px]">
+                <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+                  {roleLabel}
+                </span>
+                <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+                  {accountTypeLabel}
+                </span>
+              </div>
+            </div>
+          </div>
+        </LnCardBody>
+      </LnCard>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Verifications                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <LnCard className="mb-[28px]">
+        <LnCardHead title="Verificaciones de identidad" />
+        <LnCardBody>
+          <div className="flex flex-col gap-[12px]">
+            {/* DNI */}
+            {profile.dniNumber ? (
+              <div className="flex items-center gap-[10px]">
+                <VerificationBadge verified={profile.dniVerified} />
+                <span className="text-[13px] text-[var(--color-ln-ink-2)]">
+                  DNI{" "}
+                  <span className="font-[var(--font-ln-mono)]">
+                    {profile.dniVerified ? `••••${profile.dniNumber.slice(-3)}` : profile.dniNumber}
+                  </span>{" "}
+                  {profile.dniVerified ? "verificado" : "sin verificar"}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-[10px]">
+                <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-mute)]" />
+                <span className="text-[13px] text-[var(--color-ln-mute)]">
+                  DNI no provisto —{" "}
+                  <Link
+                    href="?sheet=verificar-dni"
+                    className="text-[var(--color-ln-azul)] no-underline hover:underline"
+                  >
+                    Verificar ahora
+                  </Link>
+                </span>
+              </div>
+            )}
+
+            {/* Matrícula */}
+            {profile.matriculaNumber ? (
+              <div className="flex items-center gap-[10px]">
+                <VerificationBadge verified={profile.matriculaVerified} />
+                <span className="text-[13px] text-[var(--color-ln-ink-2)]">
+                  Matrícula M.N. {profile.matriculaNumber}
+                  {profile.matriculaJurisdiccion && ` (${profile.matriculaJurisdiccion})`}{" "}
+                  {profile.matriculaVerified ? "verificada" : "— pendiente de verificación"}
+                </span>
+              </div>
+            ) : profile.role === "vet" ? (
+              <div className="flex items-center gap-[10px]">
+                <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-warn)]" />
+                <span className="text-[13px] text-[var(--color-ln-mute)]">
+                  Matrícula no cargada
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </LnCardBody>
+      </LnCard>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Privacy controls (PrivacySection is a client component — unchanged) */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="mb-[28px]">
+        <PrivacySection
+          prefs={{
+            discloseNameCredential: profile.discloseNameCredential,
+            disclosePhoneCredential: profile.disclosePhoneCredential,
+            allowOrgContact: profile.allowOrgContact,
+            allowLostAlertsInZone: profile.allowLostAlertsInZone,
+          }}
+        />
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Vet clinic banner                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      {vetNeedsClinic && (
+        <div className="mb-[28px] overflow-hidden rounded-[4px] border border-[var(--color-ln-celeste-100)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[18px] py-[14px]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
+                ¿Vas a ofrecer servicios profesionales?
+              </p>
+              <p className="mt-[2px] text-[12px] text-[var(--color-ln-ink-2)]">
+                Creá tu consultorio para publicar servicios, gestionar turnos y emitir eventos en
+                libretas sanitarias.
+              </p>
+            </div>
+            <Link
+              href="/cuenta/crear-consultorio"
+              className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+            >
+              Crear consultorio →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Quick actions                                                         */}
+      {/* ------------------------------------------------------------------ */}
+      <LnSectionHead num="01" title="Acciones" className="mb-[16px]" />
+
+      <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <ActionRow
+          href="?sheet=editar-perfil"
+          label="Editar mi información"
+          description="Nombre, teléfono y foto de perfil"
+        />
+        <ActionRow
+          href="/cuenta/memberships"
+          label="Mis organizaciones"
+          description="Refugios, clínicas y redes en las que participás"
+        />
+        <ActionRow
+          href="/cuenta/solicitudes"
+          label="Mis solicitudes"
+          description="Estado de tus solicitudes de rol"
+        />
+        {profile.role === "owner" && (
+          <ActionRow
+            href="?sheet=solicitar-upgrade-vet"
+            label="Convertirme en profesional / organización"
+            description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
+          />
+        )}
+        <ActionRow
+          href="/cuenta/privacidad"
+          label="Privacidad y derechos"
+          description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
+        />
+        {profile.role === "owner" && profile.accountType === "personal" && (
+          <>
+            <ActionRow
+              href="/cuenta/ofrecerme-como-transito"
+              label="Ofrecerme como hogar de tránsito"
+              description="Inscribite en el pool de voluntarios para cuidar mascotas en custodia"
+            />
+            <ActionRow
+              href="/cuenta/transitos/propuestas"
+              label="Propuestas de tránsito"
+              description="Refugios proponiéndote cuidar mascotas"
+            />
+            <ActionRow
+              href="/cuenta/transitos/activos"
+              label="Tránsitos activos"
+              description="Mascotas que estás cuidando ahora"
+            />
+            <ActionRow
+              href="/cuenta/transitos/historial"
+              label="Historial de tránsitos"
+              description="Tránsitos terminados y propuestas no concretadas"
+            />
+          </>
+        )}
+        {profile.role === "vet" && (
+          <ActionRow
+            href="?sheet=renunciar-rol"
+            label="Renunciar a rol veterinario"
+            description="Volvés a rol dueño/a"
+            danger
+          />
+        )}
+        {profile.role === "govt" && profile.accountType === "institutional" && (
+          <ActionRow
+            href="/cuenta/desactivar"
+            label="Desactivar mi cuenta"
+            description="Desactiva tu cuenta de operador govt"
+            danger
+          />
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+        <span>Documento sincronizado</span>
+        <span>miMAR · Registro Nacional de Mascotas</span>
+      </div>
+
+      {/* Sheet mounter */}
       <Suspense>
         <CuentaSheetMounter
           initialProfile={{
@@ -303,27 +339,12 @@ export default async function CuentaPage() {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function Badge({
-  children,
-  variant = "primary",
-}: {
-  children: React.ReactNode;
-  variant?: "primary" | "secondary";
-}) {
-  const base = "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border";
-  const styles =
-    variant === "secondary"
-      ? "bg-gob-surface-alt text-gob-text-gray border-gob-border-strong"
-      : "bg-gob-primary text-white border-transparent";
-  return <span className={`${base} ${styles}`}>{children}</span>;
-}
-
 function VerificationBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
       <span
         aria-label="verificado"
-        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gob-success/10 text-gob-success text-xs font-bold shrink-0"
+        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#eef6f0] text-[11px] font-bold text-[var(--color-ln-ok)]"
       >
         ✓
       </span>
@@ -332,49 +353,45 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   return (
     <span
       aria-label="pendiente"
-      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gob-warning/20 text-gob-warning-text text-xs font-bold shrink-0"
+      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#fdf2e0] text-[11px] text-[var(--color-ln-warn)]"
     >
       ⏳
     </span>
   );
 }
 
-function ActionCard({
+function ActionRow({
   href,
   label,
   description,
-  placeholder = false,
+  danger = false,
 }: {
   href: string;
   label: string;
   description: string;
-  placeholder?: boolean;
+  danger?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${
-        placeholder
-          ? "border-gob-border-strong opacity-60 pointer-events-none cursor-default"
-          : "border-gob-border hover:bg-gob-surface-alt"
-      }`}
-      aria-disabled={placeholder}
-      tabIndex={placeholder ? -1 : undefined}
+      className={[
+        "flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[14px] no-underline last:border-b-0",
+        "hover:bg-[var(--color-ln-stripe)] transition-colors",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      <div>
-        <p className="text-sm font-medium text-gob-text">
+      <div className="min-w-0">
+        <p
+          className={`text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
+        >
           {label}
-          {placeholder && (
-            <span className="ml-2 text-xs font-normal text-gob-text-muted">(próximamente)</span>
-          )}
         </p>
-        <p className="text-xs text-gob-text-muted mt-0.5">{description}</p>
+        <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
       </div>
-      {!placeholder && (
-        <span className="text-gob-text-muted shrink-0 ml-4" aria-hidden>
-          →
-        </span>
-      )}
+      <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-mute)] text-[16px]">
+        ›
+      </span>
     </Link>
   );
 }

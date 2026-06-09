@@ -1,13 +1,14 @@
+// Mis solicitudes — Libreta Nacional redesign.
+// Data fetching unchanged.
+
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnCard, LnCardBody } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
 import { approvalRequests, db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { WithdrawButton } from "./WithdrawButton";
-
-// ---------------------------------------------------------------------------
-// Display labels
-// ---------------------------------------------------------------------------
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
   role_upgrade_vet: "Upgrade a veterinario/a",
@@ -26,16 +27,22 @@ const STATUS_LABELS: Record<string, string> = {
 
 type StatusVariant = "pending" | "approved" | "rejected" | "withdrawn";
 
-const STATUS_CLASSES: Record<StatusVariant, string> = {
-  pending: "bg-gob-warning/10  text-gob-warning-text  border-gob-warning ",
-  approved: "bg-gob-success/10  text-gob-success  border-gob-success ",
-  rejected: "bg-gob-danger/10  text-gob-danger  border-gob-danger ",
-  withdrawn: "bg-gob-surface-alt  text-gob-text-muted  border-gob-border ",
-};
+type StatusStyle = { bg: string; text: string; border: string };
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+const STATUS_STYLES: Record<StatusVariant, StatusStyle> = {
+  pending: { bg: "bg-[#fdf2e0]", text: "text-[var(--color-ln-warn)]", border: "border-[#f0dcb4]" },
+  approved: { bg: "bg-[#eef6f0]", text: "text-[var(--color-ln-ok)]", border: "border-[#c8e2d2]" },
+  rejected: {
+    bg: "bg-[#fbe9e6]",
+    text: "text-[var(--color-ln-err)]",
+    border: "border-[#f1c6bf]",
+  },
+  withdrawn: {
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
+  },
+};
 
 export default async function SolicitudesPage({
   searchParams,
@@ -58,7 +65,6 @@ export default async function SolicitudesPage({
     .where(eq(approvalRequests.applicantUserId, user.id))
     .orderBy(desc(approvalRequests.createdAt));
 
-  // Filter pills
   const activeFilter = filter ?? "all";
   const filtered = allRequests.filter((r) => {
     if (activeFilter === "all") return true;
@@ -68,127 +74,132 @@ export default async function SolicitudesPage({
   const totalCount = allRequests.length;
 
   return (
-    <div className="min-h-screen p-6 bg-white">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        {/* Header */}
-        <header className="space-y-1">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-              Mis solicitudes
-            </h1>
-            <span className="text-sm font-medium text-gob-text-muted ">
-              {totalCount === 0
-                ? "ninguna"
-                : totalCount === 1
-                  ? "1 solicitud"
-                  : `${totalCount} solicitudes`}
-            </span>
-          </div>
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        {/* Empty state — no requests at all */}
-        {totalCount === 0 && (
-          <div className="rounded-lg border border-gob-border  p-8 text-center">
-            <p className="text-sm text-gob-text-gray ">No mandaste solicitudes todavía.</p>
-          </div>
-        )}
+      {/* Header */}
+      <div className="mb-[24px] flex items-baseline gap-[14px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Mis solicitudes
+        </h1>
+        <span className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+          {totalCount === 0
+            ? "ninguna"
+            : totalCount === 1
+              ? "1 solicitud"
+              : `${totalCount} solicitudes`}
+        </span>
+      </div>
 
-        {/* Filter pills */}
-        {totalCount > 0 && (
-          <fieldset className="flex flex-wrap gap-2 border-0 p-0 m-0">
-            <legend className="sr-only">Filtrar solicitudes</legend>
-            <FilterPill href="/cuenta/solicitudes" label="Todas" active={activeFilter === "all"} />
-            <FilterPill
-              href="/cuenta/solicitudes?filter=pending"
-              label="Pendientes"
-              active={activeFilter === "pending"}
-            />
-            <FilterPill
-              href="/cuenta/solicitudes?filter=approved"
-              label="Aprobadas"
-              active={activeFilter === "approved"}
-            />
-            <FilterPill
-              href="/cuenta/solicitudes?filter=rejected"
-              label="Rechazadas"
-              active={activeFilter === "rejected"}
-            />
-          </fieldset>
-        )}
+      {/* Empty state */}
+      {totalCount === 0 && (
+        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
+          <p className="text-[13px] text-[var(--color-ln-mute)]">
+            No mandaste solicitudes todavía.
+          </p>
+        </div>
+      )}
 
-        {/* Requests list */}
-        {totalCount > 0 && filtered.length === 0 && (
-          <p className="text-sm text-gob-text-muted ">No hay solicitudes con ese filtro.</p>
-        )}
+      {/* Filter chips */}
+      {totalCount > 0 && (
+        <div className="mb-[20px] flex flex-wrap gap-[6px]">
+          <FilterChip href="/cuenta/solicitudes" label="Todas" active={activeFilter === "all"} />
+          <FilterChip
+            href="/cuenta/solicitudes?filter=pending"
+            label="Pendientes"
+            active={activeFilter === "pending"}
+          />
+          <FilterChip
+            href="/cuenta/solicitudes?filter=approved"
+            label="Aprobadas"
+            active={activeFilter === "approved"}
+          />
+          <FilterChip
+            href="/cuenta/solicitudes?filter=rejected"
+            label="Rechazadas"
+            active={activeFilter === "rejected"}
+          />
+        </div>
+      )}
 
-        {filtered.length > 0 && (
-          <ul className="space-y-3">
-            {filtered.map((req) => {
-              const statusVariant = (
-                ["pending", "approved", "rejected", "withdrawn"].includes(req.status)
-                  ? req.status
-                  : "pending"
-              ) as StatusVariant;
+      {/* No results for filter */}
+      {totalCount > 0 && filtered.length === 0 && (
+        <p className="text-[13px] text-[var(--color-ln-mute)]">
+          No hay solicitudes con ese filtro.
+        </p>
+      )}
 
-              return (
-                <li key={req.id} className="rounded-lg border border-gob-border  p-4 space-y-3">
-                  {/* Top row — type badge + status badge */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gob-surface-alt  text-gob-text-gray  border-gob-border ">
+      {/* Requests list */}
+      {filtered.length > 0 && (
+        <div className="flex flex-col gap-[12px]">
+          {filtered.map((req) => {
+            const statusVariant = (
+              ["pending", "approved", "rejected", "withdrawn"].includes(req.status)
+                ? req.status
+                : "pending"
+            ) as StatusVariant;
+            const style = STATUS_STYLES[statusVariant];
+
+            return (
+              <LnCard key={req.id}>
+                <LnCardBody>
+                  {/* Type + status */}
+                  <div className="mb-[10px] flex flex-wrap items-center gap-[7px]">
+                    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
                       {REQUEST_TYPE_LABELS[req.type] ?? req.type}
                     </span>
-                    <StatusBadge status={statusVariant} />
+                    <span
+                      className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
+                    >
+                      {STATUS_LABELS[req.status]}
+                    </span>
                   </div>
 
                   {/* Dates */}
-                  <div className="text-xs text-gob-text-muted  space-y-0.5">
-                    <p>
+                  <div className="mb-[10px] flex flex-col gap-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                    <span>
                       Enviada el{" "}
                       {req.createdAt.toLocaleDateString("es-AR", {
                         year: "numeric",
                         month: "long",
                         day: "numeric",
                       })}
-                    </p>
+                    </span>
                     {req.decidedAt && (
-                      <p>
+                      <span>
                         Decidida el{" "}
                         {req.decidedAt.toLocaleDateString("es-AR", {
                           year: "numeric",
                           month: "long",
                           day: "numeric",
                         })}
-                      </p>
+                      </span>
                     )}
                   </div>
 
                   {/* Rejection reason */}
                   {req.status === "rejected" && req.decisionNotes && (
-                    <div className="rounded-md bg-gob-danger/10  border border-gob-danger  px-3 py-2">
-                      <p className="text-xs text-gob-danger ">
-                        <span className="font-medium">Motivo:</span> {req.decisionNotes}
+                    <div className="mb-[10px] rounded-[4px] border border-[#f1c6bf] bg-[#fbe9e6] px-[12px] py-[8px]">
+                      <p className="text-[12px] text-[var(--color-ln-err)]">
+                        <span className="font-semibold">Motivo:</span> {req.decisionNotes}
                       </p>
                     </div>
                   )}
 
-                  {/* Withdraw button — only for pending requests */}
+                  {/* Withdraw */}
                   {req.status === "pending" && <WithdrawButton requestId={req.id} />}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {/* Back link */}
-        <div className="pt-2">
-          <Link
-            href="/cuenta"
-            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
-          >
-            ← Volver a mi cuenta
-          </Link>
+                </LnCardBody>
+              </LnCard>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -197,17 +208,7 @@ export default async function SolicitudesPage({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ status }: { status: StatusVariant }) {
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_CLASSES[status]}`}
-    >
-      {STATUS_LABELS[status]}
-    </span>
-  );
-}
-
-function FilterPill({
+function FilterChip({
   href,
   label,
   active,
@@ -219,12 +220,15 @@ function FilterPill({
   return (
     <Link
       href={href}
-      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-        active
-          ? "bg-gob-primary  text-white  border-transparent"
-          : "bg-white  text-gob-text-gray  border-gob-border  hover:border-gob-border-strong "
-      }`}
       aria-current={active ? "page" : undefined}
+      className={[
+        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-[var(--font-ln-sans)] text-[12px] font-medium transition-colors no-underline",
+        active
+          ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
+          : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {label}
     </Link>

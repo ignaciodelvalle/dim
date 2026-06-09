@@ -1,3 +1,6 @@
+// Verificar DNI — Libreta Nacional redesign.
+// DniVerifyForm (client component) unchanged.
+
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -7,7 +10,6 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 import { DniVerifyForm } from "./DniVerifyForm";
 
-// Validates `next` with the same rules as the server action wrapper.
 function sanitizeNext(raw: string | undefined): string {
   if (!raw) return "/cuenta";
   const trimmed = raw.trim();
@@ -31,33 +33,32 @@ export default async function VerificarDniPage({
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  // Already verified — redirect without re-prompting (idempotency).
   if (profile?.dniVerified) {
     redirect(next);
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-10 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">Verificar DNI</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Ingresá tu número de DNI para continuar. Este paso es requerido antes de enviar una
-            solicitud de rol en MiMAR.
-          </p>
-        </header>
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        <DniVerifyForm next={next} />
-
-        <div className="pt-2">
-          <Link
-            href="/cuenta"
-            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  transition-colors"
-          >
-            ← Volver a mi cuenta
-          </Link>
-        </div>
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Verificar DNI
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Ingresá tu número de DNI para continuar. Este paso es requerido antes de enviar una
+          solicitud de rol en MiMAR.
+        </p>
       </div>
-    </main>
+
+      <DniVerifyForm next={next} />
+    </div>
   );
 }

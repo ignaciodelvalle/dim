@@ -1,6 +1,11 @@
+// Tu rol en MiMAR — Libreta Nacional redesign.
+// Data fetching, VetUpgradeForm, OrgCreateForm all unchanged.
+
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
 import { approvalRequests, db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -15,9 +20,6 @@ export default async function UpgradePage() {
   const memberships = await getActiveMemberships(user.id);
   const adminMembership = memberships.find((m) => m.membership.role === "admin");
 
-  // Latest vet-upgrade request to drive the card state. Pending → show
-  // "enviada"; rejected → surface the decision_notes and let the user
-  // re-submit; otherwise show the form (no request yet).
   const [latestVetRequest] = await db
     .select({
       status: approvalRequests.status,
@@ -37,122 +39,121 @@ export default async function UpgradePage() {
     .limit(1);
 
   return (
-    <div className="min-h-screen p-6 bg-white">
-      <div className="max-w-2xl mx-auto pt-10 space-y-10">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Tu rol en MiMAR</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Ampliá tus permisos registrando tu matrícula profesional o creando una organización.
-          </p>
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        {/* Soft prereq banner: shown when DNI is not yet verified */}
-        {!profile?.dniVerified && (
-          <div className="rounded-lg border border-gob-warning bg-gob-warning/10   px-4 py-3 flex items-start gap-3">
-            <span className="text-gob-warning-text  text-sm mt-0.5" aria-hidden>
-              ⚠
-            </span>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gob-warning-text ">
-                Te falta verificar tu DNI
-              </p>
-              <p className="text-xs text-gob-warning-text ">
-                Necesitás verificar tu identidad antes de enviar cualquier solicitud de rol.{" "}
-                <a
-                  href="/cuenta/verificar-dni?next=/cuenta/upgrade"
-                  className="underline underline-offset-2 hover:text-gob-warning-text "
-                >
-                  Verificar ahora →
-                </a>
-              </p>
-            </div>
-          </div>
-        )}
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Tu rol en MiMAR
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Ampliá tus permisos registrando tu matrícula profesional o creando una organización.
+        </p>
+      </div>
 
+      {/* DNI prereq banner */}
+      {!profile?.dniVerified && (
+        <div className="mb-[24px]">
+          <LnCallout tone="warn" title="Te falta verificar tu DNI">
+            Necesitás verificar tu identidad antes de enviar cualquier solicitud de rol.{" "}
+            <a
+              href="/cuenta/verificar-dni?next=/cuenta/upgrade"
+              className="text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
+              Verificar ahora →
+            </a>
+          </LnCallout>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-[20px]">
         {/* Card A — Profesional veterinario */}
-        {profile?.role === "vet" ? (
-          <section className="rounded-lg border border-gob-border  p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gob-text ">Profesional veterinario</h2>
-            <p className="text-sm text-gob-text-gray ">Ya sos veterinario verificado en MiMAR.</p>
-          </section>
-        ) : (
-          <section className="rounded-lg border border-gob-border  p-6 space-y-4">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-gob-text ">Profesional veterinario</h2>
-              <p className="text-sm text-gob-text-gray ">
-                Registrá tu matrícula para que la autoridad de tu localidad la verifique. Una vez
-                aprobada, tu rol pasa a veterinario.
+        <LnCard>
+          <LnCardHead title="Profesional veterinario" />
+          <LnCardBody>
+            {profile?.role === "vet" ? (
+              <p className="text-[13px] text-[var(--color-ln-mute)]">
+                Ya sos veterinario/a verificado/a en MiMAR.
               </p>
-            </div>
-
-            {latestVetRequest?.status === "pending" ? (
-              <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
-                Solicitud enviada — pendiente de revisión.
-                {profile?.matriculaNumber && (
-                  <>
-                    {" "}
-                    Tu matrícula: <strong>{profile.matriculaNumber}</strong>
-                  </>
-                )}
-              </p>
-            ) : latestVetRequest?.status === "rejected" ? (
-              <>
-                <div className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger    space-y-1">
-                  <p>
-                    <strong>Tu última solicitud fue rechazada.</strong>
-                  </p>
-                  {latestVetRequest.decisionNotes && (
-                    <p className="text-xs">Motivo: {latestVetRequest.decisionNotes}</p>
-                  )}
-                  <p className="text-xs">Corregí los datos y volvé a enviar.</p>
-                </div>
-                <VetUpgradeForm />
-              </>
             ) : (
-              <VetUpgradeForm />
+              <>
+                <p className="mb-[16px] text-[13px] text-[var(--color-ln-ink-2)]">
+                  Registrá tu matrícula para que la autoridad de tu localidad la verifique. Una vez
+                  aprobada, tu rol pasa a veterinario.
+                </p>
+
+                {latestVetRequest?.status === "pending" ? (
+                  <div className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
+                    Solicitud enviada — pendiente de revisión.
+                    {profile?.matriculaNumber && (
+                      <>
+                        {" "}
+                        Tu matrícula: <strong>{profile.matriculaNumber}</strong>
+                      </>
+                    )}
+                  </div>
+                ) : latestVetRequest?.status === "rejected" ? (
+                  <>
+                    <div className="mb-[16px] rounded-[4px] border border-[#f1c6bf] bg-[#fbe9e6] px-[12px] py-[10px]">
+                      <p className="text-[13px] font-semibold text-[var(--color-ln-err)]">
+                        Tu última solicitud fue rechazada.
+                      </p>
+                      {latestVetRequest.decisionNotes && (
+                        <p className="mt-[2px] text-[12px] text-[var(--color-ln-err)]">
+                          Motivo: {latestVetRequest.decisionNotes}
+                        </p>
+                      )}
+                      <p className="mt-[2px] text-[12px] text-[var(--color-ln-err)]">
+                        Corregí los datos y volvé a enviar.
+                      </p>
+                    </div>
+                    <VetUpgradeForm />
+                  </>
+                ) : (
+                  <VetUpgradeForm />
+                )}
+              </>
             )}
-          </section>
-        )}
+          </LnCardBody>
+        </LnCard>
 
         {/* Card B — Crear Organización */}
-        <section className="rounded-lg border border-gob-border  p-6 space-y-4">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-gob-text ">Crear Organización</h2>
-            <p className="text-sm text-gob-text-gray ">
+        <LnCard>
+          <LnCardHead title="Crear Organización" />
+          <LnCardBody>
+            <p className="mb-[16px] text-[13px] text-[var(--color-ln-ink-2)]">
               Refugios, clínicas y redes de rescate pueden crear su panel organizacional en MiMAR.
             </p>
-          </div>
 
-          {adminMembership ? (
-            <Link
-              href={`/org/${adminMembership.organization.publicToken}`}
-              className="flex items-center justify-between rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-            >
-              <div>
-                <p className="text-sm font-semibold text-gob-text ">
-                  Ya administrás una organización
-                </p>
-                <p className="text-xs text-gob-text-gray  mt-0.5">
-                  {adminMembership.organization.displayName}
-                </p>
-              </div>
-              <span className="text-gob-text-muted " aria-hidden>
-                →
-              </span>
-            </Link>
-          ) : (
-            <OrgCreateForm />
-          )}
-        </section>
-
-        <div className="pt-2">
-          <Link
-            href="/cuenta"
-            className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
-          >
-            ← Volver a mi cuenta
-          </Link>
-        </div>
+            {adminMembership ? (
+              <Link
+                href={`/org/${adminMembership.organization.publicToken}`}
+                className="flex items-center justify-between rounded-[4px] border border-[var(--color-ln-line)] px-[14px] py-[12px] no-underline hover:bg-[var(--color-ln-stripe)] transition-colors"
+              >
+                <div>
+                  <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
+                    Ya administrás una organización
+                  </p>
+                  <p className="mt-[1px] text-[12px] text-[var(--color-ln-mute)]">
+                    {adminMembership.organization.displayName}
+                  </p>
+                </div>
+                <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                  ›
+                </span>
+              </Link>
+            ) : (
+              <OrgCreateForm />
+            )}
+          </LnCardBody>
+        </LnCard>
       </div>
     </div>
   );

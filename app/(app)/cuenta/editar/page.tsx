@@ -1,5 +1,10 @@
-import { eq } from "drizzle-orm";
+// Editar cuenta — Libreta Nacional redesign.
+// Wraps EditProfileForm (client component) unchanged.
 
+import { eq } from "drizzle-orm";
+import Link from "next/link";
+
+import { LnCallout } from "@/components/ui/DocElements";
 import { db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
@@ -23,29 +28,36 @@ export default async function EditarCuentaPage() {
     .limit(1);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Editar mi información
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Actualizá tu nombre, teléfono, contactos de emergencia y foto de perfil.
-          </p>
-        </header>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        <EditProfileForm
-          initialProfile={{
-            displayName: profile?.displayName ?? "",
-            phone: profile?.phone ?? "",
-            avatarUrl: profile?.avatarUrl ?? "",
-            preferredVetName: profile?.preferredVetName ?? "",
-            preferredVetPhone: profile?.preferredVetPhone ?? "",
-            emergencyContactName: profile?.emergencyContactName ?? "",
-            emergencyContactPhone: profile?.emergencyContactPhone ?? "",
-          }}
-        />
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Editar mi información
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Actualizá tu nombre, teléfono, contactos de emergencia y foto de perfil.
+        </p>
       </div>
-    </main>
+
+      <EditProfileForm
+        initialProfile={{
+          displayName: profile?.displayName ?? "",
+          phone: profile?.phone ?? "",
+          avatarUrl: profile?.avatarUrl ?? "",
+          preferredVetName: profile?.preferredVetName ?? "",
+          preferredVetPhone: profile?.preferredVetPhone ?? "",
+          emergencyContactName: profile?.emergencyContactName ?? "",
+          emergencyContactPhone: profile?.emergencyContactPhone ?? "",
+        }}
+      />
+    </div>
   );
 }

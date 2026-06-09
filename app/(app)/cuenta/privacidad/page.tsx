@@ -1,13 +1,11 @@
-// Privacy & subject-rights page (compliance handoff PR 1, Ley 25.326).
-//
-// Two operations:
-//   1. Descargar mis datos — Art. 14, derecho de acceso.
-//   2. Eliminar mi cuenta   — Art. 16, derecho de supresión.
-// Both invoke the RPCs declared in migration 0059 via wrappers in
-// app/actions/subject-rights.ts.
+// Privacy & subject-rights page — Libreta Nacional redesign.
+// Two operations: descargar datos (Art. 14) + eliminar cuenta (Art. 16).
+// PrivacyActions (client component) is unchanged.
 
 import Link from "next/link";
 
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import { LnCallout } from "@/components/ui/DocElements";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { PrivacyActions } from "./PrivacyActions";
 
@@ -19,30 +17,36 @@ export default async function PrivacidadPage() {
   await requireUserOrRedirect();
 
   return (
-    <main className="min-h-screen p-6 bg-gob-surface">
-      <div className="max-w-2xl mx-auto pt-10 space-y-8">
-        <Link
-          href="/cuenta"
-          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
-        >
-          ← Mi cuenta
-        </Link>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href="/cuenta"
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
-            Privacidad y datos personales
-          </h1>
-          <p className="text-sm text-gob-text-muted">
-            Ejercé los derechos que te garantiza la Ley 25.326 de Protección de Datos Personales.
-            Pedido y supresión quedan registrados en el audit log con la cita normativa.
-          </p>
-        </header>
+      {/* Header */}
+      <div className="mb-[28px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Privacidad y datos personales
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Ejercé los derechos que te garantiza la Ley 25.326 de Protección de Datos Personales.
+          Pedido y supresión quedan registrados en el audit log con la cita normativa.
+        </p>
+      </div>
 
+      {/* Actions — client component unchanged */}
+      <div className="mb-[28px]">
         <PrivacyActions />
+      </div>
 
-        <section className="rounded-lg border border-gob-border bg-gob-surface-alt p-5 text-sm text-gob-text-gray space-y-2">
-          <h2 className="text-base font-semibold text-gob-text">¿Qué se conserva si me borro?</h2>
-          <p>
+      {/* Legal note */}
+      <LnCard>
+        <LnCardHead title="¿Qué se conserva si me borro?" />
+        <LnCardBody>
+          <p className="text-[13px] leading-[1.6] text-[var(--color-ln-ink-2)]">
             La supresión es <strong>soft-delete con hash de PII</strong>: nombre, teléfono y DNI
             quedan anonimizados; tu cuenta sale de las consultas habituales. Los eventos sanitarios
             de tus mascotas (libreta, vacunas, observaciones antirrábicas) se preservan porque su
@@ -50,8 +54,8 @@ export default async function PrivacidadPage() {
             necesitás el borrado de esos registros sanitarios, contactanos y lo evaluamos caso por
             caso bajo la base legal de auditoría.
           </p>
-        </section>
-      </div>
-    </main>
+        </LnCardBody>
+      </LnCard>
+    </div>
   );
 }
