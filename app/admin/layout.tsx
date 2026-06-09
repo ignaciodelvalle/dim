@@ -1,8 +1,8 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { Sidebar, Topbar } from "@/components/poncho";
 import { ADMIN_NAV } from "@/components/poncho/Layout/nav-presets";
+import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
@@ -32,6 +32,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .where(eq(profiles.id, profile.id))
     .limit(1);
 
+  const displayName = profileRow?.displayName ?? "";
+
   // Inject the breach badge on the outbox nav item.
   const nav =
     breachCount > 0
@@ -40,22 +42,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         )
       : ADMIN_NAV;
 
-  // Meta-strip: role + scope + cross-portal links — rendered in the Topbar actions slot.
-  const metaStrip = (
-    <div className="flex items-center gap-4">
-      <p className="text-xs text-gob-text-gray">
-        <span className="font-medium">{profile.role}</span>
-        <span className="text-gob-text-muted"> · </span>
+  // Right-side actions: role + scope + cross-portal links.
+  const actions = (
+    <div className="flex items-center gap-4 text-xs text-ln-op-mute">
+      <span>
+        <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
+        <span className="mx-1">·</span>
         Universal
-      </p>
-      <div className="flex items-center gap-3 text-xs">
-        <Link href="/gob" className="text-gob-text-muted hover:text-gob-primary no-underline">
+      </span>
+      <div className="flex items-center gap-3">
+        <Link href="/gob" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
           Ir a Gobierno →
         </Link>
-        <Link
-          href="/mis-mascotas"
-          className="text-gob-text-muted hover:text-gob-primary no-underline"
-        >
+        <Link href="/mis-mascotas" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
           ← Salir
         </Link>
       </div>
@@ -63,17 +62,35 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   );
 
   return (
-    <div className="min-h-screen bg-white">
-      <Sidebar
-        nav={nav}
-        user={{ name: profileRow?.displayName ?? "", href: "/cuenta" }}
-        roleAccent="admin"
-        brand={{ title: "MiMAR", subtitle: "Admin" }}
-      />
-      <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar mobileDrawerNav={nav} brandTitle="MiMAR" actions={metaStrip} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
-      </div>
-    </div>
+    <OpShell
+      variant="gob"
+      rail={
+        <OpRail
+          nav={nav}
+          variant="gob"
+          brandSubtitle="Admin"
+          user={{
+            name: displayName,
+            role: profile.role.toUpperCase(),
+          }}
+        />
+      }
+      topbar={
+        <OpTopbar
+          crumbs={[{ label: "Panel" }]}
+          scope={{
+            code: "SUPERADMIN",
+            label: "Universal",
+            variant: "superadmin",
+          }}
+          actions={actions}
+          mobileNav={nav}
+          variant="gob"
+          brandSubtitle="Admin"
+        />
+      }
+    >
+      {children}
+    </OpShell>
   );
 }
