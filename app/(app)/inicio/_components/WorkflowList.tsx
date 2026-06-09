@@ -48,7 +48,9 @@ export function WorkflowList({ items, emptyCopy }: { items: WorkflowItem[]; empt
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium text-[var(--color-ln-ink)] truncate">{item.title}</p>
+                  <p className="text-sm font-medium text-[var(--color-ln-ink)] truncate">
+                    {item.title}
+                  </p>
                   {item.subtitle && (
                     <p className="text-xs text-[var(--color-ln-mute)] truncate">{item.subtitle}</p>
                   )}

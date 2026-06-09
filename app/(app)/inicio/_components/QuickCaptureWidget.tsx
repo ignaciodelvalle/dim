@@ -53,7 +53,9 @@ export function QuickCaptureWidget({ pets }: { pets: DashboardPet[] }) {
                     {pet.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-sm font-medium text-[var(--color-ln-ink)] truncate">{pet.name}</span>
+                <span className="text-sm font-medium text-[var(--color-ln-ink)] truncate">
+                  {pet.name}
+                </span>
               </Link>
             </li>
           );

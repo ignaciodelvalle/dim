@@ -24,7 +24,9 @@ export function PetsGridWidget({ pets }: { pets: DashboardPet[] }) {
           <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">Mis mascotas</h2>
         </div>
         <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-8 text-center space-y-3">
-          <p className="text-sm text-[var(--color-ln-ink-2)]">Todavía no cargaste ninguna mascota.</p>
+          <p className="text-sm text-[var(--color-ln-ink-2)]">
+            Todavía no cargaste ninguna mascota.
+          </p>
           <Link
             href="/mis-mascotas/nueva"
             className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm font-medium"

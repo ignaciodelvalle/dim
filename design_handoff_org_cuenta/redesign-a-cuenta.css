@@ -1,0 +1,74 @@
+/* ============================================================
+   DIRECCIÓN A — Owner · "Mi cuenta" (clúster de cuenta)
+   Estética cálida "Libreta Nacional". Reusa .dirA* (masthead, body, cards).
+   Sólo lo específico: layout de cuenta con submenú, settings rows, cards.
+   ============================================================ */
+
+/* sub-nav lateral del clúster cuenta */
+.acct-layout { display: grid; grid-template-columns: 220px 1fr; gap: 28px; align-items: start; }
+.acct-side { position: sticky; top: 0; }
+.acct-side-title { font-family: var(--a-mono); font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--a-mute); padding: 0 12px 8px; }
+.acct-navitem { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 5px; text-decoration: none; color: var(--a-ink-2); font-size: 13.5px; font-weight: 500; }
+.acct-navitem i { width: 16px; text-align: center; color: var(--a-mute); }
+.acct-navitem:hover { background: var(--a-stripe); }
+.acct-navitem.is-active { background: var(--a-celeste-050); color: var(--a-azul-700); box-shadow: inset 2px 0 0 var(--a-azul); }
+.acct-navitem.is-active i { color: var(--a-azul); }
+.acct-navitem .ct { margin-left: auto; font-family: var(--a-mono); font-size: 10px; font-weight: 600; background: var(--a-stripe); color: var(--a-mute); padding: 1px 6px; border-radius: 999px; }
+.acct-navitem.is-active .ct { background: #fff; color: var(--a-azul); }
+
+/* profile header card */
+.acct-prof { display: flex; align-items: center; gap: 18px; background: var(--a-card); border: 1px solid var(--a-line); border-radius: 5px; padding: 20px 22px; margin-bottom: 22px; }
+.acct-prof .av { width: 72px; height: 72px; border-radius: 50%; background: var(--a-azul); color: #fff; display: grid; place-items: center; font-family: var(--a-serif); font-weight: 600; font-size: 28px; flex-shrink: 0; }
+.acct-prof .info { flex: 1; min-width: 0; }
+.acct-prof .nm { font-family: var(--a-serif); font-weight: 600; font-size: 24px; letter-spacing: -.01em; }
+.acct-prof .mt { font-size: 13px; color: var(--a-mute); margin-top: 2px; }
+.acct-prof .badges { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+
+/* settings rows */
+.acct-card { background: var(--a-card); border: 1px solid var(--a-line); border-radius: 5px; overflow: hidden; margin-bottom: 18px; }
+.acct-card-head { padding: 13px 18px; border-bottom: 1px solid var(--a-line-2); display: flex; align-items: center; gap: 8px; }
+.acct-card-head h3 { font-family: var(--a-serif); font-weight: 600; font-size: 15px; margin: 0; }
+.acct-card-head .sp { flex: 1; }
+.acct-card-head a { font-size: 12.5px; color: var(--a-azul); font-weight: 600; text-decoration: none; }
+.acct-setrow { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--a-line-2); }
+.acct-setrow:last-child { border-bottom: 0; }
+.acct-setrow .k { font-family: var(--a-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--a-mute); width: 150px; flex-shrink: 0; }
+.acct-setrow .v { flex: 1; font-size: 14px; color: var(--a-ink); }
+.acct-setrow .v small { display: block; color: var(--a-mute); font-size: 12px; margin-top: 2px; font-family: var(--a-sans); }
+.acct-setrow .edit { font-size: 12px; color: var(--a-azul); font-weight: 600; cursor: pointer; text-decoration: none; }
+
+/* toggle pref rows */
+.acct-pref { display: flex; align-items: flex-start; gap: 13px; padding: 13px 18px; border-bottom: 1px solid var(--a-line-2); }
+.acct-pref:last-child { border-bottom: 0; }
+.acct-pref .bd { flex: 1; }
+.acct-pref .bd b { font-size: 13.5px; font-weight: 600; color: var(--a-ink); }
+.acct-pref .bd span { display: block; font-size: 12px; color: var(--a-mute); margin-top: 2px; line-height: 1.45; }
+.acct-tgl { width: 38px; height: 21px; border-radius: 999px; background: var(--a-line-strong); position: relative; flex-shrink: 0; margin-top: 1px; }
+.acct-tgl.is-on { background: var(--a-azul); }
+.acct-tgl::after { content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; }
+.acct-tgl.is-on::after { left: 19px; }
+
+/* tránsito / solicitud / membership cards */
+.acct-listcard { display: flex; gap: 15px; align-items: flex-start; background: var(--a-card); border: 1px solid var(--a-line); border-radius: 5px; padding: 16px 18px; margin-bottom: 12px; }
+.acct-listcard .logo { width: 46px; height: 46px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; font-family: var(--a-serif); font-weight: 600; font-size: 18px; color: #fff; }
+.acct-listcard .bd { flex: 1; min-width: 0; }
+.acct-listcard .nm { font-family: var(--a-serif); font-weight: 600; font-size: 16px; }
+.acct-listcard .sub { font-size: 12.5px; color: var(--a-ink-2); margin-top: 3px; line-height: 1.45; }
+.acct-listcard .quote { font-size: 12px; color: var(--a-mute); margin-top: 8px; padding: 8px 11px; background: var(--a-stripe); border-radius: 4px; border-left: 3px solid var(--a-line); line-height: 1.5; }
+.acct-listcard .meta { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; align-items: center; font-family: var(--a-mono); font-size: 11px; color: var(--a-mute); }
+.acct-listcard .side { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; min-width: 120px; }
+
+/* foster pet (tránsito en curso) */
+.acct-foster { display: flex; gap: 14px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--a-line-2); }
+.acct-foster:last-child { border-bottom: 0; }
+.acct-foster .ph { width: 50px; height: 50px; border-radius: 50%; background: repeating-linear-gradient(135deg,#e7e2d6 0 6px,#f1eee5 6px 12px); flex-shrink: 0; display: grid; place-items: center; font-family: var(--a-mono); font-size: 8px; color: var(--a-mute); }
+.acct-foster .bd { flex: 1; min-width: 0; }
+.acct-foster .nm { font-family: var(--a-serif); font-weight: 600; font-size: 16px; }
+.acct-foster .sub { font-size: 12px; color: var(--a-mute); margin-top: 1px; }
+.acct-foster .since { font-family: var(--a-mono); font-size: 11px; color: var(--a-mute); text-align: right; }
+
+.acct-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-family: var(--a-sans); font-weight: 600; font-size: 12.5px; padding: 8px 13px; border-radius: 4px; cursor: pointer; border: 1px solid var(--a-line-strong); background: var(--a-card); color: var(--a-ink); }
+.acct-btn--primary { background: var(--a-azul); color: #fff; border-color: var(--a-azul); }
+.acct-btn--danger { background: var(--a-card); color: var(--a-err); border-color: #f1c6bf; }
+
+@media (max-width: 860px) { .acct-layout { grid-template-columns: 1fr; } .acct-side { position: static; } }

@@ -14,7 +14,9 @@ export function OpenWorkflowsWidget({ items }: { items: WorkflowItem[] }) {
         <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">
           Procesos abiertos
           {items.length > 0 && (
-            <span className="ml-2 text-xs font-normal text-[var(--color-ln-mute)]">({items.length})</span>
+            <span className="ml-2 text-xs font-normal text-[var(--color-ln-mute)]">
+              ({items.length})
+            </span>
           )}
         </h2>
         {hasMore && (

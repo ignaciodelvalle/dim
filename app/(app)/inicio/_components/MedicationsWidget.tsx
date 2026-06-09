@@ -24,7 +24,9 @@ export function MedicationsWidget({ medications }: { medications: OngoingMedicat
                 href={`/mis-mascotas/${m.petPublicToken}?tab=historial`}
                 className="block border border-[var(--color-ln-line)] rounded-xl p-4 hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
-                <p className="text-sm font-medium text-[var(--color-ln-ink)] truncate">{m.drugName}</p>
+                <p className="text-sm font-medium text-[var(--color-ln-ink)] truncate">
+                  {m.drugName}
+                </p>
                 <p className="text-xs text-[var(--color-ln-mute)]">
                   {m.petName} · desde {formatDate(m.startedAt)}
                   {m.frequency && ` · ${m.frequency}`}

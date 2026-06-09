@@ -20,7 +20,9 @@ export function RegulationsPlaceholder({
               ordenanzas locales que las afectan (microchip obligatorio, razas reguladas, requisitos
               de adopción, etc.).
             </p>
-            <p className="text-xs text-[var(--color-ln-mute)]">Andá a Mis mascotas → editar → Ubicación.</p>
+            <p className="text-xs text-[var(--color-ln-mute)]">
+              Andá a Mis mascotas → editar → Ubicación.
+            </p>
           </>
         ) : (
           <>
