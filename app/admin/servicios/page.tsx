@@ -6,6 +6,7 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpCard, OpCardBody, OpCodeBadge, OpKpi } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -27,73 +28,82 @@ export default async function AdminServiciosPage() {
 
   const subtitle =
     pendingOfferings.length === 0
-      ? "No hay servicios pendientes de revisión."
-      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revisión.`;
+      ? "No hay servicios pendientes de revision."
+      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revision.`;
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Servicios pendientes
-          </h1>
-          <p className="text-sm text-gob-text-gray ">{subtitle}</p>
-          <p className="text-xs text-gob-text-muted ">
-            Vista universal — incluye todas las jurisdicciones.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Admin {"·"} Servicios
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
+        <p className="text-[13px] text-ln-op-ink-2">{subtitle}</p>
+        <p className="text-[11px] text-ln-op-mute">
+          Vista universal — incluye todas las jurisdicciones.
+        </p>
+      </header>
 
-        {pendingOfferings.length === 0 ? (
-          <p className="text-sm text-gob-text-muted ">
-            Cuando lleguen nuevas solicitudes vas a verlas acá.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {pendingOfferings.map(({ offering, org, provider }) => {
-              const providerLabel =
-                offering.organizationId && org
-                  ? org.displayName
-                  : provider
-                    ? `Dr/a. ${provider.displayName}${provider.matriculaNumber ? ` · Mat. ${provider.matriculaNumber}` : ""}`
-                    : "Profesional independiente";
+      <OpKpi
+        label="Pendientes de revision"
+        value={pendingOfferings.length}
+        tone={pendingOfferings.length > 0 ? "warn" : "neutral"}
+      />
 
-              const kindLabel =
-                findServiceKind(offering.serviceKind)?.label ?? offering.serviceKind;
-              const location = [offering.jurisdictionLocality, offering.jurisdictionProvince]
-                .filter(Boolean)
-                .join(", ");
+      {pendingOfferings.length === 0 ? (
+        <p className="text-[13px] text-ln-op-mute">
+          Cuando lleguen nuevas solicitudes vas a verlas aca.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {pendingOfferings.map(({ offering, org, provider }) => {
+            const providerLabel =
+              offering.organizationId && org
+                ? org.displayName
+                : provider
+                  ? `Dr/a. ${provider.displayName}${provider.matriculaNumber ? ` · Mat. ${provider.matriculaNumber}` : ""}`
+                  : "Profesional independiente";
 
-              return (
-                <li key={offering.id} className="rounded-lg border border-gob-border  px-4 py-3">
-                  <Link
-                    href={`/admin/servicios/${offering.publicToken}`}
-                    className="flex items-start justify-between gap-3 group"
-                  >
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="text-sm font-medium text-gob-text ">{offering.displayName}</p>
-                      <p className="text-xs text-gob-text-muted ">
-                        {providerLabel} · {kindLabel}
-                        {location ? ` · ${location}` : ""}
-                        {` · Capacidad: ${offering.slotCapacity}`}
-                      </p>
-                      <p className="text-[10px] text-gob-text-muted  font-mono">
-                        {offering.publicToken} ·{" "}
-                        {new Date(offering.submittedAt).toLocaleDateString("es-AR")}
-                      </p>
-                    </div>
-                    <span
-                      className="text-gob-text-muted group-hover:text-gob-text-gray "
-                      aria-hidden
-                    >
-                      ›
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-    </main>
+            const kindLabel = findServiceKind(offering.serviceKind)?.label ?? offering.serviceKind;
+            const location = [offering.jurisdictionLocality, offering.jurisdictionProvince]
+              .filter(Boolean)
+              .join(", ");
+
+            return (
+              <li key={offering.id}>
+                <Link
+                  href={`/admin/servicios/${offering.publicToken}`}
+                  className="block no-underline"
+                >
+                  <OpCard>
+                    <OpCardBody>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-0.5">
+                          <p className="text-[13px] font-medium text-ln-op-ink">
+                            {offering.displayName}
+                          </p>
+                          <p className="text-[12px] text-ln-op-mute">
+                            {providerLabel} {"·"} {kindLabel}
+                            {location ? ` · ${location}` : ""}
+                            {` · Capacidad: ${offering.slotCapacity}`}
+                          </p>
+                          <OpCodeBadge tone="neutral">{offering.publicToken}</OpCodeBadge>
+                          <span className="ml-2 text-[11px] text-ln-op-mute">
+                            {new Date(offering.submittedAt).toLocaleDateString("es-AR")}
+                          </span>
+                        </div>
+                        <span className="text-ln-op-mute" aria-hidden>
+                          {">"}
+                        </span>
+                      </div>
+                    </OpCardBody>
+                  </OpCard>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
