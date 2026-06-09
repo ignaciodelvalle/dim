@@ -38,13 +38,13 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
             <option value="" disabled>
               Elegí outcome
             </option>
-            <option value="negative">Negativo — animal sano tras observación</option>
+            <option value="negative">{"Negativo — animal sano tras observación"}</option>
             <option value="positive_rabies">
-              POSITIVO — rabia confirmada o fuertemente sospechada
+              {"POSITIVO — rabia confirmada o fuertemente sospechada"}
             </option>
-            <option value="dead">Fallecido — fallecimiento durante la observación</option>
+            <option value="dead">{"Fallecido — fallecimiento durante la observación"}</option>
             <option value="lost_to_followup">
-              Sin seguimiento — animal perdido o sin contacto
+              {"Sin seguimiento — animal perdido o sin contacto"}
             </option>
           </Select>
         )}
@@ -64,7 +64,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       </Field>
 
       {error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-[12px] text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
@@ -72,7 +72,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-[6px] bg-ln-op-navy px-4 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isPending ? "Cerrando..." : "Cerrar observación"}
       </button>
