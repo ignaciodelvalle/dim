@@ -305,7 +305,7 @@ function MarkFoundConfirmation({
 }) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gob-text-gray ">
+      <p className="text-sm text-[var(--color-ln-ink-2)]">
         Vas a marcar a <strong>{petName}</strong> como encontrada. La credencial pública vuelve al
         modo identidad básica (Tier 0). Podés volver a marcarla como perdida si hace falta.
       </p>

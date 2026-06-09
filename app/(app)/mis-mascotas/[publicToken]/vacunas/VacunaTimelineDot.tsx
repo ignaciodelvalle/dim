@@ -55,8 +55,8 @@ export function VacunaTimelineDot({
 }: Props) {
   const isFresh = Date.now() - recordedAt.getTime() < MS_PER_YEAR;
   const dotColor = isFresh
-    ? "bg-gob-success border-gob-success"
-    : "bg-gob-text-muted border-gob-text-muted";
+    ? "bg-[var(--color-ln-ok)] border-[var(--color-ln-ok)]"
+    : "bg-[var(--color-ln-mute)] border-[var(--color-ln-mute)]";
 
   return (
     <li className="relative flex gap-4">
@@ -64,13 +64,15 @@ export function VacunaTimelineDot({
       <div className="flex flex-col items-center">
         {/* Top spacer (hides top of line for first item) */}
         <div
-          className={`w-px flex-none ${isFirst ? "invisible" : "bg-gob-border"}`}
+          className={`w-px flex-none ${isFirst ? "invisible" : "bg-[var(--color-ln-line)]"}`}
           style={{ height: "0.75rem" }}
         />
         {/* Dot */}
         <div aria-hidden="true" className={`w-4 h-4 rounded-full border-2 shrink-0 ${dotColor}`} />
         {/* Bottom line (hidden for last item) */}
-        <div className={`w-px flex-1 min-h-4 ${isLast ? "invisible" : "bg-gob-border"}`} />
+        <div
+          className={`w-px flex-1 min-h-4 ${isLast ? "invisible" : "bg-[var(--color-ln-line)]"}`}
+        />
       </div>
 
       {/* Content */}
@@ -79,7 +81,7 @@ export function VacunaTimelineDot({
           {/* Date column */}
           <time
             dateTime={recordedAt.toISOString()}
-            className="text-xs text-gob-text-muted shrink-0 w-28 pt-0.5 tabular-nums"
+            className="text-xs text-[var(--color-ln-mute)] shrink-0 w-28 pt-0.5 tabular-nums"
           >
             {formatDate(recordedAt)}
           </time>
@@ -87,20 +89,22 @@ export function VacunaTimelineDot({
           {/* Detail block */}
           <div className="min-w-0 space-y-0.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-gob-text">
+              <p className="text-sm font-medium text-[var(--color-ln-ink)]">
                 {vaccineName}
                 {brand ? ` · ${brand}` : ""}
               </p>
               {confidenceTier && <ConfidenceBadge tier={confidenceTier} />}
             </div>
-            <p className="text-xs text-gob-text-muted">
+            <p className="text-xs text-[var(--color-ln-mute)]">
               {administeredBy
                 ? `Administrada por ${administeredBy}`
                 : "Administrador no especificado"}
               {batch ? ` · Lote ${batch}` : ""}
             </p>
             {nextDueAt && (
-              <p className="text-xs text-gob-text-muted">Próxima dosis: {formatDate(nextDueAt)}</p>
+              <p className="text-xs text-[var(--color-ln-mute)]">
+                Próxima dosis: {formatDate(nextDueAt)}
+              </p>
             )}
           </div>
         </div>

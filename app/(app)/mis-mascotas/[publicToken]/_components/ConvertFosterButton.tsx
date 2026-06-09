@@ -36,7 +36,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
   if (confirming) {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-sm text-gob-warning-text">
+        <p className="text-sm text-[var(--color-ln-warn)]">
           ¿Confirmar? Esto convierte el tránsito de <strong>{petName}</strong> en adopción
           permanente. No se puede deshacer.
         </p>
@@ -45,7 +45,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-lg bg-gob-primary text-white text-sm font-medium hover:bg-gob-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isPending ? "Procesando…" : "Sí, adoptar"}
           </button>
@@ -53,12 +53,12 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text hover:border-gob-warning/80 transition-colors disabled:opacity-60"
+            className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors disabled:opacity-60"
           >
             Cancelar
           </button>
         </div>
-        {error && <p className="text-xs text-gob-error">{error}</p>}
+        {error && <p className="text-xs text-[var(--color-ln-err)]">{error}</p>}
       </div>
     );
   }
@@ -67,7 +67,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text hover:border-gob-warning/80 transition-colors"
+      className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors"
     >
       Convertir en mi mascota
     </button>

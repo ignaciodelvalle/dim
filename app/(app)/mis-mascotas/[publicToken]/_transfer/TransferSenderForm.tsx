@@ -54,7 +54,7 @@ export function TransferSenderForm({
       }}
       className="space-y-4"
     >
-      <p className="text-sm text-gob-text-gray ">
+      <p className="text-sm text-[var(--color-ln-ink-2)]">
         Le traspasás la titularidad de {petName} a otro usuario. El receptor recibe una invitación y
         debe aceptarla — la libreta sanitaria viaja con la mascota.
       </p>
@@ -111,14 +111,14 @@ export function TransferSenderForm({
         )}
       </Field>
 
-      <p className="text-xs text-gob-text-muted ">
+      <p className="text-xs text-[var(--color-ln-mute)]">
         La propuesta vence en 7 días. Mientras esté pendiente podés cancelarla.
       </p>
 
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-gob-primary px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
       >
         {pending ? "Enviando…" : "Enviar propuesta"}
       </button>

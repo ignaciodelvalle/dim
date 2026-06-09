@@ -63,42 +63,42 @@ export function MatchConfirmationCardVecino({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-gob-warning bg-gob-warning/10   p-4 space-y-1">
-        <p className="text-sm font-semibold text-gob-warning-text ">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-1">
+        <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Posible coincidencia detectada
         </p>
-        <p className="text-sm text-gob-warning-text ">
+        <p className="text-sm text-[var(--color-ln-warn)]">
           El microchip que ingresaste ya figura en MiMAR asociado a la siguiente mascota.
         </p>
       </div>
 
-      <div className="rounded-xl border border-gob-border  overflow-hidden">
+      <div className="rounded-[4px] border border-[var(--color-ln-line)] overflow-hidden">
         {petPhotoUrl && (
-          <div className="aspect-video overflow-hidden bg-gob-surface-alt ">
+          <div className="aspect-video overflow-hidden bg-[var(--color-ln-stripe)]">
             <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
           </div>
         )}
         <div className="p-4 space-y-3">
           <div>
             <h2 className="text-2xl font-semibold">{petName}</h2>
-            {speciesLine && <p className="text-sm text-gob-text-gray ">{speciesLine}</p>}
-            {details && <p className="text-sm text-gob-text-muted ">{details}</p>}
+            {speciesLine && <p className="text-sm text-[var(--color-ln-ink-2)]">{speciesLine}</p>}
+            {details && <p className="text-sm text-[var(--color-ln-mute)]">{details}</p>}
           </div>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gob-danger/10 text-gob-danger  ">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#fbe9e6] text-[var(--color-ln-seal)]">
             Perdida
           </span>
           {ownerFirstName && (
             <p className="text-sm">
-              <span className="text-gob-text-muted">Dueno/a: </span>
+              <span className="text-[var(--color-ln-mute)]">Dueno/a: </span>
               <span className="font-medium">{ownerFirstName}</span>
             </p>
           )}
           {lastLocationText && (
             <p className="text-sm">
-              <span className="text-gob-text-muted">Ultima ubicacion conocida: </span>
+              <span className="text-[var(--color-ln-mute)]">Ultima ubicacion conocida: </span>
               <span>{lastLocationText}</span>
               {lastLocationDate && (
-                <span className="text-gob-text-muted ml-1">
+                <span className="text-[var(--color-ln-mute)] ml-1">
                   ({new Date(lastLocationDate).toLocaleDateString("es-AR")})
                 </span>
               )}
@@ -108,7 +108,7 @@ export function MatchConfirmationCardVecino({
       </div>
 
       {error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-3 py-2 text-[var(--color-ln-seal)]">
           {error}
         </p>
       )}
@@ -118,7 +118,7 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 px-4 py-3 rounded-lg bg-gob-success text-white font-medium hover:bg-gob-success disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
         </button>
@@ -126,13 +126,13 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 px-4 py-3 rounded-lg border border-gob-warning bg-gob-warning/10 text-gob-warning-text font-medium hover:bg-gob-warning/10 disabled:opacity-50     transition-colors"
+          className="flex-1 px-4 py-3 rounded-[3px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>
       </div>
 
-      <p className="text-xs text-gob-text-muted">
+      <p className="text-xs text-[var(--color-ln-mute)]">
         Si es la misma, no hace falta que la registres: el dueno/a ya la tiene en su cuenta y va a
         ser notificado. Si no es la misma, podes continuar con el registro de tu mascota.
       </p>
