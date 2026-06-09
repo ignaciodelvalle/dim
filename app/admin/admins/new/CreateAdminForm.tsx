@@ -76,7 +76,7 @@ export function CreateAdminForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gob-text-gray  mb-1">
+          <label htmlFor="email" className="block text-[12px] font-medium text-ln-op-ink-2 mb-1">
             Email
           </label>
           <input
@@ -86,14 +86,14 @@ export function CreateAdminForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="nuevo.admin@dim.gob.ar"
-            className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+            className="w-full text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
 
         <div>
           <label
             htmlFor="displayName"
-            className="block text-sm font-medium text-gob-text-gray  mb-1"
+            className="block text-[12px] font-medium text-ln-op-ink-2 mb-1"
           >
             Nombre de display
           </label>
@@ -105,14 +105,14 @@ export function CreateAdminForm() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Admin MiMAR"
             maxLength={100}
-            className="w-full text-sm rounded-md border border-gob-border  bg-white  px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gob-primary "
+            className="w-full text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
       </div>
 
       {error && (
-        <div className="rounded-md bg-gob-danger/10  border border-gob-danger  px-4 py-3">
-          <p className="text-sm text-gob-danger ">{error}</p>
+        <div className="rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3">
+          <p className="text-[13px] text-ln-op-danger">{error}</p>
         </div>
       )}
 
@@ -120,13 +120,13 @@ export function CreateAdminForm() {
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2 text-sm bg-gob-primary  text-white  rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-5 py-2 text-[13px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Creando..." : "Crear cuenta admin"}
         </button>
         <a
           href="/admin/admins"
-          className="px-5 py-2 text-sm border border-gob-border-strong  rounded-md hover:bg-gob-surface-alt "
+          className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[6px] hover:bg-ln-op-stripe"
         >
           Cancelar
         </a>
