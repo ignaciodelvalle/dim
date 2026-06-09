@@ -1,0 +1,184 @@
+"use client";
+
+import { useActionState, useState } from "react";
+
+import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
+import type { NewPetFormState } from "@/src/modules/pets/actions";
+
+const initialState: NewPetFormState = { error: null };
+
+type FormAction = (prev: NewPetFormState, formData: FormData) => Promise<NewPetFormState>;
+
+// Species values accepted by parsePetForm.
+// "dog" and "cat" map directly; for the "other" branch the sub-select
+// value IS the stored species (rabbit, guinea_pig, ferret, other).
+const OTHER_SPECIES = [
+  { value: "rabbit", label: "Conejo/a" },
+  { value: "guinea_pig", label: "Cobayo / Cuy" },
+  { value: "ferret", label: "Hurón" },
+  { value: "other", label: "Otro" },
+] as const;
+
+// ---------------------------------------------------------------------------
+// MinimalNewPetForm
+// ---------------------------------------------------------------------------
+
+export function MinimalNewPetForm({ action }: { action: FormAction }) {
+  const [state, formAction, isPending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-[20px]">
+      {/* ── Name ─────────────────────────────────────────────────────── */}
+      <LnField label="Nombre" required>
+        {({ id, describedBy, invalid }) => (
+          <LnInput
+            id={id}
+            name="name"
+            type="text"
+            required
+            placeholder="Luna, Milo, Chicho…"
+            aria-describedby={describedBy}
+            invalid={invalid}
+            autoComplete="off"
+            autoFocus
+          />
+        )}
+      </LnField>
+
+      {/* ── Species ──────────────────────────────────────────────────── */}
+      <SpeciesField />
+
+      {/* ── Sex ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-[6px]">
+        <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          Sexo
+        </p>
+        <div className="flex flex-col gap-[6px]">
+          <LnRadio name="sex" value="female">
+            Hembra
+          </LnRadio>
+          <LnRadio name="sex" value="male">
+            Macho
+          </LnRadio>
+          <LnRadio name="sex" value="unknown" defaultChecked>
+            No sé
+          </LnRadio>
+        </div>
+      </div>
+
+      {/* ── Error ────────────────────────────────────────────────────── */}
+      {state?.error && (
+        <p
+          className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+          role="alert"
+        >
+          {state.error}
+        </p>
+      )}
+
+      {/* ── Submit ───────────────────────────────────────────────────── */}
+      <button
+        type="submit"
+        disabled={isPending}
+        className={[
+          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-[16px] py-[10px] text-[13px] font-semibold text-white transition-colors",
+          "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
+          "disabled:cursor-not-allowed disabled:opacity-60",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {isPending ? (
+          <>
+            <span
+              aria-hidden="true"
+              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+            />
+            Guardando...
+          </>
+        ) : (
+          "Crear mascota"
+        )}
+      </button>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SpeciesField — dog / cat chip buttons + other sub-select
+// ---------------------------------------------------------------------------
+
+function SpeciesField() {
+  const [picked, setPicked] = useState<"dog" | "cat" | "other" | null>(null);
+
+  const chipBase =
+    "flex cursor-pointer flex-col items-center justify-center gap-[4px] rounded-[6px] border-2 px-[14px] py-[14px] text-[13px] font-semibold transition-colors select-none";
+  const chipActive =
+    "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]";
+  const chipIdle =
+    "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]";
+
+  return (
+    <div className="flex flex-col gap-[10px]">
+      <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+        Especie{" "}
+        <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
+          *
+        </span>
+      </p>
+
+      {/* Hidden input for dog/cat — avoids double submit on "other" path */}
+      {picked !== null && picked !== "other" && (
+        <input type="hidden" name="species" value={picked} />
+      )}
+
+      <div className="grid grid-cols-3 gap-[8px]">
+        {(
+          [
+            { value: "dog", emoji: "🐶", label: "Perro/a" },
+            { value: "cat", emoji: "🐱", label: "Gato/a" },
+            { value: "other", emoji: "🐾", label: "Otra" },
+          ] as const
+        ).map(({ value, emoji, label }) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={picked === value}
+            onClick={() => setPicked(value)}
+            className={[chipBase, picked === value ? chipActive : chipIdle]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <span className="text-[22px] leading-none">{emoji}</span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-select rendered only when "Otra" is picked */}
+      {picked === "other" && (
+        <LnField label="¿Cuál?" required>
+          {({ id, describedBy, invalid }) => (
+            <LnSelect
+              id={id}
+              name="species"
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Seleccioná la especie…
+              </option>
+              {OTHER_SPECIES.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </LnSelect>
+          )}
+        </LnField>
+      )}
+    </div>
+  );
+}

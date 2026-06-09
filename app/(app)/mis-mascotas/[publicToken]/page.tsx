@@ -108,6 +108,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import type { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
+import { PostCreateModal } from "./PostCreateModal";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { PetReminders } from "./_components/PetReminders";
@@ -569,6 +570,7 @@ export default async function PetDetailPage({
   const { publicToken } = await params;
   const sp = await searchParams;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
+  const recienCreado = sp.recienCreado === "true";
 
   const access = await requirePetAccess(publicToken);
   if (!access.ok) notFound();
@@ -1315,6 +1317,11 @@ export default async function PetDetailPage({
       {accessPath === "owner" ? (
         <PetMarkLostFooterCta petPublicToken={pet.publicToken} petStatus={pet.status} />
       ) : null}
+
+      {/* Post-create modal — shown once after a successful new-pet create.
+            Only rendered for the owner on an active pet; deceased + lost paths
+            have early returns above and will never reach this point. */}
+      {recienCreado && accessPath === "owner" && <PostCreateModal publicToken={pet.publicToken} />}
     </div>
   );
 }

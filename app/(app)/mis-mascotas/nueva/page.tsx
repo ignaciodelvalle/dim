@@ -1,10 +1,11 @@
 // Nueva mascota — Libreta Nacional redesign.
-// Presentation only; PetForm and createPetAction unchanged.
+// Minimal first step: name + species + sex only.
+// Full profile can be completed from /mis-mascotas/[token]/editar after create.
 
 import Link from "next/link";
 
-import { PetForm } from "@/components/PetForm";
 import { createPetAction } from "@/src/modules/pets/actions";
+import { MinimalNewPetForm } from "./MinimalNewPetForm";
 
 export default function NewPetPage() {
   // Auth is enforced by the (app) layout above us.
@@ -24,11 +25,11 @@ export default function NewPetPage() {
           Nueva mascota
         </h1>
         <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
-          Esta es la primera entrada en la libreta digital de tu mascota.
+          Empezamos con lo mínimo. Vas a poder completar el resto en su perfil.
         </p>
       </div>
 
-      <PetForm action={createPetAction} />
+      <MinimalNewPetForm action={createPetAction} />
     </div>
   );
 }
