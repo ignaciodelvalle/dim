@@ -65,6 +65,20 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
   const filteredEvents =
     selectedTypes.size === 0 ? events : events.filter((e) => selectedTypes.has(e.eventType));
 
+  // Per-type counts drive the chip badges and hide chips with no events.
+  // Layout follows the mockup: a leading "Todos N" pill + only the chip
+  // types that have at least one event in this pet's history.
+  const countsByType = new Map<string, number>();
+  for (const e of events) {
+    countsByType.set(e.eventType, (countsByType.get(e.eventType) ?? 0) + 1);
+  }
+  const visibleChips = effectiveChips.filter((c) => (countsByType.get(c.type) ?? 0) > 0);
+  const allSelected = selectedTypes.size === 0;
+  const chipClass = (selected: boolean) =>
+    selected
+      ? "px-3 py-1 rounded-full text-xs font-medium transition-colors bg-[var(--color-ln-azul)] text-white"
+      : "px-3 py-1 rounded-full text-xs font-medium transition-colors border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]";
+
   if (events.length === 0) {
     return <p className="text-sm text-[var(--color-ln-mute)]">Sin eventos todavía.</p>;
   }
@@ -72,21 +86,26 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {effectiveChips.map((chip) => {
+        <button
+          type="button"
+          onClick={() => setSelectedTypes(new Set())}
+          aria-pressed={allSelected}
+          className={chipClass(allSelected)}
+        >
+          Todos {events.length}
+        </button>
+        {visibleChips.map((chip) => {
           const isSelected = selectedTypes.has(chip.type);
+          const count = countsByType.get(chip.type) ?? 0;
           return (
             <button
               key={chip.type}
               type="button"
               onClick={() => toggleType(chip.type)}
               aria-pressed={isSelected}
-              className={
-                isSelected
-                  ? "px-3 py-1 rounded-full text-xs font-medium transition-colors bg-[var(--color-ln-azul)] text-white"
-                  : "px-3 py-1 rounded-full text-xs font-medium transition-colors border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]"
-              }
+              className={chipClass(isSelected)}
             >
-              {chip.label}
+              {chip.label} {count}
             </button>
           );
         })}
