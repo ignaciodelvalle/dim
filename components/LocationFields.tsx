@@ -41,7 +41,7 @@ import { useEffect, useRef, useState } from "react";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-gob-border  bg-gob-surface-alt  animate-pulse" />
+    <div className="w-full h-64 rounded-lg border border-ln-line  bg-ln-stripe  animate-pulse" />
   ),
 });
 
@@ -259,7 +259,7 @@ export function LocationFields({
           onClick={handleUseMyLocation}
           disabled={geoLoading}
           aria-label="Usar mi ubicación actual"
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-2 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-ln-azul text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-2 transition-colors"
         >
           <span aria-hidden="true">📍</span>
           {geoLoading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
@@ -269,7 +269,7 @@ export function LocationFields({
       {/* L1 — cross-province locality autocomplete, single input. */}
       {!isL2 && (
         <div className="space-y-1.5">
-          <label htmlFor="localityName" className="block text-sm font-medium text-gob-text">
+          <label htmlFor="localityName" className="block text-sm font-medium text-ln-ink">
             Localidad
           </label>
           <LocalityPickerAcross
@@ -289,7 +289,7 @@ export function LocationFields({
       {isL2 && (
         <>
           <div className="space-y-1.5">
-            <label htmlFor={addressInputName} className="block text-sm font-medium text-gob-text">
+            <label htmlFor={addressInputName} className="block text-sm font-medium text-ln-ink">
               Dirección o referencia
             </label>
             <div className="relative">
@@ -304,7 +304,7 @@ export function LocationFields({
               />
               {geocodeLoading !== "none" && (
                 <span
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gob-text-muted "
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute "
                   aria-live="polite"
                 >
                   {geocodeLoading === "forward" ? "Buscando…" : "Identificando…"}
@@ -312,13 +312,13 @@ export function LocationFields({
               )}
             </div>
             {geocodeResults.length > 0 && (
-              <ul className="border border-gob-border  rounded-lg divide-y divide-gob-border  bg-white  text-sm overflow-hidden">
+              <ul className="border border-ln-line  rounded-lg divide-y divide-ln-line  bg-ln-card  text-sm overflow-hidden">
                 {geocodeResults.map((r) => (
                   <li key={`${r.lat}-${r.lng}-${r.display_name}`}>
                     <button
                       type="button"
                       onClick={() => pickResult(r)}
-                      className="block w-full text-left px-3 py-2 hover:bg-gob-surface-alt  text-gob-text "
+                      className="block w-full text-left px-3 py-2 hover:bg-ln-stripe  text-ln-ink "
                     >
                       {r.display_name}
                     </button>
@@ -327,12 +327,12 @@ export function LocationFields({
               </ul>
             )}
             {geocodeMessage === "empty" && (
-              <p className="text-xs text-gob-text-muted ">
+              <p className="text-xs text-ln-mute ">
                 No encontramos esa dirección. Podés moverte por el mapa para ajustarla.
               </p>
             )}
             {geocodeMessage === "failed" && (
-              <p className="text-xs text-gob-warning-text ">
+              <p className="text-xs text-ln-warn ">
                 No pudimos buscar la dirección ahora. Tipeá lo que sepas y movete por el mapa.
               </p>
             )}
@@ -340,30 +340,30 @@ export function LocationFields({
 
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <p className="block text-sm font-medium text-gob-text">Ajuste fino</p>
+              <p className="block text-sm font-medium text-ln-ink">Ajuste fino</p>
               {showPrimaryLocateButton ? null : (
                 <button
                   type="button"
                   onClick={handleUseMyLocation}
                   disabled={geoLoading}
-                  className="text-xs text-gob-text-gray  underline underline-offset-4 hover:text-gob-text  disabled:opacity-50"
+                  className="text-xs text-ln-ink-2  underline underline-offset-4 hover:text-ln-ink  disabled:opacity-50"
                 >
                   {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
                 </button>
               )}
             </div>
-            <p className="text-xs text-gob-text-muted ">
+            <p className="text-xs text-ln-mute ">
               Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
               estás en el lugar.
             </p>
             <LocationPicker value={point} onChange={handlePointChange} />
             {geoError && (
-              <p className="text-xs text-gob-warning-text " role="alert">
+              <p className="text-xs text-ln-warn " role="alert">
                 {geoError}
               </p>
             )}
             {point && (
-              <p className="text-xs text-gob-text-muted  font-mono">
+              <p className="text-xs text-ln-mute  font-mono">
                 {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
               </p>
             )}

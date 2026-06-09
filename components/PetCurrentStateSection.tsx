@@ -33,8 +33,8 @@ interface RowProps {
 function Row({ label, value }: RowProps) {
   return (
     <div className="flex justify-between gap-3 py-1.5 text-sm">
-      <span className="shrink-0 text-gob-text-muted ">{label}</span>
-      <span className="text-right font-medium text-gob-text ">{value}</span>
+      <span className="shrink-0 text-ln-mute ">{label}</span>
+      <span className="text-right font-medium text-ln-ink ">{value}</span>
     </div>
   );
 }
@@ -62,18 +62,18 @@ export function PetCurrentStateSection({
   return (
     <section
       aria-labelledby="pp-estado-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
-      <h2 id="pp-estado-h" className="mb-3 text-base font-semibold text-gob-text ">
+      <h2 id="pp-estado-h" className="mb-3 text-base font-semibold text-ln-ink ">
         Estado actual
       </h2>
 
       {!hasAnyField ? (
-        <p className="text-sm text-gob-text-muted ">
+        <p className="text-sm text-ln-mute ">
           Cargá información para ver el resumen del estado actual.
         </p>
       ) : (
-        <div className="divide-y divide-gob-border ">
+        <div className="divide-y divide-ln-line ">
           {fields.weight && (
             <Row
               label="Peso"

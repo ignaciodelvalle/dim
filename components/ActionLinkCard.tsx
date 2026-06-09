@@ -34,18 +34,18 @@ export function ActionLinkCard({
   return (
     <Link
       href={href}
-      className="flex flex-col gap-1 rounded-lg border border-gob-border p-4 hover:bg-gob-surface-alt transition-colors"
+      className="flex flex-col gap-1 rounded-lg border border-ln-line p-4 hover:bg-ln-stripe transition-colors"
     >
       <div className="flex items-center justify-between gap-2">
-        <Icon name={icon} size="1.25rem" className="text-gob-text-muted shrink-0" decorative />
+        <Icon name={icon} size="1.25rem" className="text-ln-mute shrink-0" decorative />
         {badge != null && badge > 0 && (
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full bg-gob-warning text-white text-xs font-semibold px-1.5">
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded-full bg-ln-warn text-white text-xs font-semibold px-1.5">
             {badge}
           </span>
         )}
       </div>
-      <p className="text-sm font-medium text-gob-text">{title}</p>
-      <p className="text-xs text-gob-text-muted">{description}</p>
+      <p className="text-sm font-medium text-ln-ink">{title}</p>
+      <p className="text-xs text-ln-mute">{description}</p>
     </Link>
   );
 }

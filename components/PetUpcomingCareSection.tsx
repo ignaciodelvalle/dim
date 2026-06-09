@@ -99,36 +99,34 @@ export function PetUpcomingCareSection({
   return (
     <section
       aria-labelledby="pp-cuidados-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="pp-cuidados-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="pp-cuidados-h" className="text-base font-semibold text-ln-ink ">
           Cuidados próximos
         </h2>
         {hasMore && (
           <Link
             href={`/mis-mascotas/${petToken}/cuidados`}
-            className="text-xs font-medium text-gob-azul-link hover:underline"
+            className="text-xs font-medium text-ln-azul hover:underline"
           >
             Ver todos →
           </Link>
         )}
       </div>
 
-      <ul className="divide-y divide-gob-border ">
+      <ul className="divide-y divide-ln-line ">
         {visible.map((item) => (
           <li key={item.id} className="flex items-center gap-3 py-2.5">
             <span
               aria-hidden
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gob-surface-alt text-sm "
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ln-stripe text-sm "
             >
               {kindIcon[item.kind]}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-gob-text ">{item.label}</span>
-              <span className="mt-0.5 block text-xs text-gob-text-muted ">
-                {formatDueAt(item.dueAt)}
-              </span>
+              <span className="block text-sm font-medium text-ln-ink ">{item.label}</span>
+              <span className="mt-0.5 block text-xs text-ln-mute ">{formatDueAt(item.dueAt)}</span>
             </span>
           </li>
         ))}
