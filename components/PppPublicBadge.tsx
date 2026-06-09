@@ -18,15 +18,15 @@ export function PppPublicBadge({ petName, breed }: Props) {
   return (
     <section
       aria-label="Animal Potencialmente Peligroso"
-      className="rounded-2xl border border-gob-warning bg-gob-warning/10 p-4 space-y-2  "
+      className="rounded-2xl border border-ln-warn bg-[#fdf2e0] p-4 space-y-2  "
     >
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gob-warning-text ">{buildPppHeadline()}</h2>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-gob-warning-text ">
+        <h2 className="text-sm font-semibold text-ln-warn ">{buildPppHeadline()}</h2>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-ln-warn ">
           Ley 4078 · Prov 14.107
         </span>
       </header>
-      <p className="text-xs text-gob-warning-text ">{buildPppDisclaimerLine(petName, breed)}</p>
+      <p className="text-xs text-ln-warn ">{buildPppDisclaimerLine(petName, breed)}</p>
     </section>
   );
 }

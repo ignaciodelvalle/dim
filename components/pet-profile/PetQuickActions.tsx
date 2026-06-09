@@ -15,7 +15,7 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
       {petStatus === "active" && (
         <Link
           href={`${base}?sheet=marcar-perdida`}
-          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-transparent text-gob-danger border-[3px] border-gob-danger hover:bg-gob-danger hover:text-white active:translate-y-px"
+          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-transparent text-ln-err border-[3px] border-ln-err hover:bg-ln-err hover:text-white active:translate-y-px"
         >
           Modo perdido
         </Link>
@@ -23,7 +23,7 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
       {petStatus === "lost" && (
         <Link
           href={`${base}?sheet=marcar-encontrada`}
-          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-gob-success text-white border-0 hover:bg-gob-success-hover active:translate-y-px"
+          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-ln-ok text-white border-0 hover:bg-ln-ok/90 active:translate-y-px"
         >
           Marcar encontrada
         </Link>
@@ -34,7 +34,7 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
         href={`/p/${petPublicToken}`}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-white text-gob-primary border-[3px] border-gob-border hover:border-gob-border-strong active:translate-y-px"
+        className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-ln-card text-ln-azul border-[3px] border-ln-line hover:border-ln-line-strong active:translate-y-px"
       >
         Compartir QR
       </Link>
@@ -43,13 +43,13 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
       {preferredVetPhone ? (
         <a
           href={`tel:${preferredVetPhone}`}
-          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-white text-gob-primary border-[3px] border-gob-border hover:border-gob-border-strong active:translate-y-px"
+          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-ln-card text-ln-azul border-[3px] border-ln-line hover:border-ln-line-strong active:translate-y-px"
         >
           Llamar vet
         </a>
       ) : (
         <span
-          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full bg-white text-gob-primary border-[3px] border-gob-border opacity-50 cursor-not-allowed"
+          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full bg-ln-card text-ln-azul border-[3px] border-ln-line opacity-50 cursor-not-allowed"
           aria-disabled="true"
           title="No tenés un vet de cabecera configurado. Editá tu cuenta para agregarlo."
         >

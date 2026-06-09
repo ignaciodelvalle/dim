@@ -19,19 +19,19 @@ export type AppointmentRow = {
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   confirmed: {
     label: "Confirmado",
-    className: "bg-gob-success/10 text-gob-success  ",
+    className: "bg-[#eef6f0] text-ln-ok  ",
   },
   attended: {
     label: "Asistido",
-    className: "bg-gob-info/10 text-gob-azul-link  ",
+    className: "bg-ln-celeste/10 text-ln-azul  ",
   },
   cancelled: {
     label: "Cancelado",
-    className: "bg-gob-surface-alt text-gob-text  ",
+    className: "bg-ln-stripe text-ln-ink  ",
   },
   no_show: {
     label: "No asistió",
-    className: "bg-gob-danger/10 text-gob-danger  ",
+    className: "bg-[#fbe9e6] text-ln-err  ",
   },
 };
 
@@ -64,18 +64,18 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
     <li>
       <Link
         href={`/mis-turnos/${appointment.publicToken}`}
-        className="block border border-gob-border  rounded-xl p-4 hover:bg-gob-surface-alt  transition-colors"
+        className="block border border-ln-line  rounded-xl p-4 hover:bg-ln-stripe  transition-colors"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-0.5">
-            <p className="font-medium text-gob-text  truncate">{offering.displayName}</p>
-            <p className="text-xs text-gob-text-muted ">
+            <p className="font-medium text-ln-ink  truncate">{offering.displayName}</p>
+            <p className="text-xs text-ln-mute ">
               {pet.name} · {providerLabel}
             </p>
-            <p className="text-xs text-gob-text-muted  capitalize">
+            <p className="text-xs text-ln-mute  capitalize">
               {dateLabel} · {timeLabel}
             </p>
-            {kindDef && <p className="text-xs text-gob-text-muted ">{kindDef.label}</p>}
+            {kindDef && <p className="text-xs text-ln-mute ">{kindDef.label}</p>}
           </div>
           <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}>
             {statusBadge.label}

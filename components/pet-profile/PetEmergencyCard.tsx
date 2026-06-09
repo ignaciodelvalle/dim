@@ -43,13 +43,13 @@ export function PetEmergencyCard({ vet, emergencyContact, alerts, editHref }: Pr
   return (
     <section
       aria-labelledby="pp-emerg-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="pp-emerg-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="pp-emerg-h" className="text-base font-semibold text-ln-ink ">
           Emergencias
         </h2>
-        <Link href={editHref} className="text-xs font-medium text-gob-azul-link hover:underline">
+        <Link href={editHref} className="text-xs font-medium text-ln-azul hover:underline">
           Editar contactos →
         </Link>
       </div>
@@ -60,11 +60,11 @@ export function PetEmergencyCard({ vet, emergencyContact, alerts, editHref }: Pr
       </div>
 
       {alerts.length > 0 && (
-        <div className="mt-3 rounded-lg border-l-[3px] border-gob-danger bg-gob-danger/10 px-3 py-2 ">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gob-danger ">
+        <div className="mt-3 rounded-lg border-l-[3px] border-ln-err bg-[#fbe9e6] px-3 py-2 ">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ln-err ">
             Alertas médicas
           </p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-gob-danger ">
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-ln-err ">
             {alerts.map((a) =>
               a.href ? (
                 <li key={a.id}>
@@ -94,7 +94,7 @@ function ContactCard({
 }) {
   if (!contact) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-gob-border-strong bg-gob-surface-alt p-3 text-sm text-gob-text-muted  ">
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-ln-line-strong bg-ln-stripe p-3 text-sm text-ln-mute  ">
         <span aria-hidden>{icon}</span>
         <span className="text-xs">{emptyLabel}</span>
       </div>
@@ -103,19 +103,19 @@ function ContactCard({
   return (
     <a
       href={`tel:${contact.phone.replace(/\s+/g, "")}`}
-      className="flex items-center gap-2.5 rounded-lg bg-gob-surface-alt p-3 transition-colors hover:bg-gob-danger/10  "
+      className="flex items-center gap-2.5 rounded-lg bg-ln-stripe p-3 transition-colors hover:bg-[#fbe9e6]  "
     >
       <span
         aria-hidden
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gob-danger/10 text-gob-danger  "
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbe9e6] text-ln-err  "
       >
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="block text-[10px] font-semibold uppercase tracking-wider text-gob-text-muted ">
+        <span className="block text-[10px] font-semibold uppercase tracking-wider text-ln-mute ">
           {contact.role}
         </span>
-        <span className="block text-sm font-semibold text-gob-text ">
+        <span className="block text-sm font-semibold text-ln-ink ">
           {contact.name} · {contact.phone}
         </span>
       </span>

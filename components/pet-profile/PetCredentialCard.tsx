@@ -24,13 +24,13 @@ export function PetCredentialCard({ publicToken, qrUrl, publicHref }: Props) {
   return (
     <section
       aria-labelledby="pp-cred-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="pp-cred-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="pp-cred-h" className="text-base font-semibold text-ln-ink ">
           Identificación digital
         </h2>
-        <Link href={publicHref} className="text-xs font-medium text-gob-azul-link hover:underline">
+        <Link href={publicHref} className="text-xs font-medium text-ln-azul hover:underline">
           Ver libreta pública →
         </Link>
       </div>
@@ -40,14 +40,12 @@ export function PetCredentialCard({ publicToken, qrUrl, publicHref }: Props) {
           alt={`QR de la mascota ${publicToken}`}
           width={88}
           height={88}
-          className="rounded-lg border border-gob-border bg-white p-1 "
+          className="rounded-lg border border-ln-line bg-ln-card p-1 "
         />
         <div className="min-w-0">
-          <p className="text-xs font-medium text-gob-text-muted ">Token público</p>
-          <p className="mt-0.5 font-mono text-sm text-gob-text ">{publicToken}</p>
-          <p className="mt-2 text-xs text-gob-text-muted ">
-            Quien escanee el QR ve la libreta pública.
-          </p>
+          <p className="text-xs font-medium text-ln-mute ">Token público</p>
+          <p className="mt-0.5 font-mono text-sm text-ln-ink ">{publicToken}</p>
+          <p className="mt-2 text-xs text-ln-mute ">Quien escanee el QR ve la libreta pública.</p>
         </div>
       </div>
     </section>

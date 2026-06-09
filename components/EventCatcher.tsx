@@ -61,17 +61,17 @@ export type EventCatcherPet = {
 };
 
 const PET_STATE_RING: Record<PetState, string> = {
-  ok: "ring-gob-border",
-  info: "ring-gob-info",
-  attention: "ring-gob-warning",
-  urgent: "ring-gob-danger",
+  ok: "ring-ln-line",
+  info: "ring-ln-celeste",
+  attention: "ring-ln-warn",
+  urgent: "ring-ln-err",
 };
 
 const PET_STATE_LABEL: Record<PetState, string> = {
-  ok: "text-gob-text-muted",
-  info: "text-gob-info",
-  attention: "text-gob-warning-text",
-  urgent: "text-gob-danger",
+  ok: "text-ln-mute",
+  info: "text-ln-celeste",
+  attention: "text-ln-warn",
+  urgent: "text-ln-err",
 };
 
 const QUICK_LABELS: Partial<Record<EventType, string>> = {
@@ -105,11 +105,11 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
 
   if (visiblePets.length === 0) {
     return (
-      <section className="rounded-2xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted">
+      <section className="rounded-2xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute">
         <p className="mb-3">Todavía no cargaste ninguna mascota.</p>
         <a
           href="/mis-mascotas/nueva"
-          className="inline-block rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white hover:bg-gob-primary-hover"
+          className="inline-block rounded-full bg-ln-azul px-5 py-2 text-sm font-semibold text-white hover:bg-ln-azul-700"
         >
           Agregar mi primera mascota
         </a>
@@ -159,7 +159,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
   }
 
   return (
-    <section className="rounded-2xl border border-gob-border bg-white p-4">
+    <section className="rounded-2xl border border-ln-line bg-ln-card p-4">
       <h2 className="sr-only">Anotar un evento</h2>
 
       <PetChipRow
@@ -172,8 +172,8 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
       {/* Active-pet line (Chunk H PR2). Persistent signal — the placeholder
           disappears as soon as the user starts typing. */}
       {active && (
-        <p className="mb-2 text-xs text-gob-text-muted">
-          Anotando para <span className="font-medium text-gob-text">{active.name}</span>
+        <p className="mb-2 text-xs text-ln-mute">
+          Anotando para <span className="font-medium text-ln-ink">{active.name}</span>
         </p>
       )}
 
@@ -186,7 +186,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
         }}
         placeholder={active ? `${active.name} — ¿qué pasó?` : "Describí el evento"}
         rows={3}
-        className="w-full resize-y rounded-xl border border-gob-border bg-white p-3 text-sm text-gob-text outline-none focus:border-gob-primary focus:ring-2 focus:ring-gob-primary/30"
+        className="w-full resize-y rounded-xl border border-ln-line bg-ln-card p-3 text-sm text-ln-ink outline-none focus:border-ln-azul focus:ring-2 focus:ring-ln-azul/30"
         aria-label="Describí el evento"
       />
 
@@ -201,7 +201,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
             type="button"
             onClick={() => onQuick(k)}
             disabled={!active || isPending}
-            className="rounded-md border border-gob-border bg-white px-3 py-2 text-sm font-medium text-gob-text-gray transition-colors hover:bg-gob-surface-alt disabled:bg-gob-surface-alt disabled:text-gob-text-muted"
+            className="rounded-md border border-ln-line bg-ln-card px-3 py-2 text-sm font-medium text-ln-ink-2 transition-colors hover:bg-ln-stripe disabled:bg-ln-stripe disabled:text-ln-mute"
           >
             {QUICK_LABELS[k]}
           </button>
@@ -220,7 +220,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
       {/* Mobile-aware tip (Chunk H PR3): hidden on touch-only devices that
           have no Ctrl key. The @media(hover:hover) query matches devices
           with a precise pointer (mouse / trackpad). */}
-      <p className="mt-2 hidden text-[11px] text-gob-text-muted [@media(hover:hover)]:block">
+      <p className="mt-2 hidden text-[11px] text-ln-mute [@media(hover:hover)]:block">
         Tap dos veces en una mascota para abrir su perfil · Ctrl + Enter para anotar.
       </p>
     </section>
@@ -322,7 +322,7 @@ function PetChip({
         }}
         aria-label={pet.stateLabel ? `${pet.name}, ${pet.stateLabel}` : pet.name}
         className={`flex w-24 flex-col items-center gap-1.5 rounded-2xl p-2 transition-colors active:scale-[0.97] ${
-          active ? "bg-gob-info/10" : "bg-transparent hover:bg-gob-surface-alt"
+          active ? "bg-ln-celeste/10" : "bg-transparent hover:bg-ln-stripe"
         }`}
       >
         <span
@@ -331,12 +331,12 @@ function PetChip({
           {pet.photoUrl ? (
             <img src={pet.photoUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center bg-gob-surface-alt text-2xl font-semibold text-gob-text-gray">
+            <span className="flex h-full w-full items-center justify-center bg-ln-stripe text-2xl font-semibold text-ln-ink-2">
               {pet.name.charAt(0).toUpperCase()}
             </span>
           )}
         </span>
-        <span className="text-[13px] font-medium leading-tight text-gob-text">{pet.name}</span>
+        <span className="text-[13px] font-medium leading-tight text-ln-ink">{pet.name}</span>
         {pet.stateLabel ? (
           <span
             className={`text-[10px] font-medium leading-tight ${PET_STATE_LABEL[pet.state ?? "ok"]}`}
@@ -346,7 +346,7 @@ function PetChip({
         ) : (
           <span
             aria-hidden
-            className={`text-[10px] font-medium leading-tight text-gob-info transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
+            className={`text-[10px] font-medium leading-tight text-ln-celeste transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
           >
             ↗ Abrir perfil
           </span>

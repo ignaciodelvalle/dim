@@ -53,45 +53,42 @@ export function CasesWidget({
   return (
     <section
       aria-labelledby="oh-cases-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="oh-cases-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="oh-cases-h" className="text-base font-semibold text-ln-ink ">
           Mis casos
           {total > 0 && (
-            <span className="ml-2 text-xs font-normal text-gob-text-muted ">
+            <span className="ml-2 text-xs font-normal text-ln-mute ">
               · {total} abierto{total === 1 ? "" : "s"}
             </span>
           )}
         </h2>
-        <Link
-          href="/cuenta/casos"
-          className="text-xs font-medium text-gob-azul-link hover:underline"
-        >
+        <Link href="/cuenta/casos" className="text-xs font-medium text-ln-azul hover:underline">
           Ver historial →
         </Link>
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
+        <p className="rounded-xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute ">
           Sin casos abiertos. Cualquier denuncia, postulación o pérdida que empieces va a aparecer
           acá.
         </p>
       ) : (
-        <ul className="divide-y divide-gob-border ">
+        <ul className="divide-y divide-ln-line ">
           {visible.map((c) => (
             <li key={c.id}>
               <Link
                 href={c.ctaUrl}
-                className="flex items-start gap-3 py-3 transition-colors hover:bg-gob-surface-alt "
+                className="flex items-start gap-3 py-3 transition-colors hover:bg-ln-stripe "
               >
                 <CaseIcon severity={c.severity} icon={c.icon} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gob-text ">{c.title}</p>
-                  <p className="mt-0.5 truncate text-xs text-gob-text-muted ">{c.subtitle}</p>
+                  <p className="truncate text-sm font-medium text-ln-ink ">{c.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-ln-mute ">{c.subtitle}</p>
                 </div>
                 <p
-                  className="shrink-0 text-[11px] text-gob-text-muted "
+                  className="shrink-0 text-[11px] text-ln-mute "
                   title={c.since.toLocaleString("es-AR")}
                 >
                   {relativeShort(c.since)}
@@ -103,7 +100,7 @@ export function CasesWidget({
       )}
 
       {total > visible.length && (
-        <p className="mt-2 text-right text-xs text-gob-text-muted ">
+        <p className="mt-2 text-right text-xs text-ln-mute ">
           Mostrando los {visible.length} más recientes
         </p>
       )}
@@ -120,12 +117,12 @@ function CaseIcon({
 }) {
   const tone =
     severity === "danger"
-      ? "bg-gob-danger/10 text-gob-danger  "
+      ? "bg-[#fbe9e6] text-ln-err  "
       : severity === "warning"
-        ? "bg-gob-warning/10 text-gob-warning-text  "
+        ? "bg-[#fdf2e0] text-ln-warn  "
         : severity === "success"
-          ? "bg-gob-success/10 text-gob-success  "
-          : "bg-gob-info/10 text-gob-azul-link  ";
+          ? "bg-[#eef6f0] text-ln-ok  "
+          : "bg-ln-celeste/10 text-ln-azul  ";
   return (
     <span
       className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base ${tone}`}

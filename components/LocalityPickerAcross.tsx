@@ -173,7 +173,7 @@ export function LocalityPickerAcross({
       <input type="hidden" name={name} value={localityNameValue} />
       <input type="hidden" name={`${name}IndecId`} value={indecIdValue} />
       {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-gob-border  bg-white  shadow-lg">
+        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-ln-line  bg-ln-card  shadow-lg">
           {results.map((r, i) => (
             <li key={r.indecId ?? `${r.provinceCode}-${r.localitySlug}-${r.departmentName ?? "x"}`}>
               <button
@@ -183,11 +183,11 @@ export function LocalityPickerAcross({
                   handleSelect(r);
                 }}
                 className={`block w-full text-left px-3 py-2 ${
-                  i === activeIdx ? "bg-gob-surface-alt " : "hover:bg-gob-surface-alt "
+                  i === activeIdx ? "bg-ln-stripe " : "hover:bg-ln-stripe "
                 }`}
               >
-                <p className="text-sm text-gob-text ">{r.localityName}</p>
-                <p className="text-xs text-gob-text-muted ">
+                <p className="text-sm text-ln-ink ">{r.localityName}</p>
+                <p className="text-xs text-ln-mute ">
                   {r.departmentName ? `${r.departmentName}, ` : ""}
                   {r.provinceName}
                 </p>
@@ -197,12 +197,10 @@ export function LocalityPickerAcross({
         </ul>
       )}
       {pending && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gob-text-muted">
-          …
-        </span>
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute">…</span>
       )}
       {showNoResults && (
-        <p className="text-xs text-gob-text-muted  mt-1">
+        <p className="text-xs text-ln-mute  mt-1">
           Sin resultados.{" "}
           <a
             href={`mailto:ignaciodelvalle2014@gmail.com?subject=MiMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
@@ -213,7 +211,7 @@ export function LocalityPickerAcross({
         </p>
       )}
       {errored && (
-        <p className="text-xs text-gob-warning-text  mt-1">
+        <p className="text-xs text-ln-warn  mt-1">
           No pudimos buscar localidades ahora. Probá de nuevo en un momento.
         </p>
       )}

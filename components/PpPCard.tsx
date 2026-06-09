@@ -37,26 +37,26 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-gob-warning bg-gob-warning/10 p-4  ">
+    <section className="space-y-3 rounded-2xl border border-ln-warn bg-[#fdf2e0] p-4  ">
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gob-warning-text ">
+        <h2 className="text-sm font-semibold text-ln-warn ">
           ⚠ Animal Potencialmente Peligroso (PPP)
         </h2>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-gob-warning-text ">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-ln-warn ">
           Ley CABA 4078 · Prov 14.107
         </span>
       </header>
 
-      <p className="text-xs text-gob-warning-text ">
+      <p className="text-xs text-ln-warn ">
         {breed
           ? `Por la raza (${breed}) esta mascota está sujeta al régimen de Animales Potencialmente Peligrosos.`
           : "Esta mascota está marcada como Animal Potencialmente Peligroso."}
       </p>
 
-      <div className="rounded-lg border border-gob-warning bg-gob-warning/10/60 p-3 text-xs  ">
-        <p className="font-medium text-gob-warning-text ">Atestación</p>
+      <div className="rounded-lg border border-ln-warn bg-[#fdf2e0] p-3 text-xs  ">
+        <p className="font-medium text-ln-warn ">Atestación</p>
         {latestAttestation ? (
-          <p className="mt-1 text-gob-warning-text ">
+          <p className="mt-1 text-ln-warn ">
             ✓ Atestada en{" "}
             <strong>{REGISTRY_LABELS[payload.registry ?? ""] ?? payload.registry}</strong>
             {payload.attested_at ? ` el ${formatDate(payload.attested_at)}` : ""}
@@ -69,16 +69,16 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
           </p>
         ) : (
           <div className="mt-1 space-y-2">
-            <p className="text-gob-warning-text ">⚠ Atestación pendiente.</p>
+            <p className="text-ln-warn ">⚠ Atestación pendiente.</p>
             {isTransit ? (
-              <p className="text-gob-warning-text ">
+              <p className="text-ln-warn ">
                 La obligación legal de atestar es del dueño permanente. Como tránsito no podés
                 cargar la atestación.
               </p>
             ) : (
               <Link
                 href={`/mis-mascotas/${petPublicToken}/eventos/atestar-raza-peligrosa`}
-                className="inline-block rounded-md bg-gob-warning px-3 py-1.5 text-xs font-medium text-white hover:bg-gob-warning  "
+                className="inline-block rounded-md bg-ln-warn px-3 py-1.5 text-xs font-medium text-white hover:bg-ln-warn  "
               >
                 Registrar atestación →
               </Link>
@@ -87,9 +87,9 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
         )}
       </div>
 
-      <div className="rounded-lg border border-gob-warning bg-gob-warning/10/40 p-3 text-xs  ">
-        <p className="font-medium text-gob-warning-text ">Requisitos generales (informativos)</p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-gob-warning-text ">
+      <div className="rounded-lg border border-ln-warn bg-[#fdf2e0] p-3 text-xs  ">
+        <p className="font-medium text-ln-warn ">Requisitos generales (informativos)</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-ln-warn ">
           <li>Bozal y correa corta en vía pública</li>
           <li>Seguro de responsabilidad civil recomendado</li>
           <li>Identificación visible permanente</li>

@@ -34,26 +34,23 @@ export function PetVaccineReminders({ reminders, vaccinesHref, scheduleHref }: P
   return (
     <section
       aria-labelledby="pp-vac-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="pp-vac-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="pp-vac-h" className="text-base font-semibold text-ln-ink ">
           Próximas vacunas
         </h2>
-        <Link
-          href={vaccinesHref}
-          className="text-xs font-medium text-gob-azul-link hover:underline"
-        >
+        <Link href={vaccinesHref} className="text-xs font-medium text-ln-azul hover:underline">
           Ver todas →
         </Link>
       </div>
 
       {sorted.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
+        <p className="rounded-xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute ">
           Sin vacunas pendientes. Buen trabajo.
         </p>
       ) : (
-        <ul className="divide-y divide-gob-border ">
+        <ul className="divide-y divide-ln-line ">
           {sorted.map((r) => (
             <ReminderRow key={r.id} reminder={r} href={scheduleHref(r)} />
           ))}
@@ -70,10 +67,10 @@ function ReminderRow({ reminder, href }: { reminder: VaccineReminder; href: stri
   const soon = !overdue && diffDays <= SOON_DAYS;
 
   const pillClass = overdue
-    ? "bg-gob-danger/10 text-gob-danger  "
+    ? "bg-[#fbe9e6] text-ln-err  "
     : soon
-      ? "bg-gob-warning/10 text-gob-warning-text  "
-      : "bg-gob-surface-alt text-gob-text-gray  ";
+      ? "bg-[#fdf2e0] text-ln-warn  "
+      : "bg-ln-stripe text-ln-ink-2  ";
 
   const pillText = overdue
     ? `vencida hace ${Math.abs(diffDays)} d.`
@@ -92,15 +89,13 @@ function ReminderRow({ reminder, href }: { reminder: VaccineReminder; href: stri
         <span>{pillText}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gob-text ">{reminder.name}</p>
-        {reminder.subtitle && <p className="text-xs text-gob-text-muted ">{reminder.subtitle}</p>}
+        <p className="text-sm font-medium text-ln-ink ">{reminder.name}</p>
+        {reminder.subtitle && <p className="text-xs text-ln-mute ">{reminder.subtitle}</p>}
       </div>
       <Link
         href={href}
         className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold ${
-          overdue
-            ? "bg-gob-primary text-white hover:bg-gob-primary-hover"
-            : "text-gob-azul-link hover:underline"
+          overdue ? "bg-ln-azul text-white hover:bg-ln-azul-700" : "text-ln-azul hover:underline"
         }`}
       >
         Agendar
