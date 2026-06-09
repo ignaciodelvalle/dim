@@ -65,7 +65,7 @@ export function AttendanceFormDispatcher({
   return (
     <div className="space-y-8">
       <section>
-        <h2 className="text-base font-semibold text-gob-text  mb-4">Registrar asistencia</h2>
+        <h2 className="text-[14px] font-semibold text-ln-op-ink mb-4">Registrar asistencia</h2>
 
         {isVaccination && (
           <VaccinationAttendanceForm
@@ -100,20 +100,22 @@ export function AttendanceFormDispatcher({
         )}
       </section>
 
-      <section className="border-t border-gob-border  pt-6 space-y-3">
-        <h2 className="text-sm font-medium text-gob-text-gray ">Otras acciones</h2>
+      <section className="border-t border-ln-op-line pt-6 space-y-3">
+        <h2 className="text-[12px] font-medium text-ln-op-mute uppercase tracking-[0.08em]">
+          Otras acciones
+        </h2>
         <div className="flex gap-3 flex-wrap">
           <button
             type="button"
             onClick={handleNoShow}
-            className="px-4 py-2 rounded-md border border-gob-warning  text-gob-warning-text  text-sm font-medium hover:bg-gob-warning/10  transition-colors"
+            className="px-4 py-2 rounded-[6px] border border-ln-op-warn text-ln-op-warn text-[13px] font-medium hover:bg-ln-op-warn-bg transition-colors"
           >
             No vino
           </button>
           <button
             type="button"
             onClick={handleCancel}
-            className="px-4 py-2 rounded-md border border-gob-danger  text-gob-danger  text-sm font-medium hover:bg-gob-danger/10  transition-colors"
+            className="px-4 py-2 rounded-[6px] border border-ln-op-danger text-ln-op-danger text-[13px] font-medium hover:bg-ln-op-danger-bg transition-colors"
           >
             Cancelar turno
           </button>

@@ -8,6 +8,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { createScheduleRuleAction, deleteScheduleRuleAction } from "@/app/actions/schedule-rules";
 import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
+import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -85,115 +86,134 @@ export default async function AgendaPage({
     .orderBy(serviceScheduleRules.effectiveFrom);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Header */}
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            {organization.displayName} · {kind?.label ?? offering.serviceKind}
-          </p>
-          <h1 className="text-3xl font-semibold">Agenda</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Reglas de disponibilidad recurrente para <strong>{offering.displayName}</strong>.
-          </p>
-        </header>
+    <div className="max-w-3xl mx-auto space-y-8">
+      {/* Header */}
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName} · {kind?.label ?? offering.serviceKind}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Agenda</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Reglas de disponibilidad recurrente para{" "}
+          <strong className="text-ln-op-ink-2">{offering.displayName}</strong>.
+        </p>
+      </header>
 
-        {/* Existing rules */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">Reglas activas</h2>
-          {rules.length === 0 ? (
-            <p className="text-sm text-gob-text-muted ">
-              Todavía no hay reglas de agenda. Agregá una abajo para que se materialicen turnos.
-            </p>
-          ) : (
-            <div className="rounded border border-gob-border  overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gob-surface-alt  text-xs text-gob-text-muted uppercase tracking-wider">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Días</th>
-                    <th className="px-4 py-2 text-left font-medium">Horario</th>
-                    <th className="px-4 py-2 text-left font-medium">Desde</th>
-                    <th className="px-4 py-2 text-left font-medium">Hasta</th>
-                    {canManage && <th className="px-4 py-2 text-right font-medium">Acción</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gob-border ">
-                  {rules.map((rule) => (
-                    <tr key={rule.id} className="hover:bg-gob-surface-alt ">
-                      <td className="px-4 py-3">{formatDays(rule.daysOfWeek as number[])}</td>
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {rule.startTimeLocal} – {rule.endTimeLocal}
-                      </td>
-                      <td className="px-4 py-3 text-gob-text-muted">
-                        {formatDate(rule.effectiveFrom)}
-                      </td>
-                      <td className="px-4 py-3 text-gob-text-muted">
-                        {rule.effectiveUntil ? formatDate(rule.effectiveUntil) : "Abierto"}
-                      </td>
+      {/* Existing rules */}
+      <section className="space-y-4">
+        <h2 className="text-[14px] font-semibold text-ln-op-ink">Reglas activas</h2>
+        {rules.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">
+            Todavía no hay reglas de agenda. Agregá una abajo para que se materialicen turnos.
+          </p>
+        ) : (
+          <OpCard>
+            <OpCardBody className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-ln-op-stripe border-b border-ln-op-line">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                        Días
+                      </th>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                        Horario
+                      </th>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                        Desde
+                      </th>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                        Hasta
+                      </th>
                       {canManage && (
-                        <td className="px-4 py-3 text-right">
-                          <form
-                            action={async () => {
-                              "use server";
-                              await deleteScheduleRuleAction(rule.id, orgToken, offeringToken);
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="text-xs text-gob-danger  hover:underline"
-                            >
-                              Eliminar
-                            </button>
-                          </form>
-                        </td>
+                        <th className="px-4 py-2 text-right text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                          Acción
+                        </th>
                       )}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                  </thead>
+                  <tbody className="divide-y divide-ln-op-line">
+                    {rules.map((rule) => (
+                      <tr key={rule.id} className="hover:bg-ln-op-stripe transition-colors">
+                        <td className="px-4 py-3 text-[13px] text-ln-op-ink">
+                          {formatDays(rule.daysOfWeek as number[])}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-[12px] text-ln-op-ink-2">
+                          {rule.startTimeLocal} – {rule.endTimeLocal}
+                        </td>
+                        <td className="px-4 py-3 text-[13px] text-ln-op-mute">
+                          {formatDate(rule.effectiveFrom)}
+                        </td>
+                        <td className="px-4 py-3 text-[13px] text-ln-op-mute">
+                          {rule.effectiveUntil ? formatDate(rule.effectiveUntil) : "Abierto"}
+                        </td>
+                        {canManage && (
+                          <td className="px-4 py-3 text-right">
+                            <form
+                              action={async () => {
+                                "use server";
+                                await deleteScheduleRuleAction(rule.id, orgToken, offeringToken);
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="text-[12px] text-ln-op-danger hover:underline"
+                              >
+                                Eliminar
+                              </button>
+                            </form>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </OpCardBody>
+          </OpCard>
+        )}
+      </section>
 
-        {/* Add rule form */}
-        {canManage && (
-          <section className="space-y-4">
-            <h2 className="text-base font-semibold">Agregar regla</h2>
-            <div className="rounded border border-gob-border  p-5">
+      {/* Add rule form */}
+      {canManage && (
+        <section className="space-y-4">
+          <h2 className="text-[14px] font-semibold text-ln-op-ink">Agregar regla</h2>
+          <OpCard>
+            <OpCardBody>
               <AgendaRuleForm
                 serviceOfferingId={offering.id}
                 offeringPublicToken={offeringToken}
                 orgToken={orgToken}
                 createAction={createScheduleRuleAction}
               />
-            </div>
-          </section>
-        )}
+            </OpCardBody>
+          </OpCard>
+        </section>
+      )}
 
-        {/* Materialization — immediate preview */}
-        {canManage && rules.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-base font-semibold">Materializar turnos</h2>
-            <p className="text-sm text-gob-text-muted ">
-              Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
-              hace automáticamente; este botón es para preview inmediato.
-            </p>
-            <MaterializeNowButton
-              offeringToken={offeringToken}
-              materializeAction={materializeOfferingNowAction}
-            />
-          </section>
-        )}
+      {/* Materialization — immediate preview */}
+      {canManage && rules.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-[14px] font-semibold text-ln-op-ink">Materializar turnos</h2>
+          <p className="text-[13px] text-ln-op-mute">
+            Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
+            hace automáticamente; este botón es para preview inmediato.
+          </p>
+          <MaterializeNowButton
+            offeringToken={offeringToken}
+            materializeAction={materializeOfferingNowAction}
+          />
+        </section>
+      )}
 
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link
-            href={`/org/${orgToken}/servicios/${offeringToken}`}
-            className="text-sm text-gob-text-gray underline "
-          >
-            ← Volver al servicio
-          </Link>
-        </footer>
-      </div>
-    </main>
+      <footer className="pt-4 border-t border-ln-op-line">
+        <Link
+          href={`/org/${orgToken}/servicios/${offeringToken}`}
+          className="text-[12px] text-ln-op-azul hover:underline"
+        >
+          ← Volver al servicio
+        </Link>
+      </footer>
+    </div>
   );
 }

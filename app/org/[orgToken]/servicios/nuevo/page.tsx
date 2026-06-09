@@ -5,6 +5,7 @@
 import Link from "next/link";
 
 import { createServiceOfferingAction } from "@/app/actions/service-offerings";
+import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { SERVICE_KINDS } from "@/lib/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -22,54 +23,59 @@ export default async function NuevoServicioPage({
 
   if (!granted.has("service_offering.create")) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray ">
-            Para crear servicios necesitás el permiso{" "}
-            <code className="text-xs">service_offering.create</code>. Pedíselo a un administrador
-            desde el panel.
-          </p>
-          <Link
-            href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
-          >
-            Volver al panel
-          </Link>
-        </div>
-      </main>
+      <div className="max-w-md mx-auto space-y-4">
+        <OpBreach
+          title="Permiso requerido"
+          detail={
+            <>
+              Para crear servicios necesitás el permiso{" "}
+              <code className="text-[11px]">service_offering.create</code>. Pedíselo a un
+              administrador desde el panel.
+            </>
+          }
+        />
+        <Link
+          href={`/org/${orgToken}`}
+          className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+        >
+          Volver al panel
+        </Link>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            {organization.displayName}
-          </p>
-          <h1 className="text-3xl font-semibold">Nuevo servicio</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Completá los datos del servicio. Una vez enviado, la autoridad competente lo revisa y
-            aprueba antes de que puedas armar la agenda.
-          </p>
-        </header>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Nuevo servicio</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Completá los datos del servicio. Una vez enviado, la autoridad competente lo revisa y
+          aprueba antes de que puedas armar la agenda.
+        </p>
+      </header>
 
-        <ServiceOfferingForm
-          serviceKinds={SERVICE_KINDS}
-          createAction={createServiceOfferingAction}
-          orgToken={orgToken}
-        />
+      <OpCard>
+        <OpCardHead title="Datos del servicio" />
+        <OpCardBody>
+          <ServiceOfferingForm
+            serviceKinds={SERVICE_KINDS}
+            createAction={createServiceOfferingAction}
+            orgToken={orgToken}
+          />
+        </OpCardBody>
+      </OpCard>
 
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link
-            href={`/org/${orgToken}/servicios`}
-            className="text-sm text-gob-text-gray underline "
-          >
-            ← Volver a mis servicios
-          </Link>
-        </footer>
-      </div>
-    </main>
+      <footer className="pt-4 border-t border-ln-op-line">
+        <Link
+          href={`/org/${orgToken}/servicios`}
+          className="text-[12px] text-ln-op-azul hover:underline"
+        >
+          ← Volver a mis servicios
+        </Link>
+      </footer>
+    </div>
   );
 }
