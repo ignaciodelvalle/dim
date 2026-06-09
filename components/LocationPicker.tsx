@@ -140,7 +140,7 @@ export default function LocationPicker({ value, onChange }: Props) {
   return (
     <div
       ref={containerRef}
-      className="w-full h-64 rounded-lg overflow-hidden border border-gob-border  cursor-crosshair"
+      className="w-full h-64 rounded-lg overflow-hidden border border-ln-line cursor-crosshair"
       aria-label="Mapa. Tocá para marcar una ubicación."
     />
   );
