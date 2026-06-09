@@ -37,7 +37,7 @@ export function AssignLocalityForm({
   if (mode === "done" && lastAssigned) {
     return (
       <div className="space-y-2">
-        <p className="text-xs text-gob-success ">
+        <p className="text-[12px] text-ln-op-ok font-medium">
           Localidad asignada: {lastAssigned.locality}, {lastAssigned.province}
         </p>
         <button
@@ -48,7 +48,7 @@ export function AssignLocalityForm({
             setLocality("");
             setLastAssigned(null);
           }}
-          className="text-[10px] underline underline-offset-2 text-gob-text-muted  hover:text-gob-text-gray "
+          className="text-[10px] underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink-2"
         >
           Asignar otra
         </button>
@@ -58,15 +58,15 @@ export function AssignLocalityForm({
 
   if (mode === "confirming") {
     return (
-      <div className="rounded border border-gob-info  p-3 space-y-3 bg-gob-info/10 ">
-        <p className="text-xs uppercase tracking-wider text-gob-azul-link ">
+      <div className="rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg p-3 space-y-3">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-ln-op-azul">
           Asignar nueva localidad
         </p>
 
         <div className="space-y-1">
           <label
             htmlFor="assign-locality-locality"
-            className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
+            className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
           >
             Localidad
           </label>
@@ -77,19 +77,17 @@ export function AssignLocalityForm({
               setLocality(r?.localityName ?? "");
             }}
           />
-          {provinceName && (
-            <p className="text-[10px] text-gob-text-muted ">Provincia: {provinceName}</p>
-          )}
+          {provinceName && <p className="text-[10px] text-ln-op-mute">Provincia: {provinceName}</p>}
         </div>
 
-        {error && <p className="text-xs text-gob-danger ">{error}</p>}
+        {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="text-xs px-3 py-1.5 rounded-md bg-gob-info  text-white hover:opacity-90 disabled:opacity-50"
+            className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50"
           >
             {pending ? "Asignando..." : "Confirmar asignacion"}
           </button>
@@ -100,7 +98,7 @@ export function AssignLocalityForm({
               setError(null);
             }}
             disabled={pending}
-            className="text-xs px-3 py-1.5 rounded-md border border-gob-border  hover:bg-gob-surface-alt "
+            className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
           >
             Cancelar
           </button>
@@ -113,7 +111,7 @@ export function AssignLocalityForm({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-xs px-3 py-1.5 rounded-md border border-gob-info  text-gob-azul-link  hover:opacity-90 transition-opacity"
+      className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
     >
       Asignar nueva localidad
     </button>
