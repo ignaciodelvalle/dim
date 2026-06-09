@@ -177,187 +177,433 @@ export default async function AdoptarFichaPage({
   };
 
   return (
-    <main className="bg-white">
+    <main
+      className="min-h-screen pb-32 md:pb-10"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
       <Script
         id="adoptar-jsonld"
         type="application/ld+json"
         // biome-ignore lint/security/noDangerouslySetInnerHtml: SEO JSON-LD needs raw <script> content. The input is JSON.stringify of a controlled object, not user data.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <div className="max-w-4xl mx-auto px-6 py-10 pb-32 md:pb-10 space-y-8">
+
+      {/* Guilloché accent bar */}
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+
+      <div className="max-w-3xl mx-auto px-[24px] py-[28px] space-y-[18px]">
+        {/* Back link — mono eyebrow style */}
         <Link
           href="/adoptar"
-          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text mb-4"
+          className="inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
+          style={{ color: "var(--color-ln-mute)" }}
         >
           ← Volver al listado
         </Link>
 
         {/* Gallery */}
         {galleryUrls.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="aspect-square rounded-xl overflow-hidden bg-gob-surface-alt md:col-span-2 md:row-span-2">
+          <div className="space-y-[8px]">
+            {/* Hero — 4:3 aspect ratio */}
+            <div
+              className="relative overflow-hidden rounded-[10px] border"
+              style={{
+                aspectRatio: "4/3",
+                borderColor: "var(--color-ln-line)",
+                background: "repeating-linear-gradient(135deg,#e7e2d6 0 12px,#f1eee5 12px 24px)",
+              }}
+            >
               <img src={galleryUrls[0]} alt={pet.name} className="w-full h-full object-cover" />
-            </div>
-            {galleryUrls.slice(1, 5).map((url) => (
-              <div
-                key={url}
-                className="aspect-square rounded-lg overflow-hidden bg-gob-surface-alt"
+              {/* "En adopción" status chip */}
+              <span
+                className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-[12px] font-semibold"
+                style={{
+                  background: "#eef6f0",
+                  color: "var(--color-ln-ok)",
+                  borderColor: "#c8e2d2",
+                  boxShadow: "0 2px 6px rgba(0,0,0,.08)",
+                }}
               >
-                <img src={url} alt={`${pet.name} foto`} className="w-full h-full object-cover" />
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-[6px] w-[6px] rounded-full"
+                  style={{ background: "var(--color-ln-ok)" }}
+                />
+                En adopción
+              </span>
+              {/* Health rollup chips overlay */}
+              <div className="absolute bottom-[12px] left-[12px] flex gap-[6px] flex-wrap">
+                {hasVaccinations && (
+                  <span
+                    className="inline-flex items-center gap-[5px] rounded-[4px] px-[10px] py-[4px] text-[11px] font-semibold"
+                    style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
+                  >
+                    ✓ Vacunas al día
+                  </span>
+                )}
+                {isSterilized && (
+                  <span
+                    className="inline-flex items-center gap-[5px] rounded-[4px] px-[10px] py-[4px] text-[11px] font-semibold"
+                    style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
+                  >
+                    ✓ Castrada
+                  </span>
+                )}
+                {hasMicrochip && (
+                  <span
+                    className="inline-flex items-center gap-[5px] rounded-[4px] px-[10px] py-[4px] text-[11px] font-semibold"
+                    style={{
+                      background: "rgba(255,255,255,.95)",
+                      color: "var(--color-ln-azul)",
+                    }}
+                  >
+                    Con chip
+                  </span>
+                )}
               </div>
-            ))}
+            </div>
+            {/* Thumbnails row */}
+            {galleryUrls.length > 1 && (
+              <div className="grid grid-cols-4 gap-[6px]">
+                {galleryUrls.slice(1, 5).map((url, idx) => (
+                  <div
+                    key={url}
+                    className="overflow-hidden rounded-[6px] border"
+                    style={{
+                      aspectRatio: "1/1",
+                      borderColor: idx === 0 ? "var(--color-ln-azul)" : "var(--color-ln-line)",
+                      borderWidth: idx === 0 ? "2px" : "1px",
+                    }}
+                  >
+                    <img
+                      src={url}
+                      alt={`${pet.name} foto ${idx + 2}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="aspect-square max-w-md rounded-xl bg-gob-surface-alt flex items-center justify-center text-6xl text-gob-text-muted">
-            {pet.name.charAt(0).toUpperCase()}
+          <div
+            className="overflow-hidden rounded-[10px] border flex items-center justify-center"
+            style={{
+              aspectRatio: "4/3",
+              maxWidth: 480,
+              borderColor: "var(--color-ln-line)",
+              background: "repeating-linear-gradient(135deg,#e7e2d6 0 12px,#f1eee5 12px 24px)",
+            }}
+          >
+            <span
+              className="font-[var(--font-ln-serif)] text-[72px] font-semibold"
+              style={{ color: "var(--color-ln-mute)" }}
+            >
+              {pet.name.charAt(0).toUpperCase()}
+            </span>
           </div>
         )}
 
-        {/* Identity */}
-        <header className="space-y-2">
-          <h1 className="text-4xl font-semibold tracking-tight text-gob-text">{pet.name}</h1>
-          <p className="text-sm text-gob-text-gray">
-            {speciesLabel(pet.species)}
-            {pet.breed && ` · ${pet.breed}`} · {sexLabel(pet.sex)}
-            {facts.length > 0 && ` · ${facts.join(" · ")}`}
-          </p>
+        {/* Identity card */}
+        <div
+          className="rounded-[8px] border px-[22px] py-[20px]"
+          style={{
+            background: "var(--color-ln-card)",
+            borderColor: "var(--color-ln-line)",
+          }}
+        >
+          <h1
+            className="m-0 font-[var(--font-ln-serif)] font-semibold leading-[1.04] tracking-[-0.025em]"
+            style={{ fontSize: 34, color: "var(--color-ln-ink)" }}
+          >
+            {pet.name}
+          </h1>
+          {pet.breed && (
+            <p
+              className="mt-[4px] mb-[10px] text-[14px] font-medium"
+              style={{ color: "var(--color-ln-ink-2)" }}
+            >
+              {pet.breed}
+            </p>
+          )}
+          {/* Meta chips */}
+          <div className="flex flex-wrap gap-[6px]">
+            <span
+              className="rounded-[4px] border px-[10px] py-[4px] text-[12px]"
+              style={{
+                color: "var(--color-ln-ink-2)",
+                background: "var(--color-ln-stripe)",
+                borderColor: "var(--color-ln-line-2)",
+              }}
+            >
+              {speciesLabel(pet.species)}
+            </span>
+            <span
+              className="rounded-[4px] border px-[10px] py-[4px] text-[12px]"
+              style={{
+                color: "var(--color-ln-ink-2)",
+                background: "var(--color-ln-stripe)",
+                borderColor: "var(--color-ln-line-2)",
+              }}
+            >
+              {sexLabel(pet.sex)}
+            </span>
+            {facts.map((f) => (
+              <span
+                key={f}
+                className="rounded-[4px] border px-[10px] py-[4px] text-[12px]"
+                style={{
+                  color: "var(--color-ln-ink-2)",
+                  background: "var(--color-ln-stripe)",
+                  borderColor: "var(--color-ln-line-2)",
+                }}
+              >
+                {f}
+              </span>
+            ))}
+          </div>
           {(pet.color || pet.distinguishingFeatures) && (
-            <p className="text-xs text-gob-text-muted">
+            <p className="mt-[10px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
               {[pet.color, pet.distinguishingFeatures].filter(Boolean).join(" · ")}
             </p>
           )}
-        </header>
+        </div>
 
-        {/* Shelter */}
-        <section className="rounded-lg border border-gob-border p-4 space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            Refugio responsable
-          </p>
-          <p className="text-sm font-medium text-gob-text">{org.displayName}</p>
-          {(org.jurisdictionLocality || org.jurisdictionProvince) && (
-            <p className="text-xs text-gob-text-gray">
-              {[org.jurisdictionLocality, org.jurisdictionProvince].filter(Boolean).join(", ")}
-            </p>
-          )}
-          <p className="text-[11px] text-gob-text-muted pt-1">
-            En custodia desde{" "}
-            {new Date(row.ownerStartedAt).toLocaleDateString("es-AR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
-        </section>
-
-        {/* Story */}
+        {/* Story — accent left-border card */}
         {pet.adoptionStory && (
-          <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-gob-text">La historia de {pet.name}</h2>
-            <p className="text-sm text-gob-text-gray whitespace-pre-wrap leading-relaxed">
+          <div
+            className="rounded-[8px] border border-l-[3px] px-[20px] py-[18px]"
+            style={{
+              background: "var(--color-ln-card)",
+              borderColor: "var(--color-ln-line)",
+              borderLeftColor: "var(--color-ln-azul)",
+            }}
+          >
+            <p
+              className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+              style={{ color: "var(--color-ln-mute)" }}
+            >
+              Su historia
+            </p>
+            <h2
+              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+              style={{ color: "var(--color-ln-ink)" }}
+            >
+              Sobre {pet.name}
+            </h2>
+            <p
+              className="m-0 text-[14px] leading-[1.6] whitespace-pre-wrap"
+              style={{ color: "var(--color-ln-ink-2)" }}
+            >
               {pet.adoptionStory}
             </p>
-          </section>
+          </div>
         )}
 
-        {/* Requirements + convivencia */}
-        {(pet.adoptionRequirements || convivencia.some((c) => c.value !== null)) && (
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-gob-text">Qué necesita su nuevo hogar</h2>
-            {pet.adoptionRequirements && (
-              <p className="text-sm text-gob-text-gray whitespace-pre-wrap">
-                {pet.adoptionRequirements}
-              </p>
-            )}
-            <ul className="grid grid-cols-2 gap-2 text-sm">
-              {convivencia.map((c) => (
-                <li key={c.label} className="flex items-baseline gap-2">
-                  <span className="text-gob-text-muted">{c.label}:</span>
-                  <span
-                    className={
-                      c.value === true
-                        ? "text-gob-success font-medium"
-                        : c.value === false
-                          ? "text-gob-text-gray"
-                          : "text-gob-text-muted"
-                    }
-                  >
-                    {c.value === true ? "Sí" : c.value === false ? "No" : "—"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Permanent conditions — only if the caregiver opted to disclose */}
-        {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-gob-text">Necesidades especiales</h2>
-            <p className="text-xs text-gob-text-gray">
-              {pet.name} convive con condiciones permanentes que es importante que conozcas antes de
-              postularte. El refugio puede contarte cómo cuidarla.
-            </p>
-            <ul className="flex flex-wrap gap-2">
-              {pet.permanentConditions
-                .filter(isPermanentCondition)
-                .map((code: PermanentCondition) => (
-                  <li
-                    key={code}
-                    className="text-sm font-medium px-3 py-1 rounded-full bg-gob-primary/10 text-gob-primary"
-                  >
-                    {permanentConditionLabel(code)}
-                  </li>
-                ))}
-            </ul>
-            {pet.permanentConditions.includes("otra") && pet.permanentConditionsOther && (
-              <p className="text-sm text-gob-text-gray">{pet.permanentConditionsOther}</p>
-            )}
-          </section>
-        )}
-
-        {/* Health rollup */}
-        <section className="space-y-2">
-          <h2 className="text-lg font-semibold text-gob-text">Salud</h2>
-          <ul className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <HealthBadge label="Vacunación" ok={hasVaccinations} />
-            <HealthBadge label="Castración" ok={isSterilized} />
-            <HealthBadge
-              label="Microchip"
+        {/* Health section */}
+        <div
+          className="rounded-[8px] border px-[20px] py-[18px]"
+          style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
+        >
+          <p
+            className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+            style={{ color: "var(--color-ln-mute)" }}
+          >
+            Estado médico
+          </p>
+          <h2
+            className="m-0 mb-[14px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+            style={{ color: "var(--color-ln-ink)" }}
+          >
+            Salud
+          </h2>
+          <ul
+            className="grid grid-cols-1 sm:grid-cols-2 gap-[4px]"
+            style={{ listStyle: "none", padding: 0, margin: 0 }}
+          >
+            <HealthRow label="Vacunación al día" ok={hasVaccinations} />
+            <HealthRow
+              label="Castración"
+              ok={isSterilized}
+              detail={isSterilized ? undefined : undefined}
+            />
+            <HealthRow
+              label="Microchip miMAR"
               ok={hasMicrochip}
               detail={microchipMasked ?? undefined}
             />
           </ul>
-          <p className="text-xs text-gob-text-muted pt-1">
+          <p className="mt-[14px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
             El detalle clínico completo se comparte al finalizar la adopción.
           </p>
-        </section>
+        </div>
+
+        {/* Requirements + convivencia */}
+        {(pet.adoptionRequirements || convivencia.some((c) => c.value !== null)) && (
+          <div
+            className="rounded-[8px] border px-[20px] py-[18px]"
+            style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
+          >
+            <p
+              className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+              style={{ color: "var(--color-ln-mute)" }}
+            >
+              Cómo es en el día a día
+            </p>
+            <h2
+              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+              style={{ color: "var(--color-ln-ink)" }}
+            >
+              Qué necesita su nuevo hogar
+            </h2>
+            {pet.adoptionRequirements && (
+              <p
+                className="mb-[12px] text-[14px] leading-[1.6] whitespace-pre-wrap"
+                style={{ color: "var(--color-ln-ink-2)" }}
+              >
+                {pet.adoptionRequirements}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-[6px]">
+              {convivencia
+                .filter((c) => c.value !== null)
+                .map((c) => (
+                  <ConvivenciaChip key={c.label} label={c.label} value={c.value} />
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Permanent conditions */}
+        {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
+          <div
+            className="rounded-[8px] border px-[20px] py-[18px]"
+            style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
+          >
+            <p
+              className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+              style={{ color: "var(--color-ln-mute)" }}
+            >
+              A tener en cuenta
+            </p>
+            <h2
+              className="m-0 mb-[8px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+              style={{ color: "var(--color-ln-ink)" }}
+            >
+              Necesidades especiales
+            </h2>
+            <p className="mb-[12px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+              {pet.name} convive con condiciones permanentes que es importante que conozcas antes de
+              postularte. El refugio puede contarte cómo cuidarla.
+            </p>
+            <div className="flex flex-wrap gap-[6px]">
+              {pet.permanentConditions
+                .filter(isPermanentCondition)
+                .map((code: PermanentCondition) => (
+                  <span
+                    key={code}
+                    className="inline-flex rounded-full border px-[10px] py-[4px] text-[12px] font-semibold"
+                    style={{
+                      background: "var(--color-ln-celeste-050)",
+                      color: "var(--color-ln-azul-700)",
+                      borderColor: "var(--color-ln-celeste-100)",
+                    }}
+                  >
+                    {permanentConditionLabel(code)}
+                  </span>
+                ))}
+            </div>
+            {pet.permanentConditions.includes("otra") && pet.permanentConditionsOther && (
+              <p
+                className="mt-[10px] text-[13px] italic"
+                style={{ color: "var(--color-ln-ink-2)" }}
+              >
+                {pet.permanentConditionsOther}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Shelter */}
+        <div
+          className="rounded-[8px] border px-[20px] py-[18px]"
+          style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
+        >
+          <p
+            className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+            style={{ color: "var(--color-ln-mute)" }}
+          >
+            Refugio responsable
+          </p>
+          <div className="flex items-flex-start gap-[14px]">
+            <div
+              className="flex-shrink-0 w-[56px] h-[56px] rounded-[8px] grid place-items-center font-[var(--font-ln-serif)] text-[24px] font-semibold text-white"
+              style={{ background: "var(--color-ln-azul)" }}
+            >
+              {org.displayName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p
+                className="font-[var(--font-ln-serif)] text-[17px] font-semibold"
+                style={{ color: "var(--color-ln-ink)" }}
+              >
+                {org.displayName}
+              </p>
+              {(org.jurisdictionLocality || org.jurisdictionProvince) && (
+                <p className="mt-[4px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+                  {[org.jurisdictionLocality, org.jurisdictionProvince].filter(Boolean).join(", ")}
+                </p>
+              )}
+              <p
+                className="mt-[6px] font-[var(--font-ln-mono)] text-[11px]"
+                style={{ color: "var(--color-ln-mute)" }}
+              >
+                En custodia desde{" "}
+                {new Date(row.ownerStartedAt).toLocaleDateString("es-AR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Fee */}
         {pet.adoptionFeeArs != null && pet.adoptionFeeArs > 0 && (
-          <section className="rounded-lg border border-gob-border p-4 space-y-1">
-            <p className="text-sm font-medium text-gob-text">
+          <div
+            className="rounded-[8px] border px-[20px] py-[16px] space-y-[4px]"
+            style={{
+              background: "var(--color-ln-stripe)",
+              borderColor: "var(--color-ln-line-2)",
+            }}
+          >
+            <p className="text-[14px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
               Adopción solidaria: ${pet.adoptionFeeArs.toLocaleString("es-AR")}
             </p>
-            <p className="text-xs text-gob-text-gray">
+            <p className="text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
               Este aporte ayuda al refugio a cubrir vacunación, castración y atención veterinaria.
             </p>
-          </section>
+          </div>
         )}
 
-        {/* CTA */}
-        <section className="rounded-xl border-2 border-gob-success/30 bg-gob-success/10 p-6 space-y-3">
+        {/* CTA — sticky on mobile, inline on desktop */}
+        <section>
           <ApplyButton petToken={petToken} petName={pet.name} />
-          <p className="text-xs text-gob-text text-center">
-            Tu postulación inicia un proceso con {org.displayName}. Ellos coordinan visita,
-            evaluación y, si todo encaja, la finalización de la adopción.
-          </p>
         </section>
       </div>
     </main>
   );
 }
 
-function HealthBadge({
+function HealthRow({
   label,
   ok,
   detail,
@@ -367,27 +613,77 @@ function HealthBadge({
   detail?: string;
 }) {
   return (
-    <li className="rounded-lg border border-gob-border px-3 py-2 flex items-baseline justify-between gap-2">
-      <span className="text-xs text-gob-text-muted">{label}</span>
-      <span className={`text-sm font-medium ${ok ? "text-gob-success" : "text-gob-text-muted"}`}>
-        {ok ? `Sí${detail ? ` · ${detail}` : ""}` : "—"}
+    <li className="grid gap-[10px] py-[8px]" style={{ gridTemplateColumns: "22px 1fr" }}>
+      <span
+        className="w-[22px] h-[22px] rounded-full grid place-items-center text-[11px] font-bold flex-shrink-0"
+        style={
+          ok
+            ? { background: "#dff5e3", color: "#1f7a3a" }
+            : { background: "#fdecec", color: "#9c2b1d" }
+        }
+      >
+        {ok ? "✓" : "—"}
       </span>
+      <div>
+        <span className="text-[13px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+          {label}
+        </span>
+        {detail && (
+          <span className="block text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
+            {detail}
+          </span>
+        )}
+      </div>
     </li>
+  );
+}
+
+function ConvivenciaChip({ label, value }: { label: string; value: boolean | null }) {
+  if (value === null) return null;
+  const tone = value === true ? "pos" : "warn";
+  const style =
+    tone === "pos"
+      ? { background: "#e9f6ec", color: "#1e6f33", borderColor: "#bfe0c9" }
+      : { background: "#fff4d6", color: "#8a5e00", borderColor: "#ffe39c" };
+  return (
+    <span
+      className="inline-flex rounded-full border px-[11px] py-[5px] text-[12px] font-semibold"
+      style={style}
+    >
+      {value ? "✓" : "✗"} {label}
+    </span>
   );
 }
 
 function RecentlyAdopted({ name }: { name: string }) {
   return (
-    <main className="bg-white">
-      <div className="max-w-md mx-auto px-6 py-20 text-center space-y-4">
-        <p className="text-6xl">🎉</p>
-        <h1 className="text-3xl font-semibold text-gob-text">¡{name} ya encontró su hogar!</h1>
-        <p className="text-sm text-gob-text-gray">
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+        <p className="text-[56px]">🎉</p>
+        <h1
+          className="font-[var(--font-ln-serif)] font-semibold text-[30px] tracking-[-0.02em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          ¡{name} ya encontró su hogar!
+        </h1>
+        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
           Esta mascota fue adoptada hace pocos días. Hay muchas otras buscando su familia.
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-2.5 rounded-lg bg-gob-primary text-white text-sm font-medium"
+          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
         </Link>

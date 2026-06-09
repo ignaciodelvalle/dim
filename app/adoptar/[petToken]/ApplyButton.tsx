@@ -26,30 +26,56 @@ export function ApplyButton({ petToken, petName }: { petToken: string; petName: 
     });
   }
 
-  const buttonLabel = pending ? "Procesando..." : `Postularme para adoptar a ${petName}`;
+  const buttonLabel = pending ? "Procesando..." : `Postular para adoptar a ${petName}`;
 
   return (
     <>
-      <div className="space-y-2">
+      {/* Inline CTA — visible on all viewports */}
+      <div
+        className="rounded-[6px] border px-[24px] py-[20px] space-y-[10px]"
+        style={{
+          background: "var(--color-ln-card)",
+          borderColor: "var(--color-ln-line-strong)",
+        }}
+      >
         <button
           type="button"
           onClick={onClick}
           disabled={pending}
-          className="block w-full text-center px-6 py-4 rounded-lg bg-gob-success text-white text-lg font-semibold hover:bg-gob-success transition-colors disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-[8px] rounded-[6px] border-0 px-[16px] py-[13px] text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           {buttonLabel}
         </button>
-        {error && <output className="block text-sm text-gob-danger text-center">{error}</output>}
+        <p className="text-center text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
+          El refugio responde en aproximadamente 5 días.
+        </p>
+        {error && (
+          <output
+            className="block text-center text-[13px]"
+            style={{ color: "var(--color-ln-err)" }}
+          >
+            {error}
+          </output>
+        )}
       </div>
 
       {/* Mobile-only sticky CTA at the viewport bottom. Hidden on desktop
           where the inline button above is already in view. */}
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur border-t border-gob-border  ">
+      <div
+        className="md:hidden fixed inset-x-0 bottom-0 z-30 px-[16px] pt-[12px] pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t"
+        style={{
+          background: "rgba(251,250,245,.95)",
+          backdropFilter: "blur(6px)",
+          borderColor: "var(--color-ln-line)",
+        }}
+      >
         <button
           type="button"
           onClick={onClick}
           disabled={pending}
-          className="block w-full text-center px-5 py-3 rounded-xl bg-gob-success text-white text-base font-semibold hover:bg-gob-success transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-success focus-visible:ring-offset-2"
+          className="block w-full rounded-[6px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           {pending ? "Procesando..." : `Postularme a ${petName}`}
         </button>
