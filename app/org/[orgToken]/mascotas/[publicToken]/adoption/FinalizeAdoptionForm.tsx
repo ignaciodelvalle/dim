@@ -25,16 +25,16 @@ export function FinalizeAdoptionForm({
   return (
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
       {fosterShortcut && (
-        <section className="rounded-lg border border-gob-success bg-gob-success/10   p-4 space-y-3">
+        <section className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
           <Checkbox
             id="use-foster-shortcut"
             checked={useFosterShortcut}
             onChange={(e) => setUseFosterShortcut(e.target.checked)}
           >
-            <strong className="block text-gob-success ">
+            <strong className="block text-[13px] text-ln-op-ok">
               Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
             </strong>
-            <span className="text-gob-success  text-xs block mt-1">
+            <span className="text-ln-op-ok text-[11px] block mt-1">
               El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos el
               paso de pedirte el DNI.
             </span>
@@ -47,7 +47,7 @@ export function FinalizeAdoptionForm({
 
       {!useFosterShortcut && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gob-text-muted">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
             Adoptante
           </h2>
           <Field
@@ -89,8 +89,8 @@ export function FinalizeAdoptionForm({
         </section>
       )}
 
-      <section className="space-y-3 pt-2 border-t border-gob-border ">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gob-text-muted">
+      <section className="space-y-3 pt-2 border-t border-ln-op-line">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
           Seguimiento
         </h2>
         <Field
@@ -132,14 +132,14 @@ export function FinalizeAdoptionForm({
               type="file"
               accept="application/pdf,image/*"
               aria-describedby={describedBy}
-              className="block w-full text-sm text-gob-text-gray  file:mr-3 file:rounded file:border-0 file:bg-gob-primary file:px-3 file:py-1.5 file:text-white  "
+              className="block w-full text-[12px] text-ln-op-ink-2 file:mr-3 file:rounded-[4px] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-[12px]"
             />
           )}
         </Field>
       </section>
 
       {state.error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -147,7 +147,7 @@ export function FinalizeAdoptionForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded bg-gob-primary text-white   disabled:opacity-50"
+        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
       >
         {isPending ? "Finalizando adopción…" : "Finalizar adopción"}
       </button>
