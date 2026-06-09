@@ -93,7 +93,7 @@ export function AssignFosterForm({
       </Field>
 
       {state.error && (
-        <p className="text-sm rounded border border-gob-danger bg-gob-danger/10 px-3 py-2 text-gob-danger   ">
+        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -101,7 +101,7 @@ export function AssignFosterForm({
       <button
         type="submit"
         disabled={isPending || candidates.length === 0}
-        className="px-4 py-2 rounded bg-gob-primary text-white   disabled:opacity-50"
+        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
       >
         {isPending ? "Asignando…" : "Asignar tránsito"}
       </button>

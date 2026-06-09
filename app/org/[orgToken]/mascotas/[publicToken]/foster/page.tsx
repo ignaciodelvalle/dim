@@ -7,6 +7,9 @@ import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
+
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
+
 import { AssignFosterForm, type FosterCandidate } from "./AssignFosterForm";
 
 export default async function AssignFosterPage({
@@ -20,16 +23,16 @@ export default async function AssignFosterPage({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("foster.assign")) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Para asignar tránsitos necesitás el permiso{" "}
-            <code className="text-xs">foster.assign</code>.
+            <code className="text-[11px]">foster.assign</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -53,15 +56,15 @@ export default async function AssignFosterPage({
     .limit(1);
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Animal no disponible</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Animal no disponible</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -99,24 +102,40 @@ export default async function AssignFosterPage({
   }));
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
+          <OpCrumbs
+            items={[
+              { label: "Mascotas", href: `/org/${orgToken}/mascotas` },
+              { label: pet.name, href: `/org/${orgToken}/mascotas/${publicToken}` },
+              { label: "Asignar tránsito" },
+            ]}
+          />
+          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-3xl font-semibold">Asignar tránsito: {pet.name}</h1>
-          <p className="text-sm text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Asignar tránsito: {pet.name}</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             La custodia del refugio sigue activa mientras el tránsito cuida físicamente al animal.
           </p>
         </header>
 
-        <AssignFosterForm orgToken={orgToken} publicToken={publicToken} candidates={candidates} />
+        <OpCard>
+          <OpCardHead title="Datos del tránsito" />
+          <OpCardBody>
+            <AssignFosterForm
+              orgToken={orgToken}
+              publicToken={publicToken}
+              candidates={candidates}
+            />
+          </OpCardBody>
+        </OpCard>
 
-        <footer className="pt-4 border-t border-gob-border ">
+        <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-sm text-gob-text-gray underline "
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

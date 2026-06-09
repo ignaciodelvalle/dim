@@ -9,6 +9,9 @@ import { requireCapability } from "@/src/modules/organizations/infrastructure/au
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
+
 import { TransferCustodyForm } from "./TransferCustodyForm";
 
 const TRANSFERABLE_ROLES = ["shelter_custody", "owner"] as const;
@@ -23,11 +26,14 @@ export default async function TransferCustodyPage({
   const auth = await requireCapability("custody.transfer", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
+      <main className="min-h-screen bg-ln-op-page p-6">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-gob-text-gray ">{auth.error}</p>
-          <Link href={`/org/${orgToken}/mascotas`} className="text-sm text-gob-text-gray underline">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+          <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
             ← Volver a mascotas
           </Link>
         </div>
@@ -54,14 +60,17 @@ export default async function TransferCustodyPage({
   if (!petRow) notFound();
   if (!(TRANSFERABLE_ROLES as readonly string[]).includes(petRow.role as string)) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
+      <main className="min-h-screen bg-ln-op-page p-6">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-2xl font-semibold">No se puede transferir</h1>
-          <p className="text-sm text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">No se puede transferir</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             {petRow.pet.name} no está en un rol transferible (custodia o dueño). Solo se pueden
             transferir esos dos roles.
           </p>
-          <Link href={`/org/${orgToken}/mascotas`} className="text-sm text-gob-text-gray underline">
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
             ← Volver a mascotas
           </Link>
         </div>
@@ -78,37 +87,53 @@ export default async function TransferCustodyPage({
     .orderBy(asc(organizations.displayName));
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-8 space-y-8">
-        <Link
-          href={`/org/${orgToken}/mascotas`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver a mascotas
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Transferir {petRow.pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
+    <main className="min-h-screen bg-ln-op-page p-6">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <header className="space-y-1">
+          <OpCrumbs
+            items={[
+              { label: "Mascotas", href: `/org/${orgToken}/mascotas` },
+              { label: petRow.pet.name, href: `/org/${orgToken}/mascotas/${publicToken}` },
+              { label: "Transferir custodia" },
+            ]}
+          />
+          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+            {organization.displayName}
+          </p>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferir {petRow.pet.name}</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Pasá la custodia a otra organización verificada. La acción es atómica: cierra el
             registro actual y abre uno nuevo en el destino con el evento{" "}
-            <code className="text-xs bg-gob-surface-alt  px-1 rounded">custody_transferred</code>.
+            <code className="text-[11px] bg-ln-op-stripe px-1 rounded">custody_transferred</code>.
           </p>
-        </div>
+        </header>
 
         {destinations.length === 0 ? (
-          <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
-            No hay otras organizaciones verificadas en el sistema. Pediles que se verifiquen antes
-            de transferir.
-          </p>
-        ) : (
-          <TransferCustodyForm
-            orgToken={orgToken}
-            publicToken={petRow.pet.publicToken}
-            destinations={destinations}
+          <OpBreach
+            title="Sin destinos disponibles"
+            detail="No hay otras organizaciones verificadas en el sistema. Pediles que se verifiquen antes de transferir."
           />
+        ) : (
+          <OpCard>
+            <OpCardHead title="Datos de la transferencia" />
+            <OpCardBody>
+              <TransferCustodyForm
+                orgToken={orgToken}
+                publicToken={petRow.pet.publicToken}
+                destinations={destinations}
+              />
+            </OpCardBody>
+          </OpCard>
         )}
+
+        <footer className="pt-4 border-t border-ln-op-line">
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
+            ← Volver a mascotas
+          </Link>
+        </footer>
       </div>
     </main>
   );
