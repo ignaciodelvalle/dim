@@ -12,7 +12,7 @@ export function VetUpgradeForm() {
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
+      <p className="text-sm rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] px-3 py-2 text-[var(--color-ln-warn)]">
         Solicitud enviada — pendiente de revisión por el equipo de MiMAR.
       </p>
     );
@@ -21,17 +21,17 @@ export function VetUpgradeForm() {
   // Prerequisite missing: render CTA card instead of the form + generic error.
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-        <p className="text-sm font-medium text-gob-warning-text ">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+        <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de enviar tu solicitud, verificá tu DNI.
         </p>
-        <p className="text-xs text-gob-warning-text ">
+        <p className="text-xs text-[var(--color-ln-warn)]">
           MiMAR requiere que tu identidad esté verificada para procesar solicitudes de rol
           profesional.
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-lg bg-gob-warning hover:bg-gob-warning   text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] text-white text-sm font-medium hover:opacity-90 transition-colors"
         >
           Verificar DNI →
         </a>
@@ -91,7 +91,7 @@ export function VetUpgradeForm() {
       />
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}
@@ -99,7 +99,7 @@ export function VetUpgradeForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Enviando solicitud..." : "Enviar solicitud de verificación"}
       </button>
@@ -126,11 +126,11 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-gob-text">
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
         {label}
       </label>
       <Input id={id} name={name} type={type} required={required} inputMode={inputMode} />
-      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
+      {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );
 }

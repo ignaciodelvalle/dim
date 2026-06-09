@@ -24,16 +24,16 @@ export function OrgCreateForm() {
   // Prerequisite missing: render CTA card instead of the form + generic error.
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-        <p className="text-sm font-medium text-gob-warning-text ">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+        <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de crear una organización, verificá tu DNI.
         </p>
-        <p className="text-xs text-gob-warning-text ">
+        <p className="text-xs text-[var(--color-ln-warn)]">
           MiMAR requiere que tu identidad esté verificada para crear una organización.
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-lg bg-gob-warning hover:bg-gob-warning   text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] text-white text-sm font-medium hover:opacity-90 transition-colors"
         >
           Verificar DNI →
         </a>
@@ -121,8 +121,10 @@ export function OrgCreateForm() {
             `jurisdictionProvince` / `jurisdictionLocality` aliases for
             backward compatibility. */}
       <div className="space-y-1">
-        <p className="block mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">Jurisdicción</p>
-        <p className="text-xs text-gob-text-muted  mb-2">
+        <p className="block mb-2.5 text-[0.88em] font-semibold text-[var(--color-ln-mute)]">
+          Jurisdicción
+        </p>
+        <p className="text-xs text-[var(--color-ln-mute)] mb-2">
           Para enrutar la verificación al govt correspondiente.
         </p>
         <LocationFields mode="l1" />
@@ -141,7 +143,7 @@ export function OrgCreateForm() {
       </Field>
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-sm text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}
@@ -149,7 +151,7 @@ export function OrgCreateForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Creando organización..." : "Crear organización"}
       </button>

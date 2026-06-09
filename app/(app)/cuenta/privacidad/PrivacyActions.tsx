@@ -52,17 +52,19 @@ export function PrivacyActions() {
     <div className="space-y-6">
       {error && (
         <p
-          className="rounded-lg border border-gob-danger/40 bg-gob-danger/10 px-4 py-3 text-sm text-gob-danger"
+          className="rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[#fbe9e6] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
           role="alert"
         >
           {error}
         </p>
       )}
 
-      <section className="rounded-lg border border-gob-border p-5 space-y-3">
+      <section className="rounded-[4px] border border-[var(--color-ln-line)] p-5 space-y-3">
         <div>
-          <h2 className="text-base font-semibold text-gob-text">Descargar mis datos</h2>
-          <p className="text-sm text-gob-text-muted mt-1">
+          <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">
+            Descargar mis datos
+          </h2>
+          <p className="text-sm text-[var(--color-ln-mute)] mt-1">
             Bajás un JSON con tu perfil, tus mascotas, sus identificaciones y los eventos sanitarios
             asociados. Ley 25.326, art. 14 (derecho de acceso).
           </p>
@@ -71,16 +73,16 @@ export function PrivacyActions() {
           type="button"
           onClick={handleExport}
           disabled={pending}
-          className="rounded-lg bg-gob-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
         >
           {pending ? "Generando…" : "Descargar JSON"}
         </button>
       </section>
 
-      <section className="rounded-lg border border-gob-danger/30 bg-gob-danger/5 p-5 space-y-3">
+      <section className="rounded-[4px] border border-[var(--color-ln-seal)]/30 bg-[#fbe9e6]/30 p-5 space-y-3">
         <div>
-          <h2 className="text-base font-semibold text-gob-text">Eliminar mi cuenta</h2>
-          <p className="text-sm text-gob-text-gray mt-1">
+          <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Eliminar mi cuenta</h2>
+          <p className="text-sm text-[var(--color-ln-ink-2)] mt-1">
             Soft-delete con hash de PII. Tu cuenta queda fuera del sistema; los eventos sanitarios
             de tus mascotas se preservan por norma (ver nota debajo). Ley 25.326, art. 16 (derecho
             de supresión).
@@ -88,7 +90,10 @@ export function PrivacyActions() {
         </div>
         {showErase ? (
           <div className="space-y-3">
-            <label className="block text-sm font-medium text-gob-text" htmlFor="erase-reason">
+            <label
+              className="block text-sm font-medium text-[var(--color-ln-ink)]"
+              htmlFor="erase-reason"
+            >
               Motivo (mínimo 5 caracteres)
             </label>
             <textarea
@@ -97,14 +102,14 @@ export function PrivacyActions() {
               maxLength={500}
               value={eraseReason}
               onChange={(e) => setEraseReason(e.target.value)}
-              className="w-full rounded-lg border border-gob-border bg-gob-surface px-3 py-2 text-sm text-gob-text focus:border-gob-primary focus:outline-none focus:ring-1 focus:ring-gob-primary"
+              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               placeholder="Ya no uso MiMAR / migración a otra plataforma / ..."
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setShowErase(false)}
-                className="flex-1 rounded-lg border border-gob-border bg-gob-surface px-3 py-2 text-sm font-medium text-gob-text"
+                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 Cancelar
               </button>
@@ -112,7 +117,7 @@ export function PrivacyActions() {
                 type="button"
                 onClick={handleErase}
                 disabled={pending || eraseReason.trim().length < 5}
-                className="flex-1 rounded-lg bg-gob-danger px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {pending ? "Procesando…" : "Confirmar borrado"}
               </button>
@@ -122,7 +127,7 @@ export function PrivacyActions() {
           <button
             type="button"
             onClick={() => setShowErase(true)}
-            className="rounded-lg border border-gob-danger/40 bg-gob-surface px-4 py-2.5 text-sm font-medium text-gob-danger hover:bg-gob-danger/5"
+            className="rounded-[3px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[#fbe9e6]/50 transition-colors"
           >
             Quiero eliminar mi cuenta
           </button>

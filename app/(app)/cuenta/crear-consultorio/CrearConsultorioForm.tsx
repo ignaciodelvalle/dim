@@ -30,16 +30,16 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
 
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-lg border border-gob-warning bg-gob-warning/10   p-4 space-y-2">
-        <p className="text-sm font-medium text-gob-warning-text ">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+        <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de crear tu consultorio, verificá tu DNI.
         </p>
-        <p className="text-xs text-gob-warning-text ">
+        <p className="text-xs text-[var(--color-ln-warn)]">
           MiMAR requiere que tu identidad esté verificada para crear una organización.
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-lg bg-gob-warning hover:bg-gob-warning   text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] hover:opacity-90 text-white text-sm font-medium transition-colors"
         >
           Verificar DNI →
         </a>
@@ -85,7 +85,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary transition-colors"
+            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Continuar
           </button>
@@ -104,7 +104,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary transition-colors"
+            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Continuar
           </button>
@@ -113,15 +113,17 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         {/* Step 3 — Ubicación L1 */}
         <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
           <div className="space-y-1">
-            <p className="block text-sm font-medium text-gob-text">Jurisdicción donde ejercés</p>
-            <p className="text-xs text-gob-text-muted  mb-2">
+            <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
+              Jurisdicción donde ejercés
+            </p>
+            <p className="text-xs text-[var(--color-ln-mute)] mb-2">
               Para enrutar la verificación al govt correspondiente.
             </p>
             <LocationFields mode="l1" />
           </div>
 
           {state.error && (
-            <p className="text-sm text-gob-danger " role="alert">
+            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
               {state.error}
             </p>
           )}
@@ -129,7 +131,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? "Creando consultorio..." : "Crear consultorio"}
           </button>
@@ -158,11 +160,11 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-gob-text">
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
         {label}
       </label>
       <Input id={id} name={name} type={type} required={required} defaultValue={defaultValue} />
-      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
+      {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );
 }
