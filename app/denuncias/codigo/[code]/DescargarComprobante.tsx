@@ -15,7 +15,7 @@ export function DescargarComprobante() {
     <button
       type="button"
       onClick={handlePrint}
-      className="inline-flex items-center gap-1.5 text-xs font-medium text-gob-success underline underline-offset-2 hover:text-gob-success/80 transition-colors print:hidden"
+      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-ln-ok)] underline underline-offset-2 hover:opacity-70 transition-opacity print:hidden"
     >
       Descargar comprobante
     </button>
