@@ -22,42 +22,45 @@ import { DescargarComprobante } from "./DescargarComprobante";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-lg border border-gob-border bg-gob-surface-alt animate-pulse" />
+    <div className="w-full h-64 rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
 
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
-      return "bg-gob-success/10 text-gob-success";
+      return "bg-[#eef6f0] text-[var(--color-ln-ok)] border border-[#c8e2d2]";
     case "invalid":
     case "duplicate":
-      return "bg-gob-surface-alt text-gob-text-muted";
+      return "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)] border border-[var(--color-ln-line)]";
     case "in_progress":
-      return "bg-gob-info/10 text-gob-info";
+      return "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border border-[var(--color-ln-celeste-100)]";
     case "triaged":
-      return "bg-gob-warning/20 text-gob-warning-text";
+      return "bg-[#fdf2e0] text-[var(--color-ln-warn)] border border-[#f0dcb4]";
     default:
-      return "bg-gob-surface-alt text-gob-text-gray";
+      return "bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)]";
   }
 }
 
 function severityBadgeClass(severity: string): string {
   switch (severity) {
     case "critical":
-      return "bg-gob-danger/10 text-gob-danger";
+      return "bg-[#fbe9e6] text-[var(--color-ln-seal)] border border-[#f1c6bf]";
     case "high":
-      return "bg-gob-warning/20 text-gob-warning-text";
+      return "bg-[#fdf2e0] text-[var(--color-ln-warn)] border border-[#f0dcb4]";
     case "medium":
-      return "bg-gob-warning/10 text-gob-warning-text";
+      return "bg-[#fdf6ea] text-[var(--color-ln-warn)] border border-[#f0dcb4]";
     default:
-      return "bg-gob-surface-alt text-gob-text-gray";
+      return "bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)]";
   }
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-xs uppercase tracking-wider font-semibold text-gob-text-muted">
+    <h2
+      className="text-[9.5px] uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)]"
+      style={{ fontFamily: "var(--font-ln-mono)" }}
+    >
       {children}
     </h2>
   );
@@ -105,7 +108,7 @@ export default async function WelfareReportByCodePage({
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
   return (
-    <main className="p-6 bg-white">
+    <main className="p-6 bg-[var(--color-ln-paper)]">
       {/* Print styles: hide nav chrome, show only the comprobante section */}
       <style
         // biome-ignore lint/security/noDangerouslySetInnerHtml: static print CSS, no user input
@@ -124,7 +127,8 @@ export default async function WelfareReportByCodePage({
         {/* Back link */}
         <Link
           href="/denuncias/buscar"
-          className="inline-block text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text transition-colors"
+          className="inline-block text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           ← Buscar otra denuncia
         </Link>
@@ -133,16 +137,27 @@ export default async function WelfareReportByCodePage({
         {nueva === "1" && (
           <div
             data-comprobante
-            className="rounded-xl border border-gob-success/30 bg-gob-success/10 px-5 py-5 space-y-3"
+            className="rounded-[6px] border border-[#c8e2d2] bg-[#eef6f0] px-5 py-5 space-y-3"
           >
-            <p className="text-sm font-semibold text-gob-success">
+            <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
               Tu denuncia fue registrada. Gracias por animarte a denunciar.
             </p>
-            <p className="text-xs text-gob-success">Tu código de seguimiento:</p>
-            <p className="text-3xl font-mono tracking-widest font-bold text-gob-text">
-              {report.referenceCode}
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
+            >
+              Tu código de seguimiento
             </p>
-            <p className="text-xs text-gob-success leading-relaxed">
+            {/* pub-codecard pattern: mono code in a bordered box */}
+            <div className="rounded-[6px] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3 inline-block">
+              <p
+                className="text-2xl font-semibold tracking-[.06em] text-[var(--color-ln-ink)]"
+                style={{ fontFamily: "var(--font-ln-mono)" }}
+              >
+                {report.referenceCode}
+              </p>
+            </div>
+            <p className="text-xs text-[var(--color-ln-ok)] leading-relaxed">
               Guardá este código. Es la única forma de volver a esta denuncia sin sesión.
             </p>
             <DescargarComprobante />
@@ -151,29 +166,45 @@ export default async function WelfareReportByCodePage({
 
         {/* Header */}
         <header className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text">
+          <h1
+            className="text-[28px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+            style={{ fontFamily: "var(--font-ln-serif)" }}
+          >
             {welfareReportKindLabel(report.kind)}
           </h1>
           {/* Reference code — always visible */}
-          <p className="text-sm text-gob-text-muted">
-            Código de seguimiento:{" "}
-            <span className="font-mono tracking-wide text-gob-text-gray">
-              {report.referenceCode}
-            </span>
+          <p
+            className="text-sm text-[var(--color-ln-mute)]"
+            style={{ fontFamily: "var(--font-ln-mono)" }}
+          >
+            {report.referenceCode}
           </p>
           <div className="flex flex-wrap gap-2">
             <span
-              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusBadgeClass(report.status)}`}
+              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[2px] ${statusBadgeClass(report.status)}`}
+              style={{
+                fontFamily: "var(--font-ln-mono)",
+                letterSpacing: ".04em",
+                textTransform: "uppercase",
+              }}
             >
               {welfareReportStatusLabel(report.status)}
             </span>
             <span
-              className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${severityBadgeClass(report.severity)}`}
+              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[2px] ${severityBadgeClass(report.severity)}`}
+              style={{
+                fontFamily: "var(--font-ln-mono)",
+                letterSpacing: ".04em",
+                textTransform: "uppercase",
+              }}
             >
               {welfareReportSeverityLabel(report.severity)}
             </span>
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gob-text-muted">
+          <div
+            className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-ln-mute)]"
+            style={{ fontFamily: "var(--font-ln-mono)" }}
+          >
             <span>Enviada {formatDateTime(report.createdAt)}</span>
             {report.occurredAt && <span>Ocurrió el {formatDate(report.occurredAt)}</span>}
           </div>
@@ -182,7 +213,7 @@ export default async function WelfareReportByCodePage({
         {/* Description */}
         <section className="space-y-2">
           <SectionLabel>¿Qué pasó?</SectionLabel>
-          <p className="text-gob-text-gray leading-relaxed whitespace-pre-wrap">
+          <p className="text-[var(--color-ln-ink-2)] leading-relaxed whitespace-pre-wrap">
             {report.description}
           </p>
         </section>
@@ -190,11 +221,11 @@ export default async function WelfareReportByCodePage({
         {/* Subject */}
         <section className="space-y-2">
           <SectionLabel>¿Sobre quién?</SectionLabel>
-          <p className="text-sm text-gob-text-gray">
+          <p className="text-sm text-[var(--color-ln-ink-2)]">
             {welfareReportSubjectKindLabel(report.subjectKind)}
           </p>
           {report.subjectDescription && (
-            <p className="text-sm text-gob-text-gray">{report.subjectDescription}</p>
+            <p className="text-sm text-[var(--color-ln-ink-2)]">{report.subjectDescription}</p>
           )}
         </section>
 
@@ -202,7 +233,7 @@ export default async function WelfareReportByCodePage({
         {hasLocation && (
           <section className="space-y-2">
             <SectionLabel>Lugar</SectionLabel>
-            <div className="text-sm text-gob-text-gray space-y-1">
+            <div className="text-sm text-[var(--color-ln-ink-2)] space-y-1">
               {report.locationAddress && <p>{report.locationAddress}</p>}
               {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                 <p>
@@ -214,7 +245,10 @@ export default async function WelfareReportByCodePage({
               {locationPoint && (
                 <>
                   <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
-                  <p className="text-xs text-gob-text-muted font-mono">
+                  <p
+                    className="text-xs text-[var(--color-ln-mute)]"
+                    style={{ fontFamily: "var(--font-ln-mono)" }}
+                  >
                     {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
                   </p>
                 </>
@@ -227,7 +261,7 @@ export default async function WelfareReportByCodePage({
         {hasContact && (
           <section className="space-y-2">
             <SectionLabel>Contacto que dejaste</SectionLabel>
-            <div className="text-sm text-gob-text-gray space-y-1">
+            <div className="text-sm text-[var(--color-ln-ink-2)] space-y-1">
               {report.reporterContactEmail && <p>{report.reporterContactEmail}</p>}
               {report.reporterContactPhone && <p>{report.reporterContactPhone}</p>}
             </div>
@@ -242,15 +276,18 @@ export default async function WelfareReportByCodePage({
               {attachments.map((a) =>
                 a.signedUrl ? (
                   a.mimeType.startsWith("video/") ? (
-                    <div key={a.id} className="rounded-lg overflow-hidden border border-gob-border">
+                    <div
+                      key={a.id}
+                      className="rounded-[5px] overflow-hidden border border-[var(--color-ln-line-strong)]"
+                    >
                       {/* biome-ignore lint/a11y/useMediaCaption: evidence video, no captions available */}
                       <video
                         src={a.signedUrl}
                         controls
-                        className="w-full aspect-video object-cover bg-gob-surface-alt"
+                        className="w-full aspect-video object-cover bg-[var(--color-ln-stripe)]"
                       />
                       {a.originalFilename && (
-                        <p className="px-2 py-1 text-xs text-gob-text-muted truncate">
+                        <p className="px-2 py-1 text-xs text-[var(--color-ln-mute)] truncate">
                           {a.originalFilename}
                         </p>
                       )}
@@ -261,12 +298,12 @@ export default async function WelfareReportByCodePage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block rounded-lg overflow-hidden border border-gob-border hover:opacity-90 transition-opacity"
+                      className="block rounded-[5px] overflow-hidden border border-[var(--color-ln-line-strong)] hover:opacity-90 transition-opacity"
                     >
                       <img
                         src={a.signedUrl}
                         alt={a.originalFilename ?? "Evidencia adjunta"}
-                        className="w-full aspect-square object-cover bg-gob-surface-alt"
+                        className="w-full aspect-square object-cover bg-[var(--color-ln-stripe)]"
                       />
                     </a>
                   )
@@ -277,7 +314,7 @@ export default async function WelfareReportByCodePage({
         )}
 
         {/* Integration-pending notice */}
-        <div className="rounded-xl border border-gob-warning/40 bg-gob-warning/10 px-5 py-4 text-sm text-gob-warning-text leading-relaxed">
+        <div className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf6ea] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
           Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
           canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
           enviado cuando la integración esté disponible.
