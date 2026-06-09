@@ -127,11 +127,11 @@ describe("<FinderInPossessionForm> — initial state (form render)", () => {
     expect(html).toContain('name="message"');
   });
 
-  it("renders the submit button with text-black (a11y contrast)", () => {
+  it("renders the submit button with text-white on azul (a11y contrast)", () => {
     const html = render(<FinderInPossessionForm {...BASE_PROPS} />);
     const buttonMatch = html.match(/<button[^>]*type="submit"[^>]*class="([^"]+)"/);
     expect(buttonMatch).not.toBeNull();
-    expect(buttonMatch?.[1]).toContain("text-black");
+    expect(buttonMatch?.[1]).toContain("text-white");
   });
 
   it("does NOT render the logged-in banner when loggedIn=false (default)", () => {
