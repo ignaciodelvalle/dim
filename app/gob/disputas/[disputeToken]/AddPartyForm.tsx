@@ -8,8 +8,8 @@ import { addDisputePartyAction } from "@/app/actions/custody-disputes";
 const ROLE_OPTIONS = [
   { value: "current_owner", label: "Dueño actual" },
   { value: "claimant_owner", label: "Reclamante (persona)" },
-  { value: "current_org_custody", label: "Organización en custodia" },
-  { value: "claimant_org", label: "Organización reclamante" },
+  { value: "current_org_custody", label: "Organizacion en custodia" },
+  { value: "claimant_org", label: "Organizacion reclamante" },
   { value: "witness", label: "Testigo" },
 ] as const;
 
@@ -30,7 +30,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
     setError(null);
     const id = partyKind === "user" ? partyUserId.trim() : partyOrgId.trim();
     if (!id) {
-      setError("Pegá el ID del usuario u organización.");
+      setError("Pega el ID del usuario u organizacion.");
       return;
     }
     startTransition(async () => {
@@ -58,25 +58,25 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-sm underline text-gob-text-gray  hover:text-gob-text "
+        className="text-[13px] underline text-ln-op-azul hover:text-ln-op-azul-700"
       >
-        + Sumar parte
+        {"+ Sumar parte"}
       </button>
     );
   }
 
   return (
-    <div className="rounded-lg border border-gob-border-strong  p-3 space-y-3">
-      <p className="text-sm font-medium">Sumar parte a la disputa</p>
+    <div className="rounded-[6px] border border-ln-op-line p-3 space-y-3">
+      <p className="text-[13px] font-medium text-ln-op-ink">Sumar parte a la disputa</p>
 
-      <div className="flex gap-2 text-xs">
+      <div className="flex gap-2 text-[12px]">
         <button
           type="button"
           onClick={() => setPartyKind("user")}
-          className={`px-2 py-1 rounded border ${
+          className={`px-2 py-1 rounded-[4px] border ${
             partyKind === "user"
-              ? "bg-gob-primary  text-white  border-gob-border-strong "
-              : "border-gob-border-strong "
+              ? "bg-ln-op-azul text-white border-ln-op-azul"
+              : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
           }`}
         >
           Persona
@@ -84,18 +84,18 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
         <button
           type="button"
           onClick={() => setPartyKind("org")}
-          className={`px-2 py-1 rounded border ${
+          className={`px-2 py-1 rounded-[4px] border ${
             partyKind === "org"
-              ? "bg-gob-primary  text-white  border-gob-border-strong "
-              : "border-gob-border-strong "
+              ? "bg-ln-op-azul text-white border-ln-op-azul"
+              : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
           }`}
         >
-          Organización
+          Organizacion
         </button>
       </div>
 
       <div>
-        <label htmlFor="party-id" className="block text-xs text-gob-text-muted mb-1">
+        <label htmlFor="party-id" className="block text-[12px] text-ln-op-mute mb-1">
           {partyKind === "user" ? "User ID (UUID)" : "Organization ID (UUID)"}
         </label>
         <input
@@ -106,19 +106,19 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
             partyKind === "user" ? setPartyUserId(e.target.value) : setPartyOrgId(e.target.value)
           }
           placeholder="00000000-0000-0000-0000-000000000000"
-          className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm font-mono"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
       <div>
-        <label htmlFor="party-role" className="block text-xs text-gob-text-muted mb-1">
+        <label htmlFor="party-role" className="block text-[12px] text-ln-op-mute mb-1">
           Rol en la disputa
         </label>
         <select
           id="party-role"
           value={partyRole}
           onChange={(e) => setPartyRole(e.target.value as RoleValue)}
-          className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
@@ -129,27 +129,27 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       </div>
 
       <div>
-        <label htmlFor="party-summary" className="block text-xs text-gob-text-muted mb-1">
-          Posición / nota (opcional)
+        <label htmlFor="party-summary" className="block text-[12px] text-ln-op-mute mb-1">
+          Posicion / nota (opcional)
         </label>
         <textarea
           id="party-summary"
           value={positionSummary}
           onChange={(e) => setPositionSummary(e.target.value)}
           rows={2}
-          placeholder="Resumen de la posición de esta parte"
-          className="w-full px-3 py-2 rounded border border-gob-border-strong  bg-white  text-sm"
+          placeholder="Resumen de la posicion de esta parte"
+          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
-      {error && <output className="block text-sm text-gob-danger ">{error}</output>}
+      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-3 py-1.5 rounded text-sm bg-gob-primary  text-white  disabled:opacity-50"
+          className="px-3 py-1.5 rounded-[6px] text-[13px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50 transition-colors"
         >
           {pending ? "Sumando..." : "Sumar parte"}
         </button>
@@ -157,7 +157,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           type="button"
           onClick={() => setOpen(false)}
           disabled={pending}
-          className="px-3 py-1.5 rounded text-sm border border-gob-border-strong "
+          className="px-3 py-1.5 rounded-[6px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
         >
           Cancelar
         </button>

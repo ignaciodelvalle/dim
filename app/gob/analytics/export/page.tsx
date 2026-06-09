@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 — 2026-05-26)
+// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 -- 2026-05-26)
 //
 // This page exists but is NOT reachable from any nav or dashboard CTA. The
 // underlying flow (Parquet/CSV export for govt analytics) is not yet wired
-// end-to-end. Keep this page intact — when the flow lands, wire the parent
+// end-to-end. Keep this page intact -- when the flow lands, wire the parent
 // /gob/analytics page first (add nav entry in nav-presets.ts); this export
 // page is a child of analytics and will become reachable automatically.
 //
@@ -15,16 +15,13 @@
 import Link from "next/link";
 
 import {
-  Alert,
   Button,
   Checkbox,
   EmptyState,
   JurisdictionSwitcher,
-  Panel,
-  PanelBody,
-  PanelHeader,
   PeriodPicker,
 } from "@/components/poncho";
+import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
 import { generateExportAction } from "./actions";
@@ -39,11 +36,11 @@ async function submitExportAction(formData: FormData): Promise<void> {
 const ALL_PROVINCES: Array<{ code: string; name: string }> = [
   { code: "AR-C", name: "CABA" },
   { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Córdoba" },
+  { code: "AR-X", name: "Cordoba" },
   { code: "AR-S", name: "Santa Fe" },
   { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucumán" },
-  { code: "AR-E", name: "Entre Ríos" },
+  { code: "AR-T", name: "Tucuman" },
+  { code: "AR-E", name: "Entre Rios" },
   { code: "AR-A", name: "Salta" },
   { code: "AR-N", name: "Misiones" },
   { code: "AR-H", name: "Chaco" },
@@ -69,15 +66,13 @@ export default async function GobAnalyticsExportPage({
 
   if (!hasAccess) {
     return (
-      <main className="px-6 py-8">
-        <div className="max-w-2xl mx-auto">
-          <EmptyState
-            icon="lock"
-            title="Sin acceso"
-            description="Tu rol no tiene acceso a la exportación de datos. Pedile al admin que te asigne una jurisdicción."
-          />
-        </div>
-      </main>
+      <div className="space-y-6">
+        <EmptyState
+          icon="lock"
+          title="Sin acceso"
+          description="Tu rol no tiene acceso a la exportacion de datos. Pedile al admin que te asigne una jurisdiccion."
+        />
+      </div>
     );
   }
 
@@ -94,108 +89,111 @@ export default async function GobAnalyticsExportPage({
           .filter((p) => p.code !== "");
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Breadcrumb */}
-        <nav aria-label="Breadcrumb" className="text-sm text-gob-text-muted">
-          <Link href="/gob/analytics" className="hover:underline text-gob-primary">
-            Analytics
-          </Link>
-          <span aria-hidden="true" className="mx-1">
-            /
-          </span>
-          <span aria-current="page">Exportar datos</span>
-        </nav>
+    <div className="space-y-6 max-w-2xl">
+      {/* Breadcrumb */}
+      <nav aria-label="Breadcrumb" className="text-[12px] text-ln-op-mute">
+        <Link href="/gob/analytics" className="hover:underline text-ln-op-azul">
+          Analytics
+        </Link>
+        <span aria-hidden="true" className="mx-1">
+          /
+        </span>
+        <span aria-current="page">Exportar datos</span>
+      </nav>
 
-        {/* Page header */}
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text">Exportar datos</h1>
-          <p className="text-sm text-gob-text-gray">
-            Generá un export anonimizado de los datos de tu cobertura.
-          </p>
-        </header>
+      {/* Page header */}
+      <header className="space-y-1">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Exportar datos</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Genera un export anonimizado de los datos de tu cobertura.
+        </p>
+      </header>
 
-        {/* Privacy notice — Ley 25.326 */}
-        <Alert variant="info">
-          <strong>Aviso sobre protección de datos personales (Ley 25.326).</strong> Los datos
-          exportados están anonimizados según los principios de minimización y proporcionalidad. No
-          se incluye ningún dato personal identificable (nombre, DNI, email, microchip) en el
-          archivo generado. El link de descarga vence a las 24 horas. El uso de este export queda
-          registrado en el log de auditoría.
-        </Alert>
+      {/* Privacy notice -- Ley 25.326 */}
+      <OpCallout
+        icon="i"
+        title="Aviso sobre proteccion de datos personales (Ley 25.326)."
+        body={
+          <>
+            Los datos exportados estan anonimizados segun los principios de minimizacion y
+            proporcionalidad. No se incluye ningun dato personal identificable (nombre, DNI, email,
+            microchip) en el archivo generado. El link de descarga vence a las 24 horas. El uso de
+            este export queda registrado en el log de auditoria.
+          </>
+        }
+      />
 
-        <Panel>
-          <PanelHeader title="Configurar export" />
-          <PanelBody>
-            <form action={submitExportAction} className="space-y-6">
-              {/* Hidden inputs carrying PeriodPicker + JurisdictionSwitcher state
-                  from searchParams. The client components update the URL; these
-                  hidden fields pass the values into the server action via FormData. */}
-              <input type="hidden" name="period" value={period} />
-              {from && <input type="hidden" name="from" value={from} />}
-              {to && <input type="hidden" name="to" value={to} />}
+      <OpCard>
+        <OpCardHead title="Configurar export" />
+        <OpCardBody>
+          <form action={submitExportAction} className="space-y-6">
+            {/* Hidden inputs carrying PeriodPicker + JurisdictionSwitcher state
+                from searchParams. The client components update the URL; these
+                hidden fields pass the values into the server action via FormData. */}
+            <input type="hidden" name="period" value={period} />
+            {from && <input type="hidden" name="from" value={from} />}
+            {to && <input type="hidden" name="to" value={to} />}
 
-              {/* Period selector */}
-              <section className="space-y-2">
-                <h2 className="text-sm font-medium text-gob-text">Período</h2>
-                <PeriodPicker defaultPreset="30d" />
-              </section>
+            {/* Period selector */}
+            <section className="space-y-2">
+              <h2 className="text-[13px] font-medium text-ln-op-ink">Periodo</h2>
+              <PeriodPicker defaultPreset="30d" />
+            </section>
 
-              {/* Jurisdiction selector */}
-              <section className="space-y-2">
-                <h2 className="text-sm font-medium text-gob-text">Jurisdicción</h2>
-                <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
-              </section>
+            {/* Jurisdiction selector */}
+            <section className="space-y-2">
+              <h2 className="text-[13px] font-medium text-ln-op-ink">Jurisdiccion</h2>
+              <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+            </section>
 
-              {/* Data slices */}
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gob-text">Datos a incluir</legend>
-                <div className="space-y-2 pt-1">
-                  <Checkbox name="slice" value="pets" defaultChecked>
-                    Mascotas (anonimizado)
-                  </Checkbox>
-                  <Checkbox name="slice" value="events">
-                    Eventos
-                  </Checkbox>
-                  <Checkbox name="slice" value="cases">
-                    Casos
-                  </Checkbox>
-                  <Checkbox name="slice" value="organizations">
-                    Organizaciones
-                  </Checkbox>
-                </div>
-              </fieldset>
+            {/* Data slices */}
+            <fieldset className="space-y-2">
+              <legend className="text-[13px] font-medium text-ln-op-ink">Datos a incluir</legend>
+              <div className="space-y-2 pt-1">
+                <Checkbox name="slice" value="pets" defaultChecked>
+                  Mascotas (anonimizado)
+                </Checkbox>
+                <Checkbox name="slice" value="events">
+                  Eventos
+                </Checkbox>
+                <Checkbox name="slice" value="cases">
+                  Casos
+                </Checkbox>
+                <Checkbox name="slice" value="organizations">
+                  Organizaciones
+                </Checkbox>
+              </div>
+            </fieldset>
 
-              {/* Format */}
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gob-text">Formato</legend>
-                <div className="flex flex-col gap-2 pt-1">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name="format"
-                      value="csv"
-                      defaultChecked
-                      className="accent-gob-primary"
-                    />
-                    CSV
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="radio" name="format" value="json" className="accent-gob-primary" />
-                    JSON
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer opacity-50">
-                    <input type="radio" name="format" value="parquet" disabled />
-                    Parquet — próximamente
-                  </label>
-                </div>
-              </fieldset>
+            {/* Format */}
+            <fieldset className="space-y-2">
+              <legend className="text-[13px] font-medium text-ln-op-ink">Formato</legend>
+              <div className="flex flex-col gap-2 pt-1">
+                <label className="flex items-center gap-2 text-[13px] cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="csv"
+                    defaultChecked
+                    className="accent-ln-op-azul"
+                  />
+                  CSV
+                </label>
+                <label className="flex items-center gap-2 text-[13px] cursor-pointer">
+                  <input type="radio" name="format" value="json" className="accent-ln-op-azul" />
+                  JSON
+                </label>
+                <label className="flex items-center gap-2 text-[13px] cursor-pointer opacity-50">
+                  <input type="radio" name="format" value="parquet" disabled />
+                  {"Parquet — proximamente"}
+                </label>
+              </div>
+            </fieldset>
 
-              <Button type="submit">Generar export</Button>
-            </form>
-          </PanelBody>
-        </Panel>
-      </div>
-    </main>
+            <Button type="submit">Generar export</Button>
+          </form>
+        </OpCardBody>
+      </OpCard>
+    </div>
   );
 }

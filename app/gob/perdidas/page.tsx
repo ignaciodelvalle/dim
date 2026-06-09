@@ -5,15 +5,12 @@ import {
   Input,
   JurisdictionSwitcher,
   MapChoropleth,
-  MetricCard,
-  Panel,
-  PanelBody,
-  PanelHeader,
   PeriodPicker,
   type TabItem,
   Tabs,
   TabsContent,
 } from "@/components/poncho";
+import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type LostPetRow,
@@ -41,7 +38,7 @@ const ALL_PROVINCES: Array<{ code: string; name: string }> = [
 
 /**
  * Aggregate lost pets by province for the choropleth map.
- * Groups LostPetRow[] by province → ISO code via PROVINCE_ISO_MAP.
+ * Groups LostPetRow[] by province -> ISO code via PROVINCE_ISO_MAP.
  */
 function aggregateLostByProvince(
   lost: LostPetRow[],
@@ -116,141 +113,137 @@ export default async function GobPerdidasPage({
   const panelMapId = "panel-perdidas-mapa-titulo";
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Page header */}
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">Pérdidas</h1>
-          <p className="text-sm text-gob-text-gray">
-            Mascotas marcadas como perdidas dentro de tu cobertura.
-          </p>
-        </header>
+    <div className="space-y-6">
+      {/* Page header */}
+      <header className="space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Perdidas
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mascotas perdidas</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Mascotas marcadas como perdidas dentro de tu cobertura.
+        </p>
+      </header>
 
-        {/* No-scope warning */}
-        {noScope && (
-          <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  px-4 py-3 text-sm text-gob-warning-text ">
-            Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
-            una.
-          </div>
-        )}
-
-        {/* Filters row */}
-        <div className="grid md:grid-cols-2 gap-3">
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
-          <PeriodPicker defaultPreset="30d" />
+      {/* No-scope warning */}
+      {noScope && (
+        <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[13px] text-ln-op-warn">
+          Tu cuenta no tiene localidades asignadas. Pedile a un administrador que te asigne al menos
+          una.
         </div>
+      )}
 
-        {/* 3 metric cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <MetricCard
-            label="Activas"
-            value={String(metrics.activeCount)}
-            tone={metrics.activeCount > 0 ? "warning" : "neutral"}
-          />
-          <MetricCard
-            label="Recuperados (30d)"
-            value={String(metrics.recoveredMonth)}
-            tone="success"
-          />
-          <MetricCard
-            label="Antigüedad media en días"
-            value={String(metrics.avgDaysActive)}
-            tone="neutral"
-          />
-        </div>
-
-        {/* Map panel */}
-        <Panel aria-labelledby={panelMapId}>
-          <PanelHeader title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
-          <PanelBody>
-            <MapChoropleth data={choroplethData} />
-          </PanelBody>
-        </Panel>
-
-        {/* Search form */}
-        <form action="/gob/perdidas" method="get" className="flex items-center gap-2">
-          {/* Preserve other active searchParams so the form doesn't reset period/species */}
-          {sp.period && <input type="hidden" name="period" value={sp.period} />}
-          {sp.species && <input type="hidden" name="species" value={sp.species} />}
-          {sp.status && <input type="hidden" name="status" value={sp.status} />}
-          <Input
-            type="search"
-            name="q"
-            defaultValue={q ?? ""}
-            placeholder="Buscar por nombre de mascota o dueño/a"
-            className="flex-1"
-            aria-label="Buscar mascotas"
-          />
-          <button
-            type="submit"
-            className="text-sm px-3 py-1.5 rounded-md bg-gob-primary text-white hover:opacity-90 whitespace-nowrap"
-          >
-            Buscar
-          </button>
-          {q && (
-            <a
-              href={`/gob/perdidas${sp.status ? `?status=${sp.status}` : ""}`}
-              className="text-sm text-gob-text-gray hover:text-gob-text underline underline-offset-2 whitespace-nowrap"
-            >
-              Limpiar
-            </a>
-          )}
-        </form>
-
-        {/* Status tabs + list panel */}
-        <Suspense>
-          <Tabs
-            paramKey="status"
-            defaultValue="lost"
-            tabs={STATUS_TABS}
-            aria-label="Filtrar por estado"
-          >
-            {STATUS_TABS.map((tab) => {
-              const panelListId = `panel-perdidas-lista-${tab.value}`;
-              return (
-                <TabsContent key={tab.value} value={tab.value}>
-                  <Panel aria-labelledby={panelListId} className="mt-4">
-                    <PanelHeader
-                      title={
-                        <span id={panelListId}>
-                          {tab.value === "lost" && "Mascotas perdidas"}
-                          {tab.value === "active" && "Mascotas recuperadas"}
-                          {tab.value === "deceased" && "Mascotas fallecidas"}
-                          {tab.value === "all" && "Todas las mascotas"} ({lostPets.length})
-                          {q && (
-                            <span className="ml-2 text-xs font-normal text-gob-text-muted">
-                              — búsqueda: &ldquo;{q}&rdquo;
-                            </span>
-                          )}
-                        </span>
-                      }
-                    />
-                    <PanelBody>
-                      {lostPets.length === 0 ? (
-                        <EmptyState
-                          icon="search"
-                          title="Sin resultados"
-                          description={
-                            q
-                              ? `No se encontraron mascotas para "${q}" con el estado seleccionado.`
-                              : "No hay mascotas con este estado en el período para tu cobertura."
-                          }
-                        />
-                      ) : (
-                        <ul className="space-y-2">
-                          {lostPets.map((p) => (
-                            <LostPetRowComponent key={p.petId} pet={p} />
-                          ))}
-                        </ul>
-                      )}
-                    </PanelBody>
-                  </Panel>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        </Suspense>
+      {/* Filters row */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+        <PeriodPicker defaultPreset="30d" />
       </div>
-    </main>
+
+      {/* 3 KPI cards */}
+      <section
+        aria-label="Indicadores de perdidas"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+      >
+        <OpKpi
+          label="Activas"
+          value={String(metrics.activeCount)}
+          tone={metrics.activeCount > 0 ? "warn" : "ok"}
+        />
+        <OpKpi label="Recuperados (30d)" value={String(metrics.recoveredMonth)} tone="ok" />
+        <OpKpi label="Antiguedad media (dias)" value={String(metrics.avgDaysActive)} />
+      </section>
+
+      {/* Map panel */}
+      <OpCard aria-labelledby={panelMapId}>
+        <OpCardHead title={<span id={panelMapId}>Episodios por jurisdiccion</span>} />
+        <OpCardBody>
+          <MapChoropleth data={choroplethData} />
+        </OpCardBody>
+      </OpCard>
+
+      {/* Search form */}
+      <form action="/gob/perdidas" method="get" className="flex items-center gap-2">
+        {/* Preserve other active searchParams so the form doesn't reset period/species */}
+        {sp.period && <input type="hidden" name="period" value={sp.period} />}
+        {sp.species && <input type="hidden" name="species" value={sp.species} />}
+        {sp.status && <input type="hidden" name="status" value={sp.status} />}
+        <Input
+          type="search"
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="Buscar por nombre de mascota o dueno/a"
+          className="flex-1"
+          aria-label="Buscar mascotas"
+        />
+        <button
+          type="submit"
+          className="text-[13px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors whitespace-nowrap"
+        >
+          Buscar
+        </button>
+        {q && (
+          <a
+            href={`/gob/perdidas${sp.status ? `?status=${sp.status}` : ""}`}
+            className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-2 whitespace-nowrap"
+          >
+            Limpiar
+          </a>
+        )}
+      </form>
+
+      {/* Status tabs + list panel */}
+      <Suspense>
+        <Tabs
+          paramKey="status"
+          defaultValue="lost"
+          tabs={STATUS_TABS}
+          aria-label="Filtrar por estado"
+        >
+          {STATUS_TABS.map((tab) => {
+            const panelListId = `panel-perdidas-lista-${tab.value}`;
+            return (
+              <TabsContent key={tab.value} value={tab.value}>
+                <OpCard aria-labelledby={panelListId} className="mt-4">
+                  <OpCardHead
+                    title={
+                      <span id={panelListId}>
+                        {tab.value === "lost" && "Mascotas perdidas"}
+                        {tab.value === "active" && "Mascotas recuperadas"}
+                        {tab.value === "deceased" && "Mascotas fallecidas"}
+                        {tab.value === "all" && "Todas las mascotas"} ({lostPets.length})
+                        {q && (
+                          <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
+                            {"—"} busqueda: &ldquo;{q}&rdquo;
+                          </span>
+                        )}
+                      </span>
+                    }
+                  />
+                  <OpCardBody>
+                    {lostPets.length === 0 ? (
+                      <EmptyState
+                        icon="search"
+                        title="Sin resultados"
+                        description={
+                          q
+                            ? `No se encontraron mascotas para "${q}" con el estado seleccionado.`
+                            : "No hay mascotas con este estado en el periodo para tu cobertura."
+                        }
+                      />
+                    ) : (
+                      <ul className="space-y-2">
+                        {lostPets.map((p) => (
+                          <LostPetRowComponent key={p.petId} pet={p} />
+                        ))}
+                      </ul>
+                    )}
+                  </OpCardBody>
+                </OpCard>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      </Suspense>
+    </div>
   );
 }

@@ -12,7 +12,7 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
 
   function submit() {
     const reason = prompt(
-      "Motivo del retiro (opcional). Esto cierra la disputa sin resolución y desbloquea la mascota.",
+      "Motivo del retiro (opcional). Esto cierra la disputa sin resolucion y desbloquea la mascota.",
     );
     if (reason === null) return;
     setError(null);
@@ -35,11 +35,11 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
         type="button"
         onClick={submit}
         disabled={pending}
-        className="px-3 py-1.5 rounded text-sm border border-gob-danger text-gob-danger   hover:bg-gob-danger/10  disabled:opacity-50"
+        className="px-3 py-1.5 rounded-[6px] text-[13px] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg disabled:opacity-50 transition-colors"
       >
         {pending ? "Retirando..." : "Retirar disputa"}
       </button>
-      {error && <output className="block text-sm text-gob-danger  mt-2">{error}</output>}
+      {error && <output className="block text-[13px] text-ln-op-danger mt-2">{error}</output>}
     </div>
   );
 }

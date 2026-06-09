@@ -1,12 +1,13 @@
-// Govt decomiso — nuevo caso.
+// Govt decomiso -- nuevo caso.
 //
-// Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §6.
+// Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md section 6.
 //
-// RSC shell — loads the verified shelter/rescue_network orgs as a static list
+// RSC shell -- loads the verified shelter/rescue_network orgs as a static list
 // for the receiver combobox, then renders the client DecomisoForm component.
 // Auth is enforced by requireDecomisoPrincipal (govt | admin).
 
 import { and, eq, inArray } from "drizzle-orm";
+import Link from "next/link";
 
 import { db, organizations } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
@@ -42,19 +43,22 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
     .orderBy(organizations.displayName);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <header className="mb-8 space-y-1">
-        <nav className="text-xs text-gob-text-muted mb-4">
-          <a href="/gob/decomisos" className="hover:text-gob-text transition-colors">
+    <div className="max-w-2xl space-y-6">
+      <header className="space-y-1">
+        <nav className="text-[12px] text-ln-op-mute mb-4" aria-label="Breadcrumb">
+          <Link
+            href="/gob/decomisos"
+            className="hover:text-ln-op-ink transition-colors no-underline text-ln-op-mute"
+          >
             Decomisos
-          </a>
-          <span className="mx-2 text-gob-border-strong">›</span>
-          <span className="text-gob-text">Nuevo decomiso</span>
+          </Link>
+          <span className="mx-2 text-ln-op-line">{"›"}</span>
+          <span className="text-ln-op-ink">Nuevo decomiso</span>
         </nav>
-        <h1 className="text-2xl font-bold text-gob-text">Ejecutar decomiso</h1>
-        <p className="text-sm text-gob-text-gray">
-          Ley 14.346 — incautación de animal por autoridad sanitaria. Requiere mínimo 2 adjuntos
-          (foto del animal + acta administrativa).
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Ejecutar decomiso</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          {"Ley 14.346 — incautacion de animal por autoridad sanitaria. Requiere minimo 2 adjuntos"}
+          {" (foto del animal + acta administrativa)."}
         </p>
       </header>
 
