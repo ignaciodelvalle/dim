@@ -1,12 +1,10 @@
+// Captura rápida — Libreta Nacional redesign.
+// Presentation only; CaptureBox client component unchanged.
+
 import Link from "next/link";
 
 import { requireOwnedPetByToken } from "@/lib/pets";
-
 import { CaptureBox } from "./CaptureBox";
-
-// Captura rápida — entry point. Server component, owner-gated. The
-// keyword matching + deeplink building happens entirely client-side so
-// there's no network round-trip for the user typing.
 
 export default async function CapturePage({
   params,
@@ -21,32 +19,32 @@ export default async function CapturePage({
   const { pet } = session;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-2xl mx-auto pt-8 space-y-6">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver a {pet.name}
-        </Link>
+    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← {pet.name}
+      </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Anotar algo de {pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Contanos qué pasó. Te llevamos al formulario correcto con los datos que pudimos
-            identificar. Si preferís, abajo tenés atajos para los eventos más comunes.
-          </p>
-        </header>
-
-        <CaptureBox
-          petPublicToken={pet.publicToken}
-          petName={pet.name}
-          initialText={text}
-          initialKind={kind}
-        />
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Anotar algo de {pet.name}
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Contanos qué pasó. Te llevamos al formulario correcto con los datos que pudimos
+          identificar. Si preferís, abajo tenés atajos para los eventos más comunes.
+        </p>
       </div>
-    </main>
+
+      <CaptureBox
+        petPublicToken={pet.publicToken}
+        petName={pet.name}
+        initialText={text}
+        initialKind={kind}
+      />
+    </div>
   );
 }

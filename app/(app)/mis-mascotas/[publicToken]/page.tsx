@@ -1368,21 +1368,25 @@ function MedicationDosesSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-tight text-gob-text">Próximas dosis</h2>
+        <h2 className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+          Próximas dosis
+        </h2>
         <Link
           href={`/mis-mascotas/${pet.publicToken}?sheet=medicacion`}
-          className="text-sm text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
+          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           + Nueva medicación
         </Link>
       </div>
       {allReminders.length === 0 ? (
-        <p className="text-sm text-gob-text-muted">Sin dosis pendientes.</p>
+        <p className="text-[13px] text-[var(--color-ln-mute)]">Sin dosis pendientes.</p>
       ) : (
         <div className="space-y-4">
           {[...groups.entries()].map(([key, group]) => (
             <div key={key} className="space-y-2">
-              <p className="text-sm font-medium text-gob-text-gray">{group.drugName}</p>
+              <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                {group.drugName}
+              </p>
               <ul className="space-y-2">
                 {group.reminders.map((reminder) => {
                   const proximity = formatDoseProximity(reminder.dueAt);
@@ -1390,15 +1394,15 @@ function MedicationDosesSection({
                   return (
                     <li
                       key={reminder.id}
-                      className="border border-gob-border rounded-xl p-4 flex items-center justify-between gap-3"
+                      className="flex items-center justify-between gap-3 rounded-[4px] border border-[var(--color-ln-line)] px-[14px] py-[12px]"
                     >
-                      <div className="min-w-0 space-y-0.5">
-                        <p className="text-sm text-gob-text">
+                      <div className="min-w-0">
+                        <p className="text-[13px] text-[var(--color-ln-ink-2)]">
                           {reminder.description ?? reminder.title}
                         </p>
                         <p
-                          className={`text-xs font-medium ${
-                            isOverdue ? "text-gob-danger" : "text-gob-text-muted"
+                          className={`mt-[2px] font-[var(--font-ln-mono)] text-[11px] ${
+                            isOverdue ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-mute)]"
                           }`}
                         >
                           {proximity}
@@ -1408,7 +1412,7 @@ function MedicationDosesSection({
                         <input type="hidden" name="reminderId" value={reminder.id} />
                         <button
                           type="submit"
-                          className="px-3 py-1.5 rounded-lg bg-gob-primary text-white text-xs font-medium hover:bg-gob-primary/90 transition-colors shrink-0"
+                          className="flex-shrink-0 rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[12px] font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80"
                         >
                           Marcar dada
                         </button>
@@ -1453,16 +1457,18 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
     observationUntil <= new Date();
 
   return (
-    <section className="rounded-xl border border-gob-warning/40 bg-gob-warning/10 p-4 space-y-3">
-      <p className="font-medium text-gob-warning-text">Observación antirrábica en curso</p>
-      <p className="text-sm text-gob-warning-text">
+    <section className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[16px] py-[14px] space-y-[10px]">
+      <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
+        Observación antirrábica en curso
+      </p>
+      <p className="text-[13px] text-[var(--color-ln-warn)]">
         {biteDate
           ? `Por la mordedura del ${biteDate.toLocaleDateString("es-AR")}, `
           : "Por una mordedura reportada recientemente, "}
         {pet.name} está en observación obligatoria de 10 días.
         {observationUntil && ` Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}.`}
       </p>
-      <p className="text-xs text-gob-warning-text">
+      <p className="text-[12px] text-[var(--color-ln-warn)]">
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
         de comportamiento, consultá al veterinario de inmediato.
       </p>
@@ -1478,7 +1484,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         >
           <button
             type="submit"
-            className="px-3 py-1.5 rounded-lg bg-gob-warning text-white text-sm font-medium hover:bg-gob-warning/90 transition-colors"
+            className="rounded-[4px] border border-[#f0dcb4] bg-white px-[12px] py-[6px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
           >
             Confirmar fin de observación
           </button>
@@ -1496,16 +1502,16 @@ function TransitBanner({
   petPublicToken: string;
 }) {
   return (
-    <section className="rounded-xl border border-gob-warning/30 bg-gob-warning/10 p-4 space-y-3">
-      <p className="text-sm text-gob-warning-text">
+    <section className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[16px] py-[14px] space-y-[10px]">
+      <p className="text-[13px] text-[var(--color-ln-warn)]">
         Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
         viaja con la mascota.
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-[8px]">
         <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
         <Link
           href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
-          className="px-3 py-1.5 rounded-lg border border-gob-warning/40 text-sm text-gob-warning-text hover:border-gob-warning/80 transition-colors"
+          className="rounded-[4px] border border-[#f0dcb4] px-[10px] py-[5px] text-[13px] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
         >
           Buscar nuevo hogar
         </Link>
@@ -1538,33 +1544,39 @@ function UpcomingAppointments({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold tracking-tight text-gob-text">Próximos turnos</h2>
+      <h2 className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+        Próximos turnos
+      </h2>
       {sorted.length === 0 ? (
-        <p className="text-sm text-gob-text-muted">No hay turnos próximos para {pet.name}.</p>
+        <p className="text-[13px] text-[var(--color-ln-mute)]">
+          No hay turnos próximos para {pet.name}.
+        </p>
       ) : (
         <ul className="space-y-3">
           {sorted.map((apt) => (
             <li
               key={`apt-${apt.publicToken}`}
-              className="border border-gob-border rounded-xl p-4 space-y-2"
+              className="rounded-[4px] border border-[var(--color-ln-line)] px-[14px] py-[12px] space-y-[6px]"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-0.5">
-                  <p className="font-medium text-gob-text">{apt.offeringDisplayName}</p>
-                  <p className="text-xs text-gob-text-muted">
+                <div className="min-w-0">
+                  <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                    {apt.offeringDisplayName}
+                  </p>
+                  <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
                     {new Date(apt.slotStartsAt).toLocaleString("es-AR", {
                       dateStyle: "medium",
                       timeStyle: "short",
                     })}
                   </p>
                 </div>
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gob-success/10 text-gob-success">
+                <span className="flex-shrink-0 inline-flex items-center rounded-[2px] border border-[#c8e2d2] bg-[#eef6f0] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
                   turno
                 </span>
               </div>
               <Link
                 href={`/mis-turnos/${apt.publicToken}`}
-                className="inline-block text-xs text-gob-text-gray underline underline-offset-4 hover:text-gob-text"
+                className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 Ver detalle →
               </Link>
@@ -1583,8 +1595,10 @@ function UpcomingAppointments({
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wider text-gob-text-muted">{label}</dt>
-      <dd className="text-gob-text">{value || "—"}</dd>
+      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        {label}
+      </dt>
+      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
     </div>
   );
 }

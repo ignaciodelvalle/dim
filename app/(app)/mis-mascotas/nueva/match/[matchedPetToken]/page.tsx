@@ -1,18 +1,14 @@
-// Match confirmation page — vecino path.
-//
-// Reached when createPetAction (with acquisitionMethod='found_stray') detects a
-// microchip cross-check match with status='lost'.
-//
-// "Es la misma" → confirmChipMatchAction(decision='same', actorMode='vecino')
-//   → ownership created, owner notified → redirect /mis-mascotas
-// "No es la misma" → note event → redirect /mis-mascotas/nueva?chipMismatched=true
+// Match confirmation page — Libreta Nacional redesign.
+// Presentation only; MatchConfirmationCardVecino and data fetching unchanged.
 
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { LnButton } from "@/components/ui/Button";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import { MatchConfirmationCardVecino } from "./MatchConfirmationCardVecino";
 
 export default async function VecinoMatchPage({
@@ -22,7 +18,6 @@ export default async function VecinoMatchPage({
 }) {
   const { matchedPetToken } = await params;
 
-  // Auth — must be a logged-in user.
   await requireUserOrRedirect();
 
   const [petResult] = await db
@@ -37,20 +32,21 @@ export default async function VecinoMatchPage({
 
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Mascota ya no esta perdida</h1>
-          <p className="text-gob-text-gray ">
-            {pet.name} ya fue encontrada o su estado cambio. Podes continuar registrando la mascota.
-          </p>
-          <Link
-            href="/mis-mascotas/nueva"
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
-          >
-            Volver al registro
+      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px] text-center">
+        <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+          Mascota ya no está perdida
+        </p>
+        <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+          {pet.name} ya fue encontrada o su estado cambió. Podés continuar registrando la mascota.
+        </p>
+        <div className="mt-[20px] flex justify-center">
+          <Link href="/mis-mascotas/nueva">
+            <LnButton variant="primary" size="md">
+              Volver al registro
+            </LnButton>
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -87,34 +83,38 @@ export default async function VecinoMatchPage({
   const ownerFirstName = ownerRow?.displayName?.split(" ")[0] ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-semibold">Coincidencia de microchip</h1>
-          <p className="text-sm text-gob-text-gray ">
-            El chip que ingresaste ya esta registrado en MiMAR. Confirma si es el mismo animal.
-          </p>
-        </header>
-
-        <MatchConfirmationCardVecino
-          matchedPetToken={matchedPetToken}
-          petName={pet.name}
-          petSpecies={pet.species}
-          petBreed={pet.breed}
-          petColor={pet.color}
-          petSex={pet.sex}
-          petPhotoUrl={photoUrl}
-          ownerFirstName={ownerFirstName}
-          lastLocationText={lastLocationText}
-          lastLocationDate={lastLocationDate}
-        />
-
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link href="/mis-mascotas/nueva" className="text-sm text-gob-text-gray underline ">
-            Cancelar y volver al registro
-          </Link>
-        </footer>
+    <div className="mx-auto max-w-xl px-[32px] py-[28px] pb-[48px]">
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Coincidencia de microchip
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          El chip que ingresaste ya está registrado en MiMAR. Confirmá si es el mismo animal.
+        </p>
       </div>
-    </main>
+
+      <MatchConfirmationCardVecino
+        matchedPetToken={matchedPetToken}
+        petName={pet.name}
+        petSpecies={pet.species}
+        petBreed={pet.breed}
+        petColor={pet.color}
+        petSex={pet.sex}
+        petPhotoUrl={photoUrl}
+        ownerFirstName={ownerFirstName}
+        lastLocationText={lastLocationText}
+        lastLocationDate={lastLocationDate}
+      />
+
+      <div className="mt-[24px] border-t border-[var(--color-ln-line-2)] pt-[16px]">
+        <Link
+          href="/mis-mascotas/nueva"
+          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Cancelar y volver al registro
+        </Link>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,10 @@
+// Programar vacuna — Libreta Nacional redesign.
+// Presentation only; ScheduleVaccineForm and server action unchanged.
+
+import Link from "next/link";
+
 import { createVaccineReminderAction } from "@/app/actions/reminders";
 import { requireOwnedPetByToken } from "@/lib/pets";
-import Link from "next/link";
 import { ScheduleVaccineForm } from "./ScheduleVaccineForm";
 
 export default async function ScheduleVaccinePage({
@@ -15,36 +19,40 @@ export default async function ScheduleVaccinePage({
   const boundAction = createVaccineReminderAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver a {pet.name}
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Programar vacuna</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Anotá la próxima vacuna de {pet.name} para no olvidártela. Vas a verla en "Próximas
-            vacunas" hasta que la marques como aplicada.
-          </p>
-        </div>
-        <ScheduleVaccineForm action={boundAction} species={pet.species} />
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← {pet.name}
+      </Link>
 
-        {/* Secondary CTA — book a real appointment instead of (or in addition to) a reminder */}
-        <div className="border-t border-gob-border  pt-6 space-y-1">
-          <p className="text-xs text-gob-text-muted ">
-            ¿Preferís ir directo a una clínica o campaña?
-          </p>
-          <Link
-            href="/turnos/buscar?service_kind=vaccination_rabies"
-            className="inline-flex items-center gap-1 text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-          >
-            ¿Querés sacar turno con un veterinario? Buscar en mi zona →
-          </Link>
-        </div>
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Programar vacuna
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Anotá la próxima vacuna de {pet.name} para no olvidártela. Vas a verla en "Próximas
+          vacunas" hasta que la marques como aplicada.
+        </p>
       </div>
-    </main>
+
+      <ScheduleVaccineForm action={boundAction} species={pet.species} />
+
+      {/* Secondary CTA */}
+      <div className="mt-[28px] border-t border-[var(--color-ln-line-2)] pt-[20px]">
+        <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          ¿Preferís ir directo a una clínica o campaña?
+        </p>
+        <Link
+          href="/turnos/buscar?service_kind=vaccination_rabies"
+          className="mt-[4px] inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          Buscar turno con veterinario en mi zona →
+        </Link>
+      </div>
+    </div>
   );
 }

@@ -1,9 +1,12 @@
-// Picker for the "new event" flow. Lists every v1 event type. Vaccination is
-// active; the rest are placeholders that will light up one round at a time.
+// Picker for the "new event" flow — Libreta Nacional redesign.
+// Presentation only; routing logic unchanged.
 
-import { requirePetAccess } from "@/lib/pet-access";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { LnButton } from "@/components/ui/Button";
+import { LnSectionHead } from "@/components/ui/DocElements";
+import { requirePetAccess } from "@/lib/pet-access";
 
 type EventOption = {
   slug: string;
@@ -13,9 +16,6 @@ type EventOption = {
   href?: string;
 };
 
-// Libreta sanitaria entries — preventive medicine, clinical encounters,
-// metrics, identification, end-of-life. Surfaced as the primary grouping in
-// the selector and used as the canonical medical record per AGENTS.md.
 const LIBRETA_OPTIONS: EventOption[] = [
   {
     slug: "vacuna",
@@ -41,12 +41,7 @@ const LIBRETA_OPTIONS: EventOption[] = [
     description: "Castración / ovariectomía",
     enabled: true,
   },
-  {
-    slug: "peso",
-    label: "Peso",
-    description: "Control de peso",
-    enabled: true,
-  },
+  { slug: "peso", label: "Peso", description: "Control de peso", enabled: true },
   {
     slug: "vet",
     label: "Visita al veterinario",
@@ -68,7 +63,7 @@ const LIBRETA_OPTIONS: EventOption[] = [
   {
     slug: "tatuaje",
     label: "Tatuaje registrado",
-    description: "Código del tatuaje y foto. Identificador secundario al microchip.",
+    description: "Código del tatuaje y foto.",
     enabled: true,
   },
   {
@@ -103,7 +98,6 @@ const LIBRETA_OPTIONS: EventOption[] = [
   },
 ];
 
-// Surfaced only for female pets of supported species (spec pregnancy-tracking PR2).
 const PREGNANCY_OPTION: EventOption = {
   slug: "embarazo",
   label: "Embarazo",
@@ -112,22 +106,18 @@ const PREGNANCY_OPTION: EventOption = {
 };
 const PREGNANCY_SPECIES = new Set(["dog", "cat", "other"]);
 
-// Non-libreta entries — owner annotations, identity / status changes. Live
-// in /historial alongside the libreta but rendered as a secondary group here.
 const OTHER_OPTIONS: EventOption[] = [
-  {
-    slug: "estado",
-    label: "Cambio de estado",
-    description: "Perdida / encontrada",
-    enabled: true,
-  },
-  {
-    slug: "nota",
-    label: "Nota",
-    description: "Observación general",
-    enabled: true,
-  },
+  { slug: "estado", label: "Cambio de estado", description: "Perdida / encontrada", enabled: true },
+  { slug: "nota", label: "Nota", description: "Observación general", enabled: true },
 ];
+
+// Slugs handled by URL-driven sheets on the pet profile page.
+const SHEET_SLUGS: Record<string, string> = {
+  nota: "nota",
+  "medicacion-inicio": "medicacion",
+  peso: "peso",
+  sintoma: "sintoma",
+};
 
 export default async function PickEventPage({
   params,
@@ -139,74 +129,72 @@ export default async function PickEventPage({
   if (!access.ok) notFound();
   const { pet } = access;
 
-  // Defense in depth: deceased pets can only add notes.
   if (pet.status === "deceased") {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-md mx-auto pt-8 space-y-8">
-          <Link
-            href={`/mis-mascotas/${pet.publicToken}`}
-            className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-          >
-            ← Volver al perfil
-          </Link>
-          <div className="space-y-4">
-            <p className="text-sm text-gob-text-gray ">
-              Esta mascota está registrada como fallecida. Solo podés agregar notas.
-            </p>
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}
-              className="inline-block px-4 py-2 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary  transition-colors"
-            >
-              + Agregar nota
-            </Link>
-          </div>
-        </div>
-      </main>
+      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}`}
+          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Volver al perfil
+        </Link>
+        <p className="mb-[16px] text-[13px] text-[var(--color-ln-mute)]">
+          Esta mascota está registrada como fallecida. Solo podés agregar notas.
+        </p>
+        <Link href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}>
+          <LnButton variant="primary" size="md">
+            + Agregar nota
+          </LnButton>
+        </Link>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver al perfil
-        </Link>
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← {pet.name}
+      </Link>
 
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">Registrar</h1>
-          <p className="text-sm text-gob-text-gray ">¿Qué pasó con {pet.name}?</p>
-        </div>
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Registrar
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          ¿Qué pasó con {pet.name}?
+        </p>
+      </div>
 
-        <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
-            Registrar en la libreta sanitaria
-          </h2>
-          <ul className="grid grid-cols-1 gap-2">
+      <div className="flex flex-col gap-[28px]">
+        {/* Libreta sanitaria */}
+        <section>
+          <LnSectionHead title="Libreta sanitaria" className="mb-[12px]" />
+          <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
             {LIBRETA_OPTIONS.map((option) => (
               <EventOptionRow key={option.slug} option={option} pet={pet} />
             ))}
             {pet.sex === "female" && PREGNANCY_SPECIES.has(pet.species) && (
               <EventOptionRow option={PREGNANCY_OPTION} pet={pet} />
             )}
-          </ul>
+          </div>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
-            Otros registros
-          </h2>
-          <ul className="grid grid-cols-1 gap-2">
+        {/* Other */}
+        <section>
+          <LnSectionHead title="Otros registros" className="mb-[12px]" />
+          <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
             {OTHER_OPTIONS.map((option) => (
               <EventOptionRow key={option.slug} option={option} pet={pet} />
             ))}
-          </ul>
+          </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -217,53 +205,42 @@ function EventOptionRow({
   option: EventOption;
   pet: { publicToken: string };
 }) {
-  // Kinds that are now handled by URL-driven sheets on the pet profile page.
-  const SHEET_SLUGS: Record<string, string> = {
-    nota: "nota",
-    "medicacion-inicio": "medicacion",
-    peso: "peso",
-    sintoma: "sintoma",
-  };
   const href =
     option.slug === "estado"
       ? `/mis-mascotas/${pet.publicToken}/perdida`
       : option.slug in SHEET_SLUGS
         ? `/mis-mascotas/${pet.publicToken}?sheet=${SHEET_SLUGS[option.slug]}`
         : (option.href ?? `/mis-mascotas/${pet.publicToken}/eventos/nuevo/${option.slug}`);
+
   if (!option.enabled) {
     return (
-      <li>
-        <div
-          aria-disabled
-          className="block border border-gob-border  rounded-xl p-4 opacity-50 cursor-not-allowed"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium text-gob-text ">{option.label}</p>
-              <p className="text-sm text-gob-text-muted ">{option.description}</p>
-            </div>
-            <span className="text-xs text-gob-text-muted ">próximamente</span>
-          </div>
+      <div
+        aria-disabled
+        className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[13px] last:border-b-0 opacity-50 cursor-not-allowed"
+      >
+        <div>
+          <p className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">{option.label}</p>
+          <p className="mt-[1px] text-[12px] text-[var(--color-ln-mute)]">{option.description}</p>
         </div>
-      </li>
+        <span className="flex-shrink-0 font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+          próximamente
+        </span>
+      </div>
     );
   }
+
   return (
-    <li>
-      <Link
-        href={href}
-        className="block border border-gob-border  rounded-xl p-4 hover:bg-gob-surface-alt  transition-colors"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-medium text-gob-text ">{option.label}</p>
-            <p className="text-sm text-gob-text-muted ">{option.description}</p>
-          </div>
-          <span className="text-gob-text-muted " aria-hidden>
-            ›
-          </span>
-        </div>
-      </Link>
-    </li>
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[13px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+    >
+      <div>
+        <p className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">{option.label}</p>
+        <p className="mt-[1px] text-[12px] text-[var(--color-ln-mute)]">{option.description}</p>
+      </div>
+      <span aria-hidden="true" className="flex-shrink-0 text-[16px] text-[var(--color-ln-mute)]">
+        ›
+      </span>
+    </Link>
   );
 }

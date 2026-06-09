@@ -1,19 +1,11 @@
-// /mis-mascotas/[token]/mostrar-libreta — owner-facing toggle for the
-// Tier 2 público temporal window. v1 ships only the 24h duration enabled;
-// the 7d / 30d / "Siempre visible" cards render as disabled with a
-// "Próximamente" tooltip so users see the roadmap (mockup behaviour).
-//
-// When the window is already open, the page shows a status card with the
-// expiration timestamp and a Revocar button — same surface, just a
-// different state.
-//
-// The actual UI is in Tier2PublicView — shared with the ?sheet=mostrar-tier2
-// sheet in SheetMounter.
+// /mis-mascotas/[token]/mostrar-libreta — Libreta Nacional redesign.
+// Presentation only; Tier2PublicView and server actions unchanged.
+
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
 import { requirePetAccess } from "@/lib/pet-access";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Tier2PublicView } from "../_tier2-public/Tier2PublicView";
 
 export default async function MostrarLibretaPage({
@@ -30,34 +22,38 @@ export default async function MostrarLibretaPage({
   const activeUntil = pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil) : null;
   const isActive = !!activeUntil && activeUntil > now;
 
-  // Server actions bound with the publicToken so the inline <form action>
-  // doesn't need a hidden input.
   const enable = enableTier2PublicAction.bind(null, publicToken);
   const revoke = revokeTier2PublicAction.bind(null, publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-6">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver a {pet.name}
-        </Link>
+    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      {/* Back */}
+      <Link
+        href={`/mis-mascotas/${pet.publicToken}`}
+        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← {pet.name}
+      </Link>
 
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">Mostrar Libreta</h1>
-        </header>
-
-        <Tier2PublicView
-          petPublicToken={pet.publicToken}
-          petName={pet.name}
-          isActive={isActive}
-          activeUntil={activeUntil}
-          enableAction={enable}
-          revokeAction={revoke}
-        />
+      {/* Header */}
+      <div className="mb-[24px]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          Mostrar libreta
+        </h1>
+        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          Activá el acceso temporal para que alguien pueda ver la libreta de {pet.name} sin iniciar
+          sesión.
+        </p>
       </div>
-    </main>
+
+      <Tier2PublicView
+        petPublicToken={pet.publicToken}
+        petName={pet.name}
+        isActive={isActive}
+        activeUntil={activeUntil}
+        enableAction={enable}
+        revokeAction={revoke}
+      />
+    </div>
   );
 }
