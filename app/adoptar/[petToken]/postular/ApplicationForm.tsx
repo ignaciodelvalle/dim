@@ -33,6 +33,63 @@ const HOUSING_OPTIONS: Array<{ value: HousingType; label: string }> = [
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Tu casa", "Otros animales", "Tu día a día", "Confirmar"];
 
+// ---------------------------------------------------------------------------
+// Shared style helpers
+// ---------------------------------------------------------------------------
+
+const CARD_STYLE: React.CSSProperties = {
+  background: "var(--color-ln-card)",
+  borderColor: "var(--color-ln-line)",
+};
+
+const TEXTAREA_STYLE: React.CSSProperties = {
+  background: "var(--color-ln-card)",
+  borderColor: "var(--color-ln-line-strong)",
+  color: "var(--color-ln-ink)",
+};
+
+const LABEL_STYLE: React.CSSProperties = {
+  color: "var(--color-ln-ink)",
+};
+
+const HINT_STYLE: React.CSSProperties = {
+  color: "var(--color-ln-mute)",
+};
+
+const STEP_NUM_STYLE: React.CSSProperties = {
+  color: "var(--color-ln-azul)",
+  fontFamily: "var(--font-ln-mono)",
+};
+
+function StepQuestion({
+  num,
+  label,
+  hint,
+  children,
+}: {
+  num: string;
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[8px] border px-[20px] py-[18px] space-y-[10px]" style={CARD_STYLE}>
+      <p className="text-[14.5px] font-semibold" style={LABEL_STYLE}>
+        <span className="mr-[7px] text-[11px] font-semibold" style={STEP_NUM_STYLE}>
+          {num}
+        </span>
+        {label}
+      </p>
+      {hint && (
+        <p className="text-[12px]" style={HINT_STYLE}>
+          {hint}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export function ApplicationForm({
   petPublicToken,
   petName,
@@ -109,24 +166,35 @@ export function ApplicationForm({
       stepLabels={STEP_LABELS}
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
-      <p className="text-xs text-gob-text-muted">
-        Te van a contactar a <span className="font-medium">{applicantEmail}</span> para coordinar
-        los próximos pasos.
+      <p className="text-[12px]" style={HINT_STYLE}>
+        Te van a contactar a{" "}
+        <span className="font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+          {applicantEmail}
+        </span>{" "}
+        para coordinar los próximos pasos.
       </p>
 
       {/* Step 1 — Tu casa */}
-      <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-gob-text">¿Cómo es tu vivienda?</legend>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <section className={step === 1 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 1}>
+        <StepQuestion num="01" label="¿Cómo es tu vivienda?">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
             {HOUSING_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm cursor-pointer ${
+                className="flex items-center gap-[10px] rounded-[5px] border px-[12px] py-[10px] text-[13px] cursor-pointer"
+                style={
                   housingType === opt.value
-                    ? "border-gob-success bg-gob-success/10"
-                    : "border-gob-border-strong"
-                }`}
+                    ? {
+                        borderColor: "var(--color-ln-azul)",
+                        background: "var(--color-ln-celeste-050)",
+                        color: "var(--color-ln-ink)",
+                      }
+                    : {
+                        borderColor: "var(--color-ln-line)",
+                        background: "var(--color-ln-card)",
+                        color: "var(--color-ln-ink)",
+                      }
+                }
               >
                 <input
                   type="radio"
@@ -136,114 +204,175 @@ export function ApplicationForm({
                   onChange={() => setHousingType(opt.value)}
                   className="sr-only"
                 />
+                <span
+                  className="flex-shrink-0 w-[16px] h-[16px] rounded-full border-2"
+                  style={
+                    housingType === opt.value
+                      ? {
+                          borderColor: "var(--color-ln-azul)",
+                          background: "var(--color-ln-azul)",
+                          boxShadow: "inset 0 0 0 3px #fff",
+                        }
+                      : {
+                          borderColor: "var(--color-ln-line-strong)",
+                          background: "transparent",
+                        }
+                  }
+                />
                 <span>{opt.label}</span>
               </label>
             ))}
           </div>
-        </fieldset>
+        </StepQuestion>
         <button
           type="button"
           onClick={() => setStep(2)}
           disabled={!housingType}
-          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          style={{ background: "var(--color-ln-azul)" }}
         >
-          Continuar
+          Continuar →
         </button>
       </section>
 
       {/* Step 2 — Otros animales */}
-      <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
-        <div>
-          <label htmlFor="other-pets" className="block text-sm font-medium text-gob-text mb-1">
-            ¿Tenés otras mascotas? <span className="text-gob-text-muted">(opcional)</span>
-          </label>
+      <section className={step === 2 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 2}>
+        <StepQuestion
+          num="02"
+          label="¿Tenés otras mascotas?"
+          hint="Opcional — contale al refugio si hay animales en casa."
+        >
           <textarea
             id="other-pets"
             value={otherPets}
             onChange={(e) => setOtherPets(e.target.value)}
             rows={3}
             placeholder='Ej: "un gato castrado adulto, sociable"'
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            style={TEXTAREA_STYLE}
           />
-        </div>
+        </StepQuestion>
         <button
           type="button"
           onClick={() => setStep(3)}
-          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white"
+          style={{ background: "var(--color-ln-azul)" }}
         >
-          Continuar
+          Continuar →
         </button>
       </section>
 
       {/* Step 3 — Tu día a día */}
-      <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
-        <div>
-          <label htmlFor="daily-routine" className="block text-sm font-medium text-gob-text mb-1">
-            Cómo es tu día a día <span className="text-gob-text-muted">(opcional)</span>
-          </label>
+      <section className={step === 3 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 3}>
+        <StepQuestion
+          num="03"
+          label="Cómo es tu día a día"
+          hint="Opcional — quién está en casa, si hay nenes, cómo se organiza el cuidado."
+        >
           <textarea
             id="daily-routine"
             value={dailyRoutine}
             onChange={(e) => setDailyRoutine(e.target.value)}
             rows={3}
             placeholder="¿Quién está en casa durante el día? ¿Hay nenes? ¿Alguien la cuida si viajás?"
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            style={TEXTAREA_STYLE}
           />
-        </div>
-        <div>
-          <label htmlFor="notes" className="block text-sm font-medium text-gob-text mb-1">
-            Algo más que quieras contar <span className="text-gob-text-muted">(opcional)</span>
-          </label>
+        </StepQuestion>
+        <StepQuestion num="04" label="Algo más que quieras contar" hint="Opcional.">
           <textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 rounded border border-gob-border-strong bg-white text-sm"
+            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            style={TEXTAREA_STYLE}
           />
-        </div>
+        </StepQuestion>
         <button
           type="button"
           onClick={() => setStep(4)}
-          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white"
+          style={{ background: "var(--color-ln-azul)" }}
         >
-          Continuar
+          Continuar →
         </button>
       </section>
 
       {/* Step 4 — Confirmar */}
-      <section className={step === 4 ? "space-y-4" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-lg border border-gob-border-strong p-4 space-y-2 text-sm">
-          <p className="font-semibold text-gob-text">Resumen</p>
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-gob-text-muted">Vivienda</dt>
-            <dd className="col-span-2">
+      <section className={step === 4 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 4}>
+        {/* Summary recap */}
+        <div className="rounded-[8px] border px-[20px] py-[16px] space-y-[10px]" style={CARD_STYLE}>
+          <p
+            className="font-[var(--font-ln-serif)] text-[15px] font-semibold"
+            style={{ color: "var(--color-ln-ink)" }}
+          >
+            Resumen
+          </p>
+          <dl
+            className="grid gap-x-[14px] gap-y-[6px] text-[12px]"
+            style={{ gridTemplateColumns: "auto 1fr" }}
+          >
+            <dt
+              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              style={HINT_STYLE}
+            >
+              Vivienda
+            </dt>
+            <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
               {HOUSING_OPTIONS.find((o) => o.value === housingType)?.label ?? "—"}
             </dd>
-            <dt className="text-gob-text-muted">Otras mascotas</dt>
-            <dd className="col-span-2">{otherPets || "—"}</dd>
-            <dt className="text-gob-text-muted">Día a día</dt>
-            <dd className="col-span-2">{dailyRoutine || "—"}</dd>
-            <dt className="text-gob-text-muted">Notas</dt>
-            <dd className="col-span-2">{notes || "—"}</dd>
+            <dt
+              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              style={HINT_STYLE}
+            >
+              Otras mascotas
+            </dt>
+            <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
+              {otherPets || "—"}
+            </dd>
+            <dt
+              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              style={HINT_STYLE}
+            >
+              Día a día
+            </dt>
+            <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
+              {dailyRoutine || "—"}
+            </dd>
+            <dt
+              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              style={HINT_STYLE}
+            >
+              Notas
+            </dt>
+            <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
+              {notes || "—"}
+            </dd>
           </dl>
         </div>
 
-        <div className="space-y-2">
-          <label className="flex items-start gap-3 cursor-pointer">
+        {/* Consent */}
+        <div className="rounded-[8px] border px-[20px] py-[16px]" style={CARD_STYLE}>
+          <label className="flex items-start gap-[12px] cursor-pointer">
             <input
               type="checkbox"
               checked={profileSharingConsent}
               onChange={(e) => setProfileSharingConsent(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gob-border-strong text-gob-success focus:ring-gob-success"
+              className="mt-[2px] h-[16px] w-[16px] rounded border flex-shrink-0"
+              style={{
+                borderColor: "var(--color-ln-line-strong)",
+                accentColor: "var(--color-ln-azul)",
+              }}
             />
-            <span className="text-sm text-gob-text-gray">
+            <span className="text-[13px]" style={{ color: "var(--color-ln-ink-2)" }}>
               Acepto compartir con el refugio mi historial de adopciones, fosters y mascotas en
               MiMAR para que tomen una mejor decisión.{" "}
               <button
                 type="button"
                 onClick={() => setPrivacyModalOpen(true)}
-                className="underline text-gob-success hover:text-gob-success/80"
+                className="underline underline-offset-2 font-semibold"
+                style={{ color: "var(--color-ln-azul)" }}
               >
                 Más info sobre tu privacidad
               </button>
@@ -254,45 +383,61 @@ export function ApplicationForm({
         {privacyModalOpen && (
           <dialog
             open
-            className="fixed inset-0 z-50 m-auto max-w-lg w-full rounded-xl border border-gob-border bg-white p-6 shadow-xl"
+            className="fixed inset-0 z-50 m-auto w-full overflow-y-auto rounded-[8px] border px-[24px] py-[22px] shadow-xl"
+            style={{
+              maxWidth: 480,
+              background: "var(--color-ln-card)",
+              borderColor: "var(--color-ln-line-strong)",
+            }}
             aria-labelledby="privacy-modal-title"
           >
-            <h2 id="privacy-modal-title" className="text-base font-semibold text-gob-text mb-4">
+            <h2
+              id="privacy-modal-title"
+              className="font-[var(--font-ln-serif)] text-[17px] font-semibold mb-[14px]"
+              style={{ color: "var(--color-ln-ink)" }}
+            >
               Información sobre privacidad — Ley 25.326
             </h2>
-            <div className="text-sm text-gob-text-gray space-y-3">
+            <div className="text-[13px] space-y-[10px]" style={{ color: "var(--color-ln-ink-2)" }}>
               <p>
                 Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden
                 compartirse con consentimiento informado y para un propósito específico.
               </p>
               <p>
-                <strong>Qué compartirías:</strong> la lista de tus adopciones previas en MiMAR (con
-                outcome — exitosa, revertida, etc.), tus fosters previos, tus mascotas registradas
-                actualmente. NO compartirías: tus notificaciones, otras postulaciones, denuncias,
-                dirección exacta.
+                <strong style={{ color: "var(--color-ln-ink)" }}>Qué compartirías:</strong> la lista
+                de tus adopciones previas en MiMAR (con outcome — exitosa, revertida, etc.), tus
+                fosters previos, tus mascotas registradas actualmente. NO compartirías: tus
+                notificaciones, otras postulaciones, denuncias, dirección exacta.
               </p>
               <p>
-                <strong>Por cuánto tiempo:</strong> solo mientras tu postulación a {petName} esté
-                abierta. Al cerrarse, el refugio pierde acceso inmediatamente.
+                <strong style={{ color: "var(--color-ln-ink)" }}>Por cuánto tiempo:</strong> solo
+                mientras tu postulación a {petName} esté abierta. Al cerrarse, el refugio pierde
+                acceso inmediatamente.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setPrivacyModalOpen(false)}
-              className="mt-5 w-full px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90"
+              className="mt-[18px] w-full rounded-[5px] border-0 px-[16px] py-[11px] text-[13px] font-semibold text-white"
+              style={{ background: "var(--color-ln-azul)" }}
             >
               Entendido
             </button>
           </dialog>
         )}
 
-        {error && <output className="block text-sm text-gob-danger">{error}</output>}
+        {error && (
+          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+            {error}
+          </output>
+        )}
 
         <button
           type="button"
           onClick={submit}
           disabled={pending || !profileSharingConsent}
-          className="w-full px-6 py-3 rounded-lg bg-gob-success text-white text-base font-semibold hover:bg-gob-success disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          style={{ background: "var(--color-ln-azul)" }}
         >
           {pending ? "Enviando postulación..." : "Enviar postulación"}
         </button>
