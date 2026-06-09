@@ -312,3 +312,17 @@ h6 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Mobile input zoom guard (sprint 6 PR-050) ---------------------------- *
+ * iOS Safari zooms into any input whose computed font-size is below 16px when
+ * it takes focus. That hijacks layout, breaks sticky CTAs, and traps users in
+ * an awkward zoom state until they pinch out. Enforce 16px on every form
+ * control so the zoom never triggers, then let Tailwind's text-* utilities
+ * override on desktop where the zoom doesn't happen. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
