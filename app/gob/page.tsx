@@ -12,9 +12,8 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { DashboardCard, GobDashboardShell } from "@/components/GobDashboardShell";
 import { JurisdictionFilterBar, readFilterParams } from "@/components/JurisdictionFilterBar";
-import { KpiTile, KpiTileGrid } from "@/components/KpiTile";
+import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -100,259 +99,311 @@ export default async function GobiernoDashboardPage({
   const openCasesTotal = openCasesAll.length;
 
   return (
-    <GobDashboardShell
-      eyebrow={`MiMAR Gobierno · ${profile.role} · ${scopeLabel}`}
-      title="Panel de jurisdicción"
-      actions={
-        <>
+    <div className="space-y-6">
+      {/* Page header */}
+      <header className="space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          MiMAR Gobierno · {profile.role} · {scopeLabel}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de jurisdicción</h1>
+
+        {/* Header actions */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <Link
             href="/gob/cola"
-            className="rounded-md bg-gob-info px-3 py-1.5 text-sm font-medium text-white hover:bg-gob-info"
+            className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
           >
             Cola de aprobaciones
           </Link>
           <Link
             href="/gob/organizaciones"
-            className="rounded-md border border-gob-info px-3 py-1.5 text-sm font-medium text-gob-azul-link hover:bg-gob-info/10 "
+            className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[13px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
           >
             Habilitación
           </Link>
           <Link
             href="/gob/maltrato"
-            className="rounded-md border border-gob-danger px-3 py-1.5 text-sm font-medium text-gob-danger hover:bg-gob-danger/10 "
+            className="rounded-[6px] border border-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
           >
             Acta de infracción
           </Link>
-        </>
-      }
-      filters={
-        <JurisdictionFilterBar
-          range={params.range}
-          province={params.province}
-          locality={params.locality}
-          orgType={params.orgType}
-          provinces={[
-            { value: "buenos-aires", label: "Pcia. Buenos Aires" },
-            { value: "caba", label: "CABA" },
-          ]}
-          localities={[
-            { value: "la-plata", label: "La Plata" },
-            { value: "berisso", label: "Berisso" },
-            { value: "ensenada", label: "Ensenada" },
-          ]}
-          orgTypes={[
-            { value: "shelter", label: "Refugio" },
-            { value: "clinic", label: "Clínica" },
-            { value: "rescue", label: "Rescate" },
-          ]}
+        </div>
+      </header>
+
+      {/* Jurisdiction filter bar */}
+      <JurisdictionFilterBar
+        range={params.range}
+        province={params.province}
+        locality={params.locality}
+        orgType={params.orgType}
+        provinces={[
+          { value: "buenos-aires", label: "Pcia. Buenos Aires" },
+          { value: "caba", label: "CABA" },
+        ]}
+        localities={[
+          { value: "la-plata", label: "La Plata" },
+          { value: "berisso", label: "Berisso" },
+          { value: "ensenada", label: "Ensenada" },
+        ]}
+        orgTypes={[
+          { value: "shelter", label: "Refugio" },
+          { value: "clinic", label: "Clínica" },
+          { value: "rescue", label: "Rescate" },
+        ]}
+      />
+
+      {/* KPI strip */}
+      <section
+        aria-label="Indicadores de jurisdicción"
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+      >
+        <OpKpi
+          label="Cobertura antirrábica"
+          value={`${rabiesCoverage.current}%`}
+          tone={rabiesCoverage.current >= rabiesCoverage.target ? "ok" : "warn"}
+          bar={rabiesCoverage.current}
+          sub={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
+          href="/gob/indicadores?metric=rabies"
         />
-      }
-      kpiStrip={
-        <KpiTileGrid>
-          <KpiTile
-            variant="target"
-            label="Cobertura antirrábica"
-            value={`${rabiesCoverage.current}%`}
-            current={rabiesCoverage.current}
-            target={rabiesCoverage.target}
-            subline={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
-            href="/gob/indicadores?metric=rabies"
-          />
-          <KpiTile
-            variant="delta"
-            label="Esterilizaciones / mes"
-            value={sterilizations.count.toLocaleString("es-AR")}
-            deltaLabel={
-              sterilizations.deltaPct >= 0
-                ? `↑ ${sterilizations.deltaPct}% vs mes ant.`
-                : `↓ ${Math.abs(sterilizations.deltaPct)}% vs mes ant.`
-            }
-            direction={sterilizations.deltaPct >= 0 ? "up" : "down"}
-            subline={`${sterilizations.orgs} organizaciones`}
-            href="/gob/indicadores?metric=sterilizations"
-          />
-          <KpiTile
-            variant="delta"
-            label="Mordeduras / 10k hab."
-            value={bitesPer10k.rate.toString().replace(".", ",")}
-            deltaLabel={
-              bitesPer10k.delta >= 0
-                ? `↑ ${bitesPer10k.delta.toString().replace(".", ",")} vs año ant.`
-                : `↓ ${Math.abs(bitesPer10k.delta).toString().replace(".", ",")} vs año ant.`
-            }
-            direction="down"
-            subline={`${bitesPer10k.reports} reportes`}
-            href="/gob/indicadores?metric=bites"
-          />
-          <KpiTile
-            tone="danger"
-            label="Casos zoonosis activos"
-            value={activeZoonosis.count}
-            subline={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
-            href="/gob/vigilancia"
-          />
-        </KpiTileGrid>
-      }
-      main={
-        <>
-          <DashboardCard
-            title="Cola de aprobaciones"
-            action={
-              <Link href="/gob/cola" className="text-gob-azul-link hover:underline ">
-                Ver cola →
-              </Link>
-            }
-          >
-            {pending.length === 0 ? (
-              <p className="text-sm text-gob-text-muted ">No hay solicitudes pendientes.</p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-3xl font-semibold tabular-nums text-gob-text ">
-                  {pending.length}
+        <OpKpi
+          label="Esterilizaciones / mes"
+          value={sterilizations.count.toLocaleString("es-AR")}
+          delta={
+            sterilizations.deltaPct !== 0
+              ? {
+                  text: `${Math.abs(sterilizations.deltaPct)}% vs mes ant.`,
+                  up: sterilizations.deltaPct >= 0,
+                }
+              : undefined
+          }
+          sub={`${sterilizations.orgs} organizaciones`}
+          href="/gob/indicadores?metric=sterilizations"
+        />
+        <OpKpi
+          label="Mordeduras / 10k hab."
+          value={bitesPer10k.rate.toString().replace(".", ",")}
+          tone="warn"
+          delta={
+            bitesPer10k.delta !== 0
+              ? {
+                  text: `${Math.abs(bitesPer10k.delta).toString().replace(".", ",")} vs año ant.`,
+                  up: false,
+                }
+              : undefined
+          }
+          sub={`${bitesPer10k.reports} reportes`}
+          href="/gob/indicadores?metric=bites"
+        />
+        <OpKpi
+          label="Casos zoonosis activos"
+          value={activeZoonosis.count}
+          tone="danger"
+          sub={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
+          href="/gob/vigilancia"
+        />
+      </section>
+
+      {/* Main 2-col grid */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+        {/* Left column */}
+        <div className="space-y-4">
+          {/* Cola de aprobaciones */}
+          <OpCard>
+            <OpCardHead
+              title="Cola de aprobaciones"
+              actions={
+                <Link
+                  href="/gob/cola"
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  Ver cola →
+                </Link>
+              }
+            />
+            <OpCardBody>
+              {pending.length === 0 ? (
+                <p className="text-[13px] text-ln-op-mute">No hay solicitudes pendientes.</p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
+                    {pending.length}
+                  </p>
+                  <p className="text-[12px] text-ln-op-mute">solicitudes esperando revisión</p>
+                </div>
+              )}
+            </OpCardBody>
+          </OpCard>
+
+          {/* Actividad reciente */}
+          <OpCard>
+            <OpCardHead
+              title="Actividad reciente"
+              actions={
+                recentDecisions.length > 0 ? (
+                  <span className="text-[12px] text-ln-op-mute">últimos 7 días</span>
+                ) : null
+              }
+            />
+            <OpCardBody className="p-0">
+              {recentDecisions.length === 0 ? (
+                <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+                  No tenés acciones registradas en los últimos 7 días.
                 </p>
-                <p className="text-xs text-gob-text-muted ">solicitudes esperando revisión</p>
-              </div>
-            )}
-          </DashboardCard>
-
-          <DashboardCard
-            title="Actividad reciente"
-            action={
-              recentDecisions.length > 0 ? (
-                <span className="text-xs text-gob-text-muted ">últimos 7 días</span>
-              ) : null
-            }
-          >
-            {recentDecisions.length === 0 ? (
-              <p className="text-sm text-gob-text-muted ">
-                No tenés acciones registradas en los últimos 7 días.
-              </p>
-            ) : (
-              <ul className="space-y-1">
-                {recentDecisions.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 odd:bg-gob-surface-alt "
-                  >
-                    <p className="text-sm text-gob-text ">
-                      {ACTION_LABELS[entry.action] ?? entry.action}
-                    </p>
-                    <time className="text-xs text-gob-text-muted  tabular-nums whitespace-nowrap">
-                      {new Date(entry.performedAt).toLocaleString("es-AR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
-                    </time>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DashboardCard>
-
-          <DashboardCard
-            title="Casos regulatorios"
-            action={
-              <Link href="/gob/casos" className="text-gob-azul-link hover:underline ">
-                {openCasesTotal > openCases.length
-                  ? `Ver todos (${openCasesTotal}) →`
-                  : "Ver todos →"}
-              </Link>
-            }
-          >
-            {profile.role !== "admin" && jurisdictions.length === 0 ? (
-              <p className="text-sm text-gob-text-muted ">Sin jurisdicciones asignadas todavía.</p>
-            ) : openCases.length === 0 ? (
-              <p className="text-sm text-gob-text-muted ">
-                Sin casos abiertos{" "}
-                {profile.role === "admin" ? "en el sistema" : "en tu jurisdicción"}.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {openCases.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex flex-col gap-1 rounded-md px-2 py-1.5 odd:bg-gob-surface-alt "
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <CaseBadge
-                        publicCode={c.publicCode}
-                        caseKind={c.caseKind}
-                        status={c.status}
-                        size="sm"
-                      />
-                      <time className="text-xs text-gob-text-muted  tabular-nums whitespace-nowrap">
-                        {formatDate(c.openedAt)}
+              ) : (
+                <ul className="divide-y divide-ln-op-line-2">
+                  {recentDecisions.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
+                    >
+                      <p className="text-[13px] text-ln-op-ink">
+                        {ACTION_LABELS[entry.action] ?? entry.action}
+                      </p>
+                      <time className="text-[12px] text-ln-op-mute tabular-nums whitespace-nowrap">
+                        {new Date(entry.performedAt).toLocaleString("es-AR", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </time>
-                    </div>
-                    {c.primaryPetPublicToken && c.primaryPetName ? (
-                      <Link
-                        href={`/mis-mascotas/${c.primaryPetPublicToken}`}
-                        className="text-xs text-gob-text-gray hover:underline "
-                      >
-                        🐾 {c.primaryPetName}
-                      </Link>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DashboardCard>
-        </>
-      }
-      aside={
-        <>
-          <DashboardCard
-            title="Vigilancia"
-            action={
-              <Link href="/gob/vigilancia" className="text-gob-azul-link hover:underline ">
-                Ver →
-              </Link>
-            }
-          >
-            <p className="text-sm text-gob-text-muted ">
-              Señales de zoonosis filtradas a tu cobertura.
-            </p>
-          </DashboardCard>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </OpCardBody>
+          </OpCard>
 
-          <DashboardCard
-            title="Denuncias ciudadanas"
-            action={
-              <Link href="/gob/maltrato" className="text-gob-azul-link hover:underline ">
-                Ver bandeja →
-              </Link>
-            }
-          >
-            {openWelfareReports.count === 0 ? (
-              <p className="text-sm text-gob-text-muted ">
-                No hay denuncias activas en tu jurisdicción.
+          {/* Casos regulatorios */}
+          <OpCard>
+            <OpCardHead
+              title="Casos regulatorios"
+              actions={
+                <Link
+                  href="/gob/casos"
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  {openCasesTotal > openCases.length
+                    ? `Ver todos (${openCasesTotal}) →`
+                    : "Ver todos →"}
+                </Link>
+              }
+            />
+            <OpCardBody className="p-0">
+              {profile.role !== "admin" && jurisdictions.length === 0 ? (
+                <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+                  Sin jurisdicciones asignadas todavía.
+                </p>
+              ) : openCases.length === 0 ? (
+                <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+                  Sin casos abiertos{" "}
+                  {profile.role === "admin" ? "en el sistema" : "en tu jurisdicción"}.
+                </p>
+              ) : (
+                <ul className="divide-y divide-ln-op-line-2">
+                  {openCases.map((c) => (
+                    <li key={c.id} className="flex flex-col gap-1 px-4 py-2.5 odd:bg-ln-op-stripe">
+                      <div className="flex items-center justify-between gap-2">
+                        <CaseBadge
+                          publicCode={c.publicCode}
+                          caseKind={c.caseKind}
+                          status={c.status}
+                          size="sm"
+                        />
+                        <time className="text-[12px] text-ln-op-mute tabular-nums whitespace-nowrap">
+                          {formatDate(c.openedAt)}
+                        </time>
+                      </div>
+                      {c.primaryPetPublicToken && c.primaryPetName ? (
+                        <Link
+                          href={`/mis-mascotas/${c.primaryPetPublicToken}`}
+                          className="text-[12px] text-ln-op-mute hover:underline no-underline"
+                        >
+                          🐾 {c.primaryPetName}
+                        </Link>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </OpCardBody>
+          </OpCard>
+        </div>
+
+        {/* Right aside column */}
+        <div className="space-y-4">
+          {/* Vigilancia */}
+          <OpCard>
+            <OpCardHead
+              title="Vigilancia"
+              actions={
+                <Link
+                  href="/gob/vigilancia"
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  Ver →
+                </Link>
+              }
+            />
+            <OpCardBody>
+              <p className="text-[13px] text-ln-op-mute">
+                Señales de zoonosis filtradas a tu cobertura.
               </p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-3xl font-semibold tabular-nums text-gob-text ">
-                  {openWelfareReports.count}
-                </p>
-                <p className="text-xs text-gob-text-muted ">
-                  {openWelfareReports.count === 1 ? "denuncia activa" : "denuncias activas"}
-                </p>
-              </div>
-            )}
-          </DashboardCard>
+            </OpCardBody>
+          </OpCard>
 
-          <DashboardCard
-            title="Pérdidas"
-            action={
-              <Link href="/gob/perdidas" className="text-gob-azul-link hover:underline ">
-                Ver →
-              </Link>
-            }
-          >
-            <p className="text-sm text-gob-text-muted ">
-              Mascotas en status <code className="text-xs">lost</code> en tu cobertura.
-            </p>
-          </DashboardCard>
-        </>
-      }
-    />
+          {/* Denuncias ciudadanas */}
+          <OpCard>
+            <OpCardHead
+              title="Denuncias ciudadanas"
+              actions={
+                <Link
+                  href="/gob/maltrato"
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  Ver bandeja →
+                </Link>
+              }
+            />
+            <OpCardBody>
+              {openWelfareReports.count === 0 ? (
+                <p className="text-[13px] text-ln-op-mute">
+                  No hay denuncias activas en tu jurisdicción.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
+                    {openWelfareReports.count}
+                  </p>
+                  <p className="text-[12px] text-ln-op-mute">
+                    {openWelfareReports.count === 1 ? "denuncia activa" : "denuncias activas"}
+                  </p>
+                </div>
+              )}
+            </OpCardBody>
+          </OpCard>
+
+          {/* Pérdidas */}
+          <OpCard>
+            <OpCardHead
+              title="Pérdidas"
+              actions={
+                <Link
+                  href="/gob/perdidas"
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  Ver →
+                </Link>
+              }
+            />
+            <OpCardBody>
+              <p className="text-[13px] text-ln-op-mute">
+                Mascotas en status <code className="text-[12px] font-mono">lost</code> en tu
+                cobertura.
+              </p>
+            </OpCardBody>
+          </OpCard>
+        </div>
+      </div>
+    </div>
   );
 }
 
