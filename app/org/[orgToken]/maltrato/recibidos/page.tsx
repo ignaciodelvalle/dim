@@ -30,19 +30,19 @@ const STATUS_LABELS: Record<string, string> = {
   invalid: "Inválida",
 };
 
-const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "warn"> = {
+const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "escalated"> = {
   open: "open",
-  triaged: "warn",
-  in_progress: "warn",
+  triaged: "escalated",
+  in_progress: "escalated",
   closed: "neutral",
   duplicate: "neutral",
   invalid: "neutral",
 };
 
-const SEVERITY_PILL_TONE: Record<string, "danger" | "warn" | "neutral"> = {
+const SEVERITY_PILL_TONE: Record<string, "danger" | "escalated" | "neutral"> = {
   critical: "danger",
-  high: "warn",
-  medium: "warn",
+  high: "escalated",
+  medium: "escalated",
   low: "neutral",
 };
 
@@ -144,7 +144,14 @@ export default async function OrgMaltratoRecibidosPage({
                   <div className="min-w-0 space-y-1">
                     <p className="text-[13px] font-medium text-ln-op-ink">
                       {welfareReportKindLabel(r.kind)}{" "}
-                      <OpPill tone={SEVERITY_PILL_TONE[r.severity] ?? "neutral"}>
+                      <OpPill
+                        tone={
+                          (SEVERITY_PILL_TONE[r.severity] ?? "neutral") as
+                            | "danger"
+                            | "escalated"
+                            | "neutral"
+                        }
+                      >
                         {welfareReportSeverityLabel(r.severity)}
                       </OpPill>
                     </p>

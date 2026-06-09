@@ -30,9 +30,9 @@ const CLOSED_REASON_LABEL: Record<string, string> = {
   merged: "Fusionada",
 };
 
-const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "warn"> = {
+const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "escalated"> = {
   open: "open",
-  escalated: "warn",
+  escalated: "escalated",
   closed: "neutral",
   merged: "neutral",
 };

@@ -250,7 +250,7 @@ export default async function OrgTransferenciasEntrantesPage({
                         </Link>
                       </div>
                       <OpPill
-                        tone={r.status === "open" ? (isDecomiso ? "danger" : "warn") : "neutral"}
+                        tone={r.status === "open" ? (isDecomiso ? "danger" : "open") : "neutral"}
                       >
                         {statusLabel}
                       </OpPill>
