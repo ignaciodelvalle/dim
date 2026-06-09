@@ -48,16 +48,18 @@ export default async function FinderInPossessionPage({
   // Gate 1: not lost.
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen bg-white px-4 py-10">
+      <main className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
         <div className="mx-auto max-w-md space-y-4 text-center">
-          <h1 className="text-2xl font-semibold text-gob-text">Esta mascota no está perdida</h1>
-          <p className="text-sm text-gob-text-gray">
+          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
+            Esta mascota no está perdida
+          </h1>
+          <p className="text-sm text-[var(--color-ln-mute)]">
             El formulario de "la tengo conmigo" sólo está disponible mientras la mascota está
             marcada como perdida.
           </p>
           <Link
             href={`/p/${publicToken}`}
-            className="inline-block px-4 py-2 rounded-lg bg-gob-primary text-white text-sm"
+            className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm"
           >
             Ver el perfil público
           </Link>
@@ -97,19 +99,19 @@ export default async function FinderInPossessionPage({
     }
 
     return (
-      <main className="min-h-screen bg-white px-4 py-10">
+      <main className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
         <div className="mx-auto max-w-md space-y-5">
           <header className="space-y-1">
             <Link
               href={`/p/${publicToken}`}
-              className="text-sm text-gob-text underline underline-offset-4"
+              className="text-sm text-[var(--color-ln-ink)] underline underline-offset-4"
             >
               ← Volver al perfil
             </Link>
-            <h1 className="text-xl font-semibold text-gob-text mt-2">
+            <h1 className="text-xl font-semibold text-[var(--color-ln-ink)] mt-2">
               El dueño/a prefiere ser contactado/a directamente
             </h1>
-            <p className="text-sm text-gob-text-gray">
+            <p className="text-sm text-[var(--color-ln-mute)]">
               Para avisarle que encontraste a {pet.name}, comunicate por los medios que el dueño/a
               habilitó:
             </p>
@@ -121,7 +123,7 @@ export default async function FinderInPossessionPage({
                 <li>
                   <a
                     href={`tel:${ownerPhone}`}
-                    className="flex items-center gap-3 rounded-lg border border-gob-border px-4 py-3 text-sm font-medium text-gob-text hover:bg-gob-surface-alt transition-colors"
+                    className="flex items-center gap-3 rounded-lg border border-[var(--color-ln-line)] px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                   >
                     <span aria-hidden="true">📞</span>
                     Llamar al {ownerPhone}
@@ -132,7 +134,7 @@ export default async function FinderInPossessionPage({
                 <li>
                   <a
                     href={`mailto:${ownerEmail}`}
-                    className="flex items-center gap-3 rounded-lg border border-gob-border px-4 py-3 text-sm font-medium text-gob-text hover:bg-gob-surface-alt transition-colors"
+                    className="flex items-center gap-3 rounded-lg border border-[var(--color-ln-line)] px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                   >
                     <span aria-hidden="true">✉️</span>
                     Escribir a {ownerEmail}
@@ -141,7 +143,7 @@ export default async function FinderInPossessionPage({
               )}
             </ul>
           ) : (
-            <p className="text-sm text-gob-text-gray">
+            <p className="text-sm text-[var(--color-ln-mute)]">
               El dueño/a no habilitó información de contacto pública. Mirá el perfil para ver si hay
               otro medio de contacto.
             </p>
@@ -149,7 +151,7 @@ export default async function FinderInPossessionPage({
 
           <Link
             href={`/p/${publicToken}`}
-            className="block text-center text-sm text-gob-azul-link underline underline-offset-4"
+            className="block text-center text-sm text-[var(--color-ln-azul)] underline underline-offset-4"
           >
             Ver el perfil de {pet.name}
           </Link>
@@ -209,12 +211,12 @@ export default async function FinderInPossessionPage({
   const ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;
 
   return (
-    <main className="min-h-screen bg-gob-warning/10 px-4 py-6">
+    <main className="min-h-screen bg-[#fdf2e0] px-4 py-6">
       <div className="mx-auto max-w-md space-y-5">
         <header className="space-y-2">
           <Link
             href={`/p/${publicToken}`}
-            className="text-sm text-gob-text underline underline-offset-4"
+            className="text-sm text-[var(--color-ln-ink)] underline underline-offset-4"
           >
             ← Volver al perfil
           </Link>
@@ -228,27 +230,29 @@ export default async function FinderInPossessionPage({
                 className="w-14 h-14 rounded-xl object-cover ring-2 ring-white shadow"
               />
             ) : (
-              <div className="w-14 h-14 rounded-xl bg-gob-surface-alt flex items-center justify-center text-2xl font-semibold text-gob-text-muted ring-2 ring-white shadow">
+              <div className="w-14 h-14 rounded-xl bg-[var(--color-ln-stripe)] flex items-center justify-center text-2xl font-semibold text-[var(--color-ln-mute)] ring-2 ring-white shadow">
                 {pet.name.charAt(0).toUpperCase()}
               </div>
             )}
             <div>
-              <h1 className="text-xl font-semibold text-gob-text">La tengo conmigo: {pet.name}</h1>
+              <h1 className="text-xl font-semibold text-[var(--color-ln-ink)]">
+                La tengo conmigo: {pet.name}
+              </h1>
               {ownerFirstName && (
-                <p className="text-xs text-gob-text-gray mt-0.5">
+                <p className="text-xs text-[var(--color-ln-mute)] mt-0.5">
                   {ownerFirstName} está esperando que la encuentren.
                 </p>
               )}
             </div>
           </div>
 
-          <p className="text-sm text-gob-text-gray">
+          <p className="text-sm text-[var(--color-ln-mute)]">
             Completá el formulario y le avisamos al dueño/a al instante para que coordinen el
             encuentro.
           </p>
         </header>
 
-        <section className="rounded-2xl bg-white p-4">
+        <section className="rounded-2xl bg-[var(--color-ln-card)] p-4">
           <FinderInPossessionForm
             publicToken={publicToken}
             petName={pet.name}

@@ -13,11 +13,11 @@ import { describe, expect, it } from "vitest";
 // Mirrors TIER_STYLES in ConfidenceBadge.tsx. If styles drift, this test
 // catches it by asserting the mapping is exhaustive.
 const TIER_STYLES: Record<ConfidenceTier, string> = {
-  institutional_verified: "bg-gob-success/10 text-gob-success  ",
-  professional_verified: "bg-gob-info/10 text-gob-azul-link  ",
-  corroborated: "bg-gob-warning/10 text-gob-warning-text  ",
-  self_reported: "bg-gob-surface-alt text-gob-text-gray  ",
-  unverified: "bg-gob-surface-alt text-gob-text-muted  ",
+  institutional_verified: "bg-[#eef6f0] text-[var(--color-ln-ok)]",
+  professional_verified: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]",
+  corroborated: "bg-[#fdf2e0] text-[var(--color-ln-warn)]",
+  self_reported: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
+  unverified: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-faint)]",
 };
 
 const ALL_TIERS: ConfidenceTier[] = [
@@ -76,13 +76,13 @@ describe("ConfidenceBadge style contract", () => {
   });
 
   it("higher-trust tiers use more prominent colors than self_reported/unverified", () => {
-    // Institutional uses success (green), semantically positive
-    expect(TIER_STYLES.institutional_verified).toContain("gob-success");
-    // Professional uses info / azul-link
-    expect(TIER_STYLES.professional_verified).toContain("gob-info");
-    // Lower tiers fade onto the neutral surface
-    expect(TIER_STYLES.self_reported).toContain("gob-surface-alt");
-    expect(TIER_STYLES.unverified).toContain("gob-surface-alt");
+    // Institutional uses ok (green), semantically positive
+    expect(TIER_STYLES.institutional_verified).toContain("ln-ok");
+    // Professional uses azul (blue)
+    expect(TIER_STYLES.professional_verified).toContain("ln-azul");
+    // Lower tiers fade onto the neutral stripe surface
+    expect(TIER_STYLES.self_reported).toContain("ln-stripe");
+    expect(TIER_STYLES.unverified).toContain("ln-stripe");
   });
 });
 
@@ -95,7 +95,7 @@ describe("ConfidenceBadge threshold usage (via isAtLeast)", () => {
     expect(isAtLeast("unverified", "professional_verified")).toBe(false);
   });
 
-  it("gob filter: only institutional passes the strict institutional gate", () => {
+  it("ln filter: only institutional passes the strict institutional gate", () => {
     expect(isAtLeast("institutional_verified", "institutional_verified")).toBe(true);
     expect(isAtLeast("professional_verified", "institutional_verified")).toBe(false);
   });
