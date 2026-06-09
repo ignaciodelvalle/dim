@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -14,9 +15,16 @@ import { findServiceKind } from "@/lib/service-kinds";
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending_approval: "Pendiente de revisión",
+  pending_approval: "Pendiente de revision",
   approved: "Aprobado",
   rejected: "Rechazado",
+};
+
+type StatusTone = "open" | "ok" | "danger";
+const STATUS_TONES: Record<string, StatusTone> = {
+  pending_approval: "open",
+  approved: "ok",
+  rejected: "danger",
 };
 
 export default async function GobServicioDetailPage({
@@ -74,125 +82,127 @@ export default async function GobServicioDetailPage({
         : "Profesional independiente";
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <Link
-            href="/gob/servicios"
-            className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-          >
-            ← Volver a servicios pendientes
-          </Link>
-        </div>
-
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">
-            {STATUS_LABELS[offering.status] ?? offering.status}
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            {offering.displayName}
-          </h1>
-          <p className="text-xs text-gob-text-muted ">
-            <span className="font-mono">{offering.publicToken}</span>
-            {location ? ` · ${location}` : ""}
-            {" · enviado "}
-            {new Date(offering.submittedAt).toLocaleString("es-AR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            })}
-          </p>
-        </header>
-
-        <Section title="Proveedor">
-          <p className="text-sm text-gob-text ">{providerLabel}</p>
-          {offering.organizationId && org?.legalName && (
-            <p className="text-xs text-gob-text-muted ">{org.legalName}</p>
-          )}
-        </Section>
-
-        <Section title="Servicio">
-          <p className="text-sm text-gob-text ">{kindLabel}</p>
-          {offering.description && (
-            <p className="text-xs text-gob-text-gray  mt-1">{offering.description}</p>
-          )}
-        </Section>
-
-        <Section title="Detalles">
-          <dl className="space-y-1 text-sm">
-            <div className="flex gap-3">
-              <dt className="text-gob-text-muted  w-32 shrink-0">Duración</dt>
-              <dd className="text-gob-text ">{offering.durationMinutes} min</dd>
-            </div>
-            <div className="flex gap-3">
-              <dt className="text-gob-text-muted  w-32 shrink-0">Capacidad</dt>
-              <dd className="text-gob-text ">
-                {offering.slotCapacity} turno{offering.slotCapacity === 1 ? "" : "s"} por slot
-              </dd>
-            </div>
-            <div className="flex gap-3">
-              <dt className="text-gob-text-muted  w-32 shrink-0">Precio</dt>
-              <dd className="text-gob-text ">
-                {offering.priceArs !== null
-                  ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
-                  : "Gratuito"}
-              </dd>
-            </div>
-            {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
-              <div className="flex gap-3">
-                <dt className="text-gob-text-muted  w-32 shrink-0">Especies</dt>
-                <dd className="text-gob-text ">{offering.eligibilitySpecies.join(", ")}</dd>
-              </div>
-            )}
-            {(offering.eligibilityAgeMinMonths !== null ||
-              offering.eligibilityAgeMaxMonths !== null) && (
-              <div className="flex gap-3">
-                <dt className="text-gob-text-muted  w-32 shrink-0">Edad elegible</dt>
-                <dd className="text-gob-text ">
-                  {offering.eligibilityAgeMinMonths !== null
-                    ? `desde ${offering.eligibilityAgeMinMonths} meses`
-                    : ""}
-                  {offering.eligibilityAgeMinMonths !== null &&
-                  offering.eligibilityAgeMaxMonths !== null
-                    ? " — "
-                    : ""}
-                  {offering.eligibilityAgeMaxMonths !== null
-                    ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
-                    : ""}
-                </dd>
-              </div>
-            )}
-          </dl>
-        </Section>
-
-        {offering.status === "pending_approval" ? (
-          <Section title="Decisión">
-            <OfferingReviewActions publicToken={offering.publicToken} />
-          </Section>
-        ) : (
-          <Section title="Decisión">
-            <p className="text-sm text-gob-text ">
-              {STATUS_LABELS[offering.status] ?? offering.status}
-              {offering.reviewedAt &&
-                ` el ${new Date(offering.reviewedAt).toLocaleString("es-AR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}`}
-            </p>
-            {offering.rejectionReason && (
-              <p className="text-xs text-gob-text-gray  mt-1">Motivo: {offering.rejectionReason}</p>
-            )}
-          </Section>
-        )}
+    <div className="space-y-6 max-w-3xl">
+      <div>
+        <Link
+          href="/gob/servicios"
+          className="text-[13px] text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
+        >
+          {"<-"} Volver a servicios pendientes
+        </Link>
       </div>
-    </main>
+
+      <header className="space-y-2">
+        <div className="flex items-center gap-2">
+          <OpPill tone={STATUS_TONES[offering.status] ?? "neutral"}>
+            {STATUS_LABELS[offering.status] ?? offering.status}
+          </OpPill>
+        </div>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <p className="text-[12px] text-ln-op-mute">
+          <OpCodeBadge tone="neutral">{offering.publicToken}</OpCodeBadge>
+          {location ? ` · ${location}` : ""}
+          {" · enviado "}
+          {new Date(offering.submittedAt).toLocaleString("es-AR", {
+            dateStyle: "short",
+            timeStyle: "short",
+          })}
+        </p>
+      </header>
+
+      <DetailSection title="Proveedor">
+        <p className="text-[13px] text-ln-op-ink">{providerLabel}</p>
+        {offering.organizationId && org?.legalName && (
+          <p className="text-[12px] text-ln-op-mute">{org.legalName}</p>
+        )}
+      </DetailSection>
+
+      <DetailSection title="Servicio">
+        <p className="text-[13px] text-ln-op-ink">{kindLabel}</p>
+        {offering.description && (
+          <p className="text-[12px] text-ln-op-ink-2 mt-1">{offering.description}</p>
+        )}
+      </DetailSection>
+
+      <DetailSection title="Detalles">
+        <dl className="space-y-1">
+          <div className="flex gap-3">
+            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Duracion</dt>
+            <dd className="text-[13px] text-ln-op-ink">{offering.durationMinutes} min</dd>
+          </div>
+          <div className="flex gap-3">
+            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Capacidad</dt>
+            <dd className="text-[13px] text-ln-op-ink">
+              {offering.slotCapacity} turno{offering.slotCapacity === 1 ? "" : "s"} por slot
+            </dd>
+          </div>
+          <div className="flex gap-3">
+            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Precio</dt>
+            <dd className="text-[13px] text-ln-op-ink">
+              {offering.priceArs !== null
+                ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
+                : "Gratuito"}
+            </dd>
+          </div>
+          {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
+            <div className="flex gap-3">
+              <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Especies</dt>
+              <dd className="text-[13px] text-ln-op-ink">
+                {offering.eligibilitySpecies.join(", ")}
+              </dd>
+            </div>
+          )}
+          {(offering.eligibilityAgeMinMonths !== null ||
+            offering.eligibilityAgeMaxMonths !== null) && (
+            <div className="flex gap-3">
+              <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
+              <dd className="text-[13px] text-ln-op-ink">
+                {offering.eligibilityAgeMinMonths !== null
+                  ? `desde ${offering.eligibilityAgeMinMonths} meses`
+                  : ""}
+                {offering.eligibilityAgeMinMonths !== null &&
+                offering.eligibilityAgeMaxMonths !== null
+                  ? " — "
+                  : ""}
+                {offering.eligibilityAgeMaxMonths !== null
+                  ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
+                  : ""}
+              </dd>
+            </div>
+          )}
+        </dl>
+      </DetailSection>
+
+      {offering.status === "pending_approval" ? (
+        <DetailSection title="Decision">
+          <OfferingReviewActions publicToken={offering.publicToken} />
+        </DetailSection>
+      ) : (
+        <DetailSection title="Decision">
+          <p className="text-[13px] text-ln-op-ink">
+            {STATUS_LABELS[offering.status] ?? offering.status}
+            {offering.reviewedAt &&
+              ` el ${new Date(offering.reviewedAt).toLocaleString("es-AR", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })}`}
+          </p>
+          {offering.rejectionReason && (
+            <p className="text-[12px] text-ln-op-ink-2 mt-1">Motivo: {offering.rejectionReason}</p>
+          )}
+        </DetailSection>
+      )}
+    </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-xs uppercase tracking-[0.18em] text-gob-text-muted ">{title}</h2>
-      <div className="rounded-lg border border-gob-border  p-4 space-y-1">{children}</div>
+      <h2 className="text-[10px] uppercase tracking-[0.18em] text-ln-op-mute">{title}</h2>
+      <OpCard>
+        <OpCardBody className="space-y-1">{children}</OpCardBody>
+      </OpCard>
     </section>
   );
 }
