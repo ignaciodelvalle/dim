@@ -8,10 +8,10 @@
 // Redesigned with Libreta Nacional design system (blue accordions, §11 handoff).
 // Server action, useActionState wiring, field names, and submit logic: untouched.
 
-import { LnSheetAccordion } from "@/components/ui/Sheet";
-import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
-import { LnCallout } from "@/components/ui/DocElements";
 import { LnChip, LnChipGroup } from "@/components/ui/Chip";
+import { LnCallout } from "@/components/ui/DocElements";
+import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
+import { LnSheetAccordion } from "@/components/ui/Sheet";
 import { LnToggle } from "@/components/ui/Toggle";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/ar-provincias";
@@ -111,9 +111,7 @@ export function PetForm({
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>(
     existingPet?.knownAllergies ?? [],
   );
-  const [selectedFoods, setSelectedFoods] = useState<string[]>(
-    existingPet?.favouriteFoods ?? [],
-  );
+  const [selectedFoods, setSelectedFoods] = useState<string[]>(existingPet?.favouriteFoods ?? []);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -146,12 +144,7 @@ export function PetForm({
       <LnPhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
 
       {/* ── 01 Lo básico ─────────────────────────────────── */}
-      <LnSheetAccordion
-        num="01"
-        title="Lo básico"
-        defaultOpen
-        complete={basicComplete}
-      >
+      <LnSheetAccordion num="01" title="Lo básico" defaultOpen complete={basicComplete}>
         <div className="flex flex-col gap-[12px]">
           <LnField label="Nombre" required>
             {({ id, describedBy, invalid }) => (
@@ -325,11 +318,7 @@ export function PetForm({
           </LnSheetAccordion>
 
           {/* ── 03 Salud y vida diaria ───────────────────────── */}
-          <LnSheetAccordion
-            num="03"
-            title="Salud y vida diaria"
-            complete={healthComplete}
-          >
+          <LnSheetAccordion num="03" title="Salud y vida diaria" complete={healthComplete}>
             <div className="flex flex-col gap-[12px]">
               <LnField label="Peso estimado" hint="En kilogramos.">
                 {({ id, describedBy }) => (
@@ -362,11 +351,9 @@ export function PetForm({
                   name="favouriteFoodsOther"
                   type="text"
                   placeholder="Otros (separá por coma si querés varios)"
-                  defaultValue={
-                    (existingPet?.favouriteFoods ?? [])
-                      .filter((v) => !new Set(COMMON_FOODS).has(v))
-                      .join(", ")
-                  }
+                  defaultValue={(existingPet?.favouriteFoods ?? [])
+                    .filter((v) => !new Set(COMMON_FOODS).has(v))
+                    .join(", ")}
                 />
               </div>
 
@@ -386,11 +373,9 @@ export function PetForm({
                   name="knownAllergiesOther"
                   type="text"
                   placeholder="Otros (separá por coma si querés varios)"
-                  defaultValue={
-                    (existingPet?.knownAllergies ?? [])
-                      .filter((v) => !new Set(COMMON_ALLERGIES).has(v))
-                      .join(", ")
-                  }
+                  defaultValue={(existingPet?.knownAllergies ?? [])
+                    .filter((v) => !new Set(COMMON_ALLERGIES).has(v))
+                    .join(", ")}
                 />
               </div>
 
@@ -601,7 +586,7 @@ export function PetForm({
             {pendingLabel ?? "Guardando..."}
           </>
         ) : (
-          submitLabel ?? (isEdit ? "Guardar cambios" : "Crear mascota")
+          (submitLabel ?? (isEdit ? "Guardar cambios" : "Crear mascota"))
         )}
       </button>
     </form>
@@ -641,8 +626,8 @@ function CustodyKindToggle({
       </div>
       {value === "foster_in_transit" && (
         <p className="rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[12px] py-[10px] text-[12px] text-[var(--color-ln-ink-2)]">
-          Vas a poder llevarle la libreta sanitaria mientras la cuidás. La información viaja
-          con la mascota si aparece su familia o pasa a un refugio.
+          Vas a poder llevarle la libreta sanitaria mientras la cuidás. La información viaja con la
+          mascota si aparece su familia o pasa a un refugio.
         </p>
       )}
     </div>

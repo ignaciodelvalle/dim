@@ -147,11 +147,13 @@ export function MedicationStartForm({
                   invalid={invalid}
                 >
                   <option value="">Seleccioná</option>
-                  {(Object.entries(FREQUENCY_LABELS) as [string, string][]).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
+                  {(Object.entries(FREQUENCY_LABELS) as [string, string][]).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                  )}
                 </LnSelect>
               )}
             </LnField>
@@ -202,10 +204,7 @@ export function MedicationStartForm({
 
           <LnRow>
             {/* Duration */}
-            <LnField
-              label="Duración (días)"
-              hint="Sin duración: 14 días de recordatorios."
-            >
+            <LnField label="Duración (días)" hint="Sin duración: 14 días de recordatorios.">
               {({ id, describedBy }) => (
                 <LnInput
                   id={id}

@@ -1,3 +1,4 @@
+import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, petEvents } from "@/db";
 import { formatDate } from "@/lib/format";
 import { requireOwnedPetByToken } from "@/lib/pets";
@@ -57,38 +58,31 @@ export default async function NewMedicationEndPage({
 
   const boundAction = createMedicationEndAction.bind(null, pet.publicToken);
 
-  return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Otro tipo de evento
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Fin de medicación
-          </h1>
-          <p className="text-sm text-gob-text-gray ">Cerrá un tratamiento activo de {pet.name}.</p>
-        </div>
-
-        {openMedications.length === 0 ? (
-          <div className="space-y-4">
-            <p className="text-sm text-gob-text-gray ">
-              No tenés medicaciones abiertas para {pet.name}.
+  if (openMedications.length === 0) {
+    return (
+      <LnSheetWrap>
+        <LnSheetCard>
+          <div className="px-[18px] py-[24px] space-y-[10px]">
+            <p className="text-[13px] text-[var(--color-ln-mute)]">
+              No hay medicaciones abiertas para {pet.name}.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+              className="inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
             >
               ← Volver al perfil
             </Link>
           </div>
-        ) : (
-          <MedicationEndForm action={boundAction} openMedications={openMedications} />
-        )}
-      </div>
-    </main>
+        </LnSheetCard>
+      </LnSheetWrap>
+    );
+  }
+
+  return (
+    <LnSheetWrap>
+      <LnSheetCard>
+        <MedicationEndForm action={boundAction} openMedications={openMedications} />
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }

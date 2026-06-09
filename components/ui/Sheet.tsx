@@ -45,7 +45,7 @@ import type { ReactNode } from "react";
 
 // ---------- Tone styles --------------------------------------------------
 
-export type LnSheetTone = "azul" | "verde" | "violeta" | "seal" | "warn";
+export type LnSheetTone = "azul" | "verde" | "violeta" | "seal" | "warn" | "rosa";
 
 const toneTopBorder: Record<LnSheetTone, string> = {
   azul: "border-t-[var(--color-ln-azul)]",
@@ -53,6 +53,7 @@ const toneTopBorder: Record<LnSheetTone, string> = {
   violeta: "border-t-[#6b4ea8]",
   seal: "border-t-[var(--color-ln-seal)]",
   warn: "border-t-[var(--color-ln-warn)]",
+  rosa: "border-t-[var(--color-ln-rosa)]",
 };
 
 const toneIconBg: Record<LnSheetTone, string> = {
@@ -61,6 +62,7 @@ const toneIconBg: Record<LnSheetTone, string> = {
   violeta: "bg-[#f0ecf8] text-[#6b4ea8] border-[#ddd2f0]",
   seal: "bg-[#fbe9e6] text-[var(--color-ln-seal)] border-[#f1c6bf]",
   warn: "bg-[#fdf2e0] text-[var(--color-ln-warn)] border-[#f0dcb4]",
+  rosa: "bg-[#fbe8f2] text-[var(--color-ln-rosa)] border-[#efbdd8]",
 };
 
 const toneCtaClass: Record<LnSheetTone, string> = {
@@ -69,6 +71,7 @@ const toneCtaClass: Record<LnSheetTone, string> = {
   violeta: "bg-[#6b4ea8] border-[#6b4ea8] hover:opacity-90",
   seal: "bg-[var(--color-ln-seal)] border-[var(--color-ln-seal)] hover:opacity-90",
   warn: "bg-[var(--color-ln-warn)] border-[var(--color-ln-warn)] hover:opacity-90",
+  rosa: "bg-[var(--color-ln-rosa)] border-[var(--color-ln-rosa)] hover:opacity-90",
 };
 
 // ---------- LnSheetPage (full page composition) --------------------------
@@ -107,7 +110,13 @@ export function LnSheetPage({
     <LnSheetWrap>
       {routeChip && <LnSheetRouteChip>{routeChip}</LnSheetRouteChip>}
       <LnSheetCard wide={wide}>
-        <LnSheetHeader tone={tone} icon={icon} title={title} subtitle={subtitle} onClose={onClose} />
+        <LnSheetHeader
+          tone={tone}
+          icon={icon}
+          title={title}
+          subtitle={subtitle}
+          onClose={onClose}
+        />
         <LnSheetBody>{children}</LnSheetBody>
         <LnSheetFooter
           tone={tone}
@@ -219,16 +228,10 @@ export function LnSheetHeader({
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <h1
-          className="m-0 font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]"
-          role="heading"
-          aria-level={1}
-        >
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {title}
         </h1>
-        {subtitle && (
-          <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">{subtitle}</p>
-        )}
+        {subtitle && <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">{subtitle}</p>}
       </div>
 
       {/* Close */}
@@ -251,11 +254,7 @@ export function LnSheetHeader({
 // ---------- LnSheetBody --------------------------------------------------
 
 export function LnSheetBody({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-[14px] px-[18px] py-[18px]">
-      {children}
-    </div>
-  );
+  return <div className="flex flex-col gap-[14px] px-[18px] py-[18px]">{children}</div>;
 }
 
 // ---------- LnSheetFooter ------------------------------------------------
@@ -456,9 +455,7 @@ export function LnSheetAccordion({
           ›
         </span>
       </summary>
-      <div className="border-t border-[var(--color-ln-line-2)] px-[14px] py-[14px]">
-        {children}
-      </div>
+      <div className="border-t border-[var(--color-ln-line-2)] px-[14px] py-[14px]">{children}</div>
     </details>
   );
 }

@@ -145,19 +145,13 @@ export function VaccinationForm({
 
           <LnField label="Aplicada por (vet / clínica)">
             {({ id, describedBy }) => (
-              <LnInput
-                id={id}
-                name="administeredBy"
-                type="text"
-                aria-describedby={describedBy}
-              />
+              <LnInput id={id} name="administeredBy" type="text" aria-describedby={describedBy} />
             )}
           </LnField>
 
           <LnCallout tone="azul" title="Asiento certificable">
             Este registro queda firmado digitalmente en la libreta oficial. Si la aplicó un
-            veterinario matriculado y agregás su nombre, el asiento puede certificarse como
-            oficial.
+            veterinario matriculado y agregás su nombre, el asiento puede certificarse como oficial.
           </LnCallout>
 
           <LnField label="Notas">

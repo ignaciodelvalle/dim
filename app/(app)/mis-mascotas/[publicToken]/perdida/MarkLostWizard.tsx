@@ -6,6 +6,8 @@
 
 import { useRef, useState, useTransition } from "react";
 
+import { LocationFields } from "@/components/LocationFields";
+import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
@@ -17,8 +19,6 @@ import {
   LnSubCard,
 } from "@/components/ui/Sheet";
 import { LnToggle } from "@/components/ui/Toggle";
-import { LocationFields } from "@/components/LocationFields";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
 import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
 
@@ -180,14 +180,12 @@ export function MarkLostWizard({
       <LnSheetBody>
         {/* Step progress bar */}
         <div className="flex gap-[6px]">
-          {Array.from({ length: totalSteps }, (_, i) => (
+          {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n) => (
             <div
-              key={i}
+              key={`step-${n}`}
               className={[
                 "h-[3px] flex-1 rounded-full transition-colors",
-                i < step
-                  ? "bg-[var(--color-ln-seal)]"
-                  : "bg-[var(--color-ln-line-strong)]",
+                n <= step ? "bg-[var(--color-ln-seal)]" : "bg-[var(--color-ln-line-strong)]",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -384,9 +382,7 @@ export function MarkLostWizard({
                     key={toggle.formName}
                     variant="amber"
                     checked={disclosure[toggle.formName] ?? toggle.defaultOn}
-                    onChange={(v) =>
-                      setDisclosure((prev) => ({ ...prev, [toggle.formName]: v }))
-                    }
+                    onChange={(v) => setDisclosure((prev) => ({ ...prev, [toggle.formName]: v }))}
                     label={toggle.label}
                     description={toggle.description}
                   />
@@ -398,7 +394,7 @@ export function MarkLostWizard({
                   key={toggle.formName}
                   type="hidden"
                   name={toggle.formName}
-                  value={disclosure[toggle.formName] ?? toggle.defaultOn ? "on" : ""}
+                  value={(disclosure[toggle.formName] ?? toggle.defaultOn) ? "on" : ""}
                 />
               ))}
             </LnSubCard>

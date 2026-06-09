@@ -39,13 +39,7 @@ export function AttachmentField() {
         </svg>
         <span>Elegir imagen adjunta — hasta 5 MB</span>
       </label>
-      <input
-        id="attachment"
-        name="attachment"
-        type="file"
-        accept="image/*"
-        className="sr-only"
-      />
+      <input id="attachment" name="attachment" type="file" accept="image/*" className="sr-only" />
       <p className="font-[var(--font-ln-mono)] text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)]">
         Imagen de hasta 5 MB. Por ejemplo: carnet, receta, o foto del momento.
       </p>
