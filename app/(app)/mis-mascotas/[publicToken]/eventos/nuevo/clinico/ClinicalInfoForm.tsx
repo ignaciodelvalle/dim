@@ -3,15 +3,15 @@
 import { useActionState, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
-import { Field, Input, Select, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
-
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
-
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
+const FORM_ID = "clinical-info-form";
 
 const SUB_KINDS = [
   { value: "lab_work", label: "Análisis de laboratorio" },
@@ -38,122 +38,115 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <form action={formAction} className="space-y-5">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      {/* Sub-kind */}
-      <Field label="Tipo" required>
-        {({ id, describedBy, invalid }) => (
-          <Select
-            id={id}
-            name="subKind"
-            required
-            value={subKind}
-            onChange={(e) => setSubKind(e.target.value as SubKind)}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          >
-            {SUB_KINDS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-        )}
-      </Field>
-
-      {/* Title */}
-      <Field label="Título / nombre" required>
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="title"
-            type="text"
-            required
-            placeholder={TITLE_PLACEHOLDERS[subKind]}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      {/* Details */}
-      <Field label="Detalles, resultados, observaciones">
-        {({ id, describedBy }) => (
-          <Textarea
-            id={id}
-            name="details"
-            rows={4}
-            placeholder="Resultados, valores de referencia, comentarios del veterinario…"
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
-
-      {/* Performed by */}
-      <Field label="Realizado por (vet / clínica)">
-        {({ id, describedBy }) => (
-          <Input
-            id={id}
-            name="performedBy"
-            type="text"
-            placeholder="Dr. García · Clínica Veterinaria X"
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
-
-      {/* Date */}
-      <Field label="Fecha" required>
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="occurredAt"
-            type="date"
-            required
-            defaultValue={today}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      {/* Notes */}
-      <Field label="Notas adicionales">
-        {({ id, describedBy }) => (
-          <Textarea
-            id={id}
-            name="notes"
-            rows={3}
-            placeholder="Cualquier detalle extra que quieras recordar…"
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
-
-      <details className="rounded-lg border border-gob-border  p-3">
-        <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
-          Ubicación (opcional)
-        </summary>
-        <div className="mt-3">
-          <LocationFields mode="l1" />
-        </div>
-      </details>
-
-      <AttachmentField />
-
-      {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
-          {state.error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Guardando..." : "Guardar información clínica"}
-      </button>
-    </form>
+    <>
+      <LnSheetHeader
+        tone="azul"
+        icon="🔬"
+        title="Información clínica"
+        subtitle="Libreta sanitaria oficial"
+      />
+      <LnSheetBody>
+        <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+          <LnField label="Tipo" required>
+            {({ id, describedBy, invalid }) => (
+              <LnSelect
+                id={id}
+                name="subKind"
+                required
+                value={subKind}
+                onChange={(e) => setSubKind(e.target.value as SubKind)}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              >
+                {SUB_KINDS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </LnSelect>
+            )}
+          </LnField>
+          <LnField label="Título / nombre" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="title"
+                type="text"
+                required
+                placeholder={TITLE_PLACEHOLDERS[subKind]}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Detalles, resultados, observaciones">
+            {({ id, describedBy }) => (
+              <LnTextarea
+                id={id}
+                name="details"
+                rows={4}
+                placeholder="Resultados, valores de referencia, comentarios del veterinario…"
+                aria-describedby={describedBy}
+              />
+            )}
+          </LnField>
+          <LnField label="Realizado por (vet / clínica)">
+            {({ id, describedBy }) => (
+              <LnInput
+                id={id}
+                name="performedBy"
+                type="text"
+                placeholder="Dr. García · Clínica Veterinaria X"
+                aria-describedby={describedBy}
+              />
+            )}
+          </LnField>
+          <LnField label="Fecha" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="occurredAt"
+                type="date"
+                required
+                mono
+                defaultValue={today}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Notas adicionales">
+            {({ id, describedBy }) => (
+              <LnTextarea
+                id={id}
+                name="notes"
+                rows={3}
+                placeholder="Cualquier detalle extra que quieras recordar…"
+                aria-describedby={describedBy}
+              />
+            )}
+          </LnField>
+          <LnSheetAccordion num="+" title="Ubicación">
+            <LocationFields mode="l1" />
+          </LnSheetAccordion>
+          <AttachmentField />
+          {state.error && (
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
+            >
+              {state.error}
+            </p>
+          )}
+        </form>
+      </LnSheetBody>
+      <LnSheetFooter
+        tone="azul"
+        ctaLabel="Guardar información clínica"
+        formId={FORM_ID}
+        isPending={isPending}
+      />
+    </>
   );
 }

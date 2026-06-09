@@ -3,13 +3,20 @@
 import { useActionState, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
-import { Checkbox, Field, Input, Select, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import {
+  LnSheetAccordion,
+  LnSheetBody,
+  LnSheetFooter,
+  LnSheetHeader,
+  LnSubCard,
+} from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { BiteFormState } from "@/src/modules/surveillance/actions";
 
 const initialState: BiteFormState = { error: null };
-
 type FormAction = (prev: BiteFormState, formData: FormData) => Promise<BiteFormState>;
+const FORM_ID = "bite-form";
 
 export function BiteForm({
   action,
@@ -22,176 +29,199 @@ export function BiteForm({
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const [victimKind, setVictimKind] = useState<"human" | "animal" | "unknown">("human");
+  const [confirmObservation, setConfirmObservation] = useState(false);
 
   return (
-    <form action={formAction} className="space-y-5">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <Field label="Fecha del incidente" required>
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="occurredAt"
-            type="date"
-            required
-            max={today}
-            defaultValue={today}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field label="Lugar">
-        {({ id, describedBy }) => (
-          <Input
-            id={id}
-            name="locationDescription"
-            type="text"
-            placeholder="Ej: Plaza Italia, esquina Cerviño"
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
-
-      <details className="rounded-lg border border-gob-border  p-3">
-        <summary className="text-sm font-medium text-gob-text-gray  cursor-pointer">
-          Provincia y localidad (opcional)
-        </summary>
-        <div className="mt-3">
-          <LocationFields mode="l1" />
-        </div>
-      </details>
-
-      <div className="space-y-1.5">
-        <p className="block text-[0.88em] font-semibold text-gob-text-muted">
-          ¿A quién mordió {petName}?
-          <span className="ml-1 text-gob-danger" aria-hidden="true">
-            *
-          </span>
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          {(
-            [
-              { value: "human", label: "Persona" },
-              { value: "animal", label: "Otro animal" },
-              { value: "unknown", label: "No sé" },
-            ] as const
-          ).map((opt) => (
-            <label
-              key={opt.value}
-              className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
-                victimKind === opt.value
-                  ? "border-gob-border-strong bg-gob-surface-alt  "
-                  : "border-gob-border-strong "
-              }`}
-            >
-              <input
-                type="radio"
-                name="victimKind"
-                value={opt.value}
-                checked={victimKind === opt.value}
-                onChange={() => setVictimKind(opt.value)}
-                className="sr-only"
+    <>
+      <LnSheetHeader
+        tone="seal"
+        icon="🦷"
+        title="Reportar mordedura"
+        subtitle="Libreta sanitaria oficial"
+      />
+      <LnSheetBody>
+        <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+          <LnField label="Fecha del incidente" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="occurredAt"
+                type="date"
+                required
+                mono
+                max={today}
+                defaultValue={today}
+                aria-describedby={describedBy}
+                invalid={invalid}
               />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-      </div>
+            )}
+          </LnField>
+          <LnField label="Lugar">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="locationDescription"
+                type="text"
+                placeholder="Ej: Plaza Italia, esquina Cerviño"
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnSheetAccordion num="+" title="Provincia y localidad">
+            <LocationFields mode="l1" />
+          </LnSheetAccordion>
 
-      {victimKind === "human" && (
-        <div className="rounded-xl border border-gob-border  p-4 space-y-3 bg-gob-surface-alt ">
-          <p className="text-xs text-gob-text-gray ">
-            Estos datos quedan en el registro para denuncia obligatoria si la autoridad sanitaria
-            los pide. Opcionales.
-          </p>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="victimContactName"
-              className="text-xs uppercase tracking-wider text-gob-text-muted"
-            >
-              Nombre de la persona
-            </label>
-            <Input id="victimContactName" name="victimContactName" type="text" />
+          {/* Victim kind — pill radio group */}
+          <div className="flex flex-col gap-[6px]">
+            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+              ¿A quién mordió {petName}?{" "}
+              <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
+                *
+              </span>
+            </p>
+            <div className="grid grid-cols-3 gap-[6px]">
+              {(
+                [
+                  { value: "human", label: "Persona" },
+                  { value: "animal", label: "Otro animal" },
+                  { value: "unknown", label: "No sé" },
+                ] as const
+              ).map((opt) => (
+                <label
+                  key={opt.value}
+                  className={[
+                    "flex cursor-pointer items-center justify-center rounded-[3px] border px-[10px] py-[8px]",
+                    "font-[var(--font-ln-mono)] text-[11px] font-semibold transition-colors",
+                    victimKind === opt.value
+                      ? "border-[var(--color-ln-seal)] bg-[#fbe9e6] text-[var(--color-ln-seal)]"
+                      : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)]",
+                  ].join(" ")}
+                >
+                  <input
+                    type="radio"
+                    name="victimKind"
+                    value={opt.value}
+                    checked={victimKind === opt.value}
+                    onChange={() => setVictimKind(opt.value)}
+                    className="sr-only"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="victimContactPhone"
-              className="text-xs uppercase tracking-wider text-gob-text-muted"
-            >
-              Teléfono
+
+          {victimKind === "human" && (
+            <LnSubCard heading="Datos de la persona (opcionales)">
+              <p className="text-[11.5px] text-[var(--color-ln-mute)]">
+                Quedan en el registro para denuncia obligatoria si la autoridad sanitaria los pide.
+              </p>
+              <LnField label="Nombre">
+                {({ id, describedBy, invalid }) => (
+                  <LnInput
+                    id={id}
+                    name="victimContactName"
+                    type="text"
+                    aria-describedby={describedBy}
+                    invalid={invalid}
+                  />
+                )}
+              </LnField>
+              <LnField label="Teléfono">
+                {({ id, describedBy, invalid }) => (
+                  <LnInput
+                    id={id}
+                    name="victimContactPhone"
+                    type="tel"
+                    aria-describedby={describedBy}
+                    invalid={invalid}
+                  />
+                )}
+              </LnField>
+              <LnField label="Edad aproximada">
+                {({ id, describedBy, invalid }) => (
+                  <LnInput
+                    id={id}
+                    name="victimAgeEstimate"
+                    type="text"
+                    placeholder="Ej: niño, adulto, mayor"
+                    aria-describedby={describedBy}
+                    invalid={invalid}
+                  />
+                )}
+              </LnField>
+            </LnSubCard>
+          )}
+
+          <LnField label="Severidad" required>
+            {({ id, describedBy, invalid }) => (
+              <LnSelect
+                id={id}
+                name="severity"
+                required
+                defaultValue=""
+                aria-describedby={describedBy}
+                invalid={invalid}
+              >
+                <option value="" disabled>
+                  Elegí una opción
+                </option>
+                <option value="minor">Leve — sin sangrado, rasguño</option>
+                <option value="moderate">Moderada — sangrado, requiere atención</option>
+                <option value="severe">Grave — heridas profundas, hospital</option>
+              </LnSelect>
+            )}
+          </LnField>
+          <LnField label="Contexto">
+            {({ id, describedBy, invalid }) => (
+              <LnTextarea
+                id={id}
+                name="context"
+                rows={3}
+                placeholder="Ej: estaba jugando con el perro del vecino y se asustó cuando lo abrazaron."
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+
+          {/* Legal warning + observation checkbox */}
+          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-[14px]">
+            <label className="flex cursor-pointer items-start gap-[10px]">
+              <input
+                type="checkbox"
+                name="confirmObservation"
+                value="true"
+                required
+                checked={confirmObservation}
+                onChange={(e) => setConfirmObservation(e.target.checked)}
+                className="mt-[2px] h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-warn)]"
+              />
+              <span className="text-[12.5px] font-semibold text-[var(--color-ln-warn)]">
+                Entiendo que reportar esto inicia un período de observación antirrábica obligatorio
+                de 10 días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
+              </span>
             </label>
-            <Input id="victimContactPhone" name="victimContactPhone" type="tel" />
           </div>
-          <div className="space-y-1.5">
-            <label
-              htmlFor="victimAgeEstimate"
-              className="text-xs uppercase tracking-wider text-gob-text-muted"
+
+          {state.error && (
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
             >
-              Edad aproximada
-            </label>
-            <Input
-              id="victimAgeEstimate"
-              name="victimAgeEstimate"
-              type="text"
-              placeholder="Ej: niño, adulto, mayor"
-            />
-          </div>
-        </div>
-      )}
-
-      <Field label="Severidad" required>
-        {({ id, describedBy, invalid }) => (
-          <Select
-            id={id}
-            name="severity"
-            required
-            defaultValue=""
-            aria-describedby={describedBy}
-            invalid={invalid}
-          >
-            <option value="" disabled>
-              Elegí una opción
-            </option>
-            <option value="minor">Leve — sin sangrado, rasguño</option>
-            <option value="moderate">Moderada — sangrado, requiere atención</option>
-            <option value="severe">Grave — heridas profundas, hospital</option>
-          </Select>
-        )}
-      </Field>
-
-      <Field label="Contexto">
-        {({ id, describedBy }) => (
-          <Textarea
-            id={id}
-            name="context"
-            rows={3}
-            placeholder="Ej: estaba jugando con el perro del vecino y se asustó cuando lo abrazaron."
-            aria-describedby={describedBy}
-          />
-        )}
-      </Field>
-
-      <div className="rounded-xl border border-gob-warning  bg-gob-warning/10  p-4 space-y-2">
-        <Checkbox name="confirmObservation" required labelClassName="text-gob-warning-text!">
-          Entiendo que reportar esto inicia un período de observación antirrábica obligatorio de 10
-          días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
-        </Checkbox>
-      </div>
-
-      {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
-          {state.error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-warning  text-white font-medium hover:bg-gob-warning  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Reportando..." : "Reportar mordedura"}
-      </button>
-    </form>
+              {state.error}
+            </p>
+          )}
+        </form>
+      </LnSheetBody>
+      <LnSheetFooter
+        tone="seal"
+        ctaLabel="Reportar mordedura"
+        formId={FORM_ID}
+        isPending={isPending}
+      />
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import { PetForm } from "@/components/PetForm";
+import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
 import { attachments, db } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
 import { petPhotoUrl } from "@/lib/storage";
@@ -23,32 +24,31 @@ export default async function EditPetPage({
     ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
     : [];
 
-  // Bind the publicToken into the action so the form doesn't have to send it.
   const boundAction = updatePetAction.bind(null, publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Volver al perfil
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Editar {pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Cualquier cambio se guarda como un evento `pet_profile_updated` en el historial.
-          </p>
-        </div>
-        <PetForm
-          action={boundAction}
-          existingPet={pet}
-          existingPhotoUrl={petPhotoUrl(photo?.storagePath)}
+    <LnSheetWrap>
+      <LnSheetCard wide>
+        <LnSheetHeader
+          tone="azul"
+          icon="✏️"
+          title={`Editar ${pet.name}`}
+          subtitle="Cualquier cambio queda registrado en la libreta"
         />
-      </div>
-    </main>
+        <div className="flex flex-col gap-[14px] px-[18px] py-[18px]">
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}`}
+            className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+          >
+            ← Volver al perfil
+          </Link>
+          <PetForm
+            action={boundAction}
+            existingPet={pet}
+            existingPhotoUrl={petPhotoUrl(photo?.storagePath)}
+          />
+        </div>
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }

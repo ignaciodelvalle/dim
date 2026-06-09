@@ -1,6 +1,6 @@
+import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { createMicrochipAction } from "@/src/modules/events/actions";
-import Link from "next/link";
 import { MicrochipForm } from "./MicrochipForm";
 
 export default async function NewMicrochipPage({
@@ -24,25 +24,10 @@ export default async function NewMicrochipPage({
   const boundAction = createMicrochipAction.bind(null, pet.publicToken);
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-md mx-auto pt-8 space-y-8">
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo`}
-          className="inline-block text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
-        >
-          ← Otro tipo de evento
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text ">
-            Microchip implantado
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Registrá el microchip de {pet.name}. Si el perfil aún no tiene número de chip, lo
-            completamos automáticamente.
-          </p>
-        </div>
+    <LnSheetWrap>
+      <LnSheetCard>
         <MicrochipForm action={boundAction} defaults={defaults} />
-      </div>
-    </main>
+      </LnSheetCard>
+    </LnSheetWrap>
   );
 }

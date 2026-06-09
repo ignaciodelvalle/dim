@@ -2,14 +2,16 @@
 
 import { useActionState } from "react";
 
-import { Field, Input, Radio, Textarea } from "@/components/poncho";
+import { Radio } from "@/components/poncho";
+import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
-
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
+const FORM_ID = "deworming-form";
 
 export function DewormingForm({
   action,
@@ -23,94 +25,104 @@ export function DewormingForm({
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <form action={formAction} className="space-y-5">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <Field label="Producto" required>
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="product"
-            type="text"
-            required
-            defaultValue={defaults?.product ?? undefined}
-            placeholder="Frontline, Advocate, Milbemax..."
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <div className="space-y-1.5">
-        <p className="block mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">
-          Tipo<span className="text-gob-danger ml-0.5">*</span>
-        </p>
-        <div className="flex flex-col gap-2">
-          <Radio name="type" value="internal" required>
-            Interno
-          </Radio>
-          <Radio name="type" value="external">
-            Externo
-          </Radio>
-          <Radio name="type" value="both">
-            Ambos
-          </Radio>
-        </div>
-      </div>
-
-      <Field label="Fecha de aplicación" required>
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="occurredAt"
-            type="date"
-            required
-            defaultValue={defaults?.occurredAt ?? today}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field label="Próxima dosis" help="Opcional — crea un recordatorio automático.">
-        {({ id, describedBy, invalid }) => (
-          <Input
-            id={id}
-            name="nextDueAt"
-            type="date"
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <Field label="Notas">
-        {({ id, describedBy, invalid }) => (
-          <Textarea
-            id={id}
-            name="notes"
-            rows={3}
-            defaultValue={defaults?.notes ?? ""}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          />
-        )}
-      </Field>
-
-      <AttachmentField />
-
-      {state.error && (
-        <p className="text-sm text-gob-danger" role="alert">
-          {state.error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Guardando..." : "Registrar antiparasitario"}
-      </button>
-    </form>
+    <>
+      <LnSheetHeader
+        tone="verde"
+        icon="💊"
+        title="Registrar antiparasitario"
+        subtitle="Libreta sanitaria oficial"
+      />
+      <LnSheetBody>
+        <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+          <LnField label="Producto" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="product"
+                type="text"
+                required
+                defaultValue={defaults?.product ?? undefined}
+                placeholder="Frontline, Advocate, Milbemax..."
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <div className="flex flex-col gap-[6px]">
+            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+              Tipo{" "}
+              <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
+                *
+              </span>
+            </p>
+            <div className="flex flex-col gap-[6px]">
+              <Radio name="type" value="internal" required>
+                Interno
+              </Radio>
+              <Radio name="type" value="external">
+                Externo
+              </Radio>
+              <Radio name="type" value="both">
+                Ambos
+              </Radio>
+            </div>
+          </div>
+          <LnField label="Fecha de aplicación" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="occurredAt"
+                type="date"
+                required
+                mono
+                defaultValue={defaults?.occurredAt ?? today}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Próxima dosis" hint="Opcional — crea un recordatorio automático.">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="nextDueAt"
+                type="date"
+                mono
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Notas">
+            {({ id, describedBy, invalid }) => (
+              <LnTextarea
+                id={id}
+                name="notes"
+                rows={3}
+                defaultValue={defaults?.notes ?? ""}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <AttachmentField />
+          {state.error && (
+            <p
+              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              role="alert"
+            >
+              {state.error}
+            </p>
+          )}
+        </form>
+      </LnSheetBody>
+      <LnSheetFooter
+        tone="verde"
+        ctaLabel="Registrar antiparasitario"
+        formId={FORM_ID}
+        isPending={isPending}
+      />
+    </>
   );
 }
