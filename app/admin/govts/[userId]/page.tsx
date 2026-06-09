@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { and, desc, eq, isNull, not } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
 import { AssignLocalityForm } from "@/app/admin/govts/_components/AssignLocalityForm";
 import { DeactivateGovtActions } from "@/app/admin/govts/_components/DeactivateGovtForm";
 import { RevokeLocalityRowActions } from "@/app/admin/govts/_components/RevokeLocalityRowActions";
+import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -75,76 +76,69 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Back nav */}
-        <p className="text-xs text-gob-text-muted ">
-          <Link
-            href="/admin/govts"
-            className="underline underline-offset-4 hover:text-gob-text-gray "
-          >
-            &larr; Volver a Gobiernos
+        <p className="text-[12px] text-ln-op-mute">
+          <Link href="/admin/govts" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+            {"<-"} Volver a Gobiernos
           </Link>
         </p>
 
         {/* Identity card */}
-        <section className="rounded-lg border border-gob-border  p-5 space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-                {govt.displayName}
-              </h1>
-              <p className="text-sm text-gob-text-muted ">{email}</p>
-            </div>
-            <span
-              className={`px-2 py-0.5 rounded uppercase tracking-wider text-[10px] shrink-0 ${
-                isActive
-                  ? "bg-gob-success/10 text-gob-success  "
-                  : "bg-gob-surface-alt text-gob-text-gray  "
-              }`}
-            >
-              {isActive ? "Activo" : "Desactivado"}
-            </span>
-          </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <dt className="text-gob-text-muted ">Tipo de cuenta</dt>
-            <dd className="text-gob-text  capitalize">{govt.accountType}</dd>
-            <dt className="text-gob-text-muted ">Rol</dt>
-            <dd className="text-gob-text ">Gobierno</dd>
-            <dt className="text-gob-text-muted ">Creado</dt>
-            <dd className="text-gob-text ">{govt.createdAt.toLocaleDateString("es-AR")}</dd>
-            {!isActive && govt.deactivatedAt && (
-              <>
-                <dt className="text-gob-text-muted ">Desactivado</dt>
-                <dd className="text-gob-danger ">
-                  {govt.deactivatedAt.toLocaleDateString("es-AR")}
-                </dd>
-              </>
-            )}
-          </dl>
-        </section>
+        <OpCard>
+          <OpCardHead
+            title={govt.displayName}
+            actions={
+              <OpPill tone={isActive ? "ok" : "neutral"}>
+                {isActive ? "Activo" : "Desactivado"}
+              </OpPill>
+            }
+          />
+          <OpCardBody>
+            <p className="text-[12px] text-ln-op-mute mb-3">{email}</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+              <dt className="text-ln-op-mute">Tipo de cuenta</dt>
+              <dd className="text-ln-op-ink capitalize">{govt.accountType}</dd>
+              <dt className="text-ln-op-mute">Rol</dt>
+              <dd className="text-ln-op-ink">Gobierno</dd>
+              <dt className="text-ln-op-mute">Creado</dt>
+              <dd className="text-ln-op-ink">{govt.createdAt.toLocaleDateString("es-AR")}</dd>
+              {!isActive && govt.deactivatedAt && (
+                <>
+                  <dt className="text-ln-op-mute">Desactivado</dt>
+                  <dd className="text-ln-op-danger">
+                    {govt.deactivatedAt.toLocaleDateString("es-AR")}
+                  </dd>
+                </>
+              )}
+            </dl>
+          </OpCardBody>
+        </OpCard>
 
         {/* Active localities */}
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-gob-text ">
+          <h2 className="text-[13px] font-semibold text-ln-op-ink">
             Localidades activas ({activeAssignments.length})
           </h2>
 
           {activeAssignments.length === 0 ? (
-            <p className="text-xs text-gob-text-muted ">Sin localidades activas.</p>
+            <p className="text-[12px] text-ln-op-mute">Sin localidades activas.</p>
           ) : (
             <ul className="space-y-2">
               {activeAssignments.map((a) => {
                 const label = `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
                 return (
-                  <li key={a.id} className="rounded border border-gob-border  px-3 py-2 space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-gob-text ">{label}</span>
-                      {isActive && (
-                        <RevokeLocalityRowActions
-                          assignmentId={a.id}
-                          localityLabel={label}
-                          actorUserId={actorUser.id}
-                        />
-                      )}
-                    </div>
+                  <li key={a.id}>
+                    <OpCard>
+                      <OpCardBody className="flex items-center justify-between gap-3">
+                        <span className="text-[13px] text-ln-op-ink">{label}</span>
+                        {isActive && (
+                          <RevokeLocalityRowActions
+                            assignmentId={a.id}
+                            localityLabel={label}
+                            actorUserId={actorUser.id}
+                          />
+                        )}
+                      </OpCardBody>
+                    </OpCard>
                   </li>
                 );
               })}
@@ -162,15 +156,15 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         {/* Revoked localities (collapsible) */}
         {revokedAssignments.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-sm text-gob-text-muted  hover:text-gob-text-gray  select-none">
+            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
               Localidades revocadas ({revokedAssignments.length})
             </summary>
             <ul className="mt-2 space-y-1">
               {revokedAssignments.map((a) => (
-                <li key={a.id} className="text-xs text-gob-text-muted  px-3">
+                <li key={a.id} className="text-[12px] text-ln-op-mute px-3">
                   {a.jurisdictionLocality}, {a.jurisdictionProvince}
                   {a.revokedAt && (
-                    <span className="ml-2 text-gob-text-muted ">
+                    <span className="ml-2 text-ln-op-faint">
                       (revocada {a.revokedAt.toLocaleDateString("es-AR")})
                     </span>
                   )}
@@ -183,7 +177,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         {/* Account actions */}
         {isActive && (
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-gob-text ">Acciones de cuenta</h2>
+            <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
             <div className="flex items-start gap-3 flex-wrap">
               <DeactivateGovtActions
                 target={{
@@ -205,21 +199,19 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
 
         {/* Audit log tail */}
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-gob-text ">
+          <h2 className="text-[13px] font-semibold text-ln-op-ink">
             Audit log (ultimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
-            <p className="text-xs text-gob-text-muted ">Sin registros.</p>
+            <p className="text-[12px] text-ln-op-mute">Sin registros.</p>
           ) : (
             <ul className="space-y-1">
               {auditEntries.map((entry) => (
-                <li key={entry.id} className="text-xs text-gob-text-gray  flex items-center gap-3">
-                  <span className="tabular-nums text-gob-text-muted  shrink-0">
+                <li key={entry.id} className="text-[12px] text-ln-op-ink-2 flex items-center gap-3">
+                  <span className="tabular-nums text-ln-op-mute shrink-0">
                     {entry.performedAt.toLocaleDateString("es-AR")}
                   </span>
-                  <code className="text-[10px] bg-gob-surface-alt  px-1 py-0.5 rounded">
-                    {entry.action}
-                  </code>
+                  <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
                 </li>
               ))}
             </ul>

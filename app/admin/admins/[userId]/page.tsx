@@ -5,6 +5,7 @@ import { and, count, desc, eq, isNull } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
+import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -85,63 +86,55 @@ export default async function AdminDetailPage({
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Back nav */}
-        <p className="text-xs text-gob-text-muted ">
+        <p className="text-[12px] text-ln-op-mute">
           <Link
             href="/admin/admins"
-            className="underline underline-offset-4 hover:text-gob-text-gray "
+            className="underline underline-offset-4 hover:text-ln-op-ink-2"
           >
-            &larr; Volver a Administradores
+            {"<-"} Volver a Administradores
           </Link>
         </p>
 
         {/* Identity card */}
-        <section className="rounded-lg border border-gob-border  p-5 space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-                  {target.displayName}
-                </h1>
-                {isSelf && (
-                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-gob-warning/10 text-gob-warning-text   rounded">
-                    Vos
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gob-text-muted ">{email}</p>
-            </div>
-            <span
-              className={`px-2 py-0.5 rounded uppercase tracking-wider text-[10px] shrink-0 ${
-                isActive
-                  ? "bg-gob-success/10 text-gob-success  "
-                  : "bg-gob-surface-alt text-gob-text-gray  "
-              }`}
-            >
-              {isActive ? "Activo" : "Desactivado"}
-            </span>
-          </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <dt className="text-gob-text-muted ">Tipo de cuenta</dt>
-            <dd className="text-gob-text  capitalize">{target.accountType}</dd>
-            <dt className="text-gob-text-muted ">Rol</dt>
-            <dd className="text-gob-text ">Administrador</dd>
-            <dt className="text-gob-text-muted ">Creado</dt>
-            <dd className="text-gob-text ">{target.createdAt.toLocaleDateString("es-AR")}</dd>
-            {!isActive && target.deactivatedAt && (
-              <>
-                <dt className="text-gob-text-muted ">Desactivado</dt>
-                <dd className="text-gob-danger ">
-                  {target.deactivatedAt.toLocaleDateString("es-AR")}
-                </dd>
-              </>
-            )}
-          </dl>
-        </section>
+        <OpCard>
+          <OpCardHead
+            title={
+              <span className="flex items-center gap-2">
+                {target.displayName}
+                {isSelf && <OpPill tone="open">Vos</OpPill>}
+              </span>
+            }
+            actions={
+              <OpPill tone={isActive ? "ok" : "neutral"}>
+                {isActive ? "Activo" : "Desactivado"}
+              </OpPill>
+            }
+          />
+          <OpCardBody>
+            <p className="text-[12px] text-ln-op-mute mb-3">{email}</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+              <dt className="text-ln-op-mute">Tipo de cuenta</dt>
+              <dd className="text-ln-op-ink capitalize">{target.accountType}</dd>
+              <dt className="text-ln-op-mute">Rol</dt>
+              <dd className="text-ln-op-ink">Administrador</dd>
+              <dt className="text-ln-op-mute">Creado</dt>
+              <dd className="text-ln-op-ink">{target.createdAt.toLocaleDateString("es-AR")}</dd>
+              {!isActive && target.deactivatedAt && (
+                <>
+                  <dt className="text-ln-op-mute">Desactivado</dt>
+                  <dd className="text-ln-op-danger">
+                    {target.deactivatedAt.toLocaleDateString("es-AR")}
+                  </dd>
+                </>
+              )}
+            </dl>
+          </OpCardBody>
+        </OpCard>
 
         {/* Account actions */}
         {isActive && actorProfile && (
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-gob-text ">Acciones de cuenta</h2>
+            <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
             <div className="flex items-start gap-3 flex-wrap">
               <DeactivateAdminActions
                 target={{ id: target.id, displayName: target.displayName }}
@@ -167,21 +160,19 @@ export default async function AdminDetailPage({
 
         {/* Audit log tail */}
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-gob-text ">
+          <h2 className="text-[13px] font-semibold text-ln-op-ink">
             Audit log (ultimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
-            <p className="text-xs text-gob-text-muted ">Sin registros.</p>
+            <p className="text-[12px] text-ln-op-mute">Sin registros.</p>
           ) : (
             <ul className="space-y-1">
               {auditEntries.map((entry) => (
-                <li key={entry.id} className="text-xs text-gob-text-gray  flex items-center gap-3">
-                  <span className="tabular-nums text-gob-text-muted  shrink-0">
+                <li key={entry.id} className="text-[12px] text-ln-op-ink-2 flex items-center gap-3">
+                  <span className="tabular-nums text-ln-op-mute shrink-0">
                     {entry.performedAt.toLocaleDateString("es-AR")}
                   </span>
-                  <code className="text-[10px] bg-gob-surface-alt  px-1 py-0.5 rounded">
-                    {entry.action}
-                  </code>
+                  <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
                 </li>
               ))}
             </ul>
