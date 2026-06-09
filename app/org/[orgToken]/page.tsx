@@ -6,6 +6,15 @@ import { and, count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import {
+  OpBreach,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCodeBadge,
+  OpKpi,
+  OpPill,
+} from "@/components/ui/dashboard";
+import {
   type OrganizationCapability,
   cases,
   db,
@@ -43,35 +52,28 @@ type CapabilityState =
   | { kind: "revoked"; reason: string | null }
   | { kind: "none" };
 
-const STATE_BADGE: Record<CapabilityState["kind"], { label: string; className: string }> = {
-  granted: {
-    label: "Concedido",
-    className: "text-gob-success ",
-  },
-  pending: {
-    label: "Pendiente",
-    className: "text-gob-warning-text ",
-  },
-  denied: {
-    label: "Denegado",
-    className: "text-gob-danger ",
-  },
-  revoked: {
-    label: "Revocado",
-    className: "text-gob-danger ",
-  },
-  none: {
-    label: "No concedido",
-    className: "text-gob-text-muted",
-  },
+const STATE_PILL_TONE: Record<CapabilityState["kind"], "ok" | "open" | "danger" | "neutral"> = {
+  granted: "ok",
+  pending: "open",
+  denied: "danger",
+  revoked: "danger",
+  none: "neutral",
+};
+
+const STATE_PILL_LABEL: Record<CapabilityState["kind"], string> = {
+  granted: "Concedido",
+  pending: "Pendiente",
+  denied: "Denegado",
+  revoked: "Revocado",
+  none: "No concedido",
 };
 
 const STATE_DOT: Record<CapabilityState["kind"], string> = {
-  granted: "bg-gob-success",
-  pending: "bg-gob-warning",
-  denied: "bg-gob-danger",
-  revoked: "bg-gob-danger",
-  none: "bg-gob-border-strong ",
+  granted: "bg-ln-op-ok",
+  pending: "bg-ln-op-warn",
+  denied: "bg-ln-op-danger",
+  revoked: "bg-ln-op-danger",
+  none: "bg-ln-op-line",
 };
 
 export default async function OrgDashboardPage({
@@ -173,225 +175,201 @@ export default async function OrgDashboardPage({
   };
 
   return (
-    <main className="min-h-screen bg-white ">
-      {/* Cross-portal nav rail */}
-      <nav className="border-b border-gob-border  px-6 py-2">
-        <div className="max-w-3xl mx-auto flex items-center gap-4 text-sm text-gob-text-gray ">
-          <Link href="/mis-mascotas" className="hover:text-gob-text  transition-colors">
-            Mis mascotas
-          </Link>
-          <span className="text-gob-border-strong " aria-hidden>
-            ·
-          </span>
-          <Link href="/cuenta" className="hover:text-gob-text  transition-colors">
-            Mi cuenta
-          </Link>
+    <div className="space-y-6">
+      {/* Page header */}
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">{organization.displayName}</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Actuando como{" "}
+          <strong className="text-ln-op-ink-2">
+            {ROLE_LABELS[membership.role] ?? membership.role}
+          </strong>
+          {membership.title ? ` — ${membership.title}` : ""}
+          {" · "}
           {userRole === "admin" && (
-            <>
-              <span className="text-gob-border-strong " aria-hidden>
-                ·
-              </span>
-              <Link href="/admin" className="hover:text-gob-text  transition-colors">
-                Admin
-              </Link>
-            </>
+            <Link href="/admin" className="text-ln-op-azul hover:underline">
+              Admin
+            </Link>
           )}
           {(userRole === "govt" || userRole === "admin") && (
             <>
-              <span className="text-gob-border-strong " aria-hidden>
-                ·
-              </span>
-              <Link href="/gob" className="hover:text-gob-text  transition-colors">
+              {" · "}
+              <Link href="/gob" className="text-ln-op-azul hover:underline">
                 Gobierno
               </Link>
             </>
           )}
-        </div>
-      </nav>
+        </p>
+        {!organization.verified && (
+          <OpBreach
+            title="Verificación pendiente"
+            detail="Los eventos que registres se marcarán como no verificados hasta que la documentación sea aprobada."
+          />
+        )}
+      </header>
 
-      <div className="p-6">
-        <div className="max-w-3xl mx-auto space-y-8">
-          <header className="space-y-2">
-            <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-              Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
-            </p>
-            <h1 className="text-3xl font-semibold">{organization.displayName}</h1>
-            <p className="text-sm text-gob-text-gray ">
-              Estás actuando como <strong>{ROLE_LABELS[membership.role] ?? membership.role}</strong>
-              {membership.title ? ` — ${membership.title}` : ""}.
-            </p>
-            {!organization.verified && (
-              <p className="text-sm rounded border border-gob-warning bg-gob-warning/10 px-3 py-2 text-gob-warning-text   ">
-                Organización pendiente de verificación. Los eventos que registres se marcarán como
-                no verificados hasta que la documentación sea aprobada.
+      {/* Sprint 5 PR-047 — live counts surface so admins see pending work
+          at a glance. Each KPI links to the surface that resolves it. */}
+      <section aria-label="Pendientes del refugio" className="grid grid-cols-3 gap-3">
+        <OpKpi
+          label="Casos abiertos"
+          value={counts.openCases}
+          tone={counts.openCases > 0 ? "warn" : "neutral"}
+          href={`/org/${orgToken}/casos`}
+        />
+        <OpKpi
+          label="Transferencias pendientes"
+          value={counts.pendingTransfers}
+          tone={counts.pendingTransfers > 0 ? "warn" : "neutral"}
+          href={`/org/${orgToken}/transferencias/recibidas`}
+        />
+        <OpKpi
+          label="Propuestas de tránsito"
+          value={counts.pendingFosterProposals}
+          tone={counts.pendingFosterProposals > 0 ? "warn" : "neutral"}
+          href={`/org/${orgToken}/voluntarios/propuestas`}
+        />
+      </section>
+
+      {/* Capability action cards */}
+      {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {canReadHeld && (
+            <Link
+              href={`/org/${orgToken}/mascotas`}
+              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              <p className="text-[13px] font-semibold text-ln-op-ink">Animales en custodia</p>
+              <p className="text-[12px] text-ln-op-mute mt-1">
+                Listado de animales bajo custodia activa de la organización.
               </p>
-            )}
-          </header>
-
-          {/* Sprint 5 PR-047 — live counts surface so admins see pending work
-              at a glance. Each card links to the surface that resolves it. */}
-          <section aria-label="Pendientes del refugio" className="grid grid-cols-3 gap-3">
-            <Link
-              href={`/org/${orgToken}/casos`}
-              className="rounded-lg border border-gob-border  p-3 text-center hover:bg-gob-surface-alt  transition"
-            >
-              <p className="text-2xl font-semibold tabular-nums">{counts.openCases}</p>
-              <p className="text-xs text-gob-text-gray  mt-1">Casos abiertos</p>
             </Link>
-            <Link
-              href={`/org/${orgToken}/transferencias/recibidas`}
-              className="rounded-lg border border-gob-border  p-3 text-center hover:bg-gob-surface-alt  transition"
-            >
-              <p className="text-2xl font-semibold tabular-nums">{counts.pendingTransfers}</p>
-              <p className="text-xs text-gob-text-gray  mt-1">Transferencias pendientes</p>
-            </Link>
-            <Link
-              href={`/org/${orgToken}/voluntarios/propuestas`}
-              className="rounded-lg border border-gob-border  p-3 text-center hover:bg-gob-surface-alt  transition"
-            >
-              <p className="text-2xl font-semibold tabular-nums">{counts.pendingFosterProposals}</p>
-              <p className="text-xs text-gob-text-gray  mt-1">Propuestas de tránsito</p>
-            </Link>
-          </section>
-
-          {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (
-            <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {canReadHeld && (
-                <Link
-                  href={`/org/${orgToken}/mascotas`}
-                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                >
-                  <p className="text-sm font-semibold">Animales en custodia</p>
-                  <p className="text-xs text-gob-text-gray  mt-1">
-                    Listado de animales bajo custodia activa de la organización.
-                  </p>
-                </Link>
-              )}
-              {canIntake && (
-                <Link
-                  href={`/org/${orgToken}/intake`}
-                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                >
-                  <p className="text-sm font-semibold">Registrar ingreso</p>
-                  <p className="text-xs text-gob-text-gray  mt-1">
-                    Dar de alta un animal que entra a custodia del refugio.
-                  </p>
-                </Link>
-              )}
-              {canReviewAdoptions && (
-                <Link
-                  href={`/org/${orgToken}/checkins`}
-                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                >
-                  <p className="text-sm font-semibold">Check-ins post-adopción</p>
-                  <p className="text-xs text-gob-text-gray  mt-1">
-                    Seguimiento de los adoptantes en las ventanas pactadas.
-                  </p>
-                </Link>
-              )}
-              {canAssignFoster && (
-                <>
-                  <Link
-                    href={`/org/${orgToken}/voluntarios`}
-                    className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                  >
-                    <p className="text-sm font-semibold">Pool de voluntarios</p>
-                    <p className="text-xs text-gob-text-gray  mt-1">
-                      Buscar voluntarios y proponer tránsitos.
-                    </p>
-                  </Link>
-                  <Link
-                    href={`/org/${orgToken}/voluntarios/propuestas`}
-                    className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                  >
-                    <p className="text-sm font-semibold">Propuestas emitidas</p>
-                    <p className="text-xs text-gob-text-gray  mt-1">
-                      Estado de las propuestas de tránsito que enviaste.
-                    </p>
-                  </Link>
-                  <Link
-                    href={`/org/${orgToken}/transitos`}
-                    className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                  >
-                    <p className="text-sm font-semibold">Tránsitos activos</p>
-                    <p className="text-xs text-gob-text-gray  mt-1">
-                      Mascotas con tránsito en curso (pool, miembro o vecino).
-                    </p>
-                  </Link>
-                </>
-              )}
-              {canIntake && (
-                <Link
-                  href={`/org/${orgToken}/pets/no-aptas`}
-                  className="rounded border border-gob-border  p-4 hover:bg-gob-surface-alt  transition"
-                >
-                  <p className="text-sm font-semibold">Mascotas no aptas para adopción</p>
-                  <p className="text-xs text-gob-text-gray  mt-1">
-                    Animales marcados como no aptos, agrupados por motivo.
-                  </p>
-                </Link>
-              )}
-            </section>
           )}
+          {canIntake && (
+            <Link
+              href={`/org/${orgToken}/intake`}
+              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              <p className="text-[13px] font-semibold text-ln-op-ink">Registrar ingreso</p>
+              <p className="text-[12px] text-ln-op-mute mt-1">
+                Dar de alta un animal que entra a custodia del refugio.
+              </p>
+            </Link>
+          )}
+          {canReviewAdoptions && (
+            <Link
+              href={`/org/${orgToken}/checkins`}
+              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              <p className="text-[13px] font-semibold text-ln-op-ink">Check-ins post-adopción</p>
+              <p className="text-[12px] text-ln-op-mute mt-1">
+                Seguimiento de los adoptantes en las ventanas pactadas.
+              </p>
+            </Link>
+          )}
+          {canAssignFoster && (
+            <>
+              <Link
+                href={`/org/${orgToken}/voluntarios`}
+                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">Pool de voluntarios</p>
+                <p className="text-[12px] text-ln-op-mute mt-1">
+                  Buscar voluntarios y proponer tránsitos.
+                </p>
+              </Link>
+              <Link
+                href={`/org/${orgToken}/voluntarios/propuestas`}
+                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">Propuestas emitidas</p>
+                <p className="text-[12px] text-ln-op-mute mt-1">
+                  Estado de las propuestas de tránsito que enviaste.
+                </p>
+              </Link>
+              <Link
+                href={`/org/${orgToken}/transitos`}
+                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">Tránsitos activos</p>
+                <p className="text-[12px] text-ln-op-mute mt-1">
+                  Mascotas con tránsito en curso (pool, miembro o vecino).
+                </p>
+              </Link>
+            </>
+          )}
+          {canIntake && (
+            <Link
+              href={`/org/${orgToken}/pets/no-aptas`}
+              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              <p className="text-[13px] font-semibold text-ln-op-ink">
+                Mascotas no aptas para adopción
+              </p>
+              <p className="text-[12px] text-ln-op-mute mt-1">
+                Animales marcados como no aptos, agrupados por motivo.
+              </p>
+            </Link>
+          )}
+        </section>
+      )}
 
-          <section className="space-y-3">
-            <div className="flex items-baseline justify-between gap-3 flex-wrap">
-              <h2 className="text-lg font-semibold">Tus permisos</h2>
-              <div className="flex items-center gap-2">
-                {isAdmin && (
-                  <span className="text-xs rounded-full bg-gob-primary px-2 py-0.5 text-white  ">
-                    Admin · todos los permisos
-                  </span>
-                )}
-                {canDecideRequests && (
-                  <Link
-                    href={`/org/${orgToken}/admin/permisos`}
-                    className="text-xs px-2 py-1 rounded border border-gob-border-strong  hover:bg-gob-surface-alt "
-                  >
-                    Revisar solicitudes
-                  </Link>
-                )}
-              </div>
+      {/* Permissions table */}
+      <OpCard>
+        <OpCardHead
+          title="Tus permisos"
+          actions={
+            <div className="flex items-center gap-2">
+              {isAdmin && <OpPill tone="ok">Admin · todos los permisos</OpPill>}
+              {canDecideRequests && (
+                <Link
+                  href={`/org/${orgToken}/admin/permisos`}
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  Revisar solicitudes →
+                </Link>
+              )}
             </div>
-            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
-              {CAPABILITY_CATALOG.map((entry) => {
-                const state = stateFor(entry.capability);
-                const badge = STATE_BADGE[state.kind];
-                const showRequestForm =
-                  !isAdmin &&
-                  (state.kind === "none" || state.kind === "denied" || state.kind === "revoked");
-                return (
-                  <li key={entry.capability} className="flex items-start gap-3 px-3 py-3">
-                    <span
-                      aria-hidden
-                      className={`mt-1 inline-block h-2 w-2 rounded-full ${STATE_DOT[state.kind]}`}
-                    />
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium">
-                        {entry.label}
-                        <span className="ml-2 text-xs text-gob-text-muted">{entry.capability}</span>
-                      </p>
-                      <p className="text-xs text-gob-text-gray ">{entry.description}</p>
-                      {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
-                        <p className="text-xs italic text-gob-text-muted">Motivo: {state.reason}</p>
-                      )}
-                      {showRequestForm && (
-                        <div className="pt-1">
-                          <RequestCapabilityForm
-                            capability={entry.capability}
-                            label={entry.label}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <span className={`text-xs shrink-0 ${badge.className}`}>{badge.label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </div>
-      </div>
-    </main>
+          }
+        />
+        <OpCardBody className="p-0">
+          <ul className="divide-y divide-ln-op-line">
+            {CAPABILITY_CATALOG.map((entry) => {
+              const state = stateFor(entry.capability);
+              const showRequestForm =
+                !isAdmin &&
+                (state.kind === "none" || state.kind === "denied" || state.kind === "revoked");
+              return (
+                <li key={entry.capability} className="flex items-start gap-3 px-4 py-3">
+                  <span
+                    aria-hidden
+                    className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATE_DOT[state.kind]}`}
+                  />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-[13px] font-medium text-ln-op-ink">
+                      {entry.label}
+                      <OpCodeBadge tone="neutral">{entry.capability}</OpCodeBadge>
+                    </p>
+                    <p className="text-[12px] text-ln-op-mute">{entry.description}</p>
+                    {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
+                      <p className="text-[12px] italic text-ln-op-faint">Motivo: {state.reason}</p>
+                    )}
+                    {showRequestForm && (
+                      <div className="pt-1">
+                        <RequestCapabilityForm capability={entry.capability} label={entry.label} />
+                      </div>
+                    )}
+                  </div>
+                  <OpPill tone={STATE_PILL_TONE[state.kind]}>{STATE_PILL_LABEL[state.kind]}</OpPill>
+                </li>
+              );
+            })}
+          </ul>
+        </OpCardBody>
+      </OpCard>
+    </div>
   );
 }

@@ -37,20 +37,20 @@ export default async function OrgIndexPage() {
 
   if (myOrgs.length === 0) {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page flex items-center justify-center p-6">
         <div className="max-w-md text-center space-y-3">
-          <h1 className="text-2xl font-semibold">Sin organizaciones</h1>
-          <p className="text-sm text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin organizaciones</h1>
+          <p className="text-[13px] text-ln-op-mute">
             No sos miembro activo de ninguna organización. Si tu organización te invitó, revisá tu
             email para aceptar la invitación. Si querés registrar una nueva, andá a{" "}
-            <Link href="/cuenta/upgrade" className="underline">
+            <Link href="/cuenta/upgrade" className="underline text-ln-op-azul">
               /cuenta/upgrade
             </Link>
             .
           </p>
           <Link
             href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded bg-gob-primary  text-white  text-sm font-medium"
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium"
           >
             Volver a mis mascotas
           </Link>
@@ -66,11 +66,11 @@ export default async function OrgIndexPage() {
 
   // Multiple memberships — render a picker so the user can choose.
   return (
-    <main className="min-h-screen p-6 bg-white ">
+    <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto pt-8 space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold">Seleccionar organización</h1>
-          <p className="text-sm text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Seleccionar organización</h1>
+          <p className="text-[13px] text-ln-op-mute">
             Pertenecés a {myOrgs.length} organizaciones. Elegí con cuál querés trabajar.
           </p>
         </header>
@@ -79,10 +79,10 @@ export default async function OrgIndexPage() {
             <li key={org.id}>
               <Link
                 href={`/org/${org.publicToken}`}
-                className="block p-4 rounded-xl border border-gob-border  hover:bg-gob-surface-alt  transition-colors"
+                className="block p-4 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="font-medium">{org.displayName}</p>
-                <p className="text-sm text-gob-text-muted mt-0.5">
+                <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
+                <p className="text-[12px] text-ln-op-mute mt-0.5">
                   {ORG_TYPE_LABELS[org.orgType] ?? org.orgType}
                   {org.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
                   {" · "}
