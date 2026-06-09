@@ -28,14 +28,14 @@ export function DecideForm({
     const isOpen = showReason === decision;
     const baseClass =
       tone === "approve"
-        ? "bg-gob-success text-white hover:bg-gob-success"
-        : "bg-gob-danger text-white hover:bg-gob-danger";
+        ? "bg-ln-op-ok text-white hover:bg-ln-op-ok/90"
+        : "bg-ln-op-danger text-white hover:bg-ln-op-danger/90";
     if (!isOpen) {
       return (
         <button
           type="button"
           onClick={() => setShowReason(decision)}
-          className={`text-xs px-2 py-1 rounded ${baseClass}`}
+          className={`text-[12px] px-2 py-1 rounded-[4px] transition-colors ${baseClass}`}
         >
           {label}
         </button>
@@ -50,20 +50,20 @@ export function DecideForm({
           rows={2}
           maxLength={500}
           placeholder="Motivo (opcional)"
-          className="text-xs w-full rounded border border-gob-border-strong  bg-white  p-2"
+          className="text-[12px] w-full rounded-[4px] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
         />
         <div className="flex items-center gap-2">
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`text-xs px-2 py-1 rounded ${baseClass} disabled:opacity-50`}
+            className={`text-[12px] px-2 py-1 rounded-[4px] transition-colors disabled:opacity-50 ${baseClass}`}
           >
             {isSubmitting ? "Enviando…" : `Confirmar ${label.toLowerCase()}`}
           </button>
           <button
             type="button"
             onClick={() => setShowReason(null)}
-            className="text-xs px-2 py-1 rounded text-gob-text-gray  hover:underline"
+            className="text-[12px] px-2 py-1 rounded-[4px] text-ln-op-mute hover:underline"
           >
             Cancelar
           </button>
@@ -83,7 +83,7 @@ export function DecideForm({
         )}
         {approved && renderAction("revoked", "Revocar", "deny")}
       </div>
-      {state.error && <p className="text-xs text-gob-danger ">{state.error}</p>}
+      {state.error && <p className="text-[12px] text-ln-op-danger">{state.error}</p>}
     </div>
   );
 }

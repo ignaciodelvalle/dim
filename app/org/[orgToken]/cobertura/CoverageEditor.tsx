@@ -19,11 +19,11 @@ import {
 } from "@/src/modules/organizations/actions";
 
 const selectClasses =
-  "min-h-11 px-3 rounded-lg border border-gob-border bg-gob-surface text-sm text-gob-text " +
-  "focus:border-gob-primary focus:outline-none focus:ring-2 focus:ring-gob-primary/20 " +
+  "min-h-11 px-3 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink " +
+  "focus:border-ln-op-azul focus:outline-none focus:ring-1 focus:ring-ln-op-azul " +
   "disabled:opacity-50 disabled:cursor-not-allowed w-full";
 
-const labelClasses = "text-sm font-medium text-gob-text-gray";
+const labelClasses = "text-[12px] font-medium text-ln-op-mute";
 
 type Props = {
   orgToken: string;
@@ -93,8 +93,8 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
   return (
     <div className="space-y-6">
       {canManage && (
-        <div className="rounded-lg border border-gob-border bg-white p-6 space-y-4">
-          <h2 className="text-base font-semibold text-gob-text">Agregar zona de cobertura</h2>
+        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-5 space-y-4">
+          <h2 className="text-[14px] font-semibold text-ln-op-ink">Agregar zona de cobertura</h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -139,7 +139,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
           </div>
 
           {error && (
-            <p className="text-sm text-gob-danger" role="alert">
+            <p className="text-[12px] text-ln-op-danger" role="alert">
               {error}
             </p>
           )}
@@ -148,7 +148,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
             type="button"
             onClick={handleAdd}
             disabled={pending || !selectedProvinceCode}
-            className="inline-flex items-center gap-2 rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-gob-primary-hover disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-full bg-ln-op-azul px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-60"
           >
             {pending ? "Guardando…" : "Agregar zona"}
           </button>
@@ -156,45 +156,51 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
       )}
 
       <div className="space-y-2">
-        <h2 className="text-base font-semibold text-gob-text">
+        <h2 className="text-[14px] font-semibold text-ln-op-ink">
           Zonas registradas ({zones.length})
         </h2>
 
         {zones.length === 0 ? (
-          <p className="rounded-xl border border-gob-border bg-white px-4 py-6 text-center text-sm text-gob-text-muted">
+          <p className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-[13px] text-ln-op-mute">
             Esta organización aún no tiene zonas de cobertura configuradas.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gob-border bg-white">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-[6px] border border-ln-op-line bg-ln-op-card">
+            <table className="w-full text-[13px]">
               <thead>
-                <tr className="border-b border-gob-border bg-gob-surface-alt">
-                  <th className="px-4 py-3 text-left font-medium text-gob-text-gray">Provincia</th>
-                  <th className="px-4 py-3 text-left font-medium text-gob-text-gray">Localidad</th>
-                  <th className="px-4 py-3 text-left font-medium text-gob-text-gray">Principal</th>
+                <tr className="border-b border-ln-op-line bg-ln-op-stripe">
+                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                    Provincia
+                  </th>
+                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                    Localidad
+                  </th>
+                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                    Principal
+                  </th>
                   {canManage && (
-                    <th className="px-4 py-3 text-right font-medium text-gob-text-gray">
+                    <th className="px-4 py-3 text-right text-[12px] font-medium text-ln-op-mute">
                       Acciones
                     </th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gob-border">
+              <tbody className="divide-y divide-ln-op-line">
                 {zones.map((zone) => (
-                  <tr key={zone.id} className="hover:bg-gob-surface-alt/40">
-                    <td className="px-4 py-3 text-gob-text">{zone.jurisdictionProvince}</td>
-                    <td className="px-4 py-3 text-gob-text">
+                  <tr key={zone.id} className="hover:bg-ln-op-stripe/60">
+                    <td className="px-4 py-3 text-ln-op-ink">{zone.jurisdictionProvince}</td>
+                    <td className="px-4 py-3 text-ln-op-ink">
                       {zone.jurisdictionLocality ?? (
-                        <span className="italic text-gob-text-muted">Toda la provincia</span>
+                        <span className="italic text-ln-op-mute">Toda la provincia</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       {zone.isPrimary ? (
-                        <span className="inline-flex items-center rounded-full bg-gob-primary/10 px-2.5 py-0.5 text-xs font-medium text-gob-primary">
+                        <span className="inline-flex items-center rounded-full bg-ln-op-blue-bg px-2.5 py-0.5 text-[11px] font-medium text-ln-op-azul border border-ln-op-blue-bd">
                           Principal
                         </span>
                       ) : (
-                        <span className="text-gob-text-muted">—</span>
+                        <span className="text-ln-op-mute">—</span>
                       )}
                     </td>
                     {canManage && (
@@ -205,7 +211,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                               type="button"
                               onClick={() => handleSetPrimary(zone.id)}
                               disabled={pending}
-                              className="rounded-full border border-gob-border-strong px-3 py-1 text-xs font-medium text-gob-text transition-colors hover:bg-gob-surface-alt disabled:opacity-60"
+                              className="rounded-full border border-ln-op-line px-3 py-1 text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
                             >
                               Marcar principal
                             </button>
@@ -214,7 +220,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                             type="button"
                             onClick={() => handleRemove(zone.id)}
                             disabled={pending}
-                            className="rounded-full border border-gob-danger px-3 py-1 text-xs font-medium text-gob-danger transition-colors hover:bg-gob-danger hover:text-white disabled:opacity-60"
+                            className="rounded-full border border-ln-op-danger-bd px-3 py-1 text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white disabled:opacity-60"
                           >
                             Eliminar
                           </button>

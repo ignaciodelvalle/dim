@@ -111,7 +111,7 @@ export function EditOrgForm({ organization }: Props) {
             rows={4}
             defaultValue={organization.description ?? ""}
             aria-describedby={describedBy}
-            className="w-full rounded-lg border border-gob-border px-3 py-2 text-sm text-gob-text bg-white focus:outline-none focus:ring-2 focus:ring-gob-primary focus:border-transparent resize-y"
+            className="w-full rounded-[6px] border border-ln-op-line px-3 py-2 text-[13px] text-ln-op-ink bg-ln-op-card focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
           />
         )}
       </Field>
@@ -137,7 +137,7 @@ export function EditOrgForm({ organization }: Props) {
         >
           Mostrar a mi organización como refugio de origen en la credencial pública de las mascotas
         </Checkbox>
-        <p className="text-xs text-gob-text-gray pl-6">
+        <p className="text-[12px] text-ln-op-mute pl-6">
           Cuando está activo, la credencial pública muestra el nombre de tu organización como
           refugio de origen de la mascota.
         </p>

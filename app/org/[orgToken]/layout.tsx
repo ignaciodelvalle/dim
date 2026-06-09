@@ -37,9 +37,12 @@ export default async function OrgLayout({
   const displayName = profile?.displayName ?? "";
   const orgNav = buildOrgNav(orgToken);
 
-  // Right-side topbar actions: exit link back to owner portal.
+  // Right-side topbar actions: personal cross-portal links (owner portal + account).
   const actions = (
     <div className="flex items-center gap-4 text-xs text-ln-op-mute">
+      <Link href="/cuenta" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
+        Mi cuenta
+      </Link>
       <Link href="/mis-mascotas" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
         ← Salir
       </Link>
