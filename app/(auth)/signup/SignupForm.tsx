@@ -58,11 +58,13 @@ export function SignupForm({
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted ">Paso 2 de 2</p>
-          <h2 className="text-xl font-semibold tracking-tight text-gob-text ">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
+            Paso 2 de 2
+          </p>
+          <h2 className="font-[var(--font-ln-serif)] text-[22px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
             Cargá tu primera mascota
           </h2>
-          <p className="text-sm text-gob-text-gray ">
+          <p className="text-sm text-[var(--color-ln-ink-2)]">
             Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto
             después.
           </p>
@@ -75,11 +77,11 @@ export function SignupForm({
           pendingLabel="Creando…"
         />
 
-        <p className="text-center text-xs text-gob-text-muted ">
+        <p className="text-center text-xs text-[var(--color-ln-mute)]">
           Tu cuenta ya está creada. Podés{" "}
           <Link
             href="/mis-mascotas"
-            className="font-medium text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+            className="font-medium text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-ink)]"
           >
             cargar tu mascota después desde Mis mascotas
           </Link>{" "}
@@ -91,7 +93,7 @@ export function SignupForm({
 
   return (
     <div className="space-y-5">
-      <p className="text-[10px] uppercase tracking-[0.3em] text-gob-text-muted  text-center">
+      <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center">
         {returnTo ? "Paso 1 de 1" : "Paso 1 de 2"}
       </p>
 
@@ -99,15 +101,15 @@ export function SignupForm({
         type="button"
         disabled
         title="Próximamente: integración con Mi Argentina"
-        className="w-full px-4 py-3 rounded-lg border border-gob-border-strong  text-sm text-gob-text-muted  cursor-not-allowed"
+        className="w-full px-4 py-3 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
       >
         Conectar con Mi Argentina (próximamente)
       </button>
 
-      <div className="flex items-center gap-3 text-xs text-gob-text-muted ">
-        <div className="flex-1 h-px bg-gob-surface-alt " />
+      <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
+        <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
         <span>o</span>
-        <div className="flex-1 h-px bg-gob-surface-alt " />
+        <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
       </div>
 
       <form action={authFormAction} className="space-y-4">
@@ -139,7 +141,7 @@ export function SignupForm({
         />
 
         {authState.error && (
-          <p className="text-sm text-gob-danger " role="alert">
+          <p className="text-sm text-[var(--color-ln-err)]" role="alert">
             {authState.error}
           </p>
         )}
@@ -147,7 +149,7 @@ export function SignupForm({
         <button
           type="submit"
           disabled={authPending}
-          className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {authPending ? "Creando cuenta..." : "Continuar"}
         </button>
@@ -177,7 +179,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-gob-text">
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
         {label}
       </label>
       <Input
@@ -188,7 +190,7 @@ function Field({
         required={required}
         minLength={minLength}
       />
-      {hint && <p className="text-xs text-gob-text-muted ">{hint}</p>}
+      {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );
 }

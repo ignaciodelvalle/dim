@@ -72,16 +72,18 @@ export default async function InviteAcceptPage({
           : "Esta invitación ya expiró.";
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-gob-surface-alt">
-        <div className="w-full max-w-sm space-y-4 rounded-2xl border border-gob-border bg-white p-8 text-center shadow-sm">
+      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+        <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
           <p className="text-4xl" aria-hidden="true">
             ⚠️
           </p>
-          <h1 className="text-lg font-semibold text-gob-text">Link no válido</h1>
-          <p className="text-sm text-gob-text-gray">{reason}</p>
+          <h1 className="font-[var(--font-ln-serif)] text-[19px] font-semibold text-[var(--color-ln-ink)]">
+            Link no válido
+          </h1>
+          <p className="text-sm text-[var(--color-ln-ink-2)]">{reason}</p>
           <a
             href="/"
-            className="inline-block rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white hover:bg-gob-primary-hover transition-colors"
+            className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Ir al inicio
           </a>
@@ -104,29 +106,33 @@ export default async function InviteAcceptPage({
   // State 1: no session.
   if (!user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-gob-surface-alt">
-        <div className="w-full max-w-sm space-y-5 rounded-2xl border border-gob-border bg-white p-8 shadow-sm">
+      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+        <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
           <div className="space-y-1 text-center">
-            <p className="text-xs uppercase tracking-widest text-gob-text-muted">Invitación</p>
-            <h1 className="text-xl font-semibold text-gob-text">{org.displayName}</h1>
+            <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
+              Invitación
+            </p>
+            <h1 className="font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink)]">
+              {org.displayName}
+            </h1>
           </div>
-          <p className="text-sm text-gob-text-gray text-center">
+          <p className="text-sm text-[var(--color-ln-ink-2)] text-center">
             Te invitaron a sumarte como <strong>{roleLabel}</strong>. Iniciá sesión o creá una
             cuenta para aceptar.
           </p>
           <a
             href={loginHref}
-            className="block w-full rounded-full bg-gob-primary px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-gob-primary-hover transition-colors"
+            className="block w-full rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Iniciar sesión
           </a>
           <a
             href={`/signup?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`}
-            className="block w-full rounded-full border border-gob-border-strong px-5 py-2.5 text-center text-sm font-semibold text-gob-text hover:bg-gob-surface-alt transition-colors"
+            className="block w-full rounded-[3px] border border-[var(--color-ln-line-strong)] px-5 py-2.5 text-center text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Crear cuenta
           </a>
-          <p className="text-center text-xs text-gob-text-muted">
+          <p className="text-center text-xs text-[var(--color-ln-mute)]">
             Este link vence el{" "}
             {invite.expiresAt.toLocaleDateString("es-AR", {
               day: "numeric",
@@ -146,20 +152,22 @@ export default async function InviteAcceptPage({
   // full invite email to whoever holds the token).
   if (invite.email.toLowerCase() !== sessionEmail) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-gob-surface-alt">
-        <div className="w-full max-w-sm space-y-4 rounded-2xl border border-gob-border bg-white p-8 text-center shadow-sm">
+      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+        <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
           <p className="text-4xl" aria-hidden="true">
             🔒
           </p>
-          <h1 className="text-lg font-semibold text-gob-text">Cuenta incorrecta</h1>
-          <p className="text-sm text-gob-text-gray">
+          <h1 className="font-[var(--font-ln-serif)] text-[19px] font-semibold text-[var(--color-ln-ink)]">
+            Cuenta incorrecta
+          </h1>
+          <p className="text-sm text-[var(--color-ln-ink-2)]">
             Esta invitación es para{" "}
             <strong className="font-semibold">{maskEmail(invite.email)}</strong>. Iniciá sesión con
             esa cuenta para aceptarla.
           </p>
           <a
             href={loginHref}
-            className="inline-block rounded-full border border-gob-border-strong px-5 py-2 text-sm font-semibold text-gob-text hover:bg-gob-surface-alt transition-colors"
+            className="inline-block rounded-[3px] border border-[var(--color-ln-line-strong)] px-5 py-2 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cambiar cuenta
           </a>
@@ -170,13 +178,17 @@ export default async function InviteAcceptPage({
 
   // State 3: session + email matches → show accept button.
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-gob-surface-alt">
-      <div className="w-full max-w-sm space-y-5 rounded-2xl border border-gob-border bg-white p-8 shadow-sm">
+    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+      <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
         <div className="space-y-1 text-center">
-          <p className="text-xs uppercase tracking-widest text-gob-text-muted">Invitación</p>
-          <h1 className="text-xl font-semibold text-gob-text">{org.displayName}</h1>
+          <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
+            Invitación
+          </p>
+          <h1 className="font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink)]">
+            {org.displayName}
+          </h1>
         </div>
-        <p className="text-sm text-gob-text-gray text-center">
+        <p className="text-sm text-[var(--color-ln-ink-2)] text-center">
           Fuiste invitado a sumarte como <strong>{roleLabel}</strong>. ¿Querés aceptar y unirte al
           equipo?
         </p>
@@ -184,7 +196,7 @@ export default async function InviteAcceptPage({
         <div className="text-center">
           <a
             href="/"
-            className="text-xs text-gob-text-muted underline underline-offset-2 hover:text-gob-text transition-colors"
+            className="text-xs text-[var(--color-ln-mute)] underline underline-offset-2 hover:text-[var(--color-ln-ink)] transition-colors"
           >
             Más tarde
           </a>

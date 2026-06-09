@@ -15,15 +15,15 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
         type="button"
         disabled
         title="Próximamente: integración con Mi Argentina"
-        className="w-full px-4 py-3 rounded-lg border border-gob-border-strong  text-sm text-gob-text-muted  cursor-not-allowed"
+        className="w-full px-4 py-3 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
       >
         Conectar con Mi Argentina (próximamente)
       </button>
 
-      <div className="flex items-center gap-3 text-xs text-gob-text-muted ">
-        <div className="flex-1 h-px bg-gob-surface-alt " />
+      <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
+        <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
         <span>o</span>
-        <div className="flex-1 h-px bg-gob-surface-alt " />
+        <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
       </div>
 
       <form action={formAction} className="space-y-4">
@@ -58,7 +58,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Ingresando..." : "Iniciar sesión"}
         </button>
