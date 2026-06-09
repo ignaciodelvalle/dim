@@ -6,29 +6,31 @@ import type { DiseaseSummary } from "@/lib/govt-dashboards";
 export function DiseaseSummaryTable({ summary }: { summary: DiseaseSummary[] }) {
   if (summary.length === 0) {
     return (
-      <p className="text-sm text-gob-text-muted ">
+      <p className="text-[13px] text-ln-op-mute">
         No hay señales en los últimos 30 días en tu cobertura.
       </p>
     );
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-gob-border ">
-      <table className="min-w-full text-sm">
-        <thead className="bg-gob-surface-alt ">
-          <tr className="text-left text-xs uppercase tracking-wider text-gob-text-muted">
+    <div className="overflow-x-auto rounded-[6px] border border-ln-op-line">
+      <table className="min-w-full text-[13px]">
+        <thead className="bg-ln-op-stripe">
+          <tr className="text-left text-[10px] uppercase tracking-wider text-ln-op-mute">
             <th className="px-4 py-2">Enfermedad</th>
             <th className="px-3 py-2 text-right">24h</th>
             <th className="px-3 py-2 text-right">7 días</th>
             <th className="px-3 py-2 text-right">30 días</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gob-border ">
+        <tbody className="divide-y divide-ln-op-line-2">
           {summary.map((row) => (
             <tr key={row.diseaseCode}>
-              <td className="px-4 py-2 text-gob-text ">{row.diseaseName}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{row.count24h}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{row.count7d}</td>
-              <td className="px-3 py-2 text-right tabular-nums font-semibold">{row.count30d}</td>
+              <td className="px-4 py-2 text-ln-op-ink">{row.diseaseName}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-ln-op-ink-2">{row.count24h}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-ln-op-ink-2">{row.count7d}</td>
+              <td className="px-3 py-2 text-right tabular-nums font-semibold text-ln-op-ink">
+                {row.count30d}
+              </td>
             </tr>
           ))}
         </tbody>

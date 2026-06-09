@@ -4,13 +4,10 @@ import {
   EmptyState,
   JurisdictionSwitcher,
   MapChoropleth,
-  MetricCard,
-  Panel,
-  PanelBody,
-  PanelHeader,
   PeriodPicker,
   TimeSeriesChart,
 } from "@/components/poncho";
+import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -142,110 +139,113 @@ export default async function GobVigilanciaPage({
   const panelRabiesId = "panel-rabies-titulo";
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Page header */}
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-gob-text">
-            Vigilancia epidemiológica
-          </h1>
-          <p className="text-sm text-gob-text-gray">
-            Señales de zoonosis y enfermedades reportables detectadas en tu cobertura.
-          </p>
-        </header>
+    <div className="space-y-6">
+      {/* Page header */}
+      <header className="space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Vigilancia epidemiológica
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Señales de zoonosis y enfermedades reportables detectadas en tu cobertura.
+        </p>
+      </header>
 
-        {/* No-scope warning */}
-        {noScope && (
-          <div className="rounded-lg border border-gob-warning  bg-gob-warning/10  px-4 py-3 text-sm text-gob-warning-text ">
-            Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
-            una.
-          </div>
-        )}
+      {/* No-scope warning */}
+      {noScope && (
+        <OpCallout
+          title="Sin localidades asignadas"
+          body="Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos una."
+          icon="⚠"
+        />
+      )}
 
-        {/* Filters row */}
-        <div className="grid md:grid-cols-2 gap-3">
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-          <PeriodPicker defaultPreset="30d" />
-        </div>
+      {/* Filters row */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+        <PeriodPicker defaultPreset="30d" />
+      </div>
 
-        {/* 4 metric cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard
-            label="Brotes activos"
-            value={String(metrics.outbreakActiveCount)}
-            tone={metrics.outbreakActiveCount > 0 ? "warning" : "neutral"}
-            href="/gob/vigilancia/brotes"
+      {/* 4 KPI tiles */}
+      <section
+        aria-label="Indicadores de vigilancia"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      >
+        <OpKpi
+          label="Brotes activos"
+          value={String(metrics.outbreakActiveCount)}
+          tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
+          href="/gob/vigilancia/brotes"
+        />
+        <OpKpi
+          label="Rábicas activas"
+          value={String(metrics.rabiesActiveCount)}
+          tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
+        />
+        <OpKpi label="Pets hoy" value={String(metrics.petsRegisteredToday)} />
+        <OpKpi label="Vacunaciones (7d)" value={String(metrics.vaccinationsThisWeek)} tone="ok" />
+      </section>
+
+      {/* Map + signals panels side-by-side on desktop */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <OpCard aria-labelledby={panelMapId}>
+          <OpCardHead title={<span id={panelMapId}>Casos abiertos por jurisdicción</span>} />
+          <OpCardBody>
+            <MapChoropleth data={choroplethData} />
+          </OpCardBody>
+        </OpCard>
+
+        <OpCard aria-labelledby={panelSignalsId}>
+          <OpCardHead
+            title={<span id={panelSignalsId}>Signals recientes</span>}
+            actions={
+              <Link
+                href="/gob/vigilancia/brotes"
+                className="text-[12px] text-ln-op-azul hover:underline no-underline"
+              >
+                Ver todos →
+              </Link>
+            }
           />
-          <MetricCard
-            label="Rábicas activas"
-            value={String(metrics.rabiesActiveCount)}
-            tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
-          />
-          <MetricCard label="Pets hoy" value={String(metrics.petsRegisteredToday)} />
-          <MetricCard
-            label="Vacunaciones (7d)"
-            value={String(metrics.vaccinationsThisWeek)}
-            tone="success"
-          />
-        </div>
-
-        {/* Map + signals panels side-by-side on desktop */}
-        <div className="grid lg:grid-cols-2 gap-4">
-          <Panel aria-labelledby={panelMapId}>
-            <PanelHeader title={<span id={panelMapId}>Casos abiertos por jurisdicción</span>} />
-            <PanelBody>
-              <MapChoropleth data={choroplethData} />
-            </PanelBody>
-          </Panel>
-
-          <Panel aria-labelledby={panelSignalsId}>
-            <PanelHeader
-              title={<span id={panelSignalsId}>Signals recientes</span>}
-              actions={
-                <Link
-                  href="/gob/vigilancia/brotes"
-                  className="text-xs text-gob-primary hover:underline"
-                >
-                  Ver todos →
-                </Link>
-              }
-            />
-            <PanelBody>
-              {signals.length === 0 ? (
+          <OpCardBody className="p-0">
+            {signals.length === 0 ? (
+              <div className="px-4 py-3">
                 <EmptyState
                   icon="shield-check"
                   title="Sin signals activos en este período"
                   description="No se detectaron señales de zoonosis en el rango seleccionado."
                 />
-              ) : (
-                <ul>
-                  {signals.slice(0, 5).map((s) => (
-                    <OutbreakSignalRow key={s.signalEventId} signal={s} />
-                  ))}
-                </ul>
-              )}
-            </PanelBody>
-          </Panel>
-        </div>
-
-        {/* Trend chart full width */}
-        <Panel aria-labelledby={panelTrendId}>
-          <PanelHeader
-            title={<span id={panelTrendId}>Tendencia de enfermedades reportables (12 meses)</span>}
-          />
-          <PanelBody>
-            <TimeSeriesChart data={trendPoints} seriesLabel="Signals" />
-          </PanelBody>
-        </Panel>
-
-        {/* Rabies observations table */}
-        <Panel aria-labelledby={panelRabiesId}>
-          <PanelHeader title={<span id={panelRabiesId}>Observaciones rábicas en curso</span>} />
-          <PanelBody>
-            <DiseaseSummaryTable summary={summary} />
-          </PanelBody>
-        </Panel>
+              </div>
+            ) : (
+              <ul className="px-3">
+                {signals.slice(0, 5).map((s) => (
+                  <OutbreakSignalRow key={s.signalEventId} signal={s} />
+                ))}
+              </ul>
+            )}
+          </OpCardBody>
+        </OpCard>
       </div>
-    </main>
+
+      {/* Trend chart full width */}
+      <OpCard aria-labelledby={panelTrendId}>
+        <OpCardHead
+          title={<span id={panelTrendId}>Tendencia de enfermedades reportables (12 meses)</span>}
+        />
+        <OpCardBody>
+          <TimeSeriesChart data={trendPoints} seriesLabel="Signals" />
+        </OpCardBody>
+      </OpCard>
+
+      {/* Disease summary table */}
+      <OpCard aria-labelledby={panelRabiesId}>
+        <OpCardHead title={<span id={panelRabiesId}>Observaciones rábicas en curso</span>} />
+        <OpCardBody className="p-0">
+          <div className="px-4 py-3">
+            <DiseaseSummaryTable summary={summary} />
+          </div>
+        </OpCardBody>
+      </OpCard>
+    </div>
   );
 }
