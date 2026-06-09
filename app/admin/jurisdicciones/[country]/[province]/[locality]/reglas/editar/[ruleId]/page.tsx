@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { OpCrumbs } from "@/components/ui/dashboard";
 import { type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
 
 import { PppAttestationRegistriesForm } from "../../nueva/PppAttestationRegistriesForm";
@@ -48,61 +49,63 @@ export default async function EditRulePage({
   const payload = rule.rulePayload as Record<string, unknown>;
   const initialNotes = rule.notes ?? "";
 
-  return (
-    <main className="px-6 py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Link
-          href={`/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`}
-          className="text-sm text-gob-text-muted"
-        >
-          ← Volver
-        </Link>
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-gob-text ">Editar regla</h1>
-          <p className="text-sm text-gob-text-gray ">
-            {country} · {province ?? "(nivel país)"} · {locality ?? "(toda la provincia)"}
-          </p>
-        </header>
+  const backHref = `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`;
 
-        {ruleType === "ppp_breed_list" && (
-          <PppBreedListForm
-            mode="edit"
-            ruleId={rule.id}
-            country={country}
-            province={province}
-            locality={locality}
-            initialBreeds={Array.isArray(payload.breeds) ? (payload.breeds as string[]) : []}
-            initialNotes={initialNotes}
-          />
-        )}
-        {ruleType === "ppp_weight_threshold" && (
-          <PppWeightThresholdForm
-            mode="edit"
-            ruleId={rule.id}
-            country={country}
-            province={province}
-            locality={locality}
-            initialKg={typeof payload.kg === "number" ? payload.kg : null}
-            initialAppliesIfBreedNotPPP={Boolean(payload.appliesIfBreedNotPPP)}
-            initialNotes={initialNotes}
-          />
-        )}
-        {ruleType === "ppp_attestation_required_registries" && (
-          <PppAttestationRegistriesForm
-            mode="edit"
-            ruleId={rule.id}
-            country={country}
-            province={province}
-            locality={locality}
-            initialRegistries={
-              Array.isArray(payload.registries)
-                ? (payload.registries as { id: string; label: string; required: boolean }[])
-                : []
-            }
-            initialNotes={initialNotes}
-          />
-        )}
-      </div>
-    </main>
+  const jurisdictionLabel = `${country} · ${province ?? "(nivel pais)"} · ${locality ?? "(toda la provincia)"}`;
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Jurisdicciones", href: "/admin/jurisdicciones" },
+          { label: "Reglas", href: backHref },
+          { label: "Editar regla" },
+        ]}
+      />
+
+      <header className="space-y-1">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Editar regla</h1>
+        <p className="text-[13px] text-ln-op-ink-2">{jurisdictionLabel}</p>
+      </header>
+
+      {ruleType === "ppp_breed_list" && (
+        <PppBreedListForm
+          mode="edit"
+          ruleId={rule.id}
+          country={country}
+          province={province}
+          locality={locality}
+          initialBreeds={Array.isArray(payload.breeds) ? (payload.breeds as string[]) : []}
+          initialNotes={initialNotes}
+        />
+      )}
+      {ruleType === "ppp_weight_threshold" && (
+        <PppWeightThresholdForm
+          mode="edit"
+          ruleId={rule.id}
+          country={country}
+          province={province}
+          locality={locality}
+          initialKg={typeof payload.kg === "number" ? payload.kg : null}
+          initialAppliesIfBreedNotPPP={Boolean(payload.appliesIfBreedNotPPP)}
+          initialNotes={initialNotes}
+        />
+      )}
+      {ruleType === "ppp_attestation_required_registries" && (
+        <PppAttestationRegistriesForm
+          mode="edit"
+          ruleId={rule.id}
+          country={country}
+          province={province}
+          locality={locality}
+          initialRegistries={
+            Array.isArray(payload.registries)
+              ? (payload.registries as { id: string; label: string; required: boolean }[])
+              : []
+          }
+          initialNotes={initialNotes}
+        />
+      )}
+    </div>
   );
 }

@@ -4,6 +4,7 @@
 import { sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, govtBusinessRules } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
 
@@ -30,46 +31,58 @@ export default async function AdminJurisdiccionesPage() {
   }
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header>
-          <h1 className="text-3xl font-semibold text-gob-text ">Jurisdicciones</h1>
-          <p className="text-sm text-gob-text-gray  mt-1">
-            Configurá reglas de negocio scope-aware por país, provincia o localidad. Sin overrides →
-            se usan los defaults nacionales.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Admin {"·"} Jurisdicciones
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Jurisdicciones</h1>
+        <p className="text-[13px] text-ln-op-ink-2">
+          Configura reglas de negocio scope-aware por pais, provincia o localidad. Sin overrides
+          {" -> "}se usan los defaults nacionales.
+        </p>
+      </header>
 
-        <section className="rounded-2xl border border-gob-border  overflow-hidden">
-          <div className="px-4 py-3 bg-gob-surface-alt  border-b border-gob-border ">
-            <h2 className="text-sm font-semibold text-gob-text ">AR (país)</h2>
-            <p className="text-xs text-gob-text-muted ">Reglas a nivel país: {countryWideCount}</p>
-          </div>
-          <ul className="divide-y divide-gob-border ">
-            <li className="px-4 py-3 flex items-center justify-between text-sm">
-              <span className="text-gob-text-gray ">Reglas a nivel país AR</span>
+      {/* Country-level */}
+      <OpCard>
+        <OpCardHead
+          title="AR (pais)"
+          actions={
+            <span className="text-[12px] text-ln-op-mute">
+              {countryWideCount} regla{countryWideCount === 1 ? "" : "s"}
+            </span>
+          }
+        />
+        <OpCardBody className="p-0">
+          <ul>
+            <li className="flex items-center justify-between border-t border-ln-op-line px-4 py-3">
+              <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel pais AR</span>
               <Link
                 href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent("_")}/${encodeURIComponent("_")}/reglas`}
-                className="text-gob-text  underline underline-offset-4"
+                className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
               >
-                Ver reglas →
+                {"Ver reglas ->"}
               </Link>
             </li>
           </ul>
-        </section>
+        </OpCardBody>
+      </OpCard>
 
-        <section className="rounded-2xl border border-gob-border  overflow-hidden">
-          <div className="px-4 py-3 bg-gob-surface-alt  border-b border-gob-border ">
-            <h2 className="text-sm font-semibold text-gob-text ">Provincias</h2>
-          </div>
-          <ul className="divide-y divide-gob-border ">
+      {/* Provinces */}
+      <OpCard>
+        <OpCardHead title="Provincias" />
+        <OpCardBody className="p-0">
+          <ul>
             {PROVINCES.map((p) => {
               const count = countByProvince.get(p.name) ?? 0;
               return (
-                <li key={p.code} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="text-sm">
-                    <p className="font-medium text-gob-text ">{p.name}</p>
-                    <p className="text-xs text-gob-text-muted ">
+                <li
+                  key={p.code}
+                  className="flex items-center justify-between gap-3 border-t border-ln-op-line px-4 py-3"
+                >
+                  <div>
+                    <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
+                    <p className="text-[11px] text-ln-op-mute">
                       {count === 0
                         ? "Sin overrides (usando defaults)"
                         : `${count} regla${count === 1 ? "" : "s"} activa${count === 1 ? "" : "s"}`}
@@ -77,16 +90,16 @@ export default async function AdminJurisdiccionesPage() {
                   </div>
                   <Link
                     href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent(p.name)}/${encodeURIComponent("_")}/reglas`}
-                    className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+                    className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                   >
-                    {count === 0 ? "Crear regla →" : "Ver reglas →"}
+                    {count === 0 ? "Crear regla ->" : "Ver reglas ->"}
                   </Link>
                 </li>
               );
             })}
           </ul>
-        </section>
-      </div>
-    </main>
+        </OpCardBody>
+      </OpCard>
+    </div>
   );
 }

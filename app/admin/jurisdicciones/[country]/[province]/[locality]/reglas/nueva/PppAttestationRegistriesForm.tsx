@@ -67,44 +67,45 @@ export function PppAttestationRegistriesForm({
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
-      <p className="text-sm text-gob-text-gray ">
-        Lista de registros oficiales en los que el dueño debe registrar (atestar) a su mascota PPP.
-        Marcá required en los obligatorios.
+      <p className="text-[13px] text-ln-op-ink-2">
+        Lista de registros oficiales en los que el dueno debe registrar (atestar) a su mascota PPP.
+        Marca required en los obligatorios.
       </p>
 
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium text-gob-text ">Registros configurados</legend>
+        <legend className="text-[13px] font-medium text-ln-op-ink">Registros configurados</legend>
         {registries.length === 0 && (
-          <p className="text-xs text-gob-text-muted ">
-            Aún no agregaste registros. Sin registros la regla equivale al default (ninguno
+          <p className="text-[11px] text-ln-op-mute">
+            Aun no agregaste registros. Sin registros la regla equivale al default (ninguno
             requerido).
           </p>
         )}
         {registries.map((r, i) => (
           <div
             key={r.id}
-            className="flex items-start gap-2 rounded-lg border border-gob-border  p-3"
+            className="flex items-start gap-2 rounded-[6px] border border-ln-op-line p-3"
           >
             <input type="hidden" name="registryId" value={r.id} />
             <input type="hidden" name="registryLabel" value={r.label} />
             <input type="hidden" name="registryRequired" value={r.required ? "true" : "false"} />
-            <div className="flex-1 text-sm">
-              <p className="font-medium text-gob-text ">{r.label}</p>
-              <p className="text-xs text-gob-text-muted ">
-                <span className="font-mono">{r.id}</span> · {r.required ? "Required" : "Optional"}
+            <div className="flex-1 text-[13px]">
+              <p className="font-medium text-ln-op-ink">{r.label}</p>
+              <p className="text-[11px] text-ln-op-mute">
+                <span className="font-mono">{r.id}</span> {"·"}{" "}
+                {r.required ? "Required" : "Optional"}
               </p>
             </div>
             <button
               type="button"
               onClick={() => toggleRequired(r.id)}
-              className="text-xs underline underline-offset-4 text-gob-text-gray "
+              className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
             >
               {r.required ? "Hacer opcional" : "Marcar required"}
             </button>
             <button
               type="button"
               onClick={() => removeRegistry(r.id)}
-              className="text-xs underline underline-offset-4 text-gob-danger "
+              className="text-[12px] font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
             >
               Quitar
             </button>
@@ -114,13 +115,13 @@ export function PppAttestationRegistriesForm({
         ))}
       </fieldset>
 
-      <fieldset className="space-y-2 rounded-lg border border-dashed border-gob-border-strong  p-3">
-        <legend className="text-sm font-medium text-gob-text ">Agregar registro</legend>
+      <fieldset className="space-y-2 rounded-[6px] border border-dashed border-ln-op-line p-3">
+        <legend className="text-[13px] font-medium text-ln-op-ink">Agregar registro</legend>
         {/* Inline add-registry row: compact grid alongside Checkbox — Field not used (rule #2) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <Input
             type="text"
-            placeholder="ID (caba_4078, prov_14107…)"
+            placeholder="ID (caba_4078, prov_14107...)"
             value={newId}
             onChange={(e) => setNewId(e.target.value)}
           />
@@ -137,7 +138,7 @@ export function PppAttestationRegistriesForm({
         <button
           type="button"
           onClick={addRegistry}
-          className="text-sm text-gob-text-gray  underline underline-offset-4"
+          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
         >
           + Agregar registro
         </button>
@@ -156,9 +157,9 @@ export function PppAttestationRegistriesForm({
         )}
       </Field>
 
-      {state.warning && <p className="text-sm text-gob-warning-text ">{state.warning}</p>}
+      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-[13px] text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -166,9 +167,9 @@ export function PppAttestationRegistriesForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 transition-colors"
+        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-navy text-white font-semibold text-[13px] hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
-        {isPending ? "Guardando…" : mode === "create" ? "Crear regla" : "Guardar cambios"}
+        {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </button>
     </form>
   );

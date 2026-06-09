@@ -17,7 +17,7 @@ export function DeleteRuleButton({
     <form
       action={deleteBusinessRuleAction.bind(null, ruleId)}
       onSubmit={(e) => {
-        if (!confirm("Eliminar esta regla? La acción no se puede deshacer.")) {
+        if (!confirm("Eliminar esta regla? La accion no se puede deshacer.")) {
           e.preventDefault();
         }
       }}
@@ -27,7 +27,7 @@ export function DeleteRuleButton({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <button
         type="submit"
-        className="text-sm text-gob-danger  underline underline-offset-4 hover:text-gob-danger "
+        className="text-[12px] font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
       >
         Eliminar
       </button>
