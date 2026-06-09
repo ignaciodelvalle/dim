@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
@@ -48,75 +49,89 @@ export default async function PetsNoAptasPage({
   const now = new Date();
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto pt-10 space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-gob-text ">Mascotas no aptas para adopción</h1>
-          <p className="mt-2 text-sm text-gob-text-gray ">
+    <main className="min-h-screen bg-ln-op-page p-6">
+      <div className="max-w-3xl mx-auto space-y-6">
+        <header className="space-y-1">
+          <OpCrumbs
+            items={[
+              { label: "Panel", href: `/org/${orgToken}` },
+              { label: "Mascotas", href: `/org/${orgToken}/mascotas` },
+              { label: "No aptas" },
+            ]}
+          />
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            Mascotas no aptas para adopción
+          </h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Animales en custodia marcados explícitamente como NO aptos para adopción. Resolvé el
             motivo desde el perfil del pet para volver a marcarlos como aptos.
           </p>
         </header>
 
         {rows.length === 0 ? (
-          <p className="text-sm text-gob-text-muted py-6 text-center">
+          <p className="text-[13px] text-ln-op-mute py-6 text-center">
             No hay mascotas marcadas como no aptas.
           </p>
         ) : (
           Array.from(byReason.entries()).map(([reason, list]) => (
-            <section key={reason} className="space-y-2">
-              <h2 className="text-lg font-medium text-gob-text ">
-                {REASON_LABELS[reason] ?? reason}
-              </h2>
-              <ul className="space-y-2">
-                {list.map(({ pet }) => {
-                  const until = pet.adoptionIneligibleUntil
-                    ? new Date(pet.adoptionIneligibleUntil)
-                    : null;
-                  const reEvalDue = until ? until < now : false;
-                  return (
-                    <li
-                      key={pet.id}
-                      className="rounded-lg border border-gob-border-strong  p-3 space-y-1"
-                    >
-                      <div className="flex items-baseline justify-between gap-3">
-                        <Link
-                          href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
-                          className="font-medium hover:underline"
-                        >
-                          {pet.name}
-                        </Link>
-                        {reEvalDue && (
-                          <span className="text-xs rounded-full bg-gob-warning/10  text-gob-warning-text  px-2 py-0.5">
-                            Re-evaluación vencida
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gob-text-muted">
-                        {pet.species}
-                        {pet.adoptionIneligibleReasonNotes &&
-                          ` · ${pet.adoptionIneligibleReasonNotes}`}
-                        {until && (
-                          <>
-                            {" · "}
-                            <span>
-                              vence{" "}
-                              {until.toLocaleDateString("es-AR", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </span>
-                          </>
-                        )}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+            <OpCard key={reason}>
+              <OpCardHead title={REASON_LABELS[reason] ?? reason} />
+              <OpCardBody>
+                <ul className="space-y-2">
+                  {list.map(({ pet }) => {
+                    const until = pet.adoptionIneligibleUntil
+                      ? new Date(pet.adoptionIneligibleUntil)
+                      : null;
+                    const reEvalDue = until ? until < now : false;
+                    return (
+                      <li
+                        key={pet.id}
+                        className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe p-3 space-y-1"
+                      >
+                        <div className="flex items-baseline justify-between gap-3">
+                          <Link
+                            href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
+                            className="text-[13px] font-medium text-ln-op-ink hover:underline"
+                          >
+                            {pet.name}
+                          </Link>
+                          {reEvalDue && <OpPill tone="open">Re-evaluación vencida</OpPill>}
+                        </div>
+                        <p className="text-[12px] text-ln-op-mute">
+                          {pet.species}
+                          {pet.adoptionIneligibleReasonNotes &&
+                            ` · ${pet.adoptionIneligibleReasonNotes}`}
+                          {until && (
+                            <>
+                              {" · "}
+                              <span>
+                                vence{" "}
+                                {until.toLocaleDateString("es-AR", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            </>
+                          )}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </OpCardBody>
+            </OpCard>
           ))
         )}
+
+        <footer className="pt-4 border-t border-ln-op-line">
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
+            ← Volver al listado
+          </Link>
+        </footer>
       </div>
     </main>
   );

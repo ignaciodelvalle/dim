@@ -39,20 +39,20 @@ export function ReplaceMicrochipForm({
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="rounded-lg border border-gob-border  bg-gob-surface-alt  px-4 py-3 text-sm text-gob-text-gray ">
-        Chip actual: <span className="font-mono font-medium text-gob-text ">{currentChip}</span>
+      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[13px] text-ln-op-ink-2">
+        Chip actual: <span className="font-mono font-medium text-ln-op-ink">{currentChip}</span>
       </div>
 
       <div className="space-y-1.5">
-        <p className="block mb-2.5 text-[0.88em] font-semibold text-gob-text-muted">
-          Motivo del reemplazo<span className="text-gob-danger ml-0.5">*</span>
+        <p className="block mb-2.5 text-[0.88em] font-semibold text-ln-op-mute">
+          Motivo del reemplazo<span className="text-ln-op-danger ml-0.5">*</span>
         </p>
         <div className="flex flex-col gap-2">
           {VET_REASONS.map((r) => (
             <Radio key={r.value} name="reason" value={r.value} required>
               <span className="space-y-0.5">
                 {r.label}
-                {r.hint && <span className="block text-xs! text-gob-text-muted!">{r.hint}</span>}
+                {r.hint && <span className="block text-xs! text-ln-op-mute!">{r.hint}</span>}
               </span>
             </Radio>
           ))}
@@ -115,7 +115,7 @@ export function ReplaceMicrochipForm({
       </Field>
 
       {state.error && (
-        <p className="text-sm text-gob-danger " role="alert">
+        <p className="text-[13px] text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -123,7 +123,7 @@ export function ReplaceMicrochipForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-primary  text-white  font-medium hover:bg-gob-primary  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-azul text-white font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
       </button>

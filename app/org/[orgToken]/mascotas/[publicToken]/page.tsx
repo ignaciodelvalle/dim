@@ -14,6 +14,15 @@ import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCodeBadge,
+  OpCrumbs,
+  OpStateBadge,
+} from "@/components/ui/dashboard";
+
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";
 
 export default async function OrgPetDetailPage({
@@ -27,16 +36,16 @@ export default async function OrgPetDetailPage({
 
   if (!granted.has("pet.read_held") && membership.role !== "admin") {
     return (
-      <main className="min-h-screen p-6 bg-white flex items-center justify-center">
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Permiso requerido</h1>
-          <p className="text-gob-text-gray">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-[13px] text-ln-op-ink-2">
             Para ver la ficha del animal necesitás el permiso{" "}
-            <code className="text-xs">pet.read_held</code>.
+            <code className="text-[11px]">pet.read_held</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white"
+            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -120,69 +129,93 @@ export default async function OrgPetDetailPage({
       : null,
   };
 
+  // Derive OpStateBadge state for the pet's adoption pipeline state.
+  function adoptionState(): "published" | "paused" | "draft" | null {
+    if (pet.adoptionListedAt && !pet.adoptionListingPausedAt) return "published";
+    if (pet.adoptionListedAt && pet.adoptionListingPausedAt) return "paused";
+    if (pet.adoptionEligible === true) return "draft";
+    return null;
+  }
+  const adState = adoptionState();
+
   return (
-    <main className="min-h-screen p-6 bg-white">
+    <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            {organization.displayName}
-          </p>
-          <h1 className="text-3xl font-semibold">{pet.name}</h1>
-          <p className="text-sm text-gob-text-gray">
-            {speciesLabel}
-            {pet.breed ? ` · ${pet.breed}` : ""}
-            {pet.color ? ` · ${pet.color}` : ""}
-          </p>
+          <OpCrumbs
+            items={[{ label: "Mascotas", href: `/org/${orgToken}/mascotas` }, { label: pet.name }]}
+          />
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+                {organization.displayName}
+              </p>
+              <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>
+              <p className="text-[13px] text-ln-op-ink-2">
+                {speciesLabel}
+                {pet.breed ? ` · ${pet.breed}` : ""}
+                {pet.color ? ` · ${pet.color}` : ""}
+              </p>
+            </div>
+            {adState && <OpStateBadge state={adState} />}
+          </div>
         </header>
 
         {/* Pet info */}
-        <section className="rounded border border-gob-border p-4 space-y-2 text-sm">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <dt className="text-gob-text-muted">Token público</dt>
-            <dd>
-              <code className="text-xs">{pet.publicToken}</code>
-            </dd>
-            <dt className="text-gob-text-muted">Estado</dt>
-            <dd className="capitalize">
-              {pet.status === "lost" ? "Perdida" : pet.status === "active" ? "Activa" : "Fallecida"}
-            </dd>
-            <dt className="text-gob-text-muted">Rol de custodia</dt>
-            <dd>
-              {ownershipRole === "shelter_custody"
-                ? "Custodia del refugio"
-                : ownershipRole === "foster"
-                  ? "Tránsito"
-                  : ownershipRole}
-            </dd>
-            {pet.microchipId && (
-              <>
-                <dt className="text-gob-text-muted">Microchip</dt>
-                <dd>
-                  <code className="text-xs">{pet.microchipId}</code>
-                </dd>
-              </>
-            )}
-            {fosterName && (
-              <>
-                <dt className="text-gob-text-muted">En tránsito con</dt>
-                <dd>{fosterName}</dd>
-              </>
-            )}
-          </dl>
-        </section>
+        <OpCard>
+          <OpCardHead title="Datos del animal" />
+          <OpCardBody>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+              <dt className="text-ln-op-mute">Token público</dt>
+              <dd>
+                <OpCodeBadge tone="neutral">{pet.publicToken}</OpCodeBadge>
+              </dd>
+              <dt className="text-ln-op-mute">Estado</dt>
+              <dd className="text-ln-op-ink capitalize">
+                {pet.status === "lost"
+                  ? "Perdida"
+                  : pet.status === "active"
+                    ? "Activa"
+                    : "Fallecida"}
+              </dd>
+              <dt className="text-ln-op-mute">Rol de custodia</dt>
+              <dd className="text-ln-op-ink">
+                {ownershipRole === "shelter_custody"
+                  ? "Custodia del refugio"
+                  : ownershipRole === "foster"
+                    ? "Tránsito"
+                    : ownershipRole}
+              </dd>
+              {pet.microchipId && (
+                <>
+                  <dt className="text-ln-op-mute">Microchip</dt>
+                  <dd>
+                    <OpCodeBadge tone="blue">{pet.microchipId}</OpCodeBadge>
+                  </dd>
+                </>
+              )}
+              {fosterName && (
+                <>
+                  <dt className="text-ln-op-mute">En tránsito con</dt>
+                  <dd className="text-ln-op-ink">{fosterName}</dd>
+                </>
+              )}
+            </dl>
+          </OpCardBody>
+        </OpCard>
 
         {/* Action buttons */}
         {(canManageEligibility || canReplaceMicrochip || canEndFoster || canProposeReturn) && (
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-gob-text-muted uppercase tracking-wide">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-ln-op-mute">
               Acciones
             </h2>
             <div className="flex flex-wrap gap-2">
               {canManageEligibility && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=elegibilidad`}
-                  className="inline-block text-sm px-3 py-1.5 rounded border border-gob-border-strong hover:bg-gob-surface-alt"
+                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   {pet.adoptionEligible === true
                     ? "Elegibilidad · Apta ✓"
@@ -194,7 +227,7 @@ export default async function OrgPetDetailPage({
               {canReplaceMicrochip && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=reemplazar-microchip`}
-                  className="inline-block text-sm px-3 py-1.5 rounded border border-gob-border-strong hover:bg-gob-surface-alt"
+                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   Reemplazar microchip
                 </Link>
@@ -202,7 +235,7 @@ export default async function OrgPetDetailPage({
               {canEndFoster && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=fin-transito`}
-                  className="inline-block text-sm px-3 py-1.5 rounded border border-gob-border-strong hover:bg-gob-surface-alt"
+                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   Cerrar tránsito
                 </Link>
@@ -210,7 +243,7 @@ export default async function OrgPetDetailPage({
               {canProposeReturn && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=devolver-al-dueno`}
-                  className="inline-block text-sm px-3 py-1.5 rounded bg-gob-info text-white hover:bg-gob-info"
+                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                 >
                   Devolver al dueño
                 </Link>
@@ -232,8 +265,11 @@ export default async function OrgPetDetailPage({
           />
         </Suspense>
 
-        <footer className="pt-4 border-t border-gob-border text-sm">
-          <Link href={`/org/${orgToken}/mascotas`} className="text-gob-text-gray underline">
+        <footer className="pt-4 border-t border-ln-op-line">
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+          >
             ← Volver al listado
           </Link>
         </footer>
