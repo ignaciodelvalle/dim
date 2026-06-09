@@ -1,37 +1,40 @@
-// Govt decomiso dashboard — lista de custody_episodes abiertos por la
-// organización sanitaria del usuario.
+// Govt decomiso dashboard -- lista de custody_episodes abiertos por la
+// organizacion sanitaria del usuario.
 //
-// Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §6.
+// Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md section 6.
 //
 // Query: cases WHERE caseKind='custody_episode'
 //          AND openedByOrganizationId = govtOrg.id
 //        ORDER BY openedAt DESC
 //
-// Columns: pet, status/phase, días transcurridos, refugio receptor, acción Reasignar.
+// Columns: pet, status/phase, dias transcurridos, refugio receptor, accion Reasignar.
 // Auth: requireDecomisoPrincipal (admin sees all; govt scoped to their org).
 
-import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { resolveGovtOrgForUser } from "@/app/actions/decomiso";
+import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, pets } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
 
 import { ReasignarButton } from "./_components/ReasignarButton";
 
-// Phase label for a custody_episode case based on spec §13.2
+// Phase label for a custody_episode case based on spec section 13.2
 function phaseLabel(status: string, receiverOrgId: string | null): string {
   if (status === "closed") return "Cerrado";
-  if (status === "open" && receiverOrgId) return "Esperando aceptación del refugio";
+  if (status === "open" && receiverOrgId) return "Esperando aceptacion del refugio";
   if (status === "open" && !receiverOrgId) return "En custodia oficial (sin refugio asignado)";
   return status;
 }
 
-function phaseTone(status: string, receiverOrgId: string | null): string {
-  if (status === "closed") return "bg-gob-surface-alt text-gob-text-muted";
-  if (status === "open" && receiverOrgId) return "bg-gob-warning/10 text-gob-warning-text";
-  return "bg-gob-info/10 text-gob-azul-link";
+type PhasePillTone = "neutral" | "open" | "triaged";
+
+function phasePillTone(status: string, receiverOrgId: string | null): PhasePillTone {
+  if (status === "closed") return "neutral";
+  if (status === "open" && receiverOrgId) return "open";
+  return "triaged";
 }
 
 function daysElapsed(openedAt: Date): number {
@@ -48,9 +51,9 @@ export default async function DecomisosDashboardPage() {
     const govtOrg = await resolveGovtOrgForUser(session.user.id);
     if (!govtOrg) {
       return (
-        <div className="mx-auto max-w-4xl px-4 py-8">
-          <p className="text-sm text-gob-text-muted rounded-xl border border-dashed border-gob-border p-8 text-center">
-            Tu usuario no está asociado a ninguna autoridad sanitaria. Contactá al administrador.
+        <div className="space-y-6">
+          <p className="text-[13px] text-ln-op-mute rounded-[6px] border border-dashed border-ln-op-line p-8 text-center">
+            Tu usuario no esta asociado a ninguna autoridad sanitaria. Contacta al administrador.
           </p>
         </div>
       );
@@ -78,11 +81,14 @@ export default async function DecomisosDashboardPage() {
     .limit(200);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+    <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-gob-text">Decomisos</h1>
-          <p className="text-sm text-gob-text-muted">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Decomisos
+          </p>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Decomisos</h1>
+          <p className="text-[13px] text-ln-op-mute">
             {session.profile.role === "admin"
               ? "Todos los episodios de custodia del sistema."
               : "Decomisos ejecutados por tu autoridad sanitaria."}
@@ -90,17 +96,17 @@ export default async function DecomisosDashboardPage() {
         </div>
         <Link
           href="/gob/decomisos/nuevo"
-          className="px-4 py-2 rounded-lg bg-gob-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          className="px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
-          + Nuevo decomiso
+          {"+ Nuevo decomiso"}
         </Link>
       </header>
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gob-border p-12 text-center space-y-2">
-          <p className="text-sm text-gob-text-muted">No hay decomisos registrados todavía.</p>
-          <p className="text-xs text-gob-text-muted">
-            Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.
+        <div className="rounded-[6px] border border-dashed border-ln-op-line p-12 text-center space-y-2">
+          <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavia.</p>
+          <p className="text-[12px] text-ln-op-mute">
+            {'Usa el boton "Nuevo decomiso" para registrar una incautacion por Ley 14.346.'}
           </p>
         </div>
       ) : (
@@ -110,77 +116,79 @@ export default async function DecomisosDashboardPage() {
             const canReassign = c.status === "open" && Boolean(c.receiverOrganizationId);
 
             return (
-              <li
-                key={c.id}
-                className="rounded-2xl border border-gob-border bg-white p-4 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1 min-w-0">
-                    {/* Case code + pet */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Link
-                        href={`/casos/${c.publicCode}`}
-                        className="text-sm font-semibold text-gob-primary hover:underline font-mono"
-                      >
-                        {c.publicCode}
-                      </Link>
-                      {petName && (
-                        <span className="text-sm text-gob-text">
-                          {petName}
-                          <span className="text-gob-text-muted"> ({petSpecies ?? "—"})</span>
-                        </span>
-                      )}
-                      {petToken && (
-                        <span className="text-xs font-mono text-gob-text-muted">{petToken}</span>
-                      )}
+              <li key={c.id}>
+                <OpCard>
+                  <OpCardBody>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        {/* Case code + pet */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            href={`/casos/${c.publicCode}`}
+                            className="text-[13px] font-semibold text-ln-op-azul hover:underline font-mono no-underline"
+                          >
+                            {c.publicCode}
+                          </Link>
+                          {petName && (
+                            <span className="text-[13px] text-ln-op-ink">
+                              {petName}
+                              <span className="text-ln-op-mute"> ({petSpecies ?? "—"})</span>
+                            </span>
+                          )}
+                          {petToken && (
+                            <span className="text-[11px] font-mono text-ln-op-mute">
+                              {petToken}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Phase pill */}
+                        <OpPill tone={phasePillTone(c.status, c.receiverOrganizationId)}>
+                          {phaseLabel(c.status, c.receiverOrganizationId)}
+                        </OpPill>
+                      </div>
+
+                      {/* Days elapsed */}
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-[18px] font-bold text-ln-op-ink tabular-nums">{days}</p>
+                        <p className="text-[12px] text-ln-op-mute">{days === 1 ? "dia" : "dias"}</p>
+                      </div>
                     </div>
 
-                    {/* Phase badge */}
-                    <span
-                      className={`inline-flex text-xs px-2.5 py-0.5 rounded-full font-medium ${phaseTone(c.status, c.receiverOrganizationId)}`}
-                    >
-                      {phaseLabel(c.status, c.receiverOrganizationId)}
-                    </span>
-                  </div>
+                    <div className="flex items-center justify-between gap-3 flex-wrap text-[12px] text-ln-op-mute mt-3">
+                      <div className="space-y-0.5">
+                        <p>
+                          Abierto el {formatDate(c.openedAt)}
+                          {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
+                        </p>
+                        {receiverName && (
+                          <p>
+                            Refugio:{" "}
+                            <span className="text-ln-op-ink font-medium">{receiverName}</span>
+                          </p>
+                        )}
+                        {!c.receiverOrganizationId && c.status === "open" && (
+                          <p className="text-ln-op-warn">Sin refugio asignado</p>
+                        )}
+                      </div>
 
-                  {/* Days elapsed */}
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-lg font-bold text-gob-text tabular-nums">{days}</p>
-                    <p className="text-xs text-gob-text-muted">{days === 1 ? "día" : "días"}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-gob-text-muted">
-                  <div className="space-y-0.5">
-                    <p>
-                      Abierto el {formatDate(c.openedAt)}
-                      {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                    </p>
-                    {receiverName && (
-                      <p>
-                        Refugio: <span className="text-gob-text font-medium">{receiverName}</span>
-                      </p>
-                    )}
-                    {!c.receiverOrganizationId && c.status === "open" && (
-                      <p className="text-gob-warning-text">Sin refugio asignado</p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/casos/${c.publicCode}`}
-                      className="px-3 py-1.5 rounded-lg border border-gob-border text-gob-text hover:bg-gob-surface-alt transition-colors"
-                    >
-                      Ver caso
-                    </Link>
-                    {canReassign && (
-                      <ReasignarButton
-                        casePublicCode={c.publicCode}
-                        currentReceiverName={receiverName ?? "el refugio actual"}
-                      />
-                    )}
-                  </div>
-                </div>
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/casos/${c.publicCode}`}
+                          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-[12px]"
+                        >
+                          Ver caso
+                        </Link>
+                        {canReassign && (
+                          <ReasignarButton
+                            casePublicCode={c.publicCode}
+                            currentReceiverName={receiverName ?? "el refugio actual"}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </OpCardBody>
+                </OpCard>
               </li>
             );
           })}

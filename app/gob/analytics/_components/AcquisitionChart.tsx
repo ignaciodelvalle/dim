@@ -17,7 +17,7 @@ type Props = {
 
 /** Method bucket display labels (es-AR). */
 const METHOD_LABELS: Record<string, string> = {
-  shelter_adoption: "adopción de refugio",
+  shelter_adoption: "adopcion de refugio",
   vecino_helps_stray: "vecino ayuda callejero",
   private_handover: "entrega particular",
   other: "otro",
@@ -64,8 +64,8 @@ export function AcquisitionChart({ data, className }: Props) {
         fallbackTableLabel="Tendencia de adquisiciones por mes"
       />
       {methodSummary && (
-        <p className="mt-2 text-xs text-gob-text-muted">
-          <span className="font-medium">Métodos:</span> {methodSummary}
+        <p className="mt-2 text-[12px] text-ln-op-mute">
+          <span className="font-medium">Metodos:</span> {methodSummary}
         </p>
       )}
     </div>
