@@ -28,7 +28,7 @@ interface Props {
 export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", height = 70 }: Props) {
   if (samples.length < 2) {
     return (
-      <section className="rounded-xl border border-dashed border-gob-border-strong p-4 text-center text-sm text-gob-text-muted ">
+      <section className="rounded-xl border border-dashed border-ln-line-strong p-4 text-center text-sm text-ln-mute ">
         Cargá al menos dos pesos para ver la curva.
       </section>
     );
@@ -57,17 +57,13 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
       ? "estable"
       : `${trendPct > 0 ? "↑" : "↓"} ${Math.abs(trendPct).toFixed(0)}%`;
   const trendColor =
-    Math.abs(trendPct) < 0.5
-      ? "text-gob-text-muted "
-      : trendPct > 0
-        ? "text-gob-success "
-        : "text-gob-warning-text ";
+    Math.abs(trendPct) < 0.5 ? "text-ln-mute " : trendPct > 0 ? "text-ln-ok " : "text-ln-warn ";
 
   return (
-    <section aria-label={title} className="rounded-xl bg-gob-surface-alt p-3 ">
+    <section aria-label={title} className="rounded-xl bg-ln-stripe p-3 ">
       <header className="mb-1 flex items-baseline justify-between text-xs">
-        <span className="text-gob-text-muted ">{title}</span>
-        <span className="font-semibold text-gob-text ">
+        <span className="text-ln-mute ">{title}</span>
+        <span className="font-semibold text-ln-ink ">
           {last.kg.toLocaleString("es-AR", { maximumFractionDigits: 2 })} kg{" "}
           <span className={`ml-1 font-medium ${trendColor}`}>{trendLabel}</span>
         </span>
@@ -96,7 +92,7 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
           fill="#0F6E56"
         />
       </svg>
-      <footer className="mt-1 flex items-baseline justify-between text-[10px] text-gob-text-muted ">
+      <footer className="mt-1 flex items-baseline justify-between text-[10px] text-ln-mute ">
         <span>{first.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
         <span>{last.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
       </footer>

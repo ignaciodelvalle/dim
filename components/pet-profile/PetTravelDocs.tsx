@@ -32,18 +32,18 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
   return (
     <section
       aria-labelledby="pp-docs-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="pp-docs-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="pp-docs-h" className="text-base font-semibold text-ln-ink ">
           Documentos de viaje
         </h2>
-        <Link href={uploadHref} className="text-xs font-medium text-gob-azul-link hover:underline">
+        <Link href={uploadHref} className="text-xs font-medium text-ln-azul hover:underline">
           Subir →
         </Link>
       </div>
       {docs.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-gob-border-strong p-6 text-center text-sm text-gob-text-muted ">
+        <p className="rounded-xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute ">
           Sin documentos cargados. Si viajás, subí pasaporte sanitario o certificado internacional.
         </p>
       ) : (
@@ -53,12 +53,12 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
               {d.href ? (
                 <Link
                   href={d.href}
-                  className="block rounded-lg border border-gob-border p-3 transition-colors hover:bg-gob-surface-alt  "
+                  className="block rounded-lg border border-ln-line p-3 transition-colors hover:bg-ln-stripe  "
                 >
                   <DocBody d={d} />
                 </Link>
               ) : (
-                <div className="rounded-lg border border-dashed border-gob-border-strong p-3 ">
+                <div className="rounded-lg border border-dashed border-ln-line-strong p-3 ">
                   <DocBody d={d} />
                 </div>
               )}
@@ -73,13 +73,13 @@ export function PetTravelDocs({ docs, uploadHref }: Props) {
 function DocBody({ d }: { d: PetDocRow }) {
   return (
     <>
-      <p className="text-sm font-medium text-gob-text ">
+      <p className="text-sm font-medium text-ln-ink ">
         <span aria-hidden className="mr-1">
           {KIND_ICON[d.kind]}
         </span>
         {d.label}
       </p>
-      <p className="mt-0.5 text-xs text-gob-text-muted ">{d.caption}</p>
+      <p className="mt-0.5 text-xs text-ln-mute ">{d.caption}</p>
     </>
   );
 }

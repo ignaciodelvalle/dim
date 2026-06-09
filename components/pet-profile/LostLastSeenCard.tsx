@@ -19,7 +19,7 @@ import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-40 rounded-xl border border-gob-border bg-gob-surface-alt animate-pulse" />
+    <div className="w-full h-40 rounded-xl border border-ln-line bg-ln-stripe animate-pulse" />
   ),
 });
 
@@ -67,13 +67,13 @@ export function LostLastSeenCard({
   return (
     <section
       aria-labelledby="lp-loc-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-loc-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="lp-loc-h" className="text-base font-semibold text-ln-ink ">
           Última ubicación
           {sightingsCount > 0 && (
-            <span className="ml-2 text-xs font-normal text-gob-text-muted ">
+            <span className="ml-2 text-xs font-normal text-ln-mute ">
               · {sightingsCount} avistamiento{sightingsCount === 1 ? "" : "s"}
             </span>
           )}
@@ -87,21 +87,21 @@ export function LostLastSeenCard({
           </div>
           <Link
             href={editHref}
-            className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white "
+            className="absolute right-2 top-2 rounded-full bg-ln-card/95 px-3 py-1 text-[11px] font-semibold text-ln-azul shadow-sm hover:bg-ln-card "
           >
             Editar
           </Link>
-          <div className="mt-2 rounded-lg border border-gob-border px-3 py-2 text-xs text-gob-text-gray  ">
+          <div className="mt-2 rounded-lg border border-ln-line px-3 py-2 text-xs text-ln-ink-2  ">
             <p>
-              <span className="font-semibold text-gob-text ">{placeName}</span>
-              <span className="text-gob-text-muted "> · {localityLabel}</span>
-              <span className="text-gob-text-muted "> · {formatWhen(at)}</span>
+              <span className="font-semibold text-ln-ink ">{placeName}</span>
+              <span className="text-ln-mute "> · {localityLabel}</span>
+              <span className="text-ln-mute "> · {formatWhen(at)}</span>
             </p>
-            {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
+            {note && <p className="mt-0.5 line-clamp-2 italic text-ln-mute ">"{note}"</p>}
           </div>
         </div>
       ) : (
-        <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-gob-success/10 to-gob-info/10  ">
+        <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-[#eef6f0] to-ln-celeste/10  ">
           <div className="absolute inset-0 flex items-center justify-center">
             <span aria-hidden className="text-4xl drop-shadow">
               📍
@@ -109,22 +109,22 @@ export function LostLastSeenCard({
           </div>
           <Link
             href={editHref}
-            className="absolute right-2 top-2 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-gob-azul-link shadow-sm hover:bg-white "
+            className="absolute right-2 top-2 rounded-full bg-ln-card/95 px-3 py-1 text-[11px] font-semibold text-ln-azul shadow-sm hover:bg-ln-card "
           >
             Editar
           </Link>
-          <div className="absolute inset-x-2 bottom-2 rounded-lg bg-white/95 px-3 py-2 text-xs text-gob-text-gray shadow-sm  ">
+          <div className="absolute inset-x-2 bottom-2 rounded-lg bg-ln-card/95 px-3 py-2 text-xs text-ln-ink-2 shadow-sm  ">
             <p>
-              <span className="font-semibold text-gob-text ">{placeName}</span>
-              <span className="text-gob-text-muted "> · {localityLabel}</span>
-              <span className="text-gob-text-muted "> · {formatWhen(at)}</span>
+              <span className="font-semibold text-ln-ink ">{placeName}</span>
+              <span className="text-ln-mute "> · {localityLabel}</span>
+              <span className="text-ln-mute "> · {formatWhen(at)}</span>
             </p>
-            {note && <p className="mt-0.5 line-clamp-2 italic text-gob-text-muted ">"{note}"</p>}
+            {note && <p className="mt-0.5 line-clamp-2 italic text-ln-mute ">"{note}"</p>}
           </div>
         </div>
       )}
 
-      <p className="mt-3 text-xs text-gob-text-muted">
+      <p className="mt-3 text-xs text-ln-mute">
         Si te avisaron por afuera, mandales el link de la credencial para que reporten el avistaje
         desde ahí.
       </p>

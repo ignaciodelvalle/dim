@@ -25,7 +25,7 @@ export function CopyPublicLinkButton({ publicUrl }: Props) {
     <button
       type="button"
       onClick={handleCopy}
-      className="mt-3 w-full rounded-lg border border-gob-border bg-white px-3 py-2 text-xs font-medium text-gob-text hover:bg-gob-surface-alt"
+      className="mt-3 w-full rounded-lg border border-ln-line bg-ln-card px-3 py-2 text-xs font-medium text-ln-ink hover:bg-ln-stripe"
     >
       {copied ? "¡Copiado! ✓" : "Copiar link público"}
     </button>

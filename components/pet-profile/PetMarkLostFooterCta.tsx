@@ -27,12 +27,12 @@ export function PetMarkLostFooterCta({ petPublicToken, petStatus }: Props) {
 
   return (
     <div
-      className="md:hidden fixed bottom-0 inset-x-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur border-t border-gob-border  "
+      className="md:hidden fixed bottom-0 inset-x-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-ln-card/95 backdrop-blur border-t border-ln-line  "
       data-section="marklost-footer-cta"
     >
       <Link
         href={`/mis-mascotas/${petPublicToken}?sheet=marcar-perdida`}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gob-warning  text-white font-semibold text-sm px-4 py-3 hover:bg-gob-warning  focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-warning focus-visible:ring-offset-2 transition-colors"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-ln-warn  text-white font-semibold text-sm px-4 py-3 hover:bg-ln-warn  focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-warn focus-visible:ring-offset-2 transition-colors"
       >
         <span aria-hidden="true">⚠</span>
         Marcar como perdida

@@ -64,18 +64,18 @@ export function PhysicalTagInterestCard({
   return (
     <section
       aria-labelledby="pp-physical-tag-h"
-      className="rounded-2xl border border-gob-border bg-white p-4  "
+      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
       <div className="mb-2 flex items-baseline gap-2">
         <span aria-hidden="true">🏷️</span>
-        <h2 id="pp-physical-tag-h" className="text-base font-semibold text-gob-text ">
+        <h2 id="pp-physical-tag-h" className="text-base font-semibold text-ln-ink ">
           {interested ? "Chapa física — anotado" : `¿Querés una chapa física para ${petName}?`}
         </h2>
       </div>
 
       {interested ? (
         <>
-          <p className="text-sm text-gob-text-gray ">
+          <p className="text-sm text-ln-ink-2 ">
             Te avisamos cuando estén disponibles para {petName}.
             {requestedAt ? ` Solicitado el ${DATE_FMT.format(requestedAt)}.` : null}
           </p>
@@ -83,25 +83,25 @@ export function PhysicalTagInterestCard({
             type="button"
             onClick={onToggle}
             disabled={pending}
-            className="mt-3 rounded-md border border-gob-border-strong px-3 py-1.5 text-xs font-medium text-gob-text-gray hover:bg-gob-surface-alt disabled:opacity-50   "
+            className="mt-3 rounded-md border border-ln-line-strong px-3 py-1.5 text-xs font-medium text-ln-ink-2 hover:bg-ln-stripe disabled:opacity-50   "
           >
             {pending ? "Actualizando…" : "Cancelar interés"}
           </button>
         </>
       ) : (
         <>
-          <p className="text-sm text-gob-text-gray ">
+          <p className="text-sm text-ln-ink-2 ">
             Una chapita con el QR de {petName} que cuelga del collar. Si alguien la encuentra,
             escanea y ve su libreta.
           </p>
-          <p className="mt-2 text-xs text-gob-text-muted ">
+          <p className="mt-2 text-xs text-ln-mute ">
             Estamos midiendo interés — no se cobra todavía.
           </p>
           <button
             type="button"
             onClick={onToggle}
             disabled={pending}
-            className="mt-3 rounded-md bg-gob-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-gob-primary disabled:opacity-50   "
+            className="mt-3 rounded-md bg-ln-azul px-3 py-1.5 text-xs font-medium text-white hover:bg-ln-azul-700 disabled:opacity-50   "
           >
             {pending ? "Guardando…" : "Me interesa"}
           </button>
@@ -109,7 +109,7 @@ export function PhysicalTagInterestCard({
       )}
 
       {error ? (
-        <p className="mt-2 text-xs text-gob-danger " role="alert">
+        <p className="mt-2 text-xs text-ln-err " role="alert">
           {error}
         </p>
       ) : null}
