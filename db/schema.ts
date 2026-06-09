@@ -1791,6 +1791,10 @@ export const AUDIT_LOG_ACTIONS = [
   "outbreak_investigation_closed_resolved",
   "outbreak_investigation_closed_dismissed",
   "outbreak_investigation_note_added",
+  // One-time backfill script for missed ENO notifications (bug fix PR #137).
+  // Written once per script invocation (not per event).
+  // Payload: { since, until, limit, processed, notified, skipped, errors, dry_run }.
+  "eno_backfill_run_completed",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
