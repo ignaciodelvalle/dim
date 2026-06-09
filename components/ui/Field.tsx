@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useId } from "react";
+import { type InputHTMLAttributes, type ReactNode, useId } from "react";
 
 /**
  * Libreta Nacional Field / Input / Select / Textarea primitives.
@@ -13,12 +13,14 @@ import { type ReactNode, useId } from "react";
  *  - focus: border ln-azul + box-shadow 0 0 0 3px ln-celeste-050
  *
  * Exports:
- *  LnField     — wrapper (label + control slot + hint/error)
- *  LnInput     — <input> styled to spec; mono variant for codes/dates
- *  LnSelect    — <select> with custom chevron
- *  LnTextarea  — <textarea> resizable
- *  LnRow       — 2-column grid for field pairs
+ *  LnField      — wrapper (label + control slot + hint/error)
+ *  LnInput      — <input> styled to spec; mono variant for codes/dates
+ *  LnSelect     — <select> with custom chevron
+ *  LnTextarea   — <textarea> resizable
+ *  LnRow        — 2-column grid for field pairs
  *  LnSuffixWrap — input with appended unit label (e.g. "27.4 [kg]")
+ *  LnCheckbox   — native uncontrolled checkbox with LN styling
+ *  LnRadio      — native uncontrolled radio with LN styling
  */
 
 // ---------- Field wrapper -------------------------------------------------
@@ -209,5 +211,120 @@ export function LnSuffixWrap({ suffix, children, className = "" }: LnSuffixWrapP
         {suffix}
       </span>
     </div>
+  );
+}
+
+// ---------- Checkbox -------------------------------------------------------
+
+export type LnCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
+  /** Sets aria-invalid="true" and applies error styling to the input. */
+  invalid?: boolean;
+  /** Label content. Omit for a label-less control (pass `aria-label` instead). */
+  children?: ReactNode;
+  /** Extra classes for the label text span. */
+  labelClassName?: string;
+};
+
+export function LnCheckbox({
+  invalid,
+  children,
+  className,
+  labelClassName,
+  id: idProp,
+  ...rest
+}: LnCheckboxProps) {
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
+
+  const input = (
+    <input
+      id={id}
+      type="checkbox"
+      aria-invalid={invalid || undefined}
+      className={[
+        "mt-0.5 h-4 w-4 shrink-0 cursor-pointer",
+        "accent-[var(--color-ln-azul)]",
+        "rounded-[3px]",
+        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
+        invalid ? "outline outline-[1.5px] outline-[var(--color-ln-err)]" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...rest}
+    />
+  );
+
+  // Label-less: render just the input — caller supplies aria-label.
+  if (children == null) return input;
+
+  return (
+    <label htmlFor={id} className="flex items-start gap-2 cursor-pointer">
+      {input}
+      <span
+        className={["text-[13px] leading-tight text-[var(--color-ln-ink)]", labelClassName ?? ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {children}
+      </span>
+    </label>
+  );
+}
+
+// ---------- Radio ----------------------------------------------------------
+
+export type LnRadioProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
+  /** Sets aria-invalid="true" and applies error styling to the input. */
+  invalid?: boolean;
+  /** Label content. Omit for a label-less control (pass `aria-label` instead). */
+  children?: ReactNode;
+  /** Extra classes for the label text span. */
+  labelClassName?: string;
+};
+
+export function LnRadio({
+  invalid,
+  children,
+  className,
+  labelClassName,
+  id: idProp,
+  ...rest
+}: LnRadioProps) {
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
+
+  const input = (
+    <input
+      id={id}
+      type="radio"
+      aria-invalid={invalid || undefined}
+      className={[
+        "mt-0.5 h-4 w-4 shrink-0 cursor-pointer",
+        "accent-[var(--color-ln-azul)]",
+        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
+        invalid ? "outline outline-[1.5px] outline-[var(--color-ln-err)]" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...rest}
+    />
+  );
+
+  // Label-less: render just the input — caller supplies aria-label.
+  if (children == null) return input;
+
+  return (
+    <label htmlFor={id} className="flex items-start gap-2 cursor-pointer">
+      {input}
+      <span
+        className={["text-[13px] leading-tight text-[var(--color-ln-ink)]", labelClassName ?? ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {children}
+      </span>
+    </label>
   );
 }
