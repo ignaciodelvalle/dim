@@ -76,7 +76,7 @@ export function BulkRevokeList<T extends BulkRevokableItem>({
         {items.map((item) => {
           const revocable = isRevocable(item);
           return (
-            <li key={item.id} className="rounded-lg border border-gob-border  px-4 py-3">
+            <li key={item.id} className="rounded-lg border border-ln-op-line px-4 py-3">
               <div className="flex items-start gap-3">
                 {revocable ? (
                   <Checkbox
@@ -96,8 +96,8 @@ export function BulkRevokeList<T extends BulkRevokableItem>({
       </ul>
 
       {hasSelection && (
-        <div className="sticky bottom-4 z-30 mx-auto mt-6 flex max-w-3xl items-center justify-between gap-3 rounded-2xl border border-gob-danger bg-white px-4 py-3 shadow-lg  ">
-          <span className="text-sm text-gob-text-gray ">
+        <div className="sticky bottom-4 z-30 mx-auto mt-6 flex max-w-3xl items-center justify-between gap-3 rounded-2xl border border-ln-op-danger bg-ln-op-card px-4 py-3 shadow-lg">
+          <span className="text-sm text-ln-op-ink-2">
             {selectedItems.length} seleccionad{selectedItems.length === 1 ? "o" : "os"} para
             revocación
           </span>
@@ -105,14 +105,14 @@ export function BulkRevokeList<T extends BulkRevokableItem>({
             <button
               type="button"
               onClick={() => setSelected(new Set())}
-              className="rounded-md px-3 py-1.5 text-sm text-gob-text-gray hover:bg-gob-surface-alt  "
+              className="rounded-md px-3 py-1.5 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe"
             >
               Limpiar
             </button>
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="rounded-md bg-gob-danger px-4 py-1.5 text-sm font-medium text-white hover:bg-gob-danger  "
+              className="rounded-md bg-ln-op-danger px-4 py-1.5 text-sm font-medium text-white hover:bg-ln-op-danger"
             >
               Revocar seleccionados →
             </button>
@@ -230,15 +230,15 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
       role="dialog"
       aria-modal="true"
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl ">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl">
         <header className="mb-4 flex items-baseline justify-between gap-3">
-          <h2 className="text-lg font-semibold text-gob-danger ">
+          <h2 className="text-lg font-semibold text-ln-op-danger">
             Revocar {selectedItems.length} {targetKindLabel(targetKind, selectedItems.length)}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-gob-text-muted hover:text-gob-text "
+            className="text-sm text-ln-op-mute hover:text-ln-op-ink"
           >
             Cerrar
           </button>
@@ -247,21 +247,21 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
         {result ? (
           <div className="space-y-3">
             <p className="text-sm">
-              <strong className="text-gob-success ">
+              <strong className="text-ln-op-ok">
                 {result.succeeded.length} revocaciones aplicadas
               </strong>
               {result.failed.length > 0 && (
                 <>
                   {" · "}
-                  <strong className="text-gob-danger ">{result.failed.length} fallaron</strong>
+                  <strong className="text-ln-op-danger">{result.failed.length} fallaron</strong>
                 </>
               )}
               .
             </p>
             {result.failed.length > 0 && (
-              <ul className="space-y-1 rounded-lg border border-gob-danger bg-gob-danger/10 p-3 text-xs  ">
+              <ul className="space-y-1 rounded-lg border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 text-xs">
                 {result.failed.map((f) => (
-                  <li key={f.id} className="text-gob-danger ">
+                  <li key={f.id} className="text-ln-op-danger">
                     <span className="font-mono">{f.id.slice(0, 8)}…</span> — {f.reason}
                   </li>
                 ))}
@@ -270,19 +270,19 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             <button
               type="button"
               onClick={onDone}
-              className="w-full rounded-md bg-gob-primary px-4 py-2 text-sm font-medium text-white hover:bg-gob-border-strong   "
+              className="w-full rounded-md bg-ln-op-azul px-4 py-2 text-sm font-medium text-white hover:bg-ln-op-azul-700"
             >
               Recargar lista
             </button>
           </div>
         ) : (
           <div className="space-y-4">
-            <details className="rounded-lg border border-gob-border bg-gob-surface-alt p-3 text-sm  ">
+            <details className="rounded-lg border border-ln-op-line bg-ln-op-stripe p-3 text-sm">
               <summary className="cursor-pointer font-medium">
                 {selectedItems.length} {targetKindLabel(targetKind, selectedItems.length)}{" "}
                 alcanzados
               </summary>
-              <ul className="mt-2 max-h-32 space-y-0.5 overflow-y-auto pl-4 text-xs text-gob-text-gray ">
+              <ul className="mt-2 max-h-32 space-y-0.5 overflow-y-auto pl-4 text-xs text-ln-op-ink-2">
                 {selectedItems.map((i) => (
                   <li key={i.id}>{i.label}</li>
                 ))}
@@ -292,7 +292,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             <div>
               <label
                 htmlFor="bulk-revoke-motivo"
-                className="mb-1 block text-xs font-medium text-gob-text-gray "
+                className="mb-1 block text-xs font-medium text-ln-op-ink-2"
               >
                 Motivo (mínimo {MOTIVO_MIN} caracteres)
               </label>
@@ -301,10 +301,10 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-gob-border-strong bg-white p-2 text-sm  "
+                className="w-full rounded-md border border-ln-op-line bg-ln-op-card p-2 text-sm"
                 placeholder="Describí el motivo común para todas las revocaciones de esta operación."
               />
-              <p className="mt-1 text-xs text-gob-text-muted">
+              <p className="mt-1 text-xs text-ln-op-mute">
                 {motivoTrimmed.length}/{MOTIVO_MIN} caracteres
               </p>
             </div>
@@ -312,7 +312,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             <div>
               <label
                 htmlFor={evidenciaInputId}
-                className="mb-1 block text-xs font-medium text-gob-text-gray "
+                className="mb-1 block text-xs font-medium text-ln-op-ink-2"
               >
                 Evidencia (al menos 1 archivo)
               </label>
@@ -324,11 +324,11 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
                 multiple
                 className="block w-full text-xs"
               />
-              {uploading && <p className="mt-1 text-xs text-gob-text-muted">Subiendo archivos…</p>}
+              {uploading && <p className="mt-1 text-xs text-ln-op-mute">Subiendo archivos…</p>}
               {uploadedFiles.length > 0 && (
                 <ul className="mt-2 space-y-1 text-xs">
                   {uploadedFiles.map((f) => (
-                    <li key={f.attachmentId} className="text-gob-success ">
+                    <li key={f.attachmentId} className="text-ln-op-ok">
                       ✓ {f.name}
                     </li>
                   ))}
@@ -339,20 +339,20 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             <Checkbox
               checked={confirm}
               onChange={(e) => setConfirm(e.target.checked)}
-              labelClassName="text-xs! text-gob-text-gray!"
+              labelClassName="text-xs! text-ln-op-ink-2!"
             >
               Confirmo que esta revocación afecta a {selectedItems.length}{" "}
               {targetKindLabel(targetKind, selectedItems.length)} y entiendo que cada afectado va a
               recibir una notificación con el motivo.
             </Checkbox>
 
-            {error && <p className="text-sm text-gob-danger ">{error}</p>}
+            {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
-            <div className="flex justify-end gap-2 border-t border-gob-border pt-3 ">
+            <div className="flex justify-end gap-2 border-t border-ln-op-line pt-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md px-4 py-2 text-sm text-gob-text-gray hover:bg-gob-surface-alt  "
+                className="rounded-md px-4 py-2 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe"
               >
                 Cancelar
               </button>
@@ -360,7 +360,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
                 type="button"
                 onClick={submit}
                 disabled={!canSubmit}
-                className="rounded-md bg-gob-danger px-4 py-2 text-sm font-medium text-white hover:bg-gob-danger disabled:cursor-not-allowed disabled:opacity-50  "
+                className="rounded-md bg-ln-op-danger px-4 py-2 text-sm font-medium text-white hover:bg-ln-op-danger disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pending ? "Revocando…" : "Confirmar revocación"}
               </button>
