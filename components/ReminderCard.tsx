@@ -1,9 +1,9 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
 
+import { LnBadge } from "@/components/ui/Badge";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
-import { Badge } from "./Badge";
-import { Panel, PanelBody, PanelHeader } from "./Panel";
 
 /**
  * Tarjeta de recordatorio de vacuna. Cinco variantes según el estado del vencimiento.
@@ -18,11 +18,9 @@ import { Panel, PanelBody, PanelHeader } from "./Panel";
  *  - success           → vacuna registrada que respondió a un recordatorio. Borde verde.
  *
  * Accesibilidad:
- *  - El wrapper es un `<article>` (no usamos Panel directamente como article porque
- *    Panel usa `<section>`). El Panel queda adentro para obtener el contenedor visual.
- *    Decisión: envolver Panel en <article> es la solución más directa sin modificar
- *    Panel ni crear una prop opcional `as`. Cada ReminderCard en una lista de recordatorios
- *    es semánticamente una unidad independiente → `<article>` es correcto.
+ *  - El wrapper es un `<article>` (no usamos LnCard directamente como article porque
+ *    LnCard usa `<div>`). Cada ReminderCard en una lista de recordatorios es
+ *    semánticamente una unidad independiente → `<article>` es correcto.
  *  - `aria-labelledby` en el article apunta al `id` del título generado con `useId()`.
  *    useId() garantiza IDs estables y únicos cuando hay múltiples cards en la misma página.
  *  - `overdue_critical` agrega `role="alert"` al article para anuncio inmediato.
@@ -64,7 +62,7 @@ export type ReminderCardProps = {
 type VariantConfig = {
   /** Clases de borde izquierdo de 4px y fondo opcional. */
   border: string;
-  /** Variante del Badge de estado. */
+  /** Variante del LnBadge de estado. */
   badgeVariant: "info" | "success" | "warning" | "danger" | "neutral";
   /** Agrega role="alert" al article. Solo overdue_critical. */
   isAlert: boolean;
@@ -72,27 +70,27 @@ type VariantConfig = {
 
 const VARIANT_CONFIG: Record<ReminderVariant, VariantConfig> = {
   upcoming: {
-    border: "border-l-4 border-l-gob-info",
+    border: "border-l-4 border-l-[var(--color-ln-celeste)]",
     badgeVariant: "info",
     isAlert: false,
   },
   due_soon: {
-    border: "border-l-4 border-l-gob-warning",
+    border: "border-l-4 border-l-[#e0a93e]",
     badgeVariant: "warning",
     isAlert: false,
   },
   overdue: {
-    border: "border-l-4 border-l-gob-danger",
+    border: "border-l-4 border-l-[var(--color-ln-seal)]",
     badgeVariant: "danger",
     isAlert: false,
   },
   overdue_critical: {
-    border: "border-l-4 border-l-gob-danger bg-gob-danger/5",
+    border: "border-l-4 border-l-[var(--color-ln-seal)] bg-[var(--color-ln-seal)]/5",
     badgeVariant: "danger",
     isAlert: true,
   },
   success: {
-    border: "border-l-4 border-l-gob-success",
+    border: "border-l-4 border-l-[var(--color-ln-ok)]",
     badgeVariant: "success",
     isAlert: false,
   },
@@ -121,8 +119,8 @@ export function ReminderCard({
 
   return (
     <article {...articleProps} className={className}>
-      <Panel className={config.border} aria-labelledby={titleId}>
-        <PanelHeader
+      <LnCard className={config.border}>
+        <LnCardHead
           title={
             <span id={titleId}>
               {title} — {petName}
@@ -130,13 +128,13 @@ export function ReminderCard({
           }
           actions={actions}
         />
-        <PanelBody>
+        <LnCardBody>
           <div className="flex flex-col gap-1.5">
-            <Badge variant={config.badgeVariant}>{statusText}</Badge>
-            {dueAt && <p className="text-xs text-gob-text-gray">{dueAt}</p>}
+            <LnBadge variant={config.badgeVariant}>{statusText}</LnBadge>
+            {dueAt && <p className="text-xs text-[var(--color-ln-ink-2)]">{dueAt}</p>}
           </div>
-        </PanelBody>
-      </Panel>
+        </LnCardBody>
+      </LnCard>
     </article>
   );
 }

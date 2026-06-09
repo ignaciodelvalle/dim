@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-import { EmptyState, JurisdictionSwitcher, MapChoropleth, PeriodPicker } from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { EmptyState } from "@/components/poncho";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {

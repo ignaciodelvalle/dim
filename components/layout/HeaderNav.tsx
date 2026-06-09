@@ -92,13 +92,13 @@ export function HeaderNav({ nav, user }: Props) {
               aria-current={active ? "page" : undefined}
               className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-semibold no-underline transition-colors ${
                 active
-                  ? "bg-gob-surface-alt text-gob-primary"
-                  : "text-gob-text-gray hover:bg-gob-surface-alt hover:text-gob-primary"
+                  ? "bg-ln-stripe text-ln-azul"
+                  : "text-ln-ink-2 hover:bg-ln-stripe hover:text-ln-azul"
               }`}
             >
               {item.label}
               {item.badge != null && item.badge > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-gob-danger px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                   {item.badge}
                 </span>
               )}
@@ -112,7 +112,7 @@ export function HeaderNav({ nav, user }: Props) {
         {user ? (
           <Link
             href={user.href ?? "/cuenta"}
-            className="flex items-center gap-2 rounded-full border border-gob-border px-3 py-2 text-sm font-semibold text-gob-primary no-underline hover:border-gob-border-strong"
+            className="flex items-center gap-2 rounded-full border border-ln-line px-3 py-2 text-sm font-semibold text-ln-azul no-underline hover:border-ln-line-strong"
           >
             <Icon name="usuarios" size={18} decorative />
             <span className="max-w-[14ch] truncate">{user.name}</span>
@@ -120,7 +120,7 @@ export function HeaderNav({ nav, user }: Props) {
         ) : (
           <Link
             href="/auth/login"
-            className="inline-flex min-h-11 items-center justify-center rounded-full bg-gob-primary px-6 text-sm font-semibold text-white no-underline hover:bg-gob-primary-hover"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline hover:bg-ln-azul-700"
           >
             Iniciar sesión
           </Link>
@@ -135,7 +135,7 @@ export function HeaderNav({ nav, user }: Props) {
           aria-controls={panelId}
           aria-label={open ? "Cerrar menú" : "Abrir menú"}
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gob-border text-gob-primary hover:border-gob-border-strong"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-ln-line text-ln-azul hover:border-ln-line-strong"
         >
           {open ? <CloseIcon /> : <HamburgerIcon />}
         </button>
@@ -160,13 +160,13 @@ export function HeaderNav({ nav, user }: Props) {
             className="absolute inset-0 bg-black/40"
           />
           <div className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gob-border px-4 py-3">
-              <span className="text-lg font-bold text-gob-primary">MiMAR</span>
+            <div className="flex items-center justify-between border-b border-ln-line px-4 py-3">
+              <span className="text-lg font-bold text-ln-azul">MiMAR</span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar menú"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-gob-text-gray hover:bg-gob-surface-alt"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-ln-ink-2 hover:bg-ln-stripe"
               >
                 <CloseIcon size={20} />
               </button>
@@ -181,14 +181,12 @@ export function HeaderNav({ nav, user }: Props) {
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={`flex min-h-12 items-center gap-2 rounded-md px-4 py-3 text-base font-semibold no-underline ${
-                      active
-                        ? "bg-gob-surface-alt text-gob-primary"
-                        : "text-gob-text-gray hover:bg-gob-surface-alt"
+                      active ? "bg-ln-stripe text-ln-azul" : "text-ln-ink-2 hover:bg-ln-stripe"
                     }`}
                   >
                     {item.label}
                     {item.badge != null && item.badge > 0 && (
-                      <span className="inline-flex items-center justify-center rounded-full bg-gob-danger px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                      <span className="inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                         {item.badge}
                       </span>
                     )}
@@ -197,11 +195,11 @@ export function HeaderNav({ nav, user }: Props) {
               })}
             </nav>
 
-            <div className="border-t border-gob-border px-4 py-4">
+            <div className="border-t border-ln-line px-4 py-4">
               {user ? (
                 <Link
                   href={user.href ?? "/cuenta"}
-                  className="flex items-center gap-2 rounded-full border border-gob-border px-4 py-3 text-sm font-semibold text-gob-primary no-underline"
+                  className="flex items-center gap-2 rounded-full border border-ln-line px-4 py-3 text-sm font-semibold text-ln-azul no-underline"
                 >
                   <Icon name="usuarios" size={18} decorative />
                   Mi cuenta · {user.name}
@@ -209,7 +207,7 @@ export function HeaderNav({ nav, user }: Props) {
               ) : (
                 <Link
                   href="/auth/login"
-                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-gob-primary px-6 text-sm font-semibold text-white no-underline"
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline"
                 >
                   Iniciar sesión
                 </Link>

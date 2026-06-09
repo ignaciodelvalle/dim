@@ -1,4 +1,4 @@
-import { TimeSeriesChart } from "@/components/poncho";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchDiseaseSummary, fetchZoonosisTrend } from "@/lib/govt-dashboards";

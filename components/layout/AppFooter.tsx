@@ -50,23 +50,23 @@ type Props = {
 export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
   return (
     <footer className="mt-12 bg-white">
-      <div className="border-t border-gob-border">
+      <div className="border-t border-ln-line">
         <div className="mx-auto max-w-6xl px-4 py-10 md:px-6">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
             {/* Marca + tagline */}
             <div>
-              <p className="text-lg font-bold text-gob-primary">MiMAR</p>
-              <p className="mt-1 text-sm text-gob-text-muted">
+              <p className="text-lg font-bold text-ln-azul">MiMAR</p>
+              <p className="mt-1 text-sm text-ln-mute">
                 Mi Mascota Argentina · Credencial digital sanitaria.
               </p>
-              <p className="mt-4 text-xs text-gob-text-muted">
+              <p className="mt-4 text-xs text-ln-mute">
                 Una iniciativa pública para que cada animal cuente con su historia clínica portable.
               </p>
             </div>
 
             {columns.map((col) => (
               <nav key={col.title} aria-label={col.title}>
-                <h2 className="text-sm font-bold text-gob-text-gray">{col.title}</h2>
+                <h2 className="text-sm font-bold text-ln-ink-2">{col.title}</h2>
                 <ul className="mt-3 space-y-2">
                   {col.links.map((l) => (
                     <li key={l.href}>
@@ -74,7 +74,7 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
                         href={l.href}
                         target={l.external ? "_blank" : undefined}
                         rel={l.external ? "noopener noreferrer" : undefined}
-                        className="text-sm text-gob-text-gray no-underline hover:text-gob-azul-link hover:underline"
+                        className="text-sm text-ln-ink-2 no-underline hover:text-ln-azul hover:underline"
                       >
                         {l.label}
                       </Link>
@@ -86,14 +86,14 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
           </div>
 
           {/* Línea legal */}
-          <div className="mt-10 flex flex-col gap-3 border-t border-gob-border pt-6 text-xs text-gob-text-muted md:flex-row md:items-center md:justify-between">
+          <div className="mt-10 flex flex-col gap-3 border-t border-ln-line pt-6 text-xs text-ln-mute md:flex-row md:items-center md:justify-between">
             <p>
               Los contenidos están licenciados bajo{" "}
               <a
                 href="https://creativecommons.org/licenses/by/2.5/ar/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gob-azul-link hover:underline"
+                className="text-ln-azul hover:underline"
               >
                 Creative Commons Reconocimiento 2.5 Argentina
               </a>
@@ -104,7 +104,7 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
                 href="https://www.argentina.gob.ar/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gob-azul-link hover:underline"
+                className="text-ln-azul hover:underline"
               >
                 argentina.gob.ar
               </a>

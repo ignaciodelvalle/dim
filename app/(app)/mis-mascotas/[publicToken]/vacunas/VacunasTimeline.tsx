@@ -5,9 +5,9 @@
 
 import Link from "next/link";
 
+import { ReminderCard } from "@/components/ReminderCard";
 import { EmptyState } from "@/components/poncho/EmptyState";
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
-import { ReminderCard } from "@/components/poncho/ReminderCard";
 import { computeConfidence } from "@/lib/event-confidence";
 import type { ActiveReminderRow, VaccinationHistoryRow } from "@/lib/owner-dashboard";
 import { VacunaTimelineDot } from "./VacunaTimelineDot";

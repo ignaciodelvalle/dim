@@ -1,12 +1,10 @@
 import Link from "next/link";
 
-import {
-  EmptyState,
-  JurisdictionSwitcher,
-  MapChoropleth,
-  PeriodPicker,
-  TimeSeriesChart,
-} from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { EmptyState } from "@/components/poncho";
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";

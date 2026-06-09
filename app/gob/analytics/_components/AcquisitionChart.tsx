@@ -7,7 +7,7 @@
 // v2 TODO(E5-followup): when TimeSeriesChart supports multi-series / stacked
 // area, replace this with a proper stacked chart per method bucket.
 
-import { TimeSeriesChart } from "@/components/poncho";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import type { AcquisitionTrendPoint } from "@/lib/govt-dashboards";
 
 type Props = {

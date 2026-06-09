@@ -9,16 +9,11 @@
 // debugging. In production we surface a stable digest (Next.js's hashed
 // error reference) so support can match it against server logs without
 // leaking stack traces.
-//
-// Style posture (Poncho PR-C, 2026-05-28): only gob-* tokens, no raw
-// Tailwind palette, no dark-mode utility prefixes. The previous draft used
-// neutral-900 / amber-100 / amber-950 — all replaced. ErrorBoundary is a
-// primitive of components/poncho/ and must cumple its own rule.
 
 import Link from "next/link";
 import { useEffect } from "react";
 
-import { Button } from "./Button";
+import { LnButton } from "@/components/ui/Button";
 
 type Props = {
   error: Error & { digest?: string };
@@ -43,34 +38,35 @@ export function ErrorBoundary({
   const isProd = process.env.NODE_ENV === "production";
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-gob-surface">
+    <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
       <div className="max-w-md w-full text-center space-y-4">
         <div
-          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-gob-warning/15 text-gob-warning-text text-3xl"
+          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#e0a93e]/15 text-[var(--color-ln-warn)] text-3xl"
           aria-hidden="true"
         >
           ⚠
         </div>
-        <h1 className="text-2xl font-semibold text-gob-text">Algo salió mal</h1>
-        <p className="text-sm text-gob-text-muted">
+        <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">Algo salió mal</h1>
+        <p className="text-sm text-[var(--color-ln-mute)]">
           Probá de nuevo o volvé al inicio. Si el problema persiste, este es el código que el equipo
           necesita ver:
         </p>
-        <p className="font-mono text-xs text-gob-text-muted break-all">
+        <p className="font-mono text-xs text-[var(--color-ln-mute)] break-all">
           {error.digest ?? (isProd ? "sin-digest" : error.message)}
         </p>
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <Button variant="primary" onClick={reset} className="flex-1">
+          <LnButton variant="primary" onClick={reset} className="flex-1">
             Reintentar
-          </Button>
+          </LnButton>
           <Link href={homeHref} className="flex-1">
-            <Button variant="secondary" className="w-full">
+            {/* secondary → ghost: outline card-bg button — same semantic intent */}
+            <LnButton variant="ghost" className="w-full">
               {homeLabel}
-            </Button>
+            </LnButton>
           </Link>
         </div>
         {!isProd && (
-          <details className="text-left text-xs text-gob-text-muted mt-4 pt-4 border-t border-gob-border">
+          <details className="text-left text-xs text-[var(--color-ln-mute)] mt-4 pt-4 border-t border-[var(--color-ln-line)]">
             <summary className="cursor-pointer font-medium">Stack trace (solo dev)</summary>
             <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[10px]">
               {error.stack ?? "(sin stack)"}

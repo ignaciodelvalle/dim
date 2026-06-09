@@ -52,7 +52,7 @@ export type TimeSeriesChartProps = {
   yLabel?: string;
   /** "line" (default) | "area". */
   variant?: "line" | "area";
-  /** Color del trazo. Default: --color-gob-primary (#242c4f). */
+  /** Color del trazo. Default: --color-ln-azul (#242c4f). */
   strokeColor?: string;
   /**
    * Color de relleno del área (solo cuando variant === "area").
@@ -155,7 +155,7 @@ export function TimeSeriesChart({
 
       {/* Tabla de accesibilidad */}
       <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-gob-azul-link hover:underline text-xs font-medium">
+        <summary className="cursor-pointer text-ln-azul hover:underline text-xs font-medium">
           Ver datos
         </summary>
         <table className="mt-2 w-full border-collapse text-xs">
@@ -164,13 +164,13 @@ export function TimeSeriesChart({
             <tr>
               <th
                 scope="col"
-                className="border border-gob-border px-3 py-1.5 text-left font-semibold text-gob-text-gray bg-gob-surface-alt"
+                className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
               >
                 Período
               </th>
               <th
                 scope="col"
-                className="border border-gob-border px-3 py-1.5 text-left font-semibold text-gob-text-gray bg-gob-surface-alt"
+                className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
               >
                 Valor
               </th>
@@ -180,8 +180,8 @@ export function TimeSeriesChart({
             {data.map((p, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: los puntos de una serie temporal son únicos por posición
               <tr key={i}>
-                <td className="border border-gob-border px-3 py-1.5 text-gob-text">{p.x}</td>
-                <td className="border border-gob-border px-3 py-1.5 text-gob-text tabular-nums">
+                <td className="border border-ln-line px-3 py-1.5 text-ln-ink">{p.x}</td>
+                <td className="border border-ln-line px-3 py-1.5 text-ln-ink tabular-nums">
                   {p.y}
                 </td>
               </tr>

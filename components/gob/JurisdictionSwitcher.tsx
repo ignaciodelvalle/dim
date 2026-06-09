@@ -48,11 +48,11 @@ export type JurisdictionSwitcherProps = {
 };
 
 const selectClasses =
-  "min-h-11 px-3 rounded-lg border border-gob-border bg-gob-surface text-sm text-gob-text " +
-  "focus:border-gob-primary focus:outline-none focus:ring-2 focus:ring-gob-primary/20 " +
+  "min-h-11 px-3 rounded-lg border border-ln-line bg-ln-card text-sm text-ln-ink " +
+  "focus:border-ln-azul focus:outline-none focus:ring-2 focus:ring-ln-azul/20 " +
   "disabled:opacity-50 disabled:cursor-not-allowed w-full";
 
-const labelClasses = "text-sm font-medium text-gob-text-gray";
+const labelClasses = "text-sm font-medium text-ln-ink-2";
 
 export function JurisdictionSwitcher({
   allowedProvinces,

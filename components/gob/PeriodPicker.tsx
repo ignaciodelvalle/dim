@@ -17,7 +17,7 @@ import type { DateRange } from "./DateRangePicker";
  *  - Seleccionar un preset → setea `?period=<preset>` y limpia `?from` y `?to`.
  *  - Seleccionar "Personalizado" → setea `?period=custom`. El DateRangePicker
  *    aparece; al completar el rango setea `?from=YYYY-MM-DD&to=YYYY-MM-DD`.
- *  - El chip activo queda visualmente destacado (fondo gob-primary / texto blanco).
+ *  - El chip activo queda visualmente destacado (fondo ln-azul / texto blanco).
  *
  * Accesibilidad:
  *  - Cada chip es un `<button>` con `aria-pressed` para indicar el estado activo.
@@ -56,12 +56,12 @@ const PRESETS: PresetConfig[] = [
 
 const chipBase =
   "inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium border " +
-  "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-primary focus-visible:ring-offset-1 " +
+  "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-1 " +
   "min-h-9 cursor-pointer";
 
-const chipActive = "bg-gob-primary text-white border-gob-primary";
+const chipActive = "bg-ln-azul text-white border-ln-azul";
 const chipInactive =
-  "bg-gob-surface text-gob-text-gray border-gob-border hover:border-gob-border-strong hover:text-gob-text";
+  "bg-ln-card text-ln-ink-2 border-ln-line hover:border-ln-line-strong hover:text-ln-ink";
 
 export function PeriodPicker({
   defaultPreset = "30d",

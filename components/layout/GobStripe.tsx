@@ -19,7 +19,7 @@ export function GobStripe({ height = 4, className = "" }: Props) {
         height: `${height}px`,
         background:
           // Tres bandas verticales iguales: celeste · blanco · celeste
-          "linear-gradient(180deg, var(--color-gob-celeste) 0 33.333%, #ffffff 33.333% 66.666%, var(--color-gob-celeste) 66.666% 100%)",
+          "linear-gradient(180deg, var(--color-ln-celeste) 0 33.333%, #ffffff 33.333% 66.666%, var(--color-ln-celeste) 66.666% 100%)",
       }}
     />
   );

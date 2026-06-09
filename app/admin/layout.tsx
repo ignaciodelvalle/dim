@@ -1,7 +1,7 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { ADMIN_NAV } from "@/components/poncho/Layout/nav-presets";
+import { ADMIN_NAV } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";

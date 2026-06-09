@@ -45,10 +45,12 @@ export type LnCardHeadProps = {
   title: ReactNode;
   label?: ReactNode;
   icon?: ReactNode;
+  /** Optional right-aligned action slot (buttons, links, etc.). */
+  actions?: ReactNode;
   className?: string;
 };
 
-export function LnCardHead({ title, label, icon, className = "" }: LnCardHeadProps) {
+export function LnCardHead({ title, label, icon, actions, className = "" }: LnCardHeadProps) {
   return (
     <div
       className={[
@@ -62,10 +64,15 @@ export function LnCardHead({ title, label, icon, className = "" }: LnCardHeadPro
       <h3 className="m-0 font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
         {title}
       </h3>
-      {label && (
-        <span className="ml-auto font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
-          {label}
-        </span>
+      {(label || actions) && (
+        <div className="ml-auto flex items-center gap-[8px]">
+          {label && (
+            <span className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
+              {label}
+            </span>
+          )}
+          {actions && <div className="flex items-center gap-[8px] shrink-0">{actions}</div>}
+        </div>
       )}
     </div>
   );

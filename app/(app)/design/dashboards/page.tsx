@@ -4,16 +4,12 @@
 
 import { Suspense } from "react";
 
-import {
-  JurisdictionSwitcher,
-  MapChoropleth,
-  MetricCard,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  PeriodPicker,
-  TimeSeriesChart,
-} from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { MetricCard } from "@/components/gob/MetricCard";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { Panel, PanelBody, PanelHeader } from "@/components/poncho";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

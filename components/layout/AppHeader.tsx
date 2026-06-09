@@ -32,7 +32,7 @@ export function AppHeader({ user, nav = DEFAULT_NAV }: Props) {
     <header className="sticky top-0 z-40 bg-white">
       <GobStripe />
 
-      <div className="border-b border-gob-border">
+      <div className="border-b border-ln-line">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 md:px-6">
           {/* Marca */}
           <Link
@@ -42,15 +42,13 @@ export function AppHeader({ user, nav = DEFAULT_NAV }: Props) {
           >
             <span
               aria-hidden="true"
-              className="grid h-10 w-10 place-items-center rounded-full bg-gob-primary text-white"
+              className="grid h-10 w-10 place-items-center rounded-full bg-ln-azul text-white"
             >
               <Icon name="perro-asistencia" size={22} decorative />
             </span>
             <span className="flex flex-col leading-tight">
-              <span className="text-lg font-bold text-gob-primary">MiMAR</span>
-              <span className="hidden text-xs text-gob-text-muted sm:inline">
-                Mi Mascota Argentina
-              </span>
+              <span className="text-lg font-bold text-ln-azul">MiMAR</span>
+              <span className="hidden text-xs text-ln-mute sm:inline">Mi Mascota Argentina</span>
             </span>
           </Link>
 

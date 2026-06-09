@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 
-import { JurisdictionSwitcher, PeriodPicker, Tabs, TabsContent } from "@/components/poncho";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { Tabs, TabsContent } from "@/components/poncho";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";

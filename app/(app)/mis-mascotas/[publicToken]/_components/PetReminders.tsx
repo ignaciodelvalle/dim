@@ -4,8 +4,8 @@
 import Link from "next/link";
 
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
+import { ReminderCard } from "@/components/ReminderCard";
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
-import { ReminderCard } from "@/components/poncho/ReminderCard";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
 
 // ---------------------------------------------------------------------------

@@ -234,14 +234,14 @@ export function MapChoropleth({
       <div
         ref={mapContainer}
         style={{ height }}
-        className="w-full rounded-xl overflow-hidden border border-gob-border"
+        className="w-full rounded-xl overflow-hidden border border-ln-line"
         aria-label={fallbackTableLabel}
         role="img"
       />
 
       {/* Tabla de accesibilidad — siempre renderizada, oculta visualmente si se desea */}
       <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-gob-azul-link hover:underline text-xs font-medium">
+        <summary className="cursor-pointer text-ln-azul hover:underline text-xs font-medium">
           Ver datos
         </summary>
         <table className="mt-2 w-full border-collapse text-xs">
@@ -250,13 +250,13 @@ export function MapChoropleth({
             <tr>
               <th
                 scope="col"
-                className="border border-gob-border px-3 py-1.5 text-left font-semibold text-gob-text-gray bg-gob-surface-alt"
+                className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
               >
                 Región
               </th>
               <th
                 scope="col"
-                className="border border-gob-border px-3 py-1.5 text-left font-semibold text-gob-text-gray bg-gob-surface-alt"
+                className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
               >
                 Valor
               </th>
@@ -265,10 +265,10 @@ export function MapChoropleth({
           <tbody>
             {data.map((d) => (
               <tr key={d.code}>
-                <td className="border border-gob-border px-3 py-1.5 text-gob-text">
+                <td className="border border-ln-line px-3 py-1.5 text-ln-ink">
                   {d.label ?? d.code}
                 </td>
-                <td className="border border-gob-border px-3 py-1.5 text-gob-text tabular-nums">
+                <td className="border border-ln-line px-3 py-1.5 text-ln-ink tabular-nums">
                   {d.value}
                 </td>
               </tr>

@@ -1,15 +1,9 @@
 import { Suspense } from "react";
 
-import {
-  EmptyState,
-  Input,
-  JurisdictionSwitcher,
-  MapChoropleth,
-  PeriodPicker,
-  type TabItem,
-  Tabs,
-  TabsContent,
-} from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { EmptyState, Input, type TabItem, Tabs, TabsContent } from "@/components/poncho";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {

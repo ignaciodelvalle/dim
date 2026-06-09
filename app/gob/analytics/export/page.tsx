@@ -14,13 +14,9 @@
 
 import Link from "next/link";
 
-import {
-  Button,
-  Checkbox,
-  EmptyState,
-  JurisdictionSwitcher,
-  PeriodPicker,
-} from "@/components/poncho";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { Button, Checkbox, EmptyState } from "@/components/poncho";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";

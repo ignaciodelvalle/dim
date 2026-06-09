@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { GOB_NAV } from "@/components/poncho/Layout/nav-presets";
+import { GOB_NAV } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";

@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 
-import { ErrorBoundary } from "@/components/poncho/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function OrgPortalError({
   error,

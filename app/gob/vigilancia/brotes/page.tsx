@@ -1,4 +1,6 @@
-import { Checkbox, EmptyState, JurisdictionSwitcher, PeriodPicker } from "@/components/poncho";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { Checkbox, EmptyState } from "@/components/poncho";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";

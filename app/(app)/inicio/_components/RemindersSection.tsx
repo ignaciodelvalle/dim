@@ -4,8 +4,8 @@
 //   2+         → Panel with header + reminder card list
 //   0          → null
 
+import { ReminderCard } from "@/components/ReminderCard";
 import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
-import { ReminderCard } from "@/components/poncho/ReminderCard";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
 
 import { ReminderActions } from "./ReminderActions";

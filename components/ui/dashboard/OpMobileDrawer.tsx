@@ -1,6 +1,6 @@
 "use client";
 
-import type { NavItem } from "@/components/poncho/Layout/HeaderNav";
+import type { NavItem } from "@/components/layout/HeaderNav";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
