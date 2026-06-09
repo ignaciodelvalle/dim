@@ -31,14 +31,11 @@ export function MotivoField({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label
-          htmlFor={id}
-          className="block text-[10px] uppercase tracking-wider text-gob-text-muted "
-        >
+        <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
           Motivo (minimo {MOTIVO_MIN} caracteres)
         </label>
         <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-gob-danger " : "text-gob-text-muted "}`}
+          className={`text-[10px] tabular-nums ${tooShort ? "text-ln-op-danger" : "text-ln-op-mute"}`}
         >
           {len}/{MOTIVO_MIN}
         </span>
@@ -48,7 +45,7 @@ export function MotivoField({
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-gob-border  bg-white  px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-gob-primary "
+        className="w-full text-xs rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );
