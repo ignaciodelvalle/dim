@@ -2,8 +2,7 @@
 
 // LnSuccessScreen — LN-skinned closing screen for trámite-style flows.
 //
-// Ported from components/poncho/SuccessScreen.tsx — public API preserved exactly.
-// Styling rewritten to LN tokens (no gob-* classes).
+// Styled with LN tokens (no gob-* classes).
 // Per design rule: flows MUST end on this screen rather than silently redirecting.
 
 import Link from "next/link";

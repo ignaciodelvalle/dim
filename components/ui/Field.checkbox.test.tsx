@@ -1,7 +1,6 @@
 // Smoke tests for LnCheckbox and LnRadio.
 //
-// Same renderToStaticMarkup pattern used across the project (see
-// components/poncho/Checkbox.test.tsx and components/poncho/Field.test.tsx).
+// Same renderToStaticMarkup pattern used across the project's component tests.
 // No jsdom needed: assertions target server-renderable HTML contracts.
 
 import type React from "react";

@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // WIRED (sprint 4 PR-045 — 2026-05-27)
 //
-// Form is now a 4-step Poncho wizard with SuccessScreen on submit (10-day
+// Form is now a 4-step wizard with SuccessScreen on submit (10-day
 // observation reminder). Org dashboard surfacing remains pending — when a
 // "Mordeduras" CTA lands, add a nav entry in
-// `components/poncho/Layout/nav-presets.ts`.
+// `components/layout/nav-presets.ts`.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
