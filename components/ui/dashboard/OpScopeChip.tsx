@@ -3,15 +3,20 @@ type Props = {
   code: string;
   /** Optional secondary label (e.g. scope descriptor). */
   label?: string;
-  /** "default" = navy background (gob tier); "superadmin" = danger red. */
-  variant?: "default" | "superadmin";
+  /** "default" = navy (gob tier); "superadmin" = danger red; "org" = teal (org tier). */
+  variant?: "default" | "superadmin" | "org";
 };
 
 /**
  * Scope chip shown in the topbar to identify the operator's jurisdiction.
  */
 export function OpScopeChip({ code, label, variant = "default" }: Props) {
-  const bgClass = variant === "superadmin" ? "bg-ln-op-danger" : "bg-ln-op-navy";
+  const bgClass =
+    variant === "superadmin"
+      ? "bg-ln-op-danger"
+      : variant === "org"
+        ? "bg-[var(--color-ln-tl-rail)]"
+        : "bg-ln-op-navy";
 
   return (
     <span

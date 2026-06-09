@@ -8,10 +8,11 @@
 // throughout this portal instead of inferring an "active org" from session.
 
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Sidebar, Topbar } from "@/components/poncho";
 import { buildOrgNav } from "@/components/poncho/Layout/nav-presets";
+import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 
@@ -33,20 +34,45 @@ export default async function OrgLayout({
     .where(eq(profiles.id, user.id))
     .limit(1);
 
+  const displayName = profile?.displayName ?? "";
   const orgNav = buildOrgNav(orgToken);
 
-  return (
-    <div className="min-h-screen bg-white">
-      <Sidebar
-        nav={orgNav}
-        user={{ name: profile?.displayName ?? "", href: "/cuenta" }}
-        roleAccent="org"
-        brand={{ title: organization.displayName }}
-      />
-      <div className="flex min-h-screen flex-col md:ml-60">
-        <Topbar mobileDrawerNav={orgNav} brandTitle={organization.displayName} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
-      </div>
+  // Right-side topbar actions: exit link back to owner portal.
+  const actions = (
+    <div className="flex items-center gap-4 text-xs text-ln-op-mute">
+      <Link href="/mis-mascotas" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
+        ← Salir
+      </Link>
     </div>
+  );
+
+  return (
+    <OpShell
+      variant="org"
+      rail={
+        <OpRail
+          nav={orgNav}
+          variant="org"
+          brandSubtitle="Organización"
+          user={{ name: displayName, role: "ORG" }}
+        />
+      }
+      topbar={
+        <OpTopbar
+          crumbs={[{ label: "Panel" }]}
+          scope={{
+            code: "ORG",
+            label: organization.displayName,
+            variant: "org",
+          }}
+          actions={actions}
+          mobileNav={orgNav}
+          variant="org"
+          brandSubtitle="Organización"
+        />
+      }
+    >
+      {children}
+    </OpShell>
   );
 }
