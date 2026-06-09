@@ -11,8 +11,8 @@ export function RegulationsPlaceholder({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-medium text-gob-text ">Normativa por localidad</h2>
-      <div className="border border-dashed border-gob-border-strong  rounded-xl p-6 text-sm text-gob-text-gray  space-y-3">
+      <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">Normativa por localidad</h2>
+      <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-sm text-[var(--color-ln-ink-2)] space-y-3">
         {localities.length === 0 ? (
           <>
             <p>
@@ -20,7 +20,7 @@ export function RegulationsPlaceholder({
               ordenanzas locales que las afectan (microchip obligatorio, razas reguladas, requisitos
               de adopción, etc.).
             </p>
-            <p className="text-xs text-gob-text-muted">Andá a Mis mascotas → editar → Ubicación.</p>
+            <p className="text-xs text-[var(--color-ln-mute)]">Andá a Mis mascotas → editar → Ubicación.</p>
           </>
         ) : (
           <>
@@ -28,7 +28,7 @@ export function RegulationsPlaceholder({
               Estamos preparando un listado de normativa específica para las localidades donde viven
               tus mascotas:
             </p>
-            <ul className="space-y-1 text-gob-text-gray ">
+            <ul className="space-y-1 text-[var(--color-ln-ink-2)]">
               {localities.map((l) => (
                 <li key={`${l.province}|${l.locality ?? ""}`} className="text-sm">
                   <span className="font-medium">
@@ -37,7 +37,7 @@ export function RegulationsPlaceholder({
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-gob-text-muted pt-1">
+            <p className="text-xs text-[var(--color-ln-mute)] pt-1">
               Mientras tanto, conocé el marco general: Ley 14.346 (maltrato animal), Decreto
               4669/1973 (rabia), Ley 26.858 (perros de asistencia).
             </p>

@@ -7,20 +7,20 @@ export function AppointmentsWidget({ appointments }: { appointments: UpcomingApp
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-medium text-gob-text ">Próximos turnos</h2>
+        <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">Próximos turnos</h2>
         <Link
           href="/mis-turnos"
-          className="text-sm text-gob-text-gray  underline underline-offset-4 hover:text-gob-text "
+          className="text-sm text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-ink)]"
         >
           Ver todos →
         </Link>
       </div>
       {appointments.length === 0 ? (
-        <div className="border border-dashed border-gob-border-strong  rounded-xl p-6 text-center space-y-2">
-          <p className="text-sm text-gob-text-muted ">No tenés turnos próximos.</p>
+        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center space-y-2">
+          <p className="text-sm text-[var(--color-ln-mute)]">No tenés turnos próximos.</p>
           <Link
             href="/turnos/buscar"
-            className="inline-block text-xs text-gob-text-gray  underline underline-offset-4"
+            className="inline-block text-xs text-[var(--color-ln-ink-2)] underline underline-offset-4"
           >
             Buscar turno disponible →
           </Link>
