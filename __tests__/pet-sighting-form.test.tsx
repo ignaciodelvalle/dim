@@ -87,12 +87,12 @@ describe("<PetSightingForm> — initial state (form render)", () => {
     expect(html).toContain('name="finderContact"');
   });
 
-  it("submit button uses text-black (a11y contrast fix)", () => {
+  it("submit button uses text-white on azul (a11y contrast fix)", () => {
     const html = render(<PetSightingForm {...BASE_PROPS} />);
     const buttonMatch = html.match(/<button[^>]*type="submit"[^>]*class="([^"]+)"/);
     expect(buttonMatch).not.toBeNull();
-    expect(buttonMatch?.[1]).toContain("text-black");
-    expect(buttonMatch?.[1]).not.toContain("text-white");
+    expect(buttonMatch?.[1]).toContain("text-white");
+    expect(buttonMatch?.[1]).not.toContain("text-black");
   });
 
   it("renders the description textarea and sightedAt input (back-compat: existing fields present)", () => {

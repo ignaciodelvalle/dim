@@ -55,16 +55,18 @@ export function FinderInPossessionForm({
   if (state.ok) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-gob-success bg-gob-success/10 p-4 text-sm text-gob-success">
+        <div className="rounded-lg border border-[#c8e2d2] bg-[#eef6f0] p-4 text-sm text-[var(--color-ln-ok)]">
           <p className="font-medium">¡Gracias!</p>
           <p className="mt-1 text-xs">
             Le avisamos al dueño/a con urgencia. Vas a recibir noticias pronto.
           </p>
-          {state.warning && <p className="mt-2 text-xs text-gob-warning-text">{state.warning}</p>}
+          {state.warning && (
+            <p className="mt-2 text-xs text-[var(--color-ln-warn)]">{state.warning}</p>
+          )}
         </div>
         <Link
           href={`/p/${publicToken}`}
-          className="block text-center text-sm font-medium text-gob-azul-link underline underline-offset-4"
+          className="block text-center text-sm font-medium text-[var(--color-ln-azul)] underline underline-offset-4"
         >
           Volver al perfil de {petName}
         </Link>
@@ -73,9 +75,9 @@ export function FinderInPossessionForm({
   }
 
   const inputClass =
-    "w-full px-3 py-2 rounded-lg border border-gob-border-strong bg-white text-gob-text text-sm focus:outline-none focus:ring-2 focus:ring-gob-primary focus:border-transparent";
-  const labelClass = "block text-sm font-medium text-gob-text";
-  const requiredMark = <span className="text-gob-danger ml-0.5">*</span>;
+    "w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]";
+  const labelClass = "block text-sm font-medium text-[var(--color-ln-ink-2)]";
+  const requiredMark = <span className="text-[var(--color-ln-seal)] ml-0.5">*</span>;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     const fd = new FormData(e.currentTarget);
@@ -107,7 +109,7 @@ export function FinderInPossessionForm({
     >
       {/* Logged-in banner */}
       {loggedIn && prefill?.displayName && (
-        <div className="rounded-lg border border-gob-primary bg-gob-primary/5 px-4 py-3 text-sm text-gob-primary">
+        <div className="rounded-lg border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-4 py-3 text-sm text-[var(--color-ln-azul)]">
           Estás enviando como <span className="font-medium">{prefill.displayName}</span>.{" "}
           <Link href="/api/auth/signout" className="underline underline-offset-4 hover:opacity-80">
             ¿No sos vos? Salí de la sesión.
@@ -136,10 +138,13 @@ export function FinderInPossessionForm({
       <fieldset className="space-y-3">
         <legend className={`${labelClass} mb-1`}>
           Contacto{requiredMark}{" "}
-          <span className="font-normal text-gob-text-muted text-xs">(al menos uno)</span>
+          <span className="font-normal text-[var(--color-ln-faint)] text-xs">(al menos uno)</span>
         </legend>
         <div className="space-y-1.5">
-          <label htmlFor="finderPhone" className="block text-xs font-medium text-gob-text-gray">
+          <label
+            htmlFor="finderPhone"
+            className="block text-xs font-medium text-[var(--color-ln-mute)]"
+          >
             Teléfono
           </label>
           <input
@@ -153,7 +158,10 @@ export function FinderInPossessionForm({
           />
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="finderEmail" className="block text-xs font-medium text-gob-text-gray">
+          <label
+            htmlFor="finderEmail"
+            className="block text-xs font-medium text-[var(--color-ln-mute)]"
+          >
             Email
           </label>
           <input
@@ -187,8 +195,8 @@ export function FinderInPossessionForm({
             key={value}
             className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer text-sm transition-colors ${
               urgent
-                ? "border-gob-danger/40 bg-gob-danger/5 text-gob-danger font-medium hover:bg-gob-danger/10"
-                : "border-gob-border bg-white text-gob-text hover:bg-gob-surface-alt"
+                ? "border-[var(--color-ln-seal)] bg-[#fbe9e6] text-[var(--color-ln-seal)] font-medium hover:bg-[#f5d6d1]"
+                : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
             }`}
           >
             <input
@@ -196,7 +204,7 @@ export function FinderInPossessionForm({
               name="petCondition"
               value={value}
               required
-              className="accent-gob-primary"
+              className="accent-[var(--color-ln-azul)]"
             />
             {label}
           </label>
@@ -208,11 +216,11 @@ export function FinderInPossessionForm({
         <legend className={`${labelClass} mb-1`}>
           ¿Hasta cuándo podés cuidarla?{requiredMark}
         </legend>
-        <label className="flex items-center gap-2 text-sm text-gob-text cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-[var(--color-ln-ink)] cursor-pointer">
           <input
             type="checkbox"
             name="canKeepIndefiniteToggle"
-            className="accent-gob-primary"
+            className="accent-[var(--color-ln-azul)]"
             checked={canKeepIndefinite}
             onChange={(e) => setCanKeepIndefinite(e.target.checked)}
           />
@@ -221,7 +229,10 @@ export function FinderInPossessionForm({
         </label>
         {!canKeepIndefinite && (
           <div className="space-y-1.5">
-            <label htmlFor="canKeepUntil" className="block text-xs font-medium text-gob-text-gray">
+            <label
+              htmlFor="canKeepUntil"
+              className="block text-xs font-medium text-[var(--color-ln-mute)]"
+            >
               Hasta cuándo (fecha y hora)
             </label>
             <input
@@ -238,7 +249,7 @@ export function FinderInPossessionForm({
       <div className="space-y-1.5">
         <label htmlFor="message" className={labelClass}>
           Algo más que quieras decirle al dueño{" "}
-          <span className="font-normal text-gob-text-muted text-xs">(opcional)</span>
+          <span className="font-normal text-[var(--color-ln-faint)] text-xs">(opcional)</span>
         </label>
         <textarea
           id="message"
@@ -251,19 +262,19 @@ export function FinderInPossessionForm({
       </div>
 
       {/* Optional current photo */}
-      <details className="rounded-lg border border-gob-border bg-gob-surface-alt">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gob-text">
+      <details className="rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)]">
           📷 ¿Le sacás una foto ahora para confirmar? (opcional)
         </summary>
-        <div className="p-4 border-t border-gob-border space-y-2">
+        <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
           <input
             type="file"
             name="photoNow"
             accept="image/*"
             capture="environment"
-            className="w-full text-sm text-gob-text"
+            className="w-full text-sm text-[var(--color-ln-ink)]"
           />
-          <p className="text-xs text-gob-text-muted">
+          <p className="text-xs text-[var(--color-ln-faint)]">
             JPG/PNG hasta 5 MB. Ayuda al dueño/a a confirmar que es su mascota.
           </p>
         </div>
@@ -271,7 +282,7 @@ export function FinderInPossessionForm({
 
       {/* Error display */}
       {(clientError ?? state.error) && (
-        <p className="text-xs text-gob-danger" role="alert">
+        <p className="text-xs text-[var(--color-ln-seal)]" role="alert">
           {clientError ?? state.error}
         </p>
       )}
@@ -279,7 +290,7 @@ export function FinderInPossessionForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-lg bg-gob-warning text-black text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Enviando..." : "Avisar al dueño/a"}
       </button>
