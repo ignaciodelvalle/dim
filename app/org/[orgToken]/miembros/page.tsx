@@ -6,7 +6,7 @@
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { Badge, EmptyState } from "@/components/poncho";
+import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, organizationInvitations, organizationMemberships, profiles } from "@/db";
 import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -20,15 +20,15 @@ import { RemoveMemberButton } from "./RemoveMemberButton";
 import { RevokeButton } from "./RevokeButton";
 import { ROLE_LABEL, canActorManage, getSettableRoles } from "./member-management";
 
-const ROLE_BADGE_VARIANT: Record<
+const ROLE_PILL_TONE: Record<
   OrganizationMembership["role"],
-  "info" | "success" | "warning" | "neutral"
+  "triaged" | "ok" | "neutral" | "open"
 > = {
-  admin: "info",
-  coordinator: "success",
+  admin: "triaged",
+  coordinator: "ok",
   member: "neutral",
   volunteer: "neutral",
-  vet_individual: "warning",
+  vet_individual: "open",
   foster: "neutral",
 };
 
@@ -96,18 +96,20 @@ export default async function MiembrosPage({
   const appBase = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gob-text">Equipo</h1>
-          <p className="mt-1 text-sm text-gob-text-gray">
-            Miembros activos e invitaciones pendientes de {organization.displayName}.
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Equipo
           </p>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            Miembros activos e invitaciones pendientes de {organization.displayName}
+          </h1>
         </div>
         {canInvite && (
           <Link
             href={`/org/${orgToken}/miembros/invitar`}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-gob-primary px-5 py-2 text-sm font-semibold text-white hover:bg-gob-primary-hover transition-colors"
+            className="inline-flex shrink-0 items-center gap-2 rounded-[6px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
           >
             Invitar miembro
           </Link>
@@ -116,128 +118,148 @@ export default async function MiembrosPage({
 
       {/* Active members */}
       <section aria-labelledby="members-heading">
-        <h2 id="members-heading" className="mb-3 text-base font-semibold text-gob-text">
+        <h2
+          id="members-heading"
+          className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+        >
           Miembros activos ({members.length})
         </h2>
         {members.length === 0 ? (
-          <EmptyState
-            icon="person"
-            title="Sin miembros"
-            description="Aún no hay miembros registrados en esta organización."
-          />
+          <OpCard>
+            <OpCardBody>
+              <p className="py-6 text-center text-[13px] text-ln-op-mute">
+                Aún no hay miembros registrados en esta organización.
+              </p>
+            </OpCardBody>
+          </OpCard>
         ) : (
-          <ul className="divide-y divide-gob-border rounded-xl border border-gob-border bg-white">
-            {members.map(({ membership: m, profile }) => {
-              const isSelf = m.userId === membership.userId;
-              // Foster members are managed via the foster flow, not this path.
-              const isFoster = m.role === "foster";
-              const canManage =
-                canInvite && !isSelf && !isFoster && canActorManage(membership.role, m.role);
+          <OpCard>
+            <ul className="divide-y divide-ln-op-line">
+              {members.map(({ membership: m, profile }) => {
+                const isSelf = m.userId === membership.userId;
+                // Foster members are managed via the foster flow, not this path.
+                const isFoster = m.role === "foster";
+                const canManage =
+                  canInvite && !isSelf && !isFoster && canActorManage(membership.role, m.role);
 
-              return (
-                <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gob-text">
-                      {profile.displayName}
-                      {isSelf && (
-                        <span className="ml-2 text-xs font-normal text-gob-text-muted">(vos)</span>
-                      )}
-                    </p>
-                    {m.title && <p className="truncate text-xs text-gob-text-muted">{m.title}</p>}
-                  </div>
-
-                  {/* Role badge — replaced by selector when actor can manage (never for foster) */}
-                  {canManage ? (
-                    <ChangeRoleSelect
-                      organizationId={organization.id}
-                      membershipId={m.id}
-                      currentRole={m.role}
-                      settableRoles={settableRoles}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-end gap-0.5">
-                      <Badge variant={ROLE_BADGE_VARIANT[m.role]}>{ROLE_LABEL[m.role]}</Badge>
-                      {isFoster && canInvite && (
-                        <span className="text-xs text-gob-text-muted">Gestionado vía tránsito</span>
-                      )}
+                return (
+                  <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-medium text-ln-op-ink">
+                        {profile.displayName}
+                        {isSelf && (
+                          <span className="ml-2 text-[12px] font-normal text-ln-op-mute">
+                            (vos)
+                          </span>
+                        )}
+                      </p>
+                      {m.title && <p className="truncate text-[12px] text-ln-op-mute">{m.title}</p>}
                     </div>
-                  )}
 
-                  {/* Event-write toggle and remove — only for manageable targets */}
-                  {canManage && (
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <EventWriteToggle
+                    {/* Role pill — replaced by selector when actor can manage (never for foster) */}
+                    {canManage ? (
+                      <ChangeRoleSelect
                         organizationId={organization.id}
                         membershipId={m.id}
-                        canWrite={m.canWritePetEvents}
+                        currentRole={m.role}
+                        settableRoles={settableRoles}
                       />
-                      <RemoveMemberButton
-                        organizationId={organization.id}
-                        membershipId={m.id}
-                        displayName={profile.displayName}
-                      />
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <OpPill tone={ROLE_PILL_TONE[m.role]}>{ROLE_LABEL[m.role]}</OpPill>
+                        {isFoster && canInvite && (
+                          <span className="text-[11px] text-ln-op-mute">
+                            Gestionado vía tránsito
+                          </span>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Self row: show leave button instead of management controls */}
-                  {isSelf && (
-                    <LeaveOrgButton
-                      organizationId={organization.id}
-                      isLastAdmin={viewerIsLastAdmin}
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                    {/* Event-write toggle and remove — only for manageable targets */}
+                    {canManage && (
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <EventWriteToggle
+                          organizationId={organization.id}
+                          membershipId={m.id}
+                          canWrite={m.canWritePetEvents}
+                        />
+                        <RemoveMemberButton
+                          organizationId={organization.id}
+                          membershipId={m.id}
+                          displayName={profile.displayName}
+                        />
+                      </div>
+                    )}
+
+                    {/* Self row: show leave button instead of management controls */}
+                    {isSelf && (
+                      <LeaveOrgButton
+                        organizationId={organization.id}
+                        isLastAdmin={viewerIsLastAdmin}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </OpCard>
         )}
       </section>
 
       {/* Pending invitations — visible only to users with member.invite */}
       {canInvite && (
         <section aria-labelledby="invitations-heading">
-          <h2 id="invitations-heading" className="mb-3 text-base font-semibold text-gob-text">
+          <h2
+            id="invitations-heading"
+            className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          >
             Invitaciones pendientes ({pendingInvitations.length})
           </h2>
           {pendingInvitations.length === 0 ? (
-            <EmptyState
-              icon="mail"
-              title="Sin invitaciones activas"
-              description="Invitá a alguien con el botón de arriba."
-            />
+            <OpCard>
+              <OpCardBody>
+                <p className="py-6 text-center text-[13px] text-ln-op-mute">
+                  Invitá a alguien con el botón de arriba.
+                </p>
+              </OpCardBody>
+            </OpCard>
           ) : (
-            <ul className="divide-y divide-gob-border rounded-xl border border-gob-border bg-white">
-              {pendingInvitations.map((inv) => {
-                const inviteUrl = `${appBase}/r/invite/${inv.invitationToken}`;
-                return (
-                  <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gob-text">{inv.email}</p>
-                      <p className="text-xs text-gob-text-muted">
-                        Vence{" "}
-                        {inv.expiresAt.toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                    <Badge variant={ROLE_BADGE_VARIANT[inv.invitedRole]}>
-                      {ROLE_LABEL[inv.invitedRole]}
-                    </Badge>
-                    <div className="flex shrink-0 gap-2">
-                      <CopyLinkButton url={inviteUrl} />
-                      <RevokeButton
-                        organizationId={organization.id}
-                        invitationToken={inv.invitationToken}
-                        email={inv.email}
-                        orgToken={orgToken}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <OpCard>
+              <ul className="divide-y divide-ln-op-line">
+                {pendingInvitations.map((inv) => {
+                  const inviteUrl = `${appBase}/r/invite/${inv.invitationToken}`;
+                  return (
+                    <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium text-ln-op-ink">
+                          {inv.email}
+                        </p>
+                        <p className="text-[12px] text-ln-op-mute">
+                          Vence{" "}
+                          {inv.expiresAt.toLocaleDateString("es-AR", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <OpPill tone={ROLE_PILL_TONE[inv.invitedRole]}>
+                        {ROLE_LABEL[inv.invitedRole]}
+                      </OpPill>
+                      <div className="flex shrink-0 gap-2">
+                        <CopyLinkButton url={inviteUrl} />
+                        <RevokeButton
+                          organizationId={organization.id}
+                          invitationToken={inv.invitationToken}
+                          email={inv.email}
+                          orgToken={orgToken}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCard>
           )}
         </section>
       )}

@@ -45,113 +45,124 @@ export default async function VoluntariosPage({
 
   if ("error" in result) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-4xl mx-auto pt-10">
-          <p className="text-sm text-gob-danger">{result.error}</p>
-        </div>
-      </main>
+      <div className="space-y-6">
+        <p className="text-[13px] text-ln-op-danger">{result.error}</p>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-4xl mx-auto pt-10 space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-gob-text ">Pool de voluntarios</h1>
-          <p className="mt-2 text-sm text-gob-text-gray ">
-            Voluntarios activos con al menos un slot disponible.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Voluntarios
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Pool de voluntarios</h1>
+        <p className="mt-1 text-[13px] text-ln-op-mute">
+          Voluntarios activos con al menos un slot disponible.
+        </p>
+      </header>
 
-        <form
-          action={`/org/${orgToken}/voluntarios`}
-          method="GET"
-          className="flex flex-wrap gap-3 items-end"
-        >
-          <div>
-            <label htmlFor="filter-species" className="block text-xs text-gob-text-muted mb-1">
-              Especie
-            </label>
-            <select
-              id="filter-species"
-              name="species"
-              defaultValue={filters.species ?? ""}
-              className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-            >
-              <option value="">Todas</option>
-              <option value="dog">Perros</option>
-              <option value="cat">Gatos</option>
-              <option value="other">Otras</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="filter-province" className="block text-xs text-gob-text-muted mb-1">
-              Provincia
-            </label>
-            <input
-              id="filter-province"
-              type="text"
-              name="province"
-              defaultValue={filters.province ?? ""}
-              className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="filter-locality" className="block text-xs text-gob-text-muted mb-1">
-              Localidad
-            </label>
-            <input
-              id="filter-locality"
-              type="text"
-              name="locality"
-              defaultValue={filters.locality ?? ""}
-              className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="filter-pet" className="block text-xs text-gob-text-muted mb-1">
-              Match para
-            </label>
-            <select
-              id="filter-pet"
-              name="pet"
-              defaultValue={filters.pet ?? ""}
-              className="px-3 py-2 rounded-lg border border-gob-border-strong  bg-white  text-sm"
-            >
-              <option value="">— sin mascota —</option>
-              {orgPets.map((p) => (
-                <option key={p.id} value={p.publicToken}>
-                  {p.name} ({p.species})
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-lg bg-gob-primary  text-white  font-medium text-sm"
+      <form
+        action={`/org/${orgToken}/voluntarios`}
+        method="GET"
+        className="flex flex-wrap gap-3 items-end"
+      >
+        <div>
+          <label
+            htmlFor="filter-species"
+            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
           >
-            Filtrar
-          </button>
-        </form>
+            Especie
+          </label>
+          <select
+            id="filter-species"
+            name="species"
+            defaultValue={filters.species ?? ""}
+            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            <option value="">Todas</option>
+            <option value="dog">Perros</option>
+            <option value="cat">Gatos</option>
+            <option value="other">Otras</option>
+          </select>
+        </div>
+        <div>
+          <label
+            htmlFor="filter-province"
+            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          >
+            Provincia
+          </label>
+          <input
+            id="filter-province"
+            type="text"
+            name="province"
+            defaultValue={filters.province ?? ""}
+            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="filter-locality"
+            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          >
+            Localidad
+          </label>
+          <input
+            id="filter-locality"
+            type="text"
+            name="locality"
+            defaultValue={filters.locality ?? ""}
+            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="filter-pet"
+            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          >
+            Match para
+          </label>
+          <select
+            id="filter-pet"
+            name="pet"
+            defaultValue={filters.pet ?? ""}
+            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            <option value="">— sin mascota —</option>
+            {orgPets.map((p) => (
+              <option key={p.id} value={p.publicToken}>
+                {p.name} ({p.species})
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="submit"
+          className="rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+        >
+          Filtrar
+        </button>
+      </form>
 
-        {result.rows.length === 0 && (
-          <p className="text-sm text-gob-text-muted py-8 text-center">
-            No hay voluntarios que coincidan.
-          </p>
-        )}
+      {result.rows.length === 0 && (
+        <p className="py-8 text-center text-[13px] text-ln-op-mute">
+          No hay voluntarios que coincidan.
+        </p>
+      )}
 
-        <ul className="space-y-2">
-          {result.rows.map((row) => (
-            <VolunteerRow
-              key={row.userId}
-              row={row}
-              orgToken={orgToken}
-              orgPets={orgPets}
-              preselectedPetToken={filters.pet ?? null}
-            />
-          ))}
-        </ul>
-      </div>
-    </main>
+      <ul className="space-y-2">
+        {result.rows.map((row) => (
+          <VolunteerRow
+            key={row.userId}
+            row={row}
+            orgToken={orgToken}
+            orgPets={orgPets}
+            preselectedPetToken={filters.pet ?? null}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }

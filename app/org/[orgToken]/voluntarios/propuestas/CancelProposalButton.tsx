@@ -32,11 +32,11 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
         type="button"
         onClick={cancel}
         disabled={pending}
-        className="px-3 py-1 rounded-lg border border-gob-danger text-gob-danger   text-xs hover:bg-gob-danger/10  disabled:opacity-50"
+        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
       >
         {pending ? "Cancelando..." : "Cancelar"}
       </button>
-      {error && <output className="block text-xs text-gob-danger mt-1">{error}</output>}
+      {error && <output className="mt-1 block text-[12px] text-ln-op-danger">{error}</output>}
     </div>
   );
 }

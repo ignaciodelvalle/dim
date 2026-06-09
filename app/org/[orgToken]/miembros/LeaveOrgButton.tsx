@@ -37,7 +37,7 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
         type="button"
         disabled
         title="Sos el único administrador. Asigná otro administrador antes de salir."
-        className="rounded-full border border-gob-border px-3 py-1 text-xs font-medium text-gob-text-muted opacity-50 cursor-not-allowed"
+        className="cursor-not-allowed rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-mute opacity-50"
       >
         Salir de la organización
       </button>
@@ -49,7 +49,7 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-full border border-gob-border-strong px-3 py-1 text-xs font-medium text-gob-text transition-colors hover:bg-gob-surface-alt"
+        className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
       >
         Salir de la organización
       </button>
@@ -58,9 +58,9 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs text-gob-text-muted">¿Confirmar que querés salir de la organización?</p>
+      <p className="text-[12px] text-ln-op-mute">¿Confirmar que querés salir de la organización?</p>
       {error && (
-        <p className="text-xs text-gob-danger" role="alert">
+        <p className="text-[12px] text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
@@ -69,7 +69,7 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
           type="button"
           onClick={handleLeave}
           disabled={pending}
-          className="rounded-full bg-gob-danger px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-gob-danger disabled:opacity-60"
+          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Saliendo..." : "Confirmar"}
         </button>
@@ -80,7 +80,7 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-full border border-gob-border-strong px-3 py-1 text-xs font-medium text-gob-text transition-colors hover:bg-gob-surface-alt disabled:opacity-60"
+          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>

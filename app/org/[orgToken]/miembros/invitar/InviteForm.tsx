@@ -4,7 +4,8 @@
 
 import { useState, useTransition } from "react";
 
-import { Alert, Button, Checkbox, Field, Input, Select } from "@/components/poncho";
+import { Button, Checkbox, Field, Input, Select } from "@/components/poncho";
+import { OpCallout } from "@/components/ui/dashboard";
 import { inviteMemberAction } from "@/src/modules/organizations/actions";
 
 type RoleOption = { value: string; label: string };
@@ -57,25 +58,31 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
   if (inviteUrl) {
     return (
       <div className="space-y-4">
-        <Alert variant="success" title="Invitación creada">
-          Compartí este link con la persona que querés sumar al equipo.
-        </Alert>
-        <div className="rounded-xl border border-gob-border bg-white p-4 space-y-3">
-          <p className="break-all text-sm font-mono text-gob-text">{inviteUrl}</p>
+        <OpCallout
+          title="Invitación creada"
+          body="Compartí este link con la persona que querés sumar al equipo."
+          icon="✓"
+        />
+        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+          <p className="break-all font-ln-mono text-[12px] text-ln-op-ink">{inviteUrl}</p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="primary" size="sm" onClick={handleCopy}>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1 rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+            >
               {copied ? "¡Copiado!" : "Copiar link"}
-            </Button>
+            </button>
             <a
               href={`https://wa.me/?text=${encodeURIComponent(inviteUrl)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-full border border-gob-border-strong px-4 py-1.5 text-sm font-semibold text-gob-text transition-colors hover:bg-gob-surface-alt"
+              className="inline-flex items-center gap-1 rounded-[4px] border border-ln-op-line px-4 py-[7px] text-[12px] font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
             >
               WhatsApp
             </a>
           </div>
-          <p className="text-xs text-gob-text-muted">
+          <p className="text-[12px] text-ln-op-mute">
             Este link vence en 14 días. Solo puede ser aceptado por la cuenta con el email indicado.
           </p>
         </div>
@@ -142,7 +149,14 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
         </Checkbox>
       </div>
 
-      {error && <Alert variant="danger">{error}</Alert>}
+      {error && (
+        <p
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[12px] text-ln-op-danger"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
 
       <Button type="submit" variant="primary" loading={pending} className="w-full">
         Crear invitación

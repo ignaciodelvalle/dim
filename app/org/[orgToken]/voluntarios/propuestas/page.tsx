@@ -13,11 +13,11 @@ const STATUS_LABELS = {
 } as const;
 
 const STATUS_TONE: Record<string, string> = {
-  pending: "text-gob-warning-text ",
-  accepted: "text-gob-success ",
-  rejected: "text-gob-text-muted",
-  expired: "text-gob-text-muted",
-  cancelled: "text-gob-text-muted",
+  pending: "text-ln-op-warn",
+  accepted: "text-ln-op-ok",
+  rejected: "text-ln-op-mute",
+  expired: "text-ln-op-mute",
+  cancelled: "text-ln-op-mute",
 };
 
 export default async function OrgPropuestasPage({
@@ -47,65 +47,70 @@ export default async function OrgPropuestasPage({
   const filtered = filters.status ? rows.filter((r) => r.proposal.status === filters.status) : rows;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-4xl mx-auto pt-10 space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-gob-text ">Propuestas de tránsito emitidas</h1>
-          <p className="mt-2 text-sm text-gob-text-gray ">
-            Propuestas que tu organización envió al pool de voluntarios.
-          </p>
-        </header>
+    <div className="space-y-6">
+      <header>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Voluntarios
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Propuestas de tránsito emitidas
+        </h1>
+        <p className="mt-1 text-[13px] text-ln-op-mute">
+          Propuestas que tu organización envió al pool de voluntarios.
+        </p>
+      </header>
 
-        <div className="flex gap-2 text-sm">
-          <FilterLink orgToken={orgToken} current={filters.status} value={null} label="Todas" />
-          {(["pending", "accepted", "rejected", "expired", "cancelled"] as const).map((s) => (
-            <FilterLink
-              key={s}
-              orgToken={orgToken}
-              current={filters.status}
-              value={s}
-              label={STATUS_LABELS[s]}
-            />
-          ))}
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="text-sm text-gob-text-muted py-8 text-center">No hay propuestas.</p>
-        ) : (
-          <ul className="space-y-2">
-            {filtered.map(({ proposal, pet, volunteer }) => (
-              <li key={proposal.id} className="rounded-lg border border-gob-border-strong  p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="font-medium text-gob-text ">
-                      {volunteer.displayName}{" "}
-                      <span className="text-gob-text-muted font-normal">→ {pet.name}</span>
-                    </p>
-                    <p className="text-xs text-gob-text-muted">
-                      {new Date(proposal.proposedAt).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "short",
-                      })}{" "}
-                      ·{" "}
-                      <span className={STATUS_TONE[proposal.status] ?? ""}>
-                        {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
-                          proposal.status}
-                      </span>
-                      {proposal.proposedDurationWeeks &&
-                        ` · ${proposal.proposedDurationWeeks} sem.`}
-                      {proposal.rejectionReason && ` · motivo: ${proposal.rejectionReason}`}
-                    </p>
-                  </div>
-                  {proposal.status === "pending" && (
-                    <CancelProposalButton proposalPublicToken={proposal.publicToken} />
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="flex flex-wrap gap-2">
+        <FilterLink orgToken={orgToken} current={filters.status} value={null} label="Todas" />
+        {(["pending", "accepted", "rejected", "expired", "cancelled"] as const).map((s) => (
+          <FilterLink
+            key={s}
+            orgToken={orgToken}
+            current={filters.status}
+            value={s}
+            label={STATUS_LABELS[s]}
+          />
+        ))}
       </div>
-    </main>
+
+      {filtered.length === 0 ? (
+        <p className="py-8 text-center text-[13px] text-ln-op-mute">No hay propuestas.</p>
+      ) : (
+        <ul className="space-y-2">
+          {filtered.map(({ proposal, pet, volunteer }) => (
+            <li
+              key={proposal.id}
+              className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4"
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-[13px] font-medium text-ln-op-ink">
+                    {volunteer.displayName}{" "}
+                    <span className="font-normal text-ln-op-mute">→ {pet.name}</span>
+                  </p>
+                  <p className="text-[12px] text-ln-op-mute">
+                    {new Date(proposal.proposedAt).toLocaleDateString("es-AR", {
+                      day: "numeric",
+                      month: "short",
+                    })}{" "}
+                    ·{" "}
+                    <span className={STATUS_TONE[proposal.status] ?? ""}>
+                      {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
+                        proposal.status}
+                    </span>
+                    {proposal.proposedDurationWeeks && ` · ${proposal.proposedDurationWeeks} sem.`}
+                    {proposal.rejectionReason && ` · motivo: ${proposal.rejectionReason}`}
+                  </p>
+                </div>
+                {proposal.status === "pending" && (
+                  <CancelProposalButton proposalPublicToken={proposal.publicToken} />
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -127,11 +132,12 @@ function FilterLink({
   return (
     <a
       href={href}
-      className={`px-3 py-1 rounded-full border text-xs ${
+      className={[
+        "rounded-full border px-3 py-[5px] text-[12px] no-underline transition-colors",
         active
-          ? "border-gob-border-strong bg-gob-primary text-white   "
-          : "border-gob-border-strong  hover:bg-gob-surface-alt "
-      }`}
+          ? "border-ln-op-azul bg-ln-op-azul text-white"
+          : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe",
+      ].join(" ")}
     >
       {label}
     </a>

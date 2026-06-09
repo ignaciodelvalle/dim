@@ -38,7 +38,7 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-full border border-gob-danger px-3 py-1 text-xs font-medium text-gob-danger transition-colors hover:bg-gob-danger hover:text-white"
+        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
       >
         Revocar
       </button>
@@ -47,11 +47,11 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs text-gob-text-muted">
+      <p className="text-[12px] text-ln-op-mute">
         ¿Revocar la invitación de <strong>{email}</strong>?
       </p>
       {error && (
-        <p className="text-xs text-gob-danger" role="alert">
+        <p className="text-[12px] text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
@@ -60,7 +60,7 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
           type="button"
           onClick={handleRevoke}
           disabled={pending}
-          className="rounded-full bg-gob-danger px-3 py-1 text-xs font-medium text-white disabled:opacity-60 transition-colors hover:bg-gob-danger"
+          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Revocando..." : "Confirmar"}
         </button>
@@ -71,7 +71,7 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
             setError(null);
           }}
           disabled={pending}
-          className="rounded-full border border-gob-border-strong px-3 py-1 text-xs font-medium text-gob-text disabled:opacity-60 transition-colors hover:bg-gob-surface-alt"
+          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>
