@@ -8,12 +8,15 @@
 // Disclosure prefs: for Fase 2 the owner's name and last location are always
 // shown. Fase 3 will gate these on the disclose_* columns.
 
-import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { petPhotoUrl } from "@/lib/storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
+import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { petPhotoUrl } from "@/lib/storage";
+
 import { MatchConfirmationCard } from "./MatchConfirmationCard";
 
 export default async function IntakeMatchPage({
@@ -40,20 +43,20 @@ export default async function IntakeMatchPage({
   // Must still be lost — if it was found in the meantime, tell the user.
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen p-6 bg-white  flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-semibold">Mascota ya no esta perdida</h1>
-          <p className="text-gob-text-gray ">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Mascota ya no esta perdida</h1>
+          <p className="text-[13px] text-ln-op-mute">
             {pet.name} ya fue encontrada o su estado cambio. Podes continuar el ingreso normalmente.
           </p>
           <Link
             href={`/org/${orgToken}/intake`}
-            className="inline-block px-4 py-2 rounded bg-gob-primary text-white  "
+            className="inline-block rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al ingreso
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -92,41 +95,50 @@ export default async function IntakeMatchPage({
   const ownerFirstName = ownerRow?.displayName?.split(" ")[0] ?? null;
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-xl mx-auto space-y-6">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-wider text-gob-text-muted">
-            {organization.displayName}
-          </p>
-          <h1 className="text-3xl font-semibold">Coincidencia de microchip</h1>
-          <p className="text-sm text-gob-text-gray ">
-            Este chip ya esta registrado en MiMAR. Confirma si es el mismo animal.
-          </p>
-        </header>
+    <div className="max-w-xl space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Panel", href: `/org/${orgToken}` },
+          { label: "Ingreso", href: `/org/${orgToken}/intake` },
+          { label: "Coincidencia de microchip" },
+        ]}
+      />
 
-        <MatchConfirmationCard
-          matchedPetToken={matchedPetToken}
-          petName={pet.name}
-          petSpecies={pet.species}
-          petBreed={pet.breed}
-          petColor={pet.color}
-          petSex={pet.sex}
-          petPhotoUrl={photoUrl}
-          ownerFirstName={ownerFirstName}
-          lastLocationText={lastLocationText}
-          lastLocationDate={lastLocationDate}
-          actorMode="refugio"
-          orgToken={orgToken}
-          successRedirect={`/org/${orgToken}/intake?matched=true&token=${matchedPetToken}`}
-          cancelRedirect={`/org/${orgToken}/intake`}
-        />
+      <header className="space-y-1">
+        <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
+          {organization.displayName}
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Coincidencia de microchip</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Este chip ya esta registrado en MiMAR. Confirma si es el mismo animal.
+        </p>
+      </header>
 
-        <footer className="pt-4 border-t border-gob-border ">
-          <Link href={`/org/${orgToken}/intake`} className="text-sm text-gob-text-gray underline ">
-            Cancelar y volver al ingreso
-          </Link>
-        </footer>
-      </div>
-    </main>
+      <MatchConfirmationCard
+        matchedPetToken={matchedPetToken}
+        petName={pet.name}
+        petSpecies={pet.species}
+        petBreed={pet.breed}
+        petColor={pet.color}
+        petSex={pet.sex}
+        petPhotoUrl={photoUrl}
+        ownerFirstName={ownerFirstName}
+        lastLocationText={lastLocationText}
+        lastLocationDate={lastLocationDate}
+        actorMode="refugio"
+        orgToken={orgToken}
+        successRedirect={`/org/${orgToken}/intake?matched=true&token=${matchedPetToken}`}
+        cancelRedirect={`/org/${orgToken}/intake`}
+      />
+
+      <footer className="pt-4 border-t border-ln-op-line">
+        <Link
+          href={`/org/${orgToken}/intake`}
+          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+        >
+          Cancelar y volver al ingreso
+        </Link>
+      </footer>
+    </div>
   );
 }

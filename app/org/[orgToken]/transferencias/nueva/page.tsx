@@ -13,6 +13,7 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 
+import { OpBreach, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationMemberships, organizations, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 
@@ -52,46 +53,48 @@ export default async function OrgTransferenciaNuevaPage({
 
   if (!hasPermission) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-10 space-y-4">
-          <Link
-            href={`/org/${orgToken}/transferencias`}
-            className="text-sm text-gob-text-muted hover:text-gob-text "
-          >
-            ← Volver a transferencias
-          </Link>
-          <h1 className="text-2xl font-semibold text-gob-text ">
-            Nueva propuesta de transferencia
-          </h1>
-          <div className="rounded-lg border border-gob-warning bg-gob-warning/10 p-4 text-sm text-gob-warning-text   ">
-            Solo roles <strong>admin</strong> o <strong>coordinator</strong> de la organización
-            pueden iniciar transferencias. Tu rol actual es{" "}
-            <strong>{membership?.role ?? "—"}</strong>.
-          </div>
-        </div>
-      </main>
+      <div className="max-w-2xl space-y-6">
+        <OpCrumbs
+          items={[
+            { label: "Panel", href: `/org/${orgToken}` },
+            { label: "Transferencias", href: `/org/${orgToken}/transferencias` },
+            { label: "Nueva propuesta" },
+          ]}
+        />
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Nueva propuesta de transferencia
+        </h1>
+        <OpBreach
+          title="Sin permiso"
+          detail={`Solo roles admin o coordinator pueden iniciar transferencias. Tu rol actual es ${membership?.role ?? "—"}.`}
+        />
+      </div>
     );
   }
 
   if (!petToken) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-10 space-y-4">
-          <Link
-            href={`/org/${orgToken}/transferencias`}
-            className="text-sm text-gob-text-muted hover:text-gob-text "
-          >
-            ← Volver a transferencias
-          </Link>
-          <h1 className="text-2xl font-semibold text-gob-text ">
-            Nueva propuesta de transferencia
-          </h1>
-          <div className="rounded-lg border border-gob-border bg-gob-surface-alt p-4 text-sm text-gob-text-gray   ">
-            Para proponer una transferencia tenés que entrar desde el perfil de la mascota:
-            <span className="font-mono"> /org/{orgToken}/mascotas/[publicToken]</span>.
-          </div>
-        </div>
-      </main>
+      <div className="max-w-2xl space-y-6">
+        <OpCrumbs
+          items={[
+            { label: "Panel", href: `/org/${orgToken}` },
+            { label: "Transferencias", href: `/org/${orgToken}/transferencias` },
+            { label: "Nueva propuesta" },
+          ]}
+        />
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Nueva propuesta de transferencia
+        </h1>
+        <OpCallout
+          title="Token de mascota requerido"
+          body={
+            <>
+              Para proponer una transferencia tenés que entrar desde el perfil de la mascota:{" "}
+              <span className="font-mono text-[12px]">/org/{orgToken}/mascotas/[publicToken]</span>.
+            </>
+          }
+        />
+      </div>
     );
   }
 
@@ -112,23 +115,28 @@ export default async function OrgTransferenciaNuevaPage({
 
   if (!petRow) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-10 space-y-4">
-          <Link
-            href={`/org/${orgToken}/transferencias`}
-            className="text-sm text-gob-text-muted hover:text-gob-text "
-          >
-            ← Volver a transferencias
-          </Link>
-          <h1 className="text-2xl font-semibold text-gob-text ">
-            Nueva propuesta de transferencia
-          </h1>
-          <div className="rounded-lg border border-gob-danger bg-gob-danger/10 p-4 text-sm text-gob-danger   ">
-            No encontramos una mascota con ese token bajo custodia activa de{" "}
-            {organization.displayName}.
-          </div>
-        </div>
-      </main>
+      <div className="max-w-2xl space-y-6">
+        <OpCrumbs
+          items={[
+            { label: "Panel", href: `/org/${orgToken}` },
+            { label: "Transferencias", href: `/org/${orgToken}/transferencias` },
+            { label: "Nueva propuesta" },
+          ]}
+        />
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Nueva propuesta de transferencia
+        </h1>
+        <OpBreach
+          title="Mascota no encontrada"
+          detail={`No encontramos una mascota con ese token bajo custodia activa de ${organization.displayName}.`}
+        />
+        <Link
+          href={`/org/${orgToken}/transferencias`}
+          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+        >
+          ← Volver a transferencias
+        </Link>
+      </div>
     );
   }
   const pet = petRow.pet;
@@ -165,32 +173,29 @@ export default async function OrgTransferenciaNuevaPage({
   }));
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-xl mx-auto pt-10 space-y-6">
-        <Link
-          href={`/org/${orgToken}/transferencias`}
-          className="text-sm text-gob-text-muted hover:text-gob-text "
-        >
-          ← Volver a transferencias
-        </Link>
+    <div className="max-w-xl space-y-6">
+      <OpCrumbs
+        items={[
+          { label: "Panel", href: `/org/${orgToken}` },
+          { label: "Transferencias", href: `/org/${orgToken}/transferencias` },
+          { label: "Nueva propuesta" },
+        ]}
+      />
 
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-gob-text ">
-            Transferir {pet.name}
-          </h1>
-          <p className="text-sm text-gob-text-gray ">
-            Proponer la transferencia de custodia desde {organization.displayName} a otra
-            organización verificada.
-          </p>
-        </header>
+      <header className="space-y-1">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferir {pet.name}</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Proponer la transferencia de custodia desde {organization.displayName} a otra organización
+          verificada.
+        </p>
+      </header>
 
-        <ProposeTransferForm
-          senderOrgToken={orgToken}
-          petPublicToken={pet.publicToken}
-          petName={pet.name}
-          receivers={receiverOptions}
-        />
-      </div>
-    </main>
+      <ProposeTransferForm
+        senderOrgToken={orgToken}
+        petPublicToken={pet.publicToken}
+        petName={pet.name}
+        receivers={receiverOptions}
+      />
+    </div>
   );
 }

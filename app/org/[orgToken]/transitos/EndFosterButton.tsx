@@ -13,6 +13,9 @@ const SELECTABLE_END_REASONS = [
 
 type ReasonValue = (typeof SELECTABLE_END_REASONS)[number]["value"];
 
+const fieldCls =
+  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+
 export function EndFosterButton({
   orgToken,
   publicToken,
@@ -54,7 +57,7 @@ export function EndFosterButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-lg border border-gob-border-strong  text-sm hover:bg-gob-surface-alt  whitespace-nowrap"
+        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors whitespace-nowrap"
       >
         Finalizar tránsito
       </button>
@@ -62,15 +65,15 @@ export function EndFosterButton({
   }
 
   return (
-    <div className="border border-gob-border-strong  rounded-lg p-3 space-y-2 w-full sm:w-80">
-      <label htmlFor={`end-reason-${publicToken}`} className="block text-xs text-gob-text-muted">
+    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-3 space-y-2 w-full sm:w-80">
+      <label htmlFor={`end-reason-${publicToken}`} className="block text-[12px] text-ln-op-mute">
         Motivo
       </label>
       <select
         id={`end-reason-${publicToken}`}
         value={reason}
         onChange={(e) => setReason(e.target.value as ReasonValue)}
-        className="w-full px-3 py-1.5 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+        className={fieldCls}
       >
         {SELECTABLE_END_REASONS.map((r) => (
           <option key={r.value} value={r.value}>
@@ -83,15 +86,15 @@ export function EndFosterButton({
         onChange={(e) => setNotes(e.target.value)}
         rows={2}
         placeholder="Notas (opcional)"
-        className="w-full px-3 py-1.5 rounded-lg border border-gob-border-strong  bg-white  text-sm"
+        className={fieldCls}
       />
-      {error && <output className="block text-xs text-gob-danger">{error}</output>}
+      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-3 py-1.5 rounded-lg bg-gob-primary  text-white  text-sm font-medium hover:bg-gob-primary disabled:opacity-50"
+          className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {pending ? "Cerrando..." : "Confirmar"}
         </button>
@@ -99,7 +102,7 @@ export function EndFosterButton({
           type="button"
           onClick={() => setOpen(false)}
           disabled={pending}
-          className="px-3 py-1.5 rounded-lg border border-gob-border-strong  text-sm"
+          className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
         >
           Cancelar
         </button>

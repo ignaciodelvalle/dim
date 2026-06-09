@@ -6,11 +6,13 @@
 // Companion to the cron in app/api/cron/post-adoption-checkin/route.ts and
 // the owner-side form at /mis-mascotas/[token]/eventos/nuevo/checkin.
 
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import Link from "next/link";
+
+import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, petEvents, pets, profiles, reminders } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import Link from "next/link";
 
 function formatDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
@@ -34,15 +36,16 @@ export default async function CheckinsPage({
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-2xl font-semibold">Sin acceso</h1>
-          <p className="text-sm text-gob-text-gray ">{auth.error}</p>
-          <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline">
-            ← Volver al panel
-          </Link>
-        </div>
-      </main>
+      <div className="max-w-2xl space-y-4 py-8">
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-[13px] text-ln-op-mute">{auth.error}</p>
+        <Link
+          href={`/org/${orgToken}`}
+          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+        >
+          ← Volver al panel
+        </Link>
+      </div>
     );
   }
   const { organization } = auth;
@@ -68,16 +71,14 @@ export default async function CheckinsPage({
   // state communicates "you'll see things here once you finalize adoptions".
   if (petIds.length === 0) {
     return (
-      <main className="min-h-screen p-6 bg-white ">
-        <div className="max-w-3xl mx-auto space-y-8">
-          <PageHeader orgName={organization.displayName} />
-          <p className="text-sm text-gob-text-muted">
-            Todavía no hay adopciones registradas por esta organización. Cuando finalices una, los
-            check-ins post-adopción del adoptante aparecerán acá.
-          </p>
-          <BackLink orgToken={orgToken} />
-        </div>
-      </main>
+      <div className="max-w-3xl space-y-8">
+        <PageHeader orgName={organization.displayName} />
+        <p className="text-[13px] text-ln-op-mute">
+          Todavía no hay adopciones registradas por esta organización. Cuando finalices una, los
+          check-ins post-adopción del adoptante aparecerán acá.
+        </p>
+        <BackLink orgToken={orgToken} />
+      </div>
     );
   }
 
@@ -131,132 +132,144 @@ export default async function CheckinsPage({
   const upcoming = openReminders.filter((r) => new Date(r.dueAt).getTime() >= now.getTime());
 
   return (
-    <main className="min-h-screen p-6 bg-white ">
-      <div className="max-w-3xl mx-auto space-y-8">
-        <PageHeader orgName={organization.displayName} />
+    <div className="max-w-3xl space-y-8">
+      <PageHeader orgName={organization.displayName} />
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">
-            Vencidos <span className="text-sm text-gob-text-muted">({overdue.length})</span>
-          </h2>
-          {overdue.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">
-              Ningún check-in vencido. Si el adoptante se atrasa, va a aparecer acá.
-            </p>
-          ) : (
-            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
-              {overdue.map((row) => {
-                const days = -daysFromNow(row.dueAt, now);
-                return (
-                  <li
-                    key={row.reminderId}
-                    className="px-3 py-3 flex items-start justify-between gap-3"
-                  >
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium">
-                        <Link
-                          href={`/mis-mascotas/${row.publicToken}`}
-                          className="underline underline-offset-2 hover:text-gob-text "
-                        >
-                          {row.petName}
-                        </Link>{" "}
-                        — {row.title}
-                      </p>
-                      <p className="text-xs text-gob-text-gray ">
-                        Adoptante: {row.adopterName ?? "—"} · vencido hace {days}{" "}
-                        {days === 1 ? "día" : "días"}
-                      </p>
-                    </div>
-                    <span className="text-xs text-gob-warning-text  shrink-0">Vencido</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">
-            Próximos <span className="text-sm text-gob-text-muted">({upcoming.length})</span>
-          </h2>
-          {upcoming.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">No hay próximos check-ins en agenda.</p>
-          ) : (
-            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
-              {upcoming.map((row) => {
-                const days = daysFromNow(row.dueAt, now);
-                return (
-                  <li
-                    key={row.reminderId}
-                    className="px-3 py-3 flex items-start justify-between gap-3"
-                  >
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium">
-                        <Link
-                          href={`/mis-mascotas/${row.publicToken}`}
-                          className="underline underline-offset-2 hover:text-gob-text "
-                        >
-                          {row.petName}
-                        </Link>{" "}
-                        — {row.title}
-                      </p>
-                      <p className="text-xs text-gob-text-gray ">
-                        Adoptante: {row.adopterName ?? "—"} · en {days}{" "}
-                        {days === 1 ? "día" : "días"} ({formatDate(row.dueAt)})
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">
-            Check-ins recibidos{" "}
-            <span className="text-sm text-gob-text-muted">({recentCheckins.length})</span>
-          </h2>
-          {recentCheckins.length === 0 ? (
-            <p className="text-sm text-gob-text-muted">Ningún check-in registrado todavía.</p>
-          ) : (
-            <ul className="divide-y divide-gob-border  rounded border border-gob-border ">
-              {recentCheckins.map((row) => (
-                <li key={row.eventId} className="px-3 py-3 space-y-1">
-                  <p className="text-sm font-medium">
-                    <Link
-                      href={`/mis-mascotas/${row.publicToken}`}
-                      className="underline underline-offset-2 hover:text-gob-text "
+      <section className="space-y-3">
+        <h2 className="text-[16px] font-semibold text-ln-op-ink">
+          Vencidos{" "}
+          <span className="text-[13px] font-normal text-ln-op-mute">({overdue.length})</span>
+        </h2>
+        {overdue.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">
+            Ningún check-in vencido. Si el adoptante se atrasa, va a aparecer acá.
+          </p>
+        ) : (
+          <OpCard accent="danger">
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {overdue.map((row) => {
+                  const days = -daysFromNow(row.dueAt, now);
+                  return (
+                    <li
+                      key={row.reminderId}
+                      className="px-4 py-3 flex items-start justify-between gap-3"
                     >
-                      {row.petName}
-                    </Link>
-                  </p>
-                  <p className="text-xs text-gob-text-gray ">
-                    {row.adopterName ?? "Adoptante"} · {formatDate(row.occurredAt)}
-                  </p>
-                  {row.notes && (
-                    <p className="text-xs italic text-gob-text-gray  pt-1">"{row.notes}"</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-[13px] font-medium text-ln-op-ink">
+                          <Link
+                            href={`/mis-mascotas/${row.publicToken}`}
+                            className="text-ln-op-azul hover:underline no-underline"
+                          >
+                            {row.petName}
+                          </Link>{" "}
+                          — {row.title}
+                        </p>
+                        <p className="text-[12px] text-ln-op-mute">
+                          Adoptante: {row.adopterName ?? "—"} · vencido hace {days}{" "}
+                          {days === 1 ? "día" : "días"}
+                        </p>
+                      </div>
+                      <span className="text-[12px] text-ln-op-danger shrink-0">Vencido</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+        )}
+      </section>
 
-        <BackLink orgToken={orgToken} />
-      </div>
-    </main>
+      <section className="space-y-3">
+        <h2 className="text-[16px] font-semibold text-ln-op-ink">
+          Próximos{" "}
+          <span className="text-[13px] font-normal text-ln-op-mute">({upcoming.length})</span>
+        </h2>
+        {upcoming.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">No hay próximos check-ins en agenda.</p>
+        ) : (
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {upcoming.map((row) => {
+                  const days = daysFromNow(row.dueAt, now);
+                  return (
+                    <li
+                      key={row.reminderId}
+                      className="px-4 py-3 flex items-start justify-between gap-3"
+                    >
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-[13px] font-medium text-ln-op-ink">
+                          <Link
+                            href={`/mis-mascotas/${row.publicToken}`}
+                            className="text-ln-op-azul hover:underline no-underline"
+                          >
+                            {row.petName}
+                          </Link>{" "}
+                          — {row.title}
+                        </p>
+                        <p className="text-[12px] text-ln-op-mute">
+                          Adoptante: {row.adopterName ?? "—"} · en {days}{" "}
+                          {days === 1 ? "día" : "días"} ({formatDate(row.dueAt)})
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-[16px] font-semibold text-ln-op-ink">
+          Check-ins recibidos{" "}
+          <span className="text-[13px] font-normal text-ln-op-mute">({recentCheckins.length})</span>
+        </h2>
+        {recentCheckins.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute">Ningún check-in registrado todavía.</p>
+        ) : (
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {recentCheckins.map((row) => (
+                  <li key={row.eventId} className="px-4 py-3 space-y-1">
+                    <p className="text-[13px] font-medium text-ln-op-ink">
+                      <Link
+                        href={`/mis-mascotas/${row.publicToken}`}
+                        className="text-ln-op-azul hover:underline no-underline"
+                      >
+                        {row.petName}
+                      </Link>
+                    </p>
+                    <p className="text-[12px] text-ln-op-mute">
+                      {row.adopterName ?? "Adoptante"} · {formatDate(row.occurredAt)}
+                    </p>
+                    {row.notes && (
+                      <p className="text-[12px] italic text-ln-op-ink-2 pt-1">"{row.notes}"</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+        )}
+      </section>
+
+      <BackLink orgToken={orgToken} />
+    </div>
   );
 }
 
 function PageHeader({ orgName }: { orgName: string }) {
   return (
     <header className="space-y-2">
-      <p className="text-xs uppercase tracking-wider text-gob-text-muted">
+      <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
         Seguimiento · {orgName}
       </p>
-      <h1 className="text-3xl font-semibold">Check-ins post-adopción</h1>
-      <p className="text-sm text-gob-text-gray ">
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">Check-ins post-adopción</h1>
+      <p className="text-[13px] text-ln-op-mute">
         Los adoptantes se autoreportan en las ventanas pactadas. Acá ves lo que llegó, lo que está
         por venir y lo que no llegó a tiempo.
       </p>
@@ -266,8 +279,11 @@ function PageHeader({ orgName }: { orgName: string }) {
 
 function BackLink({ orgToken }: { orgToken: string }) {
   return (
-    <footer className="pt-4 border-t border-gob-border ">
-      <Link href={`/org/${orgToken}`} className="text-sm text-gob-text-gray underline ">
+    <footer className="pt-4 border-t border-ln-op-line">
+      <Link
+        href={`/org/${orgToken}`}
+        className="text-[13px] text-ln-op-azul hover:underline no-underline"
+      >
         ← Volver al panel
       </Link>
     </footer>
