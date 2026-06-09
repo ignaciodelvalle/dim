@@ -24,33 +24,53 @@ export function SearchForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-[22px]"
+    >
       <div className="space-y-1.5">
-        <label htmlFor="code" className="block text-sm font-medium text-gob-text-gray">
+        <label
+          htmlFor="code"
+          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
+        >
           Código de seguimiento
         </label>
-        <input
-          id="code"
-          name="code"
-          type="text"
-          placeholder="DEN-XXXX-XXXX"
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            if (error) setError(null);
-          }}
-          className="w-full rounded-lg border border-gob-border-strong bg-white px-3 py-2.5 text-sm font-mono tracking-wide text-gob-text placeholder:text-gob-text-muted focus:outline-none focus:ring-2 focus:ring-gob-primary"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {error && <p className="text-sm text-gob-danger">{error}</p>}
+        <div className="flex gap-2">
+          <input
+            id="code"
+            name="code"
+            type="text"
+            placeholder="DEN-XXXX-XXXX"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (error) setError(null);
+            }}
+            className="flex-1 min-w-0 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2.5 text-sm tracking-wide text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            style={{ fontFamily: "var(--font-ln-mono)" }}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button
+            type="submit"
+            className="flex-shrink-0 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] transition-colors"
+          >
+            Buscar
+          </button>
+        </div>
+        {error && (
+          <p className="text-sm text-[var(--color-ln-seal)]" role="alert">
+            {error}
+          </p>
+        )}
+        <p
+          className="text-[10.5px] text-[var(--color-ln-mute)]"
+          style={{ fontFamily: "var(--font-ln-mono)" }}
+        >
+          Formato: DEN-XXXX-XXXX · pegalo tal cual te lo enviamos.
+        </p>
       </div>
-      <button
-        type="submit"
-        className="w-full rounded-lg bg-gob-primary text-white text-sm font-medium py-2.5 hover:opacity-90 transition-colors"
-      >
-        Buscar
-      </button>
     </form>
   );
 }

@@ -55,11 +55,11 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
       size="sm"
     >
       <div className="space-y-4">
-        <p className="text-sm text-gob-text-gray">
+        <p className="text-sm text-[var(--color-ln-ink-2)]">
           Compartí este link con quien quieras: vecinos, redes, grupos de WhatsApp.
         </p>
 
-        <div className="rounded-xl border border-gob-border bg-gob-surface-alt p-3 text-xs font-mono break-all text-gob-text">
+        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-xs font-[var(--font-ln-mono)] break-all text-[var(--color-ln-ink)]">
           {url}
         </div>
 
@@ -67,7 +67,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
           <button
             type="button"
             onClick={copy}
-            className="w-full rounded-lg bg-gob-primary text-white text-sm font-semibold px-4 py-2.5 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste focus-visible:ring-offset-2"
+            className="w-full rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
           >
             {copied ? "✓ Link copiado" : "Copiar link"}
           </button>
@@ -75,7 +75,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
             <button
               type="button"
               onClick={nativeShare}
-              className="w-full rounded-lg border border-gob-border text-gob-text text-sm font-medium px-4 py-2.5 hover:bg-gob-surface-alt focus:outline-none focus-visible:ring-2 focus-visible:ring-gob-celeste focus-visible:ring-offset-2"
+              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               Más opciones para compartir…
             </button>

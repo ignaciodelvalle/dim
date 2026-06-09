@@ -2,13 +2,15 @@ import Link from "next/link";
 
 import { AdoptionListingCard } from "@/components/AdoptionListingCard";
 import { EmptyState } from "@/components/poncho/EmptyState";
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
+import { LnCard, LnCardBody } from "@/components/ui/Card";
+import { LnSectionHead } from "@/components/ui/DocElements";
 import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
-// "Mascotas en adopción" panel (handoff P2-4).
+// "Mascotas en adopción" panel (handoff P2-4) — Libreta Nacional look.
 //
-// Wraps the AdoptionListingCard grid inside a Panel. Renders:
-//   - header with count + "Ver todas →" link when nextCursor present
+// Wraps the AdoptionListingCard grid inside an LnCard with LnSectionHead.
+// Renders:
+//   - section head with count + "Ver todas →" link when nextCursor present
 //   - 1/2/3-column grid of AdoptionListingCard (showPublisher=false)
 //   - EmptyState fallback when items.length === 0
 //
@@ -28,51 +30,51 @@ export function AdoptionPanel({ orgToken, displayName, items, hasMore }: Props) 
   const cardVariant = items.length >= 12 ? "compact" : "default";
 
   return (
-    <Panel aria-labelledby="adopcion-title">
-      <PanelHeader
-        title={
-          <span id="adopcion-title">
-            Mascotas en adopción
-            {items.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-gob-text-muted">· {items.length}</span>
-            )}
-          </span>
-        }
-        actions={
-          hasMore && (
-            <Link href={`/adoptar?org=${orgToken}`} className="text-sm text-gob-azul-link">
-              Ver todas →
-            </Link>
-          )
-        }
+    <section aria-label="Mascotas en adopción">
+      <LnSectionHead
+        title="Mascotas en adopción"
+        meta={items.length > 0 ? <span>{items.length}</span> : undefined}
+        className="mb-4"
       />
-      <PanelBody>
-        {items.length === 0 ? (
-          <EmptyState
-            title={`${displayName} no tiene mascotas publicadas en adopción en este momento.`}
-            description="Cuando publiquen una, va a aparecer acá."
-            action={
-              <Link
-                href="/adoptar"
-                className="inline-flex items-center justify-center rounded-lg border border-gob-border bg-white px-4 py-2 text-sm font-medium text-gob-text hover:bg-gob-surface-alt"
-              >
-                Ver mascotas de otros refugios
-              </Link>
-            }
-          />
-        ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.slice(0, 12).map((item) => (
-              <AdoptionListingCard
-                key={item.petId}
-                item={item}
-                variant={cardVariant}
-                showPublisher={false}
-              />
-            ))}
-          </ul>
-        )}
-      </PanelBody>
-    </Panel>
+      {hasMore && (
+        <div className="mb-3 flex justify-end">
+          <Link
+            href={`/adoptar?org=${orgToken}`}
+            className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+          >
+            Ver todas →
+          </Link>
+        </div>
+      )}
+      <LnCard>
+        <LnCardBody>
+          {items.length === 0 ? (
+            <EmptyState
+              title={`${displayName} no tiene mascotas publicadas en adopción en este momento.`}
+              description="Cuando publiquen una, va a aparecer acá."
+              action={
+                <Link
+                  href="/adoptar"
+                  className="inline-flex items-center justify-center rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+                >
+                  Ver mascotas de otros refugios
+                </Link>
+              }
+            />
+          ) : (
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items.slice(0, 12).map((item) => (
+                <AdoptionListingCard
+                  key={item.petId}
+                  item={item}
+                  variant={cardVariant}
+                  showPublisher={false}
+                />
+              ))}
+            </ul>
+          )}
+        </LnCardBody>
+      </LnCard>
+    </section>
   );
 }

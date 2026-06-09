@@ -299,7 +299,7 @@ export function DenunciaWizard() {
             }}
           />
           {stepError && (
-            <p className="mt-4 text-sm text-gob-danger text-center" role="alert">
+            <p className="mt-4 text-sm text-[var(--color-ln-seal)] text-center" role="alert">
               {stepError}
             </p>
           )}
@@ -321,7 +321,7 @@ export function DenunciaWizard() {
             }}
           />
           {stepError && (
-            <p className="mt-4 text-sm text-gob-danger text-center" role="alert">
+            <p className="mt-4 text-sm text-[var(--color-ln-seal)] text-center" role="alert">
               {stepError}
             </p>
           )}
@@ -364,7 +364,7 @@ export function DenunciaWizard() {
               <button
                 type="button"
                 onClick={validateAndAdvance}
-                className="w-full px-4 py-4 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 transition-colors"
+                className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
               >
                 Continuar →
               </button>
@@ -393,7 +393,7 @@ export function DenunciaWizard() {
             <button
               type="button"
               onClick={validateAndAdvance}
-              className="w-full px-4 py-4 rounded-xl bg-gob-primary text-white font-semibold text-sm hover:opacity-90 transition-colors"
+              className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar →
             </button>
@@ -403,7 +403,7 @@ export function DenunciaWizard() {
                 updateState({ subjectKind: null, subjectPetToken: "", subjectDescription: "" });
                 goNext();
               }}
-              className="w-full px-4 py-3 text-sm text-gob-text-muted hover:text-gob-text-gray transition-colors"
+              className="w-full px-4 py-2.5 text-sm text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] underline transition-colors"
             >
               Saltear este paso
             </button>

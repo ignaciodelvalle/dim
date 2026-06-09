@@ -39,7 +39,7 @@ export function ConsultaSinTurnoSheet({
       onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
       size="sm"
     >
-      <div className="space-y-4 text-sm text-gob-text-gray">
+      <div className="space-y-4 text-sm text-[var(--color-ln-ink-2)]">
         <p>
           Este servicio no requiere turno previo. Contactá directamente con {orgDisplayName} para
           coordinar el día y la hora.
@@ -47,29 +47,41 @@ export function ConsultaSinTurnoSheet({
 
         <div className="space-y-2">
           {orgPhone && (
-            <div className="rounded-xl border border-gob-border bg-gob-surface-alt p-3">
-              <p className="text-[10px] uppercase tracking-wider text-gob-text-muted">Teléfono</p>
-              <a href={`tel:${orgPhone}`} className="text-base text-gob-azul-link underline">
+            <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
+                Teléfono
+              </p>
+              <a
+                href={`tel:${orgPhone}`}
+                className="text-base text-[var(--color-ln-azul)] underline"
+              >
                 {orgPhone}
               </a>
             </div>
           )}
           {orgEmail && (
-            <div className="rounded-xl border border-gob-border bg-gob-surface-alt p-3">
-              <p className="text-[10px] uppercase tracking-wider text-gob-text-muted">Email</p>
-              <a href={`mailto:${orgEmail}`} className="text-base text-gob-azul-link underline">
+            <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
+                Email
+              </p>
+              <a
+                href={`mailto:${orgEmail}`}
+                className="text-base text-[var(--color-ln-azul)] underline"
+              >
                 {orgEmail}
               </a>
             </div>
           )}
           {jurisdictionLabel && (
-            <div className="rounded-xl border border-gob-border bg-gob-surface-alt p-3">
-              <p className="text-[10px] uppercase tracking-wider text-gob-text-muted">Zona</p>
-              <p className="text-base text-gob-text">{jurisdictionLabel}</p>
+            <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
+                Zona
+              </p>
+              <p className="text-base text-[var(--color-ln-ink)]">{jurisdictionLabel}</p>
             </div>
           )}
           {!orgPhone && !orgEmail && (
-            <p className="text-xs text-gob-text-muted">
+            <p className="text-xs text-[var(--color-ln-mute)]">
               {orgDisplayName} no tiene canales directos publicados. Mandá un mensaje desde el botón
               "Contactar al refugio" en la parte de arriba.
             </p>

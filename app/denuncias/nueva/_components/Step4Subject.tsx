@@ -59,8 +59,15 @@ export function Step4Subject({
   return (
     <section className="space-y-5">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-gob-text">¿Sobre quién?</h1>
-        <p className="text-sm text-gob-text-muted">Opcional — nos ayuda a actuar más rápido.</p>
+        <h1
+          className="text-2xl font-semibold tracking-tight text-[var(--color-ln-ink)]"
+          style={{ fontFamily: "var(--font-ln-serif)" }}
+        >
+          ¿Sobre quién?
+        </h1>
+        <p className="text-sm text-[var(--color-ln-mute)]">
+          Opcional — nos ayuda a actuar más rápido.
+        </p>
       </div>
 
       {/* Main two cards */}
@@ -70,10 +77,10 @@ export function Step4Subject({
           return (
             <li key={card.value}>
               <label
-                className={`flex items-start gap-3 rounded-xl border px-4 py-3.5 cursor-pointer transition-colors ${
+                className={`flex items-center gap-3 rounded-[6px] border px-4 py-3.5 cursor-pointer transition-colors ${
                   isSelected
-                    ? "border-gob-primary bg-gob-surface-alt"
-                    : "border-gob-border hover:border-gob-border-strong"
+                    ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
+                    : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
                 }`}
               >
                 {/* Visually hidden radio — semantics carried by the label */}
@@ -85,15 +92,28 @@ export function Step4Subject({
                   onChange={() => onSubjectKindChange(card.value)}
                   className="sr-only"
                 />
-                <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">
+                <span
+                  className="text-xl leading-none flex-shrink-0 w-6 text-center"
+                  aria-hidden="true"
+                >
                   {card.icon}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-gob-text">{card.label}</span>
-                  <span className="block text-xs text-gob-text-muted mt-0.5">
+                  <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
+                    {card.label}
+                  </span>
+                  <span className="block text-xs text-[var(--color-ln-mute)] mt-0.5">
                     {card.description}
                   </span>
                 </span>
+                <span
+                  className={`flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 ml-auto ${
+                    isSelected
+                      ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] shadow-[inset_0_0_0_3px_white]"
+                      : "border-[var(--color-ln-line-strong)]"
+                  }`}
+                  aria-hidden="true"
+                />
               </label>
             </li>
           );
@@ -104,10 +124,10 @@ export function Step4Subject({
       <button
         type="button"
         onClick={() => onSubjectKindChange("location")}
-        className={`w-full text-left rounded-xl border px-4 py-3 text-sm transition-colors ${
+        className={`w-full text-left rounded-[6px] border px-4 py-3 text-sm transition-colors ${
           subjectKind === "location"
-            ? "border-gob-primary bg-gob-surface-alt font-medium text-gob-text"
-            : "border-dashed border-gob-border-strong text-gob-text-muted hover:border-gob-border-strong"
+            ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)] font-semibold text-[var(--color-ln-ink)]"
+            : "border-dashed border-[var(--color-ln-line-strong)] text-[var(--color-ln-mute)] hover:border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]"
         }`}
       >
         🏢 Edificio / persona / lugar específico
@@ -115,10 +135,17 @@ export function Step4Subject({
 
       {/* Conditional fields */}
       {subjectKind === "registered_pet" && (
-        <div className="space-y-3 rounded-xl border border-gob-border p-4">
+        <div className="space-y-3 rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4">
           <div className="space-y-1.5">
-            <label htmlFor="subjectPetToken" className="block text-sm font-medium text-gob-text">
-              Código MiMAR o microchip (opcional)
+            <label
+              htmlFor="subjectPetToken"
+              className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
+            >
+              Código MiMAR o microchip{" "}
+              <span className="text-[var(--color-ln-faint)] normal-case tracking-normal font-normal">
+                (opcional)
+              </span>
             </label>
             <Input
               id="subjectPetToken"
@@ -130,13 +157,17 @@ export function Step4Subject({
               className="font-mono uppercase"
               autoCapitalize="characters"
             />
-            <p className="text-xs text-gob-text-muted">
+            <p className="text-xs text-[var(--color-ln-mute)]">
               Si no lo sabés, no es obligatorio. Dejalo vacío.
             </p>
             <PetLookupPreview query={subjectPetToken} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="subjectDescription" className="block text-sm font-medium text-gob-text">
+            <label
+              htmlFor="subjectDescription"
+              className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
+            >
               Descripción del animal
             </label>
             <Textarea
@@ -153,7 +184,11 @@ export function Step4Subject({
 
       {subjectKind === "unowned_animal" && (
         <div className="space-y-1.5">
-          <label htmlFor="subjectDescription" className="block text-sm font-medium text-gob-text">
+          <label
+            htmlFor="subjectDescription"
+            className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+            style={{ fontFamily: "var(--font-ln-mono)" }}
+          >
             Describí al animal
           </label>
           <Textarea
@@ -169,7 +204,11 @@ export function Step4Subject({
 
       {subjectKind === "location" && (
         <div className="space-y-1.5">
-          <label htmlFor="subjectDescription" className="block text-sm font-medium text-gob-text">
+          <label
+            htmlFor="subjectDescription"
+            className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+            style={{ fontFamily: "var(--font-ln-mono)" }}
+          >
             Describí el lugar o situación
           </label>
           <Textarea
@@ -185,14 +224,14 @@ export function Step4Subject({
 
       {error && (
         <p
-          className="text-sm text-gob-danger rounded-lg bg-gob-danger/10 border border-gob-danger/30 px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[#fbe9e6] border border-[#f1c6bf] px-3 py-2"
           role="alert"
         >
           {error}
         </p>
       )}
 
-      <p className="text-xs text-gob-text-muted text-center">
+      <p className="text-xs text-[var(--color-ln-mute)] text-center">
         Podés saltear este paso. Tus datos anteriores ya son suficientes.
       </p>
     </section>
@@ -222,7 +261,7 @@ function PetLookupPreview({ query }: { query: string }) {
   }, [query]);
 
   if (pending) {
-    return <p className="text-xs text-gob-text-muted">Buscando…</p>;
+    return <p className="text-xs text-[var(--color-ln-mute)]">Buscando…</p>;
   }
   if (!result || !result.found) return null;
 
@@ -234,13 +273,14 @@ function PetLookupPreview({ query }: { query: string }) {
         : "activa";
 
   return (
-    <div className="rounded-lg border border-gob-success/40 bg-gob-success/5 px-3 py-2 text-xs text-gob-text">
+    <div className="rounded-[4px] border border-[#c8e2d2] bg-[#eef6f0] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
       <p>
         ✓ Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
-        <span className="text-gob-text-muted">({statusLabel})</span>
+        <span className="text-[var(--color-ln-mute)]">({statusLabel})</span>
         {result.ownerInitials && (
           <>
-            . Dueño: <span className="font-mono">{result.ownerInitials}</span>
+            . Dueño:{" "}
+            <span style={{ fontFamily: "var(--font-ln-mono)" }}>{result.ownerInitials}</span>
           </>
         )}
       </p>
