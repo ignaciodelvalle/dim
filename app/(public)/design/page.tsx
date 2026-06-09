@@ -4,8 +4,9 @@ import { Button } from "@/components/poncho";
 import { IconSearch } from "./IconSearch";
 
 /**
- * Página interna de referencia visual.
- * Muestra paleta, tipografía, botones e íconos basados en Poncho (gob.ar).
+ * Internal design reference page.
+ * Shows palette, typography, buttons, and icons.
+ * Now uses ln-* tokens (Libreta Nacional warm tier).
  * URL: /design
  */
 
@@ -19,127 +20,114 @@ type Swatch = {
   varName: string;
   tailwindClass: string;
   hex: string;
-  onColor: "light" | "dark"; // qué color de texto va arriba
+  onColor: "light" | "dark"; // text color on top of swatch
   note?: string;
 };
 
-const lightSwatches: Swatch[] = [
+const warmSwatches: Swatch[] = [
   {
-    name: "Primary",
-    varName: "--color-gob-primary",
-    tailwindClass: "bg-gob-primary",
-    hex: "#242C4F",
+    name: "ln-azul",
+    varName: "--color-ln-azul",
+    tailwindClass: "bg-ln-azul",
+    hex: "#0e5a99",
     onColor: "light",
-    note: "CTA, headers",
+    note: "CTA, links, accents",
   },
   {
-    name: "Celeste",
-    varName: "--color-gob-celeste",
-    tailwindClass: "bg-gob-celeste",
-    hex: "#37BBED",
+    name: "ln-celeste",
+    varName: "--color-ln-celeste",
+    tailwindClass: "bg-ln-celeste",
+    hex: "#4e97d1",
+    onColor: "light",
+    note: "Focus ring, info",
+  },
+  {
+    name: "ln-ok",
+    varName: "--color-ln-ok",
+    tailwindClass: "bg-ln-ok",
+    hex: "#2e7d4f",
+    onColor: "light",
+    note: "Success / advance",
+  },
+  {
+    name: "ln-warn",
+    varName: "--color-ln-warn",
+    tailwindClass: "bg-ln-warn",
+    hex: "#b0771a",
+    onColor: "light",
+    note: "Warning text",
+  },
+  {
+    name: "ln-err",
+    varName: "--color-ln-err",
+    tailwindClass: "bg-ln-err",
+    hex: "#c0392b",
+    onColor: "light",
+    note: "Errors, delete",
+  },
+  {
+    name: "ln-seal",
+    varName: "--color-ln-seal",
+    tailwindClass: "bg-ln-seal",
+    hex: "#a23a2c",
+    onColor: "light",
+    note: "Danger accent",
+  },
+  {
+    name: "ln-ink",
+    varName: "--color-ln-ink",
+    tailwindClass: "bg-ln-ink",
+    hex: "#1b2a33",
+    onColor: "light",
+    note: "Primary text",
+  },
+  {
+    name: "ln-ink-2",
+    varName: "--color-ln-ink-2",
+    tailwindClass: "bg-ln-ink-2",
+    hex: "#3c4b55",
+    onColor: "light",
+    note: "Secondary text",
+  },
+  {
+    name: "ln-mute",
+    varName: "--color-ln-mute",
+    tailwindClass: "bg-ln-mute",
+    hex: "#6e7b84",
+    onColor: "light",
+    note: "Muted text",
+  },
+  {
+    name: "ln-line",
+    varName: "--color-ln-line",
+    tailwindClass: "bg-ln-line",
+    hex: "#e4dfd3",
     onColor: "dark",
-    note: "Cinta argentina, focus ring",
+    note: "Borders",
   },
   {
-    name: "Azul link",
-    varName: "--color-gob-azul-link",
-    tailwindClass: "bg-gob-azul-link",
-    hex: "#0072BB",
-    onColor: "light",
-    note: "Enlaces",
-  },
-  {
-    name: "Success",
-    varName: "--color-gob-success",
-    tailwindClass: "bg-gob-success",
-    hex: "#2E7D33",
-    onColor: "light",
-    note: "Avanzar",
-  },
-  {
-    name: "Danger",
-    varName: "--color-gob-danger",
-    tailwindClass: "bg-gob-danger",
-    hex: "#C62828",
-    onColor: "light",
-    note: "Eliminar",
-  },
-  {
-    name: "Warning",
-    varName: "--color-gob-warning",
-    tailwindClass: "bg-gob-warning",
-    hex: "#E7BA61",
+    name: "ln-stripe",
+    varName: "--color-ln-stripe",
+    tailwindClass: "bg-ln-stripe",
+    hex: "#f6f4ed",
     onColor: "dark",
-    note: "Atención",
+    note: "Alternate surface",
   },
   {
-    name: "Info",
-    varName: "--color-gob-info",
-    tailwindClass: "bg-gob-info",
-    hex: "#2897D4",
-    onColor: "light",
-    note: "Solo texto grande (≥18pt)",
-  },
-  {
-    name: "Texto",
-    varName: "--color-gob-text",
-    tailwindClass: "bg-black",
-    hex: "#000000",
-    onColor: "light",
-  },
-  {
-    name: "Texto gris",
-    varName: "--color-gob-text-gray",
-    tailwindClass: "bg-gob-text-gray",
-    hex: "#444444",
-    onColor: "light",
-  },
-  {
-    name: "Texto muted",
-    varName: "--color-gob-text-muted",
-    tailwindClass: "bg-gob-text-muted",
-    hex: "#555555",
-    onColor: "light",
-  },
-  {
-    name: "Borde",
-    varName: "--color-gob-border",
-    tailwindClass: "bg-gob-border",
-    hex: "#DDDDDD",
+    name: "ln-paper",
+    varName: "--color-ln-paper",
+    tailwindClass: "bg-ln-paper",
+    hex: "#fbfaf5",
     onColor: "dark",
+    note: "Page background",
   },
-  {
-    name: "Superficie alt.",
-    varName: "--color-gob-surface-alt",
-    tailwindClass: "bg-gob-surface-alt",
-    hex: "#F2F2F2",
-    onColor: "dark",
-  },
-];
-
-// Para dark mode: muestreamos los colores tal como quedan calculados.
-// Estos son los valores del bloque `prefers-color-scheme: dark` en globals.css.
-const darkSwatches: { name: string; hex: string; onColor: "light" | "dark"; note: string }[] = [
-  { name: "Background", hex: "#0A0A0A", onColor: "light", note: "Fondo dark" },
-  { name: "Foreground", hex: "#FAFAFA", onColor: "dark", note: "Texto principal" },
-  {
-    name: "Primary (claro)",
-    hex: "#6A78C2",
-    onColor: "light",
-    note: "Primary aclarado para AA sobre dark",
-  },
-  { name: "Success (claro)", hex: "#66BB6A", onColor: "dark", note: "" },
-  { name: "Danger (claro)", hex: "#EF5350", onColor: "dark", note: "" },
-  { name: "Warning (claro)", hex: "#FFB74D", onColor: "dark", note: "" },
-  { name: "Info (claro)", hex: "#4FC3F7", onColor: "dark", note: "" },
-  { name: "Ring (claro)", hex: "#62CDF2", onColor: "dark", note: "Focus ring sobre dark" },
 ];
 
 function SwatchCard({ s }: { s: Swatch }) {
   return (
     <div
       className={`rounded-md p-4 text-sm ${s.tailwindClass} ${
-        s.onColor === "light" ? "text-white" : "text-black"
+        s.onColor === "light" ? "text-white" : "text-ln-ink"
       }`}
     >
       <div className="font-semibold">{s.name}</div>
@@ -158,76 +146,51 @@ export default function DesignPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       {/* Header */}
-      <header className="mb-12 border-b border-gob-border pb-6">
-        <p className="text-sm uppercase tracking-wide text-gob-text-muted">
-          MiMAR · Sistema de diseño
-        </p>
-        <h1 className="mt-1 text-4xl font-bold">Tokens basados en Poncho</h1>
-        <p className="lead mt-2 text-gob-text-gray">
-          Paleta, tipografía e íconos oficiales de gob.ar portados a Next.js + Tailwind v4.
+      <header className="mb-12 border-b border-ln-line pb-6">
+        <p className="text-sm uppercase tracking-wide text-ln-mute">MiMAR · Sistema de diseño</p>
+        <h1 className="mt-1 text-4xl font-bold font-ln-serif">Tokens Libreta Nacional</h1>
+        <p className="lead mt-2 text-ln-ink-2">
+          Paleta, tipografía e íconos del sistema Libreta Nacional portados a Next.js + Tailwind v4.
         </p>
       </header>
 
       {/* Tipografía */}
       <section className="mb-12">
-        <h2 className="mb-4 text-2xl font-bold">Tipografía — Encode Sans</h2>
-        <div className="space-y-2 rounded-md border border-gob-border p-6">
-          <h1 className="text-5xl">h1 · Esto es un título</h1>
-          <h2 className="text-4xl">h2 · Esto es un título</h2>
+        <h2 className="mb-4 text-2xl font-bold">Tipografía — IBM Plex Serif / Sans</h2>
+        <div className="space-y-2 rounded-md border border-ln-line p-6">
+          <h1 className="text-5xl font-ln-serif">h1 · Esto es un título</h1>
+          <h2 className="text-4xl font-ln-serif">h2 · Esto es un título</h2>
           <h3 className="text-3xl">h3 · Esto es un título</h3>
           <h4 className="text-2xl">h4 · Esto es un título</h4>
           <h5 className="text-xl">h5 · Esto es un título</h5>
           <p className="lead pt-2">
-            Lead — Texto destacado para bajadas. Encode Sans Medium (500) en cuerpo, Bold (700) en
-            titulares.
+            Lead — Texto destacado para bajadas. IBM Plex Sans en cuerpo, Serif en titulares.
           </p>
           <p>
             Cuerpo de párrafo regular. Tus mascotas tienen un{" "}
             {/* biome-ignore lint/a11y/useValidAnchor: design-system showcase page — placeholder link, no real navigation */}
-            <a href="#" className="text-gob-azul-link underline-offset-4 hover:underline">
+            <a href="#" className="text-ln-azul underline-offset-4 hover:underline">
               enlace
             </a>{" "}
             como este. <strong>Negrita</strong> y <em>cursiva</em> con moderación.
           </p>
           <p>
-            <small className="text-gob-text-muted">
+            <small className="text-ln-mute">
               Small · Información complementaria, ayuda en formularios o aclaraciones legales.
             </small>
           </p>
         </div>
       </section>
 
-      {/* Paleta light */}
+      {/* Paleta warm */}
       <section className="mb-12">
-        <h2 className="mb-1 text-2xl font-bold">Paleta — modo claro</h2>
-        <p className="mb-4 text-sm text-gob-text-muted">
-          Consumir vía utilidades Tailwind (<code>bg-gob-primary</code>) o variables CSS.
+        <h2 className="mb-1 text-2xl font-bold">Paleta — Libreta Nacional (warm tier)</h2>
+        <p className="mb-4 text-sm text-ln-mute">
+          Consumir vía utilidades Tailwind (<code>bg-ln-azul</code>) o variables CSS.
         </p>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          {lightSwatches.map((s) => (
+          {warmSwatches.map((s) => (
             <SwatchCard key={s.varName} s={s} />
-          ))}
-        </div>
-      </section>
-
-      {/* Paleta dark */}
-      <section className="mb-12">
-        <h2 className="mb-1 text-2xl font-bold">Paleta — modo oscuro</h2>
-        <p className="mb-4 text-sm text-gob-text-muted">
-          Valores que toma la paleta semántica cuando <code>prefers-color-scheme: dark</code>.
-          Aclaramos primary y semánticas para mantener contraste AA sobre fondo oscuro.
-        </p>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          {darkSwatches.map((s) => (
-            <div
-              key={s.hex}
-              className={`rounded-md p-4 text-sm ${s.onColor === "light" ? "text-white" : "text-black"}`}
-              style={{ background: s.hex }}
-            >
-              <div className="font-semibold">{s.name}</div>
-              <div className="opacity-90">{s.hex}</div>
-              {s.note && <div className="mt-1 text-xs opacity-90">{s.note}</div>}
-            </div>
           ))}
         </div>
       </section>
@@ -235,17 +198,17 @@ export default function DesignPage() {
       {/* Botones */}
       <section className="mb-12">
         <h2 className="mb-1 text-2xl font-bold">Botones</h2>
-        <p className="mb-4 text-sm text-gob-text-muted">
+        <p className="mb-4 text-sm text-ln-mute">
           Variantes alineadas con{" "}
           <a
             href="https://argob.github.io/poncho/componentes/botones/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-gob-azul-link underline-offset-4 hover:underline"
+            className="text-ln-azul underline-offset-4 hover:underline"
           >
             Poncho componentes/botones
           </a>
-          . Touch target ≥44px. Focus ring celeste global.
+          . Touch target ≥44px. Focus ring azul global.
         </p>
 
         <h3 className="mt-6 mb-3 text-lg font-bold">Variantes</h3>
@@ -301,7 +264,7 @@ export default function DesignPage() {
         </div>
 
         <h3 className="mt-8 mb-3 text-lg font-bold">Patrón de cancelar vs eliminar</h3>
-        <div className="rounded-md border border-gob-border p-4">
+        <div className="rounded-md border border-ln-line p-4">
           <p className="mb-3 text-sm">¿Eliminar la vacuna del registro?</p>
           <div className="flex flex-wrap gap-3">
             <Button variant="link">Cancelar</Button>
@@ -309,7 +272,7 @@ export default function DesignPage() {
               Eliminar
             </Button>
           </div>
-          <p className="mt-3 text-xs text-gob-text-muted">
+          <p className="mt-3 text-xs text-ln-mute">
             "Cancelar" usa <code>link</code> (neutro, sin peso visual). "Eliminar" usa{" "}
             <code>danger</code> (outline rojo, terminante). Nunca dos botones destacados juntos.
           </p>
@@ -319,13 +282,13 @@ export default function DesignPage() {
       {/* Íconos — con buscador */}
       <section className="mb-12">
         <h2 className="mb-1 text-2xl font-bold">Íconos — icono-arg</h2>
-        <p className="mb-4 text-sm text-gob-text-muted">
+        <p className="mb-4 text-sm text-ln-mute">
           Click en un ícono copia <code>{`<Icon name="..." />`}</code> al portapapeles.
         </p>
         <IconSearch />
       </section>
 
-      <footer className="border-t border-gob-border pt-6 text-sm text-gob-text-muted">
+      <footer className="border-t border-ln-line pt-6 text-sm text-ln-mute">
         Fase 1 — Tokens e identidad. Próximas fases: header/footer gob.ar, biblioteca completa de
         componentes, aplicación al producto.
       </footer>

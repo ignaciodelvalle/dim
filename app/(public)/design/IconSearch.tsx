@@ -5,8 +5,8 @@ import { Field, Input } from "@/components/poncho";
 import { useMemo, useState } from "react";
 
 /**
- * Buscador client-side sobre los 852 íconos de icono-arg.
- * Filtra por substring del nombre. Sin debounce — el filtro es local y rápido.
+ * Client-side icon search over the 852 icono-arg icons.
+ * Filters by substring match on icon name. No debounce — filter is local and fast.
  */
 export function IconSearch() {
   const [query, setQuery] = useState("");
@@ -58,13 +58,13 @@ export function IconSearch() {
             key={name}
             type="button"
             onClick={() => copy(name)}
-            className="flex flex-col items-center gap-2 rounded-md border border-gob-border p-3 text-left transition-colors hover:border-gob-primary"
+            className="flex flex-col items-center gap-2 rounded-md border border-ln-line p-3 text-left transition-colors hover:border-ln-azul"
             title={`Copiar <Icon name="${name}" />`}
           >
-            <Icon name={name} size={28} color="var(--color-gob-primary)" />
-            <code className="block w-full truncate text-xs text-gob-text-gray">{name}</code>
+            <Icon name={name} size={28} color="var(--color-ln-azul)" />
+            <code className="block w-full truncate text-xs text-ln-ink-2">{name}</code>
             <span
-              className="block text-[10px] text-gob-success"
+              className="block text-[10px] text-ln-ok"
               style={{ opacity: copied === name ? 1 : 0, transition: "opacity 150ms" }}
             >
               copiado
