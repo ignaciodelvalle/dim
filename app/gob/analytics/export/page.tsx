@@ -14,13 +14,11 @@
 
 import Link from "next/link";
 
-import {
-  Button,
-  Checkbox,
-  EmptyState,
-  JurisdictionSwitcher,
-  PeriodPicker,
-} from "@/components/poncho";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnButton } from "@/components/ui/Button";
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { LnCheckbox } from "@/components/ui/Field";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
@@ -67,7 +65,7 @@ export default async function GobAnalyticsExportPage({
   if (!hasAccess) {
     return (
       <div className="space-y-6">
-        <EmptyState
+        <LnEmptyState
           icon="lock"
           title="Sin acceso"
           description="Tu rol no tiene acceso a la exportacion de datos. Pedile al admin que te asigne una jurisdiccion."
@@ -150,18 +148,18 @@ export default async function GobAnalyticsExportPage({
             <fieldset className="space-y-2">
               <legend className="text-[13px] font-medium text-ln-op-ink">Datos a incluir</legend>
               <div className="space-y-2 pt-1">
-                <Checkbox name="slice" value="pets" defaultChecked>
+                <LnCheckbox name="slice" value="pets" defaultChecked>
                   Mascotas (anonimizado)
-                </Checkbox>
-                <Checkbox name="slice" value="events">
+                </LnCheckbox>
+                <LnCheckbox name="slice" value="events">
                   Eventos
-                </Checkbox>
-                <Checkbox name="slice" value="cases">
+                </LnCheckbox>
+                <LnCheckbox name="slice" value="cases">
                   Casos
-                </Checkbox>
-                <Checkbox name="slice" value="organizations">
+                </LnCheckbox>
+                <LnCheckbox name="slice" value="organizations">
                   Organizaciones
-                </Checkbox>
+                </LnCheckbox>
               </div>
             </fieldset>
 
@@ -190,7 +188,7 @@ export default async function GobAnalyticsExportPage({
               </div>
             </fieldset>
 
-            <Button type="submit">Generar export</Button>
+            <LnButton type="submit">Generar export</LnButton>
           </form>
         </OpCardBody>
       </OpCard>

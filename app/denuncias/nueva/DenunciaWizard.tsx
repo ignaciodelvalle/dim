@@ -33,8 +33,8 @@
 
 import { useRef, useState } from "react";
 
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
 import type { WelfareReportKind } from "@/src/modules/welfare/domain/types";
 
@@ -255,7 +255,7 @@ export function DenunciaWizard() {
 
   if (successCode) {
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title="Denuncia registrada"
         description="Tu denuncia fue recibida. Gracias por animarte a denunciar."
         code={successCode}
@@ -285,7 +285,7 @@ export function DenunciaWizard() {
 
       {/* Steps 1 and 2 are pure state — rendered conditionally, no uncontrolled DOM inputs */}
       {step === 1 && (
-        <WizardShell
+        <LnWizardShell
           currentStep={1}
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
@@ -303,11 +303,11 @@ export function DenunciaWizard() {
               {stepError}
             </p>
           )}
-        </WizardShell>
+        </LnWizardShell>
       )}
 
       {step === 2 && (
-        <WizardShell
+        <LnWizardShell
           currentStep={2}
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
@@ -325,7 +325,7 @@ export function DenunciaWizard() {
               {stepError}
             </p>
           )}
-        </WizardShell>
+        </LnWizardShell>
       )}
 
       {/* Step 3 stays mounted after first visit (step >= 3) so LocationFields'
@@ -346,7 +346,7 @@ export function DenunciaWizard() {
             : undefined
         }
       >
-        <WizardShell
+        <LnWizardShell
           currentStep={3}
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
@@ -370,11 +370,11 @@ export function DenunciaWizard() {
               </button>
             </div>
           )}
-        </WizardShell>
+        </LnWizardShell>
       </div>
 
       {step === 4 && (
-        <WizardShell
+        <LnWizardShell
           currentStep={4}
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
@@ -408,11 +408,11 @@ export function DenunciaWizard() {
               Saltear este paso
             </button>
           </div>
-        </WizardShell>
+        </LnWizardShell>
       )}
 
       {step === 5 && (
-        <WizardShell
+        <LnWizardShell
           currentStep={5}
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
@@ -433,7 +433,7 @@ export function DenunciaWizard() {
             isPending={isPending}
             error={submitError}
           />
-        </WizardShell>
+        </LnWizardShell>
       )}
     </form>
   );

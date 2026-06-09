@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { govtSelfDeactivateAction } from "@/app/actions/profile-self-service";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 
 type LocalityRow = {
   province: string;
@@ -168,9 +168,9 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
           </div>
 
           {/* Confirm checkbox */}
-          <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}>
+          <LnCheckbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}>
             Entiendo y confirmo que quiero desactivar mi cuenta de operador govt.
-          </Checkbox>
+          </LnCheckbox>
         </>
       )}
 

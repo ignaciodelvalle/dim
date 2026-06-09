@@ -8,7 +8,7 @@ import {
   createLibretaShareAction,
   revokeLibretaShareAction,
 } from "@/app/actions/libreta-share";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 import type { LibretaShareToken } from "@/db/schema";
 
 type Props = {
@@ -131,13 +131,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               ))}
             </div>
             {expiresInDays === null && (
-              <Checkbox
+              <LnCheckbox
                 checked={noExpiryConfirmed}
                 onChange={(e) => setNoExpiryConfirmed(e.target.checked)}
                 labelClassName="text-xs! text-[var(--color-ln-warn)]!"
               >
                 Confirmo que este enlace no vence nunca
-              </Checkbox>
+              </LnCheckbox>
             )}
           </fieldset>
 

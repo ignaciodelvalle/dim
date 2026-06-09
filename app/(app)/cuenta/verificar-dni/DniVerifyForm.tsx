@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import { type DniVerifyFormState, verifyDniAction } from "@/app/actions/dni-verification";
-import { Field, Input } from "@/components/poncho";
+import { LnField, LnInput } from "@/components/ui/Field";
 
 const initialState: DniVerifyFormState = { error: null };
 
@@ -35,14 +35,14 @@ export function DniVerifyForm({ next }: { next: string }) {
       {/* TODO(mi-argentina): this form is a placeholder until the real Mi Argentina OAuth
           integration is available. When that lands, this page becomes the OAuth callback
           landing — the user never types their DNI manually. */}
-      <Field
+      <LnField
         label="Número de DNI"
-        help="7 u 8 dígitos sin puntos ni espacios."
+        hint="7 u 8 dígitos sin puntos ni espacios."
         error={state.error ?? undefined}
         required
       >
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="dni"
             type="text"
@@ -53,7 +53,7 @@ export function DniVerifyForm({ next }: { next: string }) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       <button
         type="submit"

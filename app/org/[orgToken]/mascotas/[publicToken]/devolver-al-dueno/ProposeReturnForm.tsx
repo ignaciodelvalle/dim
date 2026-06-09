@@ -25,8 +25,8 @@
 import { useActionState, useState } from "react";
 
 import { proposeReturnToOwnerFormAction } from "@/app/actions/return-to-owner-form";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 
 export type ProposeReturnFormState = {
   error: string | null;
@@ -53,7 +53,7 @@ export function ProposeReturnForm({
 
   if (state.success) {
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title={`Propuesta enviada${petName ? ` para ${petName}` : ""}`}
         description="El dueño recibió una notificación para confirmar la devolución. La custodia sigue con tu org hasta que acepte."
         next={[
@@ -73,7 +73,7 @@ export function ProposeReturnForm({
 
   return (
     <form action={formAction}>
-      <WizardShell
+      <LnWizardShell
         currentStep={step}
         totalSteps={TOTAL_STEPS}
         stepLabels={STEP_LABELS}
@@ -152,7 +152,7 @@ export function ProposeReturnForm({
             {isPending ? "Enviando…" : "Confirmar propuesta"}
           </button>
         </section>
-      </WizardShell>
+      </LnWizardShell>
     </form>
   );
 }

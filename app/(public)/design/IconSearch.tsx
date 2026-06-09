@@ -1,7 +1,7 @@
 "use client";
 
 import { Icon, type IconName, iconNames } from "@/components/Icon";
-import { Field, Input } from "@/components/poncho";
+import { LnField, LnInput } from "@/components/ui/Field";
 import { useMemo, useState } from "react";
 
 /**
@@ -34,13 +34,13 @@ export function IconSearch() {
 
   return (
     <div>
-      <Field
+      <LnField
         label={`Buscar entre ${iconNames.length} íconos icono-arg`}
-        help={resultsHelp}
+        hint={resultsHelp}
         optional={false}
       >
         {({ id, describedBy }) => (
-          <Input
+          <LnInput
             id={id}
             type="search"
             placeholder="ej: vacuna, hospital, marcador…"
@@ -50,7 +50,7 @@ export function IconSearch() {
             className="max-w-md"
           />
         )}
-      </Field>
+      </LnField>
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
         {results.map((name) => (

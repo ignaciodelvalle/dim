@@ -19,7 +19,7 @@ import { useRef, useState, useTransition } from "react";
 import { revokeOrgVerificationAction } from "@/app/actions/admin-revocations";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 import { canRevoke } from "@/lib/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
@@ -243,14 +243,14 @@ function RevokeOrgForm({
         )}
       </div>
 
-      <Checkbox
+      <LnCheckbox
         checked={confirm}
         onChange={(e) => setConfirm(e.target.checked)}
         labelClassName="text-xs! text-ln-op-danger!"
       >
         Confirmo que quiero revocar la verificacion de {org.displayName}. Esta accion genera un
         registro permanente en el audit log.
-      </Checkbox>
+      </LnCheckbox>
 
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 

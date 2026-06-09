@@ -4,7 +4,7 @@
 // throws and no segment-level error.tsx handles it first.
 // Sprint 6 PR-051.
 
-import { ErrorBoundary } from "@/components/poncho/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function GlobalError({
   error,

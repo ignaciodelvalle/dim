@@ -10,9 +10,9 @@
  *   cancelar-turno
  */
 
-import { Sheet } from "@/components/poncho";
-import { Button } from "@/components/poncho/Button";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { LnButton } from "@/components/ui/Button";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 
@@ -86,12 +86,12 @@ function CancelarTurnoConfirmation({
         </p>
       )}
       <div className="flex gap-3">
-        <Button type="button" variant="danger" size="md" loading={pending} onClick={handleSubmit}>
+        <LnButton type="button" variant="seal" size="md" loading={pending} onClick={handleSubmit}>
           Sí, cancelar
-        </Button>
-        <Button type="button" variant="secondary" size="md" disabled={pending} onClick={onCancel}>
+        </LnButton>
+        <LnButton type="button" variant="ghost" size="md" disabled={pending} onClick={onCancel}>
           Volver
-        </Button>
+        </LnButton>
       </div>
     </div>
   );

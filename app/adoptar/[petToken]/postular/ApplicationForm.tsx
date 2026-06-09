@@ -17,8 +17,8 @@
 
 import { useState, useTransition } from "react";
 
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import { submitAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 
 type HousingType = "casa_con_patio" | "casa_sin_patio" | "departamento" | "otro";
@@ -140,7 +140,7 @@ export function ApplicationForm({
 
   if (submittedCode) {
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title={`Tu postulación a ${petName} fue enviada`}
         description={`Te van a contactar a ${applicantEmail} cuando tengan novedades. Guardá este código por si necesitás referenciarla.`}
         code={submittedCode}
@@ -160,7 +160,7 @@ export function ApplicationForm({
   }
 
   return (
-    <WizardShell
+    <LnWizardShell
       currentStep={step}
       totalSteps={TOTAL_STEPS}
       stepLabels={STEP_LABELS}
@@ -442,6 +442,6 @@ export function ApplicationForm({
           {pending ? "Enviando postulación..." : "Enviar postulación"}
         </button>
       </section>
-    </WizardShell>
+    </LnWizardShell>
   );
 }

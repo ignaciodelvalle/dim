@@ -2,7 +2,9 @@
 
 import { useActionState } from "react";
 
-import { Alert, Button, Checkbox, Field, Input } from "@/components/poncho";
+import { LnAlert } from "@/components/ui/Alert";
+import { LnButton } from "@/components/ui/Button";
+import { LnCheckbox, LnField, LnInput } from "@/components/ui/Field";
 import type { Organization } from "@/db";
 import {
   type UpdateOrgFormState,
@@ -34,9 +36,9 @@ export function EditOrgForm({ organization }: Props) {
       {/* Hidden field so the action knows which org to update */}
       <input type="hidden" name="orgToken" value={organization.publicToken} />
 
-      <Field label="Nombre público" required help="Nombre que verán los demás usuarios de MiMAR.">
+      <LnField label="Nombre público" required hint="Nombre que verán los demás usuarios de MiMAR.">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="displayName"
             type="text"
@@ -46,14 +48,14 @@ export function EditOrgForm({ organization }: Props) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field
+      <LnField
         label="Razón social"
-        help="Nombre legal completo (ej: Asoc. Civil Refugio El Campito)."
+        hint="Nombre legal completo (ej: Asoc. Civil Refugio El Campito)."
       >
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="legalName"
             type="text"
@@ -62,11 +64,11 @@ export function EditOrgForm({ organization }: Props) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Correo electrónico de contacto">
+      <LnField label="Correo electrónico de contacto">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="email"
             type="email"
@@ -75,11 +77,11 @@ export function EditOrgForm({ organization }: Props) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Teléfono">
+      <LnField label="Teléfono">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="phone"
             type="tel"
@@ -88,11 +90,11 @@ export function EditOrgForm({ organization }: Props) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Sitio web" help="Debe comenzar con http:// o https://">
+      <LnField label="Sitio web" hint="Debe comenzar con http:// o https://">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="website"
             type="url"
@@ -101,9 +103,9 @@ export function EditOrgForm({ organization }: Props) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Descripción pública" help="Máximo 2000 caracteres.">
+      <LnField label="Descripción pública" hint="Máximo 2000 caracteres.">
         {({ id, describedBy }) => (
           <textarea
             id={id}
@@ -114,11 +116,11 @@ export function EditOrgForm({ organization }: Props) {
             className="w-full rounded-[6px] border border-ln-op-line px-3 py-2 text-[13px] text-ln-op-ink bg-ln-op-card focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Número de personería jurídica">
+      <LnField label="Número de personería jurídica">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="personeriaJuridicaNumber"
             type="text"
@@ -127,28 +129,28 @@ export function EditOrgForm({ organization }: Props) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       <div className="space-y-1">
-        <Checkbox
+        <LnCheckbox
           name="tier0ShowOriginOrg"
           value="true"
           defaultChecked={organization.tier0ShowOriginOrg}
         >
           Mostrar a mi organización como refugio de origen en la credencial pública de las mascotas
-        </Checkbox>
+        </LnCheckbox>
         <p className="text-[12px] text-ln-op-mute pl-6">
           Cuando está activo, la credencial pública muestra el nombre de tu organización como
           refugio de origen de la mascota.
         </p>
       </div>
 
-      {state.error && <Alert variant="danger">{state.error}</Alert>}
-      {state.ok && <Alert variant="success">Cambios guardados correctamente.</Alert>}
+      {state.error && <LnAlert variant="danger">{state.error}</LnAlert>}
+      {state.ok && <LnAlert variant="success">Cambios guardados correctamente.</LnAlert>}
 
-      <Button type="submit" disabled={isPending}>
+      <LnButton type="submit" disabled={isPending}>
         {isPending ? "Guardando..." : "Guardar cambios"}
-      </Button>
+      </LnButton>
     </form>
   );
 }

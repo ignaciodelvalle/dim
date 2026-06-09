@@ -1,7 +1,6 @@
 "use client";
 
-import { Radio } from "@/components/poncho";
-import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
@@ -58,9 +57,9 @@ export function ReplaceMicrochipForm({
             </p>
             <div className="flex flex-col gap-[6px]">
               {OWNER_REASONS.map((r) => (
-                <Radio key={r.value} name="reason" value={r.value} required>
+                <LnRadio key={r.value} name="reason" value={r.value} required>
                   {r.label}
-                </Radio>
+                </LnRadio>
               ))}
             </div>
           </div>

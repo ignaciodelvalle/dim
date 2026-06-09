@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
-import { Input } from "@/components/poncho";
+import { LnInput } from "@/components/ui/Field";
 import type { LocalitySearchResult } from "@/lib/ar-localidades";
 
 const DEBOUNCE_MS = 200;
@@ -142,7 +142,7 @@ export function LocalityPickerAcross({
 
   return (
     <div className="relative">
-      <Input
+      <LnInput
         id={id}
         type="text"
         value={query}

@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-import { EmptyState, JurisdictionSwitcher, MapChoropleth, PeriodPicker } from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
@@ -45,7 +48,7 @@ export default async function GobAnalyticsPage({
   if (!hasAnalyticsRead) {
     return (
       <div className="space-y-6">
-        <EmptyState
+        <LnEmptyState
           icon="lock"
           title="Sin acceso"
           description="Tu rol no tiene acceso a analytics. Pedile al admin que te asigne capabilities."
@@ -162,7 +165,7 @@ export default async function GobAnalyticsPage({
         />
         <OpCardBody>
           {acquisitionTrend.length === 0 ? (
-            <EmptyState
+            <LnEmptyState
               icon="chart-line"
               title="Sin datos de adquisicion"
               description="No hay registros de mascotas con metodo de adquisicion en los ultimos 12 meses."
@@ -195,7 +198,7 @@ export default async function GobAnalyticsPage({
         <OpCardHead title={<span id={panelDeathId}>Top 10 causas de muerte (12m)</span>} />
         <OpCardBody>
           {deathCauses.length === 0 ? (
-            <EmptyState
+            <LnEmptyState
               icon="heart"
               title="Sin datos de fallecimiento"
               description="No hay eventos de fallecimiento en los ultimos 12 meses en tu cobertura."

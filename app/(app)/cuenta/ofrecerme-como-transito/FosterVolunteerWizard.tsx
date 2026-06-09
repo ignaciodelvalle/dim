@@ -23,8 +23,8 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { Checkbox } from "@/components/poncho";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnCheckbox } from "@/components/ui/Field";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import { provinceByName } from "@/lib/ar-provincias";
 import {
   upsertFosterVolunteerAction,
@@ -203,7 +203,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           submit(isNew ? "enroll" : "update_preferences_only", "active");
         }}
       >
-        <WizardShell
+        <LnWizardShell
           currentStep={step}
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
@@ -404,7 +404,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                   : "Guardar preferencias"}
             </button>
           </section>
-        </WizardShell>
+        </LnWizardShell>
       </form>
     </div>
   );
@@ -423,9 +423,9 @@ function CheckboxRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <Checkbox checked={checked} onChange={(e) => onChange(e.target.checked)}>
+    <LnCheckbox checked={checked} onChange={(e) => onChange(e.target.checked)}>
       {label}
-    </Checkbox>
+    </LnCheckbox>
   );
 }
 

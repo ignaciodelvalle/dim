@@ -13,7 +13,7 @@ import {
   lookupForClaimAction,
   submitClaimDisputeAction,
 } from "@/app/actions/pet-claim";
-import { Radio } from "@/components/poncho";
+import { LnRadio } from "@/components/ui/Field";
 
 type IdKind = "microchip" | "tattoo";
 
@@ -83,22 +83,22 @@ export function ClaimWizard() {
           <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
             ¿Cómo identificás a la mascota?
           </legend>
-          <Radio
+          <LnRadio
             name="kind"
             value="microchip"
             checked={state.kind === "microchip"}
             onChange={() => setState({ ...state, kind: "microchip", value: "", error: null })}
           >
             Microchip (15 dígitos)
-          </Radio>
-          <Radio
+          </LnRadio>
+          <LnRadio
             name="kind"
             value="tattoo"
             checked={state.kind === "tattoo"}
             onChange={() => setState({ ...state, kind: "tattoo", value: "", error: null })}
           >
             Tatuaje
-          </Radio>
+          </LnRadio>
         </fieldset>
 
         <div className="space-y-1">

@@ -4,7 +4,7 @@
 // Uses useActionState for progressive enhancement.
 
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
-import { Checkbox, Input } from "@/components/poncho";
+import { LnCheckbox, LnInput } from "@/components/ui/Field";
 import { useActionState } from "react";
 
 const WEEKDAYS = [
@@ -55,14 +55,14 @@ export function AgendaRuleForm({
         </span>
         <div className="flex flex-wrap gap-2">
           {WEEKDAYS.map((d) => (
-            <Checkbox
+            <LnCheckbox
               key={d.value}
               name="daysOfWeek"
               value={d.value}
               defaultChecked={defaultDays?.includes(d.value) ?? d.value <= 5}
             >
               {d.label}
-            </Checkbox>
+            </LnCheckbox>
           ))}
         </div>
       </div>
@@ -73,7 +73,7 @@ export function AgendaRuleForm({
           <label htmlFor="startTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
             Hora inicio <span className="text-ln-op-danger">*</span>
           </label>
-          <Input
+          <LnInput
             id="startTimeLocal"
             name="startTimeLocal"
             type="time"
@@ -85,7 +85,13 @@ export function AgendaRuleForm({
           <label htmlFor="endTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
             Hora fin <span className="text-ln-op-danger">*</span>
           </label>
-          <Input id="endTimeLocal" name="endTimeLocal" type="time" required defaultValue="12:00" />
+          <LnInput
+            id="endTimeLocal"
+            name="endTimeLocal"
+            type="time"
+            required
+            defaultValue="12:00"
+          />
         </div>
       </div>
 
@@ -95,7 +101,7 @@ export function AgendaRuleForm({
           <label htmlFor="effectiveFrom" className="block text-[13px] font-medium text-ln-op-ink">
             Válido desde <span className="text-ln-op-danger">*</span>
           </label>
-          <Input
+          <LnInput
             id="effectiveFrom"
             name="effectiveFrom"
             type="date"
@@ -108,7 +114,7 @@ export function AgendaRuleForm({
             Válido hasta{" "}
             <span className="text-ln-op-mute font-normal">(opcional — sin fecha = abierto)</span>
           </label>
-          <Input id="effectiveUntil" name="effectiveUntil" type="date" />
+          <LnInput id="effectiveUntil" name="effectiveUntil" type="date" />
         </div>
       </div>
 

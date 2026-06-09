@@ -2,8 +2,7 @@
 
 import { useActionState } from "react";
 
-import { Radio } from "@/components/poncho";
-import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -57,15 +56,15 @@ export function DewormingForm({
               </span>
             </p>
             <div className="flex flex-col gap-[6px]">
-              <Radio name="type" value="internal" required>
+              <LnRadio name="type" value="internal" required>
                 Interno
-              </Radio>
-              <Radio name="type" value="external">
+              </LnRadio>
+              <LnRadio name="type" value="external">
                 Externo
-              </Radio>
-              <Radio name="type" value="both">
+              </LnRadio>
+              <LnRadio name="type" value="both">
                 Ambos
-              </Radio>
+              </LnRadio>
             </div>
           </div>
           <LnField label="Fecha de aplicación" required>

@@ -4,16 +4,12 @@
 
 import { Suspense } from "react";
 
-import {
-  JurisdictionSwitcher,
-  MapChoropleth,
-  MetricCard,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  PeriodPicker,
-  TimeSeriesChart,
-} from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { MetricCard } from "@/components/gob/MetricCard";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";
@@ -73,9 +69,9 @@ export default async function DashboardPrimitivasPage() {
         {/* ------------------------------------------------------------------ */}
         {/* 1. MetricCard */}
         {/* ------------------------------------------------------------------ */}
-        <Panel aria-labelledby="metric-card-heading">
-          <PanelHeader title={<span id="metric-card-heading">MetricCard — KPI tile</span>} />
-          <PanelBody>
+        <LnCard aria-labelledby="metric-card-heading">
+          <LnCardHead title={<span id="metric-card-heading">MetricCard — KPI tile</span>} />
+          <LnCardBody>
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               Tres tonos: neutral / warning / danger. Con delta y subline opcionales.
             </p>
@@ -105,21 +101,21 @@ export default async function DashboardPrimitivasPage() {
                 icon="alert-triangle"
               />
             </div>
-          </PanelBody>
-        </Panel>
+          </LnCardBody>
+        </LnCard>
 
         {/* ------------------------------------------------------------------ */}
         {/* 2. MapChoropleth */}
         {/* ------------------------------------------------------------------ */}
-        <Panel aria-labelledby="map-choropleth-heading">
-          <PanelHeader
+        <LnCard aria-labelledby="map-choropleth-heading">
+          <LnCardHead
             title={
               <span id="map-choropleth-heading">
                 MapChoropleth — Mapa coroplético OSM / MapLibre
               </span>
             }
           />
-          <PanelBody>
+          <LnCardBody>
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               3 provincias de muestra (CABA, Buenos Aires, Córdoba). Tiles vía demotiles MapLibre
               (v1 placeholder — E-D1). GeoJSON en{" "}
@@ -137,17 +133,17 @@ export default async function DashboardPrimitivasPage() {
                 fallbackTableLabel="Mascotas registradas por provincia"
               />
             </Suspense>
-          </PanelBody>
-        </Panel>
+          </LnCardBody>
+        </LnCard>
 
         {/* ------------------------------------------------------------------ */}
         {/* 3. TimeSeriesChart */}
         {/* ------------------------------------------------------------------ */}
-        <Panel aria-labelledby="timeseries-heading">
-          <PanelHeader
+        <LnCard aria-labelledby="timeseries-heading">
+          <LnCardHead
             title={<span id="timeseries-heading">TimeSeriesChart — Serie temporal recharts</span>}
           />
-          <PanelBody>
+          <LnCardBody>
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               12 puntos mensuales sintéticos. Variante &ldquo;area&rdquo;. Animaciones respetan
               prefers-reduced-motion.
@@ -163,21 +159,21 @@ export default async function DashboardPrimitivasPage() {
                 fallbackTableLabel="Denuncias registradas por mes"
               />
             </Suspense>
-          </PanelBody>
-        </Panel>
+          </LnCardBody>
+        </LnCard>
 
         {/* ------------------------------------------------------------------ */}
         {/* 4. JurisdictionSwitcher */}
         {/* ------------------------------------------------------------------ */}
-        <Panel aria-labelledby="jurisdiction-heading">
-          <PanelHeader
+        <LnCard aria-labelledby="jurisdiction-heading">
+          <LnCardHead
             title={
               <span id="jurisdiction-heading">
                 JurisdictionSwitcher — Selector provincia → localidad
               </span>
             }
           />
-          <PanelBody>
+          <LnCardBody>
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               3 provincias de muestra. Seleccionar una provincia limpia la localidad. Cambios via
               router.replace preservando otros searchParams.
@@ -185,17 +181,17 @@ export default async function DashboardPrimitivasPage() {
             <Suspense fallback={null}>
               <JurisdictionSwitcher allowedProvinces={SAMPLE_PROVINCES} localities={[]} />
             </Suspense>
-          </PanelBody>
-        </Panel>
+          </LnCardBody>
+        </LnCard>
 
         {/* ------------------------------------------------------------------ */}
         {/* 5. PeriodPicker */}
         {/* ------------------------------------------------------------------ */}
-        <Panel aria-labelledby="period-picker-heading">
-          <PanelHeader
+        <LnCard aria-labelledby="period-picker-heading">
+          <LnCardHead
             title={<span id="period-picker-heading">PeriodPicker — Selector de período</span>}
           />
-          <PanelBody>
+          <LnCardBody>
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               Chips de presets (7d / 30d / 90d / Año en curso) + rango personalizado vía
               DateRangePicker. Activo por defecto: 30d.
@@ -203,8 +199,8 @@ export default async function DashboardPrimitivasPage() {
             <Suspense fallback={null}>
               <PeriodPicker defaultPreset="30d" />
             </Suspense>
-          </PanelBody>
-        </Panel>
+          </LnCardBody>
+        </LnCard>
       </div>
     </main>
   );

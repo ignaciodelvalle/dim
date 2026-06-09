@@ -1,6 +1,6 @@
 "use client";
 
-import { ErrorBoundary } from "@/components/poncho/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function GobPortalError({
   error,

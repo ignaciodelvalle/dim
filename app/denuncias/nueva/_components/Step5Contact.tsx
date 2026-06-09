@@ -8,7 +8,7 @@
 
 import { useRef } from "react";
 
-import { Input } from "@/components/poncho";
+import { LnInput } from "@/components/ui/Field";
 
 export type ContactMode = "anonymous" | "with_contact";
 
@@ -213,7 +213,7 @@ export function Step5Contact({
             >
               Teléfono (preferido)
             </label>
-            <Input
+            <LnInput
               id="reporterContactPhone"
               name="reporterContactPhone"
               type="tel"
@@ -231,7 +231,7 @@ export function Step5Contact({
             >
               Email (alternativo)
             </label>
-            <Input
+            <LnInput
               id="reporterContactEmail"
               name="reporterContactEmail"
               type="email"

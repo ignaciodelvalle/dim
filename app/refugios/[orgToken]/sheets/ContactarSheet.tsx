@@ -12,10 +12,9 @@
 
 import { useActionState, useEffect } from "react";
 
-import { Input } from "@/components/poncho/Input";
-import { Sheet } from "@/components/poncho/Sheet";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
-import { Textarea } from "@/components/poncho/Textarea";
+import { LnInput, LnTextarea } from "@/components/ui/Field";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import {
   type SubmitOrgContactState,
   submitOrgContactAction,
@@ -100,7 +99,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               >
                 Tu nombre <span className="text-[var(--color-ln-mute)] text-xs">(opcional)</span>
               </label>
-              <Input
+              <LnInput
                 id="inquirerName"
                 name="inquirerName"
                 type="text"
@@ -116,7 +115,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               >
                 Tu email <span className="text-[var(--color-ln-err)] ml-0.5">*</span>
               </label>
-              <Input
+              <LnInput
                 id="inquirerEmail"
                 name="inquirerEmail"
                 type="email"
@@ -137,7 +136,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               >
                 Mensaje <span className="text-[var(--color-ln-err)] ml-0.5">*</span>
               </label>
-              <Textarea
+              <LnTextarea
                 id="message"
                 name="message"
                 required

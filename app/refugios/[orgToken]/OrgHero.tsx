@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/poncho/Badge";
+import { LnBadge } from "@/components/ui/Badge";
 import { LnGuilloche } from "@/components/ui/DocElements";
 import type { OrgPublicProfile } from "@/lib/org-public-profile";
 import { orgLogoUrl } from "@/lib/storage";
@@ -94,13 +94,13 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
               </h1>
               {/* Verified chip (inline with name) */}
               <Link href="?sheet=verificacion-info" className="focus:outline-none">
-                <Badge variant="success">✓ Verificado</Badge>
+                <LnBadge variant="success">✓ Verificado</LnBadge>
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="neutral">{orgTypeChipLabel}</Badge>
+              <LnBadge variant="neutral">{orgTypeChipLabel}</LnBadge>
               {showYearChip && verifiedYear && (
-                <Badge variant="neutral">📅 Desde {verifiedYear}</Badge>
+                <LnBadge variant="neutral">📅 Desde {verifiedYear}</LnBadge>
               )}
             </div>
             {(localityLabel || (org.legalName && org.legalName !== org.displayName)) && (

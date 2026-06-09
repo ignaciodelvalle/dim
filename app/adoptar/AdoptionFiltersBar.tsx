@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -236,13 +236,13 @@ function FilterCheckbox({
   label: string;
 }) {
   return (
-    <Checkbox
+    <LnCheckbox
       name={name}
       value="true"
       defaultChecked={checked}
       labelClassName="text-xs! text-[var(--color-ln-ink-2)]!"
     >
       {label}
-    </Checkbox>
+    </LnCheckbox>
   );
 }

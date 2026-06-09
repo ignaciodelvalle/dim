@@ -7,7 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
-import { Field, Input, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
 
 const initialState: BusinessRuleFormState = { error: null };
@@ -92,7 +92,7 @@ export function PppBreedListForm({
       <div className="space-y-1.5">
         <p className="text-[12px] font-semibold text-ln-op-mute">Agregar raza no estandar</p>
         <div className="flex gap-2">
-          <Input
+          <LnInput
             id="customBreed"
             type="text"
             value={customBreed}
@@ -110,9 +110,9 @@ export function PppBreedListForm({
         </div>
       </div>
 
-      <Field label="Notas internas (visible solo a admin/govt)">
+      <LnField label="Notas internas (visible solo a admin/govt)">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="notes"
             defaultValue={initialNotes}
@@ -121,7 +121,7 @@ export function PppBreedListForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (

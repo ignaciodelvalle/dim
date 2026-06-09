@@ -1,6 +1,6 @@
 "use client";
 
-import { Field, Textarea } from "@/components/poncho";
+import { LnField, LnTextarea } from "@/components/ui/Field";
 import { useActionState } from "react";
 
 export type CommentFormState = { error: string | null; success: boolean };
@@ -14,13 +14,13 @@ export function ReporterCommentForm({ action }: { action: CommentFormAction }) {
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field
+      <LnField
         label="Agregar un comentario"
         error={state.error ?? undefined}
-        help="Podés agregar novedades, aclaraciones o información adicional sobre esta denuncia. Máximo 2000 caracteres."
+        hint="Podés agregar novedades, aclaraciones o información adicional sobre esta denuncia. Máximo 2000 caracteres."
       >
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="text"
             rows={4}
@@ -31,7 +31,7 @@ export function ReporterCommentForm({ action }: { action: CommentFormAction }) {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.success && (
         <p className="text-sm text-[var(--color-ln-ok)] font-medium">

@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { Field, Input, Select, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
   type InitiatePetTransferInput as InitiateTransferInput,
   initiatePetTransferAction,
@@ -59,14 +59,14 @@ export function TransferSenderForm({
         debe aceptarla — la libreta sanitaria viaja con la mascota.
       </p>
 
-      <Field
+      <LnField
         label="Email del receptor"
-        help="Si todavía no tiene cuenta en MiMAR, le enviamos un link de signup."
+        hint="Si todavía no tiene cuenta en MiMAR, le enviamos un link de signup."
         required
         error={error ?? undefined}
       >
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             type="email"
             required
@@ -77,11 +77,11 @@ export function TransferSenderForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Motivo" required>
+      <LnField label="Motivo" required>
         {({ id, describedBy, invalid }) => (
-          <Select
+          <LnSelect
             id={id}
             value={reason}
             onChange={(e) => setReason(e.target.value as InitiateTransferInput["reason"])}
@@ -93,13 +93,13 @@ export function TransferSenderForm({
                 {r.label}
               </option>
             ))}
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Comentario">
+      <LnField label="Comentario">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             rows={3}
             maxLength={500}
@@ -109,7 +109,7 @@ export function TransferSenderForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       <p className="text-xs text-[var(--color-ln-mute)]">
         La propuesta vence en 7 días. Mientras esté pendiente podés cancelarla.

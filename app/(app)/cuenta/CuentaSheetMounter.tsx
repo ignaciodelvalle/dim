@@ -16,8 +16,8 @@
  *   privacidad — destructive (account erasure); better as a full page
  */
 
-import { Sheet } from "@/components/poncho";
-import { buildCloseSheetUrl } from "@/components/poncho/Sheet.helpers";
+import { Sheet } from "@/components/ui/VaulSheet";
+import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 

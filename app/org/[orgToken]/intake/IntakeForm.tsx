@@ -22,9 +22,9 @@
 import { useState, useTransition } from "react";
 
 import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
-import { Radio } from "@/components/poncho";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnRadio } from "@/components/ui/Field";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
 // not something a refugio self-records through this form. Seizures go
@@ -101,7 +101,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   if (state.ok && state.createdPetToken && state.createdPetName) {
     const orgRoot = `/org/${orgToken}`;
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title={`Mascota ingresada: ${state.createdPetName}`}
         description="Quedó registrada bajo custodia del refugio. Podés continuar el flujo desde acá."
         next={[
@@ -127,7 +127,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const canSubmit = !!name && !!species && !!intakeReason && !!occurredAt && !pending;
 
   return (
-    <WizardShell
+    <LnWizardShell
       currentStep={step}
       totalSteps={TOTAL_STEPS}
       stepLabels={STEP_LABELS}
@@ -329,7 +329,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <fieldset className="space-y-1">
           <legend className="text-[13px] text-ln-op-ink">Rol de la organización</legend>
           <div className="flex flex-col gap-2">
-            <Radio
+            <LnRadio
               name="custodyRole"
               value="shelter_custody"
               checked={custodyRole === "shelter_custody"}
@@ -341,8 +341,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
                   El animal queda bajo cuidado del refugio hasta que se concrete una adopción.
                 </span>
               </span>
-            </Radio>
-            <Radio
+            </LnRadio>
+            <LnRadio
               name="custodyRole"
               value="owner"
               checked={custodyRole === "owner"}
@@ -355,7 +355,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
                   institucional).
                 </span>
               </span>
-            </Radio>
+            </LnRadio>
           </div>
         </fieldset>
 
@@ -474,6 +474,6 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           {pending ? "Registrando…" : "Crear ingreso"}
         </button>
       </section>
-    </WizardShell>
+    </LnWizardShell>
   );
 }

@@ -11,7 +11,7 @@
 import { useState } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 import type { LocalitySearchResult } from "@/lib/ar-localidades";
 import { SERVICE_KINDS } from "@/lib/service-kinds";
 
@@ -125,9 +125,9 @@ export function SearchFiltersForm({
             className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           />
         </div>
-        <Checkbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>
+        <LnCheckbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>
           Solo campañas gratuitas
-        </Checkbox>
+        </LnCheckbox>
       </div>
     </form>
   );

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import { type UpgradeFormState, createOrganizationAction } from "@/app/actions/upgrade";
 import { LocationFields } from "@/components/LocationFields";
-import { Field, Input, Select } from "@/components/poncho";
+import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -43,13 +43,13 @@ export function OrgCreateForm() {
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field
+      <LnField
         label="Nombre de la organización"
         required
-        help="Nombre público que verán los demás usuarios."
+        hint="Nombre público que verán los demás usuarios."
       >
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="name"
             type="text"
@@ -58,15 +58,15 @@ export function OrgCreateForm() {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field
+      <LnField
         label="Razón social"
         required
-        help="Nombre legal completo (ej: Asoc. Civil Refugio El Campito)."
+        hint="Nombre legal completo (ej: Asoc. Civil Refugio El Campito)."
       >
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="legalName"
             type="text"
@@ -75,24 +75,30 @@ export function OrgCreateForm() {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Tipo de organización" required>
+      <LnField label="Tipo de organización" required>
         {({ id, describedBy, invalid }) => (
-          <Select id={id} name="orgType" required aria-describedby={describedBy} invalid={invalid}>
+          <LnSelect
+            id={id}
+            name="orgType"
+            required
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
             <option value="">Seleccioná un tipo</option>
             {ORG_TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Correo electrónico de contacto" required>
+      <LnField label="Correo electrónico de contacto" required>
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="email"
             type="email"
@@ -101,19 +107,31 @@ export function OrgCreateForm() {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="CUIT" help="11 dígitos sin guiones. Ej: 30712345678">
+      <LnField label="CUIT" hint="11 dígitos sin guiones. Ej: 30712345678">
         {({ id, describedBy, invalid }) => (
-          <Input id={id} name="cuit" type="text" aria-describedby={describedBy} invalid={invalid} />
+          <LnInput
+            id={id}
+            name="cuit"
+            type="text"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Teléfono">
+      <LnField label="Teléfono">
         {({ id, describedBy, invalid }) => (
-          <Input id={id} name="phone" type="tel" aria-describedby={describedBy} invalid={invalid} />
+          <LnInput
+            id={id}
+            name="phone"
+            type="tel"
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
         )}
-      </Field>
+      </LnField>
 
       {/* Jurisdiction — L1 (province + locality) per AGENTS.md "Design rules"
             rule #1. LocationFields submits `provinceCode` and `localityName`;
@@ -130,9 +148,9 @@ export function OrgCreateForm() {
         <LocationFields mode="l1" />
       </div>
 
-      <Field label="Número de personería jurídica">
+      <LnField label="Número de personería jurídica">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="personeriaJuridicaNumber"
             type="text"
@@ -140,7 +158,7 @@ export function OrgCreateForm() {
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.error && (
         <p className="text-sm text-[var(--color-ln-err)]" role="alert">

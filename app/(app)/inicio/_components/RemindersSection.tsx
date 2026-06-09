@@ -4,8 +4,8 @@
 //   2+         → Panel with header + reminder card list
 //   0          → null
 
-import { Panel, PanelBody, PanelHeader } from "@/components/poncho/Panel";
-import { ReminderCard } from "@/components/poncho/ReminderCard";
+import { ReminderCard } from "@/components/ReminderCard";
+import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { ActiveReminderRow } from "@/lib/owner-dashboard";
 
 import { ReminderActions } from "./ReminderActions";
@@ -111,8 +111,8 @@ export function RemindersSection({
   const totalCount = reminders.length;
 
   return (
-    <Panel aria-labelledby="reminders-heading">
-      <PanelHeader
+    <LnCard aria-labelledby="reminders-heading">
+      <LnCardHead
         title={<span id="reminders-heading">Recordatorios</span>}
         actions={
           <span className="text-sm text-[var(--color-ln-ink-2)] font-normal">
@@ -120,7 +120,7 @@ export function RemindersSection({
           </span>
         }
       />
-      <PanelBody>
+      <LnCardBody>
         <ul className="grid gap-3">
           {visible.map((r) => (
             <li key={r.reminderId}>
@@ -171,7 +171,7 @@ export function RemindersSection({
             </ul>
           </details>
         )}
-      </PanelBody>
-    </Panel>
+      </LnCardBody>
+    </LnCard>
   );
 }

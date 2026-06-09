@@ -16,7 +16,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -125,7 +125,7 @@ export function AdoptionListingForm({
   }
 
   return (
-    <WizardShell
+    <LnWizardShell
       currentStep={step}
       totalSteps={TOTAL_STEPS}
       stepLabels={STEP_LABELS}
@@ -370,7 +370,7 @@ export function AdoptionListingForm({
         {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
         {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
       </section>
-    </WizardShell>
+    </LnWizardShell>
   );
 }
 

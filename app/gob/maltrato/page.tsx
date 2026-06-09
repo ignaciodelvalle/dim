@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 
-import { JurisdictionSwitcher, PeriodPicker, Tabs, TabsContent } from "@/components/poncho";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
@@ -252,9 +254,9 @@ export default async function GobMaltratoPage({
 
         {/* Queue tabs + list card */}
         <Suspense>
-          <Tabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
+          <UrlTabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
             {TABS.map((tab) => (
-              <TabsContent key={tab.value} value={tab.value}>
+              <UrlTabsContent key={tab.value} value={tab.value}>
                 <OpCard className="mt-4">
                   <OpCardHead title={`Denuncias (${totalCount})`} />
                   <OpCardBody>
@@ -313,9 +315,9 @@ export default async function GobMaltratoPage({
                     )}
                   </OpCardBody>
                 </OpCard>
-              </TabsContent>
+              </UrlTabsContent>
             ))}
-          </Tabs>
+          </UrlTabs>
         </Suspense>
       </div>
     </main>

@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { Checkbox } from "@/components/poncho";
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
+import { LnCheckbox } from "@/components/ui/Field";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import {
   acceptFosterProposalAction,
   rejectFosterProposalAction,
@@ -87,7 +87,7 @@ export function ProposalActions({
   if (acceptedRemaining !== null) {
     const baseDescription = `Aceptaste el tránsito de ${petName}. Te quedan ${acceptedRemaining} slot(s) disponibles para nuevas propuestas.`;
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title={`Tránsito aceptado: ${petName}`}
         description={okMessage ? `${baseDescription} ${okMessage}` : baseDescription}
         next={[
@@ -110,10 +110,10 @@ export function ProposalActions({
     return (
       <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-3">
         <h3 className="font-medium text-[var(--color-ln-ok)]">Aceptar tránsito de {petName}</h3>
-        <Checkbox checked={allowCoFoster} onChange={(e) => setAllowCoFoster(e.target.checked)}>
+        <LnCheckbox checked={allowCoFoster} onChange={(e) => setAllowCoFoster(e.target.checked)}>
           Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo
           después.
-        </Checkbox>
+        </LnCheckbox>
         <textarea
           value={acceptNotes}
           onChange={(e) => setAcceptNotes(e.target.value)}

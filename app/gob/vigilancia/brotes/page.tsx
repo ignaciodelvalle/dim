@@ -1,4 +1,7 @@
-import { Checkbox, EmptyState, JurisdictionSwitcher, PeriodPicker } from "@/components/poncho";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { LnCheckbox } from "@/components/ui/Field";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -135,7 +138,7 @@ export default async function GobVigilanciaBrotesPage({
           {/* Preserve existing params */}
           {sp.period && <input type="hidden" name="period" value={sp.period} />}
           {sp.signalId && <input type="hidden" name="signalId" value={sp.signalId} />}
-          <Checkbox
+          <LnCheckbox
             name="soloVerificados"
             value="1"
             defaultChecked={soloVerificados}
@@ -145,7 +148,7 @@ export default async function GobVigilanciaBrotesPage({
             }}
           >
             Solo verificados institucionalmente
-          </Checkbox>
+          </LnCheckbox>
           {soloVerificados && (
             <a
               href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}
@@ -168,7 +171,7 @@ export default async function GobVigilanciaBrotesPage({
         <OpCardBody className="p-0">
           {signals.length === 0 ? (
             <div className="px-4 py-3">
-              <EmptyState
+              <LnEmptyState
                 icon="shield-check"
                 title="Sin signals activos en este período"
                 description="No se detectaron señales de zoonosis en el rango seleccionado."

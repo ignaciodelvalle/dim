@@ -25,7 +25,7 @@ import { useRef, useState, useTransition } from "react";
 // buildAnotarUrl → /anotar?kind=... (no text parsing needed).
 
 import { quickCaptureAction } from "@/app/actions/quick-capture";
-import { Button } from "@/components/poncho";
+import { LnButton } from "@/components/ui/Button";
 import type { EventType } from "@/db/schema";
 
 /**
@@ -207,14 +207,14 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
           </button>
         ))}
         <div className="ml-auto" />
-        <Button
-          variant="success"
+        <LnButton
+          variant="ok"
           size="md"
           onClick={onSubmit}
           disabled={!active || text.trim().length < 3 || isPending}
         >
           {isPending ? "Abriendo…" : "Anotar"}
-        </Button>
+        </LnButton>
       </div>
 
       {/* Mobile-aware tip (Chunk H PR3): hidden on touch-only devices that

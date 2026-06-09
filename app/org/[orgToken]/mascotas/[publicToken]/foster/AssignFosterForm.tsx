@@ -1,6 +1,6 @@
 "use client";
 
-import { Field, Input, Select, Textarea } from "@/components/poncho";
+import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { type AssignFosterFormState, assignFosterAction } from "@/src/modules/foster/actions";
 import { useActionState } from "react";
 
@@ -35,15 +35,15 @@ export function AssignFosterForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field
+      <LnField
         label="Voluntario/a"
         required
-        help={
+        hint={
           candidates.length === 0 ? "No hay miembros activos disponibles para tránsito." : undefined
         }
       >
         {({ id, describedBy, invalid }) => (
-          <Select
+          <LnSelect
             id={id}
             name="fosterUserId"
             required
@@ -59,13 +59,13 @@ export function AssignFosterForm({
                 {c.displayName} ({ROLE_LABELS[c.role] ?? c.role})
               </option>
             ))}
-          </Select>
+          </LnSelect>
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Semanas estimadas">
+      <LnField label="Semanas estimadas">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="expectedWeeks"
             type="number"
@@ -76,11 +76,11 @@ export function AssignFosterForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Field label="Notas para el tránsito">
+      <LnField label="Notas para el tránsito">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="notes"
             rows={3}
@@ -90,7 +90,7 @@ export function AssignFosterForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.error && (
         <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">

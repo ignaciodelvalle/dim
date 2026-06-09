@@ -16,7 +16,7 @@ import {
   bulkApproveRequestsAction,
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
-import { Checkbox } from "@/components/poncho";
+import { LnCheckbox } from "@/components/ui/Field";
 
 export type QueueItem = {
   publicToken: string;
@@ -117,7 +117,7 @@ export function BulkApprovalQueueList({
                 isSelected ? "border-ln-op-line bg-ln-op-stripe" : "border-ln-op-line"
               }`}
             >
-              <Checkbox
+              <LnCheckbox
                 id={`row-${item.publicToken}`}
                 checked={isSelected}
                 onChange={() => toggle(item.publicToken)}

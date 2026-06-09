@@ -1,7 +1,6 @@
 "use client";
 
-import { Radio } from "@/components/poncho";
-import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
@@ -54,7 +53,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
             </p>
             <div className="flex flex-col gap-[6px]">
               {REGISTRY_OPTIONS.map((opt) => (
-                <Radio
+                <LnRadio
                   key={opt.value}
                   name="registry"
                   value={opt.value}
@@ -66,7 +65,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
                     {opt.label}
                     <span className="text-[11px] text-[var(--color-ln-mute)]">{opt.help}</span>
                   </span>
-                </Radio>
+                </LnRadio>
               ))}
             </div>
           </div>

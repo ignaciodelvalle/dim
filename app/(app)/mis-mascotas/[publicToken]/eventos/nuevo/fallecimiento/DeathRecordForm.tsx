@@ -1,8 +1,7 @@
 "use client";
 
-import { Radio } from "@/components/poncho";
 import { LnCallout } from "@/components/ui/DocElements";
-import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
   LnSheetAccordion,
   LnSheetBody,
@@ -227,7 +226,7 @@ export function DeathRecordForm({
                         { value: "no", label: "No, no lograron contactarme" },
                         { value: "not_applicable", label: "No aplica" },
                       ].map((opt) => (
-                        <Radio
+                        <LnRadio
                           key={opt.value}
                           name="vetContactedOwner"
                           value={opt.value}
@@ -235,7 +234,7 @@ export function DeathRecordForm({
                           onChange={(e) => setVetContactedOwner(e.target.value)}
                         >
                           {opt.label}
-                        </Radio>
+                        </LnRadio>
                       ))}
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import { AppFooter, AppHeader } from "@/components/poncho";
+import { AppFooter, AppHeader } from "@/components/layout";
 
 /**
  * Layout para páginas públicas e institucionales:

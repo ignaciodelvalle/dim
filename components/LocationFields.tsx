@@ -34,7 +34,7 @@ import {
   reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { Input } from "@/components/poncho";
+import { LnInput } from "@/components/ui/Field";
 import { type Province, provinceByName } from "@/lib/ar-provincias";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
@@ -293,7 +293,7 @@ export function LocationFields({
               Dirección o referencia
             </label>
             <div className="relative">
-              <Input
+              <LnInput
                 id={addressInputName}
                 name={addressInputName}
                 type="text"

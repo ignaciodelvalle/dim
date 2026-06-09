@@ -1,4 +1,4 @@
-import type { NavItem } from "@/components/poncho/Layout/HeaderNav";
+import type { NavItem } from "@/components/layout/HeaderNav";
 import { type NavSection, OpRailNav } from "./OpRailNav";
 
 type Props = {

@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { buildOrgNav } from "@/components/poncho/Layout/nav-presets";
+import { buildOrgNav } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";

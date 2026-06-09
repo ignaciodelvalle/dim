@@ -1,15 +1,11 @@
 import { Suspense } from "react";
 
-import {
-  EmptyState,
-  Input,
-  JurisdictionSwitcher,
-  MapChoropleth,
-  PeriodPicker,
-  type TabItem,
-  Tabs,
-  TabsContent,
-} from "@/components/poncho";
+import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { LnInput } from "@/components/ui/Field";
+import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
@@ -64,7 +60,7 @@ function parseStatusFilter(raw: string | undefined): PetStatusFilter {
   return (VALID_STATUSES as string[]).includes(raw) ? (raw as PetStatusFilter) : "lost";
 }
 
-const STATUS_TABS: TabItem[] = [
+const STATUS_TABS: UrlTabItem[] = [
   { value: "lost", label: "Perdidas" },
   { value: "active", label: "Recuperadas" },
   { value: "deceased", label: "Fallecidas" },
@@ -167,7 +163,7 @@ export default async function GobPerdidasPage({
         {sp.period && <input type="hidden" name="period" value={sp.period} />}
         {sp.species && <input type="hidden" name="species" value={sp.species} />}
         {sp.status && <input type="hidden" name="status" value={sp.status} />}
-        <Input
+        <LnInput
           type="search"
           name="q"
           defaultValue={q ?? ""}
@@ -193,7 +189,7 @@ export default async function GobPerdidasPage({
 
       {/* Status tabs + list panel */}
       <Suspense>
-        <Tabs
+        <UrlTabs
           paramKey="status"
           defaultValue="lost"
           tabs={STATUS_TABS}
@@ -202,7 +198,7 @@ export default async function GobPerdidasPage({
           {STATUS_TABS.map((tab) => {
             const panelListId = `panel-perdidas-lista-${tab.value}`;
             return (
-              <TabsContent key={tab.value} value={tab.value}>
+              <UrlTabsContent key={tab.value} value={tab.value}>
                 <OpCard aria-labelledby={panelListId} className="mt-4">
                   <OpCardHead
                     title={
@@ -221,7 +217,7 @@ export default async function GobPerdidasPage({
                   />
                   <OpCardBody>
                     {lostPets.length === 0 ? (
-                      <EmptyState
+                      <LnEmptyState
                         icon="search"
                         title="Sin resultados"
                         description={
@@ -239,10 +235,10 @@ export default async function GobPerdidasPage({
                     )}
                   </OpCardBody>
                 </OpCard>
-              </TabsContent>
+              </UrlTabsContent>
             );
           })}
-        </Tabs>
+        </UrlTabs>
       </Suspense>
     </div>
   );

@@ -2,8 +2,7 @@
 
 import { useActionState } from "react";
 
-import { Radio } from "@/components/poncho";
-import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -43,12 +42,12 @@ export function SterilizationForm({
               </span>
             </p>
             <div className="flex flex-col gap-[6px]">
-              <Radio name="procedure" value="castration" required>
+              <LnRadio name="procedure" value="castration" required>
                 Castración
-              </Radio>
-              <Radio name="procedure" value="spay">
+              </LnRadio>
+              <LnRadio name="procedure" value="spay">
                 Ovariectomía
-              </Radio>
+              </LnRadio>
             </div>
           </div>
           <LnField label="Fecha de la cirugía" required>

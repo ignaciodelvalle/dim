@@ -7,7 +7,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
-import { Checkbox, Field, Input, Textarea } from "@/components/poncho";
+import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -50,9 +50,9 @@ export function PppWeightThresholdForm({
         vacio para no aplicar threshold (solo regla de razas).
       </p>
 
-      <Field label="Peso minimo (kg)">
+      <LnField label="Peso minimo (kg)">
         {({ id, describedBy, invalid }) => (
-          <Input
+          <LnInput
             id={id}
             name="kg"
             type="number"
@@ -64,17 +64,17 @@ export function PppWeightThresholdForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
-      <Checkbox name="appliesIfBreedNotPPP" defaultChecked={initialAppliesIfBreedNotPPP}>
+      <LnCheckbox name="appliesIfBreedNotPPP" defaultChecked={initialAppliesIfBreedNotPPP}>
         Aplicar el threshold incluso a razas NO listadas en{" "}
         <span className="font-mono text-[11px]">ppp_breed_list</span>. Si esta desactivado, el
         threshold solo agrega una segunda condicion a las razas ya consideradas PPP.
-      </Checkbox>
+      </LnCheckbox>
 
-      <Field label="Notas internas">
+      <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (
-          <Textarea
+          <LnTextarea
             id={id}
             name="notes"
             defaultValue={initialNotes}
@@ -83,7 +83,7 @@ export function PppWeightThresholdForm({
             invalid={invalid}
           />
         )}
-      </Field>
+      </LnField>
 
       {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (

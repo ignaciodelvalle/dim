@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/poncho/Badge";
+import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import type { PublicServiceOffering } from "@/lib/org-public-offerings";
@@ -100,17 +100,17 @@ export function ServicesPanel({ orgToken, offerings }: Props) {
                         </p>
                       )}
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {offering.free && <Badge variant="success">Gratuito</Badge>}
+                        {offering.free && <LnBadge variant="success">Gratuito</LnBadge>}
                         {!offering.requiresAppointment && (
-                          <Badge variant="neutral">Sin turno</Badge>
+                          <LnBadge variant="neutral">Sin turno</LnBadge>
                         )}
                         {offering.nextAvailableSlot && (
-                          <Badge variant="info">
+                          <LnBadge variant="info">
                             Próximo: {formatDate(offering.nextAvailableSlot)}
-                          </Badge>
+                          </LnBadge>
                         )}
                         {offering.requiresAppointment && !offering.nextAvailableSlot && (
-                          <Badge variant="warning">Sin agenda activa</Badge>
+                          <LnBadge variant="warning">Sin agenda activa</LnBadge>
                         )}
                       </div>
                     </div>

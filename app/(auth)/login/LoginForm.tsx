@@ -1,7 +1,7 @@
 "use client";
 
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
-import { Field, Input } from "@/components/poncho";
+import { LnField, LnInput } from "@/components/ui/Field";
 import { useActionState } from "react";
 
 const initialState: AuthFormState = { error: null };
@@ -28,9 +28,9 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
 
       <form action={formAction} className="space-y-4">
         {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-        <Field label="Correo electrónico" required error={state.error ?? undefined}>
+        <LnField label="Correo electrónico" required error={state.error ?? undefined}>
           {({ id, describedBy, invalid }) => (
-            <Input
+            <LnInput
               id={id}
               name="email"
               type="email"
@@ -40,10 +40,10 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
               invalid={invalid}
             />
           )}
-        </Field>
-        <Field label="Contraseña" required>
+        </LnField>
+        <LnField label="Contraseña" required>
           {({ id, describedBy, invalid }) => (
-            <Input
+            <LnInput
               id={id}
               name="password"
               type="password"
@@ -53,7 +53,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
               invalid={invalid}
             />
           )}
-        </Field>
+        </LnField>
 
         <button
           type="submit"

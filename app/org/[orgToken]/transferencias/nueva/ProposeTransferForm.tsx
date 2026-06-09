@@ -14,8 +14,8 @@
 
 import { useState, useTransition } from "react";
 
-import { SuccessScreen } from "@/components/poncho/SuccessScreen";
-import { WizardShell } from "@/components/poncho/Wizard";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnWizardShell } from "@/components/ui/WizardShell";
 import { proposeCrossOrgTransferAction } from "@/src/modules/transfers/actions";
 
 interface ReceiverOption {
@@ -88,7 +88,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
 
   if (submitted) {
     return (
-      <SuccessScreen
+      <LnSuccessScreen
         title={`Handshake abierto para ${petName}`}
         description={
           selectedReceiver
@@ -108,7 +108,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
   }
 
   return (
-    <WizardShell
+    <LnWizardShell
       currentStep={step}
       totalSteps={TOTAL_STEPS}
       stepLabels={STEP_LABELS}
@@ -233,6 +233,6 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           {pending ? "Enviando…" : "Confirmar transferencia"}
         </button>
       </section>
-    </WizardShell>
+    </LnWizardShell>
   );
 }
