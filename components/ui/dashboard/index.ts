@@ -7,3 +7,6 @@ export { OpCrumbs } from "./OpCrumbs";
 export type { CrumbItem } from "./OpCrumbs";
 export { OpScopeChip } from "./OpScopeChip";
 export { OpMobileDrawer } from "./OpMobileDrawer";
+export { OpBreach } from "./OpBreach";
+export { OpCallout } from "./OpCallout";
+export { OpStateBadge } from "./OpStateBadge";
