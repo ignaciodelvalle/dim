@@ -63,6 +63,22 @@ export default async function VoluntariosPage({
         </p>
       </header>
 
+      {/* Tab bar — Pool is this page; Propuestas links to the subroute */}
+      <nav className="flex gap-1 border-b border-ln-op-line">
+        <span
+          className="px-4 py-2 text-[13px] font-medium border-b-2 border-ln-op-azul text-ln-op-azul"
+          aria-current="page"
+        >
+          Pool
+        </span>
+        <a
+          href={`/org/${orgToken}/voluntarios/propuestas`}
+          className="px-4 py-2 text-[13px] font-medium no-underline border-b-2 border-transparent text-ln-op-mute hover:text-ln-op-ink-2 transition-colors"
+        >
+          Propuestas
+        </a>
+      </nav>
+
       <form
         action={`/org/${orgToken}/voluntarios`}
         method="GET"
