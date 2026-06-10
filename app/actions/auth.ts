@@ -127,3 +127,22 @@ export async function logoutAction() {
   await supabase.auth.signOut();
   redirect("/");
 }
+
+// Variant of logoutAction that redirects back to a caller-supplied path
+// instead of home. Used by public finder flows so the visitor can continue
+// anonymously on the same page after signing out.
+//
+// returnTo must be a relative path starting with "/" to prevent open-redirect
+// attacks. The same guard used by safeReturnTo applies here inline.
+export async function logoutAndReturnAction(returnTo: string) {
+  // Validate: must be a relative path, not a protocol-relative or absolute URL.
+  const safe =
+    typeof returnTo === "string" &&
+    returnTo.startsWith("/") &&
+    !returnTo.startsWith("//") &&
+    !returnTo.includes("\\");
+
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect(safe ? returnTo : "/");
+}

@@ -104,6 +104,7 @@ export default async function Home() {
 
           {/* 3-step explainer (sprint 6 PR-055 / doc 10 §6) */}
           <section
+            id="explainer"
             aria-label="Cómo funciona MiMAR"
             className="pt-10 grid grid-cols-1 md:grid-cols-3 gap-4 text-left"
           >

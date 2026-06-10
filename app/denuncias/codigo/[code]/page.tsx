@@ -1,6 +1,7 @@
 import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
+import { maskEmail, maskPhone } from "@/lib/mask-contact";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -257,13 +258,14 @@ export default async function WelfareReportByCodePage({
           </section>
         )}
 
-        {/* Contact */}
+        {/* Contact — masked to protect PII while still letting the
+            reporter recognise their own data. */}
         {hasContact && (
           <section className="space-y-2">
-            <SectionLabel>Contacto que dejaste</SectionLabel>
+            <SectionLabel>Contacto que dejaste (parcial)</SectionLabel>
             <div className="text-sm text-[var(--color-ln-ink-2)] space-y-1">
-              {report.reporterContactEmail && <p>{report.reporterContactEmail}</p>}
-              {report.reporterContactPhone && <p>{report.reporterContactPhone}</p>}
+              {report.reporterContactEmail && <p>{maskEmail(report.reporterContactEmail)}</p>}
+              {report.reporterContactPhone && <p>{maskPhone(report.reporterContactPhone)}</p>}
             </div>
           </section>
         )}

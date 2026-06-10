@@ -12,6 +12,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 
+import { logoutAndReturnAction } from "@/app/actions/auth";
 import { LocationFields } from "@/components/LocationFields";
 
 import { type FinderInPossessionState, reportFinderInPossessionAction } from "./action";
@@ -111,9 +112,17 @@ export function FinderInPossessionForm({
       {loggedIn && prefill?.displayName && (
         <div className="rounded-lg border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-4 py-3 text-sm text-[var(--color-ln-azul)]">
           Estás enviando como <span className="font-medium">{prefill.displayName}</span>.{" "}
-          <Link href="/api/auth/signout" className="underline underline-offset-4 hover:opacity-80">
-            ¿No sos vos? Salí de la sesión.
-          </Link>
+          <form
+            action={logoutAndReturnAction.bind(null, `/p/${publicToken}/encontre`)}
+            className="inline"
+          >
+            <button
+              type="submit"
+              className="underline underline-offset-4 hover:opacity-80 bg-transparent border-0 p-0 text-inherit text-sm cursor-pointer"
+            >
+              ¿No sos vos? Salí de la sesión.
+            </button>
+          </form>
         </div>
       )}
 
