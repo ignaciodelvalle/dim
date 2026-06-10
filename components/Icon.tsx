@@ -1,6 +1,6 @@
 // Minimal stub for the Poncho `icono-arg` webfont Icon component.
 //
-// `docs/poncho/PLAN.md` describes Fase 1 (completada) as including:
+// `docs/archive/poncho/PLAN.md` describes Fase 1 (completada) as including:
 //   "852 íconos `icono-arg` como webfont + componente <Icon name="..." />"
 //
 // The PLAN doc and the Poncho components that import this file were rescued
