@@ -40,15 +40,17 @@ export function maskEmail(email: string): string {
  * Examples:
  *   "+54 9 11 1234-5678"  → "•••• 5678"
  *   "0800 123 4321"       → "•••• 4321"
- *   "12"                  → "••"   (very short — mask all but last 2)
+ *   "123456"              → "•••• 456"
+ *   "12"                  → "•••• 12"  (shorter than the floor — all digits show)
  *   ""                    → ""
  */
 export function maskPhone(phone: string): string {
   if (!phone) return phone;
   // Strip everything that is not a digit to count significant digits.
   const digits = phone.replace(/\D/g, "");
-  // Keep last 4 digits (or fewer when the number is very short).
-  const keepCount = Math.min(4, Math.max(2, digits.length - 4));
+  // Keep the last 4 digits for full-length numbers, never fewer than 3 so the
+  // reporter can still recognise their own number (slice handles short inputs).
+  const keepCount = Math.min(4, Math.max(3, digits.length - 4));
   const visibleDigits = digits.slice(-keepCount);
   return `•••• ${visibleDigits}`;
 }

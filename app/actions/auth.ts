@@ -132,17 +132,11 @@ export async function logoutAction() {
 // instead of home. Used by public finder flows so the visitor can continue
 // anonymously on the same page after signing out.
 //
-// returnTo must be a relative path starting with "/" to prevent open-redirect
-// attacks. The same guard used by safeReturnTo applies here inline.
+// @no-auth-required: logout invalidates whatever session exists (or none);
+// no user identity is needed to call signOut.
 export async function logoutAndReturnAction(returnTo: string) {
-  // Validate: must be a relative path, not a protocol-relative or absolute URL.
-  const safe =
-    typeof returnTo === "string" &&
-    returnTo.startsWith("/") &&
-    !returnTo.startsWith("//") &&
-    !returnTo.includes("\\");
-
+  const safePath = safeReturnTo(returnTo);
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect(safe ? returnTo : "/");
+  redirect(safePath ?? "/");
 }

@@ -102,15 +102,11 @@ export function FinderInPossessionForm({
   }
 
   return (
-    <form
-      action={formAction}
-      onSubmit={handleSubmit}
-      className="space-y-5"
-      encType="multipart/form-data"
-    >
-      {/* Logged-in banner */}
+    <>
+      {/* Logged-in banner — rendered outside the main form: forms cannot nest,
+          and the main form's onSubmit validation would block the logout submit. */}
       {loggedIn && prefill?.displayName && (
-        <div className="rounded-lg border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-4 py-3 text-sm text-[var(--color-ln-azul)]">
+        <div className="mb-5 rounded-lg border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-4 py-3 text-sm text-[var(--color-ln-azul)]">
           Estás enviando como <span className="font-medium">{prefill.displayName}</span>.{" "}
           <form
             action={logoutAndReturnAction.bind(null, `/p/${publicToken}/encontre`)}
@@ -126,183 +122,190 @@ export function FinderInPossessionForm({
         </div>
       )}
 
-      {/* Finder name */}
-      <div className="space-y-1.5">
-        <label htmlFor="finderName" className={labelClass}>
-          Tu nombre{requiredMark}
-        </label>
-        <input
-          id="finderName"
-          name="finderName"
-          type="text"
-          required
-          maxLength={80}
-          defaultValue={prefill?.name ?? ""}
-          placeholder="Nombre y apellido"
-          className={inputClass}
-        />
-      </div>
-
-      {/* Contact: phone (tel) + email — at least one required */}
-      <fieldset className="space-y-3">
-        <legend className={`${labelClass} mb-1`}>
-          Contacto{requiredMark}{" "}
-          <span className="font-normal text-[var(--color-ln-faint)] text-xs">(al menos uno)</span>
-        </legend>
+      <form
+        action={formAction}
+        onSubmit={handleSubmit}
+        className="space-y-5"
+        encType="multipart/form-data"
+      >
+        {/* Finder name */}
         <div className="space-y-1.5">
-          <label
-            htmlFor="finderPhone"
-            className="block text-xs font-medium text-[var(--color-ln-mute)]"
-          >
-            Teléfono
+          <label htmlFor="finderName" className={labelClass}>
+            Tu nombre{requiredMark}
           </label>
           <input
-            id="finderPhone"
-            name="finderPhone"
-            type="tel"
-            maxLength={40}
-            defaultValue={prefill?.phone ?? ""}
-            placeholder="11-1234-5678"
+            id="finderName"
+            name="finderName"
+            type="text"
+            required
+            maxLength={80}
+            defaultValue={prefill?.name ?? ""}
+            placeholder="Nombre y apellido"
             className={inputClass}
           />
         </div>
-        <div className="space-y-1.5">
-          <label
-            htmlFor="finderEmail"
-            className="block text-xs font-medium text-[var(--color-ln-mute)]"
-          >
-            Email
-          </label>
-          <input
-            id="finderEmail"
-            name="finderEmail"
-            type="email"
-            maxLength={120}
-            defaultValue={prefill?.email ?? ""}
-            placeholder="vos@ejemplo.com"
-            className={inputClass}
-          />
-        </div>
-      </fieldset>
 
-      {/* Current location — L1 */}
-      <div className="space-y-1.5">
-        <p className={labelClass}>¿Dónde la tenés ahora?{requiredMark}</p>
-        <LocationFields
-          mode="l1"
-          biasProvince={biasProvince}
-          biasLocality={biasLocality}
-          allowAnonymous
-        />
-      </div>
-
-      {/* Pet condition */}
-      <fieldset className="space-y-2">
-        <legend className={`${labelClass} mb-1`}>¿Cómo está la mascota?{requiredMark}</legend>
-        {PET_CONDITIONS.map(({ value, label, urgent }) => (
-          <label
-            key={value}
-            className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer text-sm transition-colors ${
-              urgent
-                ? "border-[var(--color-ln-seal)] bg-[#fbe9e6] text-[var(--color-ln-seal)] font-medium hover:bg-[#f5d6d1]"
-                : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
-            }`}
-          >
-            <input
-              type="radio"
-              name="petCondition"
-              value={value}
-              required
-              className="accent-[var(--color-ln-azul)]"
-            />
-            {label}
-          </label>
-        ))}
-      </fieldset>
-
-      {/* Availability */}
-      <fieldset className="space-y-3">
-        <legend className={`${labelClass} mb-1`}>
-          ¿Hasta cuándo podés cuidarla?{requiredMark}
-        </legend>
-        <label className="flex items-center gap-2 text-sm text-[var(--color-ln-ink)] cursor-pointer">
-          <input
-            type="checkbox"
-            name="canKeepIndefiniteToggle"
-            className="accent-[var(--color-ln-azul)]"
-            checked={canKeepIndefinite}
-            onChange={(e) => setCanKeepIndefinite(e.target.checked)}
-          />
-          <input type="hidden" name="canKeepIndefinite" value={String(canKeepIndefinite)} />
-          Puedo tenerla indefinidamente
-        </label>
-        {!canKeepIndefinite && (
+        {/* Contact: phone (tel) + email — at least one required */}
+        <fieldset className="space-y-3">
+          <legend className={`${labelClass} mb-1`}>
+            Contacto{requiredMark}{" "}
+            <span className="font-normal text-[var(--color-ln-faint)] text-xs">(al menos uno)</span>
+          </legend>
           <div className="space-y-1.5">
             <label
-              htmlFor="canKeepUntil"
+              htmlFor="finderPhone"
               className="block text-xs font-medium text-[var(--color-ln-mute)]"
             >
-              Hasta cuándo (fecha y hora)
+              Teléfono
             </label>
             <input
-              id="canKeepUntil"
-              name="canKeepUntil"
-              type="datetime-local"
+              id="finderPhone"
+              name="finderPhone"
+              type="tel"
+              maxLength={40}
+              defaultValue={prefill?.phone ?? ""}
+              placeholder="11-1234-5678"
               className={inputClass}
             />
           </div>
-        )}
-      </fieldset>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="finderEmail"
+              className="block text-xs font-medium text-[var(--color-ln-mute)]"
+            >
+              Email
+            </label>
+            <input
+              id="finderEmail"
+              name="finderEmail"
+              type="email"
+              maxLength={120}
+              defaultValue={prefill?.email ?? ""}
+              placeholder="vos@ejemplo.com"
+              className={inputClass}
+            />
+          </div>
+        </fieldset>
 
-      {/* Optional message */}
-      <div className="space-y-1.5">
-        <label htmlFor="message" className={labelClass}>
-          Algo más que quieras decirle al dueño{" "}
-          <span className="font-normal text-[var(--color-ln-faint)] text-xs">(opcional)</span>
-        </label>
-        <textarea
-          id="message"
-          name="message"
-          rows={3}
-          maxLength={500}
-          placeholder="Lugar donde la encontraste, collar, comportamiento…"
-          className={inputClass}
-        />
-      </div>
-
-      {/* Optional current photo */}
-      <details className="rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)]">
-          📷 ¿Le sacás una foto ahora para confirmar? (opcional)
-        </summary>
-        <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
-          <input
-            type="file"
-            name="photoNow"
-            accept="image/*"
-            capture="environment"
-            className="w-full text-sm text-[var(--color-ln-ink)]"
+        {/* Current location — L1 */}
+        <div className="space-y-1.5">
+          <p className={labelClass}>¿Dónde la tenés ahora?{requiredMark}</p>
+          <LocationFields
+            mode="l1"
+            biasProvince={biasProvince}
+            biasLocality={biasLocality}
+            allowAnonymous
           />
-          <p className="text-xs text-[var(--color-ln-faint)]">
-            JPG/PNG hasta 5 MB. Ayuda al dueño/a a confirmar que es su mascota.
-          </p>
         </div>
-      </details>
 
-      {/* Error display */}
-      {(clientError ?? state.error) && (
-        <p className="text-xs text-[var(--color-ln-seal)]" role="alert">
-          {clientError ?? state.error}
-        </p>
-      )}
+        {/* Pet condition */}
+        <fieldset className="space-y-2">
+          <legend className={`${labelClass} mb-1`}>¿Cómo está la mascota?{requiredMark}</legend>
+          {PET_CONDITIONS.map(({ value, label, urgent }) => (
+            <label
+              key={value}
+              className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer text-sm transition-colors ${
+                urgent
+                  ? "border-[var(--color-ln-seal)] bg-[#fbe9e6] text-[var(--color-ln-seal)] font-medium hover:bg-[#f5d6d1]"
+                  : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+              }`}
+            >
+              <input
+                type="radio"
+                name="petCondition"
+                value={value}
+                required
+                className="accent-[var(--color-ln-azul)]"
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Enviando..." : "Avisar al dueño/a"}
-      </button>
-    </form>
+        {/* Availability */}
+        <fieldset className="space-y-3">
+          <legend className={`${labelClass} mb-1`}>
+            ¿Hasta cuándo podés cuidarla?{requiredMark}
+          </legend>
+          <label className="flex items-center gap-2 text-sm text-[var(--color-ln-ink)] cursor-pointer">
+            <input
+              type="checkbox"
+              name="canKeepIndefiniteToggle"
+              className="accent-[var(--color-ln-azul)]"
+              checked={canKeepIndefinite}
+              onChange={(e) => setCanKeepIndefinite(e.target.checked)}
+            />
+            <input type="hidden" name="canKeepIndefinite" value={String(canKeepIndefinite)} />
+            Puedo tenerla indefinidamente
+          </label>
+          {!canKeepIndefinite && (
+            <div className="space-y-1.5">
+              <label
+                htmlFor="canKeepUntil"
+                className="block text-xs font-medium text-[var(--color-ln-mute)]"
+              >
+                Hasta cuándo (fecha y hora)
+              </label>
+              <input
+                id="canKeepUntil"
+                name="canKeepUntil"
+                type="datetime-local"
+                className={inputClass}
+              />
+            </div>
+          )}
+        </fieldset>
+
+        {/* Optional message */}
+        <div className="space-y-1.5">
+          <label htmlFor="message" className={labelClass}>
+            Algo más que quieras decirle al dueño{" "}
+            <span className="font-normal text-[var(--color-ln-faint)] text-xs">(opcional)</span>
+          </label>
+          <textarea
+            id="message"
+            name="message"
+            rows={3}
+            maxLength={500}
+            placeholder="Lugar donde la encontraste, collar, comportamiento…"
+            className={inputClass}
+          />
+        </div>
+
+        {/* Optional current photo */}
+        <details className="rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)]">
+            📷 ¿Le sacás una foto ahora para confirmar? (opcional)
+          </summary>
+          <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
+            <input
+              type="file"
+              name="photoNow"
+              accept="image/*"
+              capture="environment"
+              className="w-full text-sm text-[var(--color-ln-ink)]"
+            />
+            <p className="text-xs text-[var(--color-ln-faint)]">
+              JPG/PNG hasta 5 MB. Ayuda al dueño/a a confirmar que es su mascota.
+            </p>
+          </div>
+        </details>
+
+        {/* Error display */}
+        {(clientError ?? state.error) && (
+          <p className="text-xs text-[var(--color-ln-seal)]" role="alert">
+            {clientError ?? state.error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full px-4 py-3 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isPending ? "Enviando..." : "Avisar al dueño/a"}
+        </button>
+      </form>
+    </>
   );
 }

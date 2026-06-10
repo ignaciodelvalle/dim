@@ -38,7 +38,12 @@ describe("maskPhone", () => {
     expect(maskPhone("(011) 4567-8901")).toBe("•••• 8901");
   });
 
-  it("shows last 2 digits for very short numbers", () => {
+  it("shows last 3 digits for mid-length numbers", () => {
+    expect(maskPhone("123456")).toBe("•••• 456");
+    expect(maskPhone("1234567")).toBe("•••• 567");
+  });
+
+  it("shows all digits for very short numbers", () => {
     expect(maskPhone("12")).toBe("•••• 12");
   });
 
