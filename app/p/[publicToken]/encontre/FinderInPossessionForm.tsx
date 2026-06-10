@@ -206,7 +206,7 @@ export function FinderInPossessionForm({
               key={value}
               className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer text-sm transition-colors ${
                 urgent
-                  ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] font-medium hover:bg-[#f5d6d1]"
+                  ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] font-medium hover:bg-[var(--color-ln-err-100)]"
                   : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
               }`}
             >
