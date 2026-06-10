@@ -1,36 +1,33 @@
 "use client";
 
-import { type AuthFormState, signupAction } from "@/app/actions/auth";
-import { PetForm } from "@/components/PetForm";
+import {
+  type AuthFormState,
+  type IdentityFormState,
+  completeIdentityAction,
+  signupAction,
+} from "@/app/actions/auth";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
-import { createPetAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 const initialAuthState: AuthFormState = { error: null };
+const initialIdentityState: IdentityFormState = { error: null };
 
-// Two-step inline signup per AGENTS.md → v1 screens §Signup. Step 1 creates
-// the auth user (signupAction returns { ok: true } instead of redirecting so
-// we can transition on the same page without a router push). Step 2 collects
-// the first pet via PetForm in compact mode. createPetAction reads the
-// active Supabase session (set by signUp in step 1) and redirects to
-// /mis-mascotas on success.
+// Two-step inline signup per design spec §1.2.
 //
-// Partial-create handling: if step 2 errors after step 1 succeeded, the
-// PetForm surfaces its own error inline, and the always-visible escape
-// note below the form points the (already authenticated) user to
-// /mis-mascotas so they can add a pet later — no rollback needed.
+// Step 1 (account): email + password + repeat password + TOS checkbox.
+//   signupAction creates the auth.users row; profiles.display_name is set
+//   provisionally to the email local-part by the handle_new_user trigger.
 //
-// Adoption-apply branch (spec adoption-listing-public §8.3): when the form
-// is opened with `intent=apply`, we skip step 2 entirely — a visitor who
-// came here to ADOPT does not have a pet of their own to register yet.
-// On step-1 success we push them straight to `returnTo` (the postular page).
+// Step 2 (identity): nombre + apellido (required) + DNI (optional).
+//   completeIdentityAction updates profiles.display_name to the real name
+//   and stores dni_number unverified if provided.
 //
-// returnTo branch (general): when any `returnTo` is present (e.g. invite link),
-// we also skip step 2 and redirect back to `returnTo` after account creation.
-// safeReturnTo on the page validates the path before it reaches here, so
-// open-redirect is already guarded. The default flow (no returnTo) is unchanged.
+// returnTo / intent=apply branches: both used to skip the old pet step and
+// redirect after step 1. They now show step 2 (identity) first so that the
+// account never ends up with only a provisional display_name. Redirect happens
+// after step 2 completes.
 
 export function SignupForm({
   intent,
@@ -40,53 +37,87 @@ export function SignupForm({
   returnTo: string | null;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<"account" | "pet">("account");
+  const [step, setStep] = useState<"account" | "identity">("account");
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
+  const [identityState, identityFormAction, identityPending] = useActionState(
+    completeIdentityAction,
+    initialIdentityState,
+  );
 
+  // Step 1 → step 2 transition.
   useEffect(() => {
     if (!authState.ok) return;
-    // Any validated returnTo (apply-intent, invite link, etc.) takes priority over
-    // the pet-creation step. safeReturnTo already rejected unsafe paths upstream.
+    setStep("identity");
+  }, [authState.ok]);
+
+  // Step 2 → redirect or /mis-mascotas.
+  useEffect(() => {
+    if (!identityState.ok) return;
     if (returnTo) {
       router.replace(returnTo);
-      return;
+    } else {
+      router.replace("/mis-mascotas");
     }
-    setStep("pet");
-  }, [authState.ok, returnTo, router]);
+  }, [identityState.ok, returnTo, router]);
 
-  if (step === "pet") {
+  if (step === "identity") {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
+        <p className="text-center text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
+          Paso 2 de 2
+        </p>
+
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
-            Paso 2 de 2
-          </p>
           <h2 className="font-[var(--font-ln-serif)] text-[22px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
-            Cargá tu primera mascota
+            Contanos quién sos
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
-            Lo más básico: una foto, su nombre, especie y datos generales. Podés completar el resto
-            después.
+            Tu nombre aparecerá en tu perfil y en las comunicaciones de MiMAR.
           </p>
         </div>
 
-        <PetForm
-          action={createPetAction}
-          compact
-          submitLabel="Crear mascota y entrar"
-          pendingLabel="Creando…"
-        />
+        <form action={identityFormAction} className="space-y-4">
+          <Field
+            id="firstName"
+            name="firstName"
+            type="text"
+            label="Nombre"
+            autoComplete="given-name"
+            required
+          />
+          <Field
+            id="lastName"
+            name="lastName"
+            type="text"
+            label="Apellido"
+            autoComplete="family-name"
+            required
+          />
+          <Field
+            id="dni"
+            name="dni"
+            type="text"
+            inputMode="numeric"
+            label="DNI"
+            autoComplete="off"
+            hint="Podés agregarlo después desde tu cuenta."
+            placeholder="Ej: 34567890"
+          />
 
-        <p className="text-center text-xs text-[var(--color-ln-mute)]">
-          Tu cuenta ya está creada. Podés{" "}
-          <Link
-            href="/mis-mascotas"
-            className="font-medium text-[var(--color-ln-ink-2)] underline underline-offset-4 hover:text-[var(--color-ln-ink)]"
+          {identityState.error && (
+            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
+              {identityState.error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={identityPending}
+            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            cargar tu mascota después desde Mis mascotas
-          </Link>{" "}
-          si preferís.
-        </p>
+            {identityPending ? "Creando cuenta..." : "Crear cuenta"}
+          </button>
+        </form>
       </div>
     );
   }
@@ -94,7 +125,7 @@ export function SignupForm({
   return (
     <div className="space-y-5">
       <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center">
-        {returnTo ? "Paso 1 de 1" : "Paso 1 de 2"}
+        Paso 1 de 2
       </p>
 
       <button
@@ -113,14 +144,6 @@ export function SignupForm({
       </div>
 
       <form action={authFormAction} className="space-y-4">
-        <Field
-          id="displayName"
-          name="displayName"
-          type="text"
-          label="Nombre"
-          autoComplete="name"
-          required
-        />
         <Field
           id="email"
           name="email"
@@ -180,7 +203,7 @@ export function SignupForm({
           disabled={authPending}
           className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {authPending ? "Creando cuenta..." : "Continuar"}
+          {authPending ? "Procesando..." : "Continuar"}
         </button>
       </form>
     </div>
@@ -196,6 +219,8 @@ function Field({
   required,
   minLength,
   hint,
+  inputMode,
+  placeholder,
 }: {
   id: string;
   name: string;
@@ -205,6 +230,8 @@ function Field({
   required?: boolean;
   minLength?: number;
   hint?: string;
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -218,6 +245,8 @@ function Field({
         autoComplete={autoComplete}
         required={required}
         minLength={minLength}
+        inputMode={inputMode}
+        placeholder={placeholder}
       />
       {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
