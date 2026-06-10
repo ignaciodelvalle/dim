@@ -16,11 +16,19 @@
 // organizationId OR a providerUserId (discriminated union, matching the DB
 // CHECK constraint provider_xor). Both org and vet outer wrappers call it.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db, notifications, organizationMemberships, profiles, serviceOfferings } from "@/db";
+import {
+  appointments,
+  db,
+  notifications,
+  organizationMemberships,
+  profiles,
+  serviceOfferings,
+  timeSlots,
+} from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
 import { generateOfferingToken } from "@/lib/publicToken";
@@ -428,6 +436,142 @@ export async function approveServiceOfferingAction(
   revalidatePath("/admin/servicios");
   revalidatePath("/gob/servicios");
   return { error: null };
+}
+
+// ============================================================================
+// Org-side lifecycle actions: pause / unpause / archive
+// ============================================================================
+
+export async function pauseServiceOfferingAction(
+  orgToken: string,
+  publicToken: string,
+): Promise<ServiceOfferingResult> {
+  const auth = await requireCapability("service_offering.create");
+  if (auth.error !== null) return { error: auth.error };
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
+  const organization = auth.organization!;
+
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
+  const [offering] = await db
+    .select({ id: serviceOfferings.id, status: serviceOfferings.status })
+    .from(serviceOfferings)
+    .where(
+      and(
+        eq(serviceOfferings.publicToken, publicToken),
+        eq(serviceOfferings.organizationId, organization.id),
+      ),
+    )
+    .limit(1);
+
+  if (!offering) return { error: "Servicio no encontrado." };
+  if (offering.status === "archived") return { error: "No podés pausar un servicio archivado." };
+  if (offering.status === "paused") return { error: "El servicio ya está pausado." };
+
+  await db
+    .update(serviceOfferings)
+    .set({ status: "paused", updatedAt: new Date() })
+    .where(eq(serviceOfferings.id, offering.id));
+
+  revalidatePath(`/org/${orgToken}/servicios`);
+  revalidatePath(`/org/${orgToken}/servicios/${publicToken}`);
+  return { ok: true };
+}
+
+export async function unpauseServiceOfferingAction(
+  orgToken: string,
+  publicToken: string,
+): Promise<ServiceOfferingResult> {
+  const auth = await requireCapability("service_offering.create");
+  if (auth.error !== null) return { error: auth.error };
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
+  const organization = auth.organization!;
+
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
+  const [offering] = await db
+    .select({ id: serviceOfferings.id, status: serviceOfferings.status })
+    .from(serviceOfferings)
+    .where(
+      and(
+        eq(serviceOfferings.publicToken, publicToken),
+        eq(serviceOfferings.organizationId, organization.id),
+      ),
+    )
+    .limit(1);
+
+  if (!offering) return { error: "Servicio no encontrado." };
+  if (offering.status !== "paused") return { error: "El servicio no está pausado." };
+
+  await db
+    .update(serviceOfferings)
+    .set({ status: "approved", updatedAt: new Date() })
+    .where(eq(serviceOfferings.id, offering.id));
+
+  revalidatePath(`/org/${orgToken}/servicios`);
+  revalidatePath(`/org/${orgToken}/servicios/${publicToken}`);
+  return { ok: true };
+}
+
+export async function archiveServiceOfferingAction(
+  orgToken: string,
+  publicToken: string,
+): Promise<ServiceOfferingResult> {
+  const auth = await requireCapability("service_offering.create");
+  if (auth.error !== null) return { error: auth.error };
+  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
+  const organization = auth.organization!;
+
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
+  const [offering] = await db
+    .select({ id: serviceOfferings.id, status: serviceOfferings.status })
+    .from(serviceOfferings)
+    .where(
+      and(
+        eq(serviceOfferings.publicToken, publicToken),
+        eq(serviceOfferings.organizationId, organization.id),
+      ),
+    )
+    .limit(1);
+
+  if (!offering) return { error: "Servicio no encontrado." };
+  if (offering.status === "archived") return { error: "El servicio ya está archivado." };
+
+  // Archiving with future confirmed appointments would strand the owners who
+  // booked them — they must be attended or cancelled first.
+  const [pending] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+    .where(
+      and(
+        eq(appointments.serviceOfferingId, offering.id),
+        eq(appointments.status, "confirmed"),
+        gt(timeSlots.startsAt, new Date()),
+      ),
+    )
+    .limit(1);
+  if (pending) {
+    return {
+      error: "Hay turnos confirmados a futuro para este servicio. Cancelalos antes de eliminarlo.",
+    };
+  }
+
+  await db
+    .update(serviceOfferings)
+    .set({ status: "archived", updatedAt: new Date() })
+    .where(eq(serviceOfferings.id, offering.id));
+
+  revalidatePath(`/org/${orgToken}/servicios`);
+  revalidatePath(`/org/${orgToken}/servicios/${publicToken}`);
+  return { ok: true };
 }
 
 export async function rejectServiceOfferingAction(

@@ -339,6 +339,74 @@ export async function rejectAdoptionApplicationAction(
 }
 
 // ---------------------------------------------------------------------------
+// requestInfoAdoptionApplicationAction
+// ---------------------------------------------------------------------------
+// Light path: does NOT change application status. Sends a notification to
+// the applicant with the reviewer's free-text message.
+
+export type RequestInfoAdoptionInput = {
+  applicationEventId: string;
+  message: string;
+};
+
+export type RequestInfoAdoptionResult = { ok: true } | { error: string };
+
+export async function requestInfoAdoptionApplicationAction(
+  orgToken: string,
+  input: RequestInfoAdoptionInput,
+): Promise<RequestInfoAdoptionResult> {
+  const auth = await requireCapability("adoption.review");
+  if (auth.error !== null) return { error: auth.error };
+  const { organization } = auth;
+
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
+  const message = input.message.trim();
+  if (!message || message.length < 5) {
+    return { error: "El mensaje debe tener al menos 5 caracteres." };
+  }
+  if (message.length > 1000) {
+    return { error: "El mensaje no puede superar los 1000 caracteres." };
+  }
+
+  // Load application to get pet + applicant info (reuse the same guard as
+  // approve/reject — verifies it belongs to the org and is still pending).
+  const loaded = await AdoptionRepository.findApplicationForReview(
+    input.applicationEventId,
+    organization.id,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+
+  const { application, pet } = loaded;
+  const payload = application.payload as { applicant_user_id?: string };
+  const applicantUserId = payload.applicant_user_id;
+
+  if (applicantUserId) {
+    await flushNotifications([
+      {
+        userId: applicantUserId,
+        // notificationType is unconstrained TEXT — a dedicated value beats
+        // recycling the approved type for an info request.
+        notificationType: "adoption_info_requested",
+        title: `${organization.displayName} te pide información sobre tu postulación`,
+        body: message,
+        severity: "info",
+        ctaLabel: "Ver mis postulaciones",
+        ctaUrl: "/mis-mascotas/postulaciones",
+        relatedPetId: pet.id,
+        relatedEventId: application.id,
+      },
+    ]);
+  }
+
+  revalidatePath(`/org/${orgToken}/adopciones`);
+  revalidatePath(`/org/${orgToken}/adopciones/${input.applicationEventId}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // finalizeAdoptionAction
 // ---------------------------------------------------------------------------
 
