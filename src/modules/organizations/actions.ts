@@ -43,6 +43,7 @@ import { acceptInvitation } from "./application/accept-invitation";
 import { addCoverageZone } from "./application/add-coverage-zone";
 import { changeOrganizationMemberRole } from "./application/change-member-role";
 import { decideCapability } from "./application/decide-capability";
+import { grantCapability } from "./application/grant-capability";
 import { inviteMember } from "./application/invite-member";
 import { leaveOrganization } from "./application/leave-organization";
 import { removeCoverageZone } from "./application/remove-coverage-zone";
@@ -76,6 +77,7 @@ export type { SetPrimaryCoverageZoneInput } from "./application/set-primary-cove
 export type { SubmitOrgContactInput } from "./application/submit-org-contact";
 export type { RequestCapabilityInput } from "./application/request-capability";
 export type { DecideCapabilityInput } from "./application/decide-capability";
+export type { GrantCapabilityInput } from "./application/grant-capability";
 
 // Re-export original types for shim compatibility.
 export type UpdateOrgFormState = { error: string | null; ok?: boolean };
@@ -745,5 +747,52 @@ export async function decideCapabilityAction(
 
   revalidatePath(`/org/${active.organization.publicToken}`);
   revalidatePath(`/org/${active.organization.publicToken}/admin/permisos`);
+  return { error: null, ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// grantCapabilityAction
+// ---------------------------------------------------------------------------
+
+export async function grantCapabilityAction(input: {
+  organizationId: string;
+  membershipId: string;
+  capability: string;
+}): Promise<CapabilityActionState> {
+  const auth = await requireCapability("capability.grant", input.organizationId);
+  if (auth.error !== null) return { error: auth.error };
+  const { user, membership: actorMembership, organization, granted } = auth;
+
+  const result = await grantCapability(
+    {
+      granterId: user.id,
+      membershipId: input.membershipId,
+      capability: input.capability,
+      active: {
+        organization: {
+          id: organization.id,
+          displayName: organization.displayName,
+          publicToken: organization.publicToken,
+        },
+        membership: {
+          id: actorMembership.id,
+          role: actorMembership.role,
+          organizationId: actorMembership.organizationId,
+        },
+      },
+      granted,
+    },
+    {
+      repo,
+      transaction: db.transaction.bind(db),
+      isUniqueViolation,
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+
+  revalidatePath(`/org/${organization.publicToken}/admin/permisos`);
   return { error: null, ok: true };
 }

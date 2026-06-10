@@ -1,15 +1,18 @@
 "use client";
 
 // Member × capability matrix — read-only for implicit (role-based) caps,
-// interactive (revoke only) for explicit approved grants.
-// Granting from scratch requires a member to submit a request first; there is
-// no admin-side "grant without request" action, so empty cells are inert.
+// interactive (revoke) for explicit approved grants,
+// interactive (grant) for empty grantable cells.
+// Implicit cells (role-based) remain inert.
+// Admin row cells are all inert (universal implicit grant).
 
 import {
   type CapabilityActionState,
   decideCapabilityAction,
+  grantCapabilityAction,
 } from "@/src/modules/organizations/actions";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import React, { useActionState, useTransition } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +26,14 @@ export type MatrixMember = {
   explicitGrants: Record<string, string>;
   /** Set of capabilities that come from role (implicit). */
   implicitCaps: Set<string>;
+};
+
+export type MatrixProps = {
+  members: MatrixMember[];
+  columns: MatrixColumn[];
+  organizationId: string;
+  /** The viewer's own membership ID — used to block self-grant in empty cells. */
+  callerMembershipId: string;
 };
 
 export type MatrixColumn = {
@@ -66,16 +77,82 @@ function RevokeCell({ grantId }: { grantId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Grant cell — empty cell that becomes interactive for grantable capabilities
+// ---------------------------------------------------------------------------
+
+function GrantCell({
+  organizationId,
+  membershipId,
+  capability,
+  capabilityLabel,
+  isSelf,
+}: {
+  organizationId: string;
+  membershipId: string;
+  capability: string;
+  capabilityLabel: string;
+  isSelf: boolean;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = React.useState<string | null>(null);
+
+  if (isSelf) {
+    return (
+      <div className="flex items-center justify-center">
+        <span
+          title="No podés concederte permisos a vos mismo"
+          aria-label="Autoconceción bloqueada"
+          className="text-[11px] text-ln-op-faint cursor-not-allowed select-none"
+        >
+          —
+        </span>
+      </div>
+    );
+  }
+
+  function handleClick() {
+    if (!confirm(`¿Conceder el permiso "${capabilityLabel}"?`)) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await grantCapabilityAction({ organizationId, membershipId, capability });
+      if (result.error) {
+        setError(result.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button
+        type="button"
+        disabled={isPending}
+        title={`Conceder: ${capabilityLabel}`}
+        aria-label="Conceder"
+        onClick={handleClick}
+        className="flex h-6 w-6 items-center justify-center rounded-[3px] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
+      >
+        <span aria-hidden className="text-[14px] leading-none">
+          +
+        </span>
+      </button>
+      {error && <span className="text-[10px] text-ln-op-danger">{error}</span>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Matrix
 // ---------------------------------------------------------------------------
 
 export function CapabilityMatrix({
   members,
   columns,
-}: {
-  members: MatrixMember[];
-  columns: MatrixColumn[];
-}) {
+  organizationId,
+  callerMembershipId,
+}: MatrixProps) {
   if (members.length === 0) {
     return (
       <p className="py-4 text-[13px] text-ln-op-mute">No hay miembros activos para mostrar.</p>
@@ -146,10 +223,25 @@ export function CapabilityMatrix({
                   );
                 }
 
-                // No cap — empty cell
+                // No cap — interactive grant cell (admin role is already fully implicit, show inert)
+                if (member.role === "admin") {
+                  return (
+                    <td key={col.capability} className="px-2 py-2 text-center">
+                      <span className="text-[11px] text-ln-op-faint">—</span>
+                    </td>
+                  );
+                }
+
+                const isSelf = member.membershipId === callerMembershipId;
                 return (
                   <td key={col.capability} className="px-2 py-2 text-center">
-                    <span className="text-[11px] text-ln-op-faint">—</span>
+                    <GrantCell
+                      organizationId={organizationId}
+                      membershipId={member.membershipId}
+                      capability={col.capability}
+                      capabilityLabel={col.label}
+                      isSelf={isSelf}
+                    />
                   </td>
                 );
               })}
@@ -167,6 +259,10 @@ export function CapabilityMatrix({
         <span className="flex items-center gap-1">
           <span className="text-[13px] opacity-50">✓</span>
           Por rol (implícito)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="text-ln-op-faint">+</span>
+          Conceder directo
         </span>
         <span className="flex items-center gap-1">
           <span>—</span>

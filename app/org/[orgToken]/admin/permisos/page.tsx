@@ -60,7 +60,7 @@ export default async function PermisosPage({
   params: Promise<{ orgToken: string }>;
 }) {
   const { orgToken } = await params;
-  const { organization } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership: callerMembership } = await requireOrgAccessByToken(orgToken);
 
   // --- Query 1: pending + approved grants for the requests queue ---
   const rows = await db
@@ -267,7 +267,12 @@ export default async function PermisosPage({
           }
         />
         <OpCardBody>
-          <CapabilityMatrix members={matrixMembers} columns={MATRIX_COLUMNS} />
+          <CapabilityMatrix
+            members={matrixMembers}
+            columns={MATRIX_COLUMNS}
+            organizationId={organization.id}
+            callerMembershipId={callerMembership.id}
+          />
         </OpCardBody>
       </OpCard>
 
