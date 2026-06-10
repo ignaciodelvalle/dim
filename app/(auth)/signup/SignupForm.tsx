@@ -2,7 +2,7 @@
 
 import { type AuthFormState, signupAction } from "@/app/actions/auth";
 import { PetForm } from "@/components/PetForm";
-import { LnInput } from "@/components/ui/Field";
+import { LnCheckbox, LnInput } from "@/components/ui/Field";
 import { createPetAction } from "@/src/modules/pets/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -139,6 +139,35 @@ export function SignupForm({
           required
           hint="Mínimo 8 caracteres."
         />
+        <Field
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          label="Repetir contraseña"
+          autoComplete="new-password"
+          minLength={8}
+          required
+        />
+
+        <LnCheckbox id="tosAccepted" name="tosAccepted" required>
+          Leí y acepto los{" "}
+          <Link
+            href="/terminos"
+            target="_blank"
+            className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
+          >
+            Términos y condiciones
+          </Link>{" "}
+          y la{" "}
+          <Link
+            href="/privacidad"
+            target="_blank"
+            className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
+          >
+            Política de privacidad
+          </Link>
+          .
+        </LnCheckbox>
 
         {authState.error && (
           <p className="text-sm text-[var(--color-ln-err)]" role="alert">

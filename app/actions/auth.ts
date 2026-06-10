@@ -25,13 +25,21 @@ export async function signupAction(
 ): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
   const displayName = String(formData.get("displayName") ?? "").trim();
+  const tosAccepted = formData.get("tosAccepted") === "on";
 
   if (!email || !password || !displayName) {
     return { error: "Faltan datos. Completá todos los campos." };
   }
   if (password.length < 8) {
     return { error: "La contraseña debe tener al menos 8 caracteres." };
+  }
+  if (password !== confirmPassword) {
+    return { error: "Las contraseñas no coinciden." };
+  }
+  if (!tosAccepted) {
+    return { error: "Tenés que aceptar los Términos y la Política de privacidad." };
   }
 
   const supabase = await createClient();
