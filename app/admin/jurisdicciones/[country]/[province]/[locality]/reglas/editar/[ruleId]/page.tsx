@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 
 import { OpCrumbs } from "@/components/ui/dashboard";
 import { type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 import { PppAttestationRegistriesForm } from "../../nueva/PppAttestationRegistriesForm";
 import { PppBreedListForm } from "../../nueva/PppBreedListForm";
@@ -28,6 +29,8 @@ export default async function EditRulePage({
     ruleId: string;
   }>;
 }) {
+  await requireAdminOrRedirect();
+
   const {
     country: countryRaw,
     province: provinceRaw,

@@ -16,6 +16,7 @@ import {
   govtBusinessRules,
   profiles,
 } from "@/db";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/business-rules-defaults";
 import { formatDate } from "@/lib/format";
 
@@ -51,6 +52,8 @@ export default async function AdminJurisdiccionReglasPage({
 }: {
   params: Promise<{ country: string; province: string; locality: string }>;
 }) {
+  await requireAdminOrRedirect();
+
   const { country: countryRaw, province: provinceRaw, locality: localityRaw } = await params;
   const country = decodeURIComponent(countryRaw);
   const province = decodeNullable(provinceRaw);

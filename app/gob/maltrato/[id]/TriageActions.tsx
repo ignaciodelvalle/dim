@@ -124,7 +124,7 @@ export function TriageActions({
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholders[mode]}
-        className="w-full px-3 py-2 rounded border border-ln-op-line bg-white text-[13px] text-ln-op-ink"
+        className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
       />
       <p className="text-[11px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}

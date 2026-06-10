@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
 
 import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";
@@ -25,6 +26,8 @@ export default async function NewRulePage({
   params: Promise<{ country: string; province: string; locality: string }>;
   searchParams: Promise<{ ruleType?: string }>;
 }) {
+  await requireAdminOrRedirect();
+
   const { country: countryRaw, province: provinceRaw, locality: localityRaw } = await params;
   const sp = await searchParams;
   const country = decodeURIComponent(countryRaw);

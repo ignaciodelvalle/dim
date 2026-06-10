@@ -20,6 +20,7 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents } from "@/db";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
 
 import { retryOutboxRowAction } from "../actions";
@@ -51,6 +52,8 @@ export default async function AdminOutboxDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdminOrRedirect();
+
   const { id } = await params;
 
   const [row] = await db

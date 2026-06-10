@@ -85,7 +85,7 @@ export function DerivationPanel({
         <select
           value={selectedOrgId}
           onChange={(e) => setSelectedOrgId(e.target.value)}
-          className="w-full px-3 py-2 rounded border border-ln-op-line bg-white text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         >
           <option value="">Seleccioná una organización…</option>
           {availableOrgs.map((o) => (

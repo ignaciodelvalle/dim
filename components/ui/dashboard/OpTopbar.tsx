@@ -43,7 +43,7 @@ export function OpTopbar({
   brandSubtitle,
 }: Props) {
   return (
-    <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-white px-6 py-[11px]">
+    <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
       {/* Mobile hamburger — client island */}
       {(mobileNav || mobileSections) && (
         <OpMobileDrawer
