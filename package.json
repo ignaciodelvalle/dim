@@ -26,6 +26,7 @@
     "seed:test": "tsx scripts/seed-test-users.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
     "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",
+    "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
