@@ -104,9 +104,8 @@ export default async function PerdidasPage({
         </header>
 
         {/* KPI strip — universe counts, not filter-scoped */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <KpiCard label="Activas ahora" value={totalActive} tone="err" />
-          <KpiCard label="Críticas (24h)" value={last24h} tone="err" />
           <KpiCard label="Últimas 24h" value={last24h} tone="warn" />
           <KpiCard label="Últimos 7 días" value={last7d} tone="mute" />
         </section>
