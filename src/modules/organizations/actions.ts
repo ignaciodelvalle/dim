@@ -349,6 +349,7 @@ export async function leaveOrganizationAction(input: {
   // Revalidate (best-effort).
   try {
     if (orgPublicToken) revalidatePath(`/org/${orgPublicToken}/miembros`);
+    revalidatePath("/cuenta/memberships");
   } catch {
     // Non-critical.
   }
