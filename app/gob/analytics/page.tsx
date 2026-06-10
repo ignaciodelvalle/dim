@@ -10,6 +10,7 @@ import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type DashboardJurisdiction,
+  GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
@@ -21,21 +22,6 @@ import { AcquisitionChart } from "./_components/AcquisitionChart";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 
 export const dynamic = "force-dynamic";
-
-// All Argentine provinces in the GeoJSON placeholder -- mirrors /gob/vigilancia.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Cordoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucuman" },
-  { code: "AR-E", name: "Entre Rios" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 export default async function GobAnalyticsPage({
   searchParams,
@@ -112,7 +98,7 @@ export default async function GobAnalyticsPage({
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =
     profile.role === "admin"
-      ? ALL_PROVINCES
+      ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");

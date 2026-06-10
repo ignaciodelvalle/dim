@@ -1719,11 +1719,13 @@ export const AUDIT_LOG_ACTIONS = [
   // role='admin' AND account_type='institutional').
   "approval_request_withdrawn_by_system",
   // Fase 10: custody dispute lifecycle. Raised, party added, resolved (with
-  // resolution outcome in payload), and withdrawn (admin or raiser).
+  // resolution outcome in payload), withdrawn (admin or raiser), and escalated
+  // to judicial channels (light path — dispute stays open, note appended).
   "dispute_raised",
   "dispute_party_added",
   "dispute_resolved",
   "dispute_withdrawn",
+  "dispute_escalated",
   // Ley 26.858: service-dog credential lifecycle. Created by owner, verified
   // by admin/govt via the approval flow, revoked by admin/govt with motivo.
   "service_dog_credential_revoked",

@@ -16,6 +16,8 @@ import { JurisdictionFilterBar, readFilterParams } from "@/components/Jurisdicti
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
+import { listLocalitiesByProvince } from "@/lib/ar-localidades";
+import { PROVINCES, type ProvinceCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForAdmin, listCasesForGovt } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
@@ -45,6 +47,54 @@ export default async function GobiernoDashboardPage({
 
   const sp = await searchParams;
   const params = readFilterParams(toURLSearchParams(sp));
+
+  // --- Jurisdiction filter resolution -------------------------------------
+  // Resolve selected province slug (from the filter bar) to a Province object
+  // so we can load its localities and narrow the KPI queries.
+
+  const selectedProvinceObj = params.province
+    ? (PROVINCES.find((p) => p.slug === params.province) ?? null)
+    : null;
+
+  const selectedLocalitySlug = params.locality || null;
+
+  // Load localities for the selected province (for the filter bar dropdown).
+  const rawLocalities = selectedProvinceObj
+    ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+    : [];
+
+  // localitiesByProvince returns { slug, name }; JurisdictionFilterBar expects { value, label }.
+  const localityOptions = rawLocalities.map((l) => ({ value: l.slug, label: l.name }));
+
+  // Narrow jurisdictions for KPI queries when a province/locality filter is active.
+  // Intersect with the user's real assignments so a govt user can't widen scope.
+  let filteredJurisdictions = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalitySlug) {
+      // Match the locality by slug → canonical name via rawLocalities.
+      const localityRow = rawLocalities.find((l) => l.slug === selectedLocalitySlug);
+      if (localityRow) {
+        filteredJurisdictions = jurisdictions.filter(
+          (j) => j.province === provinceName && j.locality === localityRow.name,
+        );
+      } else {
+        filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+      }
+    } else {
+      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+    }
+  }
+
+  // Build province options for the filter bar.
+  // Admin: all 24 provinces. Govt: provinces the user has assignments in.
+  const provinceOptions: Array<{ value: string; label: string }> =
+    profile.role === "admin"
+      ? PROVINCES.map((p) => ({ value: p.slug as string, label: p.name as string }))
+      : Array.from(new Set(jurisdictions.map((j) => j.province))).flatMap((name) => {
+          const p = PROVINCES.find((pr) => pr.name === name);
+          return p ? [{ value: p.slug as string, label: p.name as string }] : [];
+        });
 
   // --- Live queries (preserved from old /gob/page.tsx) -------------------
 
@@ -78,11 +128,11 @@ export default async function GobiernoDashboardPage({
   const actor = { role: profile.role } as const;
   const [rabiesCoverage, sterilizations, bitesPer10k, activeZoonosis, openWelfareReports] =
     await Promise.all([
-      fetchRabiesCoverage(actor, jurisdictions),
-      fetchSterilizationMetrics(actor, jurisdictions),
-      fetchBitesPer10k(actor, jurisdictions),
-      fetchActiveZoonosis(actor, jurisdictions),
-      fetchOpenWelfareReportsCount(actor, jurisdictions),
+      fetchRabiesCoverage(actor, filteredJurisdictions),
+      fetchSterilizationMetrics(actor, filteredJurisdictions),
+      fetchBitesPer10k(actor, filteredJurisdictions),
+      fetchActiveZoonosis(actor, filteredJurisdictions),
+      fetchOpenWelfareReportsCount(actor, filteredJurisdictions),
     ]);
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------
@@ -91,9 +141,9 @@ export default async function GobiernoDashboardPage({
   const allCases =
     profile.role === "admin"
       ? await listCasesForAdmin()
-      : jurisdictions.length === 0
+      : filteredJurisdictions.length === 0
         ? []
-        : await listCasesForGovt(jurisdictions);
+        : await listCasesForGovt(filteredJurisdictions);
   const openCasesAll = allCases.filter((c) => c.status === "open" || c.status === "escalated");
   const openCases = openCasesAll.slice(0, 5);
   const openCasesTotal = openCasesAll.length;
@@ -136,20 +186,9 @@ export default async function GobiernoDashboardPage({
         province={params.province}
         locality={params.locality}
         orgType={params.orgType}
-        provinces={[
-          { value: "buenos-aires", label: "Pcia. Buenos Aires" },
-          { value: "caba", label: "CABA" },
-        ]}
-        localities={[
-          { value: "la-plata", label: "La Plata" },
-          { value: "berisso", label: "Berisso" },
-          { value: "ensenada", label: "Ensenada" },
-        ]}
-        orgTypes={[
-          { value: "shelter", label: "Refugio" },
-          { value: "clinic", label: "Clínica" },
-          { value: "rescue", label: "Rescate" },
-        ]}
+        provinces={provinceOptions}
+        localities={localityOptions}
+        orgTypes={[]}
       />
 
       {/* KPI strip */}
@@ -417,3 +456,5 @@ function toURLSearchParams(sp: Record<string, string | string[] | undefined>): U
   }
   return p;
 }
+
+export const dynamic = "force-dynamic";

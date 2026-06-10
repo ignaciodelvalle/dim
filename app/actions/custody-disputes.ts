@@ -27,9 +27,11 @@ import {
   custodyDisputes,
   db,
   notifications,
+  organizations,
   ownerships,
   petEvents,
   pets,
+  profiles,
 } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { closeCase, openCase } from "@/lib/case-helpers";
@@ -291,6 +293,35 @@ export async function resolveDisputeAction(
           );
         }
 
+        // Validate target user/org existence to prevent orphaned ownership rows.
+        if (input.transferToUserId) {
+          const [targetUser] = await tx
+            .select({ id: profiles.id, deactivatedAt: profiles.deactivatedAt })
+            .from(profiles)
+            .where(eq(profiles.id, input.transferToUserId))
+            .limit(1);
+          if (!targetUser) {
+            throw new Error("El usuario destino no existe en el sistema.");
+          }
+          if (targetUser.deactivatedAt !== null) {
+            throw new Error("El usuario destino tiene la cuenta desactivada.");
+          }
+        }
+
+        if (input.transferToOrgId) {
+          const [targetOrg] = await tx
+            .select({ id: organizations.id, status: organizations.status })
+            .from(organizations)
+            .where(eq(organizations.id, input.transferToOrgId))
+            .limit(1);
+          if (!targetOrg) {
+            throw new Error("La organización destino no existe en el sistema.");
+          }
+          if (targetOrg.status !== "active") {
+            throw new Error("La organización destino no está activa.");
+          }
+        }
+
         // Find the active foster row (if any) so the custody_transferred
         // payload can link to the foster_ended that we'll emit too.
         const [fosterRow] = await tx
@@ -541,6 +572,143 @@ export async function withdrawDisputeAction(
     revalidatePath("/gob/disputas");
     revalidatePath(`/gob/disputas/${input.disputeToken}`);
     return { withdrawnAt };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Error desconocido." };
+  }
+}
+
+// ─── Transfer target lookup ──────────────────────────────────────────────────
+//
+// Quick existence + active-state check that the ResolveDisputeForm calls
+// before submitting so the operator sees a human-readable confirmation rather
+// than a raw UUID.
+
+export type LookupTransferTargetInput = {
+  kind: "user" | "org";
+  id: string;
+};
+
+export type LookupTransferTargetResult =
+  | { found: true; displayName: string; active: boolean }
+  | { found: false; error: string };
+
+export async function lookupTransferTargetAction(
+  input: LookupTransferTargetInput,
+): Promise<LookupTransferTargetResult> {
+  await requireAdminOrGovtOrRedirect();
+  const id = input.id.trim();
+  if (!id) return { found: false, error: "ID vacío." };
+
+  try {
+    if (input.kind === "user") {
+      const [row] = await db
+        .select({ displayName: profiles.displayName, deactivatedAt: profiles.deactivatedAt })
+        .from(profiles)
+        .where(eq(profiles.id, id))
+        .limit(1);
+      if (!row) return { found: false, error: "Usuario no encontrado." };
+      return {
+        found: true,
+        displayName: row.displayName ?? id,
+        active: row.deactivatedAt === null,
+      };
+    }
+    const [row] = await db
+      .select({ displayName: organizations.displayName, status: organizations.status })
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    if (!row) return { found: false, error: "Organización no encontrada." };
+    return {
+      found: true,
+      displayName: row.displayName,
+      active: row.status === "active",
+    };
+  } catch {
+    return { found: false, error: "Error al verificar el destino." };
+  }
+}
+
+// ─── Escalate (light) ────────────────────────────────────────────────────────
+//
+// No schema-level escalation state exists on custody_disputes (the only valid
+// statuses are open / resolved / withdrawn). The light-escalation path keeps
+// the dispute open and appends a `note_added` pet event that marks the
+// escalation to judicial channels, plus an audit_log entry. The note surfaces
+// in the detail page's custody timeline.
+
+export type EscalateDisputeInput = {
+  disputeToken: string;
+  notes: string;
+};
+
+export type EscalateDisputeResult = { escalatedAt: Date } | { error: string };
+
+export async function escalateDisputeAction(
+  input: EscalateDisputeInput,
+): Promise<EscalateDisputeResult> {
+  const text = input.notes.trim();
+  if (text.length < 20) {
+    return { error: "El motivo de la escalada tiene que tener al menos 20 caracteres." };
+  }
+
+  const session = await requireAdminOrGovtOrRedirect();
+
+  try {
+    const escalatedAt = await db.transaction(async (tx): Promise<Date> => {
+      const [dispute] = await tx
+        .select()
+        .from(custodyDisputes)
+        .where(eq(custodyDisputes.publicToken, input.disputeToken))
+        .limit(1);
+      if (!dispute) throw new Error("Disputa no encontrada.");
+      if (dispute.status !== "open") throw new Error("Solo se pueden escalar disputas abiertas.");
+
+      if (session.profile.role === "govt" && !isGovtInScope(session.jurisdictions, dispute)) {
+        throw new Error("Esta disputa está fuera de tu jurisdicción.");
+      }
+
+      const now = new Date();
+
+      // Find the linked case (for caseId on the pet event).
+      const [linkedCase] = await tx
+        .select({ id: cases.id })
+        .from(cases)
+        .where(eq(cases.custodyDisputeId, dispute.id))
+        .limit(1);
+
+      const notePayload = validateEventPayload("note_added", {
+        category: "otro",
+        text: `[Escalada vía judicial] ${text}`,
+      });
+
+      await tx.insert(petEvents).values({
+        petId: dispute.petId,
+        eventType: "note_added",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: session.user.id,
+        authorRole: "govt",
+        authorOrganizationId: null,
+        authorVerified: true,
+        payload: notePayload,
+        caseId: linkedCase?.id ?? null,
+      });
+
+      await tx.insert(auditLog).values({
+        actorUserId: session.user.id,
+        action: "dispute_escalated",
+        payload: {
+          dispute_id: dispute.id,
+          notes_excerpt: text.slice(0, 200),
+        },
+      });
+
+      return now;
+    });
+
+    revalidatePath(`/gob/disputas/${input.disputeToken}`);
+    return { escalatedAt };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Error desconocido." };
   }
