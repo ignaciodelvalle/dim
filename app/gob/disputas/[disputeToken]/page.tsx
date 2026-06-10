@@ -15,6 +15,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";
+import { EscalateDisputeForm } from "./EscalateDisputeForm";
 import { ResolveDisputeForm } from "./ResolveDisputeForm";
 import { WithdrawDisputeButton } from "./WithdrawDisputeButton";
 
@@ -217,11 +218,11 @@ export default async function DisputeDetailPage({
         <section className="space-y-3 pt-2 border-t border-ln-op-line">
           <h2 className="text-[16px] font-semibold text-ln-op-ink">Resolver disputa</h2>
           <ResolveDisputeForm disputeToken={disputeToken} />
-          {canWithdraw && (
-            <div className="pt-2">
-              <WithdrawDisputeButton disputeToken={disputeToken} />
-            </div>
-          )}
+          <div className="pt-2 space-y-2">
+            <p className="text-[12px] text-ln-op-mute">Otras acciones</p>
+            <EscalateDisputeForm disputeToken={disputeToken} />
+            {canWithdraw && <WithdrawDisputeButton disputeToken={disputeToken} />}
+          </div>
         </section>
       )}
     </div>

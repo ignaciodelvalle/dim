@@ -122,7 +122,7 @@ export default async function TransferenciasHubPage() {
                     </p>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-[8px]">
-                    <span className="inline-flex items-center rounded-[2px] border border-[#f0dcb4] bg-[#fdf2e0] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+                    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
                       Pendiente
                     </span>
                     <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">

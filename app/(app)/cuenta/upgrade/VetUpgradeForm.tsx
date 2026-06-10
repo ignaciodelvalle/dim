@@ -12,7 +12,7 @@ export function VetUpgradeForm() {
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] px-3 py-2 text-[var(--color-ln-warn)]">
+      <p className="text-sm rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-3 py-2 text-[var(--color-ln-warn)]">
         Solicitud enviada — pendiente de revisión por el equipo de MiMAR.
       </p>
     );
@@ -21,7 +21,7 @@ export function VetUpgradeForm() {
   // Prerequisite missing: render CTA card instead of the form + generic error.
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de enviar tu solicitud, verificá tu DNI.
         </p>

@@ -330,6 +330,11 @@ export const EVENT_TYPES = [
   // (catalog cleanup 2026-05-19). actor: shelter | adopter | court.
   "adoption_reversed",
   "custody_transferred",
+  // Direct claim of a chip/tattoo-registered pet with NO active custody of
+  // any role (free pet). Unlike custody_transferred there is no "from" actor;
+  // the claimant opens a fresh owner ownership. Emitted by
+  // submitFreeClaimAction (claim wizard variant "free").
+  "ownership_claimed",
   // Lost & Found — two-phase return-to-owner handshake (Fase 5).
   // Proposed by the actor holding shelter_custody; accepted by the owner.
   "custody_transfer_proposed",
@@ -1007,6 +1012,11 @@ export const ownerships = pgTable(
     oneActiveOwnerPerPet: uniqueIndex("ownerships_one_active_owner_per_pet")
       .on(table.petId)
       .where(sql`${table.role} = 'owner' AND ${table.endedAt} IS NULL`),
+    oneActiveShelterCustodyPerPetOrg: uniqueIndex(
+      "ownerships_one_active_shelter_custody_per_pet_org",
+    )
+      .on(table.petId, table.ownerOrganizationId)
+      .where(sql`${table.role} = 'shelter_custody' AND ${table.endedAt} IS NULL`),
     ownerUserIdx: index("ownerships_owner_user_id_idx").on(table.ownerUserId),
     ownerOrgIdx: index("ownerships_owner_organization_id_idx").on(table.ownerOrganizationId),
   }),
@@ -1366,6 +1376,17 @@ export const welfareReports = pgTable(
     assignedToUserId: uuid("assigned_to_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
+
+    // Derivation to org (migration 0076). Set by a govt/admin actor who forwards
+    // this report to a verified shelter or rescue network for follow-up.
+    // derivedToOrganizationId drives the org-side "Recibidos" inbox.
+    derivedToOrganizationId: uuid("derived_to_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    derivedAt: timestamp("derived_at", { withTimezone: true }),
+    derivedByUserId: uuid("derived_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1378,6 +1399,7 @@ export const welfareReports = pgTable(
     ),
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
+    derivedToOrgIdx: index("welfare_reports_derived_to_org_idx").on(table.derivedToOrganizationId),
     welfareReportsJurisdictionProvinceCanonical: check(
       "welfare_reports_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
@@ -1702,11 +1724,13 @@ export const AUDIT_LOG_ACTIONS = [
   // role='admin' AND account_type='institutional').
   "approval_request_withdrawn_by_system",
   // Fase 10: custody dispute lifecycle. Raised, party added, resolved (with
-  // resolution outcome in payload), and withdrawn (admin or raiser).
+  // resolution outcome in payload), withdrawn (admin or raiser), and escalated
+  // to judicial channels (light path — dispute stays open, note appended).
   "dispute_raised",
   "dispute_party_added",
   "dispute_resolved",
   "dispute_withdrawn",
+  "dispute_escalated",
   // Ley 26.858: service-dog credential lifecycle. Created by owner, verified
   // by admin/govt via the approval flow, revoked by admin/govt with motivo.
   "service_dog_credential_revoked",
@@ -1766,6 +1790,9 @@ export const AUDIT_LOG_ACTIONS = [
   // Owner-initiated custody dispute (chip/tatuaje claim wizard, P3-1).
   // Payload: { dispute_public_token, pet_id, attachments_count }.
   "claim_dispute_submitted",
+  // Direct claim of a free (no active custody) chip-registered pet.
+  // Payload: { pet_id, identifier_kind }.
+  "free_pet_claimed",
   // Pet transfer (owner → owner) — P3-2 handshake actions.
   // Payload varies per action; transfer_public_token + pet_id are always present.
   "pet_transfer_initiated",
@@ -1795,6 +1822,10 @@ export const AUDIT_LOG_ACTIONS = [
   // Written once per script invocation (not per event).
   // Payload: { since, until, limit, processed, notified, skipped, errors, dry_run }.
   "eno_backfill_run_completed",
+  // Welfare derivation to org (migration 0076). Govt/admin forwards a report
+  // to a verified shelter or rescue_network for field follow-up.
+  // Payload: { welfareReportId, referenceCode, targetOrgId, targetOrgDisplayName }.
+  "welfare_report_derived_to_org",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

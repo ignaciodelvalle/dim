@@ -1,6 +1,7 @@
 // Org-scope case index. Lists every case where the org is the opener
 // OR holds an active ownership row on the subject pet.
 //
+// Filters via searchParams: ?kind=<caseKind> and ?status=open|closed
 // Each row links to /casos/[publicCode]. The "Ver mascota" link is
 // independent of the row link — separate tap target per Fase E spec.
 
@@ -17,17 +18,67 @@ import Link from "next/link";
 import { CaseBadge } from "@/components/CaseBadge";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { listCasesForOrg } from "@/lib/case-queries";
+import { type CaseListItem, listCasesForOrg } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
+import { type CaseKind, caseKindLabel, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
+
+const STATUS_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "open", label: "Abiertos" },
+  { value: "closed", label: "Cerrados" },
+] as const;
+
+function filterChipCls(active: boolean) {
+  return [
+    "rounded-full border px-3 py-[5px] text-[12px] no-underline transition-colors",
+    active
+      ? "border-ln-op-azul bg-ln-op-azul text-white"
+      : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe",
+  ].join(" ");
+}
 
 interface PageProps {
   params: Promise<{ orgToken: string }>;
+  searchParams: Promise<{ kind?: string; status?: string }>;
 }
 
-export default async function OrgCasosPage({ params }: PageProps) {
+export default async function OrgCasosPage({ params, searchParams }: PageProps) {
   const { orgToken } = await params;
+  const { kind: kindParam, status: statusParam } = await searchParams;
+
   const { organization } = await requireOrgAccessByToken(orgToken);
-  const items = await listCasesForOrg(organization.id);
+  const allItems = await listCasesForOrg(organization.id);
+
+  const activeKind: CaseKind | null = isCaseKind(kindParam ?? "") ? (kindParam as CaseKind) : null;
+  const activeStatus: "open" | "closed" | null =
+    statusParam === "open" || statusParam === "closed" ? statusParam : null;
+
+  const items: CaseListItem[] = allItems.filter((c) => {
+    if (activeKind && c.caseKind !== activeKind) return false;
+    if (activeStatus === "open" && c.closedAt !== null) return false;
+    if (activeStatus === "closed" && c.closedAt === null) return false;
+    return true;
+  });
+
+  // Build filter href helper — preserves the other filter.
+  function kindHref(k: CaseKind | null) {
+    const p = new URLSearchParams();
+    if (k) p.set("kind", k);
+    if (activeStatus) p.set("status", activeStatus);
+    const qs = p.toString();
+    return `/org/${orgToken}/casos${qs ? `?${qs}` : ""}`;
+  }
+
+  function statusHref(s: "open" | "closed" | null) {
+    const p = new URLSearchParams();
+    if (activeKind) p.set("kind", activeKind);
+    if (s) p.set("status", s);
+    const qs = p.toString();
+    return `/org/${orgToken}/casos${qs ? `?${qs}` : ""}`;
+  }
+
+  // Only show kind options that have at least one case in the unfiltered set.
+  const presentKinds = [...new Set(allItems.map((c) => c.caseKind))];
 
   return (
     <div className="space-y-6">
@@ -39,9 +90,38 @@ export default async function OrgCasosPage({ params }: PageProps) {
         </p>
       </header>
 
+      {/* Status filter chips */}
+      <div className="flex flex-wrap gap-2">
+        {STATUS_OPTIONS.map(({ value, label }) => {
+          const s = value === "" ? null : (value as "open" | "closed");
+          const active = activeStatus === s;
+          return (
+            <a key={value} href={statusHref(s)} className={filterChipCls(active)}>
+              {label}
+            </a>
+          );
+        })}
+      </div>
+
+      {/* Kind filter chips — only show kinds present in the full list */}
+      {presentKinds.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <a href={kindHref(null)} className={filterChipCls(activeKind === null)}>
+            Todos los tipos
+          </a>
+          {presentKinds.map((k) => (
+            <a key={k} href={kindHref(k)} className={filterChipCls(activeKind === k)}>
+              {caseKindLabel(k)}
+            </a>
+          ))}
+        </div>
+      )}
+
       {items.length === 0 ? (
         <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Sin casos abiertos ni cerrados por ahora.
+          {allItems.length === 0
+            ? "Sin casos abiertos ni cerrados por ahora."
+            : "Ningún caso coincide con los filtros seleccionados."}
         </p>
       ) : (
         <OpCard>

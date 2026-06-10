@@ -78,6 +78,8 @@ export type AdoptionListingFilters = {
   needsYard?: boolean;
   hasMicrochip?: boolean;
   organizationToken?: string;
+  /** Free-text search: matches pet name or breed (case-insensitive). */
+  searchQuery?: string;
 };
 
 export type AdoptionListingCursor = {
@@ -164,6 +166,11 @@ export function parseSearchParams(params: Record<string, string | string[] | und
   const org = pick("org");
   if (org) filters.organizationToken = org;
 
+  const q = pick("q");
+  // Cap length — user input becomes an ILIKE pattern; unbounded params would
+  // hand Postgres arbitrarily long patterns.
+  if (q?.trim()) filters.searchQuery = q.trim().slice(0, 100);
+
   // Cursor is encoded as "<ISO>|<uuid>"
   const cursorRaw = pick("cursor");
   let cursor: AdoptionListingCursor | null = null;
@@ -192,6 +199,7 @@ export function buildSearchParams(
   if (filters.needsYard === false) out.set("sin_patio", "true");
   if (filters.hasMicrochip === true) out.set("con_chip", "true");
   if (filters.organizationToken) out.set("org", filters.organizationToken);
+  if (filters.searchQuery) out.set("q", filters.searchQuery);
   if (cursor) out.set("cursor", `${cursor.listedAt}|${cursor.id}`);
   return out;
 }

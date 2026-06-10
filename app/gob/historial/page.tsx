@@ -5,17 +5,57 @@ import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 const ACTION_LABELS: Record<string, string> = {
+  // Approval queue
   request_approved: "Solicitud aprobada",
   request_rejected: "Solicitud rechazada",
   request_viewed: "Solicitud vista",
-  revocation_vet: "Revocacion matricula",
-  revocation_org: "Revocacion verificacion org",
-  revocation_govt_assignment: "Revocacion localidad govt",
-  deactivation_govt: "Desactivacion cuenta govt",
-  deactivation_admin: "Desactivacion cuenta admin",
-  pii_queried: "Busqueda de PII",
-  admin_seeded: "Admin inicializado",
   approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
+  // Revocations
+  revocation_vet: "Revocación matrícula veterinaria",
+  revocation_vet_role: "Revocación matrícula veterinaria",
+  revocation_org: "Revocación verificación organización",
+  revocation_org_verified: "Revocación verificación organización",
+  revocation_govt_assignment: "Revocación localidad gobierno",
+  // Deactivations
+  deactivation_govt: "Desactivación cuenta gobierno",
+  deactivation_admin: "Desactivación cuenta admin",
+  govt_deactivated_by_admin: "Desactivación cuenta gobierno (por admin)",
+  admin_deactivated_by_admin: "Desactivación cuenta admin (por admin)",
+  govt_self_deactivated: "Baja voluntaria cuenta gobierno",
+  // Admin actions
+  pii_queried: "Búsqueda de información personal",
+  admin_seeded: "Admin inicializado",
+  operator_credentials_reset: "Credenciales de operador reiniciadas",
+  institutional_create_orphan_auth_user: "Usuario institucional creado sin perfil",
+  govt_locality_assigned: "Localidad asignada a usuario gobierno",
+  // Disputes
+  dispute_raised: "Disputa de custodia abierta",
+  dispute_party_added: "Parte añadida a disputa",
+  dispute_resolved: "Disputa de custodia resuelta",
+  dispute_withdrawn: "Disputa de custodia retirada",
+  dispute_escalated: "Disputa escalada a vía judicial",
+  // Claims
+  claim_dispute_submitted: "Reclamo de custodia enviado",
+  free_pet_claimed: "Animal sin dueño reclamado",
+  // Decomisos
+  decomiso_executed: "Decomiso ejecutado",
+  decomiso_handoff_accepted: "Entrega de decomiso aceptada",
+  decomiso_handoff_rejected: "Entrega de decomiso rechazada",
+  decomiso_handoff_cancelled: "Entrega de decomiso cancelada",
+  // Business rules
+  govt_business_rule_created: "Regla de negocio creada",
+  govt_business_rule_updated: "Regla de negocio actualizada",
+  govt_business_rule_deleted: "Regla de negocio eliminada",
+  // Profile / account
+  profile_self_updated: "Perfil actualizado",
+  profile_avatar_updated: "Avatar actualizado",
+  self_resignation_vet: "Baja voluntaria matrícula veterinaria",
+  // Other
+  service_dog_credential_revoked: "Credencial animal de asistencia revocada",
+  ppp_export_generated: "Exportación PPP generada",
+  microchip_replaced: "Microchip reemplazado",
+  "microchip.replace": "Microchip reemplazado",
+  dni_verified_self: "DNI verificado por el titular",
 };
 
 export default async function GobHistorialPage() {

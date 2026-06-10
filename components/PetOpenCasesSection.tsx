@@ -16,7 +16,7 @@ export async function PetOpenCasesSection({ petId }: Props) {
   if (openCases.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-ln-warn bg-[#fdf2e0] p-5  ">
+    <section className="mb-6 rounded-2xl border border-ln-warn bg-[var(--color-ln-warn-050)] p-5  ">
       <header className="mb-3 flex items-baseline justify-between">
         <h2 className="text-lg font-semibold text-ln-ink ">
           Casos abiertos {openCases.length > 1 ? `(${openCases.length})` : ""}

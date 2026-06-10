@@ -7,10 +7,13 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, govtBusinessRules } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminJurisdiccionesPage() {
+  await requireAdminOrRedirect();
+
   const rows = await db
     .select({
       country: govtBusinessRules.jurisdictionCountry,

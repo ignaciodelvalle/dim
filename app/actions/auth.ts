@@ -14,35 +14,46 @@ import { redirect } from "next/navigation";
 export type AuthFormState = {
   error: string | null;
   // Set by signupAction so the multi-step signup form knows to advance to
-  // the first-pet step. loginAction never sets it.
+  // the identity step. loginAction never sets it.
   ok?: boolean;
 };
 
 // @no-auth-required: signup is by definition pre-authentication.
+//
+// Step 1 of the two-step signup flow. Collects email + password + TOS only.
+// display_name is intentionally omitted here — the handle_new_user trigger
+// (db/triggers.sql) falls back to split_part(email, '@', 1) when no
+// display_name metadata is supplied, so profiles.display_name is never NULL.
+// The real first+last name is collected in step 2 (completeIdentityAction),
+// which overwrites the provisional value.
 export async function signupAction(
   _previous: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const displayName = String(formData.get("displayName") ?? "").trim();
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const tosAccepted = formData.get("tosAccepted") === "on";
 
-  if (!email || !password || !displayName) {
+  if (!email || !password) {
     return { error: "Faltan datos. Completá todos los campos." };
   }
   if (password.length < 8) {
     return { error: "La contraseña debe tener al menos 8 caracteres." };
+  }
+  if (password !== confirmPassword) {
+    return { error: "Las contraseñas no coinciden." };
+  }
+  if (!tosAccepted) {
+    return { error: "Tenés que aceptar los Términos y la Política de privacidad." };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      // display_name is read by the handle_new_user trigger to populate
-      // public.profiles.display_name. See db/triggers.sql.
-      data: { display_name: displayName },
-    },
+    // No display_name metadata — the handle_new_user trigger will derive it
+    // from the email local-part. completeIdentityAction overwrites it in step 2.
   });
 
   if (error) {
@@ -54,8 +65,83 @@ export async function signupAction(
   }
 
   // Do NOT redirect. The inline signup flow uses this success signal to
-  // transition the same page to the first-pet step (AGENTS.md → v1 screens
-  // §Signup: "*immediately* collects first pet profile in same flow").
+  // transition the same page to the identity-collection step (step 2).
+  return { error: null, ok: true };
+}
+
+// Argentine DNI: 7–8 digits, no spaces/dots/dashes. Same regex as verifyDniAction.
+const DNI_RE = /^\d{7,8}$/;
+
+export type IdentityFormState = {
+  error: string | null;
+  ok?: boolean;
+};
+
+// Step 2 of the two-step signup flow. Requires an active session (set by
+// signupAction → supabase.auth.signUp in step 1).
+//
+// Updates profiles.display_name to "${firstName} ${lastName}".
+// Optionally stores profiles.dni_number (unverified — dniVerified stays false).
+// The existing /cuenta/verificar-dni flow handles full verification later.
+//
+// DNI uniqueness: the partial unique index profiles_dni_unique_when_present
+// enforces uniqueness only when the value is not null. A 23505 violation here
+// means another account already holds that DNI number — surface a friendly error.
+export async function completeIdentityAction(
+  _previous: IdentityFormState,
+  formData: FormData,
+): Promise<IdentityFormState> {
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const rawDni = String(formData.get("dni") ?? "")
+    .trim()
+    .replace(/[.\s-]/g, "");
+
+  if (!firstName || !lastName) {
+    return { error: "Ingresá tu nombre y apellido." };
+  }
+
+  // Validate DNI format only when provided.
+  if (rawDni && !DNI_RE.test(rawDni)) {
+    return { error: "El DNI debe tener 7 u 8 dígitos numéricos." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    // Session expired between steps — send them back to start.
+    redirect("/signup");
+  }
+
+  const displayName = `${firstName} ${lastName}`.trim();
+
+  try {
+    await db
+      .update(profiles)
+      .set({
+        displayName,
+        // Store DNI as unverified. dniVerified stays false (its default).
+        // The /cuenta/verificar-dni flow sets dniVerified=true with audit trail.
+        ...(rawDni ? { dniNumber: rawDni } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.id, user.id));
+  } catch (err) {
+    const record = err as Record<string, unknown>;
+    if (
+      record.code === "23505" &&
+      (String(record.constraint_name ?? "").includes("dni") ||
+        String(record.detail ?? "").includes("dni_number"))
+    ) {
+      return { error: "Ese DNI ya está registrado por otra cuenta." };
+    }
+    const msg = err instanceof Error ? err.message : "error desconocido";
+    return { error: `No se pudo guardar tu perfil: ${msg}` };
+  }
+
   return { error: null, ok: true };
 }
 

@@ -19,7 +19,7 @@ export type AppointmentRow = {
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   confirmed: {
     label: "Confirmado",
-    className: "bg-[#eef6f0] text-ln-ok  ",
+    className: "bg-[var(--color-ln-ok-050)] text-ln-ok  ",
   },
   attended: {
     label: "Asistido",
@@ -29,9 +29,13 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
     label: "Cancelado",
     className: "bg-ln-stripe text-ln-ink  ",
   },
+  cancelled_by_owner: {
+    label: "Cancelado por vos",
+    className: "bg-ln-stripe text-ln-mute  ",
+  },
   no_show: {
     label: "No asistió",
-    className: "bg-[#fbe9e6] text-ln-err  ",
+    className: "bg-[var(--color-ln-err-050)] text-ln-err  ",
   },
 };
 
@@ -60,6 +64,8 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
 
   const statusBadge = STATUS_BADGE[appointment.status] ?? STATUS_BADGE.confirmed;
 
+  const isUpcoming = appointment.status === "confirmed" && slot.startsAt >= new Date();
+
   return (
     <li>
       <Link
@@ -76,6 +82,9 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
               {dateLabel} · {timeLabel}
             </p>
             {kindDef && <p className="text-xs text-ln-mute ">{kindDef.label}</p>}
+            {isUpcoming && (
+              <p className="pt-1 text-xs font-medium text-ln-azul ">Ver QR de check-in →</p>
+            )}
           </div>
           <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge.className}`}>
             {statusBadge.label}

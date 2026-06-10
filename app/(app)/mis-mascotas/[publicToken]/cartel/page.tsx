@@ -40,7 +40,7 @@ export default async function CartelPage({
         </p>
         <Link
           href={`/mis-mascotas/${publicToken}?sheet=marcar-perdida`}
-          className="mt-[20px] inline-flex items-center rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
+          className="mt-[20px] inline-flex items-center rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
         >
           Marcar como perdida
         </Link>

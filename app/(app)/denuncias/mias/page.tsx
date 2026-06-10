@@ -19,14 +19,14 @@ import { and, desc, eq } from "drizzle-orm";
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
-      return "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]";
+      return "border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]";
     case "invalid":
     case "duplicate":
       return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
     case "in_progress":
       return "border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]";
     case "triaged":
-      return "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]";
+      return "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]";
     default:
       // open
       return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]";

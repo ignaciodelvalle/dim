@@ -53,6 +53,13 @@ interface Props {
    * Sprint 5 PR-041 / doc 10 §3 punto 1. */
   lastSeenLat?: number | null;
   lastSeenLng?: number | null;
+  /** Free-form lost description fields from the mark-lost event payload (spec §8.4).
+   * Always shown when present — no disclosure pref gates animal identity details. */
+  lostDescription?: {
+    accessoriesWhenLost: string | null;
+    behaviorNotes: string | null;
+    lastSeenContext: string | null;
+  } | null;
 }
 
 export function LostPublicCredential({
@@ -73,6 +80,7 @@ export function LostPublicCredential({
   tattooPhotoUrl = null,
   lastSeenLat = null,
   lastSeenLng = null,
+  lostDescription = null,
 }: Props) {
   const tattooLocLabel = tattooLocationLabel(tattooLocation);
   const mapHref =
@@ -80,7 +88,7 @@ export function LostPublicCredential({
       ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
       : null;
   return (
-    <main className="min-h-screen bg-[#fbe9e6] px-4 py-6 ">
+    <main className="min-h-screen bg-[var(--color-ln-err-050)] px-4 py-6 ">
       <div className="mx-auto max-w-md space-y-4">
         {/* Urgent banner (sprint 5 PR-041 / doc 10 §3 punto 1) — surfaces the
             "perdida" state + how recent, in the lostUrgentBanner spec voice. */}
@@ -95,7 +103,7 @@ export function LostPublicCredential({
 
         <section className="rounded-2xl bg-ln-card p-5 text-center shadow-sm ">
           <div className="mx-auto inline-block">
-            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[#fdf2e0] ring-[5px] ring-ln-err">
+            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-warn-050)] ring-[5px] ring-ln-err">
               {petPhotoUrl ? (
                 <img src={petPhotoUrl} alt={petName} className="h-full w-full object-cover" />
               ) : (
@@ -141,7 +149,7 @@ export function LostPublicCredential({
           </div>
 
           {!ownerPhoneE164 && !finderFormHref && (
-            <p className="mt-3 rounded-lg bg-[#fdf2e0] px-3 py-2 text-xs text-ln-warn  ">
+            <p className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-warn  ">
               Esta mascota no tiene canales de contacto habilitados.
             </p>
           )}
@@ -155,7 +163,7 @@ export function LostPublicCredential({
             <p className="mt-1 text-sm font-medium text-ln-ink ">
               {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-[#eef6f0] to-ln-celeste/10 text-3xl  ">
+            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10 text-3xl  ">
               📍
             </div>
             {mapHref && (
@@ -196,6 +204,45 @@ export function LostPublicCredential({
             </p>
           </section>
         )}
+
+        {/* Lost description — accessories, behaviour, last-seen context.
+            Animal identity details per spec §8.4 — not gated by disclosure prefs. */}
+        {lostDescription &&
+          (lostDescription.accessoriesWhenLost ||
+            lostDescription.behaviorNotes ||
+            lostDescription.lastSeenContext) && (
+            <section className="rounded-2xl bg-ln-card p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
+                Detalles cuando se perdió
+              </p>
+              {lostDescription.accessoriesWhenLost && (
+                <div className="mt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                    Accesorios
+                  </p>
+                  <p className="mt-0.5 text-sm text-ln-ink">
+                    {lostDescription.accessoriesWhenLost}
+                  </p>
+                </div>
+              )}
+              {lostDescription.behaviorNotes && (
+                <div className="mt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                    Comportamiento
+                  </p>
+                  <p className="mt-0.5 text-sm text-ln-ink">{lostDescription.behaviorNotes}</p>
+                </div>
+              )}
+              {lostDescription.lastSeenContext && (
+                <div className="mt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                    Contexto
+                  </p>
+                  <p className="mt-0.5 text-sm text-ln-ink">{lostDescription.lastSeenContext}</p>
+                </div>
+              )}
+            </section>
+          )}
 
         <p className="text-center text-[11px] text-ln-mute ">
           Esta credencial pertenece a MiMAR — Mi Mascota Argentina.

@@ -21,8 +21,20 @@ export const OWNER_NAV: NavItem[] = [
 // Org portal
 // ---------------------------------------------------------------------------
 
-export function buildOrgNav(orgToken: string): NavItem[] {
-  return [
+export type OrgNavOptions = {
+  /**
+   * Capabilities granted to the viewing member (from getGrantedCapabilities).
+   * Capability-gated items (Ingresos, Check-ins, Permisos) only render when
+   * their capability is present. Omit to build the membership-only nav.
+   */
+  granted?: ReadonlySet<string>;
+};
+
+type OrgNavItem = NavItem & { requiredCapability?: string };
+
+export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavItem[] {
+  const granted = opts.granted ?? new Set<string>();
+  const items: OrgNavItem[] = [
     { href: `/org/${orgToken}`, label: "Panel" },
     {
       href: `/org/${orgToken}/agenda`,
@@ -33,6 +45,38 @@ export function buildOrgNav(orgToken: string): NavItem[] {
       href: `/org/${orgToken}/mascotas`,
       label: "Mascotas",
       matchPrefix: `/org/${orgToken}/mascotas`,
+    },
+    {
+      href: `/org/${orgToken}/intake`,
+      label: "Ingresos",
+      matchPrefix: `/org/${orgToken}/intake`,
+      requiredCapability: "intake.create",
+    },
+    {
+      href: `/org/${orgToken}/transitos`,
+      label: "Tránsitos",
+      matchPrefix: `/org/${orgToken}/transitos`,
+    },
+    {
+      href: `/org/${orgToken}/voluntarios`,
+      label: "Voluntarios",
+      matchPrefix: `/org/${orgToken}/voluntarios`,
+    },
+    {
+      href: `/org/${orgToken}/transferencias`,
+      label: "Transferencias",
+      matchPrefix: `/org/${orgToken}/transferencias`,
+    },
+    {
+      href: `/org/${orgToken}/checkins`,
+      label: "Check-ins",
+      matchPrefix: `/org/${orgToken}/checkins`,
+      requiredCapability: "adoption.review",
+    },
+    {
+      href: `/org/${orgToken}/casos`,
+      label: "Casos",
+      matchPrefix: `/org/${orgToken}/casos`,
     },
     {
       href: `/org/${orgToken}/servicios`,
@@ -64,7 +108,23 @@ export function buildOrgNav(orgToken: string): NavItem[] {
       label: "Maltrato",
       matchPrefix: `/org/${orgToken}/maltrato`,
     },
+    {
+      // No index page under /mordedura — the report form is the entry point.
+      href: `/org/${orgToken}/mordedura/nuevo`,
+      label: "Mordeduras",
+      matchPrefix: `/org/${orgToken}/mordedura`,
+    },
+    {
+      href: `/org/${orgToken}/admin/permisos`,
+      label: "Permisos",
+      matchPrefix: `/org/${orgToken}/admin`,
+      requiredCapability: "capability.grant",
+    },
   ];
+
+  return items
+    .filter((item) => !item.requiredCapability || granted.has(item.requiredCapability))
+    .map(({ requiredCapability: _requiredCapability, ...item }) => item);
 }
 
 // ---------------------------------------------------------------------------

@@ -152,7 +152,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
       {/* Status banner + pause/withdraw lives above the wizard — these are
           "out of band" actions that don't fit a linear flow. */}
       {initial && initial.status === "active" && (
-        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
           <p className="text-[var(--color-ln-ok)]">
             Estás inscripto · <strong>{initial.availableSlots}</strong> slot(s) disponible(s)
           </p>
@@ -169,7 +169,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
               type="button"
               onClick={withdraw}
               disabled={pending}
-              className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[#fbe9e6] transition-colors"
+              className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
             >
               Salir del pool
             </button>
@@ -177,7 +177,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         </div>
       )}
       {initial && initial.status === "paused" && (
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
           <p className="text-[var(--color-ln-warn)]">
             Tu inscripción está <strong>pausada</strong>. No recibís propuestas nuevas.
           </p>
@@ -192,7 +192,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         </div>
       )}
       {isWithdrawn && (
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-3 text-sm text-[var(--color-ln-warn)]">
+        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm text-[var(--color-ln-warn)]">
           Saliste del pool antes. Re-inscribirte va a sumar un slot fresh.
         </div>
       )}

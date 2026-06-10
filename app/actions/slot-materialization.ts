@@ -11,13 +11,20 @@
 // materializeOfferingNowAction(): server action called by the "Materializar
 // ahora" button on agenda pages. Authorizes per provider type, then delegates
 // to materializeSlotsForOffering.
+//
+// blockSlotAction(): org-side slot blocking — sets an empty open slot to
+// "cancelled" so it can no longer be booked. Requires appointment.manage.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { materializeSlotsForRule } from "@/lib/slot-materialization";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  getGrantedCapabilities,
+  requireCapability,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -174,4 +181,82 @@ export async function materializeOfferingNowAction(
       error: `Error al materializar: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// blockSlotAction — org-side slot blocking
+// ────────────────────────────────────────────────────────────────────────────
+
+export type BlockSlotResult = { ok: true } | { error: string };
+
+/**
+ * Blocks an empty open slot so it can no longer be booked.
+ *
+ * Authorization: requireOrgAccessByToken + appointment.manage capability.
+ * Safety: acquires the same advisory lock used by bookSlotAction, re-reads
+ * the slot inside the transaction, and only proceeds when bookings_count === 0
+ * and status is "open".
+ */
+export async function blockSlotAction(input: {
+  orgToken: string;
+  slotId: string;
+}): Promise<BlockSlotResult> {
+  const { orgToken, slotId } = input;
+
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const granted = await getGrantedCapabilities(membership);
+  if (!granted.has("appointment.manage")) {
+    return { error: "No tenés permiso para esta acción." };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // Advisory lock — same key strategy as bookSlotAction.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${slotId}))`);
+
+      const [slot] = await tx
+        .select({
+          id: timeSlots.id,
+          bookingsCount: timeSlots.bookingsCount,
+          status: timeSlots.status,
+          serviceOfferingId: timeSlots.serviceOfferingId,
+        })
+        .from(timeSlots)
+        .where(eq(timeSlots.id, slotId))
+        .limit(1);
+
+      if (!slot) throw new Error("El cupo no existe.");
+      if (slot.status === "cancelled") throw new Error("El cupo ya estaba bloqueado.");
+      // Schema allows 'open' | 'full' | 'cancelled' — only open slots are
+      // blockable, even if a future writer starts persisting 'full'.
+      if (slot.status !== "open") throw new Error("Solo se pueden bloquear cupos abiertos.");
+      if (slot.bookingsCount > 0) {
+        throw new Error("No podés bloquear un cupo con reservas confirmadas.");
+      }
+
+      // Verify the slot belongs to this org's offerings.
+      const [offering] = await tx
+        .select({ id: serviceOfferings.id })
+        .from(serviceOfferings)
+        .where(
+          and(
+            eq(serviceOfferings.id, slot.serviceOfferingId),
+            eq(serviceOfferings.organizationId, organization.id),
+          ),
+        )
+        .limit(1);
+
+      if (!offering) throw new Error("El cupo no pertenece a esta organización.");
+
+      await tx
+        .update(timeSlots)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(eq(timeSlots.id, slotId));
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Error al bloquear el cupo." };
+  }
+
+  revalidatePath(`/org/${orgToken}/agenda`);
+  return { ok: true };
 }

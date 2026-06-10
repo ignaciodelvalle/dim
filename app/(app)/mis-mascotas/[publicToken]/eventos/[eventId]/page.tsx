@@ -78,6 +78,21 @@ export default async function EventDetailPage({
         {summary.secondary && (
           <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">{summary.secondary}</p>
         )}
+        {/* Author chip */}
+        <div className="mt-[10px] flex flex-wrap items-center gap-[6px]">
+          <AuthorChip role={event.authorRole} verified={event.authorVerified} />
+        </div>
+      </div>
+
+      {/* Append-only banner */}
+      <div
+        className="mb-[16px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[10px]"
+        role="note"
+      >
+        <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+          Este registro no se puede editar ni borrar — la libreta es un historial inmutable. Para
+          aclarar, agregá una nota al historial.
+        </p>
       </div>
 
       <div className="flex flex-col gap-[16px]">
@@ -199,6 +214,35 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
     </div>
+  );
+}
+
+const AUTHOR_ROLE_LABELS: Record<string, string> = {
+  owner: "Dueño/a",
+  vet: "Veterinario/a",
+  shelter: "Refugio",
+  govt: "Autoridad pública",
+  system: "Sistema",
+  scanner: "Lector de chip",
+  finder: "Hallador",
+};
+
+function AuthorChip({ role, verified }: { role: string; verified: boolean }) {
+  const label = AUTHOR_ROLE_LABELS[role] ?? role;
+  return (
+    <span className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[9px] py-[3px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-ink-2)]">
+      {label}
+      {verified && (
+        <span
+          className="inline-flex h-[13px] w-[13px] items-center justify-center rounded-full bg-[var(--color-ln-ok)] text-white"
+          title="Verificado"
+          aria-label="verificado"
+          style={{ fontSize: 8 }}
+        >
+          ✓
+        </span>
+      )}
+    </span>
   );
 }
 

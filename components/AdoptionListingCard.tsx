@@ -46,6 +46,8 @@ export function AdoptionListingCard({
   if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel));
 
   const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const isNew = Date.now() - new Date(item.adoptionListedAt).getTime() < SEVEN_DAYS_MS;
 
   return (
     <li className="rounded-xl border border-ln-line overflow-hidden bg-ln-card hover:shadow-lg transition-shadow">
@@ -62,6 +64,7 @@ export function AdoptionListingCard({
               {item.name.charAt(0).toUpperCase()}
             </div>
           )}
+          {/* Top-left: sterilized / chip health chips */}
           {(item.isSterilized || item.microchipId) && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
@@ -75,6 +78,19 @@ export function AdoptionListingCard({
                 </span>
               )}
             </div>
+          )}
+          {/* Top-right: "Nuevo" badge for recently listed pets (≤7 days) */}
+          {isNew && (
+            <span
+              className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+              style={{
+                background: "var(--color-ln-ok-050)",
+                color: "var(--color-ln-ok)",
+                borderColor: "var(--color-ln-ok-100)",
+              }}
+            >
+              Nuevo
+            </span>
           )}
         </div>
         <div className="p-4 space-y-2">

@@ -54,8 +54,8 @@ export type LnChipProps = {
 
 const selectedClasses: Record<LnChipTone, string> = {
   azul: "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul-700)]",
-  rojo: "border-[var(--color-ln-err)] bg-[#fbe9e6] text-[var(--color-ln-err)]",
-  amber: "border-[var(--color-ln-warn)] bg-[#fdf2e0] text-[var(--color-ln-warn)]",
+  rojo: "border-[var(--color-ln-err)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-err)]",
+  amber: "border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
 };
 
 export function LnChip({

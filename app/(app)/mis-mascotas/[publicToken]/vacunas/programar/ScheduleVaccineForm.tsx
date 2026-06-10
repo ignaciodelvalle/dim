@@ -3,11 +3,18 @@
 import type { ReminderFormState } from "@/app/actions/reminders";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { vaccinesForSpecies } from "@/lib/lookups";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: ReminderFormState = { error: null };
 
 type FormAction = (prev: ReminderFormState, formData: FormData) => Promise<ReminderFormState>;
+
+/** ISO date string (YYYY-MM-DD) from today + N months. */
+function isoDateFromNowPlusMonths(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
 
 export function ScheduleVaccineForm({
   action,
@@ -18,6 +25,18 @@ export function ScheduleVaccineForm({
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const vaccines = vaccinesForSpecies(species);
+  const [suggestedDate, setSuggestedDate] = useState<string>("");
+  const [dateValue, setDateValue] = useState<string>("");
+
+  function handleVaccineChange(name: string) {
+    const def = vaccines.find((v) => v.name.toLowerCase() === name.trim().toLowerCase());
+    if (def?.intervalMonths) {
+      const suggested = isoDateFromNowPlusMonths(def.intervalMonths);
+      setSuggestedDate(suggested);
+      // Pre-fill the date only if the user hasn't already entered one.
+      setDateValue((prev) => (prev ? prev : suggested));
+    }
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -33,6 +52,7 @@ export function ScheduleVaccineForm({
             autoComplete="off"
             aria-describedby={describedBy}
             invalid={invalid}
+            onChange={(e) => handleVaccineChange(e.target.value)}
           />
         )}
       </LnField>
@@ -42,13 +62,23 @@ export function ScheduleVaccineForm({
         ))}
       </datalist>
 
-      <LnField label="Fecha estimada" required>
+      <LnField
+        label="Fecha estimada"
+        required
+        hint={
+          suggestedDate
+            ? "Fecha sugerida según el intervalo de la vacuna. Podés ajustarla."
+            : undefined
+        }
+      >
         {({ id, describedBy, invalid }) => (
           <LnInput
             id={id}
             name="dueAt"
             type="date"
             required
+            value={dateValue}
+            onChange={(e) => setDateValue(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />

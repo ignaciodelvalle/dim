@@ -5,8 +5,12 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
+  type DashboardJurisdiction,
+  GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
@@ -17,25 +21,18 @@ import {
 import { AcquisitionChart } from "./_components/AcquisitionChart";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 
-// All Argentine provinces in the GeoJSON placeholder -- mirrors /gob/vigilancia.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Cordoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucuman" },
-  { code: "AR-E", name: "Entre Rios" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
+export const dynamic = "force-dynamic";
 
 export default async function GobAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    province?: string;
+    locality?: string;
+  }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
@@ -57,23 +54,51 @@ export default async function GobAnalyticsPage({
     );
   }
 
-  // searchParams are consumed for PeriodPicker persistence; fetchers v1 use
-  // fixed windows per spec (12m rolling). Period-aware queries are a follow-up.
-  void searchParams;
+  const sp = await searchParams;
+
+  // Resolve selected province ISO code → Province object + localities list.
+  const selectedProvinceIso = sp.province ?? null;
+  const selectedLocalitySlug = sp.locality ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  const localities =
+    selectedProvinceObj != null
+      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : [];
+
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
+
+  // Narrow the jurisdictions array to the selected province/locality when a filter
+  // is active. Admin short-circuits inside the fetchers so we leave jurisdictions
+  // unchanged for admins.
+  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalityRow) {
+      filteredJurisdictions = jurisdictions.filter(
+        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+      );
+    } else {
+      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+    }
+  }
 
   const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerCapita] =
     await Promise.all([
-      fetchAnalyticsMetrics(actor, jurisdictions),
-      fetchAcquisitionTrend(actor, jurisdictions),
-      fetchDeathCauses(actor, jurisdictions),
-      fetchOutbreakHistory(actor, jurisdictions),
-      fetchCasesPerCapita(actor, jurisdictions),
+      fetchAnalyticsMetrics(actor, filteredJurisdictions),
+      fetchAcquisitionTrend(actor, filteredJurisdictions),
+      fetchDeathCauses(actor, filteredJurisdictions),
+      fetchOutbreakHistory(actor, filteredJurisdictions),
+      fetchCasesPerCapita(actor, filteredJurisdictions),
     ]);
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =
     profile.role === "admin"
-      ? ALL_PROVINCES
+      ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
@@ -114,7 +139,7 @@ export default async function GobAnalyticsPage({
 
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
         <PeriodPicker defaultPreset="30d" />
       </div>
 

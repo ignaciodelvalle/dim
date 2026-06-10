@@ -33,18 +33,20 @@ const SEVERITY_CARDS: SeverityCard[] = [
     label: "Grave / urgente",
     description: "El animal está en peligro inmediato o hay heridas visibles",
     icon: "🚨",
-    baseClass: "border-[#f1c6bf] bg-[#fbe9e6] text-[var(--color-ln-seal)]",
+    baseClass:
+      "border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]",
     selectedClass:
-      "border-[#f1c6bf] bg-[#fbe9e6] text-[var(--color-ln-seal)] shadow-[0_0_0_3px_rgba(162,58,44,.16)]",
+      "border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] shadow-[0_0_0_3px_rgba(162,58,44,.16)]",
   },
   {
     value: "moderado",
     label: "Moderado",
     description: "Condiciones de vida malas, abandono, descuido sostenido",
     icon: "⚠️",
-    baseClass: "border-[#f0dcb4] bg-[#fdf6ea] text-[var(--color-ln-warn)]",
+    baseClass:
+      "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] text-[var(--color-ln-warn)]",
     selectedClass:
-      "border-[#f0dcb4] bg-[#fdf6ea] text-[var(--color-ln-warn)] shadow-[0_0_0_3px_rgba(176,119,26,.16)]",
+      "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] text-[var(--color-ln-warn)] shadow-[0_0_0_3px_rgba(176,119,26,.16)]",
   },
   {
     value: "sospecha",

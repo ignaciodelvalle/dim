@@ -1,6 +1,6 @@
-// Admin approval queue. Lists pending capability requests for the active org,
-// plus the most recent approvals (so an admin can revoke without scrolling
-// through the audit trail). Layout gates on capability.grant.
+// Admin approval queue + member × capability matrix.
+// Lists pending capability requests, recent approvals, and a full matrix of
+// who has what (implicit via role vs explicit grant). Layout gates on capability.grant.
 
 import {
   OpCard,
@@ -11,10 +11,16 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
+import { ORGANIZATION_CAPABILITIES } from "@/db/schema";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import {
+  CAPABILITY_CATALOG,
+  resolveGrantedCaps,
+} from "@/src/modules/organizations/domain/capabilities";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
+import type { MatrixColumn, MatrixMember } from "./CapabilityMatrix";
+import { CapabilityMatrix } from "./CapabilityMatrix";
 import { DecideForm } from "./DecideForm";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -25,6 +31,19 @@ const ROLE_LABELS: Record<string, string> = {
   foster: "Tránsito",
   vet_individual: "Veterinario/a",
 };
+
+// Caps in ORGANIZATION_CAPABILITIES but absent from CAPABILITY_CATALOG get a fallback label.
+const EXTRA_CAP_LABELS: Record<string, string> = {
+  "org.transfer.propose": "Proponer transferencia",
+  "org.transfer.accept": "Aceptar transferencia",
+};
+
+// Full ordered column list: catalog order first, then extras.
+const CATALOG_MAP = new Map(CAPABILITY_CATALOG.map((e) => [e.capability as string, e.label]));
+const MATRIX_COLUMNS: MatrixColumn[] = ORGANIZATION_CAPABILITIES.map((cap) => ({
+  capability: cap,
+  label: CATALOG_MAP.get(cap) ?? EXTRA_CAP_LABELS[cap] ?? cap,
+}));
 
 const LABEL_BY_CAPABILITY = new Map(
   CAPABILITY_CATALOG.map((entry) => [entry.capability as string, entry.label]),
@@ -41,9 +60,9 @@ export default async function PermisosPage({
   params: Promise<{ orgToken: string }>;
 }) {
   const { orgToken } = await params;
-  const { organization } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership: callerMembership } = await requireOrgAccessByToken(orgToken);
 
-  // Pending requests come first, then the most-recent 20 decisions for context.
+  // --- Query 1: pending + approved grants for the requests queue ---
   const rows = await db
     .select({
       id: organizationCapabilityGrants.id,
@@ -73,6 +92,68 @@ export default async function PermisosPage({
 
   const pending = rows.filter((r) => r.status === "pending");
   const approved = rows.filter((r) => r.status === "approved");
+
+  // --- Query 2 (matrix): active members + all approved grants for the org ---
+  // Two flat queries; implicit caps resolved in memory — no per-member DB round trips.
+  const [activeMembers, approvedGrants] = await Promise.all([
+    db
+      .select({
+        membershipId: organizationMemberships.id,
+        userId: organizationMemberships.userId,
+        role: organizationMemberships.role,
+        displayName: profiles.displayName,
+      })
+      .from(organizationMemberships)
+      .innerJoin(profiles, eq(profiles.id, organizationMemberships.userId))
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, organization.id),
+          isNull(organizationMemberships.leftAt),
+        ),
+      ),
+    db
+      .select({
+        id: organizationCapabilityGrants.id,
+        membershipId: organizationCapabilityGrants.membershipId,
+        capability: organizationCapabilityGrants.capability,
+      })
+      .from(organizationCapabilityGrants)
+      .where(
+        and(
+          eq(organizationCapabilityGrants.organizationId, organization.id),
+          eq(organizationCapabilityGrants.status, "approved"),
+        ),
+      ),
+  ]);
+
+  // Build per-membership explicit grant index: membershipId → { capability → grantId }
+  const grantsByMembership = new Map<string, Record<string, string>>();
+  for (const g of approvedGrants) {
+    let m = grantsByMembership.get(g.membershipId);
+    if (!m) {
+      m = {};
+      grantsByMembership.set(g.membershipId, m);
+    }
+    m[g.capability] = g.id;
+  }
+
+  // Resolve implicit caps per member using pure domain function (no extra DB calls).
+  const matrixMembers: MatrixMember[] = activeMembers.map((m) => {
+    const explicitGrants = grantsByMembership.get(m.membershipId) ?? {};
+    const resolvedSet = resolveGrantedCaps(m.role, Object.keys(explicitGrants));
+    // Implicit = in resolvedSet but NOT an explicit grant row.
+    const implicitCaps = new Set<string>();
+    for (const cap of resolvedSet) {
+      if (!explicitGrants[cap]) implicitCaps.add(cap);
+    }
+    return {
+      membershipId: m.membershipId,
+      displayName: m.displayName ?? m.userId,
+      role: m.role,
+      explicitGrants,
+      implicitCaps,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -172,6 +253,26 @@ export default async function PermisosPage({
               ))}
             </ul>
           )}
+        </OpCardBody>
+      </OpCard>
+
+      {/* Member × capability matrix */}
+      <OpCard>
+        <OpCardHead
+          title="Matriz de permisos"
+          actions={
+            <span className="text-[11px] font-normal text-ln-op-mute">
+              Solo lectura · los permisos explícitos son revocables
+            </span>
+          }
+        />
+        <OpCardBody>
+          <CapabilityMatrix
+            members={matrixMembers}
+            columns={MATRIX_COLUMNS}
+            organizationId={organization.id}
+            callerMembershipId={callerMembership.id}
+          />
         </OpCardBody>
       </OpCard>
 

@@ -755,7 +755,7 @@ Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar ·
 
 | Estado | Feature | Ruta / surface |
 |---|---|---|
-| ✅ | Signup con primera-mascota inline + Mi Argentina placeholder | `/signup` |
+| ✅ | Signup dos pasos (cuenta → identidad) + Mi Argentina placeholder | `/signup` |
 | ✅ | Login (email/password + Mi Argentina placeholder) | `/login` |
 | ✅ | Lista de mascotas | `/mis-mascotas` |
 | ✅ | Pet profile + event timeline | `/mis-mascotas/[publicToken]` |

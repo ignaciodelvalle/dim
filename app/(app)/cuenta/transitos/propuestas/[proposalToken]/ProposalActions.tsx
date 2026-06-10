@@ -100,7 +100,7 @@ export function ProposalActions({
 
   if (okMessage) {
     return (
-      <p className="text-sm rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] px-3 py-2 text-[var(--color-ln-ok)]">
+      <p className="text-sm rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
         {okMessage}
       </p>
     );
@@ -108,7 +108,7 @@ export function ProposalActions({
 
   if (mode === "accept") {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-3">
+      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
         <h3 className="font-medium text-[var(--color-ln-ok)]">Aceptar tránsito de {petName}</h3>
         <LnCheckbox checked={allowCoFoster} onChange={(e) => setAllowCoFoster(e.target.checked)}>
           Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo

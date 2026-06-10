@@ -89,7 +89,7 @@ export default async function AsistenciaPresentarPage({
             className="h-[144px] w-[144px] rounded-full object-cover shadow-md ring-4 ring-[var(--color-ln-ok)]"
           />
         ) : (
-          <div className="flex h-[144px] w-[144px] items-center justify-center rounded-full bg-[#eef6f0] text-6xl shadow-md ring-4 ring-[var(--color-ln-ok)]">
+          <div className="flex h-[144px] w-[144px] items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-6xl shadow-md ring-4 ring-[var(--color-ln-ok)]">
             🦮
           </div>
         )}

@@ -3,9 +3,61 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_NAV, GOB_NAV, OWNER_NAV, buildOrgNav } from "./nav-presets";
 
+const ALL_GATED_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
+
 describe("buildOrgNav", () => {
-  it("produces exactly 9 items (includes Miembros + Cobertura + Configuración + Maltrato entries)", () => {
-    expect(buildOrgNav("ORG-ABC")).toHaveLength(9);
+  it("produces 14 membership-only items when no capabilities are passed", () => {
+    expect(buildOrgNav("ORG-ABC")).toHaveLength(14);
+  });
+
+  it("produces 17 items when all gated capabilities are granted", () => {
+    expect(buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(17);
+  });
+
+  it("hides Ingresos, Check-ins and Permisos without their capabilities", () => {
+    const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
+    expect(labels).not.toContain("Ingresos");
+    expect(labels).not.toContain("Check-ins");
+    expect(labels).not.toContain("Permisos");
+  });
+
+  it("shows each gated item only with its own capability", () => {
+    const intakeOnly = buildOrgNav("ORG-ABC", { granted: new Set(["intake.create"]) }).map(
+      (i) => i.label,
+    );
+    expect(intakeOnly).toContain("Ingresos");
+    expect(intakeOnly).not.toContain("Check-ins");
+    expect(intakeOnly).not.toContain("Permisos");
+  });
+
+  it("contains the previously missing membership-level sections", () => {
+    const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
+    expect(labels).toContain("Tránsitos");
+    expect(labels).toContain("Voluntarios");
+    expect(labels).toContain("Transferencias");
+    expect(labels).toContain("Casos");
+    expect(labels).toContain("Mordeduras");
+  });
+
+  it("Mordeduras entry points to the report form (no index page under /mordedura)", () => {
+    const items = buildOrgNav("ORG-ABC");
+    const mordeduras = items.find((i) => i.label === "Mordeduras");
+    expect(mordeduras?.href).toBe("/org/ORG-ABC/mordedura/nuevo");
+    expect(mordeduras?.matchPrefix).toBe("/org/ORG-ABC/mordedura");
+  });
+
+  it("Permisos entry points to /admin/permisos and highlights the /admin segment", () => {
+    const items = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const permisos = items.find((i) => i.label === "Permisos");
+    expect(permisos?.href).toBe("/org/ORG-ABC/admin/permisos");
+    expect(permisos?.matchPrefix).toBe("/org/ORG-ABC/admin");
+  });
+
+  it("does not leak requiredCapability into the returned NavItem objects", () => {
+    const items = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    for (const item of items) {
+      expect("requiredCapability" in item).toBe(false);
+    }
   });
 
   it("does not contain an equipo entry (broken nav — ADR-4: no roadmap signal → remove)", () => {

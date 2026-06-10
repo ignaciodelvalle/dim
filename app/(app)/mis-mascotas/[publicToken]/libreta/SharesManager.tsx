@@ -227,7 +227,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                     type="submit"
                     disabled={revokePending && revokingId === share.id}
                     onClick={() => setRevokingId(share.id)}
-                    className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[#fbe9e6] transition-colors disabled:opacity-50"
+                    className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
                   >
                     Revocar
                   </button>

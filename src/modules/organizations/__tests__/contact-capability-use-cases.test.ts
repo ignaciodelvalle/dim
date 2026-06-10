@@ -2,6 +2,7 @@
 //   - submitOrgContact
 //   - requestCapability
 //   - decideCapability
+//   - grantCapability
 //
 // Strategy: mock repo; test pure business logic only.
 // Auth is NOT in use-cases — done at the action edge.
@@ -11,6 +12,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { decideCapability } from "@/src/modules/organizations/application/decide-capability";
+import { grantCapability } from "@/src/modules/organizations/application/grant-capability";
 import { requestCapability } from "@/src/modules/organizations/application/request-capability";
 import { submitOrgContact } from "@/src/modules/organizations/application/submit-org-contact";
 
@@ -433,5 +435,188 @@ describe("decideCapability", () => {
     expect((result as { ok: false; error: string }).error).toBe(
       "Otro permiso ya está activo para este miembro.",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// grantCapability
+// ---------------------------------------------------------------------------
+
+describe("grantCapability", () => {
+  const activeOrg = {
+    organization: {
+      id: "org-1",
+      displayName: "Refugio Test",
+      publicToken: "tok-org",
+    },
+    membership: {
+      id: "mem-admin",
+      role: "admin",
+      organizationId: "org-1",
+    },
+  };
+
+  function makeMembership(role = "member") {
+    return {
+      id: "mem-target",
+      userId: "user-target",
+      organizationId: "org-1",
+      role: role as "member" | "admin" | "coordinator" | "volunteer" | "foster" | "vet_individual",
+      title: null,
+      canWritePetEvents: false,
+      joinedAt: new Date(),
+      leftAt: null,
+      invitedByUserId: null,
+      receivesBroadcasts: true,
+    };
+  }
+
+  function makeGrantRow() {
+    return {
+      id: "grant-new",
+      membershipId: "mem-target",
+      organizationId: "org-1",
+      capability: "foster.assign",
+      status: "approved" as const,
+      requestedAt: new Date(),
+      requestedReason: null,
+      decidedAt: null,
+      decidedByUserId: null,
+      decisionReason: null,
+    };
+  }
+
+  function makeRepo(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      findActiveMembership: vi.fn().mockResolvedValue(makeMembership()),
+      insertGrant: vi.fn().mockResolvedValue(makeGrantRow()),
+      updateGrant: vi.fn().mockResolvedValue(undefined),
+      findGrantMemberUserId: vi.fn().mockResolvedValue("user-target"),
+      ...overrides,
+    };
+  }
+
+  const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+    return cb({});
+  });
+
+  const isUniqueViolation = vi.fn().mockReturnValue(false);
+
+  const baseInput = {
+    granterId: "admin-1",
+    membershipId: "mem-target",
+    capability: "foster.assign",
+    active: activeOrg,
+    granted: new Set(["capability.grant"]),
+  };
+
+  it("inserts an approved grant and queues notification for the recipient", async () => {
+    const repo = makeRepo();
+    const result = await grantCapability(baseInput, { repo, transaction: txFn, isUniqueViolation });
+
+    expect(result.ok).toBe(true);
+    expect(repo.insertGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        membershipId: "mem-target",
+        organizationId: "org-1",
+        capability: "foster.assign",
+        status: "approved",
+        requestedReason: null,
+      }),
+      expect.anything(),
+    );
+    expect(repo.updateGrant).toHaveBeenCalledWith(
+      "grant-new",
+      expect.objectContaining({ status: "approved", decidedByUserId: "admin-1" }),
+      expect.anything(),
+    );
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.notifications).toHaveLength(1);
+    expect(result.notifications[0].userId).toBe("user-target");
+    expect(result.notifications[0].severity).toBe("success");
+  });
+
+  it("returns error when caller lacks capability.grant", async () => {
+    const repo = makeRepo();
+    const result = await grantCapability(
+      { ...baseInput, granted: new Set(["foster.assign"]) },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toBe(
+      "No tenés permiso para conceder capacidades.",
+    );
+  });
+
+  it("returns error for unknown capability", async () => {
+    const repo = makeRepo();
+    const result = await grantCapability(
+      { ...baseInput, capability: "nonexistent.cap" },
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toBe("Permiso no reconocido.");
+  });
+
+  it("returns error when target membership not found or not in org", async () => {
+    const repo = makeRepo({ findActiveMembership: vi.fn().mockResolvedValue(null) });
+    const result = await grantCapability(baseInput, { repo, transaction: txFn, isUniqueViolation });
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/no pertenece/i);
+  });
+
+  it("returns error when target is admin role (already has all caps)", async () => {
+    const repo = makeRepo({
+      findActiveMembership: vi.fn().mockResolvedValue(makeMembership("admin")),
+    });
+    const result = await grantCapability(baseInput, { repo, transaction: txFn, isUniqueViolation });
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/administradores/i);
+  });
+
+  it("returns error when vet_individual tries to get an implicit cap", async () => {
+    const repo = makeRepo({
+      findActiveMembership: vi.fn().mockResolvedValue(makeMembership("vet_individual")),
+    });
+    const result = await grantCapability(
+      { ...baseInput, capability: "event.write" }, // vet implicit cap
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/impl/i);
+  });
+
+  it("returns error when coordinator tries to get an implicit cap", async () => {
+    const repo = makeRepo({
+      findActiveMembership: vi.fn().mockResolvedValue(makeMembership("coordinator")),
+    });
+    const result = await grantCapability(
+      { ...baseInput, capability: "member.invite" }, // coordinator implicit cap
+      { repo, transaction: txFn, isUniqueViolation },
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/impl/i);
+  });
+
+  it("returns idempotent unique-violation error for duplicate active grant", async () => {
+    const repo = makeRepo({
+      insertGrant: vi.fn().mockRejectedValue(new Error("unique_violation")),
+    });
+    const isUniqueViolationTrue = vi.fn().mockReturnValue(true);
+    const result = await grantCapability(baseInput, {
+      repo,
+      transaction: txFn,
+      isUniqueViolation: isUniqueViolationTrue,
+    });
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/activo o pendiente/i);
+  });
+
+  it("does not queue notification when recipient userId not found", async () => {
+    const repo = makeRepo({ findGrantMemberUserId: vi.fn().mockResolvedValue(null) });
+    const result = await grantCapability(baseInput, { repo, transaction: txFn, isUniqueViolation });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.notifications).toHaveLength(0);
   });
 });

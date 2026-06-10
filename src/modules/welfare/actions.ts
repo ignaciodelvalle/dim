@@ -24,7 +24,13 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { db, type notifications, organizationMemberships, organizations } from "@/db";
+import {
+  db,
+  type notifications,
+  organizationMemberships,
+  organizations,
+  welfareReports,
+} from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import {
   requireAdminOrGovtOrRedirect,
@@ -102,6 +108,7 @@ async function flushNotifications(
     severity: "info" | "success" | "warning" | "urgent";
     ctaLabel?: string | null;
     ctaUrl?: string | null;
+    category?: string | null;
   }>,
 ): Promise<void> {
   if (pending.length === 0) return;
@@ -303,6 +310,112 @@ export async function unassignWelfareAction(reportId: string): Promise<AssignRes
 
   revalidatePath("/gob/maltrato");
   revalidatePath(`/gob/maltrato/${reportId}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// deriveWelfareToOrgAction — R7
+// ---------------------------------------------------------------------------
+//
+// AUTH SCOPE: requireAdminOrGovtOrRedirect + jurisdiction scope (mirrors triage).
+// Forwards a non-terminal welfare report to a verified shelter / rescue_network
+// for follow-up. Sets derived_to_organization_id / derived_at / derived_by_user_id,
+// notifies active org members (cap 10), writes an audit_log entry.
+//
+// Idempotent: re-deriving overwrites the previous derivation target. Known
+// limitation: the previous org is NOT de-notified — its members keep a stale
+// notification whose report no longer appears in their inbox.
+// Rejected for terminal statuses (closed / invalid / duplicate).
+
+export type DeriveWelfareToOrgResult = { ok: true } | { ok: false; error: string };
+
+export async function deriveWelfareToOrgAction(input: {
+  welfareReportId: string;
+  targetOrgId: string;
+}): Promise<DeriveWelfareToOrgResult> {
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+
+  const loaded = await loadAndVerifyScope(input.welfareReportId, profile, jurisdictions);
+  if ("error" in loaded) return { ok: false, error: loaded.error };
+
+  const report = loaded.row;
+
+  // Guard: terminal reports cannot be derived.
+  if (report.status === "closed" || report.status === "invalid" || report.status === "duplicate") {
+    return { ok: false, error: "No se puede derivar una denuncia cerrada o inválida." };
+  }
+
+  // Verify the target org exists, is verified, and is shelter or rescue_network.
+  const [targetOrg] = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      publicToken: organizations.publicToken,
+      verified: organizations.verified,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, input.targetOrgId))
+    .limit(1);
+
+  if (!targetOrg) return { ok: false, error: "Organización no encontrada." };
+  if (!targetOrg.verified) return { ok: false, error: "La organización no está verificada." };
+  if (targetOrg.orgType !== "shelter" && targetOrg.orgType !== "rescue_network") {
+    return { ok: false, error: "Solo se puede derivar a refugios o redes de rescate verificados." };
+  }
+
+  // Persist derivation fields.
+  await db
+    .update(welfareReports)
+    .set({
+      derivedToOrganizationId: targetOrg.id,
+      derivedAt: new Date(),
+      derivedByUserId: user.id,
+    })
+    .where(eq(welfareReports.id, input.welfareReportId));
+
+  // Audit log — same pattern as create-org-welfare-report.
+  await repo.insertAudit({
+    actorUserId: user.id,
+    action: "welfare_report_derived_to_org",
+    targetOrganizationId: targetOrg.id,
+    payload: {
+      welfareReportId: input.welfareReportId,
+      referenceCode: report.referenceCode,
+      targetOrgId: targetOrg.id,
+      targetOrgDisplayName: targetOrg.displayName,
+    },
+  });
+
+  // Notify active org members (cap 10) — use publicToken in ctaUrl (NEVER UUID).
+  const memberRows = await db
+    .select({ userId: organizationMemberships.userId })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, targetOrg.id),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(10);
+
+  const ctaUrl = `/org/${targetOrg.publicToken}/maltrato/recibidos?tab=recibidos`;
+  const pendingNotifications = memberRows.map((m) => ({
+    userId: m.userId,
+    notificationType: "welfare_report_derived_to_org",
+    title: "Nueva derivación de denuncia",
+    body: `El gobierno derivó la denuncia ${report.referenceCode} a tu organización para seguimiento.`,
+    severity: "warning" as const,
+    ctaLabel: "Ver denuncia",
+    ctaUrl,
+    category: "welfare",
+  }));
+
+  await flushNotifications(pendingNotifications);
+
+  revalidatePath("/gob/maltrato");
+  revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
+  revalidatePath(`/org/${targetOrg.publicToken}/maltrato/recibidos`);
   return { ok: true };
 }
 

@@ -1,13 +1,20 @@
-// 30-day rollup table grouped by disease, with sub-counts for 7d and 24h.
+// Period rollup table grouped by disease, with sub-counts for 7d and 24h.
 // Server component — receives the pre-computed summary from the page.
+// `windowDays` labels the total column (the fetch window); defaults to 30.
 
 import type { DiseaseSummary } from "@/lib/govt-dashboards";
 
-export function DiseaseSummaryTable({ summary }: { summary: DiseaseSummary[] }) {
+export function DiseaseSummaryTable({
+  summary,
+  windowDays = 30,
+}: {
+  summary: DiseaseSummary[];
+  windowDays?: number;
+}) {
   if (summary.length === 0) {
     return (
       <p className="text-[13px] text-ln-op-mute">
-        No hay señales en los últimos 30 días en tu cobertura.
+        No hay señales en los últimos {windowDays} días en tu cobertura.
       </p>
     );
   }
@@ -19,7 +26,7 @@ export function DiseaseSummaryTable({ summary }: { summary: DiseaseSummary[] }) 
             <th className="px-4 py-2">Enfermedad</th>
             <th className="px-3 py-2 text-right">24h</th>
             <th className="px-3 py-2 text-right">7 días</th>
-            <th className="px-3 py-2 text-right">30 días</th>
+            <th className="px-3 py-2 text-right">{windowDays} días</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-ln-op-line-2">

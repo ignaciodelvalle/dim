@@ -101,7 +101,7 @@ export function LostLastSeenCard({
           </div>
         </div>
       ) : (
-        <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-[#eef6f0] to-ln-celeste/10  ">
+        <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  ">
           <div className="absolute inset-0 flex items-center justify-center">
             <span aria-hidden className="text-4xl drop-shadow">
               📍

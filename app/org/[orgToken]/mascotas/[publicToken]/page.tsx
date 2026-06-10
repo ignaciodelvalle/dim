@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { fetchPendingOwnerReturnProposalForOrg } from "@/app/actions/return-to-owner";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/dashboard";
 
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";
+import { OwnerReturnProposalCard } from "./OwnerReturnProposalCard";
 
 export default async function OrgPetDetailPage({
   params,
@@ -112,6 +114,38 @@ export default async function OrgPetDetailPage({
         )
         .limit(1);
       canProposeReturn = !!subsequentTransfer;
+    }
+  }
+
+  // Pending owner-initiated return proposal (owner proposes returning the pet to this org).
+  // Surfaced when the org has custody.transfer capability. The proposal is for pets the
+  // org previously adopted out — the adopter now wants to return them.
+  let pendingOwnerReturn: {
+    ownerDisplayName: string | null;
+    proposedAt: string;
+    proposalNotes: string | null;
+  } | null = null;
+
+  if (granted.has("custody.transfer")) {
+    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id);
+    if (pending) {
+      const proposalPayload = pending.proposal.payload as Record<string, unknown>;
+      const notes = (proposalPayload.notes as string | null) ?? null;
+      const proposedAt =
+        (proposalPayload.proposed_at as string | null) ?? pending.proposal.occurredAt.toISOString();
+
+      // Resolve owner display name.
+      const [ownerProfile] = await db
+        .select({ displayName: profiles.displayName })
+        .from(profiles)
+        .where(eq(profiles.id, pending.ownerUserId))
+        .limit(1);
+
+      pendingOwnerReturn = {
+        ownerDisplayName: ownerProfile?.displayName ?? null,
+        proposedAt,
+        proposalNotes: notes,
+      };
     }
   }
 
@@ -250,6 +284,18 @@ export default async function OrgPetDetailPage({
               )}
             </div>
           </section>
+        )}
+
+        {/* Pending owner-initiated return proposal */}
+        {pendingOwnerReturn && (
+          <OwnerReturnProposalCard
+            orgToken={orgToken}
+            petPublicToken={publicToken}
+            petName={pet.name}
+            ownerDisplayName={pendingOwnerReturn.ownerDisplayName}
+            proposedAt={pendingOwnerReturn.proposedAt}
+            proposalNotes={pendingOwnerReturn.proposalNotes}
+          />
         )}
 
         {/* Sheet mounter */}

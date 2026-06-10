@@ -100,7 +100,7 @@ function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
               key={card.id}
               className={`flex items-start gap-3 rounded-[4px] border px-4 py-3 ${
                 card.enabled
-                  ? "cursor-pointer border-[var(--color-ln-line-strong)] has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[#eef6f0]"
+                  ? "cursor-pointer border-[var(--color-ln-line-strong)] has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
                   : "border-dashed border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] opacity-60 cursor-not-allowed"
               }`}
               title={card.enabled ? undefined : "Próximamente"}
@@ -162,7 +162,7 @@ function ActiveStatusCard({
     minute: "2-digit",
   });
   return (
-    <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-3">
+    <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-ok)]">
           Tier 2 activo
@@ -181,7 +181,7 @@ function ActiveStatusCard({
           href={`/p/${petPublicToken}`}
           target="_blank"
           rel="noreferrer"
-          className="flex-1 text-center px-4 py-2 rounded-[3px] border border-[var(--color-ln-ok)] text-[var(--color-ln-ok)] text-sm font-medium hover:bg-[#eef6f0]"
+          className="flex-1 text-center px-4 py-2 rounded-[3px] border border-[var(--color-ln-ok)] text-[var(--color-ln-ok)] text-sm font-medium hover:bg-[var(--color-ln-ok-050)]"
         >
           Ver la credencial pública →
         </Link>

@@ -37,15 +37,15 @@ type ApplicationRow = {
 const STATUS_CONFIG: Record<ApplicationStatus, { label: string; cls: string }> = {
   pending: {
     label: "En revisión",
-    cls: "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]",
+    cls: "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
   },
   approved: {
     label: "Aprobada",
-    cls: "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]",
+    cls: "border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]",
   },
   finalized_to_me: {
     label: "¡Finalizada!",
-    cls: "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]",
+    cls: "border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]",
   },
   auto_rejected: {
     label: "Cerrada",
@@ -238,7 +238,7 @@ export default async function MisPostulacionesPage({
           </p>
           <Link
             href="/adoptar"
-            className="mt-[16px] inline-flex items-center rounded-[4px] border border-[#c8e2d2] bg-[#eef6f0] px-[16px] py-[8px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
+            className="mt-[16px] inline-flex items-center rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[16px] py-[8px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
           >
             Ver mascotas en adopción
           </Link>

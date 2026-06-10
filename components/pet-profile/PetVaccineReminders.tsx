@@ -67,9 +67,9 @@ function ReminderRow({ reminder, href }: { reminder: VaccineReminder; href: stri
   const soon = !overdue && diffDays <= SOON_DAYS;
 
   const pillClass = overdue
-    ? "bg-[#fbe9e6] text-ln-err  "
+    ? "bg-[var(--color-ln-err-050)] text-ln-err  "
     : soon
-      ? "bg-[#fdf2e0] text-ln-warn  "
+      ? "bg-[var(--color-ln-warn-050)] text-ln-warn  "
       : "bg-ln-stripe text-ln-ink-2  ";
 
   const pillText = overdue

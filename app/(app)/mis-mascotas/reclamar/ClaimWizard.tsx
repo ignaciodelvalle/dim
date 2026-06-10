@@ -4,6 +4,7 @@
 // Step 1: pick identifier kind + value
 // Step 2: render the lookup variant
 // Step 3 (variant B only): submit dispute with evidence + reason
+// Variant "free" (no active custody) claims directly from step 2.
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
@@ -12,13 +13,19 @@ import {
   type ClaimLookupResult,
   lookupForClaimAction,
   submitClaimDisputeAction,
+  submitFreeClaimAction,
 } from "@/app/actions/pet-claim";
 import { LnRadio } from "@/components/ui/Field";
 
 type IdKind = "microchip" | "tattoo";
 
 type Step1State = { phase: "idle"; kind: IdKind; value: string; error: string | null };
-type Step2State = { phase: "result"; lookup: Extract<ClaimLookupResult, { variant: string }> };
+type Step2State = {
+  phase: "result";
+  kind: IdKind;
+  lookup: Extract<ClaimLookupResult, { variant: string }>;
+  error: string | null;
+};
 type Step3State = {
   phase: "dispute";
   petToken: string;
@@ -27,8 +34,9 @@ type Step3State = {
   error: string | null;
 };
 type DoneState = { phase: "submitted"; disputeToken: string; petName: string };
+type ClaimedState = { phase: "claimed"; petToken: string; petName: string };
 
-type WizardState = Step1State | Step2State | Step3State | DoneState;
+type WizardState = Step1State | Step2State | Step3State | DoneState | ClaimedState;
 
 const INITIAL: Step1State = {
   phase: "idle",
@@ -42,9 +50,29 @@ export function ClaimWizard() {
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
+  if (state.phase === "claimed") {
+    return (
+      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
+        <p className="text-base font-semibold text-[var(--color-ln-ok)]">
+          {state.petName} ahora está a tu nombre
+        </p>
+        <p className="mt-1 text-[var(--color-ln-ok)]">
+          Registramos la mascota a tu nombre. Ya podés ver su credencial y completar su libreta
+          sanitaria.
+        </p>
+        <Link
+          href={`/mis-mascotas/${state.petToken}`}
+          className="mt-4 inline-block text-[var(--color-ln-ok)] underline underline-offset-2"
+        >
+          Ver a {state.petName} →
+        </Link>
+      </section>
+    );
+  }
+
   if (state.phase === "submitted") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-6 text-sm">
+      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
         <p className="text-base font-semibold text-[var(--color-ln-ok)]">Reclamo enviado</p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
@@ -74,7 +102,7 @@ export function ClaimWizard() {
               setState({ ...state, error: result.error });
               return;
             }
-            setState({ phase: "result", lookup: result });
+            setState({ phase: "result", kind: state.kind, lookup: result, error: null });
           });
         }}
         className="space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
@@ -142,10 +170,25 @@ export function ClaimWizard() {
     return (
       <ResultStep
         lookup={state.lookup}
+        pending={pending}
+        error={state.error}
         onBack={() => setState(INITIAL)}
         onClaim={(t, n) =>
           setState({ phase: "dispute", petToken: t, petName: n, reason: "", error: null })
         }
+        onFreeClaim={(petToken) => {
+          startTransition(async () => {
+            const result = await submitFreeClaimAction({
+              petToken,
+              identifierKind: state.kind,
+            });
+            if ("error" in result) {
+              setState({ ...state, error: result.error });
+              return;
+            }
+            setState({ phase: "claimed", petToken: result.petToken, petName: result.petName });
+          });
+        }}
       />
     );
   }
@@ -177,7 +220,7 @@ export function ClaimWizard() {
           });
         });
       }}
-      className="space-y-4 rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 text-sm"
+      className="space-y-4 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
     >
       <div className="space-y-1">
         <p className="text-base font-semibold text-[var(--color-ln-warn)]">
@@ -257,13 +300,55 @@ export function ClaimWizard() {
 
 function ResultStep({
   lookup,
+  pending,
+  error,
   onBack,
   onClaim,
+  onFreeClaim,
 }: {
   lookup: Extract<ClaimLookupResult, { variant: string }>;
+  pending: boolean;
+  error: string | null;
   onBack: () => void;
   onClaim: (petToken: string, petName: string) => void;
+  onFreeClaim: (petToken: string) => void;
 }) {
+  // Variant D — free pet (no active custody) → direct claim
+  if (lookup.variant === "free") {
+    return (
+      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
+        <p className="font-medium text-[var(--color-ln-ok)]">
+          Encontramos a {lookup.petName} y no tiene dueño/a registrado/a.
+        </p>
+        <p className="text-[var(--color-ln-ok)]">
+          Podés reclamarla ahora: queda registrada a tu nombre y te emitimos la credencial.
+        </p>
+        {error && (
+          <p className="text-sm text-[var(--color-ln-err)]" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="flex gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={pending}
+            className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] disabled:opacity-50"
+          >
+            Volver
+          </button>
+          <button
+            type="button"
+            onClick={() => onFreeClaim(lookup.petToken)}
+            disabled={pending}
+            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+          >
+            {pending ? "Reclamando…" : "Reclamarla"}
+          </button>
+        </div>
+      </section>
+    );
+  }
   // Variant A — not found → invite to register
   if (lookup.variant === "not_found") {
     return (
@@ -296,7 +381,7 @@ function ResultStep({
   // Deceased gate
   if (lookup.variant === "deceased") {
     return (
-      <section className="space-y-2 rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] p-5 text-sm">
+      <section className="space-y-2 rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-seal)]">
           Esta mascota figura como fallecida en MiMAR.
         </p>
@@ -344,7 +429,7 @@ function ResultStep({
 
   // Variant B — active owner → offer dispute
   return (
-    <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 text-sm">
+    <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
       <p className="font-medium text-[var(--color-ln-warn)]">
         {lookup.petName} ya tiene dueño/a registrado/a
         {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.

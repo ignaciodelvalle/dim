@@ -10,6 +10,7 @@ import Link from "next/link";
 import { OpBreach, OpCard, OpPill } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox } from "@/db";
 import type { OutboxStatus } from "@/db";
+import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { applyOutboxFilters, buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
 
 // Tone map per breach cue value.
@@ -62,6 +63,8 @@ export default async function AdminOutboxPage({
     province?: string;
   }>;
 }) {
+  await requireAdminOrRedirect();
+
   const sp = await searchParams;
   const filters = {
     status: sp.status?.trim() || undefined,
@@ -108,7 +111,7 @@ export default async function AdminOutboxPage({
         <select
           name="status"
           defaultValue={filters.status ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos los estados</option>
           {STATUS_VALUES.map((s) => (
@@ -121,7 +124,7 @@ export default async function AdminOutboxPage({
         <select
           name="target_kind"
           defaultValue={filters.target_kind ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos los destinos</option>
           {TARGET_KIND_VALUES.map((k) => (
@@ -134,7 +137,7 @@ export default async function AdminOutboxPage({
         <select
           name="breach"
           defaultValue={filters.breach ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos (breach o no)</option>
           <option value="yes">Solo incumplimientos SLA</option>
@@ -146,7 +149,7 @@ export default async function AdminOutboxPage({
           name="province"
           defaultValue={filters.province ?? ""}
           placeholder="Provincia (exacta)"
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
 
         <button

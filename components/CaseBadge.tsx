@@ -27,11 +27,11 @@ const KIND_ICON: Record<CaseKind, string> = {
 const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
   open: {
     label: "Abierto",
-    classes: "bg-[#eef6f0] text-ln-ok ring-1 ring-ln-ok   ",
+    classes: "bg-[var(--color-ln-ok-050)] text-ln-ok ring-1 ring-ln-ok   ",
   },
   escalated: {
     label: "Escalado",
-    classes: "bg-[#fdf2e0] text-ln-warn ring-1 ring-ln-warn   ",
+    classes: "bg-[var(--color-ln-warn-050)] text-ln-warn ring-1 ring-ln-warn   ",
   },
   closed: {
     label: "Cerrado",

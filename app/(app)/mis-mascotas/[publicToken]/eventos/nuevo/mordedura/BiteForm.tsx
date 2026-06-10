@@ -95,7 +95,7 @@ export function BiteForm({
                     "flex cursor-pointer items-center justify-center rounded-[3px] border px-[10px] py-[8px]",
                     "font-[var(--font-ln-mono)] text-[11px] font-semibold transition-colors",
                     victimKind === opt.value
-                      ? "border-[var(--color-ln-seal)] bg-[#fbe9e6] text-[var(--color-ln-seal)]"
+                      ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"
                       : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)]",
                   ].join(" ")}
                 >
@@ -188,7 +188,7 @@ export function BiteForm({
           </LnField>
 
           {/* Legal warning + observation checkbox */}
-          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-[14px]">
+          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-[14px]">
             <label className="flex cursor-pointer items-start gap-[10px]">
               <input
                 type="checkbox"

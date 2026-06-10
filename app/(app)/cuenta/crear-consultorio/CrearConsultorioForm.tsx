@@ -30,7 +30,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
 
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de crear tu consultorio, verificá tu DNI.
         </p>

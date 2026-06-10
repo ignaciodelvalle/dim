@@ -36,9 +36,11 @@ const base =
 // Soft bg + colored text + tinted border — same pattern as StatusFlag
 const variantClasses: Record<BadgeVariant, string> = {
   info: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border-[var(--color-ln-celeste-100)]",
-  success: "bg-[#eef6f0] text-[var(--color-ln-ok)] border-[#c8e2d2]",
-  warning: "bg-[#fdf2e0] text-[var(--color-ln-warn)] border-[#f0dcb4]",
-  danger: "bg-[#fbe9e6] text-[var(--color-ln-err)] border-[#f1c6bf]",
+  success: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
+  warning:
+    "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border-[var(--color-ln-warn-100)]",
+  danger:
+    "bg-[var(--color-ln-err-050)] text-[var(--color-ln-err)] border-[var(--color-ln-err-100)]",
   neutral:
     "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)] border-[var(--color-ln-line-strong)]",
 };

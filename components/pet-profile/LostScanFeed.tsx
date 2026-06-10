@@ -124,7 +124,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
       >
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#fdf2e0] text-ln-warn  "
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-ln-warn-050)] text-ln-warn  "
         >
           ✉
         </span>
@@ -149,7 +149,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
       <div className="flex items-start gap-3 py-2.5">
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef6f0] text-ln-ok  "
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-ln-ok-050)] text-ln-ok  "
         >
           👀
         </span>

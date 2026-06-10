@@ -86,7 +86,7 @@ export function AcceptTransferActions({
               type="button"
               disabled={pending}
               onClick={() => setShowRejectReason(true)}
-              className="flex-1 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[#fbe9e6] disabled:opacity-50"
+              className="flex-1 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
             >
               Rechazar
             </button>

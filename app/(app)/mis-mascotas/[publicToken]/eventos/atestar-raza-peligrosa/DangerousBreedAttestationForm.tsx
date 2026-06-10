@@ -1,7 +1,7 @@
 "use client";
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
-import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { LnSheetBody, LnSheetHeader } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../nuevo/AttachmentField";
@@ -28,7 +28,116 @@ const REGISTRY_OPTIONS: Array<{ value: string; label: string; help: string }> = 
   },
 ];
 
-export function DangerousBreedAttestationForm({ action }: { action: FormAction }) {
+// ---------------------------------------------------------------------------
+// Step 1 — Legal information and acknowledgements
+// ---------------------------------------------------------------------------
+
+const LEGAL_CHECKS: Array<{ id: string; label: string }> = [
+  {
+    id: "check_rupppa",
+    label:
+      "Entiendo que debo inscribir a mi mascota en el registro RUPPPA (o provincial equivalente) y mantener la inscripción vigente.",
+  },
+  {
+    id: "check_muzzle",
+    label: "Me comprometo a que la mascota use bozal y correa corta en todo espacio público.",
+  },
+  {
+    id: "check_insurance",
+    label: "Asumo la responsabilidad civil por los daños que pueda causar la mascota.",
+  },
+  {
+    id: "check_id",
+    label: "Confirmo que la mascota lleva identificación visible permanente (placa + microchip).",
+  },
+];
+
+function Step1({ onContinue }: { onContinue: () => void }) {
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+
+  const allChecked = LEGAL_CHECKS.every((c) => checked[c.id]);
+
+  function toggle(id: string) {
+    setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  return (
+    <>
+      <LnSheetHeader
+        tone="warn"
+        icon="⚠️"
+        title="Atestar raza peligrosa"
+        subtitle="Paso 1 de 2 · Información legal"
+      />
+      <LnSheetBody>
+        <div className="space-y-[16px]">
+          {/* Legal context */}
+          <div className="rounded-[4px] border border-[var(--color-ln-warn-050)] bg-[var(--color-ln-warn-025)] px-[14px] py-[12px] space-y-[8px]">
+            <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
+              Régimen de Animales Potencialmente Peligrosos
+            </p>
+            <p className="text-[12.5px] text-[var(--color-ln-warn)]">
+              Las leyes CABA 4078 y Prov. BA 14.107 establecen obligaciones específicas para
+              tenedores de razas consideradas potencialmente peligrosas. La atestación que vas a
+              registrar queda anclada a tu DNI y a la jurisdicción de tu domicilio.
+            </p>
+            <p className="text-[12px] text-[var(--color-ln-warn)]">
+              Este registro es inmutable e integra la libreta sanitaria oficial de la mascota.
+            </p>
+          </div>
+
+          {/* Acknowledgement checkboxes */}
+          <fieldset className="space-y-[10px] border-0 p-0 m-0">
+            <legend className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)] mb-[6px]">
+              Confirmaciones requeridas
+            </legend>
+            {LEGAL_CHECKS.map((c) => (
+              <label key={c.id} className="flex items-start gap-[10px] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="mt-[2px] h-[14px] w-[14px] flex-shrink-0 rounded-[2px] accent-[var(--color-ln-warn)]"
+                  checked={!!checked[c.id]}
+                  onChange={() => toggle(c.id)}
+                />
+                <span className="text-[13px] text-[var(--color-ln-ink-2)] leading-[1.5]">
+                  {c.label}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        </div>
+      </LnSheetBody>
+      {/* Step 1 footer — advance only when all boxes are checked */}
+      <div className="border-t border-[var(--color-ln-line)] px-[20px] py-[16px]">
+        <button
+          type="button"
+          disabled={!allChecked}
+          onClick={onContinue}
+          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Continuar con la atestación →
+        </button>
+        {!allChecked && (
+          <p className="mt-[8px] text-center font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+            Confirmá todas las obligaciones para continuar
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — Attestation data form
+// ---------------------------------------------------------------------------
+
+function Step2({
+  action,
+  onBack,
+}: {
+  action: FormAction;
+  onBack: () => void;
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [registry, setRegistry] = useState("");
   const today = new Date().toISOString().slice(0, 10);
@@ -39,7 +148,7 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
         tone="warn"
         icon="⚠️"
         title="Atestar raza peligrosa"
-        subtitle="Libreta sanitaria oficial"
+        subtitle="Paso 2 de 2 · Datos del registro"
       />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
@@ -120,12 +229,37 @@ export function DangerousBreedAttestationForm({ action }: { action: FormAction }
           )}
         </form>
       </LnSheetBody>
-      <LnSheetFooter
-        tone="warn"
-        ctaLabel="Registrar atestación"
-        formId={FORM_ID}
-        isPending={isPending}
-      />
+      <div className="border-t border-[var(--color-ln-line)] px-[20px] py-[16px] space-y-[8px]">
+        <button
+          type="submit"
+          form={FORM_ID}
+          disabled={isPending}
+          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isPending ? "Registrando..." : "Registrar atestación"}
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={isPending}
+          className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[16px] py-[10px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-40"
+        >
+          ← Volver al paso anterior
+        </button>
+      </div>
     </>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Wizard root — orchestrates the 2-step flow
+// ---------------------------------------------------------------------------
+
+export function DangerousBreedAttestationForm({ action }: { action: FormAction }) {
+  const [step, setStep] = useState<1 | 2>(1);
+
+  if (step === 1) {
+    return <Step1 onContinue={() => setStep(2)} />;
+  }
+  return <Step2 action={action} onBack={() => setStep(1)} />;
 }

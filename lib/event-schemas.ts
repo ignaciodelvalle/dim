@@ -1084,6 +1084,21 @@ const custodyTransferred = z
     { message: "at most one of to_user_id / to_organization_id may be set" },
   );
 
+// Ownership claimed — direct claim of a free pet (claim wizard variant
+// "free"). The pet is chip/tattoo-registered but has NO active custody of any
+// role, so there is no "from" actor and custody_transferred does not apply
+// (its schema requires one). The claimant opens a fresh owner ownership in
+// the same tx that emits this event.
+const ownershipClaimed = z
+  .object(
+    withVersion({
+      claimed_by_user_id: z.string().uuid(),
+      // How the claimant identified the pet in the wizard.
+      identifier_kind: z.enum(["microchip", "tattoo"]),
+    }),
+  )
+  .strict();
+
 // Adoption reversed — umbrella event collapsing the previous
 // adoption_revoked (shelter/court-initiated) and adoption_withdrawn
 // (adopter-initiated) into one (catalog cleanup 2026-05-19). The actor
@@ -1111,18 +1126,22 @@ const adoptionReversed = z
 // checkbox (spec §12.5 addendum v1.4). Stored in the event payload rather
 // than a separate table — the table was never created; event-sourced log is
 // the single source of truth.
+// v2 (PR-14 adoption UX): adds motivation + prior_pets as required nullable
+// keys. The v1→v2 upcaster in lib/event-upcasters.ts fills both with null
+// for historical rows, per docs/superpowers/event-versioning.md.
 const adoptionApplicationSubmitted = z
-  .object(
-    withVersion({
-      applicant_user_id: z.string().uuid(),
-      related_organization_id: z.string().uuid(),
-      housing_type: z.enum(["casa_con_patio", "casa_sin_patio", "departamento", "otro"]),
-      other_pets: z.string().nullable(),
-      daily_routine: z.string().nullable(),
-      notes: z.string().nullable(),
-      profile_sharing_consent_at: z.string().datetime(),
-    }),
-  )
+  .object({
+    payload_version: z.literal(2).default(2),
+    applicant_user_id: z.string().uuid(),
+    related_organization_id: z.string().uuid(),
+    housing_type: z.enum(["casa_con_patio", "casa_sin_patio", "departamento", "otro"]),
+    other_pets: z.string().nullable(),
+    daily_routine: z.string().nullable(),
+    notes: z.string().nullable(),
+    profile_sharing_consent_at: z.string().datetime(),
+    motivation: z.string().nullable(),
+    prior_pets: z.enum(["yes_currently", "yes_before", "no"]).nullable(),
+  })
   .strict();
 
 // Adoption application resolved — umbrella for approved + rejected
@@ -1391,6 +1410,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_application_resolved: adoptionApplicationResolved,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
+  ownership_claimed: ownershipClaimed,
   custody_transfer_proposed: custodyTransferProposed,
   custody_dispute_raised: custodyDisputeRaised,
   custody_dispute_resolved: custodyDisputeResolved,

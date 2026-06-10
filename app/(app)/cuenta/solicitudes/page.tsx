@@ -1,13 +1,14 @@
 // Mis solicitudes — Libreta Nacional redesign.
 // Data fetching unchanged.
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnCard, LnCardBody } from "@/components/ui/Card";
-import { LnCallout } from "@/components/ui/DocElements";
-import { approvalRequests, db } from "@/db";
+import { LnSectionHead } from "@/components/ui/DocElements";
+import { approvalRequests, db, organizationInvitations, organizations } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { WithdrawButton } from "./WithdrawButton";
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -16,6 +17,15 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
   role_upgrade_admin: "Upgrade a administrador/a",
   organization_verification: "Verificación de organización",
   govt_assignment_grant: "Asignación de localidad",
+};
+
+const INVITED_ROLE_LABELS: Record<string, string> = {
+  admin: "Administrador/a",
+  coordinator: "Coordinador/a",
+  member: "Miembro",
+  volunteer: "Voluntario/a",
+  foster: "Transitante",
+  vet_individual: "Veterinario/a individual",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -30,12 +40,20 @@ type StatusVariant = "pending" | "approved" | "rejected" | "withdrawn";
 type StatusStyle = { bg: string; text: string; border: string };
 
 const STATUS_STYLES: Record<StatusVariant, StatusStyle> = {
-  pending: { bg: "bg-[#fdf2e0]", text: "text-[var(--color-ln-warn)]", border: "border-[#f0dcb4]" },
-  approved: { bg: "bg-[#eef6f0]", text: "text-[var(--color-ln-ok)]", border: "border-[#c8e2d2]" },
+  pending: {
+    bg: "bg-[var(--color-ln-warn-050)]",
+    text: "text-[var(--color-ln-warn)]",
+    border: "border-[var(--color-ln-warn-100)]",
+  },
+  approved: {
+    bg: "bg-[var(--color-ln-ok-050)]",
+    text: "text-[var(--color-ln-ok)]",
+    border: "border-[var(--color-ln-ok-100)]",
+  },
   rejected: {
-    bg: "bg-[#fbe9e6]",
+    bg: "bg-[var(--color-ln-err-050)]",
     text: "text-[var(--color-ln-err)]",
-    border: "border-[#f1c6bf]",
+    border: "border-[var(--color-ln-err-100)]",
   },
   withdrawn: {
     bg: "bg-[var(--color-ln-stripe)]",
@@ -52,6 +70,16 @@ export default async function SolicitudesPage({
   const { user } = await requireUserOrRedirect();
   const { filter } = await searchParams;
 
+  // Fetch the user's email to match org invitations (sent to email, not userId).
+  let userEmail = "";
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient.auth.admin.getUserById(user.id);
+    userEmail = data?.user?.email?.toLowerCase().trim() ?? "";
+  } catch {
+    // Non-critical — invitations section gracefully empty.
+  }
+
   const allRequests = await db
     .select({
       id: approvalRequests.id,
@@ -64,6 +92,31 @@ export default async function SolicitudesPage({
     .from(approvalRequests)
     .where(eq(approvalRequests.applicantUserId, user.id))
     .orderBy(desc(approvalRequests.createdAt));
+
+  // Pending org invitations — matched by email (case-insensitive, same as
+  // findActiveInvite), not yet accepted, revoked, or expired.
+  const pendingInvitations =
+    userEmail.length > 0
+      ? await db
+          .select({
+            invitationToken: organizationInvitations.invitationToken,
+            invitedRole: organizationInvitations.invitedRole,
+            expiresAt: organizationInvitations.expiresAt,
+            createdAt: organizationInvitations.createdAt,
+            orgDisplayName: organizations.displayName,
+          })
+          .from(organizationInvitations)
+          .innerJoin(organizations, eq(organizations.id, organizationInvitations.organizationId))
+          .where(
+            and(
+              sql`lower(${organizationInvitations.email}) = lower(${userEmail})`,
+              isNull(organizationInvitations.acceptedAt),
+              isNull(organizationInvitations.revokedAt),
+              sql`${organizationInvitations.expiresAt} > now()`,
+            ),
+          )
+          .orderBy(desc(organizationInvitations.createdAt))
+      : [];
 
   const activeFilter = filter ?? "all";
   const filtered = allRequests.filter((r) => {
@@ -96,6 +149,57 @@ export default async function SolicitudesPage({
               : `${totalCount} solicitudes`}
         </span>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Pending org invitations                                            */}
+      {/* ------------------------------------------------------------------ */}
+      {pendingInvitations.length > 0 && (
+        <div className="mb-[32px]">
+          <LnSectionHead num="01" title="Invitaciones a organizaciones" className="mb-[14px]" />
+          <div className="flex flex-col gap-[10px]">
+            {pendingInvitations.map((inv) => (
+              <LnCard key={inv.invitationToken}>
+                <LnCardBody>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-[var(--font-ln-serif)] text-[14.5px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
+                        {inv.orgDisplayName}
+                      </p>
+                      <div className="mt-[6px] flex flex-wrap items-center gap-[6px]">
+                        <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+                          {INVITED_ROLE_LABELS[inv.invitedRole] ?? inv.invitedRole}
+                        </span>
+                        <span className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                          Expira{" "}
+                          {inv.expiresAt.toLocaleDateString("es-AR", {
+                            day: "numeric",
+                            month: "long",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/r/invite/${inv.invitationToken}`}
+                      className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-[12px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+                    >
+                      Ver invitación
+                    </Link>
+                  </div>
+                </LnCardBody>
+              </LnCard>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Upgrade requests                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <LnSectionHead
+        num={pendingInvitations.length > 0 ? "02" : "01"}
+        title="Solicitudes de rol"
+        className="mb-[14px]"
+      />
 
       {/* Empty state */}
       {totalCount === 0 && (
@@ -185,7 +289,7 @@ export default async function SolicitudesPage({
 
                   {/* Rejection reason */}
                   {req.status === "rejected" && req.decisionNotes && (
-                    <div className="mb-[10px] rounded-[4px] border border-[#f1c6bf] bg-[#fbe9e6] px-[12px] py-[8px]">
+                    <div className="mb-[10px] rounded-[4px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-[12px] py-[8px]">
                       <p className="text-[12px] text-[var(--color-ln-err)]">
                         <span className="font-semibold">Motivo:</span> {req.decisionNotes}
                       </p>
