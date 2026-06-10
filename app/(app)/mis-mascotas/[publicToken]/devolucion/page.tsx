@@ -1,13 +1,18 @@
 // Devolucion — Libreta Nacional redesign.
-// Presentation only; ReturnAcceptanceCard and data fetching unchanged.
+// Two modes:
+//   1. Inbound acceptance: org-sourced custody_transfer_proposed is pending →
+//      show ReturnAcceptanceCard so the owner accepts/rejects.
+//   2. Owner initiation: no pending proposal + pet has adoption_finalized →
+//      show OwnerInitiateReturnForm so the owner proposes return to the org.
 
 import { LnButton } from "@/components/ui/Button";
 import { LnCallout } from "@/components/ui/DocElements";
-import { type Pet, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { type Pet, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OwnerInitiateReturnForm } from "./OwnerInitiateReturnForm";
 import { ReturnAcceptanceCard } from "./ReturnAcceptanceCard";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -90,17 +95,92 @@ export default async function DevolucionPage({
   }
 
   if (!isPending) {
+    // Initiation mode: check if this pet was received via adoption so the
+    // owner can propose a return to the source org.
+    const [adoptionEvent] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "adoption_finalized")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+
+    const adoptionPayload = adoptionEvent?.payload as
+      | { previous_owner_organization_id?: string | null; adopter_user_id?: string | null }
+      | undefined;
+    const sourceOrgId =
+      adoptionPayload?.adopter_user_id === user.id
+        ? (adoptionPayload?.previous_owner_organization_id ?? null)
+        : null;
+
+    let orgDisplayName: string | null = null;
+    if (sourceOrgId) {
+      const [orgRow] = await db
+        .select({ displayName: organizations.displayName })
+        .from(organizations)
+        .where(eq(organizations.id, sourceOrgId))
+        .limit(1);
+      orgDisplayName = orgRow?.displayName ?? null;
+    }
+
+    if (sourceOrgId && orgDisplayName) {
+      return (
+        <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+          {/* Back link */}
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}`}
+            className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            ← Volver al perfil
+          </Link>
+
+          {/* Header */}
+          <div className="mb-[24px]">
+            <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+              Devolver {pet.name}
+            </h1>
+            <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+              Estás iniciando la devolución de una mascota recibida en adopción de{" "}
+              <strong>{orgDisplayName}</strong>.
+            </p>
+          </div>
+
+          {/* Warning callout */}
+          <div className="mb-[24px]">
+            <LnCallout tone="warn" title="Esta acción notifica al refugio.">
+              El refugio va a recibir tu propuesta y debe aceptarla. La custodia de {pet.name} sigue
+              siendo tuya hasta que ellos confirmen la recepción.
+            </LnCallout>
+          </div>
+
+          {/* Initiation form */}
+          <OwnerInitiateReturnForm
+            petPublicToken={publicToken}
+            petName={pet.name}
+            orgDisplayName={orgDisplayName}
+            backUrl="/mis-mascotas"
+          />
+        </div>
+      );
+    }
+
+    // No adoption found or the user is not the adopter — show guidance only.
     return (
       <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
-        <div className="mb-[20px] text-center">
-          <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
-            Sin propuestas pendientes
-          </p>
-          <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
-            No hay propuestas de devolución activas para {pet.name}.
-          </p>
-        </div>
-        <div className="flex justify-center">
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}`}
+          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Volver al perfil
+        </Link>
+        <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+          Devolución de {pet.name}
+        </h1>
+        <LnCallout tone="warn" title="Sin propuestas activas.">
+          No hay propuestas de devolución pendientes para {pet.name} y no encontramos una adopción
+          registrada a tu nombre. Si recibiste esta mascota de un refugio fuera de MiMAR, contactá
+          al refugio directamente.
+        </LnCallout>
+        <div className="mt-[24px] flex justify-start">
           <Link href="/mis-mascotas">
             <LnButton variant="primary" size="md">
               Volver a mis mascotas
@@ -128,7 +208,6 @@ export default async function DevolucionPage({
       .limit(1);
     if (profile) actorName = profile.displayName.split(" ")[0];
   } else if (fromOrgId) {
-    const { organizations } = await import("@/db");
     const [org] = await db
       .select({ displayName: organizations.displayName })
       .from(organizations)
