@@ -872,7 +872,7 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 
 ## Design rules (UI conventions)
 
-The trilogy-unification design critiques (`docs/design/08`, `09`, `10` from 2026-05-27) codified four cross-cutting UI conventions. They apply to every new form, surface, or copy edit. Existing surfaces are being migrated sprint-by-sprint per `docs/superpowers/plans/2026-05-27-trilogy-unification-handoff.md`.
+The trilogy-unification design critiques (2026-05-27) codified four cross-cutting UI conventions. They apply to every new form, surface, or copy edit. The migration completed with the handoff-fixes series (#455–#479); the originating plan lives at `docs/superpowers/plans/archive/2026-05-27-trilogy-unification-handoff.md`.
 
 ### 1. Two levels of location capture (L1 / L2)
 
