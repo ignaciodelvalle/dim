@@ -227,6 +227,12 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     text: "text-[var(--color-ln-mute)]",
     border: "border-[var(--color-ln-line-strong)]",
   },
+  cancelled_by_owner: {
+    label: "Cancelado por vos",
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
+  },
   no_show: {
     label: "No asistió",
     bg: "bg-[#fbe9e6]",
