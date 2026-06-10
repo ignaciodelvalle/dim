@@ -19,6 +19,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { EventTimeline } from "@/app/(app)/mis-mascotas/[publicToken]/EventTimeline";
+import { LibretaHealthStatusSection } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaHealthStatus";
 import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
 import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
 import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager";
@@ -118,6 +119,11 @@ function LibretaPanel({
         pet={data.pet}
         photoUrl={data.photoUrl}
         ownerFirstName={data.ownerFirstName}
+      />
+
+      <LibretaHealthStatusSection
+        status={data.healthStatus}
+        activeRemindersCount={data.activeRemindersCount}
       />
 
       <LibretaSanitariaView

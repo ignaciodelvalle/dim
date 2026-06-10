@@ -17,6 +17,7 @@ import {
   profiles,
 } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
+import { type LibretaHealthStatus, computeLibretaHealthStatus } from "@/lib/libreta-health-status";
 import {
   type LibretaGroupKey,
   groupLibretaEvents,
@@ -61,6 +62,10 @@ export type LibretaTabData = {
   activeShares: LibretaShareToken[];
   accessPath: "owner" | "org";
   organizationDisplayName: string | null;
+  /** Precomputed health-status snapshot for the "Estado médico actual" dashboard. */
+  healthStatus: LibretaHealthStatus;
+  /** Count of active reminders for the Pendientes card. */
+  activeRemindersCount: number;
 };
 
 export async function getLibretaTabData(
@@ -90,18 +95,28 @@ export async function getLibretaTabData(
     photoUrl = petPhotoUrl(row?.storagePath);
   }
 
-  const events = await db
-    .select()
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))
-    .orderBy(desc(petEvents.occurredAt));
+  const [events, activeShares, activeReminders] = await Promise.all([
+    db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))
+      .orderBy(desc(petEvents.occurredAt)),
+    db
+      .select()
+      .from(libretaShareTokens)
+      .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt))),
+    fetchActiveRemindersForPet(user.id, pet.id),
+  ]);
 
   const grouped = groupLibretaEvents(events) as Record<LibretaGroupKey, LibretaEventRow[]>;
-
-  const activeShares = await db
-    .select()
-    .from(libretaShareTokens)
-    .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt)));
+  const healthStatus = computeLibretaHealthStatus(
+    {
+      species: pet.species,
+      permanentConditions: pet.permanentConditions ?? null,
+      permanentConditionsOther: pet.permanentConditionsOther ?? null,
+    },
+    events,
+  );
 
   return {
     ok: true,
@@ -122,6 +137,8 @@ export async function getLibretaTabData(
       activeShares,
       accessPath,
       organizationDisplayName: organization?.displayName ?? null,
+      healthStatus,
+      activeRemindersCount: activeReminders.length,
     },
   };
 }
