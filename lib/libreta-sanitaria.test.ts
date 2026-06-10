@@ -65,9 +65,6 @@ describe("libretaGroupForEvent", () => {
     );
     expect(libretaGroupForEvent({ eventType: "vet_visit_logged", payload: {} })).toBe("visitas");
     expect(libretaGroupForEvent({ eventType: "weight_recorded", payload: {} })).toBe("peso");
-    expect(libretaGroupForEvent({ eventType: "microchip_implanted", payload: {} })).toBe(
-      "microchip",
-    );
     expect(libretaGroupForEvent({ eventType: "death_recorded", payload: {} })).toBe(
       "fallecimiento",
     );
@@ -77,12 +74,43 @@ describe("libretaGroupForEvent", () => {
     expect(libretaGroupForEvent({ eventType: "medication_dose_taken", payload: {} })).toBe(
       "medicacion",
     );
-    // surgery/lab/imaging/allergy formerly had dedicated event_types; they
-    // were removed 2026-05-18 and now live as `clinical_info_logged` sub_kinds
-    // (asserted in the next test). Microchip lifecycle events route through
-    // the same "microchip" group as the initial implant.
+    expect(libretaGroupForEvent({ eventType: "symptom_observed", payload: {} })).toBe("sintomas");
+  });
+
+  it("folds esterilización into the cirugías section", () => {
+    // sterilization_performed is a surgery; the 2026-05-26 consolidation
+    // dropped the dedicated "esterilizacion" group and surfaces these
+    // events alongside clinical_info_logged{sub_kind:'surgery'}.
+    expect(libretaGroupForEvent({ eventType: "sterilization_performed", payload: {} })).toBe(
+      "cirugias",
+    );
+  });
+
+  it("merges microchip + tatuaje into the identificacion section", () => {
+    // Owners think "how is the pet identified", not "chip vs tattoo".
+    expect(libretaGroupForEvent({ eventType: "microchip_implanted", payload: {} })).toBe(
+      "identificacion",
+    );
     expect(libretaGroupForEvent({ eventType: "microchip_replaced", payload: {} })).toBe(
-      "microchip",
+      "identificacion",
+    );
+    expect(libretaGroupForEvent({ eventType: "tattoo_recorded", payload: {} })).toBe(
+      "identificacion",
+    );
+    expect(libretaGroupForEvent({ eventType: "tattoo_updated", payload: {} })).toBe(
+      "identificacion",
+    );
+  });
+
+  it("routes bite + rabies observation lifecycle into a single legal section", () => {
+    expect(libretaGroupForEvent({ eventType: "incident_reported", payload: {} })).toBe(
+      "mordeduras_observacion",
+    );
+    expect(libretaGroupForEvent({ eventType: "rabies_observation_started", payload: {} })).toBe(
+      "mordeduras_observacion",
+    );
+    expect(libretaGroupForEvent({ eventType: "rabies_observation_ended", payload: {} })).toBe(
+      "mordeduras_observacion",
     );
   });
 
@@ -99,12 +127,16 @@ describe("libretaGroupForEvent", () => {
     expect(
       libretaGroupForEvent({ eventType: "clinical_info_logged", payload: { sub_kind: "imaging" } }),
     ).toBe("estudios");
+    // allergy_detection used to land in its own "alergias" group; after the
+    // 2026-05-26 consolidation those events live under "Estudios e
+    // información clínica" and the persistent condition list lives in the
+    // dashboard at the top of /libreta.
     expect(
       libretaGroupForEvent({
         eventType: "clinical_info_logged",
         payload: { sub_kind: "allergy_detection" },
       }),
-    ).toBe("alergias");
+    ).toBe("estudios");
     // Unknown / missing sub_kind defaults to "estudios" so the event stays visible.
     expect(libretaGroupForEvent({ eventType: "clinical_info_logged", payload: {} })).toBe(
       "estudios",
