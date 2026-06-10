@@ -5,10 +5,15 @@
  * no-op'd by the eno-trigger disease-code bug (fixed in PR #137).
  *
  * Run (dry-run — safe, no writes):
- *   pnpm exec tsx scripts/backfill-eno-trigger.ts --dry-run
+ *   pnpm backfill:eno -- --dry-run --since 2026-01-01
  *
  * Run (real — writes notifications + audit entries):
- *   pnpm exec tsx scripts/backfill-eno-trigger.ts
+ *   pnpm backfill:eno -- --since 2026-01-01
+ *
+ * Use the `backfill:eno` npm script, NOT a raw `tsx` call: it passes
+ * `--conditions=react-server` so the `server-only` guard in the surveillance
+ * repository (which this script reaches via processEnoEventTrigger) resolves
+ * to a no-op. This script IS server code, so that condition is correct.
  *
  * Flags:
  *   --dry-run              Query and report candidates without writing anything.
@@ -22,14 +27,13 @@
  */
 
 // ---------------------------------------------------------------------------
-// 1. Env bootstrap — MUST precede any import that reads DATABASE_URL
+// 1. Env bootstrap — side-effect import MUST be first so DATABASE_URL is set
+//    before db/index.ts is evaluated. ESM hoists all `import` statements, so an
+//    inline `loadEnv()` call runs AFTER `@/db` is already evaluated (and throws).
+//    See scripts/_load-env.ts (same fix as seed-demo-spine.ts).
 // ---------------------------------------------------------------------------
 
-import path from "node:path";
-import { config as loadEnv } from "dotenv";
-
-loadEnv({ path: path.resolve(process.cwd(), ".env.local") });
-loadEnv({ path: path.resolve(process.cwd(), ".env") });
+import "./_load-env";
 
 // ---------------------------------------------------------------------------
 // 2. Imports
