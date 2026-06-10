@@ -153,15 +153,17 @@ export async function fetchSurveillanceSignals(
   }));
 }
 
-// 30-day rollup grouped by disease_code, with sub-counts for the last 7 days
-// and 24h. Pulls from the same scoped query as the detail feed so the totals
-// match exactly.
+// Period rollup grouped by disease_code (default last 30 days), with
+// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
+// as the detail feed so the totals match exactly. `count30d` holds the
+// window total (named for the default; callers may pass a custom `since`).
 export async function fetchDiseaseSummary(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<DiseaseSummary[]> {
-  const since30 = new Date(Date.now() - 30 * DAY_MS);
-  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since: since30 });
+  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
+  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
 
   const now = Date.now();
   const byCode = new Map<string, DiseaseSummary>();
