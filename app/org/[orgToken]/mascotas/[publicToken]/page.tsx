@@ -9,7 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { fetchPendingOwnerReturnProposal } from "@/app/actions/return-to-owner";
+import { fetchPendingOwnerReturnProposalForOrg } from "@/app/actions/return-to-owner";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -127,7 +127,7 @@ export default async function OrgPetDetailPage({
   } | null = null;
 
   if (granted.has("custody.transfer")) {
-    const pending = await fetchPendingOwnerReturnProposal(pet.id, organization.id);
+    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id);
     if (pending) {
       const proposalPayload = pending.proposal.payload as Record<string, unknown>;
       const notes = (proposalPayload.notes as string | null) ?? null;

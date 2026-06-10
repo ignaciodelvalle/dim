@@ -1034,7 +1034,10 @@ async function hasPendingProposal(petId: string): Promise<boolean> {
 // Fetch the latest pending owner-initiated return proposal for a pet to a specific org.
 // Returns the proposal event and the owner user id if a pending proposal exists with
 //   from_user_id set (owner-initiated) and to_organization_id = orgId.
-export async function fetchPendingOwnerReturnProposal(
+// ForOrg suffix: read-only helper that expects PRE-AUTHORIZED org context —
+// callers must have already run requireOrgAccessByToken (page) or the action
+// guards (writers) before passing orgId.
+export async function fetchPendingOwnerReturnProposalForOrg(
   petId: string,
   orgId: string,
 ): Promise<{
@@ -1423,7 +1426,7 @@ export async function orgAcceptOwnerReturnWriter({
   const pet = petRow.pet;
 
   // Quick pre-flight outside the tx (fast rejection without taking a lock).
-  const preFlight = await fetchPendingOwnerReturnProposal(pet.id, orgId);
+  const preFlight = await fetchPendingOwnerReturnProposalForOrg(pet.id, orgId);
   if (!preFlight) {
     return { error: "No hay propuesta de devolución pendiente para esta mascota." };
   }
@@ -1443,7 +1446,7 @@ export async function orgAcceptOwnerReturnWriter({
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
 
       // Re-verify inside the tx after acquiring the lock.
-      const pending = await fetchPendingOwnerReturnProposal(pet.id, orgId);
+      const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, orgId);
       if (!pending) {
         throw new Error("No hay propuesta de devolución pendiente para esta mascota.");
       }
@@ -1631,7 +1634,7 @@ export async function orgRejectOwnerReturnWriter({
   const pet = petRow.pet;
 
   // Re-verify pending proposal.
-  const pending = await fetchPendingOwnerReturnProposal(pet.id, orgId);
+  const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, orgId);
   if (!pending) {
     return { error: "No hay propuesta de devolución pendiente para esta mascota." };
   }
