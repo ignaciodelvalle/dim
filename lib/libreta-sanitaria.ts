@@ -115,6 +115,9 @@ export function libretaSanitariaClause() {
 
 // Filter chips for the EventTimeline when mounted in a libreta context.
 // Co-located here so the libreta-specific subset travels with the concept.
+// Chips remain per-event-type (one chip = one row narrowing) — they are
+// NOT the same axis as LIBRETA_GROUPS, which collapses several event types
+// into a single section in the /libreta view.
 export const LIBRETA_FILTER_CHIPS: ReadonlyArray<{ type: EventType; label: string }> = [
   { type: "vaccination_administered", label: "Vacunas" },
   { type: "deworming_administered", label: "Antiparasitarios" },
@@ -125,47 +128,50 @@ export const LIBRETA_FILTER_CHIPS: ReadonlyArray<{ type: EventType; label: strin
   { type: "medication_stopped", label: "Medicación · fin" },
   { type: "medication_dose_taken", label: "Dosis dadas" },
   { type: "microchip_implanted", label: "Microchip" },
+  { type: "tattoo_recorded", label: "Tatuaje" },
   { type: "clinical_info_logged", label: "Información clínica" },
   { type: "symptom_observed", label: "Síntomas" },
-  { type: "incident_reported", label: "Incidentes" },
+  { type: "incident_reported", label: "Mordeduras" },
   { type: "death_recorded", label: "Fallecimiento" },
 ];
 
 // Logical groups that the libreta is presented as in the /libreta view. The
 // order here is the display order.
+//
+// Consolidated 2026-05-26 from 14 to 11 groups: esterilización folded into
+// cirugías (it IS a surgery); microchip + tatuaje merged into identificación
+// (the owner thinks "identify the pet", not chip vs tattoo); incidentes
+// renamed to mordeduras_observacion to reflect its actual content (bite +
+// 10-day rabies observation lifecycle, the legal flow); alergias removed as
+// a group — those events route through estudios and the persistent
+// condition list lives in the dashboard at the top of /libreta.
 export const LIBRETA_GROUPS = [
   "vacunas",
   "antiparasitarios",
-  "esterilizacion",
-  "visitas",
-  "medicacion",
   "cirugias",
+  "visitas",
   "estudios",
-  "peso",
-  "alergias",
-  "microchip",
-  "tatuaje",
   "sintomas",
-  "incidentes",
+  "medicacion",
+  "peso",
+  "identificacion",
+  "mordeduras_observacion",
   "fallecimiento",
 ] as const;
 
 export type LibretaGroupKey = (typeof LIBRETA_GROUPS)[number];
 
 export const LIBRETA_GROUP_LABELS: Record<LibretaGroupKey, string> = {
-  vacunas: "Vacunas",
+  vacunas: "Vacunación",
   antiparasitarios: "Antiparasitarios",
-  esterilizacion: "Esterilización",
-  visitas: "Visitas al veterinario",
-  medicacion: "Medicación",
   cirugias: "Cirugías",
-  estudios: "Estudios (laboratorio e imágenes)",
-  peso: "Peso",
-  alergias: "Alergias y condiciones",
-  microchip: "Microchip",
-  tatuaje: "Tatuaje",
+  visitas: "Visitas al veterinario",
+  estudios: "Estudios e información clínica",
   sintomas: "Síntomas",
-  incidentes: "Incidentes",
+  medicacion: "Medicación",
+  peso: "Peso",
+  identificacion: "Identificación (chip y tatuaje)",
+  mordeduras_observacion: "Mordeduras y observación antirrábica",
   fallecimiento: "Fallecimiento",
 };
 
@@ -182,7 +188,9 @@ export function libretaGroupForEvent(event: {
     case "deworming_administered":
       return "antiparasitarios";
     case "sterilization_performed":
-      return "esterilizacion";
+      // Castración / ovariectomía is a surgery — surfaces under "Cirugías"
+      // alongside other clinical_info_logged{sub_kind:'surgery'} events.
+      return "cirugias";
     case "vet_visit_logged":
       return "visitas";
     case "medication_started":
@@ -193,19 +201,20 @@ export function libretaGroupForEvent(event: {
       return "peso";
     case "microchip_implanted":
     case "microchip_replaced":
-      return "microchip";
     case "tattoo_recorded":
     case "tattoo_updated":
-      return "tatuaje";
+      // Both identifiers live under a single "Identificación" section so the
+      // owner sees one block for "how this pet is identified".
+      return "identificacion";
     case "symptom_observed":
       return "sintomas";
     case "incident_reported":
     case "rabies_observation_started":
     case "rabies_observation_ended":
-      // The 10-day rabies observation is conceptually a follow-up to an
-      // incident_reported (bite). Group together so the vet's libreta view
-      // shows the bite + observation lifecycle as one block.
-      return "incidentes";
+      // The 10-day rabies observation is the mandated legal follow-up to
+      // an incident_reported (bite). Grouping together keeps the bite +
+      // observation lifecycle visible as one block.
+      return "mordeduras_observacion";
     case "death_recorded":
       return "fallecimiento";
   }
@@ -216,11 +225,15 @@ export function libretaGroupForEvent(event: {
     switch (sub) {
       case "surgery":
         return "cirugias";
-      case "allergy_detection":
-        return "alergias";
       case "lab_work":
       case "imaging":
+      case "allergy_detection":
       case "other":
+        // allergy_detection used to have its own "alergias" group; the
+        // dashboard at the top of /libreta now surfaces persistent
+        // conditions, so individual allergy_detection events route
+        // through "Estudios e información clínica" alongside lab work
+        // and imaging.
         return "estudios";
       // Safe default — keeps a future sub_kind visible until classified.
       default:
