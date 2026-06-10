@@ -15,6 +15,7 @@ import { buildOrgNav } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export default async function OrgLayout({
   children,
@@ -25,7 +26,7 @@ export default async function OrgLayout({
 }) {
   const { orgToken } = await params;
   // Validates membership. Returns notFound() on failure — never leaks org existence.
-  const { user, organization } = await requireOrgAccessByToken(orgToken);
+  const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
 
   // profiles.displayName is NOT NULL — always present; no fallback needed.
   const [profile] = await db
@@ -35,7 +36,11 @@ export default async function OrgLayout({
     .limit(1);
 
   const displayName = profile?.displayName ?? "";
-  const orgNav = buildOrgNav(orgToken);
+  // Capability-gated items (Ingresos, Check-ins, Permisos) only render for
+  // members holding the matching capability. The pages re-check defensively;
+  // the nav filter is UX, not the security boundary.
+  const granted = await getGrantedCapabilities(membership);
+  const orgNav = buildOrgNav(orgToken, { granted });
 
   // Right-side topbar actions: personal cross-portal links (owner portal + account).
   const actions = (
