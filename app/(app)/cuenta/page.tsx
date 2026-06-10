@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { logoutAction } from "@/app/actions/auth";
 import { db, organizationMemberships, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -309,8 +310,18 @@ export default async function CuentaPage() {
         )}
       </div>
 
+      {/* Logout */}
+      <form action={logoutAction} className="mt-[28px]">
+        <button
+          type="submit"
+          className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+        >
+          Cerrar sesión
+        </button>
+      </form>
+
       {/* Footer */}
-      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-[32px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Documento sincronizado</span>
         <span>miMAR · Registro Nacional de Mascotas</span>
       </div>
