@@ -89,13 +89,13 @@ export function MatchConfirmationCardVecino({
           </span>
           {ownerFirstName && (
             <p className="text-sm">
-              <span className="text-[var(--color-ln-mute)]">Dueno/a: </span>
+              <span className="text-[var(--color-ln-mute)]">Dueño/a: </span>
               <span className="font-medium">{ownerFirstName}</span>
             </p>
           )}
           {lastLocationText && (
             <p className="text-sm">
-              <span className="text-[var(--color-ln-mute)]">Ultima ubicacion conocida: </span>
+              <span className="text-[var(--color-ln-mute)]">Última ubicación conocida: </span>
               <span>{lastLocationText}</span>
               {lastLocationDate && (
                 <span className="text-[var(--color-ln-mute)] ml-1">
@@ -133,8 +133,8 @@ export function MatchConfirmationCardVecino({
       </div>
 
       <p className="text-xs text-[var(--color-ln-mute)]">
-        Si es la misma, no hace falta que la registres: el dueno/a ya la tiene en su cuenta y va a
-        ser notificado. Si no es la misma, podes continuar con el registro de tu mascota.
+        Si es la misma, no hace falta que la registres: el dueño/a ya la tiene en su cuenta y va a
+        ser notificado. Si no es la misma, podés continuar con el registro de tu mascota.
       </p>
     </div>
   );

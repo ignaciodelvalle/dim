@@ -17,7 +17,12 @@ import {
   profiles,
 } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
-import { type LibretaHealthStatus, computeLibretaHealthStatus } from "@/lib/libreta-health-status";
+import {
+  type LibretaHealthStatus,
+  type VaccinationSummary,
+  computeLibretaHealthStatus,
+  computeVaccinationSummary,
+} from "@/lib/libreta-health-status";
 import {
   type LibretaGroupKey,
   groupLibretaEvents,
@@ -150,8 +155,11 @@ export async function getLibretaTabData(
 export type VacunasTabData = {
   petName: string;
   petToken: string;
+  petSpecies: string;
   upcomingReminders: Awaited<ReturnType<typeof fetchActiveRemindersForPet>>;
   history: Awaited<ReturnType<typeof fetchVaccinationHistory>>;
+  /** Precomputed vaccination summary for the Estado de vacunación badge block. */
+  vaccinationSummary: VaccinationSummary;
   accessPath: "owner" | "org";
   organizationDisplayName: string | null;
 };
@@ -169,13 +177,29 @@ export async function getVacunasTabData(
     fetchVaccinationHistory(pet.id),
   ]);
 
+  // Derive the vaccination summary from history rows. We map recordedAt as
+  // occurredAt because the libreta-health-status helper only needs a Date to
+  // compute nextDueAt from intervalMonths — the date of the last dose is the
+  // same field regardless of label.
+  const historyAsEvents = history.map((r) => ({
+    eventType: "vaccination_administered" as const,
+    occurredAt: r.recordedAt,
+    payload: {
+      vaccine_name: r.vaccineName,
+      next_due_at: r.nextDueAt ?? null,
+    },
+  }));
+  const vaccinationSummary = computeVaccinationSummary(historyAsEvents, pet.species);
+
   return {
     ok: true,
     data: {
       petName: pet.name,
       petToken: pet.publicToken,
+      petSpecies: pet.species,
       upcomingReminders,
       history,
+      vaccinationSummary,
       accessPath,
       organizationDisplayName: organization?.displayName ?? null,
     },
