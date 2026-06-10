@@ -80,7 +80,9 @@ export default async function AppointmentDetailPage({
   const statusConfig = STATUS_CONFIG[appointment.status] ?? STATUS_CONFIG.confirmed;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
-  const showCheckInQr = appointment.status === "confirmed";
+  // QR only while the slot is current — a past confirmed appointment (never
+  // marked attended/no-show) must not keep offering check-in.
+  const showCheckInQr = appointment.status === "confirmed" && slot.endsAt > new Date();
   const qrSvg = showCheckInQr
     ? await QRCode.toString(`mimar://appointment/${appointmentToken}`, {
         type: "svg",
