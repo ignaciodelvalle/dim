@@ -53,6 +53,13 @@ interface Props {
    * Sprint 5 PR-041 / doc 10 §3 punto 1. */
   lastSeenLat?: number | null;
   lastSeenLng?: number | null;
+  /** Free-form lost description fields from the mark-lost event payload (spec §8.4).
+   * Always shown when present — no disclosure pref gates animal identity details. */
+  lostDescription?: {
+    accessoriesWhenLost: string | null;
+    behaviorNotes: string | null;
+    lastSeenContext: string | null;
+  } | null;
 }
 
 export function LostPublicCredential({
@@ -73,6 +80,7 @@ export function LostPublicCredential({
   tattooPhotoUrl = null,
   lastSeenLat = null,
   lastSeenLng = null,
+  lostDescription = null,
 }: Props) {
   const tattooLocLabel = tattooLocationLabel(tattooLocation);
   const mapHref =
@@ -196,6 +204,45 @@ export function LostPublicCredential({
             </p>
           </section>
         )}
+
+        {/* Lost description — accessories, behaviour, last-seen context.
+            Animal identity details per spec §8.4 — not gated by disclosure prefs. */}
+        {lostDescription &&
+          (lostDescription.accessoriesWhenLost ||
+            lostDescription.behaviorNotes ||
+            lostDescription.lastSeenContext) && (
+            <section className="rounded-2xl bg-ln-card p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
+                Detalles cuando se perdió
+              </p>
+              {lostDescription.accessoriesWhenLost && (
+                <div className="mt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                    Accesorios
+                  </p>
+                  <p className="mt-0.5 text-sm text-ln-ink">
+                    {lostDescription.accessoriesWhenLost}
+                  </p>
+                </div>
+              )}
+              {lostDescription.behaviorNotes && (
+                <div className="mt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                    Comportamiento
+                  </p>
+                  <p className="mt-0.5 text-sm text-ln-ink">{lostDescription.behaviorNotes}</p>
+                </div>
+              )}
+              {lostDescription.lastSeenContext && (
+                <div className="mt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                    Contexto
+                  </p>
+                  <p className="mt-0.5 text-sm text-ln-ink">{lostDescription.lastSeenContext}</p>
+                </div>
+              )}
+            </section>
+          )}
 
         <p className="text-center text-[11px] text-ln-mute ">
           Esta credencial pertenece a MiMAR — Mi Mascota Argentina.

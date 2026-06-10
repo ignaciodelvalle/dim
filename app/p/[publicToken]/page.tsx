@@ -419,6 +419,7 @@ export default async function PublicCredentialPage({
           tattooLocation={pet.tattooLocation}
           tattooDescription={pet.tattooDescription}
           tattooPhotoUrl={tattooPhotoUrl}
+          lostDescription={lostContext.lostDescription}
         />
       </>
     );
