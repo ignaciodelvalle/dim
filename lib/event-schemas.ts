@@ -1084,6 +1084,21 @@ const custodyTransferred = z
     { message: "at most one of to_user_id / to_organization_id may be set" },
   );
 
+// Ownership claimed — direct claim of a free pet (claim wizard variant
+// "free"). The pet is chip/tattoo-registered but has NO active custody of any
+// role, so there is no "from" actor and custody_transferred does not apply
+// (its schema requires one). The claimant opens a fresh owner ownership in
+// the same tx that emits this event.
+const ownershipClaimed = z
+  .object(
+    withVersion({
+      claimed_by_user_id: z.string().uuid(),
+      // How the claimant identified the pet in the wizard.
+      identifier_kind: z.enum(["microchip", "tattoo"]),
+    }),
+  )
+  .strict();
+
 // Adoption reversed — umbrella event collapsing the previous
 // adoption_revoked (shelter/court-initiated) and adoption_withdrawn
 // (adopter-initiated) into one (catalog cleanup 2026-05-19). The actor
@@ -1391,6 +1406,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_application_resolved: adoptionApplicationResolved,
   post_adoption_checkin: postAdoptionCheckin,
   custody_transferred: custodyTransferred,
+  ownership_claimed: ownershipClaimed,
   custody_transfer_proposed: custodyTransferProposed,
   custody_dispute_raised: custodyDisputeRaised,
   custody_dispute_resolved: custodyDisputeResolved,

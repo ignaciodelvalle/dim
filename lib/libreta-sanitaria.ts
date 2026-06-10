@@ -61,6 +61,7 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "credential_scanned",
   "dangerous_breed_attested",
   "custody_transferred",
+  "ownership_claimed",
   "shelter_intake_recorded",
   "foster_assigned",
   "foster_ended",

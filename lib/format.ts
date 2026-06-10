@@ -126,6 +126,8 @@ export function eventTypeLabel(eventType: string): string {
       return "Abandono reportado";
     case "maltreatment_reported":
       return "Maltrato reportado";
+    case "ownership_claimed":
+      return "Mascota reclamada";
     default:
       return eventType;
   }

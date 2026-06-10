@@ -330,6 +330,11 @@ export const EVENT_TYPES = [
   // (catalog cleanup 2026-05-19). actor: shelter | adopter | court.
   "adoption_reversed",
   "custody_transferred",
+  // Direct claim of a chip/tattoo-registered pet with NO active custody of
+  // any role (free pet). Unlike custody_transferred there is no "from" actor;
+  // the claimant opens a fresh owner ownership. Emitted by
+  // submitFreeClaimAction (claim wizard variant "free").
+  "ownership_claimed",
   // Lost & Found — two-phase return-to-owner handshake (Fase 5).
   // Proposed by the actor holding shelter_custody; accepted by the owner.
   "custody_transfer_proposed",
@@ -1766,6 +1771,9 @@ export const AUDIT_LOG_ACTIONS = [
   // Owner-initiated custody dispute (chip/tatuaje claim wizard, P3-1).
   // Payload: { dispute_public_token, pet_id, attachments_count }.
   "claim_dispute_submitted",
+  // Direct claim of a free (no active custody) chip-registered pet.
+  // Payload: { pet_id, identifier_kind }.
+  "free_pet_claimed",
   // Pet transfer (owner → owner) — P3-2 handshake actions.
   // Payload varies per action; transfer_public_token + pet_id are always present.
   "pet_transfer_initiated",
