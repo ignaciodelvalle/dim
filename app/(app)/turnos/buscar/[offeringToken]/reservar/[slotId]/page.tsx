@@ -4,14 +4,12 @@ import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { bookSlotAction } from "@/app/actions/booking";
-import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
-import { LnField } from "@/components/ui/Field";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
+import { BookingFormClient } from "./BookingFormClient";
 
 export default async function ReservarTurnoPage({
   params,
@@ -138,7 +136,7 @@ export default async function ReservarTurnoPage({
           </Link>
         </LnCallout>
       ) : (
-        <BookingForm slotId={slotId} userPets={userPets.map((r) => r.pet)} />
+        <BookingFormClient slotId={slotId} userPets={userPets.map((r) => r.pet)} />
       )}
     </div>
   );
@@ -156,50 +154,5 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
-  );
-}
-
-function BookingForm({
-  slotId,
-  userPets,
-}: {
-  slotId: string;
-  userPets: Array<{ id: string; name: string; species: string }>;
-}) {
-  async function submit(formData: FormData) {
-    "use server";
-    const petId = String(formData.get("petId") ?? "").trim();
-    if (!petId) return;
-    await bookSlotAction(slotId, petId);
-  }
-
-  return (
-    <form action={submit} className="flex flex-col gap-[16px]">
-      <div>
-        <label
-          htmlFor="pet_select"
-          className="mb-[6px] block font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
-        >
-          ¿Para qué mascota?
-        </label>
-        <select
-          id="pet_select"
-          name="petId"
-          required
-          className="w-full appearance-none rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[10px] font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-        >
-          <option value="">Elegí una mascota…</option>
-          {userPets.map((pet) => (
-            <option key={pet.id} value={pet.id}>
-              {pet.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <LnButton type="submit" variant="primary" size="lg" block>
-        Confirmar reserva
-      </LnButton>
-    </form>
   );
 }

@@ -40,14 +40,22 @@ export default async function PropuestasInboxPage() {
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Propuestas de tránsito
-        </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
-          Los refugios te proponen cuidar mascotas que tienen en custodia. Tenés 7 días para
-          responder antes de que la propuesta expire.
-        </p>
+      <div className="mb-[24px] flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Propuestas de tránsito
+          </h1>
+          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+            Los refugios te proponen cuidar mascotas que tienen en custodia. Tenés 7 días para
+            responder antes de que la propuesta expire.
+          </p>
+        </div>
+        <Link
+          href="/cuenta/ofrecerme-como-transito"
+          className="mt-[4px] flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+        >
+          Ofrecerme como tránsito
+        </Link>
       </div>
 
       <div className="flex flex-col gap-[32px]">

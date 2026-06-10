@@ -8,7 +8,7 @@
 // from here; everything else continues to import from
 // `@/lib/adoption-listing`.
 
-import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { attachments, db, organizations, ownerships, pets } from "@/db";
 
@@ -73,6 +73,10 @@ export async function queryAdoptionListing(
   if (filters.hasMicrochip === false) conditions.push(isNull(pets.microchipId));
   if (filters.organizationToken) {
     conditions.push(eq(organizations.publicToken, filters.organizationToken));
+  }
+  if (filters.searchQuery) {
+    const pattern = `%${filters.searchQuery}%`;
+    conditions.push(or(ilike(pets.name, pattern), ilike(pets.breed, pattern)));
   }
 
   // Keyset cursor.

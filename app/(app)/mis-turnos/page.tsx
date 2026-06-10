@@ -60,7 +60,10 @@ export default async function MisTurnosPage() {
       (r.appointment.status === "confirmed" && r.slot.startsAt < now),
   );
   const cancelled = rows.filter(
-    (r) => r.appointment.status === "cancelled" || r.appointment.status === "no_show",
+    (r) =>
+      r.appointment.status === "cancelled" ||
+      r.appointment.status === "cancelled_by_owner" ||
+      r.appointment.status === "no_show",
   );
 
   return (

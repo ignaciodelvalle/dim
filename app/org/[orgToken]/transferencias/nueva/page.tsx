@@ -13,7 +13,7 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
+import { OpBreach, OpCallout, OpCard, OpCardBody, OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationMemberships, organizations, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 
@@ -73,6 +73,26 @@ export default async function OrgTransferenciaNuevaPage({
   }
 
   if (!petToken) {
+    // Step-0 pet picker: show org's active shelter_custody pets so the user can
+    // choose one rather than hitting a dead wall.
+    const custodyPets = await db
+      .select({
+        publicToken: pets.publicToken,
+        name: pets.name,
+        species: pets.species,
+      })
+      .from(pets)
+      .innerJoin(
+        ownerships,
+        and(
+          eq(ownerships.petId, pets.id),
+          eq(ownerships.ownerOrganizationId, organization.id),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .orderBy(pets.name);
+
     return (
       <div className="max-w-2xl space-y-6">
         <OpCrumbs
@@ -82,18 +102,49 @@ export default async function OrgTransferenciaNuevaPage({
             { label: "Nueva propuesta" },
           ]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Nueva propuesta de transferencia
-        </h1>
-        <OpCallout
-          title="Token de mascota requerido"
-          body={
-            <>
-              Para proponer una transferencia tenés que entrar desde el perfil de la mascota:{" "}
-              <span className="font-mono text-[12px]">/org/{orgToken}/mascotas/[publicToken]</span>.
-            </>
-          }
-        />
+        <header className="space-y-1">
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            Nueva propuesta de transferencia
+          </h1>
+          <p className="text-[13px] text-ln-op-mute">
+            Elegí la mascota en custodia que querés transferir.
+          </p>
+        </header>
+
+        {custodyPets.length === 0 ? (
+          <div className="space-y-3">
+            <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+              No tenés mascotas en custodia para transferir.
+            </p>
+            <Link
+              href={`/org/${orgToken}/mascotas`}
+              className="inline-block text-[13px] text-ln-op-azul hover:underline no-underline"
+            >
+              → Ir a Mascotas
+            </Link>
+          </div>
+        ) : (
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {custodyPets.map((p) => (
+                  <li key={p.publicToken}>
+                    <Link
+                      href={`/org/${orgToken}/transferencias/nueva?petToken=${p.publicToken}`}
+                      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-ln-op-stripe transition-colors no-underline"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
+                        <p className="text-[12px] text-ln-op-mute capitalize">{p.species}</p>
+                      </div>
+                      <span className="text-[12px] text-ln-op-azul shrink-0">Seleccionar →</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+        )}
       </div>
     );
   }

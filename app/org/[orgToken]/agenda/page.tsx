@@ -4,16 +4,19 @@
 // Filterable by ?fecha=YYYY-MM-DD (defaults to today).
 // Shows: time, pet name, owner name (Tier-1: first name + phone if disclosed),
 // service_kind, status badge. Action buttons: mark attended / no-show / cancel.
+// Also shows per-offering slot occupancy ("Cupos del día") with block action.
 
 import { and, eq, gte, lt } from "drizzle-orm";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { notFound } from "next/navigation";
+
+import { BlockSlotButton } from "./BlockSlotButton";
 
 // ============================================================================
 // Helpers
@@ -26,6 +29,34 @@ const STATUS_PILL: Record<string, { label: string; tone: StatusTone }> = {
   cancelled_by_org: { label: "Cancelado", tone: "neutral" },
   cancelled_by_owner: { label: "Cancelado", tone: "neutral" },
   no_show: { label: "Ausente", tone: "danger" },
+};
+
+type SlotTone = "ok" | "triaged" | "danger" | "neutral";
+
+function slotOccupancyTone(bookingsCount: number, capacity: number, status: string): SlotTone {
+  if (status === "cancelled") return "neutral";
+  if (bookingsCount >= capacity) return "danger";
+  if (bookingsCount > 0) return "triaged";
+  return "ok";
+}
+
+type SlotRow = {
+  id: string;
+  startsAt: Date;
+  endsAt: Date;
+  capacity: number;
+  bookingsCount: number;
+  status: string;
+  offeringId: string;
+  offeringTitle: string;
+  serviceKind: string;
+};
+
+type OfferingGroup = {
+  offeringId: string;
+  offeringTitle: string;
+  serviceKind: string;
+  slots: SlotRow[];
 };
 
 // ============================================================================
@@ -83,6 +114,47 @@ export default async function OrgAgendaPage({
     )
     .orderBy(timeSlots.startsAt);
 
+  // Slot occupancy query for "Cupos del día".
+  const slotRows = await db
+    .select({
+      id: timeSlots.id,
+      startsAt: timeSlots.startsAt,
+      endsAt: timeSlots.endsAt,
+      capacity: timeSlots.capacity,
+      bookingsCount: timeSlots.bookingsCount,
+      status: timeSlots.status,
+      offeringId: serviceOfferings.id,
+      offeringTitle: serviceOfferings.displayName,
+      serviceKind: serviceOfferings.serviceKind,
+    })
+    .from(timeSlots)
+    .innerJoin(serviceOfferings, eq(serviceOfferings.id, timeSlots.serviceOfferingId))
+    .where(
+      and(
+        eq(serviceOfferings.organizationId, organization.id),
+        gte(timeSlots.startsAt, localMidnight),
+        lt(timeSlots.startsAt, localNextMidnight),
+      ),
+    )
+    .orderBy(timeSlots.startsAt);
+
+  // Group slots by offering.
+  const offeringGroupsMap = new Map<string, OfferingGroup>();
+  for (const row of slotRows) {
+    let group = offeringGroupsMap.get(row.offeringId);
+    if (!group) {
+      group = {
+        offeringId: row.offeringId,
+        offeringTitle: row.offeringTitle,
+        serviceKind: row.serviceKind,
+        slots: [],
+      };
+      offeringGroupsMap.set(row.offeringId, group);
+    }
+    group.slots.push(row);
+  }
+  const offeringGroups = Array.from(offeringGroupsMap.values());
+
   // Prev/next date navigation.
   const current = new Date(`${targetDateStr}T00:00:00`);
   const prevDate = new Date(current.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -121,6 +193,67 @@ export default async function OrgAgendaPage({
           Siguiente →
         </Link>
       </div>
+
+      {/* Slot occupancy — Cupos del día */}
+      <section className="space-y-3">
+        <h2 className="text-[13px] font-semibold text-ln-op-ink">Cupos del día</h2>
+        {offeringGroups.length === 0 ? (
+          <p className="text-[13px] text-ln-op-mute py-4 text-center">
+            No hay cupos materializados para este día.
+          </p>
+        ) : (
+          offeringGroups.map((group) => {
+            const kindDef = findServiceKind(group.serviceKind);
+            const groupLabel = kindDef?.label ?? group.serviceKind;
+            return (
+              <OpCard key={group.offeringId}>
+                <OpCardHead title={`${group.offeringTitle} · ${groupLabel}`} />
+                <OpCardBody className="p-0">
+                  <ul className="divide-y divide-ln-op-line">
+                    {group.slots.map((slot) => {
+                      const tone = slotOccupancyTone(
+                        slot.bookingsCount,
+                        slot.capacity,
+                        slot.status,
+                      );
+                      const startStr = slot.startsAt.toLocaleTimeString("es-AR", {
+                        timeZone: "America/Argentina/Buenos_Aires",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                      const endStr = slot.endsAt.toLocaleTimeString("es-AR", {
+                        timeZone: "America/Argentina/Buenos_Aires",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                      const occupancyLabel =
+                        slot.status === "cancelled"
+                          ? "Bloqueado"
+                          : `${slot.bookingsCount}/${slot.capacity} reservados`;
+                      const canBlock = slot.bookingsCount === 0 && slot.status === "open";
+                      return (
+                        <li key={slot.id} className="flex items-center gap-4 px-4 py-3">
+                          <div className="shrink-0 text-[12px] font-mono text-ln-op-mute w-28">
+                            {startStr}–{endStr}
+                          </div>
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                            <OpPill tone={tone}>{occupancyLabel}</OpPill>
+                          </div>
+                          {canBlock && (
+                            <div className="shrink-0">
+                              <BlockSlotButton orgToken={orgToken} slotId={slot.id} />
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </OpCardBody>
+              </OpCard>
+            );
+          })
+        )}
+      </section>
 
       {/* Appointments list */}
       {rows.length === 0 ? (

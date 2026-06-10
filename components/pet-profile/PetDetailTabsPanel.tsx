@@ -191,6 +191,7 @@ function VacunasPanel({ data }: { data: VacunasTabData }) {
         petToken={data.petToken}
         upcomingReminders={data.upcomingReminders}
         history={data.history}
+        vaccinationSummary={data.vaccinationSummary}
       />
     </div>
   );

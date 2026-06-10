@@ -25,6 +25,8 @@ import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
 
+import { IncomingTransferActions } from "./IncomingTransferActions";
+
 const REASON_LABEL: Record<string, string> = {
   space_constraint: "Falta de espacio",
   specialization_needed: "Especialización requerida",
@@ -255,6 +257,15 @@ export default async function OrgTransferenciasEntrantesPage({
                         {statusLabel}
                       </OpPill>
                     </div>
+
+                    {/* Accept / reject actions — only for open handshake rows */}
+                    {r.status === "open" && !isDecomiso && (
+                      <IncomingTransferActions
+                        receiverOrgToken={orgToken}
+                        casePublicCode={r.publicCode}
+                        petName={r.petName ?? "(sin pet)"}
+                      />
+                    )}
                   </li>
                 );
               })}

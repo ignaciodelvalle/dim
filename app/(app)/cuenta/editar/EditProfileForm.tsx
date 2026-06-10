@@ -166,14 +166,14 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Success banner */}
       {successMessage && (
-        <div className="rounded-[4px] bg-[#eef6f0] border border-[var(--color-ln-ok)] px-4 py-3">
+        <div className="rounded-[4px] bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok)] px-4 py-3">
           <p className="text-sm text-[var(--color-ln-ok)]">{successMessage}</p>
         </div>
       )}
 
       {/* Global error */}
       {globalError && (
-        <div className="rounded-[4px] bg-[#fbe9e6] border border-[var(--color-ln-seal)] px-4 py-3">
+        <div className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3">
           <p className="text-sm text-[var(--color-ln-seal)]">{globalError}</p>
         </div>
       )}

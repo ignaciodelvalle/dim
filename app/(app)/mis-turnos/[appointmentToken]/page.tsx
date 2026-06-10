@@ -80,7 +80,9 @@ export default async function AppointmentDetailPage({
   const statusConfig = STATUS_CONFIG[appointment.status] ?? STATUS_CONFIG.confirmed;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
-  const showCheckInQr = appointment.status === "confirmed";
+  // QR only while the slot is current — a past confirmed appointment (never
+  // marked attended/no-show) must not keep offering check-in.
+  const showCheckInQr = appointment.status === "confirmed" && slot.endsAt > new Date();
   const qrSvg = showCheckInQr
     ? await QRCode.toString(`mimar://appointment/${appointmentToken}`, {
         type: "svg",
@@ -211,9 +213,9 @@ type StatusConfig = { label: string; bg: string; text: string; border: string };
 const STATUS_CONFIG: Record<string, StatusConfig> = {
   confirmed: {
     label: "Confirmado",
-    bg: "bg-[#eef6f0]",
+    bg: "bg-[var(--color-ln-ok-050)]",
     text: "text-[var(--color-ln-ok)]",
-    border: "border-[#c8e2d2]",
+    border: "border-[var(--color-ln-ok-100)]",
   },
   attended: {
     label: "Asistido",
@@ -227,10 +229,16 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     text: "text-[var(--color-ln-mute)]",
     border: "border-[var(--color-ln-line-strong)]",
   },
+  cancelled_by_owner: {
+    label: "Cancelado por vos",
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
+  },
   no_show: {
     label: "No asistió",
-    bg: "bg-[#fbe9e6]",
+    bg: "bg-[var(--color-ln-err-050)]",
     text: "text-[var(--color-ln-err)]",
-    border: "border-[#f1c6bf]",
+    border: "border-[var(--color-ln-err-100)]",
   },
 };

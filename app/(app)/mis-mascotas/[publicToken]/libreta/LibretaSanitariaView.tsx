@@ -279,7 +279,7 @@ function LnTimelineSection({
                 <ConfidenceBadge tier={confidenceTier} />
                 {isEno && (
                   <span
-                    className="rounded-full border border-[#f0dcb4] bg-[#fdf6ea] px-[7px] py-[1px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.08em]"
+                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-[1px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.08em]"
                     style={{ color: "var(--color-ln-warn)" }}
                     title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
                   >

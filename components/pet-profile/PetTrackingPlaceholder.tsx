@@ -5,7 +5,7 @@
 
 export function PetTrackingPlaceholder() {
   return (
-    <div className="block rounded-2xl border border-dashed border-ln-ok bg-gradient-to-br from-[#eef6f0] to-ln-celeste/10 p-5 text-center">
+    <div className="block rounded-2xl border border-dashed border-ln-ok bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10 p-5 text-center">
       <p className="mb-1 text-3xl" aria-hidden>
         📍
       </p>

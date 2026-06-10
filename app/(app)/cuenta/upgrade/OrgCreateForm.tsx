@@ -24,7 +24,7 @@ export function OrgCreateForm() {
   // Prerequisite missing: render CTA card instead of the form + generic error.
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de crear una organización, verificá tu DNI.
         </p>

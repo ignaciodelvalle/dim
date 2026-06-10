@@ -178,7 +178,7 @@ export function Step3Where({
 
       {error && (
         <p
-          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[#fbe9e6] border border-[#f1c6bf] px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
           role="alert"
         >
           {error}

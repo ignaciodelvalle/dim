@@ -9,6 +9,7 @@ import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
+  GOB_ALL_PROVINCES,
   type MaltratoQueue,
   PROVINCE_ISO_MAP,
   buildMaltratoListConditions,
@@ -24,21 +25,6 @@ import {
 import { count, desc } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
-
-// All Argentine provinces list for <JurisdictionSwitcher>.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Córdoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucumán" },
-  { code: "AR-E", name: "Entre Ríos" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 const PAGE_SIZE = 50;
 const VALID_QUEUES: MaltratoQueue[] = ["urgent", "mine", "all", "overdue"];
@@ -121,7 +107,7 @@ export default async function GobMaltratoPage({
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =
     profile.role === "admin"
-      ? ALL_PROVINCES
+      ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");

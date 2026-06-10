@@ -60,7 +60,7 @@ export function PetEmergencyCard({ vet, emergencyContact, alerts, editHref }: Pr
       </div>
 
       {alerts.length > 0 && (
-        <div className="mt-3 rounded-lg border-l-[3px] border-ln-err bg-[#fbe9e6] px-3 py-2 ">
+        <div className="mt-3 rounded-lg border-l-[3px] border-ln-err bg-[var(--color-ln-err-050)] px-3 py-2 ">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ln-err ">
             Alertas médicas
           </p>
@@ -103,11 +103,11 @@ function ContactCard({
   return (
     <a
       href={`tel:${contact.phone.replace(/\s+/g, "")}`}
-      className="flex items-center gap-2.5 rounded-lg bg-ln-stripe p-3 transition-colors hover:bg-[#fbe9e6]  "
+      className="flex items-center gap-2.5 rounded-lg bg-ln-stripe p-3 transition-colors hover:bg-[var(--color-ln-err-050)]  "
     >
       <span
         aria-hidden
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbe9e6] text-ln-err  "
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-err-050)] text-ln-err  "
       >
         {icon}
       </span>

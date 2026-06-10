@@ -227,6 +227,8 @@ describe("approve/reject adoption application actions", () => {
       dailyRoutine: "Trabajo en casa.",
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     if (!("ok" in r)) throw new Error(r.error);
     applicationEventId = r.applicationEventId;
@@ -287,6 +289,8 @@ describe("approve/reject adoption application actions", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     if (!("ok" in submission)) throw new Error(submission.error);
     const secondAppId = submission.applicationEventId;

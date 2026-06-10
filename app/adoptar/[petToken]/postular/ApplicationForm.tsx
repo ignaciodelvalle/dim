@@ -1,25 +1,19 @@
 "use client";
 
-// ApplicationForm — 4-step adoption application wizard.
-// Trilogy unification handoff §4 PR-036.
-//
+// ApplicationForm — 5-step adoption application wizard.
 // Steps:
-//   1. Tu casa — housing type radio. CTA Continuar.
-//   2. Otros animales — otherPets textarea (optional). CTA Continuar.
-//   3. Tu día a día — dailyRoutine + notes textareas (optional). CTA Continuar.
-//   4. Confirmar — consent checkbox + privacy modal trigger + summary recap.
-//      CTA Enviar postulación.
-//
-// On success → SuccessScreen with the application's event id as the code
-// reference. (The handoff suggested 'APP-XXXX-XXXX'; no such generator exists
-// today and adding one is scope creep — the event id is the operational
-// reference adopters can quote when contacting the refugio.)
+//   1. Por qué querés adoptar — motivation textarea (required, min 30 chars).
+//   2. Tu experiencia — priorPets radio + otherPets textarea.
+//   3. Tu casa — housing type radio.
+//   4. Tu día a día — dailyRoutine + notes textareas (optional).
+//   5. Confirmar — consent checkbox + privacy modal + summary recap.
 
 import { useState, useTransition } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { submitAdoptionApplicationAction } from "@/src/modules/adoption/actions";
+import type { PriorPets } from "@/src/modules/adoption/domain/types";
 
 type HousingType = "casa_con_patio" | "casa_sin_patio" | "departamento" | "otro";
 
@@ -30,8 +24,22 @@ const HOUSING_OPTIONS: Array<{ value: HousingType; label: string }> = [
   { value: "otro", label: "Otra" },
 ];
 
-const TOTAL_STEPS = 4;
-const STEP_LABELS = ["Tu casa", "Otros animales", "Tu día a día", "Confirmar"];
+const PRIOR_PETS_OPTIONS: Array<{ value: PriorPets; label: string }> = [
+  { value: "yes_currently", label: "Sí, actualmente tengo mascotas" },
+  { value: "yes_before", label: "Sí, tuve antes" },
+  { value: "no", label: "No, nunca tuve" },
+];
+
+const TOTAL_STEPS = 5;
+const STEP_LABELS = [
+  "Por qué querés adoptar",
+  "Tu experiencia",
+  "Tu casa",
+  "Tu día a día",
+  "Confirmar",
+];
+
+const MIN_MOTIVATION_LEN = 30;
 
 // ---------------------------------------------------------------------------
 // Shared style helpers
@@ -90,6 +98,67 @@ function StepQuestion({
   );
 }
 
+function RadioCard<T extends string>({
+  name,
+  options,
+  value,
+  onChange,
+}: {
+  name: string;
+  options: Array<{ value: T; label: string }>;
+  value: T | "";
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-[8px]">
+      {options.map((opt) => (
+        <label
+          key={opt.value}
+          className="flex items-center gap-[10px] rounded-[5px] border px-[12px] py-[10px] text-[13px] cursor-pointer"
+          style={
+            value === opt.value
+              ? {
+                  borderColor: "var(--color-ln-azul)",
+                  background: "var(--color-ln-celeste-050)",
+                  color: "var(--color-ln-ink)",
+                }
+              : {
+                  borderColor: "var(--color-ln-line)",
+                  background: "var(--color-ln-card)",
+                  color: "var(--color-ln-ink)",
+                }
+          }
+        >
+          <input
+            type="radio"
+            name={name}
+            value={opt.value}
+            checked={value === opt.value}
+            onChange={() => onChange(opt.value)}
+            className="sr-only"
+          />
+          <span
+            className="flex-shrink-0 w-[16px] h-[16px] rounded-full border-2"
+            style={
+              value === opt.value
+                ? {
+                    borderColor: "var(--color-ln-azul)",
+                    background: "var(--color-ln-azul)",
+                    boxShadow: "inset 0 0 0 3px #fff",
+                  }
+                : {
+                    borderColor: "var(--color-ln-line-strong)",
+                    background: "transparent",
+                  }
+            }
+          />
+          <span>{opt.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function ApplicationForm({
   petPublicToken,
   petName,
@@ -102,19 +171,50 @@ export function ApplicationForm({
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [housingType, setHousingType] = useState<HousingType | "">("");
+  const [motivation, setMotivation] = useState("");
+  const [priorPets, setPriorPets] = useState<PriorPets | "">("");
   const [otherPets, setOtherPets] = useState("");
+  const [housingType, setHousingType] = useState<HousingType | "">("");
   const [dailyRoutine, setDailyRoutine] = useState("");
   const [notes, setNotes] = useState("");
   const [profileSharingConsent, setProfileSharingConsent] = useState(false);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
 
+  function advanceStep1() {
+    const trimmed = motivation.trim();
+    if (trimmed.length < MIN_MOTIVATION_LEN) {
+      setError(`Contanos un poco más — mínimo ${MIN_MOTIVATION_LEN} caracteres.`);
+      return;
+    }
+    setError(null);
+    setStep(2);
+  }
+
+  function advanceStep2() {
+    if (!priorPets) {
+      setError("Seleccioná si tuviste mascotas antes.");
+      return;
+    }
+    setError(null);
+    setStep(3);
+  }
+
   function submit() {
     setError(null);
     if (!housingType) {
       setError("Elegí el tipo de vivienda.");
+      setStep(3);
+      return;
+    }
+    if (motivation.trim().length < MIN_MOTIVATION_LEN) {
+      setError(`Contanos por qué querés adoptar (mínimo ${MIN_MOTIVATION_LEN} caracteres).`);
       setStep(1);
+      return;
+    }
+    if (!priorPets) {
+      setError("Seleccioná si tuviste mascotas antes.");
+      setStep(2);
       return;
     }
     startTransition(async () => {
@@ -125,14 +225,13 @@ export function ApplicationForm({
         dailyRoutine: dailyRoutine.trim() || null,
         notes: notes.trim() || null,
         profileSharingConsent,
+        motivation: motivation.trim() || null,
+        priorPets: priorPets || null,
       });
       if ("error" in result) {
         setError(result.error);
         return;
       }
-      // Derive a short, copy-friendly code from the event id. The full UUID
-      // remains the source of truth server-side; this is just for the user
-      // to quote when contacting the refugio.
       const short = result.applicationEventId.slice(0, 8).toUpperCase();
       setSubmittedCode(`APP-${short.slice(0, 4)}-${short.slice(4, 8)}`);
     });
@@ -159,12 +258,21 @@ export function ApplicationForm({
     );
   }
 
+  const motivationChars = motivation.trim().length;
+
   return (
     <LnWizardShell
       currentStep={step}
       totalSteps={TOTAL_STEPS}
       stepLabels={STEP_LABELS}
-      onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
+      onBack={
+        step > 1
+          ? () => {
+              setError(null);
+              setStep((s) => s - 1);
+            }
+          : undefined
+      }
     >
       <p className="text-[12px]" style={HINT_STYLE}>
         Te van a contactar a{" "}
@@ -174,60 +282,43 @@ export function ApplicationForm({
         para coordinar los próximos pasos.
       </p>
 
-      {/* Step 1 — Tu casa */}
+      {/* Step 1 — Motivación */}
       <section className={step === 1 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 1}>
-        <StepQuestion num="01" label="¿Cómo es tu vivienda?">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
-            {HOUSING_OPTIONS.map((opt) => (
-              <label
-                key={opt.value}
-                className="flex items-center gap-[10px] rounded-[5px] border px-[12px] py-[10px] text-[13px] cursor-pointer"
-                style={
-                  housingType === opt.value
-                    ? {
-                        borderColor: "var(--color-ln-azul)",
-                        background: "var(--color-ln-celeste-050)",
-                        color: "var(--color-ln-ink)",
-                      }
-                    : {
-                        borderColor: "var(--color-ln-line)",
-                        background: "var(--color-ln-card)",
-                        color: "var(--color-ln-ink)",
-                      }
-                }
-              >
-                <input
-                  type="radio"
-                  name="housing"
-                  value={opt.value}
-                  checked={housingType === opt.value}
-                  onChange={() => setHousingType(opt.value)}
-                  className="sr-only"
-                />
-                <span
-                  className="flex-shrink-0 w-[16px] h-[16px] rounded-full border-2"
-                  style={
-                    housingType === opt.value
-                      ? {
-                          borderColor: "var(--color-ln-azul)",
-                          background: "var(--color-ln-azul)",
-                          boxShadow: "inset 0 0 0 3px #fff",
-                        }
-                      : {
-                          borderColor: "var(--color-ln-line-strong)",
-                          background: "transparent",
-                        }
-                  }
-                />
-                <span>{opt.label}</span>
-              </label>
-            ))}
-          </div>
+        <StepQuestion
+          num="01"
+          label={`¿Por qué querés adoptar a ${petName}?`}
+          hint="Contale al refugio qué te llevó a postularte. Mientras más específico, mejor."
+        >
+          <textarea
+            id="motivation"
+            value={motivation}
+            onChange={(e) => setMotivation(e.target.value)}
+            rows={4}
+            placeholder={`Ej: "Siempre tuve perros y ahora que me mudé a una casa con patio quiero darle una familia a ${petName}..."`}
+            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            style={TEXTAREA_STYLE}
+          />
+          <p
+            className="text-[11px] text-right"
+            style={{
+              color:
+                motivationChars >= MIN_MOTIVATION_LEN
+                  ? "var(--color-ln-ok)"
+                  : "var(--color-ln-mute)",
+            }}
+          >
+            {motivationChars} / {MIN_MOTIVATION_LEN} caracteres mínimo
+          </p>
         </StepQuestion>
+        {error && (
+          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+            {error}
+          </output>
+        )}
         <button
           type="button"
-          onClick={() => setStep(2)}
-          disabled={!housingType}
+          onClick={advanceStep1}
+          disabled={motivationChars < MIN_MOTIVATION_LEN}
           className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
@@ -235,11 +326,19 @@ export function ApplicationForm({
         </button>
       </section>
 
-      {/* Step 2 — Otros animales */}
+      {/* Step 2 — Experiencia + otros animales */}
       <section className={step === 2 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 2}>
+        <StepQuestion num="02" label="¿Tuviste mascotas antes?">
+          <RadioCard
+            name="prior_pets"
+            options={PRIOR_PETS_OPTIONS}
+            value={priorPets}
+            onChange={setPriorPets}
+          />
+        </StepQuestion>
         <StepQuestion
-          num="02"
-          label="¿Tenés otras mascotas?"
+          num="03"
+          label="¿Tenés otras mascotas actualmente?"
           hint="Opcional — contale al refugio si hay animales en casa."
         >
           <textarea
@@ -252,20 +351,52 @@ export function ApplicationForm({
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
+        {error && (
+          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+            {error}
+          </output>
+        )}
         <button
           type="button"
-          onClick={() => setStep(3)}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white"
+          onClick={advanceStep2}
+          disabled={!priorPets}
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
         </button>
       </section>
 
-      {/* Step 3 — Tu día a día */}
+      {/* Step 3 — Tu casa */}
       <section className={step === 3 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 3}>
+        <StepQuestion num="04" label="¿Cómo es tu vivienda?">
+          <RadioCard
+            name="housing"
+            options={HOUSING_OPTIONS}
+            value={housingType}
+            onChange={setHousingType}
+          />
+        </StepQuestion>
+        {error && (
+          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+            {error}
+          </output>
+        )}
+        <button
+          type="button"
+          onClick={() => setStep(4)}
+          disabled={!housingType}
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          style={{ background: "var(--color-ln-azul)" }}
+        >
+          Continuar →
+        </button>
+      </section>
+
+      {/* Step 4 — Tu día a día */}
+      <section className={step === 4 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 4}>
         <StepQuestion
-          num="03"
+          num="05"
           label="Cómo es tu día a día"
           hint="Opcional — quién está en casa, si hay nenes, cómo se organiza el cuidado."
         >
@@ -279,7 +410,7 @@ export function ApplicationForm({
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
-        <StepQuestion num="04" label="Algo más que quieras contar" hint="Opcional.">
+        <StepQuestion num="06" label="Algo más que quieras contar" hint="Opcional.">
           <textarea
             id="notes"
             value={notes}
@@ -291,7 +422,7 @@ export function ApplicationForm({
         </StepQuestion>
         <button
           type="button"
-          onClick={() => setStep(4)}
+          onClick={() => setStep(5)}
           className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white"
           style={{ background: "var(--color-ln-azul)" }}
         >
@@ -299,8 +430,8 @@ export function ApplicationForm({
         </button>
       </section>
 
-      {/* Step 4 — Confirmar */}
-      <section className={step === 4 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 4}>
+      {/* Step 5 — Confirmar */}
+      <section className={step === 5 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 5}>
         {/* Summary recap */}
         <div className="rounded-[8px] border px-[20px] py-[16px] space-y-[10px]" style={CARD_STYLE}>
           <p
@@ -313,6 +444,24 @@ export function ApplicationForm({
             className="grid gap-x-[14px] gap-y-[6px] text-[12px]"
             style={{ gridTemplateColumns: "auto 1fr" }}
           >
+            <dt
+              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              style={HINT_STYLE}
+            >
+              Por qué adoptás
+            </dt>
+            <dd className="m-0 line-clamp-2" style={{ color: "var(--color-ln-ink)" }}>
+              {motivation.trim() || "—"}
+            </dd>
+            <dt
+              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              style={HINT_STYLE}
+            >
+              Experiencia con mascotas
+            </dt>
+            <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
+              {PRIOR_PETS_OPTIONS.find((o) => o.value === priorPets)?.label ?? "—"}
+            </dd>
             <dt
               className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
               style={HINT_STYLE}

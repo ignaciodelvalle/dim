@@ -75,7 +75,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
           href={posterHref}
           target="_blank"
           rel="noreferrer"
-          className="flex flex-col items-center gap-1 rounded-lg bg-ln-stripe p-3 text-xs font-medium text-ln-ink-2 transition-colors hover:bg-[#fbe9e6] hover:text-ln-err    "
+          className="flex flex-col items-center gap-1 rounded-lg bg-ln-stripe p-3 text-xs font-medium text-ln-ink-2 transition-colors hover:bg-[var(--color-ln-err-050)] hover:text-ln-err    "
         >
           <span aria-hidden className="text-xl">
             🖨
@@ -109,7 +109,7 @@ function ShareButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1 rounded-lg bg-ln-stripe p-3 text-xs font-medium text-ln-ink-2 transition-colors hover:bg-[#fbe9e6] hover:text-ln-err    "
+      className="flex flex-col items-center gap-1 rounded-lg bg-ln-stripe p-3 text-xs font-medium text-ln-ink-2 transition-colors hover:bg-[var(--color-ln-err-050)] hover:text-ln-err    "
     >
       <span aria-hidden className="text-xl">
         {icon}

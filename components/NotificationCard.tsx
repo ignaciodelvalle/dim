@@ -98,19 +98,19 @@ function severityClasses(severity: string) {
     case "warning":
       return {
         bar: "bg-ln-warn",
-        unreadBg: "bg-[#fdf2e0] ",
+        unreadBg: "bg-[var(--color-ln-warn-050)] ",
         unreadBorder: "border-ln-warn ",
       };
     case "urgent":
       return {
         bar: "bg-ln-err",
-        unreadBg: "bg-[#fbe9e6] ",
+        unreadBg: "bg-[var(--color-ln-err-050)] ",
         unreadBorder: "border-ln-err ",
       };
     case "success":
       return {
         bar: "bg-ln-ok",
-        unreadBg: "bg-[#eef6f0] ",
+        unreadBg: "bg-[var(--color-ln-ok-050)] ",
         unreadBorder: "border-ln-ok ",
       };
     default:

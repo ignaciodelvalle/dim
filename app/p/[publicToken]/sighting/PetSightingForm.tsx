@@ -35,7 +35,7 @@ export function PetSightingForm({
   if (state.ok) {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-[#c8e2d2] bg-[#eef6f0] p-4 text-sm text-[var(--color-ln-ok)]">
+        <div className="rounded-lg border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] p-4 text-sm text-[var(--color-ln-ok)]">
           <p className="font-medium">¡Gracias!</p>
           <p className="mt-1 text-xs">
             Le avisamos al dueño/a con el punto que marcaste. Cualquier detalle más puede ayudar.

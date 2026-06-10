@@ -56,7 +56,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {error && (
         <div
           role="alert"
-          className="rounded-[4px] bg-[#fbe9e6] border border-[var(--color-ln-seal)] px-4 py-3"
+          className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3"
         >
           <p className="text-sm text-[var(--color-ln-seal)]">{error}</p>
         </div>
@@ -79,8 +79,8 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
                   key={`${loc.province}/${loc.locality}`}
                   className={`flex items-center justify-between rounded-[4px] border px-4 py-3 ${
                     covered
-                      ? "border-[var(--color-ln-ok)] bg-[#eef6f0]"
-                      : "border-[var(--color-ln-seal)] bg-[#fbe9e6]"
+                      ? "border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)]"
+                      : "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)]"
                   }`}
                 >
                   <span className="text-sm text-[var(--color-ln-ink-2)]">
@@ -108,7 +108,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {hasUncoveredLocality && (
         <div
           role="alert"
-          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-5 py-4 space-y-2"
+          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-5 py-4 space-y-2"
         >
           <p className="text-sm font-semibold text-[var(--color-ln-seal)]">
             No podés desactivarte todavía.
@@ -124,7 +124,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {canProceed && (
         <>
           {/* Confirmation text */}
-          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 space-y-2">
+          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 space-y-2">
             <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
               Si confirmás la desactivación:
             </p>

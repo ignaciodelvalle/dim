@@ -331,6 +331,8 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       else primary = "Postulación resuelta";
       return { primary, secondary: str("notes") };
     }
+    case "ownership_claimed":
+      return { primary: "Mascota reclamada", secondary: null };
     default:
       return { primary: null, secondary: null };
   }

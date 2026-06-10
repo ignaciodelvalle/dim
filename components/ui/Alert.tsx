@@ -34,9 +34,11 @@ export type LnAlertProps = {
 // Container: soft bg + tinted border, same pattern as LnSheet tone colors
 const containerVariants: Record<AlertVariant, string> = {
   info: "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-celeste-100)] text-[var(--color-ln-ink)]",
-  success: "bg-[#eef6f0] border-[#c8e2d2] text-[var(--color-ln-ink)]",
-  warning: "bg-[#fdf2e0] border-[#f0dcb4] text-[var(--color-ln-ink)]",
-  danger: "bg-[#fbe9e6] border-[#f1c6bf] text-[var(--color-ln-ink)]",
+  success: "bg-[var(--color-ln-ok-050)] border-[var(--color-ln-ok-100)] text-[var(--color-ln-ink)]",
+  warning:
+    "bg-[var(--color-ln-warn-050)] border-[var(--color-ln-warn-100)] text-[var(--color-ln-ink)]",
+  danger:
+    "bg-[var(--color-ln-err-050)] border-[var(--color-ln-err-100)] text-[var(--color-ln-ink)]",
 };
 
 const defaultIcons: Record<AlertVariant, IconName> = {

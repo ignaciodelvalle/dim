@@ -69,6 +69,8 @@ export default async function AdoptionReviewDetailPage({
     other_pets: string | null;
     daily_routine: string | null;
     notes: string | null;
+    motivation?: string | null;
+    prior_pets?: "yes_currently" | "yes_before" | "no" | null;
   };
 
   // Applicant identity. profiles.id may not be FK-backed via auth.users
@@ -143,11 +145,21 @@ export default async function AdoptionReviewDetailPage({
         </OpCardBody>
       </OpCard>
 
-      {(payload.other_pets || payload.daily_routine || payload.notes) && (
+      {(payload.motivation ||
+        payload.prior_pets ||
+        payload.other_pets ||
+        payload.daily_routine ||
+        payload.notes) && (
         <OpCard>
           <OpCardHead title="Lo que nos contó" />
           <OpCardBody>
             <div className="space-y-4">
+              {payload.motivation && (
+                <Block label="Por qué quiere adoptar" body={payload.motivation} />
+              )}
+              {payload.prior_pets && (
+                <Block label="Experiencia con mascotas" body={priorPetsLabel(payload.prior_pets)} />
+              )}
               {payload.other_pets && <Block label="Otras mascotas" body={payload.other_pets} />}
               {payload.daily_routine && <Block label="Día a día" body={payload.daily_routine} />}
               {payload.notes && <Block label="Notas" body={payload.notes} />}
@@ -227,5 +239,18 @@ function housingTypeLabel(value: string): string {
       return "Departamento";
     default:
       return "Otra";
+  }
+}
+
+function priorPetsLabel(value: string): string {
+  switch (value) {
+    case "yes_currently":
+      return "Sí, actualmente tiene mascotas";
+    case "yes_before":
+      return "Sí, tuvo antes";
+    case "no":
+      return "No, nunca tuvo";
+    default:
+      return value;
   }
 }

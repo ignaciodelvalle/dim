@@ -5,7 +5,7 @@
 
 export function ClaimForm() {
   return (
-    <div className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4">
+    <div className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4">
       <p className="text-sm font-medium text-[var(--color-ln-warn)]">
         Reclamo por DNI temporalmente pausado
       </p>

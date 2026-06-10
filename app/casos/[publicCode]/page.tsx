@@ -26,6 +26,9 @@ import { createClient } from "@/lib/supabase/server";
 import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 import { and, eq, isNull } from "drizzle-orm";
 
+// Reads auth cookies (viewer-dependent PII gating) — never statically cache.
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ publicCode: string }>;
 }
@@ -103,6 +106,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
         <span className="mx-2">›</span>
         <span className="text-[var(--color-ln-ink-2)]">{detail.publicCode}</span>
       </nav>
+
+      {/* "Por qué es público" banner — only for anonymous viewers on public-kind cases.
+          Explains the transparency policy without revealing any PII. */}
+      {isPublic && <PublicTransparencyBanner caseKind={detail.caseKind} />}
 
       {/* Header */}
       <header className="mb-6">
@@ -297,6 +304,50 @@ export default async function CaseDetailPage({ params }: PageProps) {
         )}
       </section>
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PublicTransparencyBanner — explains why this case is publicly accessible.
+// Shown only to anonymous viewers (isPublic === true). Copy follows the warm
+// MiMAR tone; no PII is present in any branch.
+// ---------------------------------------------------------------------------
+
+function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
+  const reasons: Record<string, string> = {
+    bite_incident:
+      "Los incidentes de mordedura son registros de interés sanitario público conforme a la legislación vigente. El seguimiento es visible para la comunidad para promover la seguridad.",
+    lost_pet_episode:
+      "Las alertas de mascotas perdidas son públicas para que cualquier persona que la encuentre pueda ayudar a devolverla a su familia.",
+    adoption_listing:
+      "Los procesos de adopción de refugios verificados son transparentes para facilitar el encuentro entre mascotas y familias.",
+    welfare_denuncia:
+      "Las denuncias de bienestar animal son públicas para que la comunidad pueda hacer seguimiento del proceso y la respuesta institucional.",
+  };
+
+  const reason = reasons[caseKind];
+  if (!reason) return null;
+
+  return (
+    <div
+      role="note"
+      className="mb-6 rounded-[4px] border px-[16px] py-[12px]"
+      style={{
+        background: "var(--color-ln-celeste-050)",
+        borderColor: "var(--color-ln-celeste-100)",
+        borderLeft: "3px solid var(--color-ln-azul)",
+      }}
+    >
+      <p
+        className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em]"
+        style={{ color: "var(--color-ln-azul)", marginBottom: 4 }}
+      >
+        ¿Por qué es público?
+      </p>
+      <p className="text-[13px] leading-[1.5]" style={{ color: "var(--color-ln-ink-2)" }}>
+        {reason}
+      </p>
+    </div>
   );
 }
 

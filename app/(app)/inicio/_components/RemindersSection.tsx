@@ -55,10 +55,12 @@ function buildStatusText(daysUntilDue: number): string {
 const BANNER_TONE: Record<ActiveReminderRow["variant"], string> = {
   upcoming:
     "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-azul)] text-[var(--color-ln-ink)]",
-  due_soon: "bg-[#fdf2e0] border-[var(--color-ln-warn)] text-[var(--color-ln-ink)]",
-  overdue: "bg-[#fbe9e6] border-[var(--color-ln-seal)] text-[var(--color-ln-ink)]",
-  overdue_critical: "bg-[#fbe9e6] border-[var(--color-ln-seal)] text-[var(--color-ln-ink)]",
-  success: "bg-[#eef6f0] border-[var(--color-ln-ok)] text-[var(--color-ln-ink)]",
+  due_soon:
+    "bg-[var(--color-ln-warn-050)] border-[var(--color-ln-warn)] text-[var(--color-ln-ink)]",
+  overdue: "bg-[var(--color-ln-err-050)] border-[var(--color-ln-seal)] text-[var(--color-ln-ink)]",
+  overdue_critical:
+    "bg-[var(--color-ln-err-050)] border-[var(--color-ln-seal)] text-[var(--color-ln-ink)]",
+  success: "bg-[var(--color-ln-ok-050)] border-[var(--color-ln-ok)] text-[var(--color-ln-ink)]",
 };
 
 function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {

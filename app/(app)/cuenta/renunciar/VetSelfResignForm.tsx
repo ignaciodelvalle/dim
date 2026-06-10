@@ -48,14 +48,14 @@ export function VetSelfResignForm() {
       {error && (
         <div
           role="alert"
-          className="rounded-[4px] bg-[#fbe9e6] border border-[var(--color-ln-seal)] px-4 py-3"
+          className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3"
         >
           <p className="text-sm text-[var(--color-ln-seal)]">{error}</p>
         </div>
       )}
 
       {/* Warning — consequence list (warning-first design) */}
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 space-y-3">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 space-y-3">
         <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Estas son las consecuencias de renunciar:
         </p>

@@ -60,6 +60,22 @@ export default async function OrgPropuestasPage({
         </p>
       </header>
 
+      {/* Tab bar — Pool links to the index; Propuestas is this page */}
+      <nav className="flex gap-1 border-b border-ln-op-line">
+        <a
+          href={`/org/${orgToken}/voluntarios`}
+          className="px-4 py-2 text-[13px] font-medium no-underline border-b-2 border-transparent text-ln-op-mute hover:text-ln-op-ink-2 transition-colors"
+        >
+          Pool
+        </a>
+        <span
+          className="px-4 py-2 text-[13px] font-medium border-b-2 border-ln-op-azul text-ln-op-azul"
+          aria-current="page"
+        >
+          Propuestas
+        </span>
+      </nav>
+
       <div className="flex flex-wrap gap-2">
         <FilterLink orgToken={orgToken} current={filters.status} value={null} label="Todas" />
         {(["pending", "accepted", "rejected", "expired", "cancelled"] as const).map((s) => (

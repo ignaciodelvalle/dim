@@ -15,19 +15,19 @@ const flagConfig: Record<LnPetStatus, { label: string; bg: string; text: string;
       label: "AL DÍA",
       bg: "bg-[#e8f3ec]",
       text: "text-[var(--color-ln-ok)]",
-      border: "border-[#c8e2d2]",
+      border: "border-[var(--color-ln-ok-100)]",
     },
     sick: {
       label: "EN TRATAMIENTO",
-      bg: "bg-[#fdf2e0]",
+      bg: "bg-[var(--color-ln-warn-050)]",
       text: "text-[var(--color-ln-warn)]",
-      border: "border-[#f0dcb4]",
+      border: "border-[var(--color-ln-warn-100)]",
     },
     lost: {
       label: "PERDIDO",
-      bg: "bg-[#fbe9e6]",
+      bg: "bg-[var(--color-ln-err-050)]",
       text: "text-[var(--color-ln-err)]",
-      border: "border-[#f1c6bf]",
+      border: "border-[var(--color-ln-err-100)]",
     },
     pregnant: {
       label: "PREÑADA",
@@ -72,21 +72,21 @@ const vstampConfig: Record<
 > = {
   ok: {
     label: "VIGENTE",
-    bg: "bg-[#eef6f0]",
+    bg: "bg-[var(--color-ln-ok-050)]",
     text: "text-[var(--color-ln-ok)]",
-    border: "border-[#c8e2d2]",
+    border: "border-[var(--color-ln-ok-100)]",
   },
   due: {
     label: "POR VENCER",
-    bg: "bg-[#fdf6ea]",
+    bg: "bg-[var(--color-ln-warn-025)]",
     text: "text-[var(--color-ln-warn)]",
-    border: "border-[#f0dcb4]",
+    border: "border-[var(--color-ln-warn-100)]",
   },
   over: {
     label: "VENCIDA",
     bg: "bg-[#fcefed]",
     text: "text-[var(--color-ln-err)]",
-    border: "border-[#f1c6bf]",
+    border: "border-[var(--color-ln-err-100)]",
   },
 };
 

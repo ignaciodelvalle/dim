@@ -1,12 +1,14 @@
 // Mis organizaciones — Libreta Nacional redesign.
 // Data fetching unchanged.
 
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { LnSectionHead } from "@/components/ui/DocElements";
-import { LnCallout } from "@/components/ui/DocElements";
+import { db, organizationMemberships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
+
+import { LeaveMembershipButton } from "./LeaveMembershipButton";
 
 const ORG_TYPE_LABELS: Record<string, string> = {
   clinic: "Clínica",
@@ -28,7 +30,28 @@ const ROLE_LABELS: Record<string, string> = {
 export default async function MembershipsPage() {
   const { user } = await requireUserOrRedirect();
   const memberships = await getActiveMemberships(user.id);
-  const count = memberships.length;
+  const membershipCount = memberships.length;
+
+  // Active-admin count per org where the user is admin — leaveOrganizationAction
+  // blocks the last admin, so the button is disabled upfront with an explanation.
+  const adminOrgIds = memberships
+    .filter(({ membership }) => membership.role === "admin")
+    .map(({ organization }) => organization.id);
+  const adminCounts =
+    adminOrgIds.length > 0
+      ? await db
+          .select({ organizationId: organizationMemberships.organizationId, n: count() })
+          .from(organizationMemberships)
+          .where(
+            and(
+              inArray(organizationMemberships.organizationId, adminOrgIds),
+              eq(organizationMemberships.role, "admin"),
+              isNull(organizationMemberships.leftAt),
+            ),
+          )
+          .groupBy(organizationMemberships.organizationId)
+      : [];
+  const adminCountByOrg = new Map(adminCounts.map((r) => [r.organizationId, Number(r.n)]));
 
   return (
     <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
@@ -46,12 +69,16 @@ export default async function MembershipsPage() {
           Mis organizaciones
         </h1>
         <span className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
-          {count === 0 ? "ninguna" : count === 1 ? "1 membresía" : `${count} membresías`}
+          {membershipCount === 0
+            ? "ninguna"
+            : membershipCount === 1
+              ? "1 membresía"
+              : `${membershipCount} membresías`}
         </span>
       </div>
 
       {/* Empty state */}
-      {count === 0 && (
+      {membershipCount === 0 && (
         <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
           <p className="text-[13px] text-[var(--color-ln-mute)]">
             No tenés membresías de ninguna organización todavía.
@@ -70,40 +97,46 @@ export default async function MembershipsPage() {
       )}
 
       {/* Memberships list */}
-      {count > 0 && (
+      {membershipCount > 0 && (
         <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
-          {memberships.map(({ membership, organization }) => (
-            <Link
-              key={membership.id}
-              href={`/org/${organization.publicToken}`}
-              className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
-                  {organization.displayName}
-                </p>
-                <div className="mt-[6px] flex flex-wrap gap-[6px]">
-                  <OrgTypeBadge orgType={organization.orgType} />
-                  <VerifiedBadge verified={organization.verified} />
-                  <RoleBadge role={membership.role} />
-                </div>
-                <p className="mt-[5px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                  Desde{" "}
-                  {membership.joinedAt.toLocaleDateString("es-AR", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
-              </div>
-              <span
-                aria-hidden="true"
-                className="flex-shrink-0 text-[16px] text-[var(--color-ln-mute)]"
+          {memberships.map(({ membership, organization }) => {
+            const isLastAdmin =
+              membership.role === "admin" && (adminCountByOrg.get(organization.id) ?? 0) <= 1;
+            return (
+              <div
+                key={membership.id}
+                className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[14px] last:border-b-0"
               >
-                ›
-              </span>
-            </Link>
-          ))}
+                <Link
+                  href={`/org/${organization.publicToken}`}
+                  className="group min-w-0 flex-1 no-underline"
+                >
+                  <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate group-hover:underline">
+                    {organization.displayName}
+                  </p>
+                  <div className="mt-[6px] flex flex-wrap gap-[6px]">
+                    <OrgTypeBadge orgType={organization.orgType} />
+                    <VerifiedBadge verified={organization.verified} />
+                    <RoleBadge role={membership.role} />
+                  </div>
+                  <p className="mt-[5px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    Desde{" "}
+                    {membership.joinedAt.toLocaleDateString("es-AR", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </Link>
+                <div className="flex-shrink-0">
+                  <LeaveMembershipButton
+                    organizationId={organization.id}
+                    isLastAdmin={isLastAdmin}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -126,13 +159,13 @@ function OrgTypeBadge({ orgType }: { orgType: string }) {
 function VerifiedBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
-      <span className="inline-flex items-center rounded-[2px] border border-[#c8e2d2] bg-[#eef6f0] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+      <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
         Verificada
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-[2px] border border-[#f0dcb4] bg-[#fdf2e0] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
       Pendiente
     </span>
   );

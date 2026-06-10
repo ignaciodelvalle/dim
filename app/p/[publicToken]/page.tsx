@@ -419,6 +419,7 @@ export default async function PublicCredentialPage({
           tattooLocation={pet.tattooLocation}
           tattooDescription={pet.tattooDescription}
           tattooPhotoUrl={tattooPhotoUrl}
+          lostDescription={lostContext.lostDescription}
         />
       </>
     );
@@ -463,8 +464,8 @@ export default async function PublicCredentialPage({
             data-section="emergency-banner"
             className="sticky top-0 z-30 -mx-[16px] mb-[16px] md:static md:mx-0 md:mb-[16px] md:rounded-[4px]"
             style={{
-              background: "#fbe9e6",
-              borderBottom: "1px solid #f1c6bf",
+              background: "var(--color-ln-err-050)",
+              borderBottom: "1px solid var(--color-ln-err-100)",
               padding: "13px 18px",
               display: "flex",
               alignItems: "flex-start",
@@ -516,8 +517,8 @@ export default async function PublicCredentialPage({
             data-section="custody-disclaimer"
             className="mb-[16px] rounded-[4px]"
             style={{
-              background: "#fdf2e0",
-              border: "1px solid #f0dcb4",
+              background: "var(--color-ln-warn-050)",
+              border: "1px solid var(--color-ln-warn-100)",
               borderLeft: "3px solid var(--color-ln-warn)",
               padding: "12px 16px",
             }}
@@ -650,8 +651,8 @@ export default async function PublicCredentialPage({
                 fontWeight: 600,
                 letterSpacing: ".08em",
                 color: tier2Active ? "var(--color-ln-ok)" : "var(--color-ln-azul)",
-                background: tier2Active ? "#eef6f0" : "var(--color-ln-celeste-050)",
-                border: `1px solid ${tier2Active ? "#c8e2d2" : "var(--color-ln-celeste-100)"}`,
+                background: tier2Active ? "var(--color-ln-ok-050)" : "var(--color-ln-celeste-050)",
+                border: `1px solid ${tier2Active ? "var(--color-ln-ok-100)" : "var(--color-ln-celeste-100)"}`,
                 padding: "3px 8px",
                 borderRadius: 999,
               }}

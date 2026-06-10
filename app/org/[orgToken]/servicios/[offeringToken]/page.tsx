@@ -1,22 +1,17 @@
 // Org portal — service offering detail. Shows status, submitted data, rejection
-// reason when rejected, and a link to the schedule rules page when approved.
+// reason when rejected, a metrics row (approved only), and pause/archive controls.
 // Schedule rules CRUD (Fase 2) will live at ./agenda — linked here but not yet built.
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, gt, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import {
-  OpBreach,
-  OpCallout,
-  OpCard,
-  OpCardBody,
-  OpCardHead,
-  OpPill,
-} from "@/components/ui/dashboard";
-import { db, organizations, serviceOfferings } from "@/db";
+import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui/dashboard";
+import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
+
+import { OfferingActions } from "./OfferingActions";
 
 type StatusTone = "open" | "ok" | "danger" | "neutral";
 const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
@@ -59,6 +54,58 @@ export default async function OfferingDetailPage({
   const { offering } = row;
   const kind = findServiceKind(offering.serviceKind);
   const statusConfig = STATUS_CONFIG[offering.status] ?? STATUS_CONFIG.pending_approval;
+
+  // Metrics — only compute for approved/paused offerings (others have no appointments).
+  let metrics: {
+    total: number;
+    attended: number;
+    upcoming: number;
+    occupancyPct: number | null;
+  } | null = null;
+
+  if (offering.status === "approved" || offering.status === "paused") {
+    const now = new Date();
+    const next7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const [totals] = await db
+      .select({
+        total: count(),
+        attended: sql<number>`count(*) filter (where ${appointments.status} = 'attended')`,
+      })
+      .from(appointments)
+      .where(eq(appointments.serviceOfferingId, offering.id));
+
+    const [upcomingRow] = await db
+      .select({ upcoming: count() })
+      .from(appointments)
+      .where(
+        and(eq(appointments.serviceOfferingId, offering.id), eq(appointments.status, "confirmed")),
+      );
+
+    // Occupancy next 7 days: booked / total capacity across future slots.
+    const [occupancyRow] = await db
+      .select({
+        booked: sql<number>`coalesce(sum(${timeSlots.bookingsCount}), 0)`,
+        capacity: sql<number>`coalesce(sum(${timeSlots.capacity}), 0)`,
+      })
+      .from(timeSlots)
+      .where(
+        and(
+          eq(timeSlots.serviceOfferingId, offering.id),
+          gt(timeSlots.startsAt, now),
+          sql`${timeSlots.startsAt} <= ${next7d}`,
+        ),
+      );
+
+    const cap = occupancyRow?.capacity ?? 0;
+    const booked = occupancyRow?.booked ?? 0;
+    metrics = {
+      total: totals?.total ?? 0,
+      attended: Number(totals?.attended ?? 0),
+      upcoming: upcomingRow?.upcoming ?? 0,
+      occupancyPct: cap > 0 ? Math.round((booked / cap) * 100) : null,
+    };
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -149,6 +196,26 @@ export default async function OfferingDetailPage({
         </OpCardBody>
       </OpCard>
 
+      {/* Metrics row — approved or paused offerings only */}
+      {metrics !== null && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <OpKpiSm label="Turnos totales" value={metrics.total} />
+          <OpKpiSm label="Asistencias" value={metrics.attended} />
+          <OpKpiSm label="Próximos confirmados" value={metrics.upcoming} />
+          <OpKpiSm
+            label="Ocupación próx. 7 días"
+            value={metrics.occupancyPct !== null ? `${metrics.occupancyPct}%` : "—"}
+            tone={
+              metrics.occupancyPct === null
+                ? "neutral"
+                : metrics.occupancyPct >= 80
+                  ? "ok"
+                  : "neutral"
+            }
+          />
+        </div>
+      )}
+
       {/* CTA for approved offerings */}
       {offering.status === "approved" && (
         <div>
@@ -158,6 +225,17 @@ export default async function OfferingDetailPage({
           >
             Configurar agenda →
           </Link>
+        </div>
+      )}
+
+      {/* Pause / archive actions — available when not archived */}
+      {offering.status !== "archived" && offering.status !== "pending_approval" && (
+        <div className="pt-2">
+          <OfferingActions
+            orgToken={orgToken}
+            offeringToken={offeringToken}
+            status={offering.status}
+          />
         </div>
       )}
 

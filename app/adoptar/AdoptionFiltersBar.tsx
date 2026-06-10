@@ -8,6 +8,7 @@ import {
   ADOPTION_ENERGY_LEVELS,
   ADOPTION_SIZE_ESTIMATES,
   type AdoptionListingFilters,
+  buildSearchParams,
 } from "@/lib/adoption-listing";
 
 // URL-driven filters bar — every change submits a GET form so the URL
@@ -42,184 +43,281 @@ const ENERGY_LABELS: Record<string, string> = {
   high: "Activo",
 };
 
+// Build a URL that removes a single filter key. Used by removable chips.
+function urlWithout(filters: AdoptionListingFilters, key: keyof AdoptionListingFilters): string {
+  const next = { ...filters };
+  delete next[key];
+  return `/adoptar?${buildSearchParams(next, null).toString()}`;
+}
+
+// Visible label for each active filter chip.
+const CHIP_LABELS: Partial<Record<keyof AdoptionListingFilters, (v: unknown) => string>> = {
+  species: (v) =>
+    ({ dog: "Perros", cat: "Gatos", rabbit: "Conejos", guinea_pig: "Cobayos", ferret: "Hurones" })[
+      v as string
+    ] ?? String(v),
+  province: (v) => `Provincia: ${v}`,
+  locality: (v) => `Localidad: ${v}`,
+  ageBucket: (v) =>
+    ({
+      puppy: "Cachorra/o",
+      junior: "Junior",
+      young: "Joven",
+      adult: "Adulto/a",
+      senior: "Senior",
+    })[v as string] ?? String(v),
+  sizeEstimate: (v) =>
+    ({ small: "Chico", medium: "Mediano", large: "Grande", xl: "Extra grande" })[v as string] ??
+    String(v),
+  energyLevel: (v) =>
+    ({ low: "Tranquilo", medium: "Moderado", high: "Activo" })[v as string] ?? String(v),
+  goodWithKids: () => "Con chicos",
+  goodWithDogs: () => "Con perros",
+  goodWithCats: () => "Con gatos",
+  needsYard: () => "Sin patio requerido",
+  hasMicrochip: () => "Con microchip",
+  searchQuery: (v) => `"${v}"`,
+};
+
 export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilters }) {
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
 
+  // Active chips: collect filter keys that have a non-undefined value and
+  // have a defined chip label. organizationToken is intentionally excluded
+  // (it's a programmatic filter applied by org pages, not by the user).
+  const activeChips = (Object.keys(filters) as Array<keyof AdoptionListingFilters>).filter(
+    (k) => filters[k] !== undefined && k !== "organizationToken" && CHIP_LABELS[k],
+  );
+
   return (
-    <form
-      action="/adoptar"
-      method="GET"
-      className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
-    >
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+    <div className="space-y-2">
+      <form
+        action="/adoptar"
+        method="GET"
+        className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
+      >
+        {/* Search box */}
         <div>
           <label
-            htmlFor="species"
+            htmlFor="q"
             className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
-            Especie
-          </label>
-          <select
-            id="species"
-            name="species"
-            defaultValue={filters.species ?? ""}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-          >
-            <option value="">Todas</option>
-            {SPECIES_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="provincia"
-            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
-          >
-            Provincia
+            Buscar por nombre o raza
           </label>
           <input
-            id="provincia"
-            type="text"
-            name="provincia"
-            defaultValue={filters.province ?? ""}
-            placeholder="Ej: Buenos Aires"
+            id="q"
+            type="search"
+            name="q"
+            maxLength={100}
+            defaultValue={filters.searchQuery ?? ""}
+            placeholder='Ej: "Laika" o "Labrador"'
             className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <div>
+            <label
+              htmlFor="species"
+              className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            >
+              Especie
+            </label>
+            <select
+              id="species"
+              name="species"
+              defaultValue={filters.species ?? ""}
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            >
+              <option value="">Todas</option>
+              {SPECIES_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label
-            htmlFor="localidad"
-            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
-          >
-            Localidad
-          </label>
-          <input
-            id="localidad"
-            type="text"
-            name="localidad"
-            defaultValue={filters.locality ?? ""}
-            placeholder="Ej: La Plata"
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+          <div>
+            <label
+              htmlFor="provincia"
+              className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            >
+              Provincia
+            </label>
+            <input
+              id="provincia"
+              type="text"
+              name="provincia"
+              defaultValue={filters.province ?? ""}
+              placeholder="Ej: Buenos Aires"
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="localidad"
+              className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            >
+              Localidad
+            </label>
+            <input
+              id="localidad"
+              type="text"
+              name="localidad"
+              defaultValue={filters.locality ?? ""}
+              placeholder="Ej: La Plata"
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="edad"
+              className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            >
+              Edad
+            </label>
+            <select
+              id="edad"
+              name="edad"
+              defaultValue={filters.ageBucket ?? ""}
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            >
+              <option value="">Cualquiera</option>
+              {ADOPTION_AGE_BUCKETS.map((b) => (
+                <option key={b} value={b}>
+                  {AGE_LABELS[b]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="talle"
+              className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            >
+              Talle
+            </label>
+            <select
+              id="talle"
+              name="talle"
+              defaultValue={filters.sizeEstimate ?? ""}
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            >
+              <option value="">Cualquiera</option>
+              {ADOPTION_SIZE_ESTIMATES.map((s) => (
+                <option key={s} value={s}>
+                  {SIZE_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="energia"
+              className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            >
+              Energía
+            </label>
+            <select
+              id="energia"
+              name="energia"
+              defaultValue={filters.energyLevel ?? ""}
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            >
+              <option value="">Cualquiera</option>
+              {ADOPTION_ENERGY_LEVELS.map((e) => (
+                <option key={e} value={e}>
+                  {ENERGY_LABELS[e]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-center pt-1">
+          <FilterCheckbox
+            name="con_chicos"
+            checked={filters.goodWithKids === true}
+            label="Convive bien con chicos"
+          />
+          <FilterCheckbox
+            name="con_perros"
+            checked={filters.goodWithDogs === true}
+            label="Convive bien con perros"
+          />
+          <FilterCheckbox
+            name="con_gatos"
+            checked={filters.goodWithCats === true}
+            label="Convive bien con gatos"
+          />
+          <FilterCheckbox
+            name="sin_patio"
+            checked={filters.needsYard === false}
+            label="Sin patio requerido"
+          />
+          <FilterCheckbox
+            name="con_chip"
+            checked={filters.hasMicrochip === true}
+            label="Con microchip"
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="edad"
-            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+        <div className="flex justify-end gap-2 pt-1">
+          {hasActiveFilters && (
+            <Link
+              href="/adoptar"
+              className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+            >
+              Limpiar
+            </Link>
+          )}
+          <button
+            type="submit"
+            className="rounded-[4px] bg-[var(--color-ln-azul)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
           >
-            Edad
-          </label>
-          <select
-            id="edad"
-            name="edad"
-            defaultValue={filters.ageBucket ?? ""}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-          >
-            <option value="">Cualquiera</option>
-            {ADOPTION_AGE_BUCKETS.map((b) => (
-              <option key={b} value={b}>
-                {AGE_LABELS[b]}
-              </option>
-            ))}
-          </select>
+            Aplicar filtros
+          </button>
         </div>
+      </form>
 
-        <div>
-          <label
-            htmlFor="talle"
-            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
-          >
-            Talle
-          </label>
-          <select
-            id="talle"
-            name="talle"
-            defaultValue={filters.sizeEstimate ?? ""}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-          >
-            <option value="">Cualquiera</option>
-            {ADOPTION_SIZE_ESTIMATES.map((s) => (
-              <option key={s} value={s}>
-                {SIZE_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="energia"
-            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
-          >
-            Energía
-          </label>
-          <select
-            id="energia"
-            name="energia"
-            defaultValue={filters.energyLevel ?? ""}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-          >
-            <option value="">Cualquiera</option>
-            {ADOPTION_ENERGY_LEVELS.map((e) => (
-              <option key={e} value={e}>
-                {ENERGY_LABELS[e]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3 items-center pt-1">
-        <FilterCheckbox
-          name="con_chicos"
-          checked={filters.goodWithKids === true}
-          label="Convive bien con chicos"
-        />
-        <FilterCheckbox
-          name="con_perros"
-          checked={filters.goodWithDogs === true}
-          label="Convive bien con perros"
-        />
-        <FilterCheckbox
-          name="con_gatos"
-          checked={filters.goodWithCats === true}
-          label="Convive bien con gatos"
-        />
-        <FilterCheckbox
-          name="sin_patio"
-          checked={filters.needsYard === false}
-          label="Sin patio requerido"
-        />
-        <FilterCheckbox
-          name="con_chip"
-          checked={filters.hasMicrochip === true}
-          label="Con microchip"
-        />
-      </div>
-
-      <div className="flex justify-end gap-2 pt-1">
-        {hasActiveFilters && (
+      {/* Removable active-filter chips */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {activeChips.map((key) => {
+            const labelFn = CHIP_LABELS[key];
+            const label = labelFn ? labelFn(filters[key]) : String(filters[key]);
+            return (
+              <Link
+                key={key}
+                href={urlWithout(filters, key)}
+                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-[12px] font-medium hover:bg-[var(--color-ln-stripe)]"
+                style={{
+                  background: "var(--color-ln-celeste-050)",
+                  borderColor: "var(--color-ln-celeste-100)",
+                  color: "var(--color-ln-azul-700)",
+                }}
+              >
+                {label}
+                <span aria-hidden="true" className="text-[10px] leading-none">
+                  ×
+                </span>
+              </Link>
+            );
+          })}
           <Link
             href="/adoptar"
-            className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+            className="text-[11px] font-medium hover:underline"
+            style={{ color: "var(--color-ln-mute)" }}
           >
-            Limpiar
+            Limpiar filtros
           </Link>
-        )}
-        <button
-          type="submit"
-          className="rounded-[4px] bg-[var(--color-ln-azul)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
-        >
-          Aplicar filtros
-        </button>
-      </div>
-    </form>
+        </div>
+      )}
+    </div>
   );
 }
 

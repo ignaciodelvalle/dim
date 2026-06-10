@@ -4,12 +4,13 @@ import { notFound, redirect } from "next/navigation";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { attachments, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import {
   APPLY_INTENT_COOKIE_NAME,
   APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
   validateApplyIntentToken,
 } from "@/lib/apply-intent";
+import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
 import { ApplicationForm } from "./ApplicationForm";
@@ -52,7 +53,11 @@ export default async function PostularPage({
 
   // 2) Institutional reject.
   const [profile] = await db
-    .select({ accountType: profiles.accountType, email: profiles.id })
+    .select({
+      accountType: profiles.accountType,
+      displayName: profiles.displayName,
+      phone: profiles.phone,
+    })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
@@ -62,10 +67,11 @@ export default async function PostularPage({
 
   // 3) Listability.
   const [row] = await db
-    .select({ pet: pets, org: organizations })
+    .select({ pet: pets, org: organizations, primaryPhotoStoragePath: attachments.storagePath })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(
       and(
         eq(pets.publicToken, petToken),
@@ -76,6 +82,7 @@ export default async function PostularPage({
     .limit(1);
   if (!row) notFound();
   const { pet, org } = row;
+  const petPhotoUrlValue = petPhotoUrl(row.primaryPhotoStoragePath);
   const isListable =
     pet.adoptionListedAt !== null &&
     pet.adoptionListingPausedAt === null &&
@@ -154,14 +161,24 @@ export default async function PostularPage({
             borderColor: "var(--color-ln-line)",
           }}
         >
+          {/* Pet thumbnail */}
           <div
-            className="flex-shrink-0 w-[64px] h-[64px] rounded-[8px] grid place-items-center font-[var(--font-ln-mono)] text-[8px]"
+            className="flex-shrink-0 w-[64px] h-[64px] rounded-[8px] overflow-hidden border"
             style={{
               background: "repeating-linear-gradient(135deg,#e7e2d6 0 7px,#f1eee5 7px 14px)",
-              color: "var(--color-ln-mute)",
+              borderColor: "var(--color-ln-line)",
             }}
           >
-            {pet.name.slice(0, 4).toUpperCase()}
+            {petPhotoUrlValue ? (
+              <img src={petPhotoUrlValue} alt={pet.name} className="w-full h-full object-cover" />
+            ) : (
+              <div
+                className="w-full h-full grid place-items-center font-[var(--font-ln-serif)] text-[22px] font-semibold"
+                style={{ color: "var(--color-ln-mute)" }}
+              >
+                {pet.name.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
           <div>
             <p
@@ -179,6 +196,35 @@ export default async function PostularPage({
             <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
               {org.displayName}
             </p>
+          </div>
+        </div>
+
+        {/* Contact card — what the refugio will see */}
+        <div
+          className="rounded-[8px] border px-[18px] py-[14px]"
+          style={{
+            background: "var(--color-ln-stripe)",
+            borderColor: "var(--color-ln-line-2)",
+          }}
+        >
+          <p
+            className="mb-[6px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em]"
+            style={{ color: "var(--color-ln-mute)" }}
+          >
+            Lo que verá el refugio de vos
+          </p>
+          <div className="space-y-[3px]">
+            <p className="text-[13px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+              {profile?.displayName ?? "(sin nombre)"}
+            </p>
+            <p className="text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+              {user.email}
+            </p>
+            {profile?.phone && (
+              <p className="text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+                {profile.phone}
+              </p>
+            )}
           </div>
         </div>
 

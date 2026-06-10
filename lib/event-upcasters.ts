@@ -36,7 +36,18 @@ export type Upcaster = (payload: Record<string, unknown>) => Record<string, unkn
  * register the corresponding upcaster in this map in the SAME PR — without
  * it, historical rows would fail validation in the read path.
  */
-const Upcasters: Partial<Record<EventType, ReadonlyArray<Upcaster>>> = {};
+const Upcasters: Partial<Record<EventType, ReadonlyArray<Upcaster>>> = {
+  // v1 → v2 (PR-14 adoption UX): motivation + prior_pets became required
+  // nullable keys. Historical applications never captured them — null.
+  adoption_application_submitted: [
+    (payload) => ({
+      ...payload,
+      payload_version: 2,
+      motivation: payload.motivation ?? null,
+      prior_pets: payload.prior_pets ?? null,
+    }),
+  ],
+};
 
 /**
  * Apply registered upcasters to bring a payload up to the latest schema

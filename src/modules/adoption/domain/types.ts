@@ -79,12 +79,16 @@ export type ListingContentInput = {
 // Application
 // ---------------------------------------------------------------------------
 
+export type PriorPets = "yes_currently" | "yes_before" | "no";
+
 export type ApplicationInput = {
   housingType: "casa_con_patio" | "casa_sin_patio" | "departamento" | "otro";
   otherPets: string | null;
   dailyRoutine: string | null;
   notes: string | null;
   profileSharingConsent: boolean;
+  motivation: string | null;
+  priorPets: PriorPets | null;
 };
 
 // Minimal state needed for duplicate check (pure — repo provides this).

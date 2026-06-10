@@ -58,10 +58,10 @@ const toneTopBorder: Record<LnSheetTone, string> = {
 
 const toneIconBg: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border-[var(--color-ln-celeste-100)]",
-  verde: "bg-[#eef6f0] text-[var(--color-ln-ok)] border-[#c8e2d2]",
+  verde: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
   violeta: "bg-[#f0ecf8] text-[#6b4ea8] border-[#ddd2f0]",
-  seal: "bg-[#fbe9e6] text-[var(--color-ln-seal)] border-[#f1c6bf]",
-  warn: "bg-[#fdf2e0] text-[var(--color-ln-warn)] border-[#f0dcb4]",
+  seal: "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] border-[var(--color-ln-err-100)]",
+  warn: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border-[var(--color-ln-warn-100)]",
   rosa: "bg-[#fbe8f2] text-[var(--color-ln-rosa)] border-[#efbdd8]",
 };
 

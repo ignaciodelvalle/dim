@@ -153,15 +153,17 @@ export async function fetchSurveillanceSignals(
   }));
 }
 
-// 30-day rollup grouped by disease_code, with sub-counts for the last 7 days
-// and 24h. Pulls from the same scoped query as the detail feed so the totals
-// match exactly.
+// Period rollup grouped by disease_code (default last 30 days), with
+// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
+// as the detail feed so the totals match exactly. `count30d` holds the
+// window total (named for the default; callers may pass a custom `since`).
 export async function fetchDiseaseSummary(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<DiseaseSummary[]> {
-  const since30 = new Date(Date.now() - 30 * DAY_MS);
-  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since: since30 });
+  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
+  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
 
   const now = Date.now();
   const byCode = new Map<string, DiseaseSummary>();
@@ -452,6 +454,36 @@ export type VigilanciaMetrics = {
   /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
   vaccinationsThisWeek: number;
 };
+
+// Canonical list of Argentine provinces for /gob/* dashboard pages.
+// Admin pages use all 24; govt pages derive a subset from their jurisdictions.
+// Keep code/name aligned with PROVINCE_ISO_MAP and ar-provincias.ts.
+export const GOB_ALL_PROVINCES: Array<{ code: string; name: string }> = [
+  { code: "AR-C", name: "CABA" },
+  { code: "AR-B", name: "Buenos Aires" },
+  { code: "AR-X", name: "Córdoba" },
+  { code: "AR-S", name: "Santa Fe" },
+  { code: "AR-M", name: "Mendoza" },
+  { code: "AR-T", name: "Tucumán" },
+  { code: "AR-E", name: "Entre Ríos" },
+  { code: "AR-A", name: "Salta" },
+  { code: "AR-N", name: "Misiones" },
+  { code: "AR-H", name: "Chaco" },
+  { code: "AR-W", name: "Corrientes" },
+  { code: "AR-K", name: "Catamarca" },
+  { code: "AR-U", name: "Chubut" },
+  { code: "AR-P", name: "Formosa" },
+  { code: "AR-Y", name: "Jujuy" },
+  { code: "AR-L", name: "La Pampa" },
+  { code: "AR-F", name: "La Rioja" },
+  { code: "AR-Q", name: "Neuquén" },
+  { code: "AR-R", name: "Río Negro" },
+  { code: "AR-J", name: "San Juan" },
+  { code: "AR-D", name: "San Luis" },
+  { code: "AR-Z", name: "Santa Cruz" },
+  { code: "AR-G", name: "Santiago del Estero" },
+  { code: "AR-V", name: "Tierra del Fuego" },
+];
 
 // Hardcoded province-name → ISO 3166-2:AR code map.
 // The cases table stores the canonical display name (migration 0055 + check

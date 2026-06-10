@@ -116,6 +116,8 @@ export async function submitAdoptionApplication(
         otherPets: input.otherPets ? input.otherPets.trim() || null : null,
         dailyRoutine: input.dailyRoutine ? input.dailyRoutine.trim() || null : null,
         notes: input.notes ? input.notes.trim() || null : null,
+        motivation: input.motivation ? input.motivation.trim() || null : null,
+        priorPets: input.priorPets ?? null,
         now,
       },
       tx as Parameters<typeof repo.insertApplication>[1],

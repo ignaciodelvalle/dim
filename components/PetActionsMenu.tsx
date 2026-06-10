@@ -12,7 +12,7 @@ export type { PetActionsMenuInput };
 const VARIANT_CLASSES: Record<"primary" | "default" | "danger", string> = {
   primary: "bg-ln-ok text-white hover:bg-ln-ok/90  ",
   default: "border border-ln-line bg-ln-card text-ln-ink-2 hover:bg-ln-stripe    ",
-  danger: "border border-ln-err bg-ln-card text-ln-err hover:bg-[#fbe9e6]",
+  danger: "border border-ln-err bg-ln-card text-ln-err hover:bg-[var(--color-ln-err-050)]",
 };
 
 export function PetActionsMenu(props: PetActionsMenuInput) {

@@ -54,12 +54,12 @@ const STATUS_LABELS: Record<string, string> = {
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "vigente":
-      return "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]";
+      return "border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]";
     case "pendiente_verificacion":
-      return "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]";
+      return "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]";
     case "vencida":
     case "revocada":
-      return "border-[#f1c6bf] bg-[#fbe9e6] text-[var(--color-ln-err)]";
+      return "border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-err)]";
     default:
       return "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
   }

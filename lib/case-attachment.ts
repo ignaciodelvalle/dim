@@ -310,6 +310,12 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
       "adoption_listing",
     ],
   },
+  ownership_claimed: {
+    // Free pet by definition has no open custody/lost/adoption case — the
+    // claim guard requires zero active ownerships before emitting this.
+    mode: "never",
+    compatibleWith: [],
+  },
   custody_transfer_proposed: {
     mode: "opens",
     compatibleWith: ["custody_transfer_handshake"],

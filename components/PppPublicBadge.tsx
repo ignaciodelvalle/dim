@@ -18,7 +18,7 @@ export function PppPublicBadge({ petName, breed }: Props) {
   return (
     <section
       aria-label="Animal Potencialmente Peligroso"
-      className="rounded-2xl border border-ln-warn bg-[#fdf2e0] p-4 space-y-2  "
+      className="rounded-2xl border border-ln-warn bg-[var(--color-ln-warn-050)] p-4 space-y-2  "
     >
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-ln-warn ">{buildPppHeadline()}</h2>

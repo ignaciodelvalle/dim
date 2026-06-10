@@ -11,6 +11,7 @@ import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type DashboardJurisdiction,
+  GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
   fetchCasesPerLocality,
   fetchDiseaseSummary,
@@ -20,22 +21,6 @@ import {
 } from "@/lib/govt-dashboards";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
-
-// All Argentine provinces in the GeoJSON placeholder. Admin users get this
-// full list; govt users get the subset derived from their assigned jurisdictions.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Córdoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucumán" },
-  { code: "AR-E", name: "Entre Ríos" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 export default async function GobVigilanciaPage({
   searchParams,
@@ -109,7 +94,7 @@ export default async function GobVigilanciaPage({
   // Admin: full list. Govt: derive unique province codes from assigned jurisdictions.
   const allowedProvinces =
     profile.role === "admin"
-      ? ALL_PROVINCES
+      ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");

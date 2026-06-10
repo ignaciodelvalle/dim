@@ -51,7 +51,7 @@ export function ServiceDogCredentialCard({
             className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-ln-ok "
           />
         ) : (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#eef6f0] text-3xl ">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-3xl ">
             🦮
           </div>
         )}
@@ -88,7 +88,7 @@ export function ServiceDogCredentialCard({
               <dd className="text-ln-ink-2 ">
                 {formatDate(serviceDog.credentialExpiryDate)}
                 {expiringSoon ? (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-[#fdf2e0] px-2 py-0.5 text-[10px] font-medium text-ln-warn  ">
+                  <span className="ml-2 inline-flex items-center rounded-full bg-[var(--color-ln-warn-050)] px-2 py-0.5 text-[10px] font-medium text-ln-warn  ">
                     Renovar pronto
                   </span>
                 ) : null}
@@ -98,7 +98,7 @@ export function ServiceDogCredentialCard({
         </dl>
       </div>
 
-      <div className="border-t border-ln-ok bg-[#eef6f0] px-4 py-3 text-[11px] text-ln-ok   ">
+      <div className="border-t border-ln-ok bg-[var(--color-ln-ok-050)] px-4 py-3 text-[11px] text-ln-ok   ">
         Esta credencial habilita el acceso, deambulación y permanencia de la mascota en todos los
         espacios públicos y privados de uso público, conforme a la Ley 26.858.
       </div>

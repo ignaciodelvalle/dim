@@ -14,21 +14,15 @@
 
 import Link from "next/link";
 
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { LnButton } from "@/components/ui/Button";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnCheckbox } from "@/components/ui/Field";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { listLocalitiesByProvince } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
-import { generateExportAction } from "./actions";
+import { ExportFormClient } from "./ExportFormClient";
 
-// Void-returning wrapper required because HTML form action must return void | Promise<void>,
-// but we define generateExportAction to return GenerateExportResult for programmatic use.
-async function submitExportAction(formData: FormData): Promise<void> {
-  await generateExportAction(formData);
-}
+export const dynamic = "force-dynamic";
 
 // Mirrors the ALL_PROVINCES list used in the parent analytics page.
 const ALL_PROVINCES: Array<{ code: string; name: string }> = [
@@ -79,6 +73,14 @@ export default async function GobAnalyticsExportPage({
   const from = params.from ?? "";
   const to = params.to ?? "";
 
+  // Resolve selected province → localities list for JurisdictionSwitcher.
+  const selectedProvinceIso = params.province ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+  const localities =
+    selectedProvinceObj != null
+      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : [];
+
   const allowedProvinces =
     profile.role === "admin"
       ? ALL_PROVINCES
@@ -124,72 +126,13 @@ export default async function GobAnalyticsExportPage({
       <OpCard>
         <OpCardHead title="Configurar export" />
         <OpCardBody>
-          <form action={submitExportAction} className="space-y-6">
-            {/* Hidden inputs carrying PeriodPicker + JurisdictionSwitcher state
-                from searchParams. The client components update the URL; these
-                hidden fields pass the values into the server action via FormData. */}
-            <input type="hidden" name="period" value={period} />
-            {from && <input type="hidden" name="from" value={from} />}
-            {to && <input type="hidden" name="to" value={to} />}
-
-            {/* Period selector */}
-            <section className="space-y-2">
-              <h2 className="text-[13px] font-medium text-ln-op-ink">Periodo</h2>
-              <PeriodPicker defaultPreset="30d" />
-            </section>
-
-            {/* Jurisdiction selector */}
-            <section className="space-y-2">
-              <h2 className="text-[13px] font-medium text-ln-op-ink">Jurisdiccion</h2>
-              <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
-            </section>
-
-            {/* Data slices */}
-            <fieldset className="space-y-2">
-              <legend className="text-[13px] font-medium text-ln-op-ink">Datos a incluir</legend>
-              <div className="space-y-2 pt-1">
-                <LnCheckbox name="slice" value="pets" defaultChecked>
-                  Mascotas (anonimizado)
-                </LnCheckbox>
-                <LnCheckbox name="slice" value="events">
-                  Eventos
-                </LnCheckbox>
-                <LnCheckbox name="slice" value="cases">
-                  Casos
-                </LnCheckbox>
-                <LnCheckbox name="slice" value="organizations">
-                  Organizaciones
-                </LnCheckbox>
-              </div>
-            </fieldset>
-
-            {/* Format */}
-            <fieldset className="space-y-2">
-              <legend className="text-[13px] font-medium text-ln-op-ink">Formato</legend>
-              <div className="flex flex-col gap-2 pt-1">
-                <label className="flex items-center gap-2 text-[13px] cursor-pointer">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="csv"
-                    defaultChecked
-                    className="accent-ln-op-azul"
-                  />
-                  CSV
-                </label>
-                <label className="flex items-center gap-2 text-[13px] cursor-pointer">
-                  <input type="radio" name="format" value="json" className="accent-ln-op-azul" />
-                  JSON
-                </label>
-                <label className="flex items-center gap-2 text-[13px] cursor-pointer opacity-50">
-                  <input type="radio" name="format" value="parquet" disabled />
-                  {"Parquet — proximamente"}
-                </label>
-              </div>
-            </fieldset>
-
-            <LnButton type="submit">Generar export</LnButton>
-          </form>
+          <ExportFormClient
+            allowedProvinces={allowedProvinces}
+            localities={localities}
+            period={period}
+            from={from}
+            to={to}
+          />
         </OpCardBody>
       </OpCard>
     </div>

@@ -14,7 +14,16 @@ import { startApplyIntentAction } from "@/app/actions/apply-intent";
 // the full pet story. The inline button stays in place on desktop where the
 // CTA is already in-view.
 
-export function ApplyButton({ petToken, petName }: { petToken: string; petName: string }) {
+export function ApplyButton({
+  petToken,
+  petName,
+  isAuthenticated = true,
+}: {
+  petToken: string;
+  petName: string;
+  /** Pass false for anonymous visitors so the CTA copy reflects the auth gate. */
+  isAuthenticated?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +35,11 @@ export function ApplyButton({ petToken, petName }: { petToken: string; petName: 
     });
   }
 
-  const buttonLabel = pending ? "Procesando..." : `Postular para adoptar a ${petName}`;
+  const buttonLabel = pending
+    ? "Procesando..."
+    : isAuthenticated
+      ? `Postular para adoptar a ${petName}`
+      : "Iniciá sesión para postular";
 
   return (
     <>
@@ -77,7 +90,11 @@ export function ApplyButton({ petToken, petName }: { petToken: string; petName: 
           className="block w-full rounded-[6px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           style={{ background: "var(--color-ln-azul)" }}
         >
-          {pending ? "Procesando..." : `Postularme a ${petName}`}
+          {pending
+            ? "Procesando..."
+            : isAuthenticated
+              ? `Postularme a ${petName}`
+              : "Iniciá sesión para postular"}
         </button>
       </div>
     </>

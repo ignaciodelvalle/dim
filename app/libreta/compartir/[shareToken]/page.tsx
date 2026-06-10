@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
 import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
 import { LnCallout } from "@/components/ui/DocElements";
-import { attachments, db, libretaShareTokens, petEvents, pets } from "@/db";
+import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
 import { validateShareToken } from "@/lib/libreta-share-token";
@@ -35,6 +35,8 @@ export default async function PublicLibretaPage({
   const { shareToken } = await params;
 
   // Resolve share token via Drizzle (bypasses RLS by design — see D7 in plan).
+  // Join profiles to get the owner's first name for the "Compartido por" chip.
+  // We surface first name only (PII-minimised — same pattern as LostPublicCredential).
   const [share] = await db
     .select({
       id: libretaShareTokens.id,
@@ -42,8 +44,10 @@ export default async function PublicLibretaPage({
       expiresAt: libretaShareTokens.expiresAt,
       revokedAt: libretaShareTokens.revokedAt,
       createdAt: libretaShareTokens.createdAt,
+      ownerDisplayName: profiles.displayName,
     })
     .from(libretaShareTokens)
+    .leftJoin(profiles, eq(profiles.id, libretaShareTokens.createdByUserId))
     .where(eq(libretaShareTokens.shareToken, shareToken))
     .limit(1);
 
@@ -73,6 +77,14 @@ export default async function PublicLibretaPage({
     createdAtIso: share.createdAt.toISOString(),
   };
 
+  // PII-minimised owner first name: split on first whitespace, never expose full name.
+  const ownerFirstName = share.ownerDisplayName
+    ? share.ownerDisplayName.trim().split(/\s+/)[0]
+    : null;
+
+  // Relative expiry label: "Expira en X días/horas" for the active view chip.
+  const relativeExpiry = share.expiresAt ? formatRelativeExpiry(share.expiresAt) : null;
+
   const status = validateShareToken(share);
   if (status === "revoked") return <RevokedView context={context} />;
   if (status === "expired") return <ExpiredView context={context} />;
@@ -90,11 +102,65 @@ export default async function PublicLibretaPage({
   return (
     <main className="min-h-screen bg-[var(--color-ln-paper)] p-6">
       <div className="mx-auto max-w-2xl space-y-6 pb-20 pt-6">
+        {/* Vet login banner — encourages vets to sign in for full write access. */}
+        <div
+          role="note"
+          className="print:hidden rounded-[4px] border px-[16px] py-[12px]"
+          style={{
+            background: "var(--color-ln-celeste-050)",
+            borderColor: "var(--color-ln-celeste-100)",
+            borderLeft: "3px solid var(--color-ln-azul)",
+          }}
+        >
+          <p className="text-[13px]" style={{ color: "var(--color-ln-ink-2)" }}>
+            <strong style={{ color: "var(--color-ln-ink)" }}>¿Sos veterinario/a?</strong>{" "}
+            <Link
+              href="/login"
+              className="font-semibold no-underline hover:underline"
+              style={{ color: "var(--color-ln-azul)" }}
+            >
+              Iniciá sesión
+            </Link>{" "}
+            para registrar eventos en esta libreta.
+          </p>
+        </div>
+
         <LnCallout tone="warn" className="print:hidden">
           Estás viendo la libreta sanitaria de <strong>{pet.name}</strong> con permiso del dueño/a.
           {share.expiresAt &&
             ` Este enlace vence el ${share.expiresAt.toLocaleDateString("es-AR")}.`}
         </LnCallout>
+
+        {/* "Compartido por" chip + relative expiry chip */}
+        {(ownerFirstName || relativeExpiry) && (
+          <div className="print:hidden flex flex-wrap items-center gap-[8px]">
+            {ownerFirstName && (
+              <span
+                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-[12px] font-medium"
+                style={{
+                  background: "var(--color-ln-stripe)",
+                  borderColor: "var(--color-ln-line-2)",
+                  color: "var(--color-ln-ink-2)",
+                }}
+              >
+                Compartido por{" "}
+                <strong style={{ color: "var(--color-ln-ink)" }}>{ownerFirstName}</strong>
+              </span>
+            )}
+            {relativeExpiry && (
+              <span
+                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-[12px] font-medium"
+                style={{
+                  background: "var(--color-ln-warn-025)",
+                  borderColor: "var(--color-ln-warn-050)",
+                  color: "var(--color-ln-warn)",
+                }}
+              >
+                {relativeExpiry}
+              </span>
+            )}
+          </div>
+        )}
 
         <LibretaIdentityHeader pet={pet} photoUrl={photoUrl} ownerFirstName={null} />
 
@@ -209,4 +275,18 @@ function DeceasedView({ context }: { context: TerminalPetContext }) {
       context={context}
     />
   );
+}
+
+// ---------------------------------------------------------------------------
+// Relative expiry helper — "Expira en X días / X horas / menos de 1 hora"
+// ---------------------------------------------------------------------------
+
+function formatRelativeExpiry(expiresAt: Date): string {
+  const ms = expiresAt.getTime() - Date.now();
+  if (ms <= 0) return "Vencido";
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 1) return "Expira en menos de 1 hora";
+  if (hours < 24) return `Expira en ${hours} ${hours === 1 ? "hora" : "horas"}`;
+  const days = Math.floor(hours / 24);
+  return `Expira en ${days} ${days === 1 ? "día" : "días"}`;
 }

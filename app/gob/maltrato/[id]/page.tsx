@@ -2,7 +2,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { db, pets, profiles, welfareReportAttachments, welfareReports } from "@/db";
+import { db, organizations, pets, profiles, welfareReportAttachments, welfareReports } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -16,11 +16,12 @@ import {
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 
 import { AssignmentActions } from "./AssignmentActions";
+import { DerivationPanel } from "./DerivationPanel";
 import { MpfExportButton } from "./MpfExportButton";
 import { Timeline } from "./Timeline";
 import { TriageActions } from "./TriageActions";
@@ -107,6 +108,64 @@ export default async function GobMaltratoDetailPage({
       .where(eq(pets.id, report.subjectPetId))
       .limit(1);
     subjectPetToken = subjectPet?.publicToken ?? null;
+  }
+
+  // Fetch verified shelters / rescue_networks for the derivation panel.
+  // Prefer same jurisdiction; fall back to all verified orgs if none found.
+  const ORG_DERIVATION_TYPES = ["shelter", "rescue_network"] as const;
+  let derivableOrgs = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      publicToken: organizations.publicToken,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.verified, true),
+        inArray(organizations.orgType, [...ORG_DERIVATION_TYPES]),
+        ...(report.jurisdictionProvince
+          ? [eq(organizations.jurisdictionProvince, report.jurisdictionProvince)]
+          : []),
+      ),
+    )
+    .limit(50);
+
+  // If no in-jurisdiction orgs found, broaden to all verified orgs of those types.
+  if (derivableOrgs.length === 0) {
+    derivableOrgs = await db
+      .select({
+        id: organizations.id,
+        displayName: organizations.displayName,
+        publicToken: organizations.publicToken,
+        orgType: organizations.orgType,
+      })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.verified, true),
+          inArray(organizations.orgType, [...ORG_DERIVATION_TYPES]),
+        ),
+      )
+      .limit(50);
+  }
+
+  // Resolve current derivation target (if any).
+  let derivedOrgInfo: { orgId: string; orgDisplayName: string; derivedAt: Date } | null = null;
+  if (report.derivedToOrganizationId) {
+    const [derivedOrg] = await db
+      .select({ id: organizations.id, displayName: organizations.displayName })
+      .from(organizations)
+      .where(eq(organizations.id, report.derivedToOrganizationId))
+      .limit(1);
+    if (derivedOrg && report.derivedAt) {
+      derivedOrgInfo = {
+        orgId: derivedOrg.id,
+        orgDisplayName: derivedOrg.displayName,
+        derivedAt: report.derivedAt,
+      };
+    }
   }
 
   const isTerminal =
@@ -330,6 +389,24 @@ export default async function GobMaltratoDetailPage({
             <h2 className="text-[14px] font-semibold text-ln-op-ink">Acciones</h2>
             <TriageActions welfareReportId={report.id} currentStatus={report.status} />
           </section>
+        )}
+
+        {/* Derivation to org — forward report to a verified shelter / rescue network */}
+        {!isTerminal && (
+          <OpCard>
+            <OpCardHead title="Derivar a organización" />
+            <OpCardBody className="space-y-2">
+              <p className="text-[11px] text-ln-op-mute">
+                Derivá esta denuncia a un refugio o red de rescate verificada para seguimiento en
+                campo. La organización recibirá una notificación.
+              </p>
+              <DerivationPanel
+                welfareReportId={report.id}
+                availableOrgs={derivableOrgs}
+                alreadyDerivedTo={derivedOrgInfo}
+              />
+            </OpCardBody>
+          </OpCard>
         )}
 
         {/* Decomiso entry point — available for all non-terminal denuncias */}

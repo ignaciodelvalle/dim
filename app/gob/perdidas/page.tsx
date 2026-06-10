@@ -7,8 +7,11 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { listLocalitiesByProvince } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
+  GOB_ALL_PROVINCES,
   type LostPetRow,
   PROVINCE_ISO_MAP,
   type PetStatusFilter,
@@ -16,21 +19,6 @@ import {
   fetchPerdidasMetrics,
 } from "@/lib/govt-dashboards";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
-
-// All Argentine provinces for admin users. Govt users get a derived subset.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "Ciudad Autónoma de Buenos Aires" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Córdoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucumán" },
-  { code: "AR-E", name: "Entre Ríos" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 /**
  * Aggregate lost pets by province for the choropleth map.
@@ -74,6 +62,8 @@ export default async function GobPerdidasPage({
     period?: string;
     from?: string;
     to?: string;
+    province?: string;
+    locality?: string;
     species?: string;
     status?: string;
     q?: string;
@@ -89,6 +79,14 @@ export default async function GobPerdidasPage({
   const statusFilter = parseStatusFilter(sp.status);
   const q = sp.q?.trim() || undefined;
 
+  // Resolve selected province ISO code → Province object + localities list.
+  const selectedProvinceIso = sp.province ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  const localities = selectedProvinceObj
+    ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+    : [];
+
   const [metrics, lostPets] = await Promise.all([
     fetchPerdidasMetrics(actor, jurisdictions),
     fetchLostPets(actor, jurisdictions, { since, species, status: statusFilter, q }),
@@ -99,7 +97,7 @@ export default async function GobPerdidasPage({
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =
     profile.role === "admin"
-      ? ALL_PROVINCES
+      ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
@@ -131,7 +129,7 @@ export default async function GobPerdidasPage({
 
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={[]} />
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
         <PeriodPicker defaultPreset="30d" />
       </div>
 

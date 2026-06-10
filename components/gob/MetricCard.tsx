@@ -60,7 +60,7 @@ const toneClasses: Record<MetricCardTone, string> = {
   neutral: "bg-ln-card border-ln-line",
   info: "bg-ln-celeste/5 border-ln-celeste/30",
   success: "bg-ln-ok/5 border-ln-ok/30",
-  warning: "bg-[#e0a93e]/10 border-[#e0a93e]/40",
+  warning: "bg-[var(--color-ln-warn)]/10 border-[var(--color-ln-warn)]/40",
   danger: "bg-ln-seal/5 border-ln-seal/30",
 };
 

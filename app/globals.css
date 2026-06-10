@@ -94,6 +94,15 @@
   --color-ln-err: #c0392b;
   --color-ln-rosa: #b5497e;
 
+  /* Status tint surfaces — bg/border pairs for ok/warn/err/seal callouts */
+  --color-ln-ok-050: #eef6f0; /* ok tint bg */
+  --color-ln-ok-100: #c8e2d2; /* ok tint border */
+  --color-ln-warn-025: #fdf6ea; /* warn soft tint bg (due-soon, callout) */
+  --color-ln-warn-050: #fdf2e0; /* warn tint bg */
+  --color-ln-warn-100: #f0dcb4; /* warn tint border */
+  --color-ln-err-050: #fbe9e6; /* err/seal tint bg */
+  --color-ln-err-100: #f1c6bf; /* err/seal tint border */
+
   /* Legacy Poncho token names, REPOINTED to the Libreta Nacional palette.
      The class names (bg-gob-primary, text-gob-text, etc.) are kept so the
      remaining poncho form primitives (Field/Input/Select/Sheet/Button/...)

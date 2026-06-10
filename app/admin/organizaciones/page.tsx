@@ -51,7 +51,7 @@ export default async function AdminOrganizacionesPage({
           name="q"
           defaultValue={query}
           placeholder="Buscar por nombre, razon social o CUIT"
-          className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <button
           type="submit"

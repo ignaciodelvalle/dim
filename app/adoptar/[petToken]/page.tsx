@@ -11,8 +11,10 @@ import {
   permanentConditionLabel,
 } from "@/lib/permanent-conditions";
 import { petPhotoUrl } from "@/lib/storage";
+import { createClient } from "@/lib/supabase/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
+import { AdoptionShareRow } from "./AdoptionShareRow";
 import { ApplyButton } from "./ApplyButton";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
@@ -99,8 +101,24 @@ export default async function AdoptarFichaPage({
   const recentlyAdopted =
     recentFinalize && Date.now() - recentFinalize.recordedAt.getTime() < SEVEN_DAYS_MS;
 
+  // Paused by org — soft "no disponible" screen instead of 404 so a visitor
+  // with a stale share link gets a meaningful message (spec §2.1 CTA variants).
+  // Mirrors EVERY isListable suppression guard except the pause itself:
+  // custody disputes and rabies observations must keep returning 404, and a
+  // recent finalization wins over the paused view (spec D7.2).
+  const isPausedByOrg =
+    pet.adoptionListedAt !== null &&
+    pet.adoptionListingPausedAt !== null &&
+    pet.status !== "deceased" &&
+    pet.status !== "lost" &&
+    pet.adoptionEligible === true &&
+    pet.inCustodyDispute !== true &&
+    pet.rabiesObservationStatus !== "in_progress" &&
+    org.verified &&
+    (org.orgType === "shelter" || org.orgType === "rescue_network");
+
   // Same listability guards as queryAdoptionListing. If any fails, fall
-  // through to the recently-adopted screen when applicable, else 404.
+  // through to recently-adopted, then paused, else 404.
   const isListable =
     pet.adoptionListedAt !== null &&
     pet.adoptionListingPausedAt === null &&
@@ -116,8 +134,18 @@ export default async function AdoptarFichaPage({
     if (recentlyAdopted) {
       return <RecentlyAdopted name={pet.name} />;
     }
+    if (isPausedByOrg) {
+      return <PausedView name={pet.name} orgName={org.displayName} />;
+    }
     notFound();
   }
+
+  // Auth check — to surface the correct CTA label for anonymous visitors.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isAuthenticated = user !== null;
 
   const photoUrl = petPhotoUrl(row.primaryPhotoStoragePath);
 
@@ -225,9 +253,9 @@ export default async function AdoptarFichaPage({
               <span
                 className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-[12px] font-semibold"
                 style={{
-                  background: "#eef6f0",
+                  background: "var(--color-ln-ok-050)",
                   color: "var(--color-ln-ok)",
-                  borderColor: "#c8e2d2",
+                  borderColor: "var(--color-ln-ok-100)",
                   boxShadow: "0 2px 6px rgba(0,0,0,.08)",
                 }}
               >
@@ -572,9 +600,19 @@ export default async function AdoptarFichaPage({
                   year: "numeric",
                 })}
               </p>
+              <Link
+                href={`/refugios/${org.publicToken}`}
+                className="mt-[8px] inline-block text-[12px] font-semibold no-underline hover:underline"
+                style={{ color: "var(--color-ln-azul)" }}
+              >
+                Ver perfil del refugio →
+              </Link>
             </div>
           </div>
         </div>
+
+        {/* Share row — WhatsApp + copy link */}
+        <AdoptionShareRow fichaUrl={`${SITE_URL}/adoptar/${petToken}`} petName={pet.name} />
 
         {/* Fee */}
         {pet.adoptionFeeArs != null && pet.adoptionFeeArs > 0 && (
@@ -596,7 +634,7 @@ export default async function AdoptarFichaPage({
 
         {/* CTA — sticky on mobile, inline on desktop */}
         <section>
-          <ApplyButton petToken={petToken} petName={pet.name} />
+          <ApplyButton petToken={petToken} petName={pet.name} isAuthenticated={isAuthenticated} />
         </section>
       </div>
     </main>
@@ -679,6 +717,53 @@ function RecentlyAdopted({ name }: { name: string }) {
         </h1>
         <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
           Esta mascota fue adoptada hace pocos días. Hay muchas otras buscando su familia.
+        </p>
+        <Link
+          href="/adoptar"
+          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          style={{ background: "var(--color-ln-azul)" }}
+        >
+          Ver otras en adopción
+        </Link>
+      </div>
+    </main>
+  );
+}
+
+function PausedView({ name, orgName }: { name: string; orgName: string }) {
+  return (
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="h-[4px]"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
+        }}
+      />
+      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+        <div
+          className="inline-block rounded-full px-[16px] py-[7px] text-[13px] font-semibold"
+          style={{
+            background: "var(--color-ln-warn-050)",
+            color: "var(--color-ln-warn)",
+            border: "1px solid var(--color-ln-warn-100)",
+          }}
+        >
+          No disponible por ahora
+        </div>
+        <h1
+          className="font-[var(--font-ln-serif)] font-semibold text-[28px] tracking-[-0.02em]"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          {name} no está disponible en este momento
+        </h1>
+        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
+          {orgName} pausó temporalmente la adopción de {name}. Podés volver más adelante o explorar
+          otras mascotas en adopción.
         </p>
         <Link
           href="/adoptar"
