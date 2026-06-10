@@ -253,6 +253,8 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
         dailyRoutine: null,
         notes: null,
         profileSharingConsent: true,
+        motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+        priorPets: "yes_before",
       });
       expect("ok" in r && r.ok).toBe(true);
     }

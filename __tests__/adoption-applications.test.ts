@@ -241,6 +241,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: "Trabajo en casa 3 días por semana.",
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     expect("ok" in result && result.ok).toBe(true);
     if (!("ok" in result)) throw new Error(result.error);
@@ -271,6 +273,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     expect("error" in result).toBe(true);
 
@@ -295,6 +299,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     expect("error" in result).toBe(true);
     if ("error" in result) {
@@ -320,6 +326,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     expect("error" in result).toBe(true);
 
@@ -342,6 +350,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     expect("error" in result).toBe(true);
   });
@@ -355,6 +365,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: false,
+      motivation: null,
+      priorPets: null,
     });
     expect("error" in result).toBe(true);
     if ("error" in result) {
@@ -379,6 +391,8 @@ describe("submitAdoptionApplicationAction", () => {
       dailyRoutine: null,
       notes: null,
       profileSharingConsent: true,
+      motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+      priorPets: "yes_before",
     });
     expect("ok" in result && result.ok).toBe(true);
     if (!("ok" in result)) throw new Error("error" in result ? result.error : "unknown");

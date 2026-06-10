@@ -12,6 +12,8 @@ const baseInput = {
   dailyRoutine: null,
   notes: null,
   profileSharingConsent: true,
+  motivation: "Quiero adoptar a esta mascota y darle un hogar lleno de amor y cuidado.",
+  priorPets: "yes_before" as const,
 };
 
 describe("validateApplicationInput", () => {

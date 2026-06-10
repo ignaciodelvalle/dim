@@ -1126,18 +1126,22 @@ const adoptionReversed = z
 // checkbox (spec §12.5 addendum v1.4). Stored in the event payload rather
 // than a separate table — the table was never created; event-sourced log is
 // the single source of truth.
+// v2 (PR-14 adoption UX): adds motivation + prior_pets as required nullable
+// keys. The v1→v2 upcaster in lib/event-upcasters.ts fills both with null
+// for historical rows, per docs/superpowers/event-versioning.md.
 const adoptionApplicationSubmitted = z
-  .object(
-    withVersion({
-      applicant_user_id: z.string().uuid(),
-      related_organization_id: z.string().uuid(),
-      housing_type: z.enum(["casa_con_patio", "casa_sin_patio", "departamento", "otro"]),
-      other_pets: z.string().nullable(),
-      daily_routine: z.string().nullable(),
-      notes: z.string().nullable(),
-      profile_sharing_consent_at: z.string().datetime(),
-    }),
-  )
+  .object({
+    payload_version: z.literal(2).default(2),
+    applicant_user_id: z.string().uuid(),
+    related_organization_id: z.string().uuid(),
+    housing_type: z.enum(["casa_con_patio", "casa_sin_patio", "departamento", "otro"]),
+    other_pets: z.string().nullable(),
+    daily_routine: z.string().nullable(),
+    notes: z.string().nullable(),
+    profile_sharing_consent_at: z.string().datetime(),
+    motivation: z.string().nullable(),
+    prior_pets: z.enum(["yes_currently", "yes_before", "no"]).nullable(),
+  })
   .strict();
 
 // Adoption application resolved — umbrella for approved + rejected

@@ -6,6 +6,8 @@ import type { ApplicantProfile, ApplicationInput, ExistingApplication } from "./
 export type ApplicationValidationResult = { ok: true } | { ok: false; error: string };
 
 const MAX_TEXT_LEN = 2000;
+const MIN_MOTIVATION_LEN = 30;
+const VALID_PRIOR_PETS = new Set(["yes_currently", "yes_before", "no"]);
 
 /**
  * Validates the inputs for an adoption application submission.
@@ -46,11 +48,29 @@ export function validateApplicationInput(
     };
   }
 
+  // Motivation — required, minimum length.
+  const motivationTrimmed = input.motivation?.trim() ?? "";
+  if (motivationTrimmed.length < MIN_MOTIVATION_LEN) {
+    return {
+      ok: false,
+      error: `Contanos por qué querés adoptar (mínimo ${MIN_MOTIVATION_LEN} caracteres).`,
+    };
+  }
+
+  // Prior pets — required, must be a valid enum value.
+  if (!input.priorPets || !VALID_PRIOR_PETS.has(input.priorPets)) {
+    return {
+      ok: false,
+      error: "Seleccioná si tuviste mascotas antes.",
+    };
+  }
+
   // Text length caps.
-  const textFields: Array<[string, string | null]> = [
+  const textFields: Array<[string, string | null | undefined]> = [
     ["Otras mascotas", input.otherPets],
     ["Rutina diaria", input.dailyRoutine],
     ["Notas", input.notes],
+    ["Motivación", input.motivation],
   ];
 
   for (const [label, val] of textFields) {

@@ -70,6 +70,8 @@ type InsertApplicationArgs = {
   otherPets: string | null;
   dailyRoutine: string | null;
   notes: string | null;
+  motivation: string | null;
+  priorPets: string | null;
   now: Date;
 };
 
@@ -308,6 +310,8 @@ export const AdoptionRepository = {
       daily_routine: args.dailyRoutine,
       notes: args.notes,
       profile_sharing_consent_at: args.now.toISOString(),
+      motivation: args.motivation ?? undefined,
+      prior_pets: args.priorPets ?? undefined,
     });
 
     const [eventRow] = await tx

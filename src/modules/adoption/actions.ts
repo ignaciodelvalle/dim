@@ -202,6 +202,8 @@ export type SubmitAdoptionApplicationInput = {
   dailyRoutine: string | null;
   notes: string | null;
   profileSharingConsent: boolean;
+  motivation: string | null;
+  priorPets: "yes_currently" | "yes_before" | "no" | null;
 };
 
 export type SubmitAdoptionApplicationResult =
@@ -225,6 +227,8 @@ export async function submitAdoptionApplicationAction(
       dailyRoutine: input.dailyRoutine,
       notes: input.notes,
       profileSharingConsent: input.profileSharingConsent,
+      motivation: input.motivation,
+      priorPets: input.priorPets,
     },
     {
       repo: AdoptionRepository,
