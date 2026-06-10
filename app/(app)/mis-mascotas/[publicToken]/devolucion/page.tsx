@@ -1,9 +1,12 @@
 // Devolucion — Libreta Nacional redesign.
-// Two modes:
+// Three modes:
 //   1. Inbound acceptance: org-sourced custody_transfer_proposed is pending →
 //      show ReturnAcceptanceCard so the owner accepts/rejects.
-//   2. Owner initiation: no pending proposal + pet has adoption_finalized →
+//   2. Owner initiation (adoption): no pending proposal + pet has adoption_finalized →
 //      show OwnerInitiateReturnForm so the owner proposes return to the org.
+//   3. Owner initiation (foster): no pending proposal + user has active foster role +
+//      there is a parallel active shelter_custody org ownership →
+//      show OwnerInitiateReturnForm routing through ownerProposeReturnToOrgAction.
 
 import { LnButton } from "@/components/ui/Button";
 import { LnCallout } from "@/components/ui/DocElements";
@@ -66,9 +69,100 @@ export default async function DevolucionPage({
     .limit(1);
 
   if (!accessRow) notFound();
+
+  // Foster path: user has an active foster role — allow initiation of a return
+  // to the org that holds the parallel shelter_custody. Non-foster non-owner
+  // roles still land on the guidance page.
+  if (accessRow.role === "foster") {
+    const pet = accessRow.pet;
+
+    // Resolve source org via active parallel shelter_custody ownership.
+    const [parallelCustody] = await db
+      .select({ ownerOrganizationId: ownerships.ownerOrganizationId })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, pet.id),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    const fosterSourceOrgId = parallelCustody?.ownerOrganizationId ?? null;
+
+    const [fosterOrgRow] = fosterSourceOrgId
+      ? await db
+          .select({ displayName: organizations.displayName })
+          .from(organizations)
+          .where(eq(organizations.id, fosterSourceOrgId))
+          .limit(1)
+      : [undefined];
+    const fosterOrgDisplayName = fosterOrgRow?.displayName ?? null;
+
+    if (!fosterSourceOrgId || !fosterOrgDisplayName) {
+      return (
+        <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+          <Link
+            href={`/mis-mascotas/${pet.publicToken}`}
+            className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            ← Volver al perfil
+          </Link>
+          <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+            Devolución de {pet.name}
+          </h1>
+          <LnCallout tone="warn" title="Sin organización asociada.">
+            No encontramos el refugio de origen para este tránsito. Contactá a la organización
+            directamente para coordinar la devolución.
+          </LnCallout>
+          <div className="mt-[24px] flex justify-start">
+            <Link href="/mis-mascotas">
+              <LnButton variant="primary" size="md">
+                Volver a mis mascotas
+              </LnButton>
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}`}
+          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← Volver al perfil
+        </Link>
+        <div className="mb-[24px]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Devolver {pet.name}
+          </h1>
+          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+            Estás en tránsito con <strong>{pet.name}</strong>. Podés proponer la devolución a{" "}
+            <strong>{fosterOrgDisplayName}</strong>.
+          </p>
+        </div>
+        <div className="mb-[24px]">
+          <LnCallout tone="warn" title="Esta acción notifica al refugio.">
+            El refugio va a recibir tu propuesta y debe aceptarla. El tránsito sigue activo hasta
+            que confirmen la recepción.
+          </LnCallout>
+        </div>
+        <OwnerInitiateReturnForm
+          petPublicToken={publicToken}
+          petName={pet.name}
+          orgDisplayName={fosterOrgDisplayName}
+          backUrl="/mis-mascotas"
+        />
+      </div>
+    );
+  }
+
   if (accessRow.role !== "owner") {
     return <FriendlyOwnerOnlyPage pet={accessRow.pet} role={accessRow.role} />;
   }
+
   const pet = accessRow.pet;
 
   const [latestProposal] = await db
@@ -163,7 +257,7 @@ export default async function DevolucionPage({
       );
     }
 
-    // No adoption found or the user is not the adopter — show guidance only.
+    // No adoption found — show guidance only.
     return (
       <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
         <Link

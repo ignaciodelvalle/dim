@@ -39,7 +39,7 @@ import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/auth-guard
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Return types
@@ -57,6 +57,10 @@ export type AcceptReturnResult =
 export type RejectReturnResult = { ok: true } | { error: string };
 
 export type CancelProposalResult = { ok: true } | { error: string };
+
+export type OrgAcceptOwnerReturnResult = { ok: true } | { error: string };
+
+export type OrgRejectOwnerReturnResult = { ok: true } | { error: string };
 
 // ---------------------------------------------------------------------------
 // Public action — proposeReturnToOwnerAction
@@ -532,7 +536,7 @@ export async function ownerAcceptReturnWriter({
       await db.transaction(async (tx) => {
         const cancelPayload = validateEventPayload("note_added", {
           category: null,
-          text: `Auto-cancelled at owner-accept: ${reason}. Original proposal_event_id=${latestProposal.id}`,
+          text: `Auto-cancelled at owner-accept: ${reason}. Proposal event_id=${latestProposal.id}`,
         });
         await tx.insert(petEvents).values({
           petId: pet.id,
@@ -976,7 +980,12 @@ export async function actorCancelProposalWriter({
 
 // Returns true if there is a pending custody_transfer_proposed event with no
 // subsequent custody_transferred event or cancellation note_added that closes it.
-// "Pending" = latest proposal has no subsequent transfer/cancel.
+// "Pending" = latest proposal has no subsequent transfer/cancel note.
+//
+// Cancel note detection: all cancel paths (ownerReject, orgReject, actorCancel,
+// auto-cancel) emit a note_added whose text contains "Proposal event_id=<id>"
+// referencing the proposal they close. Checking for that marker after the
+// proposal's occurredAt is sufficient to resolve the pending flag.
 async function hasPendingProposal(petId: string): Promise<boolean> {
   const [latestProposal] = await db
     .select({ id: petEvents.id, occurredAt: petEvents.occurredAt })
@@ -1002,7 +1011,84 @@ async function hasPendingProposal(petId: string): Promise<boolean> {
 
   if (subsequentTransfer) return false;
 
+  // Check for a subsequent cancel note_added that references this proposal.
+  const proposalMarker = `Proposal event_id=${latestProposal.id}`;
+  const [cancelNote] = await db
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "note_added"),
+        gt(petEvents.occurredAt, latestProposal.occurredAt),
+        sql`${petEvents.payload}->>'text' LIKE ${`%${proposalMarker}%`}`,
+      ),
+    )
+    .limit(1);
+
+  if (cancelNote) return false;
+
   return true;
+}
+
+// Fetch the latest pending owner-initiated return proposal for a pet to a specific org.
+// Returns the proposal event and the owner user id if a pending proposal exists with
+//   from_user_id set (owner-initiated) and to_organization_id = orgId.
+export async function fetchPendingOwnerReturnProposal(
+  petId: string,
+  orgId: string,
+): Promise<{
+  proposal: PetEvent;
+  ownerUserId: string;
+} | null> {
+  const [latestProposal] = (await db
+    .select()
+    .from(petEvents)
+    .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1)) as PetEvent[];
+
+  if (!latestProposal) return null;
+
+  const payload = latestProposal.payload as Record<string, unknown>;
+  const fromUserId = (payload.from_user_id as string | null) ?? null;
+  const fromOrgId = (payload.from_organization_id as string | null) ?? null;
+  const toOrgId = (payload.to_organization_id as string | null) ?? null;
+
+  // Must be owner-initiated (from_user_id set, from_organization_id null) and directed to this org.
+  if (!fromUserId || fromOrgId !== null || toOrgId !== orgId) return null;
+
+  // Must not have a subsequent transfer.
+  const [subsequentTransfer] = await db
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "custody_transferred"),
+        gt(petEvents.occurredAt, latestProposal.occurredAt),
+      ),
+    )
+    .limit(1);
+  if (subsequentTransfer) return null;
+
+  // Must not have a cancel note.
+  const proposalMarker = `Proposal event_id=${latestProposal.id}`;
+  const [cancelNote] = await db
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "note_added"),
+        gt(petEvents.occurredAt, latestProposal.occurredAt),
+        sql`${petEvents.payload}->>'text' LIKE ${`%${proposalMarker}%`}`,
+      ),
+    )
+    .limit(1);
+  if (cancelNote) return null;
+
+  return { proposal: latestProposal, ownerUserId: fromUserId };
 }
 
 function autoCancelBody(reason: string, petName: string): string {
@@ -1036,12 +1122,37 @@ export async function ownerProposeReturnToOrgAction({
   proposedAt: string;
 }): Promise<OwnerProposeReturnToOrgResult> {
   const { user } = await requireUserOrRedirect();
+
+  // Detect whether the caller holds 'owner' or 'foster' on this pet so the
+  // writer can apply the correct preconditions without a duplicate query.
+  const [petRow] = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(eq(pets.publicToken, petPublicToken))
+    .limit(1);
+  if (!petRow) return { error: "Mascota no encontrada." };
+
+  const [callerOwnership] = await db
+    .select({ role: ownerships.role })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, petRow.id),
+        eq(ownerships.ownerUserId, user.id),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+
+  const callerRole: "owner" | "foster" = callerOwnership?.role === "foster" ? "foster" : "owner";
+
   return ownerProposeReturnToOrgWriter({
     userId: user.id,
     petPublicToken,
     reason,
     notes,
     proposedAt,
+    callerRole,
   });
 }
 
@@ -1055,12 +1166,14 @@ export async function ownerProposeReturnToOrgWriter({
   reason,
   notes,
   proposedAt,
+  callerRole = "owner",
 }: {
   userId: string;
   petPublicToken: string;
   reason: string;
   notes: string | null;
   proposedAt: string;
+  callerRole?: "owner" | "foster";
 }): Promise<OwnerProposeReturnToOrgResult> {
   // Verify the pet exists.
   const [petRow] = await db
@@ -1071,20 +1184,24 @@ export async function ownerProposeReturnToOrgWriter({
   if (!petRow) return { error: "Mascota no encontrada." };
   const pet = petRow.pet;
 
-  // Caller must be the active owner.
-  const [ownerOwnership] = await db
+  // Caller must hold the expected active role on this pet.
+  const [callerOwnership] = await db
     .select({ id: ownerships.id })
     .from(ownerships)
     .where(
       and(
         eq(ownerships.petId, pet.id),
         eq(ownerships.ownerUserId, userId),
-        eq(ownerships.role, "owner"),
+        eq(ownerships.role, callerRole),
         isNull(ownerships.endedAt),
       ),
     )
     .limit(1);
-  if (!ownerOwnership) return { error: "No sos el dueño activo de esta mascota." };
+  if (!callerOwnership) {
+    return callerRole === "foster"
+      ? { error: "No tenés un tránsito activo para esta mascota." }
+      : { error: "No sos el dueño activo de esta mascota." };
+  }
 
   // Reject if a proposal is already pending.
   const alreadyPending = await hasPendingProposal(pet.id);
@@ -1092,33 +1209,74 @@ export async function ownerProposeReturnToOrgWriter({
     return { error: "Ya existe una propuesta de devolución pendiente para esta mascota." };
   }
 
-  // Find the originating org via the most recent adoption_finalized event.
-  const [adoptionEvent] = await db
-    .select({ payload: petEvents.payload })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "adoption_finalized")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
+  // Find the target org.
+  // Foster path: go straight to the parallel shelter_custody org (skip adoption_finalized
+  // which was never emitted for a foster arrangement).
+  // Owner path: first try adoption_finalized, then fall back to an active parallel
+  // shelter_custody ownership.
+  let toOrgId: string | null = null;
 
-  if (!adoptionEvent) {
-    return {
-      error:
-        "No se encontró una adopción registrada para esta mascota. Solo podés devolver mascotas que recibiste a través de MiMAR.",
-    };
-  }
+  if (callerRole === "foster") {
+    // Assert the parallel shelter_custody org row exists (fix 5).
+    const [parallelCustody] = await db
+      .select({ ownerOrganizationId: ownerships.ownerOrganizationId })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, pet.id),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    toOrgId = parallelCustody?.ownerOrganizationId ?? null;
+    if (!toOrgId) {
+      return {
+        error:
+          "No se encontró una organización activa asociada a este tránsito. Contactá directamente al refugio.",
+      };
+    }
+  } else {
+    const [adoptionEvent] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "adoption_finalized")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
 
-  const adoptionPayload = adoptionEvent.payload as {
-    previous_owner_organization_id?: string | null;
-    adopter_user_id?: string | null;
-  };
+    if (adoptionEvent) {
+      const adoptionPayload = adoptionEvent.payload as {
+        previous_owner_organization_id?: string | null;
+        adopter_user_id?: string | null;
+      };
+      if (adoptionPayload.adopter_user_id !== userId) {
+        return { error: "No sos el adoptante registrado para esta mascota." };
+      }
+      toOrgId = adoptionPayload.previous_owner_organization_id ?? null;
+    }
 
-  if (adoptionPayload.adopter_user_id !== userId) {
-    return { error: "No sos el adoptante registrado para esta mascota." };
-  }
+    // Fallback: active parallel shelter_custody (e.g. informal foster without adoption event).
+    if (!toOrgId) {
+      const [parallelCustody] = await db
+        .select({ ownerOrganizationId: ownerships.ownerOrganizationId })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "shelter_custody"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .limit(1);
+      toOrgId = parallelCustody?.ownerOrganizationId ?? null;
+    }
 
-  const toOrgId = adoptionPayload.previous_owner_organization_id;
-  if (!toOrgId) {
-    return { error: "Adopción sin organización asociada. No se puede iniciar la devolución." };
+    if (!toOrgId) {
+      return {
+        error:
+          "No se encontró una adopción ni una organización asociada para esta mascota. Solo podés devolver mascotas recibidas a través de MiMAR.",
+      };
+    }
   }
 
   // Resolve org display name + publicToken (ctaUrl routes use publicToken,
@@ -1211,6 +1369,321 @@ export async function ownerProposeReturnToOrgWriter({
   }
 
   return { ok: true, eventId };
+}
+
+// ---------------------------------------------------------------------------
+// Public action — orgAcceptOwnerReturnAction
+// ---------------------------------------------------------------------------
+//
+// Org accepts an owner-initiated return proposal (custody_transfer_proposed with
+// from_user_id=owner, to_organization_id=this org).
+// In a tx: re-verifies the pending proposal, emits custody_transferred
+// (from_user_id=owner → to_organization_id=org, from_role owner → to_role shelter_custody),
+// ends the owner's active ownership row, opens a new shelter_custody ownership for the org,
+// and notifies the owner.
+
+export async function orgAcceptOwnerReturnAction({
+  petPublicToken,
+  orgToken,
+}: {
+  petPublicToken: string;
+  orgToken: string;
+}): Promise<OrgAcceptOwnerReturnResult> {
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const granted = await getGrantedCapabilities(membership);
+  if (!granted.has("custody.transfer")) {
+    return { error: "Se necesita el permiso custody.transfer para aceptar la devolución." };
+  }
+  return orgAcceptOwnerReturnWriter({
+    orgId: organization.id,
+    orgDisplayName: organization.displayName,
+    petPublicToken,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Inner writer — orgAcceptOwnerReturn
+// ---------------------------------------------------------------------------
+
+export async function orgAcceptOwnerReturnWriter({
+  orgId,
+  orgDisplayName,
+  petPublicToken,
+}: {
+  orgId: string;
+  orgDisplayName: string;
+  petPublicToken: string;
+}): Promise<OrgAcceptOwnerReturnResult> {
+  const [petRow] = await db
+    .select({ pet: pets })
+    .from(pets)
+    .where(eq(pets.publicToken, petPublicToken))
+    .limit(1);
+  if (!petRow) return { error: "Mascota no encontrada." };
+  const pet = petRow.pet;
+
+  // Quick pre-flight outside the tx (fast rejection without taking a lock).
+  const preFlight = await fetchPendingOwnerReturnProposal(pet.id, orgId);
+  if (!preFlight) {
+    return { error: "No hay propuesta de devolución pendiente para esta mascota." };
+  }
+
+  // Find the custody_episode case if open (for event attachment).
+  const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
+  const now = new Date();
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      // Serialize concurrent accepts on the same pet with an advisory lock
+      // (belt). The unique index on ownerships (fix 3 migration) is the
+      // suspenders — this lock ensures only one accept runs at a time.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify inside the tx after acquiring the lock.
+      const pending = await fetchPendingOwnerReturnProposal(pet.id, orgId);
+      if (!pending) {
+        throw new Error("No hay propuesta de devolución pendiente para esta mascota.");
+      }
+      const { proposal: latestProposal, ownerUserId } = pending;
+
+      // Verify the owner still holds their active owner ownership row.
+      const [ownerOwnership] = await tx
+        .select({ id: ownerships.id })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.ownerUserId, ownerUserId),
+            eq(ownerships.role, "owner"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .limit(1);
+      if (!ownerOwnership) {
+        throw new Error(
+          "El dueño ya no tiene la custodia activa. No se puede procesar la devolución.",
+        );
+      }
+
+      // Fix 4: find and end any active foster row for this pet before the
+      // custody_transferred event so the timeline reads as one coherent transfer.
+      const [fosterRow] = await tx
+        .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, pet.id),
+            eq(ownerships.role, "foster"),
+            isNull(ownerships.endedAt),
+          ),
+        )
+        .limit(1);
+
+      let fosterEndedEventId: string | null = null;
+      if (fosterRow?.ownerUserId) {
+        const fosterEndedPayload = validateEventPayload("foster_ended", {
+          foster_user_id: fosterRow.ownerUserId,
+          reason: "other",
+          notes: "Tránsito cerrado por devolución al refugio aceptada por el refugio.",
+        });
+        const [fEnded] = await tx
+          .insert(petEvents)
+          .values({
+            petId: pet.id,
+            eventType: "foster_ended",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: latestProposal.recordedByUserId,
+            authorRole: "shelter",
+            authorOrganizationId: orgId,
+            payload: fosterEndedPayload,
+            caseId: custodyCase?.id ?? null,
+          })
+          .returning({ id: petEvents.id });
+        fosterEndedEventId = fEnded.id;
+        await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, fosterRow.id));
+      }
+
+      // 1. Emit custody_transferred: owner → org shelter_custody.
+      const transferPayload = validateEventPayload("custody_transferred", {
+        from_user_id: ownerUserId,
+        from_organization_id: null,
+        to_user_id: null,
+        to_organization_id: orgId,
+        from_role: "owner",
+        to_role: "shelter_custody",
+        reason: "post_adoption_failed_return",
+        matched_against_pet_id: null,
+        foster_ended_event_id: fosterEndedEventId,
+        notes: null,
+      });
+      const [transferEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "custody_transferred",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: latestProposal.recordedByUserId,
+          authorRole: "shelter",
+          authorOrganizationId: orgId,
+          payload: transferPayload,
+          caseId: custodyCase?.id ?? null,
+        })
+        .returning({ id: petEvents.id });
+
+      // 2. End the owner's ownership row.
+      await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, ownerOwnership.id));
+
+      // 3. Open a new shelter_custody ownership for the org.
+      await tx.insert(ownerships).values({
+        petId: pet.id,
+        ownerOrganizationId: orgId,
+        role: "shelter_custody",
+        startedAt: now,
+      });
+
+      // 4. Notify the owner.
+      pendingNotifications.push({
+        userId: ownerUserId,
+        notificationType: "custody_transfer_accepted_owner_side",
+        severity: "info",
+        title: `Devolución aceptada — ${pet.name}`,
+        body: `${orgDisplayName} confirmó la recepción de ${pet.name}. La custodia fue transferida correctamente.`,
+        relatedPetId: pet.id,
+        relatedEventId: transferEvent.id,
+        relatedCaseId: custodyCase?.id ?? null,
+        ctaLabel: "Ver mi mascota",
+        ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+      });
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo procesar la devolución: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Public action — orgRejectOwnerReturnAction
+// ---------------------------------------------------------------------------
+//
+// Org rejects an owner-initiated return proposal. Emits a note_added with the
+// rejection reason (same cancel-marker pattern as ownerRejectReturnWriter so
+// hasPendingProposal treats it as resolved) and notifies the owner.
+
+export async function orgRejectOwnerReturnAction({
+  petPublicToken,
+  orgToken,
+  reason,
+}: {
+  petPublicToken: string;
+  orgToken: string;
+  reason: string;
+}): Promise<OrgRejectOwnerReturnResult> {
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const granted = await getGrantedCapabilities(membership);
+  if (!granted.has("custody.transfer")) {
+    return { error: "Se necesita el permiso custody.transfer para rechazar la devolución." };
+  }
+  return orgRejectOwnerReturnWriter({
+    orgId: organization.id,
+    orgDisplayName: organization.displayName,
+    petPublicToken,
+    reason,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Inner writer — orgRejectOwnerReturn
+// ---------------------------------------------------------------------------
+
+export async function orgRejectOwnerReturnWriter({
+  orgId,
+  orgDisplayName,
+  petPublicToken,
+  reason,
+}: {
+  orgId: string;
+  orgDisplayName: string;
+  petPublicToken: string;
+  reason: string;
+}): Promise<OrgRejectOwnerReturnResult> {
+  const [petRow] = await db
+    .select({ pet: pets })
+    .from(pets)
+    .where(eq(pets.publicToken, petPublicToken))
+    .limit(1);
+  if (!petRow) return { error: "Mascota no encontrada." };
+  const pet = petRow.pet;
+
+  // Re-verify pending proposal.
+  const pending = await fetchPendingOwnerReturnProposal(pet.id, orgId);
+  if (!pending) {
+    return { error: "No hay propuesta de devolución pendiente para esta mascota." };
+  }
+  const { proposal: latestProposal, ownerUserId } = pending;
+
+  const now = new Date();
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      // Emit cancel note with the standard marker so hasPendingProposal resolves false.
+      const notePayload = validateEventPayload("note_added", {
+        category: null,
+        text: `Org rechazó propuesta de devolución. Motivo: ${reason}. Proposal event_id=${latestProposal.id}`,
+      });
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "note_added",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: latestProposal.recordedByUserId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        payload: notePayload,
+      });
+
+      // Notify the owner.
+      pendingNotifications.push({
+        userId: ownerUserId,
+        notificationType: "custody_transfer_auto_cancelled",
+        severity: "info",
+        title: `Propuesta rechazada — ${pet.name}`,
+        body: `${orgDisplayName} rechazó tu propuesta de devolución de ${pet.name}. Motivo: ${reason}`,
+        relatedPetId: pet.id,
+      });
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo registrar el rechazo: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
+
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
