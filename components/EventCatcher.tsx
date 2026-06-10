@@ -86,7 +86,10 @@ const QUICK_KINDS = Object.keys(QUICK_LABELS) as EventType[];
 
 // Re-export so existing callers (tests, etc.) keep working. Definition lives
 // in app/(app)/mis-mascotas/[publicToken]/anotar/handoff.ts (JSX-free).
-import { buildAnotarUrl } from "@/app/(app)/mis-mascotas/[publicToken]/anotar/handoff";
+import {
+  buildAnotarUrl,
+  buildKindDeeplink,
+} from "@/app/(app)/mis-mascotas/[publicToken]/anotar/handoff";
 export { buildAnotarUrl };
 
 const DOUBLE_TAP_MS = 600;
@@ -155,6 +158,14 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
 
   function onQuick(kind: EventType) {
     if (!active) return;
+    // A quick chip is a known eventType — skip the /anotar picker and land
+    // directly on its form when the kind has a registry deeplink. Fall back
+    // to /anotar otherwise so the click is never stranded.
+    const direct = buildKindDeeplink(kind, active.publicToken, text.trim() || undefined);
+    if (direct) {
+      go(direct);
+      return;
+    }
     go(buildAnotarUrl(active.publicToken, { kind, text: text.trim() || undefined }));
   }
 
