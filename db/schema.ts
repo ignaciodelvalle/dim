@@ -1371,6 +1371,17 @@ export const welfareReports = pgTable(
     assignedToUserId: uuid("assigned_to_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
+
+    // Derivation to org (migration 0076). Set by a govt/admin actor who forwards
+    // this report to a verified shelter or rescue network for follow-up.
+    // derivedToOrganizationId drives the org-side "Recibidos" inbox.
+    derivedToOrganizationId: uuid("derived_to_organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    derivedAt: timestamp("derived_at", { withTimezone: true }),
+    derivedByUserId: uuid("derived_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1383,6 +1394,7 @@ export const welfareReports = pgTable(
     ),
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
+    derivedToOrgIdx: index("welfare_reports_derived_to_org_idx").on(table.derivedToOrganizationId),
     welfareReportsJurisdictionProvinceCanonical: check(
       "welfare_reports_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
@@ -1803,6 +1815,10 @@ export const AUDIT_LOG_ACTIONS = [
   // Written once per script invocation (not per event).
   // Payload: { since, until, limit, processed, notified, skipped, errors, dry_run }.
   "eno_backfill_run_completed",
+  // Welfare derivation to org (migration 0076). Govt/admin forwards a report
+  // to a verified shelter or rescue_network for field follow-up.
+  // Payload: { welfareReportId, referenceCode, targetOrgId, targetOrgDisplayName }.
+  "welfare_report_derived_to_org",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
