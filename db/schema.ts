@@ -1012,6 +1012,11 @@ export const ownerships = pgTable(
     oneActiveOwnerPerPet: uniqueIndex("ownerships_one_active_owner_per_pet")
       .on(table.petId)
       .where(sql`${table.role} = 'owner' AND ${table.endedAt} IS NULL`),
+    oneActiveShelterCustodyPerPetOrg: uniqueIndex(
+      "ownerships_one_active_shelter_custody_per_pet_org",
+    )
+      .on(table.petId, table.ownerOrganizationId)
+      .where(sql`${table.role} = 'shelter_custody' AND ${table.endedAt} IS NULL`),
     ownerUserIdx: index("ownerships_owner_user_id_idx").on(table.ownerUserId),
     ownerOrgIdx: index("ownerships_owner_organization_id_idx").on(table.ownerOrganizationId),
   }),
