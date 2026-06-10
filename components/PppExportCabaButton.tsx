@@ -58,7 +58,7 @@ export function PppExportCabaButton({ petPublicToken }: Props) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border border-ln-warn  bg-[#fdf2e0]  text-ln-warn  hover:bg-ln-warn/20  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border border-ln-warn  bg-[var(--color-ln-warn-050)]  text-ln-warn  hover:bg-ln-warn/20  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? (
           <>

@@ -211,9 +211,9 @@ type StatusConfig = { label: string; bg: string; text: string; border: string };
 const STATUS_CONFIG: Record<string, StatusConfig> = {
   confirmed: {
     label: "Confirmado",
-    bg: "bg-[#eef6f0]",
+    bg: "bg-[var(--color-ln-ok-050)]",
     text: "text-[var(--color-ln-ok)]",
-    border: "border-[#c8e2d2]",
+    border: "border-[var(--color-ln-ok-100)]",
   },
   attended: {
     label: "Asistido",
@@ -235,8 +235,8 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
   },
   no_show: {
     label: "No asistió",
-    bg: "bg-[#fbe9e6]",
+    bg: "bg-[var(--color-ln-err-050)]",
     text: "text-[var(--color-ln-err)]",
-    border: "border-[#f1c6bf]",
+    border: "border-[var(--color-ln-err-100)]",
   },
 };

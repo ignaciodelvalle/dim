@@ -211,7 +211,7 @@ export default async function FinderInPossessionPage({
   const ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;
 
   return (
-    <main className="min-h-screen bg-[#fdf2e0] px-4 py-6">
+    <main className="min-h-screen bg-[var(--color-ln-warn-050)] px-4 py-6">
       <div className="mx-auto max-w-md space-y-5">
         <header className="space-y-2">
           <Link

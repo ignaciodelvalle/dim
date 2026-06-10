@@ -117,11 +117,11 @@ function CaseIcon({
 }) {
   const tone =
     severity === "danger"
-      ? "bg-[#fbe9e6] text-ln-err  "
+      ? "bg-[var(--color-ln-err-050)] text-ln-err  "
       : severity === "warning"
-        ? "bg-[#fdf2e0] text-ln-warn  "
+        ? "bg-[var(--color-ln-warn-050)] text-ln-warn  "
         : severity === "success"
-          ? "bg-[#eef6f0] text-ln-ok  "
+          ? "bg-[var(--color-ln-ok-050)] text-ln-ok  "
           : "bg-ln-celeste/10 text-ln-azul  ";
   return (
     <span

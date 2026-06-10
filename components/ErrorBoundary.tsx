@@ -41,7 +41,7 @@ export function ErrorBoundary({
     <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
       <div className="max-w-md w-full text-center space-y-4">
         <div
-          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#e0a93e]/15 text-[var(--color-ln-warn)] text-3xl"
+          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-warn)]/15 text-[var(--color-ln-warn)] text-3xl"
           aria-hidden="true"
         >
           ⚠

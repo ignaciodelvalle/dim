@@ -63,7 +63,7 @@ export function MatchConfirmationCardVecino({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-1">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-1">
         <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Posible coincidencia detectada
         </p>
@@ -84,7 +84,7 @@ export function MatchConfirmationCardVecino({
             {speciesLine && <p className="text-sm text-[var(--color-ln-ink-2)]">{speciesLine}</p>}
             {details && <p className="text-sm text-[var(--color-ln-mute)]">{details}</p>}
           </div>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#fbe9e6] text-[var(--color-ln-seal)]">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]">
             Perdida
           </span>
           {ownerFirstName && (
@@ -108,7 +108,7 @@ export function MatchConfirmationCardVecino({
       </div>
 
       {error && (
-        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-3 py-2 text-[var(--color-ln-seal)]">
+        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
           {error}
         </p>
       )}
@@ -126,7 +126,7 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 px-4 py-3 rounded-[3px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>

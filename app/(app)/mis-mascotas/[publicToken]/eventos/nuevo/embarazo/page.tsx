@@ -97,7 +97,7 @@ function BlockedShell({
     <LnSheetWrap>
       <LnSheetCard>
         <div className="px-[18px] py-[24px] space-y-[12px]">
-          <p className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
+          <p className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
             {message}
           </p>
           {showEndedLink && (

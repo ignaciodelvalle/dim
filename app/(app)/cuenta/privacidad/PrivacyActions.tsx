@@ -52,7 +52,7 @@ export function PrivacyActions() {
     <div className="space-y-6">
       {error && (
         <p
-          className="rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[#fbe9e6] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
+          className="rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
           role="alert"
         >
           {error}
@@ -79,7 +79,7 @@ export function PrivacyActions() {
         </button>
       </section>
 
-      <section className="rounded-[4px] border border-[var(--color-ln-seal)]/30 bg-[#fbe9e6]/30 p-5 space-y-3">
+      <section className="rounded-[4px] border border-[var(--color-ln-seal)]/30 bg-[var(--color-ln-err-050)]/30 p-5 space-y-3">
         <div>
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Eliminar mi cuenta</h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] mt-1">
@@ -127,7 +127,7 @@ export function PrivacyActions() {
           <button
             type="button"
             onClick={() => setShowErase(true)}
-            className="rounded-[3px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[#fbe9e6]/50 transition-colors"
+            className="rounded-[3px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)]/50 transition-colors"
           >
             Quiero eliminar mi cuenta
           </button>

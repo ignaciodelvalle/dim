@@ -47,7 +47,7 @@ export function ReturnAcceptanceCard({
   // Accepted successfully — show success.
   if (acceptState.error === null && !acceptState.autoCancelled && acceptState !== acceptInitial) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-2">
+      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-2">
         <p className="text-[var(--color-ln-ok)] font-medium">
           Devolución confirmada. {petName} está de vuelta con vos.
         </p>
@@ -61,7 +61,7 @@ export function ReturnAcceptanceCard({
   // Auto-cancelled — show explanation banner.
   if (acceptState.autoCancelled) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-4 space-y-2">
+      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-[var(--color-ln-warn)] font-medium">La propuesta ya no es válida</p>
         <p className="text-[var(--color-ln-warn)] text-sm">{acceptState.autoCancelReason}</p>
         <a href={backUrl} className="text-sm underline text-[var(--color-ln-warn)]">
@@ -113,7 +113,7 @@ export function ReturnAcceptanceCard({
 
       {/* Accept action */}
       {acceptState.error && (
-        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-3 py-2 text-[var(--color-ln-seal)]">
+        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
           {acceptState.error}
         </p>
       )}

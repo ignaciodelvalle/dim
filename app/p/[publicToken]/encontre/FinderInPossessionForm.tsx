@@ -55,7 +55,7 @@ export function FinderInPossessionForm({
   if (state.ok) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-[#c8e2d2] bg-[#eef6f0] p-4 text-sm text-[var(--color-ln-ok)]">
+        <div className="rounded-lg border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] p-4 text-sm text-[var(--color-ln-ok)]">
           <p className="font-medium">¡Gracias!</p>
           <p className="mt-1 text-xs">
             Le avisamos al dueño/a con urgencia. Vas a recibir noticias pronto.
@@ -195,7 +195,7 @@ export function FinderInPossessionForm({
             key={value}
             className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer text-sm transition-colors ${
               urgent
-                ? "border-[var(--color-ln-seal)] bg-[#fbe9e6] text-[var(--color-ln-seal)] font-medium hover:bg-[#f5d6d1]"
+                ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] font-medium hover:bg-[var(--color-ln-err-050)]"
                 : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
             }`}
           >

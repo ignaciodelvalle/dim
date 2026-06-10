@@ -58,7 +58,7 @@ export function LnSuccessScreen({
       <div className="max-w-sm w-full space-y-8 text-center">
         {/* Success icon badge — green tint, LN ok token */}
         <div
-          className="w-16 h-16 rounded-full bg-[#eef6f0] border border-[#c8e2d2] flex items-center justify-center mx-auto text-3xl"
+          className="w-16 h-16 rounded-full bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok-100)] flex items-center justify-center mx-auto text-3xl"
           aria-hidden="true"
         >
           ✅

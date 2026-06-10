@@ -80,7 +80,7 @@ export function LostPublicCredential({
       ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
       : null;
   return (
-    <main className="min-h-screen bg-[#fbe9e6] px-4 py-6 ">
+    <main className="min-h-screen bg-[var(--color-ln-err-050)] px-4 py-6 ">
       <div className="mx-auto max-w-md space-y-4">
         {/* Urgent banner (sprint 5 PR-041 / doc 10 §3 punto 1) — surfaces the
             "perdida" state + how recent, in the lostUrgentBanner spec voice. */}
@@ -95,7 +95,7 @@ export function LostPublicCredential({
 
         <section className="rounded-2xl bg-ln-card p-5 text-center shadow-sm ">
           <div className="mx-auto inline-block">
-            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[#fdf2e0] ring-[5px] ring-ln-err">
+            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-warn-050)] ring-[5px] ring-ln-err">
               {petPhotoUrl ? (
                 <img src={petPhotoUrl} alt={petName} className="h-full w-full object-cover" />
               ) : (
@@ -141,7 +141,7 @@ export function LostPublicCredential({
           </div>
 
           {!ownerPhoneE164 && !finderFormHref && (
-            <p className="mt-3 rounded-lg bg-[#fdf2e0] px-3 py-2 text-xs text-ln-warn  ">
+            <p className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-warn  ">
               Esta mascota no tiene canales de contacto habilitados.
             </p>
           )}
@@ -155,7 +155,7 @@ export function LostPublicCredential({
             <p className="mt-1 text-sm font-medium text-ln-ink ">
               {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-[#eef6f0] to-ln-celeste/10 text-3xl  ">
+            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10 text-3xl  ">
               📍
             </div>
             {mapHref && (

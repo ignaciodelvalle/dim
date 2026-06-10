@@ -159,13 +159,13 @@ function OrgTypeBadge({ orgType }: { orgType: string }) {
 function VerifiedBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
-      <span className="inline-flex items-center rounded-[2px] border border-[#c8e2d2] bg-[#eef6f0] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+      <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
         Verificada
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-[2px] border border-[#f0dcb4] bg-[#fdf2e0] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
       Pendiente
     </span>
   );

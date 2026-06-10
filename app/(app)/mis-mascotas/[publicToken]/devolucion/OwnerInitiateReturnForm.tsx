@@ -49,7 +49,7 @@ export function OwnerInitiateReturnForm({
   if (state.success) {
     return (
       <div
-        className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-[20px] space-y-[10px]"
+        className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-[20px] space-y-[10px]"
         role="alert"
       >
         <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ok)]">
@@ -139,7 +139,7 @@ export function OwnerInitiateReturnForm({
       {state.error && (
         <p
           role="alert"
-          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] px-[12px] py-[8px] text-[13px] text-[var(--color-ln-seal)]"
+          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-[12px] py-[8px] text-[13px] text-[var(--color-ln-seal)]"
         >
           {state.error}
         </p>

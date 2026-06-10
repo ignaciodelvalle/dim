@@ -40,12 +40,20 @@ type StatusVariant = "pending" | "approved" | "rejected" | "withdrawn";
 type StatusStyle = { bg: string; text: string; border: string };
 
 const STATUS_STYLES: Record<StatusVariant, StatusStyle> = {
-  pending: { bg: "bg-[#fdf2e0]", text: "text-[var(--color-ln-warn)]", border: "border-[#f0dcb4]" },
-  approved: { bg: "bg-[#eef6f0]", text: "text-[var(--color-ln-ok)]", border: "border-[#c8e2d2]" },
+  pending: {
+    bg: "bg-[var(--color-ln-warn-050)]",
+    text: "text-[var(--color-ln-warn)]",
+    border: "border-[var(--color-ln-warn-100)]",
+  },
+  approved: {
+    bg: "bg-[var(--color-ln-ok-050)]",
+    text: "text-[var(--color-ln-ok)]",
+    border: "border-[var(--color-ln-ok-100)]",
+  },
   rejected: {
-    bg: "bg-[#fbe9e6]",
+    bg: "bg-[var(--color-ln-err-050)]",
     text: "text-[var(--color-ln-err)]",
-    border: "border-[#f1c6bf]",
+    border: "border-[var(--color-ln-err-100)]",
   },
   withdrawn: {
     bg: "bg-[var(--color-ln-stripe)]",
@@ -281,7 +289,7 @@ export default async function SolicitudesPage({
 
                   {/* Rejection reason */}
                   {req.status === "rejected" && req.decisionNotes && (
-                    <div className="mb-[10px] rounded-[4px] border border-[#f1c6bf] bg-[#fbe9e6] px-[12px] py-[8px]">
+                    <div className="mb-[10px] rounded-[4px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-[12px] py-[8px]">
                       <p className="text-[12px] text-[var(--color-ln-err)]">
                         <span className="font-semibold">Motivo:</span> {req.decisionNotes}
                       </p>

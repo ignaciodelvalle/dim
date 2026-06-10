@@ -37,7 +37,7 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-ln-warn bg-[#fdf2e0] p-4  ">
+    <section className="space-y-3 rounded-2xl border border-ln-warn bg-[var(--color-ln-warn-050)] p-4  ">
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-ln-warn ">
           ⚠ Animal Potencialmente Peligroso (PPP)
@@ -53,7 +53,7 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
           : "Esta mascota está marcada como Animal Potencialmente Peligroso."}
       </p>
 
-      <div className="rounded-lg border border-ln-warn bg-[#fdf2e0] p-3 text-xs  ">
+      <div className="rounded-lg border border-ln-warn bg-[var(--color-ln-warn-050)] p-3 text-xs  ">
         <p className="font-medium text-ln-warn ">Atestación</p>
         {latestAttestation ? (
           <p className="mt-1 text-ln-warn ">
@@ -87,7 +87,7 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
         )}
       </div>
 
-      <div className="rounded-lg border border-ln-warn bg-[#fdf2e0] p-3 text-xs  ">
+      <div className="rounded-lg border border-ln-warn bg-[var(--color-ln-warn-050)] p-3 text-xs  ">
         <p className="font-medium text-ln-warn ">Requisitos generales (informativos)</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4 text-ln-warn ">
           <li>Bozal y correa corta en vía pública</li>

@@ -224,7 +224,7 @@ export function Step4Subject({
 
       {error && (
         <p
-          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[#fbe9e6] border border-[#f1c6bf] px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
           role="alert"
         >
           {error}
@@ -273,7 +273,7 @@ function PetLookupPreview({ query }: { query: string }) {
         : "activa";
 
   return (
-    <div className="rounded-[4px] border border-[#c8e2d2] bg-[#eef6f0] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
+    <div className="rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
       <p>
         ✓ Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
         <span className="text-[var(--color-ln-mute)]">({statusLabel})</span>

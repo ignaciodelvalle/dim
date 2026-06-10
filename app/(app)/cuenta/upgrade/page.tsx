@@ -90,7 +90,7 @@ export default async function UpgradePage() {
                 </p>
 
                 {latestVetRequest?.status === "pending" ? (
-                  <div className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
+                  <div className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
                     Solicitud enviada — pendiente de revisión.
                     {profile?.matriculaNumber && (
                       <>
@@ -101,7 +101,7 @@ export default async function UpgradePage() {
                   </div>
                 ) : latestVetRequest?.status === "rejected" ? (
                   <>
-                    <div className="mb-[16px] rounded-[4px] border border-[#f1c6bf] bg-[#fbe9e6] px-[12px] py-[10px]">
+                    <div className="mb-[16px] rounded-[4px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-[12px] py-[10px]">
                       <p className="text-[13px] font-semibold text-[var(--color-ln-err)]">
                         Tu última solicitud fue rechazada.
                       </p>

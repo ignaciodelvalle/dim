@@ -29,14 +29,14 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
-      return "bg-[#eef6f0] text-[var(--color-ln-ok)] border border-[#c8e2d2]";
+      return "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border border-[var(--color-ln-ok-100)]";
     case "invalid":
     case "duplicate":
       return "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)] border border-[var(--color-ln-line)]";
     case "in_progress":
       return "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border border-[var(--color-ln-celeste-100)]";
     case "triaged":
-      return "bg-[#fdf2e0] text-[var(--color-ln-warn)] border border-[#f0dcb4]";
+      return "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border border-[var(--color-ln-warn-100)]";
     default:
       return "bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)]";
   }
@@ -45,11 +45,11 @@ function statusBadgeClass(status: string): string {
 function severityBadgeClass(severity: string): string {
   switch (severity) {
     case "critical":
-      return "bg-[#fbe9e6] text-[var(--color-ln-seal)] border border-[#f1c6bf]";
+      return "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] border border-[var(--color-ln-err-100)]";
     case "high":
-      return "bg-[#fdf2e0] text-[var(--color-ln-warn)] border border-[#f0dcb4]";
+      return "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border border-[var(--color-ln-warn-100)]";
     case "medium":
-      return "bg-[#fdf6ea] text-[var(--color-ln-warn)] border border-[#f0dcb4]";
+      return "bg-[var(--color-ln-warn-025)] text-[var(--color-ln-warn)] border border-[var(--color-ln-warn-100)]";
     default:
       return "bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)]";
   }
@@ -137,7 +137,7 @@ export default async function WelfareReportByCodePage({
         {nueva === "1" && (
           <div
             data-comprobante
-            className="rounded-[6px] border border-[#c8e2d2] bg-[#eef6f0] px-5 py-5 space-y-3"
+            className="rounded-[6px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3"
           >
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
               Tu denuncia fue registrada. Gracias por animarte a denunciar.
@@ -314,7 +314,7 @@ export default async function WelfareReportByCodePage({
         )}
 
         {/* Integration-pending notice */}
-        <div className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf6ea] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
+        <div className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
           Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
           canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
           enviado cuando la integración esté disponible.

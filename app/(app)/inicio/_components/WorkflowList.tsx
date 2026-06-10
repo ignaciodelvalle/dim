@@ -8,11 +8,11 @@ import type { WorkflowItem } from "@/lib/owner-dashboard";
 const SEVERITY_BADGE: Record<WorkflowItem["severity"], { label: string; cls: string }> = {
   urgent: {
     label: "Urgente",
-    cls: "bg-[#fbe9e6] text-[var(--color-ln-seal)]",
+    cls: "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]",
   },
   warning: {
     label: "Atención",
-    cls: "bg-[#fdf2e0] text-[var(--color-ln-warn)]",
+    cls: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
   },
   info: {
     label: "Info",

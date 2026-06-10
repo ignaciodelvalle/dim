@@ -74,7 +74,7 @@ function AchievementChip({ achievement }: { achievement: EarnedAchievement }) {
     <span
       title={tooltip}
       className={[
-        "inline-flex items-center gap-1.5 rounded-full border border-ln-warn bg-[#fdf2e0] px-3 py-1.5 text-sm font-medium text-ln-warn transition hover:bg-[#fdf2e0]    ",
+        "inline-flex items-center gap-1.5 rounded-full border border-ln-warn bg-[var(--color-ln-warn-050)] px-3 py-1.5 text-sm font-medium text-ln-warn transition hover:bg-[var(--color-ln-warn-050)]    ",
         pulse ? "animate-pulse" : "",
       ]
         .filter(Boolean)

@@ -355,7 +355,7 @@ function VerificationBadge({ verified }: { verified: boolean }) {
     return (
       <span
         aria-label="verificado"
-        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#eef6f0] text-[11px] font-bold text-[var(--color-ln-ok)]"
+        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[11px] font-bold text-[var(--color-ln-ok)]"
       >
         ✓
       </span>
@@ -364,7 +364,7 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   return (
     <span
       aria-label="pendiente"
-      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#fdf2e0] text-[11px] text-[var(--color-ln-warn)]"
+      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[11px] text-[var(--color-ln-warn)]"
     >
       ⏳
     </span>

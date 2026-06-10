@@ -107,7 +107,7 @@ export default async function MisMascotasPage({
 
       {/* Claimed pets banner */}
       {claimedCount !== null && (
-        <p className="mb-[18px] rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] px-[14px] py-[10px] text-[13px] text-[var(--color-ln-ok)]">
+        <p className="mb-[18px] rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-[14px] py-[10px] text-[13px] text-[var(--color-ln-ok)]">
           {claimedCount > 0
             ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
             : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
@@ -143,7 +143,7 @@ export default async function MisMascotasPage({
                 href={`/mis-mascotas/${pet.publicToken}`}
                 nextLine={
                   isTransit ? (
-                    <span className="rounded-full border border-[var(--color-ln-warn)] bg-[#fdf2e0] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+                    <span className="rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
                       En tránsito
                     </span>
                   ) : undefined
@@ -164,7 +164,7 @@ export default async function MisMascotasPage({
             title="In memoriam"
             meta={`${deceasedPets.length} recordada${deceasedPets.length !== 1 ? "s" : ""}`}
           />
-          <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[#faf8f4]">
+          <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-ln-paper">
             {deceasedPets.map(({ pet, photo }) => (
               <MemorialRow
                 key={pet.id}
@@ -247,7 +247,7 @@ function MemorialRow({
   return (
     <a
       href={href}
-      className="grid items-center gap-[16px] border-b border-[var(--color-ln-line-2)] px-[20px] py-[18px] text-inherit no-underline last:border-b-0 hover:bg-[#f4f0e8]"
+      className="grid items-center gap-[16px] border-b border-[var(--color-ln-line-2)] px-[20px] py-[18px] text-inherit no-underline last:border-b-0 hover:bg-ln-stripe"
       style={{ gridTemplateColumns: "72px 1fr auto" }}
     >
       {/* Sepia photo */}

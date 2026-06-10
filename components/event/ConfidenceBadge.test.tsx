@@ -13,9 +13,9 @@ import { describe, expect, it } from "vitest";
 // Mirrors TIER_STYLES in ConfidenceBadge.tsx. If styles drift, this test
 // catches it by asserting the mapping is exhaustive.
 const TIER_STYLES: Record<ConfidenceTier, string> = {
-  institutional_verified: "bg-[#eef6f0] text-[var(--color-ln-ok)]",
+  institutional_verified: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]",
   professional_verified: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]",
-  corroborated: "bg-[#fdf2e0] text-[var(--color-ln-warn)]",
+  corroborated: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
   self_reported: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
   unverified: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-faint)]",
 };

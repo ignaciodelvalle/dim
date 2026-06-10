@@ -66,9 +66,9 @@ export default async function TransferPage({
 
   const statusBadgeClass =
     transfer.status === "accepted"
-      ? "border-[#c8e2d2] bg-[#eef6f0] text-[var(--color-ln-ok)]"
+      ? "border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]"
       : transfer.status === "pending"
-        ? "border-[#f0dcb4] bg-[#fdf2e0] text-[var(--color-ln-warn)]"
+        ? "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]"
         : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
 
   return (

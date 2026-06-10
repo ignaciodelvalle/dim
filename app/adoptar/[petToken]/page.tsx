@@ -225,9 +225,9 @@ export default async function AdoptarFichaPage({
               <span
                 className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-[12px] font-semibold"
                 style={{
-                  background: "#eef6f0",
+                  background: "var(--color-ln-ok-050)",
                   color: "var(--color-ln-ok)",
-                  borderColor: "#c8e2d2",
+                  borderColor: "var(--color-ln-ok-100)",
                   boxShadow: "0 2px 6px rgba(0,0,0,.08)",
                 }}
               >

@@ -25,7 +25,7 @@ export function PregnancyInProgressCard({
   return (
     <section
       aria-label="Embarazo en seguimiento"
-      className="rounded-2xl border border-ln-err bg-[#fbe9e6] p-5 text-ln-err    space-y-3"
+      className="rounded-2xl border border-ln-err bg-[var(--color-ln-err-050)] p-5 text-ln-err    space-y-3"
     >
       <header className="flex items-center gap-2">
         <span aria-hidden className="text-xl">
@@ -50,7 +50,7 @@ export function PregnancyInProgressCard({
         </Link>
         <Link
           href={`/mis-mascotas/${petPublicToken}/eventos/nuevo/clinico`}
-          className="px-3 py-1.5 rounded-lg border border-ln-err  text-sm font-medium hover:bg-[#fbe9e6]  transition-colors"
+          className="px-3 py-1.5 rounded-lg border border-ln-err  text-sm font-medium hover:bg-[var(--color-ln-err-050)]  transition-colors"
         >
           Anotar control veterinario
         </Link>

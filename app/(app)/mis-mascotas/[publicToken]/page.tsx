@@ -1464,7 +1464,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
     observationUntil <= new Date();
 
   return (
-    <section className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[16px] py-[14px] space-y-[10px]">
+    <section className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[16px] py-[14px] space-y-[10px]">
       <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
         Observación antirrábica en curso
       </p>
@@ -1491,7 +1491,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         >
           <button
             type="submit"
-            className="rounded-[4px] border border-[#f0dcb4] bg-white px-[12px] py-[6px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
+            className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-white px-[12px] py-[6px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
           >
             Confirmar fin de observación
           </button>
@@ -1509,7 +1509,7 @@ function TransitBanner({
   petPublicToken: string;
 }) {
   return (
-    <section className="rounded-[4px] border border-[#f0dcb4] bg-[#fdf2e0] px-[16px] py-[14px] space-y-[10px]">
+    <section className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[16px] py-[14px] space-y-[10px]">
       <p className="text-[13px] text-[var(--color-ln-warn)]">
         Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
         viaja con la mascota.
@@ -1518,7 +1518,7 @@ function TransitBanner({
         <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
         <Link
           href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
-          className="rounded-[4px] border border-[#f0dcb4] px-[10px] py-[5px] text-[13px] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
+          className="rounded-[4px] border border-[var(--color-ln-warn-100)] px-[10px] py-[5px] text-[13px] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
         >
           Buscar nuevo hogar
         </Link>
@@ -1577,7 +1577,7 @@ function UpcomingAppointments({
                     })}
                   </p>
                 </div>
-                <span className="flex-shrink-0 inline-flex items-center rounded-[2px] border border-[#c8e2d2] bg-[#eef6f0] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+                <span className="flex-shrink-0 inline-flex items-center rounded-[2px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
                   turno
                 </span>
               </div>

@@ -61,7 +61,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
       <div className="space-y-6">
         <p className="text-sm text-[var(--color-ln-ink-2)]">El link está listo para compartir.</p>
 
-        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-4 space-y-3">
+        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
           <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-ok)]">
             Link generado
           </p>
@@ -112,7 +112,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
         {DURATION_OPTIONS.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-3 rounded-[4px] border border-[var(--color-ln-line-strong)] px-4 py-3 cursor-pointer has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[#eef6f0]"
+            className="flex items-center gap-3 rounded-[4px] border border-[var(--color-ln-line-strong)] px-4 py-3 cursor-pointer has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
           >
             <input
               type="radio"

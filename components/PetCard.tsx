@@ -104,7 +104,7 @@ export function PetCard({
           <p className="font-medium text-ln-ink  truncate">
             {pet.name}
             {isTransit && (
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[#fdf2e0]  text-ln-warn  border border-ln-warn  align-middle">
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-ln-warn-050)]  text-ln-warn  border border-ln-warn  align-middle">
                 En tránsito
               </span>
             )}

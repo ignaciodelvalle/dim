@@ -52,7 +52,7 @@ export function ClaimWizard() {
 
   if (state.phase === "claimed") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-6 text-sm">
+      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
         <p className="text-base font-semibold text-[var(--color-ln-ok)]">
           {state.petName} ahora está a tu nombre
         </p>
@@ -72,7 +72,7 @@ export function ClaimWizard() {
 
   if (state.phase === "submitted") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-6 text-sm">
+      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
         <p className="text-base font-semibold text-[var(--color-ln-ok)]">Reclamo enviado</p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
@@ -220,7 +220,7 @@ export function ClaimWizard() {
           });
         });
       }}
-      className="space-y-4 rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 text-sm"
+      className="space-y-4 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
     >
       <div className="space-y-1">
         <p className="text-base font-semibold text-[var(--color-ln-warn)]">
@@ -316,7 +316,7 @@ function ResultStep({
   // Variant D — free pet (no active custody) → direct claim
   if (lookup.variant === "free") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-ok)] bg-[#eef6f0] p-5 text-sm">
+      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-ok)]">
           Encontramos a {lookup.petName} y no tiene dueño/a registrado/a.
         </p>
@@ -381,7 +381,7 @@ function ResultStep({
   // Deceased gate
   if (lookup.variant === "deceased") {
     return (
-      <section className="space-y-2 rounded-[4px] border border-[var(--color-ln-seal)] bg-[#fbe9e6] p-5 text-sm">
+      <section className="space-y-2 rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-seal)]">
           Esta mascota figura como fallecida en MiMAR.
         </p>
@@ -429,7 +429,7 @@ function ResultStep({
 
   // Variant B — active owner → offer dispute
   return (
-    <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[#fdf2e0] p-5 text-sm">
+    <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
       <p className="font-medium text-[var(--color-ln-warn)]">
         {lookup.petName} ya tiene dueño/a registrado/a
         {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.
