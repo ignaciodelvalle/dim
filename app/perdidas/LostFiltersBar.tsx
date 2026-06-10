@@ -1,0 +1,192 @@
+"use client";
+
+import Link from "next/link";
+
+import { LnCheckbox } from "@/components/ui/Field";
+import { LOST_TIME_BUCKETS, type LostListingFilters } from "@/lib/lost-listing";
+
+// URL-driven filters bar — every change submits a GET form so the URL
+// stays the source of truth (D11). No client state, no hydration mismatch.
+// Visual idiom mirrors AdoptionFiltersBar.tsx: LN tokens, same grid layout.
+
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perros" },
+  { value: "cat", label: "Gatos" },
+  { value: "rabbit", label: "Conejos" },
+  { value: "guinea_pig", label: "Cobayos" },
+  { value: "ferret", label: "Hurones" },
+] as const;
+
+const VISTO_LABELS: Record<string, string> = {
+  today: "Hoy",
+  week: "Esta semana",
+  month: "Este mes",
+};
+
+export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
+  const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
+
+  return (
+    <form
+      action="/perdidas"
+      method="GET"
+      className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
+    >
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <div>
+          <label
+            htmlFor="species"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
+            Especie
+          </label>
+          <select
+            id="species"
+            name="species"
+            defaultValue={filters.species ?? ""}
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+          >
+            <option value="">Todas</option>
+            {SPECIES_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="provincia"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
+            Provincia
+          </label>
+          <input
+            id="provincia"
+            type="text"
+            name="provincia"
+            defaultValue={filters.province ?? ""}
+            placeholder="Ej: Buenos Aires"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="localidad"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
+            Localidad
+          </label>
+          <input
+            id="localidad"
+            type="text"
+            name="localidad"
+            defaultValue={filters.locality ?? ""}
+            placeholder="Ej: La Plata"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="color"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
+            Color
+          </label>
+          <input
+            id="color"
+            type="text"
+            name="color"
+            defaultValue={filters.color ?? ""}
+            placeholder="Ej: negro, atigrado"
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="visto"
+            className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+          >
+            ¿Cuándo se perdió?
+          </label>
+          <select
+            id="visto"
+            name="visto"
+            defaultValue={filters.visto ?? ""}
+            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+          >
+            <option value="">Cualquier momento</option>
+            {LOST_TIME_BUCKETS.map((b) => (
+              <option key={b} value={b}>
+                {VISTO_LABELS[b]}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-center pt-1">
+        <FilterCheckbox
+          name="con_chip"
+          checked={filters.hasMicrochip === true}
+          label="Con microchip"
+        />
+        <FilterCheckbox
+          name="castrado"
+          checked={filters.isSterilized === true}
+          label="Castrado/a"
+        />
+        <FilterCheckbox
+          name="criticidad"
+          value="critical"
+          checked={filters.criticality === "critical"}
+          label="Crítica (últimas 24h)"
+        />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        {hasActiveFilters && (
+          <Link
+            href="/perdidas"
+            className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+          >
+            Limpiar
+          </Link>
+        )}
+        <button
+          type="submit"
+          className="rounded-[4px] bg-[var(--color-ln-err)] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+        >
+          Buscar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function FilterCheckbox({
+  name,
+  checked,
+  label,
+  value = "true",
+}: {
+  name: string;
+  checked: boolean;
+  label: string;
+  value?: string;
+}) {
+  return (
+    <LnCheckbox
+      name={name}
+      value={value}
+      defaultChecked={checked}
+      labelClassName="text-xs! text-[var(--color-ln-ink-2)]!"
+    >
+      {label}
+    </LnCheckbox>
+  );
+}
