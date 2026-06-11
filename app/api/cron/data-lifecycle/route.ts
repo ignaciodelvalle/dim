@@ -26,6 +26,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import { runDataLifecyclePurge } from "@/lib/data-lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -33,23 +34,9 @@ export const dynamic = "force-dynamic";
 const CRON_NAME = "data_lifecycle";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const cronSecret = process.env.CRON_SECRET;
-  const incoming = req.headers.get("x-cron-secret");
-
-  if (cronSecret) {
-    if (incoming !== cronSecret) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
-  } else if (process.env.NODE_ENV === "production") {
-    console.error("[cron/data-lifecycle] CRON_SECRET is not set in production. Rejecting request.");
-    return NextResponse.json(
-      { ok: false, error: "CRON_SECRET not configured in production" },
-      { status: 401 },
-    );
-  } else {
-    console.warn(
-      "[cron/data-lifecycle] CRON_SECRET not set — proceeding in dev mode. Set CRON_SECRET in production.",
-    );
+  const authError = authorizeCronRequest(req);
+  if (authError) {
+    return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
   const start = Date.now();

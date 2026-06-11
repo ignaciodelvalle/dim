@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const CRON_NAME = "close_followup_expired_adoptions";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const authError = checkCronSecret(req.headers.get("x-cron-secret"));
+  const authError = checkCronSecret(req);
   if (authError) {
     return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }

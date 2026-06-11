@@ -7,19 +7,16 @@
 //
 // On success returns JSON describing the run. On failure returns 500.
 
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import { processEnoQueueBatch } from "@/lib/eno-queue-processor";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET is not configured." }, { status: 503 });
-  }
-  const header = request.headers.get("authorization");
-  if (header !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const authError = authorizeCronRequest(request);
+  if (authError) {
+    return NextResponse.json({ error: authError.error }, { status: authError.status });
   }
 
   try {

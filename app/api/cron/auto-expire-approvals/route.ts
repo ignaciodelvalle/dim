@@ -12,6 +12,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull, lt } from "drizzle-orm";
 
 import { approvalRequests, auditLog, cronRuns, db, notifications, profiles } from "@/db";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,22 +21,9 @@ const EXPIRY_DAYS = 60;
 const CRON_NAME = "approval_requests_auto_expiry";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const cronSecret = process.env.CRON_SECRET;
-  const incoming = req.headers.get("x-cron-secret");
-
-  if (cronSecret) {
-    if (incoming !== cronSecret) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
-  } else if (process.env.NODE_ENV === "production") {
-    return NextResponse.json(
-      { ok: false, error: "CRON_SECRET not configured in production" },
-      { status: 401 },
-    );
-  } else {
-    console.warn(
-      "[cron/auto-expire-approvals] CRON_SECRET not set — allowing request in non-production",
-    );
+  const authError = authorizeCronRequest(req);
+  if (authError) {
+    return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
   // Pick the oldest active admin as the system actor. audit_log.actor_user_id
