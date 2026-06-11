@@ -22,11 +22,10 @@ function makeExisting(overrides: Partial<ExistingPetFixture> = {}): ExistingPetF
     breed: "labrador",
     dateOfBirth: "2021-01-01",
     color: "yellow",
-    microchipId: null,
-    microchipCountryCode: null,
-    microchipImplantedAt: null,
-    microchipImplantedBy: null,
-    microchipLocation: null,
+    // ARCH-S: microchipId / microchipCountryCode / microchipImplantedAt /
+    // microchipImplantedBy / microchipLocation removed from ExistingPetSnapshot.
+    // Chip diff is no longer part of diffPet; chip presence is tracked via
+    // existingCanonicalIds in the update-pet use-case.
     estimatedWeightKg: "25",
     favouriteFoods: ["chicken"],
     knownAllergies: null,
@@ -114,16 +113,18 @@ describe("diffPet — changed-fields detection", () => {
     });
   });
 
-  it("detects microchip_id change from null to value", () => {
-    const existing = makeExisting({ microchipId: null });
+  it("does NOT include microchip fields in the diff (ARCH-S: chip tracked via existingCanonicalIds)", () => {
+    // diffPet no longer diffs microchip_id / microchip_country_code /
+    // microchip_implanted_at / microchip_implanted_by / microchip_location.
+    // Chip presence is detected via existingCanonicalIds.hasMicrochip in update-pet.ts.
+    const existing = makeExisting();
     const parsed = makeParsed({ microchipId: "982000411234567" });
     const result = diffPet(existing, parsed, false);
-    const entry = result.find((e) => e.field === "microchip_id");
-    expect(entry).toEqual({
-      field: "microchip_id",
-      old: null,
-      new: "982000411234567",
-    });
+    expect(result.find((e) => e.field === "microchip_id")).toBeUndefined();
+    expect(result.find((e) => e.field === "microchip_country_code")).toBeUndefined();
+    expect(result.find((e) => e.field === "microchip_implanted_at")).toBeUndefined();
+    expect(result.find((e) => e.field === "microchip_implanted_by")).toBeUndefined();
+    expect(result.find((e) => e.field === "microchip_location")).toBeUndefined();
   });
 
   it("returns multiple changed fields when several differ", () => {

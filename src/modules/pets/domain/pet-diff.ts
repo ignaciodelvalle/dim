@@ -12,6 +12,11 @@ import type { ParsedPet } from "./types";
  * Minimal existing-pet shape needed by diffPet.
  * Matches the fields diffed in the original pets.ts implementation.
  * We use a structural type instead of the full Drizzle Pet to keep domain pure.
+ *
+ * ARCH-S: legacy pets.microchipId / microchipCountryCode / microchipImplantedAt /
+ * microchipImplantedBy / microchipLocation columns dropped. Canonical chip data
+ * is now supplied separately via ExistingCanonicalIds (passed from the action
+ * layer which has already fetched pet_identifications).
  */
 export type ExistingPetSnapshot = {
   name: string;
@@ -20,11 +25,6 @@ export type ExistingPetSnapshot = {
   breed: string | null;
   dateOfBirth: string | null;
   color: string | null;
-  microchipId: string | null;
-  microchipCountryCode: string | null;
-  microchipImplantedAt: string | null;
-  microchipImplantedBy: string | null;
-  microchipLocation: string | null;
   estimatedWeightKg: string | null;
   favouriteFoods: string[] | null;
   knownAllergies: string[] | null;
@@ -39,6 +39,16 @@ export type ExistingPetSnapshot = {
   // emergencyInfoVisible is NOT diffed (UI preference, not pet fact) but
   // we do need to know if it changed to decide whether to skip the transaction.
   emergencyInfoVisible: boolean;
+};
+
+/**
+ * Canonical chip presence snapshot — sourced from pet_identifications before
+ * the update. Used by isChipNewlyAdded to determine whether to emit a
+ * microchip_implanted event.
+ */
+export type ExistingCanonicalIds = {
+  /** true when pet already has an active canonical microchip row */
+  hasMicrochip: boolean;
 };
 
 export type DiffEntry = {
@@ -67,6 +77,10 @@ export function diffPet(
   parsed: ParsedPet,
   potentiallyDangerousBreed: boolean,
 ): DiffEntry[] {
+  // ARCH-S: microchip diff fields (microchip_id, microchip_country_code,
+  // microchip_implanted_at, microchip_implanted_by, microchip_location) removed.
+  // Legacy pets.* columns dropped. Chip presence is tracked via ExistingCanonicalIds
+  // and chipNewlyAdded flag; chip events continue to be emitted by the repository.
   const fields: Array<{ field: string; oldVal: unknown; newVal: unknown }> = [
     { field: "name", oldVal: existing.name, newVal: parsed.name },
     { field: "species", oldVal: existing.species, newVal: parsed.species },
@@ -74,27 +88,6 @@ export function diffPet(
     { field: "breed", oldVal: existing.breed, newVal: parsed.breed },
     { field: "date_of_birth", oldVal: existing.dateOfBirth, newVal: parsed.dateOfBirth },
     { field: "color", oldVal: existing.color, newVal: parsed.color },
-    { field: "microchip_id", oldVal: existing.microchipId, newVal: parsed.microchipId },
-    {
-      field: "microchip_country_code",
-      oldVal: existing.microchipCountryCode,
-      newVal: parsed.microchipCountryCode,
-    },
-    {
-      field: "microchip_implanted_at",
-      oldVal: existing.microchipImplantedAt,
-      newVal: parsed.microchipImplantedAt,
-    },
-    {
-      field: "microchip_implanted_by",
-      oldVal: existing.microchipImplantedBy,
-      newVal: parsed.microchipImplantedBy,
-    },
-    {
-      field: "microchip_location",
-      oldVal: existing.microchipLocation,
-      newVal: parsed.microchipLocation,
-    },
     {
       field: "estimated_weight_kg",
       oldVal: existing.estimatedWeightKg,

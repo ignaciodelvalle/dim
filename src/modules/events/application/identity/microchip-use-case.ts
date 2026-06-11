@@ -8,6 +8,8 @@
 //   - Attachment inserted when uploadedPath provided.
 //   - ARCH-R: legacy updateMicrochipBackfill (pets.microchipId column) removed.
 //     Canonical row written to pet_identifications via insertIdentification.
+//   - ARCH-S: pet.microchipId replaced by petHasCanonicalChip (pre-resolved by
+//     caller from pet_identifications) so no legacy column is needed.
 //   - No outbox. No audit_log.
 
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -21,7 +23,7 @@ import type { UseCaseResult } from "../types";
 // ---------------------------------------------------------------------------
 
 export type CreateMicrochipInput = {
-  pet: { id: string; microchipId: string | null };
+  pet: { id: string; petHasCanonicalChip: boolean };
   user: { id: string };
   eventAuthorship: {
     authorRole: string;
@@ -117,8 +119,9 @@ export async function createMicrochip(
     // Insert canonical microchip row in pet_identifications.
     // Only when the pet had no prior chip; insertIdentification itself skips
     // if an active row already exists (re-sync guard).
-    // Legacy pets.microchipId write removed in ARCH-R.
-    if (!pet.microchipId) {
+    // ARCH-R: legacy pets.microchipId write removed.
+    // ARCH-S: guard uses petHasCanonicalChip (pre-resolved from pet_identifications by caller).
+    if (!pet.petHasCanonicalChip) {
       const implantSite = chipImplantSiteFromLocation(locationOnBody);
       await repo.insertIdentification(
         {

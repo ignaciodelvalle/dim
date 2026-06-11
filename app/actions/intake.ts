@@ -301,9 +301,8 @@ export async function createIntakeAction(
           birthDateIsEstimated: parsed.birthDateIsEstimated,
           color: parsed.color,
           distinguishingFeatures: parsed.distinguishingFeatures,
-          microchipId: parsed.microchipId,
-          microchipCountryCode: parsed.microchipCountryCode,
-          tattooCode: parsed.tattooCode,
+          // ARCH-S: microchipId, microchipCountryCode, tattooCode columns dropped
+          // from pets — canonical rows written to pet_identifications below.
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
           potentiallyDangerousBreed: potentiallyDangerousBreed,

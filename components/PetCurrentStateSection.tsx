@@ -9,6 +9,7 @@
 
 import { formatDate } from "@/lib/format";
 import {
+  type CanonicalIdentificationSnapshot,
   type CurrentStateEvent,
   type CurrentStatePet,
   deriveCurrentStateFields,
@@ -19,7 +20,7 @@ import {
 } from "./PetCurrentStateSection.helpers";
 
 // Re-export types so callers only need to import from this module.
-export type { CurrentStateEvent, CurrentStatePet };
+export type { CanonicalIdentificationSnapshot, CurrentStateEvent, CurrentStatePet };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -42,11 +43,13 @@ function Row({ label, value }: RowProps) {
 export function PetCurrentStateSection({
   pet,
   typedEvents,
+  canonicalIds = { microchip: null, tattoo: null },
 }: {
   pet: CurrentStatePet;
   typedEvents: CurrentStateEvent[];
+  canonicalIds?: CanonicalIdentificationSnapshot;
 }) {
-  const fields = deriveCurrentStateFields(pet, typedEvents);
+  const fields = deriveCurrentStateFields(pet, typedEvents, canonicalIds);
 
   const hasAnyField =
     fields.weight !== null ||

@@ -3,11 +3,12 @@
 // RED → GREEN TDD. Tests cover:
 //   - Happy path: idempotent insert + canonical insertIdentification when pet has no chip.
 //   - Replay / noop: wasNoop=true → insertIdentification NOT called, attachment skipped.
-//   - Canonical skip: pet already has microchipId → insertIdentification NOT called.
+//   - Canonical skip: petHasCanonicalChip=true → insertIdentification NOT called.
 //   - Attachment: uploaded path triggers insertAttachment.
 //   - Auth parity: requireAlivePetAccess is the guard (tested in actions layer;
 //     use-case itself is auth-agnostic by design).
 //   - ARCH-R: updateMicrochipBackfill removed; legacy pets.microchipId no longer written.
+//   - ARCH-S: pet.microchipId field replaced by petHasCanonicalChip: boolean.
 
 import { describe, expect, it, vi } from "vitest";
 import type { EventsRepository } from "../../infrastructure/events-repository";
@@ -36,7 +37,8 @@ function makeTx() {
 }
 
 const BASE_INPUT = {
-  pet: { id: "pet-1", microchipId: null as string | null },
+  // ARCH-S: microchipId replaced by petHasCanonicalChip (pre-resolved from pet_identifications).
+  pet: { id: "pet-1", petHasCanonicalChip: false },
   user: { id: "user-1" },
   eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
   chipNumber: "985121025800001",
@@ -70,7 +72,7 @@ describe("createMicrochip", () => {
     expect(insertArg.petId).toBe("pet-1");
     expect(insertArg.clientIdempotencyKey).toBe("key-1");
 
-    // Canonical row inserted because pet.microchipId is null (ARCH-R: legacy backfill removed).
+    // Canonical row inserted because petHasCanonicalChip=false (ARCH-S).
     expect(repo.insertIdentification).toHaveBeenCalledOnce();
     const [identArg] = (repo.insertIdentification as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(identArg.petId).toBe("pet-1");
@@ -79,10 +81,11 @@ describe("createMicrochip", () => {
     expect(identArg.isoCompliant).toBe(true);
   });
 
-  it("skips canonical write when pet already has a microchipId (never overwrite)", async () => {
+  it("skips canonical write when pet already has a canonical chip (petHasCanonicalChip=true)", async () => {
     const repo = makeRepo();
     const result = await createMicrochip(
-      { ...BASE_INPUT, pet: { id: "pet-1", microchipId: "existing-chip" } },
+      // ARCH-S: petHasCanonicalChip=true signals the pet already has an active chip row.
+      { ...BASE_INPUT, pet: { id: "pet-1", petHasCanonicalChip: true } },
       { repo, transaction: makeTx() },
     );
 

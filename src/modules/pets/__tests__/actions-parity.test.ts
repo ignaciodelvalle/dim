@@ -50,11 +50,8 @@ vi.mock("@/lib/pet-access", () => ({
       breed: "labrador",
       dateOfBirth: "2022-01-01",
       color: "negro",
-      microchipId: null,
-      microchipCountryCode: null,
-      microchipImplantedAt: null,
-      microchipImplantedBy: null,
-      microchipLocation: null,
+      // ARCH-S: microchipId / microchipCountryCode / microchipImplantedAt /
+      // microchipImplantedBy / microchipLocation columns dropped from pets table.
       estimatedWeightKg: null,
       favouriteFoods: null,
       knownAllergies: null,
@@ -98,6 +95,11 @@ vi.mock("@/lib/microchip-validation", () => ({
 
 vi.mock("@/lib/chip-lookup", () => ({
   lookupByChip: vi.fn().mockResolvedValue(null),
+}));
+
+// ARCH-S: updatePetAction now calls fetchActiveIdentifications to get canonical chip presence.
+vi.mock("@/lib/pet-identifiers", () => ({
+  fetchActiveIdentifications: vi.fn().mockResolvedValue({ microchip: null, tattoo: null }),
 }));
 
 vi.mock("@/lib/microchip-force-token", () => ({
@@ -325,11 +327,8 @@ describe("updatePetAction", () => {
         breed: "labrador",
         dateOfBirth: "2022-01-01",
         color: "negro",
-        microchipId: null,
-        microchipCountryCode: null,
-        microchipImplantedAt: null,
-        microchipImplantedBy: null,
-        microchipLocation: null,
+        // ARCH-S: microchipId / microchipCountryCode / microchipImplantedAt /
+        // microchipImplantedBy / microchipLocation columns dropped from pets table.
         estimatedWeightKg: null,
         favouriteFoods: null,
         knownAllergies: null,

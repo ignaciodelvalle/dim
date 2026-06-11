@@ -124,13 +124,20 @@ let petDeceasedId: string;
 
 beforeAll(async () => {
   // Clean up any prior test artifacts with the same code prefix.
+  // ARCH-S: tattoo_code column dropped from pets — scan pet_identifications instead.
   await withMutationOverride(async (tx) => {
     await tx.execute(
       sql`DELETE FROM ownerships WHERE pet_id IN (
-        SELECT id FROM pets WHERE tattoo_code LIKE 'INTAKE-TAT-%'
+        SELECT DISTINCT pet_id FROM pet_identifications
+        WHERE kind = 'tattoo' AND code LIKE 'INTAKE-TAT-%'
       )`,
     );
-    await tx.execute(sql`DELETE FROM pets WHERE tattoo_code LIKE 'INTAKE-TAT-%'`);
+    await tx.execute(
+      sql`DELETE FROM pets WHERE id IN (
+        SELECT DISTINCT pet_id FROM pet_identifications
+        WHERE kind = 'tattoo' AND code LIKE 'INTAKE-TAT-%'
+      )`,
+    );
   });
 
   const today = new Date().toISOString().slice(0, 10);
@@ -143,8 +150,6 @@ beforeAll(async () => {
       species: "dog",
       sex: "male",
       status: "active",
-      tattooCode: TEST_CODE_ACTIVE,
-      tattooLocation: "inner_ear_left",
       potentiallyDangerousBreed: false,
     })
     .returning();
@@ -165,7 +170,6 @@ beforeAll(async () => {
       species: "dog",
       sex: "female",
       status: "lost",
-      tattooCode: TEST_CODE_LOST,
       potentiallyDangerousBreed: false,
     })
     .returning();
@@ -185,7 +189,6 @@ beforeAll(async () => {
       species: "cat",
       sex: "unknown",
       status: "deceased",
-      tattooCode: TEST_CODE_DECEASED,
       potentiallyDangerousBreed: false,
     })
     .returning();
@@ -199,13 +202,20 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // ARCH-S: tattoo_code column dropped from pets — scan pet_identifications.
   await withMutationOverride(async (tx) => {
     await tx.execute(
       sql`DELETE FROM ownerships WHERE pet_id IN (
-        SELECT id FROM pets WHERE tattoo_code LIKE 'INTAKE-TAT-%'
+        SELECT DISTINCT pet_id FROM pet_identifications
+        WHERE kind = 'tattoo' AND code LIKE 'INTAKE-TAT-%'
       )`,
     );
-    await tx.execute(sql`DELETE FROM pets WHERE tattoo_code LIKE 'INTAKE-TAT-%'`);
+    await tx.execute(
+      sql`DELETE FROM pets WHERE id IN (
+        SELECT DISTINCT pet_id FROM pet_identifications
+        WHERE kind = 'tattoo' AND code LIKE 'INTAKE-TAT-%'
+      )`,
+    );
   });
 });
 

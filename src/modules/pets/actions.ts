@@ -29,6 +29,7 @@ import {
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { redirect } from "next/navigation";
@@ -197,6 +198,10 @@ export async function updatePetAction(
   if (!access.ok) return { error: access.error };
   const { supabase, user, pet: existingPet, eventAuthorship, accessPath } = access;
 
+  // ARCH-S: fetch canonical chip presence before the update so chipNewlyAdded
+  // guard doesn't need the dropped pets.microchipId column.
+  const existingCanonicalIds = await fetchActiveIdentifications(existingPet.id);
+
   const parseResult = parsePetForm(formData);
   if (parseResult.error !== null) return { error: parseResult.error };
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
@@ -249,6 +254,7 @@ export async function updatePetAction(
         accessPath,
         eventAuthorship,
         existingPet,
+        existingCanonicalIds: { hasMicrochip: existingCanonicalIds.microchip !== null },
       },
       transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
         db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,

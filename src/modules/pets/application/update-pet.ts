@@ -24,7 +24,7 @@ import type {
   NewNotification,
   UseCaseResult,
 } from "@/src/modules/adoption/application/set-adoption-eligibility";
-import { type ExistingPetSnapshot, diffPet } from "../domain/pet-diff";
+import { type ExistingCanonicalIds, type ExistingPetSnapshot, diffPet } from "../domain/pet-diff";
 import { isBecamePPP, isChipNewlyAdded, isFlagOnlyChange, isNoOp } from "../domain/pet-rules";
 import type { UpdatePetInput } from "../domain/types";
 import type { PetsRepository } from "../infrastructure/pets-repository";
@@ -46,6 +46,8 @@ type Actor = {
   accessPath: "owner" | "org";
   eventAuthorship: EventAuthorship;
   existingPet: ExistingPetSnapshot;
+  /** Canonical chip presence — sourced from pet_identifications by caller (ARCH-S). */
+  existingCanonicalIds: ExistingCanonicalIds;
 };
 
 type Deps = {
@@ -60,7 +62,7 @@ type Deps = {
 
 export async function updatePet(input: UpdatePetInput, deps: Deps): Promise<UseCaseResult<void>> {
   const { repo, actor, transaction } = deps;
-  const { user, accessPath, eventAuthorship, existingPet } = actor;
+  const { user, accessPath, eventAuthorship, existingPet, existingCanonicalIds } = actor;
   const { petId, parsed, potentiallyDangerousBreed, uploadedPath, uploadMimeType, uploadSize } =
     input;
 
@@ -72,8 +74,10 @@ export async function updatePet(input: UpdatePetInput, deps: Deps): Promise<UseC
   // 2. Derived flags.
   const hasContentChanges = changes.length > 0 || uploadedPath !== null;
   const flagChanged = parsed.emergencyInfoVisible !== existingPet.emergencyInfoVisible;
+  // ARCH-S: existingChipId now comes from canonical pet_identifications, not
+  // the dropped pets.microchipId column.
   const chipNewlyAdded = isChipNewlyAdded({
-    existingChipId: existingPet.microchipId,
+    existingChipId: existingCanonicalIds.hasMicrochip ? "canonical" : null,
     parsedChipId: parsed.microchipId,
   });
   const becamePPP = isBecamePPP({
@@ -82,7 +86,7 @@ export async function updatePet(input: UpdatePetInput, deps: Deps): Promise<UseC
   });
 
   // 3. No-op short-circuit — skip transaction entirely.
-  if (isNoOp({ hasContentChanges, hasPhoto: uploadedPath !== null, flagChanged })) {
+  if (isNoOp({ hasContentChanges, hasPhoto: uploadedPath !== null, flagChanged, chipNewlyAdded })) {
     return { ok: true, notifications: [] };
   }
 

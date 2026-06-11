@@ -12,7 +12,7 @@
 // Fixture pattern: direct DB inserts + withMutationOverride for cleanup.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
@@ -85,12 +85,20 @@ async function cleanupPet(petId: string | undefined) {
 beforeAll(async () => {
   await purgeUser(USER_EMAIL);
 
-  // Also clean up any leftover pets by chip numbers.
-  await withMutationOverride(async (tx) => {
-    for (const chip of [CHIP_A, CHIP_B, CHIP_C]) {
-      await tx.delete(pets).where(eq(pets.microchipId, chip));
+  // Also clean up any leftover pets that own our test chip numbers.
+  // ARCH-S: pets.microchipId dropped — scan pet_identifications.
+  for (const chip of [CHIP_A, CHIP_B, CHIP_C]) {
+    const rows = (await db.execute(
+      sql`SELECT DISTINCT pet_id FROM pet_identifications WHERE code = ${chip} AND kind = 'microchip_iso'`,
+    )) as Array<{ pet_id: string }>;
+    for (const { pet_id: pid } of rows) {
+      await withMutationOverride(async (tx) => {
+        await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pid}::uuid`);
+        await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id = ${pid}::uuid`);
+        await tx.delete(pets).where(eq(pets.id, pid));
+      });
     }
-  });
+  }
 
   const { data: userData, error: userErr } = await admin.auth.admin.createUser({
     email: USER_EMAIL,
@@ -100,7 +108,8 @@ beforeAll(async () => {
   if (userErr || !userData.user) throw new Error(`createUser: ${userErr?.message}`);
   userId = userData.user.id;
 
-  // Pet for replaceMicrochip test — starts with CHIP_A.
+  // Pet for replaceMicrochip test — starts with CHIP_A (seeded via canonical row below).
+  // ARCH-S: pets.microchipId dropped.
   const [petReplace] = await db
     .insert(pets)
     .values({
@@ -109,7 +118,6 @@ beforeAll(async () => {
       species: "dog",
       sex: "male",
       status: "active",
-      microchipId: CHIP_A,
       jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
     })
@@ -237,9 +245,7 @@ describe("replaceMicrochipForUser — canonical dual-write", () => {
   });
 
   it("flips old row to 'replaced' and does NOT insert a new row on pure revocation (newChipNumber=null)", async () => {
-    // First ensure the current chip is CHIP_B (from previous test).
-    await db.update(pets).set({ microchipId: CHIP_B }).where(eq(pets.id, petForReplaceId));
-    // Ensure CHIP_B active row exists (may have been inserted by previous test).
+    // Ensure CHIP_B active row exists (inserted by the previous test via replaceMicrochipForUser).
     const existingB = await db
       .select()
       .from(petIdentifications)
@@ -317,8 +323,6 @@ describe("setPetLostWriter — retroactive tattoo canonical dual-write", () => {
       {
         petId: petForLostTattooId,
         petStatus: "active",
-        petTattooCode: null,
-        petMicrochipId: null,
         fromStatus: "active",
         recordedByUserId: userId,
         eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
@@ -386,8 +390,6 @@ describe("setPetLostWriter — retroactive microchip canonical dual-write", () =
       {
         petId: petForLostChipId,
         petStatus: "active",
-        petMicrochipId: null,
-        petTattooCode: null,
         fromStatus: "active",
         recordedByUserId: userId,
         eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },

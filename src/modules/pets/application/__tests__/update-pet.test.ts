@@ -8,7 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ExistingPetSnapshot } from "../../domain/pet-diff";
+import type { ExistingCanonicalIds, ExistingPetSnapshot } from "../../domain/pet-diff";
 import type { ParsedPet, UpdatePetInput } from "../../domain/types";
 import type { PetsRepository } from "../../infrastructure/pets-repository";
 
@@ -39,11 +39,6 @@ function makeExistingPet(overrides?: Partial<ExistingPetSnapshot>): ExistingPetS
     breed: "labrador",
     dateOfBirth: "2022-01-01",
     color: "negro",
-    microchipId: null,
-    microchipCountryCode: null,
-    microchipImplantedAt: null,
-    microchipImplantedBy: null,
-    microchipLocation: null,
     estimatedWeightKg: null,
     favouriteFoods: null,
     knownAllergies: null,
@@ -112,11 +107,13 @@ type EventAuthorship = {
 function makeActor(overrides?: {
   accessPath?: "owner" | "org";
   eventAuthorship?: Partial<EventAuthorship>;
+  existingCanonicalIds?: Partial<ExistingCanonicalIds>;
 }): {
   user: { id: string };
   accessPath: "owner" | "org";
   eventAuthorship: EventAuthorship;
   existingPet: ExistingPetSnapshot;
+  existingCanonicalIds: ExistingCanonicalIds;
 } {
   const authorship: EventAuthorship = {
     authorRole: "owner",
@@ -129,6 +126,7 @@ function makeActor(overrides?: {
     accessPath: (overrides?.accessPath ?? "owner") as "owner" | "org",
     eventAuthorship: authorship,
     existingPet: makeExistingPet(),
+    existingCanonicalIds: { hasMicrochip: false, ...overrides?.existingCanonicalIds },
   };
 }
 
@@ -283,8 +281,8 @@ describe("updatePet", () => {
   describe("chip newly added", () => {
     it("passes chipNewlyAdded=true when chip was absent and is now present", async () => {
       const repo = makeFakeRepo();
-      const actor = makeActor();
-      actor.existingPet = makeExistingPet({ microchipId: null });
+      // ARCH-S: chip presence is tracked via existingCanonicalIds, not existingPet.microchipId.
+      const actor = makeActor({ existingCanonicalIds: { hasMicrochip: false } });
 
       await updatePet(
         makeInput({
@@ -303,8 +301,8 @@ describe("updatePet", () => {
 
     it("passes chipNewlyAdded=false when chip was already present (name also changed to force tx)", async () => {
       const repo = makeFakeRepo();
-      const actor = makeActor();
-      actor.existingPet = makeExistingPet({ microchipId: "724123456789012" });
+      // ARCH-S: existingCanonicalIds.hasMicrochip=true signals pet already had a chip.
+      const actor = makeActor({ existingCanonicalIds: { hasMicrochip: true } });
 
       // Change the name too so there IS a content diff and the tx runs.
       await updatePet(

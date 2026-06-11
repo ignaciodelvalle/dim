@@ -16,18 +16,23 @@
  *
  * Output is grep-friendly: one pet per line, status code in the first column:
  *   OK     {publicToken}
- *   DRIFT  {publicToken}  status=... weight=... microchip=...
+ *   DRIFT  {publicToken}  status=... weight=...
  *   FIXED  {publicToken}
  *
  * Note on preference-managed columns: `pets.emergencyInfoVisible` is a UI
  * preference (NO event emitted on flip — see v1 closure item 3) and is NOT
  * projection-managed. This script does not touch it.
+ *
+ * ARCH-S: microchip projection columns (microchipId, microchipCountryCode,
+ * microchipImplantedAt, microchipImplantedBy, microchipLocation) dropped from
+ * the pets table. Microchip data is now canonical in pet_identifications.
+ * The replayPetMicrochip projection is still valid for event-sourced reads but
+ * drift detection/fixing against the pets row is no longer applicable.
  */
 
 import { asc, eq, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "../db";
-import { replayPetMicrochip } from "../lib/projections/pet-microchip";
 import { replayPetStatus } from "../lib/projections/pet-status";
 import { replayPetWeight } from "../lib/projections/pet-weight";
 
@@ -64,21 +69,12 @@ function diffPet(
     status: string;
     deceasedAt: Date | string | null;
     estimatedWeightKg: string | null;
-    microchipId: string | null;
-    microchipCountryCode: string | null;
-    microchipImplantedAt: Date | string | null;
-    microchipImplantedBy: string | null;
-    microchipLocation: string | null;
+    // ARCH-S: microchip columns dropped from pets table. No longer diffed here.
   },
   expected: {
     status: string;
     deceasedAt: Date | null;
     estimatedWeightKg: string | null;
-    microchipId: string | null;
-    microchipCountryCode: string | null;
-    microchipImplantedAt: string | null;
-    microchipImplantedBy: string | null;
-    microchipLocation: string | null;
   },
 ): Drift[] {
   const drifts: Drift[] = [];
@@ -101,24 +97,6 @@ function diffPet(
       column: "estimatedWeightKg",
       current: current.estimatedWeightKg,
       expected: expected.estimatedWeightKg,
-    });
-  }
-  for (const key of [
-    "microchipId",
-    "microchipCountryCode",
-    "microchipImplantedBy",
-    "microchipLocation",
-  ] as const) {
-    if (current[key] !== expected[key]) {
-      drifts.push({ column: key, current: current[key], expected: expected[key] });
-    }
-  }
-  const currentImplantedAt = normalizeDate(current.microchipImplantedAt);
-  if (currentImplantedAt !== expected.microchipImplantedAt) {
-    drifts.push({
-      column: "microchipImplantedAt",
-      current: currentImplantedAt,
-      expected: expected.microchipImplantedAt,
     });
   }
   return drifts;
@@ -186,9 +164,10 @@ async function main() {
 
       const statusProj = replayPetStatus(events);
       const weightProj = replayPetWeight(events);
-      const microchipProj = replayPetMicrochip(events);
+      // ARCH-S: microchipProj removed — pets.microchipId* columns dropped.
+      // Canonical microchip data lives in pet_identifications.
 
-      const expected = { ...statusProj, ...weightProj, ...microchipProj };
+      const expected = { ...statusProj, ...weightProj };
       const drifts = diffPet(pet, expected);
 
       if (drifts.length === 0) {
@@ -209,11 +188,7 @@ async function main() {
           status: expected.status,
           deceasedAt: expected.deceasedAt,
           estimatedWeightKg: expected.estimatedWeightKg,
-          microchipId: expected.microchipId,
-          microchipCountryCode: expected.microchipCountryCode,
-          microchipImplantedAt: expected.microchipImplantedAt,
-          microchipImplantedBy: expected.microchipImplantedBy,
-          microchipLocation: expected.microchipLocation,
+          // ARCH-S: microchip columns dropped — no longer updated here.
           updatedAt: new Date(),
         })
         .where(eq(pets.id, pet.id));

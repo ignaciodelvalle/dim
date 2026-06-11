@@ -418,7 +418,7 @@ describe("pet-cache non-vacuity (harness detects skew)", () => {
         recordedAt: now.toISOString().slice(0, 10),
         recordedByLabel: "dr-real-vet",
       });
-      await tx.update(pets).set({ microchipId: "100000000000001" }).where(eq(pets.id, pet.id));
+      // ARCH-S: pets.microchipId dropped — canonical row above is the sole source.
     });
 
     // Pre-skew: microchipId must match (canonical=event-derived=same code).
@@ -464,7 +464,7 @@ describe("pet-cache non-vacuity (harness detects skew)", () => {
         recordedAt: "2020-01-15",
         recordedByLabel: "legacy_backfill_0083",
       });
-      await tx.update(pets).set({ microchipId: "200000000000002" }).where(eq(pets.id, pet.id));
+      // ARCH-S: pets.microchipId dropped — canonical row above is the sole source.
     });
 
     const report = await rederivePetCache(pet.id);

@@ -9,8 +9,10 @@
 //   - PLAIN insert of status_changed event with disclosure_prefs_snapshot + optional lost_description.
 //   - pets projection: status=lost + 5 disclosure cols + optional color/distinguishingFeatures.
 //   - openCase called for lost_pet_episode BEFORE status_changed insert.
-//   - Retroactive microchip: if validatedRetroChipId && !petMicrochipId → insert microchip_implanted + insertIdentification.
-//   - Retroactive tattoo: if tattooCode && !petTattooCode → insert tattoo_recorded + insertIdentification.
+//   - Retroactive microchip: if validatedRetroChipId && !canonicalIds.microchip → insert microchip_implanted + insertIdentification.
+//     ARCH-S: guard reads from fetchActiveIdentifications (canonical), not legacy petMicrochipId param.
+//   - Retroactive tattoo: if tattooCode && !canonicalIds.tattoo → insert tattoo_recorded + insertIdentification.
+//     ARCH-S: guard reads from fetchActiveIdentifications (canonical), not legacy petTattooCode param.
 //   - ARCH-R: updateMicrochipBackfill removed; canonical rows via insertIdentification only.
 //   - INVALID_MICROCHIP_FORMAT returned BEFORE any DB write.
 //   - broadcastLostPet called post-tx (best-effort) when petPublicToken provided.
@@ -54,6 +56,12 @@ vi.mock("@/lib/event-schemas", () => ({
   validateEventPayload: mockValidateEventPayload,
 }));
 
+// ARCH-S: fetchActiveIdentifications replaces legacy petMicrochipId / petTattooCode params.
+const mockFetchActiveIdentifications = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/pet-identifiers", () => ({
+  fetchActiveIdentifications: mockFetchActiveIdentifications,
+}));
+
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import { setPetLostWriter } from "./set-pet-lost-use-case";
 
@@ -90,8 +98,6 @@ const baseParams = {
   petPublicToken: "abc123",
   petName: "Rex",
   petStatus: "active",
-  petMicrochipId: null as string | null,
-  petTattooCode: null as string | null,
   petSpecies: "dog",
   petBreed: "Labrador",
   petColor: "yellow",
@@ -243,13 +249,14 @@ describe("setPetLostWriter", () => {
   it("inserts microchip_implanted + canonical identification when retroactive chip provided and pet had none", async () => {
     const normalizedChip = "982000123456789";
     mockValidateMicrochipId.mockReturnValue({ ok: true, normalized: normalizedChip });
+    // ARCH-S: use-case fetches canonical ids internally; mock to return no chip.
+    mockFetchActiveIdentifications.mockResolvedValue({ microchip: null, tattoo: null });
 
     const repo = makeRepo();
     const tx = makeTransaction();
     const result = await setPetLostWriter(
       {
         ...baseParams,
-        petMicrochipId: null,
         enrichedDescription: {
           color: null,
           distinguishingFeatures: null,
@@ -284,13 +291,17 @@ describe("setPetLostWriter", () => {
   it("skips retroactive microchip when pet already has a chip", async () => {
     const normalizedChip = "982000123456789";
     mockValidateMicrochipId.mockReturnValue({ ok: true, normalized: normalizedChip });
+    // ARCH-S: mock canonical read to simulate a pet that already has a chip.
+    mockFetchActiveIdentifications.mockResolvedValue({
+      microchip: { code: "existing-chip", recordedAt: null },
+      tattoo: null,
+    });
 
     const repo = makeRepo();
     const tx = makeTransaction();
     await setPetLostWriter(
       {
         ...baseParams,
-        petMicrochipId: "existing-chip", // already has chip
         enrichedDescription: {
           color: null,
           distinguishingFeatures: null,
@@ -318,13 +329,14 @@ describe("setPetLostWriter", () => {
   it("inserts tattoo_recorded when retroactive tattoo provided and pet had none", async () => {
     const normalizedTattoo = "ABC-123";
     mockNormalizeTattooCode.mockReturnValue(normalizedTattoo);
+    // ARCH-S: mock canonical read to simulate a pet with no tattoo.
+    mockFetchActiveIdentifications.mockResolvedValue({ microchip: null, tattoo: null });
 
     const repo = makeRepo();
     const tx = makeTransaction();
     await setPetLostWriter(
       {
         ...baseParams,
-        petTattooCode: null,
         enrichedDescription: {
           color: null,
           distinguishingFeatures: null,

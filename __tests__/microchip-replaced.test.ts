@@ -71,11 +71,11 @@ beforeAll(async () => {
   // Purge any leftover fixtures from previous runs.
   await purgeUser(OWNER_EMAIL);
   await purgeUser(VET_EMAIL);
-  // Clean up the duplicate pet by chip number.
+  // Clean up stale canonical rows for our test chip numbers (ARCH-S: legacy column dropped).
   await withMutationOverride(async (tx) => {
-    await tx.delete(pets).where(and(eq(pets.microchipId, CHIP_DUPLICATE_TARGET)));
-    await tx.delete(pets).where(eq(pets.microchipId, CHIP_ORIGINAL));
-    await tx.delete(pets).where(eq(pets.microchipId, CHIP_REPLACEMENT));
+    await tx.execute(
+      sql`DELETE FROM pet_identifications WHERE code IN (${CHIP_ORIGINAL}, ${CHIP_REPLACEMENT}, ${CHIP_DUPLICATE_TARGET}) AND kind = 'microchip_iso'`,
+    );
   });
   // Clean up vet org.
   await db.delete(organizations).where(eq(organizations.email, "microchip-vet-org@dim-test.local"));
@@ -129,7 +129,8 @@ beforeAll(async () => {
     role: "vet_individual",
   });
 
-  // Create the primary pet with CHIP_ORIGINAL.
+  // Create the primary pet. ARCH-S: legacy pets.microchipId dropped — chip seeded
+  // via pet_identifications canonical row below.
   const [primaryPet] = await db
     .insert(pets)
     .values({
@@ -138,12 +139,23 @@ beforeAll(async () => {
       species: "dog",
       sex: "male",
       status: "active",
-      microchipId: CHIP_ORIGINAL,
       jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
     })
     .returning();
   primaryPetId = primaryPet.id;
+
+  // Seed the canonical chip row that the replace action expects to flip.
+  await db.insert(petIdentifications).values({
+    petId: primaryPetId,
+    kind: "microchip_iso",
+    code: CHIP_ORIGINAL,
+    recordedAt: new Date().toISOString().slice(0, 10),
+    isoCountryCode: CHIP_ORIGINAL.slice(0, 3),
+    isoManufacturerCode: CHIP_ORIGINAL.slice(3, 7),
+    isoNationalId: CHIP_ORIGINAL.slice(7, 15),
+    isoCompliant: true,
+  });
 
   // Owner owns the primary pet.
   await db.insert(ownerships).values({
@@ -159,7 +171,7 @@ beforeAll(async () => {
     role: "shelter_custody",
   });
 
-  // Create the duplicate pet seeded with CHIP_DUPLICATE_TARGET.
+  // Create the duplicate pet. ARCH-S: chip seeded via pet_identifications below.
   const [dupPet] = await db
     .insert(pets)
     .values({
@@ -168,10 +180,21 @@ beforeAll(async () => {
       species: "dog",
       sex: "female",
       status: "active",
-      microchipId: CHIP_DUPLICATE_TARGET,
     })
     .returning();
   duplicatePetId = dupPet.id;
+
+  // Seed canonical chip row for the duplicate pet.
+  await db.insert(petIdentifications).values({
+    petId: duplicatePetId,
+    kind: "microchip_iso",
+    code: CHIP_DUPLICATE_TARGET,
+    recordedAt: new Date().toISOString().slice(0, 10),
+    isoCountryCode: CHIP_DUPLICATE_TARGET.slice(0, 3),
+    isoManufacturerCode: CHIP_DUPLICATE_TARGET.slice(3, 7),
+    isoNationalId: CHIP_DUPLICATE_TARGET.slice(7, 15),
+    isoCompliant: true,
+  });
 });
 
 afterAll(async () => {
@@ -210,14 +233,22 @@ afterAll(async () => {
 // Helper: reset primaryPet's chip state between tests
 // ---------------------------------------------------------------------------
 async function resetPrimaryChip() {
-  // Keep the legacy pets.microchipId column in sync so tests that use it for
-  // setup (duplicate-scan fixture) still work while the column exists.
-  await db.update(pets).set({ microchipId: CHIP_ORIGINAL }).where(eq(pets.id, primaryPetId));
-  // Clean up canonical rows from this test so the next test starts fresh.
+  // ARCH-S: legacy pets.microchipId dropped — reset canonical row only.
+  // Delete all chip rows for primaryPet and re-insert the original.
   await withMutationOverride(async (tx) => {
     await tx.execute(
       sql`DELETE FROM pet_identifications WHERE pet_id = ${primaryPetId}::uuid AND kind = 'microchip_iso'`,
     );
+  });
+  await db.insert(petIdentifications).values({
+    petId: primaryPetId,
+    kind: "microchip_iso",
+    code: CHIP_ORIGINAL,
+    recordedAt: new Date().toISOString().slice(0, 10),
+    isoCountryCode: CHIP_ORIGINAL.slice(0, 3),
+    isoManufacturerCode: CHIP_ORIGINAL.slice(3, 7),
+    isoNationalId: CHIP_ORIGINAL.slice(7, 15),
+    isoCompliant: true,
   });
 }
 
@@ -359,28 +390,28 @@ describe("replaceMicrochipForUser — cross-pet dup scan finds another pet", () 
         ),
       );
 
-    // primaryPetId has CHIP_ORIGINAL. The unique constraint prevents setting
-    // duplicatePetId to the same value while primaryPetId still holds it.
-    // Clear primaryPetId's chip first — the action uses previousChipNumber
-    // (the input parameter) for the scan, not pets.microchipId on the primary.
-    await db.update(pets).set({ microchipId: null }).where(eq(pets.id, primaryPetId));
-    await db.update(pets).set({ microchipId: CHIP_ORIGINAL }).where(eq(pets.id, duplicatePetId));
-
-    // Seed canonical row for duplicatePetId with CHIP_ORIGINAL so the canonical
-    // duplicate scan (petIdentifications, ARCH-R) finds it.
-    await db
-      .insert(petIdentifications)
-      .values({
-        petId: duplicatePetId,
-        kind: "microchip_iso",
-        code: CHIP_ORIGINAL,
-        recordedAt: new Date().toISOString().slice(0, 10),
-        isoCountryCode: CHIP_ORIGINAL.slice(0, 3),
-        isoManufacturerCode: CHIP_ORIGINAL.slice(3, 7),
-        isoNationalId: CHIP_ORIGINAL.slice(7, 15),
-        isoCompliant: true,
-      })
-      .onConflictDoNothing();
+    // ARCH-S: the duplicate scan reads from pet_identifications (status='active').
+    // The unique partial index on (code) WHERE kind='microchip_iso' AND status='active'
+    // prevents two active rows with the same code simultaneously.
+    // To seed the dup scenario: flip primary's CHIP_ORIGINAL to 'replaced' first,
+    // then insert the duplicate's row as 'active'. The scan will find duplicatePetId
+    // since primary's row is no longer active. The action's internal flip (lines
+    // 280-289 of microchip.ts) then no-ops on primary (no active row to flip).
+    await withMutationOverride(async (tx) => {
+      // Flip primary's chip to 'replaced' so the unique index allows dup insert.
+      await tx.execute(
+        sql`UPDATE pet_identifications SET status = 'replaced' WHERE pet_id = ${primaryPetId}::uuid AND kind = 'microchip_iso' AND status = 'active'`,
+      );
+      // Remove any existing chip row for duplicatePetId.
+      await tx.execute(
+        sql`DELETE FROM pet_identifications WHERE pet_id = ${duplicatePetId}::uuid AND kind = 'microchip_iso'`,
+      );
+      // Insert duplicatePetId's chip as CHIP_ORIGINAL (active, no conflict now).
+      await tx.execute(
+        sql`INSERT INTO pet_identifications (pet_id, kind, code, recorded_at, iso_country_code, iso_manufacturer_code, iso_national_id, iso_compliant)
+            VALUES (${duplicatePetId}::uuid, 'microchip_iso', ${CHIP_ORIGINAL}, current_date, ${CHIP_ORIGINAL.slice(0, 3)}, ${CHIP_ORIGINAL.slice(3, 7)}, ${CHIP_ORIGINAL.slice(7, 15)}, true)`,
+      );
+    });
 
     const result = await replaceMicrochipForUser(vetUserId, {
       petId: primaryPetId,
@@ -402,15 +433,22 @@ describe("replaceMicrochipForUser — cross-pet dup scan finds another pet", () 
     // The secondaryPetId is embedded in openedReason.
     expect(c.openedReason).toContain(duplicatePetId);
 
-    // Restore duplicate pet's chip (legacy column) and clean up canonical row.
-    await db
-      .update(pets)
-      .set({ microchipId: CHIP_DUPLICATE_TARGET })
-      .where(eq(pets.id, duplicatePetId));
+    // Restore duplicate pet's canonical chip back to CHIP_DUPLICATE_TARGET.
+    // (The dup-scan setup flipped it to CHIP_ORIGINAL — undo that.)
     await withMutationOverride(async (tx) => {
       await tx.execute(
         sql`DELETE FROM pet_identifications WHERE pet_id = ${duplicatePetId}::uuid AND kind = 'microchip_iso'`,
       );
+    });
+    await db.insert(petIdentifications).values({
+      petId: duplicatePetId,
+      kind: "microchip_iso",
+      code: CHIP_DUPLICATE_TARGET,
+      recordedAt: new Date().toISOString().slice(0, 10),
+      isoCountryCode: CHIP_DUPLICATE_TARGET.slice(0, 3),
+      isoManufacturerCode: CHIP_DUPLICATE_TARGET.slice(3, 7),
+      isoNationalId: CHIP_DUPLICATE_TARGET.slice(7, 15),
+      isoCompliant: true,
     });
     await resetPrimaryChip();
   });
@@ -430,11 +468,23 @@ describe("replaceMicrochipForUser — cross-pet dup scan finds nothing", () => {
         ),
       );
 
-    // Ensure duplicate pet has a different chip so the scan returns nothing.
-    await db
-      .update(pets)
-      .set({ microchipId: CHIP_DUPLICATE_TARGET })
-      .where(eq(pets.id, duplicatePetId));
+    // Ensure duplicate pet's canonical chip is CHIP_DUPLICATE_TARGET so the
+    // scan returns nothing (the previous test may have left it altered).
+    await withMutationOverride(async (tx) => {
+      await tx.execute(
+        sql`DELETE FROM pet_identifications WHERE pet_id = ${duplicatePetId}::uuid AND kind = 'microchip_iso'`,
+      );
+    });
+    await db.insert(petIdentifications).values({
+      petId: duplicatePetId,
+      kind: "microchip_iso",
+      code: CHIP_DUPLICATE_TARGET,
+      recordedAt: new Date().toISOString().slice(0, 10),
+      isoCountryCode: CHIP_DUPLICATE_TARGET.slice(0, 3),
+      isoManufacturerCode: CHIP_DUPLICATE_TARGET.slice(3, 7),
+      isoNationalId: CHIP_DUPLICATE_TARGET.slice(7, 15),
+      isoCompliant: true,
+    });
 
     const result = await replaceMicrochipForUser(vetUserId, {
       petId: primaryPetId,

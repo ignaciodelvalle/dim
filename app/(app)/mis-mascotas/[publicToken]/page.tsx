@@ -1133,7 +1133,24 @@ export default async function PetDetailPage({
                 {/* Estado actual */}
                 <LnSectionHead num="01" title="Estado de salud" />
                 <div data-section="current-state">
-                  <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+                  <PetCurrentStateSection
+                    pet={pet}
+                    typedEvents={typedEvents}
+                    canonicalIds={{
+                      microchip: canonicalIds.microchip
+                        ? {
+                            code: canonicalIds.microchip.code,
+                            recordedAt: canonicalIds.microchip.recordedAt ?? null,
+                          }
+                        : null,
+                      tattoo: canonicalIds.tattoo
+                        ? {
+                            code: canonicalIds.tattoo.code ?? "",
+                            tattooLocation: canonicalIds.tattoo.tattooLocation ?? null,
+                          }
+                        : null,
+                    }}
+                  />
                 </div>
 
                 {/* Cuidados próximos */}

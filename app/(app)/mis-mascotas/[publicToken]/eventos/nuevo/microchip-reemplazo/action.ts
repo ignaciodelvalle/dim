@@ -2,6 +2,7 @@
 
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { parseDateInput } from "@/lib/format";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { redirect } from "next/navigation";
@@ -47,13 +48,15 @@ export async function replaceMicrochipOwnerAction(
   const replacedAtDate = parseDateInput(replacedAtRaw);
   if (!replacedAtDate) return { error: "Fecha de reemplazo inválida." };
 
-  if (!pet.microchipId) {
+  // ARCH-S: legacy pets.microchipId column dropped — read from canonical.
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
+  if (!canonicalIds.microchip) {
     return { error: "Esta mascota no tiene microchip registrado." };
   }
 
   const result = await replaceMicrochipForUser(user.id, {
     petId: pet.id,
-    previousChipNumber: pet.microchipId,
+    previousChipNumber: canonicalIds.microchip.code,
     newChipNumber,
     reason: reason as "damaged" | "unreadable" | "owner_request" | "device_failure" | "other",
     replacedBy,

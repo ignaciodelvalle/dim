@@ -5,14 +5,14 @@
 // The component itself delegates all conditional logic to this helper.
 
 import { describe, expect, it } from "vitest";
-import { type CurrentStatePet, deriveCurrentStateFields } from "./PetCurrentStateSection.helpers";
+import {
+  type CanonicalIdentificationSnapshot,
+  type CurrentStatePet,
+  deriveCurrentStateFields,
+} from "./PetCurrentStateSection.helpers";
 
 function makePet(overrides: Partial<CurrentStatePet> = {}): CurrentStatePet {
   return {
-    microchipId: null,
-    microchipImplantedAt: null,
-    tattooCode: null,
-    tattooLocation: null,
     estimatedWeightKg: null,
     knownAllergies: null,
     trainingLevel: null,
@@ -23,24 +23,42 @@ function makePet(overrides: Partial<CurrentStatePet> = {}): CurrentStatePet {
   };
 }
 
+function makeIds(
+  overrides: Partial<CanonicalIdentificationSnapshot> = {},
+): CanonicalIdentificationSnapshot {
+  return { microchip: null, tattoo: null, ...overrides };
+}
+
 describe("deriveCurrentStateFields — tattoo and microchip (AC-A4, AC-A5, AC-A6)", () => {
   it("both microchip and tattoo present → both fields in result (AC-A6)", () => {
     const fields = deriveCurrentStateFields(
-      makePet({ microchipId: "900123456789", tattooCode: "DIM-001" }),
+      makePet(),
       [],
+      makeIds({
+        microchip: { code: "900123456789", recordedAt: null },
+        tattoo: { code: "DIM-001", tattooLocation: null },
+      }),
     );
     expect(fields.microchip).not.toBeNull();
     expect(fields.tattoo).not.toBeNull();
   });
 
   it("only microchip present → microchip field present, tattoo absent (AC-A6)", () => {
-    const fields = deriveCurrentStateFields(makePet({ microchipId: "900123456789" }), []);
+    const fields = deriveCurrentStateFields(
+      makePet(),
+      [],
+      makeIds({ microchip: { code: "900123456789", recordedAt: null } }),
+    );
     expect(fields.microchip).not.toBeNull();
     expect(fields.tattoo).toBeNull();
   });
 
   it("only tattoo present → tattoo field present, microchip absent (AC-A6)", () => {
-    const fields = deriveCurrentStateFields(makePet({ tattooCode: "DIM-001" }), []);
+    const fields = deriveCurrentStateFields(
+      makePet(),
+      [],
+      makeIds({ tattoo: { code: "DIM-001", tattooLocation: null } }),
+    );
     expect(fields.microchip).toBeNull();
     expect(fields.tattoo).not.toBeNull();
   });
@@ -51,10 +69,11 @@ describe("deriveCurrentStateFields — tattoo and microchip (AC-A4, AC-A5, AC-A6
     expect(fields.tattoo).toBeNull();
   });
 
-  it("tattoo field includes code when tattooCode is set (AC-A4)", () => {
+  it("tattoo field includes code and location when provided (AC-A4)", () => {
     const fields = deriveCurrentStateFields(
-      makePet({ tattooCode: "DIM-001", tattooLocation: "inner_ear_left" }),
+      makePet(),
       [],
+      makeIds({ tattoo: { code: "DIM-001", tattooLocation: "inner_ear_left" } }),
     );
     expect(fields.tattoo).not.toBeNull();
     expect(fields.tattoo?.code).toBe("DIM-001");

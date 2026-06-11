@@ -115,8 +115,18 @@ vi.mock("@/db", () => {
     db: chain,
     ownerships: {},
     pets: {},
+    petIdentifications: {},
   };
 });
+
+// ARCH-S: form actions now call fetchActiveIdentifications to get the current chip.
+// Mock it to return a pre-existing chip so the "accepts" tests reach replaceMicrochipForUser.
+vi.mock("@/lib/pet-identifiers", () => ({
+  fetchActiveIdentifications: vi.fn(async () => ({
+    microchip: { code: CHIP, isoCountryCode: "985", recordedAt: null, recordedByLabel: null, implantationSite: null },
+    tattoo: null,
+  })),
+}));
 
 // ---------------------------------------------------------------------------
 // Mock: format helpers + navigation

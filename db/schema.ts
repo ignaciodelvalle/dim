@@ -489,28 +489,12 @@ export const pets = pgTable(
     birthDateIsEstimated: boolean("birth_date_is_estimated").notNull().default(false),
     color: text("color"),
     distinguishingFeatures: text("distinguishing_features"),
-    // Microchip — full implant record. The number lives on the pet for fast
-    // lookup; the implant event is also recorded as a microchip_implanted
-    // PetEvent for the timeline. Country code defaults to '858' (Argentina,
-    // ISO 3166 numeric) — chip numbers in AR follow ISO 11784/11785 (15 digits).
-    microchipId: text("microchip_id"),
-    microchipCountryCode: text("microchip_country_code"),
-    microchipImplantedAt: date("microchip_implanted_at"),
-    microchipImplantedBy: text("microchip_implanted_by"),
-    microchipLocation: text("microchip_location"), // e.g. "interscapular_left"
-    // Tattoo — secondary identifier. Free-form code (no uniqueness, codes collide
-    // across registries). Location is a closed lookup; description is free-form
-    // for the origin (FCA, campaign, kennel, etc.). Photo is required at create
-    // time (enforced in app code, not DB) because tattoos need visual verification.
-    // Normalization (uppercase + strip whitespace) lives in createTattooForUser
-    // and lookupByTattoo, not in DB constraint.
-    tattooCode: text("tattoo_code"),
-    tattooLocation: text("tattoo_location"),
-    tattooDescription: text("tattoo_description"),
-    tattooRecordedAt: date("tattoo_recorded_at"),
-    tattooRecordedBy: text("tattoo_recorded_by"),
-    // FK-by-convention to attachments.id, same loose-FK pattern as primaryPhotoId.
-    tattooPhotoId: uuid("tattoo_photo_id"),
+    // ARCH-S: microchipId, microchipCountryCode, microchipImplantedAt,
+    // microchipImplantedBy, microchipLocation dropped — canonical data lives
+    // in pet_identifications (migration 0084).
+    // ARCH-S: tattooCode, tattooLocation, tattooDescription, tattooRecordedAt,
+    // tattooRecordedBy, tattooPhotoId dropped — canonical data lives in
+    // pet_identifications (migration 0084).
     // FK to attachments.id. NOT a hard FK at the DB level — circular reference
     // with attachments.pet_id. Application code keeps these in sync.
     primaryPhotoId: uuid("primary_photo_id"),
@@ -645,9 +629,7 @@ export const pets = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    microchipUnique: uniqueIndex("pets_microchip_unique_when_present")
-      .on(table.microchipId)
-      .where(sql`${table.microchipId} IS NOT NULL`),
+    // ARCH-S: microchipUnique (pets_microchip_unique_when_present) dropped — migration 0084.
     jurisdictionIdx: index("pets_jurisdiction_idx").on(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
@@ -710,13 +692,8 @@ export const pets = pgTable(
       "pets_pregnancy_status_valid",
       sql`${table.pregnancyStatus} is null or ${table.pregnancyStatus} in ('in_progress', 'completed_live_birth', 'completed_stillbirth', 'completed_miscarriage', 'completed_termination')`,
     ),
-    petsTattooLocationValid: check(
-      "pets_tattoo_location_valid",
-      sql`${table.tattooLocation} is null or ${table.tattooLocation} in ('inner_ear_left','inner_ear_right','inner_thigh','belly','other')`,
-    ),
-    tattooCodeIdx: index("pets_tattoo_code_idx")
-      .on(table.tattooCode)
-      .where(sql`${table.tattooCode} IS NOT NULL`),
+    // ARCH-S: petsTattooLocationValid (pets_tattoo_location_valid) dropped — migration 0084.
+    // ARCH-S: tattooCodeIdx (pets_tattoo_code_idx) dropped — migration 0084.
     petsJurisdictionProvinceCanonical: check(
       "pets_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,

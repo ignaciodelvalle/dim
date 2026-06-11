@@ -255,8 +255,9 @@ export async function rederivePetCache(
   const petRow = pet as Record<string, unknown>;
   const report: RederivePetCacheReport = {};
 
-  // Identifier columns use canonical stored values; all other columns still
-  // read from the pets row (their legacy columns are NOT being dropped yet).
+  // Identifier columns use canonical stored values (from canonicalStored above).
+  // ARCH-S: the 10 legacy chip/tattoo columns have been dropped from pets (migration 0084).
+  // All other columns still read from the pets row.
   const CANONICAL_COLUMNS = new Set([
     "microchipId",
     "microchipCountryCode",

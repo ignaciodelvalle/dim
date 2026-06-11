@@ -7,20 +7,27 @@
 
 /**
  * Subset of the Pet record needed by PetCurrentStateSection.
- * tattooCode / tattooLocation are required as of #125 (tattoo-identifier merged
- * to develop 2026-05-22) — both columns exist on every pet row.
+ *
+ * ARCH-S: legacy pets.microchipId / microchipImplantedAt / tattooCode /
+ * tattooLocation columns dropped. Callers supply canonical identification
+ * data via the separate `canonicalIds` shape below.
  */
 export interface CurrentStatePet {
-  microchipId: string | null;
-  microchipImplantedAt: string | null;
-  tattooCode: string | null;
-  tattooLocation: string | null;
   estimatedWeightKg: string | null;
   knownAllergies: string[] | null;
   trainingLevel: string | null;
   favouriteFoods: string[] | null;
   pregnancyStatus: string | null;
   rabiesObservationStatus: string | null;
+}
+
+/**
+ * Canonical identification snapshot — sourced from pet_identifications.
+ * Replaces the legacy pets.microchipId / tattooCode fields on CurrentStatePet.
+ */
+export interface CanonicalIdentificationSnapshot {
+  microchip: { code: string; recordedAt: string | null } | null;
+  tattoo: { code: string; tattooLocation: string | null } | null;
 }
 
 export interface CurrentStateEvent {
@@ -47,10 +54,14 @@ export interface CurrentStateFields {
 /**
  * Derives which CurrentStateSection fields to render from a pet + its events.
  * Pure function — no side effects. Used by both the component and its tests.
+ *
+ * ARCH-S: canonical identification data (chip/tattoo) is now passed separately
+ * via `canonicalIds` instead of being read from the pets row.
  */
 export function deriveCurrentStateFields(
   pet: CurrentStatePet,
   events: CurrentStateEvent[],
+  canonicalIds: CanonicalIdentificationSnapshot = { microchip: null, tattoo: null },
 ): CurrentStateFields {
   // Weight: last weight_recorded event for the "hace X" suffix.
   const weightEvents = events
@@ -76,10 +87,12 @@ export function deriveCurrentStateFields(
     weight: pet.estimatedWeightKg
       ? { kg: pet.estimatedWeightKg, lastRecordedAt: lastWeightDate }
       : null,
-    microchip: pet.microchipId
-      ? { id: pet.microchipId, implantedAt: pet.microchipImplantedAt }
+    microchip: canonicalIds.microchip
+      ? { id: canonicalIds.microchip.code, implantedAt: canonicalIds.microchip.recordedAt }
       : null,
-    tattoo: pet.tattooCode ? { code: pet.tattooCode, location: pet.tattooLocation ?? null } : null,
+    tattoo: canonicalIds.tattoo
+      ? { code: canonicalIds.tattoo.code, location: canonicalIds.tattoo.tattooLocation }
+      : null,
     sterilized,
     allergies: pet.knownAllergies?.length ? pet.knownAllergies : null,
     trainingLevel: pet.trainingLevel ?? null,

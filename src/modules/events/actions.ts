@@ -609,10 +609,14 @@ export async function createMicrochipAction(
 
   const repo = new EventsRepository();
 
+  // ARCH-S: read canonical chip status (legacy pets.microchipId column dropped).
+  const { fetchActiveIdentifications } = await import("@/lib/pet-identifiers");
+  const existingIds = await fetchActiveIdentifications(pet.id);
+
   try {
     const result = await createMicrochip(
       {
-        pet: { id: pet.id, microchipId: pet.microchipId ?? null },
+        pet: { id: pet.id, petHasCanonicalChip: existingIds.microchip !== null },
         user: { id: user.id },
         eventAuthorship: eventAuthorship as {
           authorRole: string;
@@ -1228,8 +1232,6 @@ export async function setPetLostAction(
       petPublicToken: pet.publicToken,
       petName: pet.name,
       petStatus: pet.status,
-      petMicrochipId: pet.microchipId,
-      petTattooCode: pet.tattooCode,
       petSpecies: pet.species,
       petBreed: pet.breed,
       petColor: pet.color,

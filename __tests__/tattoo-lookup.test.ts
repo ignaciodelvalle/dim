@@ -13,17 +13,20 @@ let petB2Id: string;
 
 beforeAll(async () => {
   // Clean any prior fixtures keyed on our test codes.
+  // ARCH-S: tattoo_code column dropped from pets — scan pet_identifications instead.
   await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
-      SELECT id FROM pets WHERE tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')
+      SELECT DISTINCT pet_id FROM pet_identifications WHERE kind = 'tattoo' AND code IN ('LOOKUP-A', 'LOOKUP-DUP')
     )`);
     await tx.execute(sql`DELETE FROM attachments WHERE pet_id IN (
-      SELECT id FROM pets WHERE tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')
+      SELECT DISTINCT pet_id FROM pet_identifications WHERE kind = 'tattoo' AND code IN ('LOOKUP-A', 'LOOKUP-DUP')
     )`);
     await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
-      SELECT id FROM pets WHERE tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')
+      SELECT DISTINCT pet_id FROM pet_identifications WHERE kind = 'tattoo' AND code IN ('LOOKUP-A', 'LOOKUP-DUP')
     )`);
-    await tx.delete(pets).where(sql`tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')`);
+    await tx.execute(sql`DELETE FROM pets WHERE id IN (
+      SELECT DISTINCT pet_id FROM pet_identifications WHERE kind = 'tattoo' AND code IN ('LOOKUP-A', 'LOOKUP-DUP')
+    )`);
   });
 
   const today = new Date().toISOString().slice(0, 10);
@@ -36,8 +39,6 @@ beforeAll(async () => {
       species: "dog",
       sex: "male",
       status: "active",
-      tattooCode: "LOOKUP-A",
-      tattooLocation: "inner_ear_left",
     })
     .returning();
   petAId = petA.id;
@@ -57,8 +58,6 @@ beforeAll(async () => {
       species: "dog",
       sex: "female",
       status: "lost",
-      tattooCode: "LOOKUP-DUP",
-      tattooLocation: "belly",
     })
     .returning();
   petBId = petB.id;
@@ -79,8 +78,6 @@ beforeAll(async () => {
       species: "cat",
       sex: "male",
       status: "active",
-      tattooCode: "LOOKUP-DUP",
-      tattooLocation: "inner_thigh",
     })
     .returning();
   petB2Id = petB2.id;
@@ -94,11 +91,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // ARCH-S: tattoo_code column dropped from pets — scan pet_identifications.
   await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
-      SELECT id FROM pets WHERE tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')
+      SELECT DISTINCT pet_id FROM pet_identifications WHERE kind = 'tattoo' AND code IN ('LOOKUP-A', 'LOOKUP-DUP')
     )`);
-    await tx.delete(pets).where(sql`tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')`);
+    await tx.execute(sql`DELETE FROM pets WHERE id IN (
+      SELECT DISTINCT pet_id FROM pet_identifications WHERE kind = 'tattoo' AND code IN ('LOOKUP-A', 'LOOKUP-DUP')
+    )`);
   });
 });
 

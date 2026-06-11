@@ -10,9 +10,11 @@
 //   - openCase(lost_pet_episode) INSIDE tx.
 //   - PLAIN insert of status_changed with disclosure_prefs_snapshot + optional lost_description.
 //   - updatePetLostProjection: status=lost + 5 disclosure cols + optional color/distinguishingFeatures.
-//   - Retroactive microchip: ONLY when validatedRetroChipId && !petMicrochipId.
+//   - Retroactive microchip: ONLY when validatedRetroChipId && pet has no active canonical chip.
+//     Guard reads from canonical pet_identifications (ARCH-S: legacy petMicrochipId param removed).
 //     Validation via validateMicrochipId BEFORE the tx (error before any write).
-//   - Retroactive tattoo: ONLY when rawTattooCode && !petTattooCode AND normalizeTattooCode succeeds.
+//   - Retroactive tattoo: ONLY when rawTattooCode && pet has no active canonical tattoo.
+//     Guard reads from canonical pet_identifications (ARCH-S: legacy petTattooCode param removed).
 //   - broadcastLostPet post-tx (best-effort) when petPublicToken is provided.
 //   - Result: { error: null | string }
 
@@ -22,6 +24,7 @@ import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { writePoint } from "@/lib/location";
 import { validateMicrochipId } from "@/lib/microchip-validation";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 
 import type { DisclosurePrefsInput } from "../../domain/disclosure-prefs";
@@ -53,8 +56,6 @@ export type SetPetLostWriterParams = {
   petPublicToken?: string;
   petName?: string;
   petStatus: string;
-  petMicrochipId?: string | null;
-  petTattooCode?: string | null;
   petSpecies?: string | null;
   petBreed?: string | null;
   petColor?: string | null;
@@ -103,8 +104,6 @@ export async function setPetLostWriter(
     petPublicToken = "",
     petName = "",
     petStatus,
-    petMicrochipId = null,
-    petTattooCode = null,
     petSpecies = null,
     petBreed = null,
     petColor = null,
@@ -169,6 +168,14 @@ export async function setPetLostWriter(
     validatedRetroChipId = chipValidation.normalized;
   }
 
+  // Read canonical identifiers once — both retroactive guards use these results.
+  // ARCH-S: legacy petMicrochipId / petTattooCode params removed; guard now reads
+  // from the canonical pet_identifications table so the check is always accurate.
+  const canonicalIds =
+    rawRetroChipId || enrichedDescription?.tattooCode
+      ? await fetchActiveIdentifications(petId)
+      : { microchip: null, tattoo: null };
+
   try {
     await deps.transaction(async (tx) => {
       // Open a lost_pet_episode case atomically with the status_changed event.
@@ -231,8 +238,8 @@ export async function setPetLostWriter(
         tx as Parameters<typeof deps.repo.updatePetLostProjection>[3],
       );
 
-      // Retroactive microchip capture — only when validated chip AND pet had no chip before.
-      if (validatedRetroChipId && !petMicrochipId) {
+      // Retroactive microchip capture — only when validated chip AND pet has no active canonical chip.
+      if (validatedRetroChipId && !canonicalIds.microchip) {
         const newChipId = validatedRetroChipId;
         const microchipPayload = validateEventPayload("microchip_implanted", {
           chip_number: newChipId,
@@ -272,9 +279,9 @@ export async function setPetLostWriter(
         );
       }
 
-      // Retroactive tattoo capture — only when code provided AND pet had no tattoo before.
+      // Retroactive tattoo capture — only when code provided AND pet has no active canonical tattoo.
       const rawRetroTattooCode = enrichedDescription?.tattooCode?.trim() || null;
-      if (rawRetroTattooCode && !petTattooCode) {
+      if (rawRetroTattooCode && !canonicalIds.tattoo) {
         const normalizedTattoo = normalizeTattooCode(rawRetroTattooCode);
         if (normalizedTattoo) {
           const rawLoc = enrichedDescription?.tattooLocation ?? null;

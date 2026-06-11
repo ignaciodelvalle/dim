@@ -209,7 +209,6 @@ async function insertPetWithChip(opts: {
       name: `TestPet-${opts.tokenSuffix}`,
       species: "dog",
       sex: "unknown",
-      microchipId: opts.microchipId,
       status: opts.status,
       potentiallyDangerousBreed: false,
     })
@@ -224,21 +223,15 @@ async function insertPetWithChip(opts: {
     startedAt: now,
   });
 
-  // Dual-write canonical identifier row so lookupByChip (which now reads only
-  // from pet_identifications) can find the pet. Mirrors what real writers do.
-  // The chip_requires_iso_fields CHECK constraint requires a 15-digit numeric
-  // code. Test chips like "CHIP-LOOKUP-..." are not ISO-valid. Pad the code to
-  // 15 digits by hashing it so the constraint is satisfied, and update the pets
-  // row to match (so legacy AND canonical agree on what chip to look up).
+  // Insert canonical chip row so lookupByChip (reads only from pet_identifications)
+  // can find the pet. Mirrors what real writers do.
+  // ARCH-S: legacy pets.microchipId dropped — canonical-only.
+  // chip_requires_iso_fields CHECK constraint requires exactly 15 numeric digits
+  // for kind='microchip_iso'. Hash non-ISO test codes so the constraint is satisfied.
   const ISO_CHIP_RE = /^\d{15}$/;
   const canonicalCode = ISO_CHIP_RE.test(opts.microchipId)
     ? opts.microchipId
     : isoChipFromTestName(opts.microchipId);
-  if (canonicalCode !== opts.microchipId) {
-    // Keep pets.microchipId in sync with the canonical code so tests that
-    // assert against pets.microchipId still pass.
-    await db.update(pets).set({ microchipId: canonicalCode }).where(eq(pets.id, pet.id));
-  }
   await db.insert(petIdentifications).values({
     petId: pet.id,
     kind: "microchip_iso",

@@ -2,6 +2,7 @@ import { PetForm } from "@/components/PetForm";
 import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
 import { attachments, db } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { petPhotoUrl } from "@/lib/storage";
 import { updatePetAction } from "@/src/modules/pets/actions";
 import { eq } from "drizzle-orm";
@@ -23,6 +24,9 @@ export default async function EditPetPage({
   const [photo] = pet.primaryPhotoId
     ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
     : [];
+
+  // ARCH-S: fetch canonical chip for pre-filling the form (pets.microchipId* dropped).
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
 
   const boundAction = updatePetAction.bind(null, publicToken);
 
@@ -46,6 +50,17 @@ export default async function EditPetPage({
             action={boundAction}
             existingPet={pet}
             existingPhotoUrl={petPhotoUrl(photo?.storagePath)}
+            existingCanonicalChip={
+              canonicalIds.microchip
+                ? {
+                    code: canonicalIds.microchip.code,
+                    isoCountryCode: canonicalIds.microchip.isoCountryCode,
+                    recordedAt: canonicalIds.microchip.recordedAt,
+                    recordedByLabel: canonicalIds.microchip.recordedByLabel,
+                    implantationSite: canonicalIds.microchip.implantationSite,
+                  }
+                : null
+            }
           />
         </div>
       </LnSheetCard>

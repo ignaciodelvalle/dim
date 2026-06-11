@@ -94,7 +94,7 @@ describe("microchip auth-parity", () => {
     const repo = makeBaseRepo();
     const result = await createMicrochip(
       {
-        pet: { id: "pet-x", microchipId: null },
+        pet: { id: "pet-x", petHasCanonicalChip: false },
         user: { id: "user-1" },
         eventAuthorship: AUTH,
         chipNumber: "985121025800002",
