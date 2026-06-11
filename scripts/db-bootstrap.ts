@@ -325,6 +325,30 @@ console.log(
 );
 
 // ---------------------------------------------------------------------------
+// Step 2.5 — Baseline the migration tracking table
+// ---------------------------------------------------------------------------
+//
+// Step 2 above replays every db/migrations/*.sql via psql, but that replay is
+// UNTRACKED — it leaves no record of which migrations ran. The production
+// deploy contract is `pnpm db:migrate` (scripts/migrate.ts), a forward-only
+// runner that tracks applied files in public._dim_migrations. If we left that
+// table empty after bootstrap, a subsequent `db:migrate` would try to RE-APPLY
+// 0000 onward against a DB that already has the schema — and the bare
+// CREATE TABLEs in early migrations would error.
+//
+// So immediately after the replay, we baseline: mark every migration as
+// applied WITHOUT executing any SQL. `migrate.ts --baseline` only INSERTs
+// tracking rows (idempotent via ON CONFLICT). A `db:migrate` right after a
+// fresh bootstrap is then a correct no-op. This is the single place that keeps
+// `db:bootstrap` and `db:migrate` consistent.
+
+header("Step 2.5/4 — baseline migration tracking table (_dim_migrations)");
+if (!pnpmRun("db:migrate:baseline")) {
+  console.error("FATAL: baseline of the migration tracking table failed.");
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
 // Step 3 — Orthogonal SQL (strict)
 // ---------------------------------------------------------------------------
 

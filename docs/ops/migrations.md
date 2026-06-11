@@ -5,18 +5,105 @@
 | Command | What it does | When to use |
 |---|---|---|
 | `pnpm db:generate` | Generates a new versioned `.sql` file from schema diff | After editing `db/schema.ts` |
-| `pnpm db:migrate` | Applies versioned migration files in order (safe) | Deploy time — prod and staging |
+| `pnpm db:migrate` | Applies pending versioned migrations in order, tracked | Deploy time — prod and staging |
+| `pnpm db:migrate:status` | Prints applied vs pending migrations | Anytime — to inspect state |
+| `pnpm db:migrate:baseline` | Marks migrations applied **without running them** | First adoption on an existing DB |
 | `pnpm db:push` | Diffs schema and applies directly — **can DROP columns** | CI ephemeral DB only |
 
 `db:push` is for throwaway databases only. It will infer destructive changes
 (column drops, type changes) without asking. It must never run against a
 database that holds real data.
 
+> **History — why this section was rewritten.** `db:migrate` used to be
+> `drizzle-kit migrate`. But these migrations were hand-authored, not produced
+> by `drizzle-kit generate`, so `db/migrations/meta/_journal.json` was
+> `{ ..., "entries": [] }` — EMPTY. `drizzle-kit migrate` reads that journal,
+> found nothing to do, and applied **zero** migrations — a silent no-op. Every
+> environment actually got its schema from the **untracked** ordered replay in
+> `scripts/db-bootstrap.ts`. That made the old "prod runs db:migrate" contract
+> dangerously false. `db:migrate` now points at `scripts/migrate.ts`, a real
+> forward-only runner with its own tracking table (below). Drizzle's
+> `drizzle.__drizzle_migrations` table is **not** used by this runner.
+
+## How the runner works (`scripts/migrate.ts`)
+
+- **Tracking table** — `public._dim_migrations (filename text primary key,
+  checksum text, applied_at timestamptz default now())`. Deliberately separate
+  from drizzle's `drizzle.__drizzle_migrations` so the two can never collide.
+- **Discovery + order** — every `db/migrations/*.sql`, sorted lexically. The
+  `NNNN_` prefix makes lexical order equal numeric order. Gaps in the numbering
+  (a couple of numbers are unused) are fine — the runner works off the files
+  that exist, not a contiguous range.
+- **Apply** — for each file not yet in the tracking table, the whole file is
+  executed (multi-statement, via postgres-js simple protocol), then its row is
+  inserted. Stops on the first failure (fail fast, reports the file).
+- **Per-file transaction wrapping (default).** Each migration file is wrapped in
+  `BEGIN … COMMIT` by default. A failure on any statement rolls the whole file
+  back — the DB is left unchanged and no tracking row is inserted, so a retry
+  after fixing the file is always safe.
+- **`-- dim:no-transaction` directive.** Some statements cannot run inside a
+  transaction block (`CREATE INDEX CONCURRENTLY`, `ALTER TYPE … ADD VALUE`). Add
+  this comment to the file's first five lines to opt out of wrapping:
+  ```sql
+  -- dim:no-transaction
+  ```
+  The runner then executes the file unwrapped. Because a partial failure cannot
+  be rolled back, **no-transaction migrations MUST be idempotent** — every
+  statement must use `IF NOT EXISTS` / `IF EXISTS` guards so re-running is safe.
+  The runner does NOT auto-detect CONCURRENTLY or ADD VALUE by scanning SQL text
+  (fragile; keywords can appear in comments or strings); use the explicit
+  directive instead.
+- **Schema-populated guard.** Before a forward apply (not baseline, not status,
+  not dry-run), if `_dim_migrations` is empty AND `public.pets` already exists,
+  the runner exits with code 5 and instructs you to run `pnpm db:migrate:baseline`
+  first. This converts the unbaselined-prod path from a confusing partial failure
+  into a clear, actionable abort.
+- **Checksum drift** — each file's sha256 is stored on apply. If a file is
+  edited after being applied, later runs **warn loudly** (the DB no longer
+  matches the committed SQL). Pass `--strict` to make drift a hard error.
+- **Forward-only** — the runner never reverts. There is no down-migration path.
+
+CLI surface:
+
+```bash
+pnpm db:migrate                       # apply all pending
+pnpm db:migrate:status                # applied vs pending
+pnpm db:migrate:baseline              # mark ALL applied, run no SQL
+tsx scripts/migrate.ts --baseline 0042_foo.sql   # baseline up to (incl.) 0042
+tsx scripts/migrate.ts --dry-run      # show what WOULD apply, apply nothing
+tsx scripts/migrate.ts --strict       # treat checksum drift as fatal
+```
+
+## First adoption on an existing database (CRITICAL)
+
+Prod and any already-provisioned DB **already have every migration applied**
+(via the historical untracked bootstrap replay), but `_dim_migrations` starts
+empty. The runner now detects this automatically (the schema-populated guard)
+and refuses to proceed, printing a clear message. Without the guard, applying
+from scratch would fail partway through `0000` — e.g. on a non-guarded
+`ADD CONSTRAINT` that follows a statement already committed without a transaction
+wrapper — and leave the DB in a broken intermediate state.
+
+**The first step on such a DB is always baseline, never apply:**
+
+```bash
+DATABASE_URL=<existing-db-url> pnpm db:migrate:baseline   # records all as applied, runs NO SQL
+DATABASE_URL=<existing-db-url> pnpm db:migrate:status     # confirm: 0 pending
+```
+
+After baseline, `pnpm db:migrate` is a correct no-op and every future
+migration applies normally. **Skipping baseline on an existing DB is the one
+way to break this — do not run a bare `db:migrate` first.**
+
+Fresh environments do **not** need a manual baseline: `pnpm db:bootstrap`
+replays the migrations and then runs `db:migrate:baseline` itself (step 2.5),
+so a `db:migrate` immediately after a fresh bootstrap is already a no-op.
+
 ## Versioned migration files
 
 Migrations live in `db/migrations/` and are numbered sequentially
-(`0000_`, `0001_`, …). Drizzle applies them in order and tracks applied
-migrations in the `drizzle.__drizzle_migrations` table.
+(`0000_`, `0001_`, …). The runner applies them in lexical (= numeric) order and
+tracks applied migrations in `public._dim_migrations`.
 
 Generating a migration:
 
@@ -38,6 +125,16 @@ process is:
 
 ### Gated manual migration (current approved process)
 
+0. **One-time, the very first time this runner is adopted against prod:**
+   baseline so the existing schema is recorded as applied (see "First adoption"
+   above). Skip this only if you are certain `_dim_migrations` is already
+   populated.
+
+   ```bash
+   DATABASE_URL=<prod-url> pnpm db:migrate:status     # if Applied=0 on a live DB, baseline first
+   DATABASE_URL=<prod-url> pnpm db:migrate:baseline   # records all as applied, runs NO SQL
+   ```
+
 1. PR is merged to `main`.
 2. Before the Vercel deploy finishes (or immediately after, for additive-only
    migrations), a team member with production `DATABASE_URL` access runs:
@@ -49,13 +146,15 @@ process is:
    The prod `DATABASE_URL` is available as a Vercel environment variable and
    in the shared secrets store — never commit it.
 
-3. Verify the new migration row landed by inspecting the tracking table
+3. Verify the new migration rows landed by inspecting the tracking table
    directly (note: `pnpm db:status` shows the local Supabase stack, NOT
-   migration history):
+   migration history — use `pnpm db:migrate:status` for that):
 
    ```bash
+   DATABASE_URL=<prod-url> pnpm db:migrate:status
+   # or, raw:
    psql "$DATABASE_URL" -c \
-     'select id, hash, created_at from drizzle.__drizzle_migrations order by created_at desc limit 5;'
+     'select filename, applied_at from public._dim_migrations order by applied_at desc limit 5;'
    ```
 
 4. Mark the deploy as complete in the release checklist.
