@@ -101,32 +101,72 @@ export default async function PublicCredentialPage({
   const { pet, photo } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
-  // Canonical identifier rows — used for boolean indicators and lost-branch display.
-  const canonicalIds = await fetchActiveIdentifications(pet.id);
+  // ---------------------------------------------------------------------------
+  // Stage 1 — independent reads keyed only off pet.id, run concurrently.
+  // These were previously four sequential awaits (canonical ids, vaccination
+  // existence, latest-vaccination provenance, open custody episode). None
+  // depends on another's result, so a single Promise.all collapses four
+  // round-trips into one. This is the hottest public path (every QR scan), so
+  // the round-trip reduction is the biggest win here. The lost / tier2 / service
+  // -dog reads stay in later conditional stages because they gate on derived
+  // flags (isLost, tier2Active, species).
+  // ---------------------------------------------------------------------------
+  const [canonicalIds, vaccinationExists, latestVaccinationRows, openCustodyEpisodeRows] =
+    await Promise.all([
+      // Canonical identifier rows — boolean indicators + lost-branch display.
+      fetchActiveIdentifications(pet.id),
+      // Tier 0 vaccination rollup — only a boolean is needed, so LIMIT 1 instead
+      // of fetching the pet's entire vaccination history just to test existence.
+      db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
+        )
+        .limit(1),
+      // A.4: most recent vaccination's provenance to compute the confidence tier.
+      db
+        .select({
+          authorRole: petEvents.authorRole,
+          authorVerified: petEvents.authorVerified,
+          authorOrganizationId: petEvents.authorOrganizationId,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(1),
+      // DC13: open custody_episode opened by a sanitary_authority org.
+      db
+        .select({
+          caseId: cases.id,
+          authorityName: organizations.displayName,
+        })
+        .from(cases)
+        .innerJoin(
+          organizations,
+          and(
+            eq(organizations.id, cases.openedByOrganizationId),
+            eq(organizations.orgType, "sanitary_authority"),
+          ),
+        )
+        .where(
+          and(
+            eq(cases.primaryPetId, pet.id),
+            eq(cases.caseKind, "custody_episode"),
+            eq(cases.status, "open"),
+          ),
+        )
+        .limit(1),
+    ]);
 
-  // Tier 0 rollups — boolean indicators, never the raw data.
-  const vaccinations = await db
-    .select({ id: petEvents.id })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")));
-  const hasVaccinations = vaccinations.length > 0;
+  const hasVaccinations = vaccinationExists.length > 0;
   const hasMicrochip = canonicalIds.microchip !== null;
   const hasTattoo = canonicalIds.tattoo !== null;
 
-  // A.4: Confidence badge on public credential — only for institutional_verified
-  // or professional_verified (no shame on self_reported). Fetch the most recent
-  // vaccination's provenance to compute the tier.
-  const [latestVaccination] = await db
-    .select({
-      authorRole: petEvents.authorRole,
-      authorVerified: petEvents.authorVerified,
-      authorOrganizationId: petEvents.authorOrganizationId,
-      payload: petEvents.payload,
-    })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
+  const [latestVaccination] = latestVaccinationRows;
 
   const latestVaccinationTier = latestVaccination
     ? computeConfidence({
@@ -156,29 +196,10 @@ export default async function PublicCredentialPage({
   // DC13: Public custody disclaimer — rendered when the pet has an open
   // custody_episode case opened by a sanitary_authority org (state seizure).
   // Discriminator: caseKind='custody_episode' + opener.orgType='sanitary_authority'.
-  // Never parsed from notes text — canonical discriminator only.
-  // No owner PII is exposed: only the authority name and a generic disclaimer.
-  const [openCustodyEpisode] = await db
-    .select({
-      caseId: cases.id,
-      authorityName: organizations.displayName,
-    })
-    .from(cases)
-    .innerJoin(
-      organizations,
-      and(
-        eq(organizations.id, cases.openedByOrganizationId),
-        eq(organizations.orgType, "sanitary_authority"),
-      ),
-    )
-    .where(
-      and(
-        eq(cases.primaryPetId, pet.id),
-        eq(cases.caseKind, "custody_episode"),
-        eq(cases.status, "open"),
-      ),
-    )
-    .limit(1);
+  // Never parsed from notes text — canonical discriminator only. No owner PII is
+  // exposed: only the authority name and a generic disclaimer. The query itself
+  // ran in the Stage 1 Promise.all above (it only needs pet.id).
+  const [openCustodyEpisode] = openCustodyEpisodeRows;
 
   const isUnderOfficialCustody = !!openCustodyEpisode;
 
@@ -319,33 +340,39 @@ export default async function PublicCredentialPage({
   } | null = null;
 
   if (isLost) {
-    const [ownerRow] = await db
-      .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
-      .from(ownerships)
-      .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-      .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-      .limit(1);
+    // Owner identity row and the last lost-event row are independent reads —
+    // batch them so the lost branch costs one round-trip instead of two.
+    const [ownerRows, latestLostEventRows] = await Promise.all([
+      db
+        .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
+        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        .limit(1),
+      // Last-known location from the most recent status_changed → lost event.
+      // Filtering on payload->>'to_status' = 'lost' so a later "found" event
+      // (to_status='active') does not eclipse the actual lost-event payload.
+      db
+        .select({
+          payload: petEvents.payload,
+          locationLat: petEvents.locationLat,
+          locationLng: petEvents.locationLng,
+          occurredAt: petEvents.occurredAt,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            eq(petEvents.eventType, "status_changed"),
+            sql`${petEvents.payload}->>'to_status' = 'lost'`,
+          ),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(1),
+    ]);
+    const [ownerRow] = ownerRows;
+    const [latestLostEvent] = latestLostEventRows;
 
-    // Last-known location from the most recent status_changed → lost event.
-    // Filtering on payload->>'to_status' = 'lost' so a later "found" event
-    // (to_status='active') does not eclipse the actual lost-event payload.
-    const [latestLostEvent] = await db
-      .select({
-        payload: petEvents.payload,
-        locationLat: petEvents.locationLat,
-        locationLng: petEvents.locationLng,
-        occurredAt: petEvents.occurredAt,
-      })
-      .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.petId, pet.id),
-          eq(petEvents.eventType, "status_changed"),
-          sql`${petEvents.payload}->>'to_status' = 'lost'`,
-        ),
-      )
-      .orderBy(desc(petEvents.occurredAt))
-      .limit(1);
     const payload = (latestLostEvent?.payload ?? {}) as Record<string, unknown>;
     // Prefer the canonical `location_description` key; fall back to the legacy
     // `last_known_location` for events written before the key rename.

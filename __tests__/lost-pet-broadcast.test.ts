@@ -342,6 +342,110 @@ describe("broadcastLostPet — happy path", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 1b. Fan-out is a SINGLE member query for N orgs (no N+1)
+// ---------------------------------------------------------------------------
+//
+// V1-8 perf: the member fetch used to loop one query per covering org. This
+// asserts the fan-out collapses to ONE membership query regardless of how many
+// orgs match, AND that every member is still notified. We wrap the real `db`
+// in a Proxy that counts how many built queries target organizationMemberships
+// — the query still executes (notifications are really inserted), we just
+// observe the call count.
+
+const LOCALITY_FANOUT = "Broadcast-Test-FanOut";
+
+describe("broadcastLostPet — single member query (no N+1)", () => {
+  it("issues exactly ONE organizationMemberships query for N covering orgs and still notifies all members", async () => {
+    // Three covering orgs in the same jurisdiction, each with a distinct member.
+    const { orgId: org1 } = await insertVerifiedOrg({
+      suffix: "fanout-1",
+      province: TEST_PROVINCE,
+      locality: LOCALITY_FANOUT,
+    });
+    const { orgId: org2 } = await insertVerifiedOrg({
+      suffix: "fanout-2",
+      province: TEST_PROVINCE,
+      locality: LOCALITY_FANOUT,
+    });
+    const { orgId: org3 } = await insertVerifiedOrg({
+      suffix: "fanout-3",
+      province: TEST_PROVINCE,
+      locality: LOCALITY_FANOUT,
+    });
+
+    await addMember(org1, memberA1UserId);
+    await addMember(org2, memberA2UserId);
+    await addMember(org3, memberA3UserId);
+
+    const { petId, publicToken } = await insertActivePet({
+      suffix: "fanout",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: LOCALITY_FANOUT,
+    });
+
+    // Count built queries whose .from() targets organizationMemberships. We wrap
+    // `db.select` so every constructed query has its .from() intercepted; the
+    // query still runs against the real DB (notifications are really inserted).
+    let memberQueryCount = 0;
+    const countingDb = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "select") {
+          return (...selectArgs: unknown[]) => {
+            // Bind to the real db so drizzle's select() keeps access to its
+            // internal session (otherwise `this` is the proxy and it throws).
+            const select = target.select.bind(target) as unknown as (
+              ...a: unknown[]
+            ) => Record<string, unknown>;
+            const builder = select(...selectArgs);
+            const originalFrom = (builder.from as (t: unknown) => unknown).bind(builder);
+            builder.from = (fromTable: unknown) => {
+              if (fromTable === organizationMemberships) memberQueryCount += 1;
+              return originalFrom(fromTable);
+            };
+            return builder;
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    const result = await broadcastLostPet(
+      countingDb as unknown as typeof db,
+      {
+        ...petForBroadcast(petId, publicToken, "fanout"),
+        jurisdictionProvince: TEST_PROVINCE,
+        jurisdictionLocality: LOCALITY_FANOUT,
+      },
+      { id: ownerUserId, displayName: "Owner" },
+      null,
+    );
+
+    // The crux: ONE membership query, not one-per-org (would be 3).
+    expect(memberQueryCount).toBe(1);
+
+    // And every member of every covering org is still notified.
+    expect(result.orgCount).toBeGreaterThanOrEqual(3);
+    expect(result.broadcastedToMemberIds).toContain(memberA1UserId);
+    expect(result.broadcastedToMemberIds).toContain(memberA2UserId);
+    expect(result.broadcastedToMemberIds).toContain(memberA3UserId);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.notificationType, "lost_pet_broadcast"),
+          eq(notifications.relatedPetId, petId),
+        ),
+      );
+    const notifiedIds = new Set(notifs.map((n) => n.userId));
+    expect(notifiedIds.has(memberA1UserId)).toBe(true);
+    expect(notifiedIds.has(memberA2UserId)).toBe(true);
+    expect(notifiedIds.has(memberA3UserId)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 2. No location → skip broadcast entirely
 // ---------------------------------------------------------------------------
 

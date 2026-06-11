@@ -1107,6 +1107,21 @@ export const petEvents = pgTable(
     payloadApplicantUserIdIdx: index("pet_events_payload_applicant_user_id_idx")
       .on(sql`(payload->>'applicant_user_id')`)
       .where(sql`payload->>'applicant_user_id' IS NOT NULL`),
+    // Cases system FK index (shipped in migration 0033, mirrored here for
+    // schema↔migration agreement). Partial: most events carry no case_id.
+    caseIdIdx: index("pet_events_case_id_idx")
+      .on(table.caseId)
+      .where(sql`${table.caseId} IS NOT NULL`),
+    // V1-8 perf (migration 0090): unindexed FKs caused sequential scans on
+    // author/recorder lookups. pet_events is the largest table. Partial
+    // (IS NOT NULL) keeps both small — many rows have a null author org and
+    // some legacy rows have a null recorder.
+    recordedByUserIdx: index("pet_events_recorded_by_user_id_idx")
+      .on(table.recordedByUserId)
+      .where(sql`${table.recordedByUserId} IS NOT NULL`),
+    authorOrganizationIdx: index("pet_events_author_organization_id_idx")
+      .on(table.authorOrganizationId)
+      .where(sql`${table.authorOrganizationId} IS NOT NULL`),
   }),
 );
 
@@ -1316,6 +1331,13 @@ export const notifications = pgTable(
     eventNaturalKeyUnique: uniqueIndex("notifications_event_natural_key_unique")
       .on(table.userId, table.relatedEventId, table.notificationType)
       .where(sql`${table.relatedEventId} IS NOT NULL`),
+    // Cases system FK index (shipped in migration 0033, mirrored here for
+    // schema↔migration agreement). Lets the dashboard collapse case-derived
+    // notifications without scanning. Partial: free-standing notifications
+    // never set related_case_id.
+    relatedCaseIdIdx: index("notifications_related_case_id_idx")
+      .on(table.relatedCaseId)
+      .where(sql`${table.relatedCaseId} IS NOT NULL`),
   }),
 );
 
@@ -1433,6 +1455,15 @@ export const welfareReports = pgTable(
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
     derivedToOrgIdx: index("welfare_reports_derived_to_org_idx").on(table.derivedToOrganizationId),
+    // FK indexes shipped in earlier migrations, mirrored here for schema↔migration
+    // agreement. case_id (migration 0033) and reporter_organization_id (migration
+    // 0035). Both partial — most reports have neither set.
+    caseIdIdx: index("welfare_reports_case_id_idx")
+      .on(table.caseId)
+      .where(sql`${table.caseId} IS NOT NULL`),
+    reporterOrganizationIdx: index("welfare_reports_org_reporter_idx")
+      .on(table.reporterOrganizationId)
+      .where(sql`${table.reporterOrganizationId} IS NOT NULL`),
     welfareReportsJurisdictionProvinceCanonical: check(
       "welfare_reports_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
@@ -2663,6 +2694,29 @@ export const custodyDisputes = pgTable(
     custodyDisputesDeletedIdx: index("public_custody_disputes_deleted_idx")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    // Indexes shipped in migration 0025, mirrored here for schema↔migration
+    // agreement: per-pet timeline, open-status jurisdiction lookup, and the
+    // one-open-dispute-per-pet uniqueness guard.
+    // created_at DESC matches migration 0025 exactly — without .desc() the
+    // drift check would flag a phantom diff and try to recreate the index.
+    custodyDisputesPetIdx: index("custody_disputes_pet_idx").on(
+      table.petId,
+      table.createdAt.desc(),
+    ),
+    custodyDisputesJurisOpenIdx: index("custody_disputes_juris_open_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality)
+      .where(sql`${table.status} = 'open'`),
+    custodyDisputesOneOpenPerPet: uniqueIndex("custody_disputes_one_open_per_pet")
+      .on(table.petId)
+      .where(sql`${table.status} = 'open'`),
+    // V1-8 perf (migration 0090): the public credential / custody UI filters
+    // disputes by (pet_id, status) on non-deleted rows. The existing pet_idx
+    // (pet_id, created_at) and one_open_per_pet (open only) don't cover status
+    // filtering for non-open statuses on live disputes. Partial on the active
+    // set (deleted_at IS NULL) keeps it small.
+    custodyDisputesPetStatusIdx: index("custody_disputes_pet_status_idx")
+      .on(table.petId, table.status)
+      .where(sql`${table.deletedAt} IS NULL`),
   }),
 );
 
@@ -2697,6 +2751,17 @@ export const custodyDisputeParties = pgTable(
       "dispute_party_role_valid",
       sql`${table.partyRole} in ('current_owner','claimant_owner','current_org_custody','claimant_org','witness')`,
     ),
+    // Indexes shipped in migration 0025, mirrored here for schema↔migration
+    // agreement. dispute_id is the hot lookup (list parties for a dispute);
+    // party_user_id / party_organization_id are partial (exactly one is set
+    // per row, per the dispute_party_exactly_one_subject CHECK).
+    disputeIdx: index("custody_dispute_parties_dispute_idx").on(table.disputeId),
+    partyUserIdx: index("custody_dispute_parties_user_idx")
+      .on(table.partyUserId)
+      .where(sql`${table.partyUserId} IS NOT NULL`),
+    partyOrganizationIdx: index("custody_dispute_parties_org_idx")
+      .on(table.partyOrganizationId)
+      .where(sql`${table.partyOrganizationId} IS NOT NULL`),
   }),
 );
 

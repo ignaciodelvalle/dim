@@ -439,6 +439,91 @@ export async function listCasesForAdmin(): Promise<CaseListItem[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Dashboard preview: open/escalated cases, limited in SQL
+// ---------------------------------------------------------------------------
+
+export interface OpenCasesPreview {
+  /** Up to `limit` open/escalated cases, newest first. */
+  items: CaseListItem[];
+  /** Total count of open/escalated cases (independent of `limit`). */
+  total: number;
+}
+
+const OPEN_CASE_STATUSES = ["open", "escalated"] as const;
+
+/**
+ * Admin dashboard preview of open/escalated cases. Pushes both the status
+ * filter and the row cap into SQL — the old /gob page loaded up to 500 rows
+ * via listCasesForAdmin() and sliced 5 in JS, scanning the whole cases table
+ * on every dashboard render. The count is a separate lightweight aggregate so
+ * the "Ver todos (N)" link stays accurate without fetching all rows.
+ */
+export async function listOpenCasesForAdminPreview(limit = 5): Promise<OpenCasesPreview> {
+  const [items, totalRow] = await Promise.all([
+    db
+      .select({
+        c: cases,
+        petName: pets.name,
+        petPublicToken: pets.publicToken,
+      })
+      .from(cases)
+      .leftJoin(pets, eq(pets.id, cases.primaryPetId))
+      .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
+      .orderBy(desc(cases.openedAt))
+      .limit(limit)
+      .then((rows) => rows.map(mapListRow)),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(cases)
+      .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
+      .then((rows) => rows[0]?.count ?? 0),
+  ]);
+
+  return { items, total: totalRow };
+}
+
+/**
+ * Govt dashboard preview of open/escalated cases within the given
+ * jurisdictions. Mirrors listOpenCasesForAdminPreview but scoped — the /gob
+ * page previously called listCasesForGovt() (up to 300 rows) and sliced 5.
+ */
+export async function listOpenCasesForGovtPreview(
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  limit = 5,
+): Promise<OpenCasesPreview> {
+  if (jurisdictions.length === 0) return { items: [], total: 0 };
+
+  const jurisdictionFilter = or(
+    ...jurisdictions.map((j) =>
+      and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
+    ),
+  );
+  const whereClause = and(inArray(cases.status, [...OPEN_CASE_STATUSES]), jurisdictionFilter);
+
+  const [items, total] = await Promise.all([
+    db
+      .select({
+        c: cases,
+        petName: pets.name,
+        petPublicToken: pets.publicToken,
+      })
+      .from(cases)
+      .leftJoin(pets, eq(pets.id, cases.primaryPetId))
+      .where(whereClause)
+      .orderBy(desc(cases.openedAt))
+      .limit(limit)
+      .then((rows) => rows.map(mapListRow)),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(cases)
+      .where(whereClause)
+      .then((rows) => rows[0]?.count ?? 0),
+  ]);
+
+  return { items, total };
+}
+
+// ---------------------------------------------------------------------------
 // Outbreak investigation queries
 // ---------------------------------------------------------------------------
 
