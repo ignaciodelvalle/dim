@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { auditLog, db, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { pgError } from "@/lib/db-errors";
 import { sanitizeNext } from "@/lib/dni-next";
 
 // ============================================================================
@@ -29,13 +30,13 @@ function validateDni(raw: string): { trimmed: string; error: string | null } {
 }
 
 // Postgres 23505 = unique_violation. Mirror of isUniqueViolationOn in upgrade.ts.
+// pgError unwraps drizzle 0.45's `.cause` chain to the real postgres-js error.
 function isDniUniqueViolation(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const record = err as Record<string, unknown>;
-  if (record.code !== "23505") return false;
-  const constraint = typeof record.constraint_name === "string" ? record.constraint_name : "";
-  const columnName = typeof record.column_name === "string" ? record.column_name : "";
-  const detail = typeof record.detail === "string" ? record.detail : "";
+  const info = pgError(err);
+  if (!info || info.code !== "23505") return false;
+  const constraint = info.constraint ?? "";
+  const columnName = typeof info.raw.column_name === "string" ? info.raw.column_name : "";
+  const detail = typeof info.raw.detail === "string" ? info.raw.detail : "";
   // The partial unique index is named profiles_dni_unique_when_present (schema.ts:303-305)
   return (
     constraint.includes("dni") || columnName === "dni_number" || detail.includes("(dni_number)")

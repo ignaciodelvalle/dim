@@ -35,6 +35,7 @@ import type {
   WelfareReport,
   WelfareReportAttachment,
 } from "@/db/schema";
+import { isUniqueViolation } from "@/lib/db-errors";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -104,13 +105,15 @@ export class WelfareRepository {
           .returning({ id: welfareReports.id, referenceCode: welfareReports.referenceCode });
         return { id: row.id, referenceCode: row.referenceCode };
       } catch (err) {
-        const pgCode = (err as { code?: string }).code;
-        if (pgCode === "23505" && attempts < maxAttempts - 1 && codeGenerator) {
+        // drizzle 0.45 wraps pg errors; isUniqueViolation walks the `.cause`
+        // chain to find the real SQLSTATE 23505.
+        const isUnique = isUniqueViolation(err);
+        if (isUnique && attempts < maxAttempts - 1 && codeGenerator) {
           currentValues = { ...currentValues, referenceCode: codeGenerator() };
           attempts++;
           continue;
         }
-        if (pgCode === "23505") {
+        if (isUnique) {
           throw new Error("No se pudo generar un código único para la denuncia. Probá de nuevo.");
         }
         throw err;

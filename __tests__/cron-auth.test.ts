@@ -121,10 +121,9 @@ describe("authorizeCronRequest", () => {
     // it and return 401 cleanly.
     vi.stubEnv("CRON_SECRET", "abc");
     const req = makeReq({ "x-cron-secret": "aéb" });
-    let result: ReturnType<typeof authorizeCronRequest>;
-    expect(() => {
-      result = authorizeCronRequest(req);
-    }).not.toThrow();
+    // A char-length guard would throw here (500); the byte-length guard must
+    // return 401 cleanly. If it throws, this call fails the test.
+    const result = authorizeCronRequest(req);
     expect(result?.status).toBe(401);
   });
 });

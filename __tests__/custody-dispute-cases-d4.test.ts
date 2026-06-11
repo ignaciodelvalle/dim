@@ -11,6 +11,7 @@ import { cases, custodyDisputes, db, petEvents, pets } from "@/db";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 const PET_TOKEN = "DIM-D4-PA1";
 // Second pet token for ARCH-E sequencing tests (isolated from D4 lifecycle tests).
@@ -194,7 +195,7 @@ describe("ARCH-E: pet_events.case_id FK rejects bogus case reference", () => {
   it("inserting a pet_event with a non-existent case_id throws a FK violation", async () => {
     const bogusUuid = "00000000-dead-beef-0000-000000000000";
 
-    await expect(
+    await expectDbError(
       db.insert(petEvents).values({
         petId: petIdE,
         eventType: "note_added",
@@ -204,6 +205,8 @@ describe("ARCH-E: pet_events.case_id FK rejects bogus case reference", () => {
         payload: { category: "otro", text: "bogus case test" },
         caseId: bogusUuid,
       }),
-    ).rejects.toThrow(/pet_events_case_id_cases_id_fk|foreign key/i);
+      // 23503 = foreign_key_violation.
+      { code: "23503", constraint: /pet_events_case_id_cases_id_fk/ },
+    );
   });
 });

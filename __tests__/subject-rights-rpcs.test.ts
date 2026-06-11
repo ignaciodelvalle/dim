@@ -16,6 +16,7 @@ import { eq, inArray, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, ownerships, pets, profiles } from "@/db";
+import { pgErrorCode } from "@/lib/db-errors";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -51,8 +52,13 @@ async function callRpcAs<T>(
     });
     return { data: result, error: null };
   } catch (err) {
-    const e = err as { code?: string; message?: string };
-    return { data: null, error: { code: e.code, message: e.message ?? "unknown" } };
+    // drizzle 0.45 wraps the pg error; pgErrorCode walks the `.cause` chain to
+    // the real SQLSTATE. Keep the message from the wrapper for diagnostics.
+    const e = err as { message?: string };
+    return {
+      data: null,
+      error: { code: pgErrorCode(err) ?? undefined, message: e.message ?? "unknown" },
+    };
   }
 }
 
@@ -430,8 +436,8 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
         );
       });
     } catch (err) {
-      const e = err as { code?: string; message?: string };
-      caughtCode = e.code;
+      // drizzle 0.45 wraps the pg error; pgErrorCode unwraps the `.cause` chain.
+      caughtCode = pgErrorCode(err) ?? undefined;
     }
 
     expect(caughtCode).toBeDefined();
@@ -455,8 +461,8 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
         );
       });
     } catch (err) {
-      const e = err as { code?: string; message?: string };
-      caughtCode = e.code;
+      // drizzle 0.45 wraps the pg error; pgErrorCode unwraps the `.cause` chain.
+      caughtCode = pgErrorCode(err) ?? undefined;
     }
 
     expect(caughtCode).toBeDefined();
@@ -480,8 +486,8 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
         );
       });
     } catch (err) {
-      const e = err as { code?: string; message?: string };
-      caughtCode = e.code;
+      // drizzle 0.45 wraps the pg error; pgErrorCode unwraps the `.cause` chain.
+      caughtCode = pgErrorCode(err) ?? undefined;
     }
 
     expect(caughtCode).toBeDefined();
@@ -535,8 +541,8 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
           );
         });
       } catch (err) {
-        const e = err as { code?: string; message?: string };
-        caughtCode = e.code;
+        // drizzle 0.45 wraps the pg error; pgErrorCode unwraps the `.cause` chain.
+        caughtCode = pgErrorCode(err) ?? undefined;
       }
 
       expect(caughtCode).toBeDefined();
@@ -587,8 +593,8 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
           );
         });
       } catch (err) {
-        const e = err as { code?: string; message?: string };
-        caughtCode = e.code;
+        // drizzle 0.45 wraps the pg error; pgErrorCode unwraps the `.cause` chain.
+        caughtCode = pgErrorCode(err) ?? undefined;
       }
 
       expect(caughtCode).toBeDefined();

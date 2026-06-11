@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approvalRequests, auditLog, db, ownerships, pets, profiles } from "@/db";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -109,19 +110,17 @@ describe("enforce_admin_no_pets trigger", () => {
       })
       .returning();
 
-    let raised: unknown = null;
-    try {
-      await db.insert(ownerships).values({
+    // The trigger raises with a message mentioning "admin"; expectDbError
+    // matches it on the .cause chain (drizzle 0.45 moved the pg error there).
+    await expectDbError(
+      db.insert(ownerships).values({
         petId: pet.id,
         ownerUserId: adminUserId,
         role: "owner",
         startedAt: new Date(),
-      });
-    } catch (err) {
-      raised = err;
-    }
-    expect(raised).not.toBeNull();
-    expect(String((raised as Error).message)).toMatch(/admin/i);
+      }),
+      { constraint: /admin/i },
+    );
 
     // Cleanup: drop the pet (no ownership row exists yet because the insert
     // was rejected by the trigger).
@@ -167,14 +166,10 @@ describe("enforce_audit_log_append_only trigger", () => {
       })
       .returning();
 
-    let raised: unknown = null;
-    try {
-      await db.update(auditLog).set({ action: "pii_queried" }).where(eq(auditLog.id, row.id));
-    } catch (err) {
-      raised = err;
-    }
-    expect(raised).not.toBeNull();
-    expect(String((raised as Error).message)).toMatch(/append-only/i);
+    await expectDbError(
+      db.update(auditLog).set({ action: "pii_queried" }).where(eq(auditLog.id, row.id)),
+      { constraint: /append-only/i },
+    );
 
     // Cleanup with the bypass.
     await db.transaction(async (tx) => {
@@ -193,14 +188,9 @@ describe("enforce_audit_log_append_only trigger", () => {
       })
       .returning();
 
-    let raised: unknown = null;
-    try {
-      await db.delete(auditLog).where(eq(auditLog.id, row.id));
-    } catch (err) {
-      raised = err;
-    }
-    expect(raised).not.toBeNull();
-    expect(String((raised as Error).message)).toMatch(/append-only/i);
+    await expectDbError(db.delete(auditLog).where(eq(auditLog.id, row.id)), {
+      constraint: /append-only/i,
+    });
 
     await db.transaction(async (tx) => {
       await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
@@ -234,9 +224,8 @@ describe("enforce_audit_log_append_only trigger", () => {
 
 describe("approval_requests CHECK constraints (polymorphic target consistency)", () => {
   it("rejects role_upgrade_vet without a target_user_id", async () => {
-    let raised: unknown = null;
-    try {
-      await db.insert(approvalRequests).values({
+    await expectDbError(
+      db.insert(approvalRequests).values({
         publicToken: generateApprovalRequestToken(),
         type: "role_upgrade_vet",
         status: "pending",
@@ -246,18 +235,14 @@ describe("approval_requests CHECK constraints (polymorphic target consistency)",
         jurisdictionProvince: "CABA",
         jurisdictionLocality: "Palermo",
         payload: { payload_version: 1, matricula_number: "MN-X", matricula_jurisdiccion: "CABA" },
-      });
-    } catch (err) {
-      raised = err;
-    }
-    expect(raised).not.toBeNull();
-    expect(String((raised as Error).message)).toMatch(/approval_target_consistent/i);
+      }),
+      { constraint: /approval_target_consistent/i },
+    );
   });
 
   it("rejects organization_verification without a target_organization_id", async () => {
-    let raised: unknown = null;
-    try {
-      await db.insert(approvalRequests).values({
+    await expectDbError(
+      db.insert(approvalRequests).values({
         publicToken: generateApprovalRequestToken(),
         type: "organization_verification",
         status: "pending",
@@ -267,18 +252,14 @@ describe("approval_requests CHECK constraints (polymorphic target consistency)",
         jurisdictionProvince: "CABA",
         jurisdictionLocality: "Palermo",
         payload: { payload_version: 1, org_type: "shelter" },
-      });
-    } catch (err) {
-      raised = err;
-    }
-    expect(raised).not.toBeNull();
-    expect(String((raised as Error).message)).toMatch(/approval_target_consistent/i);
+      }),
+      { constraint: /approval_target_consistent/i },
+    );
   });
 
   it("rejects an approved row with no decided_at / decided_by_user_id", async () => {
-    let raised: unknown = null;
-    try {
-      await db.insert(approvalRequests).values({
+    await expectDbError(
+      db.insert(approvalRequests).values({
         publicToken: generateApprovalRequestToken(),
         type: "role_upgrade_vet",
         status: "approved",
@@ -288,12 +269,9 @@ describe("approval_requests CHECK constraints (polymorphic target consistency)",
         jurisdictionProvince: "CABA",
         jurisdictionLocality: "Palermo",
         payload: { payload_version: 1, matricula_number: "MN-X", matricula_jurisdiccion: "CABA" },
-      });
-    } catch (err) {
-      raised = err;
-    }
-    expect(raised).not.toBeNull();
-    expect(String((raised as Error).message)).toMatch(/approval_decision_consistent/i);
+      }),
+      { constraint: /approval_decision_consistent/i },
+    );
   });
 
   it("accepts a well-formed pending role_upgrade_vet", async () => {

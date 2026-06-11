@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { attachments, db, petEvents, pets } from "@/db";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -145,34 +146,39 @@ describe("attachments XOR constraint — single parent (allowed)", () => {
 
 describe("attachments XOR constraint — two approval-flow parents (rejected)", () => {
   it("rejects approval_request_id + audit_log_id set simultaneously", async () => {
-    await expect(
+    await expectDbError(
       tryInsert({ approvalRequestId: crypto.randomUUID(), auditLogId: crypto.randomUUID() }),
-    ).rejects.toThrow(/attachments_at_most_one_parent/);
+      { constraint: /attachments_at_most_one_parent/ },
+    );
   });
 });
 
 describe("attachments XOR constraint — approval-flow + content parents (rejected)", () => {
   it("rejects audit_log_id + pet_id set simultaneously", async () => {
-    await expect(
+    await expectDbError(
       tryInsert({ auditLogId: crypto.randomUUID(), petId: crypto.randomUUID() }),
-    ).rejects.toThrow(/attachments_at_most_one_parent/);
+      { constraint: /attachments_at_most_one_parent/ },
+    );
   });
 
   it("rejects audit_log_id + event_id set simultaneously", async () => {
-    await expect(
+    await expectDbError(
       tryInsert({ auditLogId: crypto.randomUUID(), eventId: crypto.randomUUID() }),
-    ).rejects.toThrow(/attachments_at_most_one_parent/);
+      { constraint: /attachments_at_most_one_parent/ },
+    );
   });
 
   it("rejects approval_request_id + pet_id set simultaneously", async () => {
-    await expect(
+    await expectDbError(
       tryInsert({ approvalRequestId: crypto.randomUUID(), petId: crypto.randomUUID() }),
-    ).rejects.toThrow(/attachments_at_most_one_parent/);
+      { constraint: /attachments_at_most_one_parent/ },
+    );
   });
 
   it("rejects approval_request_id + event_id set simultaneously", async () => {
-    await expect(
+    await expectDbError(
       tryInsert({ approvalRequestId: crypto.randomUUID(), eventId: crypto.randomUUID() }),
-    ).rejects.toThrow(/attachments_at_most_one_parent/);
+      { constraint: /attachments_at_most_one_parent/ },
+    );
   });
 });

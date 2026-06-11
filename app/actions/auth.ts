@@ -7,6 +7,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
+import { pgError } from "@/lib/db-errors";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -130,11 +131,13 @@ export async function completeIdentityAction(
       })
       .where(eq(profiles.id, user.id));
   } catch (err) {
-    const record = err as Record<string, unknown>;
+    // drizzle 0.45 wraps the pg error; pgError unwraps the `.cause` chain to
+    // the real postgres-js error carrying `code` / `constraint` / `detail`.
+    const info = pgError(err);
     if (
-      record.code === "23505" &&
-      (String(record.constraint_name ?? "").includes("dni") ||
-        String(record.detail ?? "").includes("dni_number"))
+      info?.code === "23505" &&
+      ((info.constraint ?? "").includes("dni") ||
+        String(info.raw.detail ?? "").includes("dni_number"))
     ) {
       return { error: "Ese DNI ya está registrado por otra cuenta." };
     }

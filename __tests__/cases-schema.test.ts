@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, pets } from "@/db";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 let petId: string;
 let petTokenA: string;
@@ -165,29 +166,31 @@ async function insertCase(values: {
 
 describe("cases schema — CHECK constraints", () => {
   it("rejects registered_pet without primary_pet_id", async () => {
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-CHK-PET1",
         caseKind: "bite_incident",
         primarySubjectKind: "registered_pet",
         primaryPetId: null,
       }),
-    ).rejects.toThrow(/cases_subject_pet_consistency/);
+      { constraint: /cases_subject_pet_consistency/ },
+    );
   });
 
   it("rejects non-registered_pet with primary_pet_id", async () => {
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-CHK-PET2",
         caseKind: "welfare_denuncia",
         primarySubjectKind: "general",
         primaryPetId: petId,
       }),
-    ).rejects.toThrow(/cases_subject_pet_consistency/);
+      { constraint: /cases_subject_pet_consistency/ },
+    );
   });
 
   it("rejects location subject without lat/lng", async () => {
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-CHK-LOC1",
         caseKind: "welfare_denuncia",
@@ -196,11 +199,12 @@ describe("cases schema — CHECK constraints", () => {
         primaryLocationLat: null,
         primaryLocationLng: null,
       }),
-    ).rejects.toThrow(/cases_subject_location_consistency/);
+      { constraint: /cases_subject_location_consistency/ },
+    );
   });
 
   it("rejects merged status without superseded_by + closed_reason='merged'", async () => {
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-CHK-MRG1",
         caseKind: "bite_incident",
@@ -208,11 +212,12 @@ describe("cases schema — CHECK constraints", () => {
         closedReason: "resolved",
         closedAt: new Date().toISOString(),
       }),
-    ).rejects.toThrow(/cases_merged_consistency/);
+      { constraint: /cases_merged_consistency/ },
+    );
   });
 
   it("rejects closed status without closed_at", async () => {
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-CHK-CLS1",
         caseKind: "bite_incident",
@@ -220,17 +225,19 @@ describe("cases schema — CHECK constraints", () => {
         closedReason: "resolved",
         closedAt: null,
       }),
-    ).rejects.toThrow(/cases_closed_consistency/);
+      { constraint: /cases_closed_consistency/ },
+    );
   });
 
   it("rejects opened_reason shorter than 10 chars", async () => {
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-CHK-RSN1",
         caseKind: "bite_incident",
         openedReason: "short",
       }),
-    ).rejects.toThrow(/cases_opened_reason_min_length/);
+      { constraint: /cases_opened_reason_min_length/ },
+    );
   });
 
   it("accepts a fully valid open registered_pet case", async () => {
@@ -263,12 +270,13 @@ describe("cases schema — partial unique indexes", () => {
       publicCode: "CAS-DUP-PET1-A",
       caseKind: "lost_pet_episode",
     });
-    await expect(
+    await expectDbError(
       insertCase({
         publicCode: "CAS-DUP-PET1-B",
         caseKind: "lost_pet_episode",
       }),
-    ).rejects.toThrow(/cases_open_per_pet_kind_idx/);
+      { constraint: /cases_open_per_pet_kind_idx/ },
+    );
   });
 
   it("allows two open cases of the same kind for DIFFERENT pets", async () => {

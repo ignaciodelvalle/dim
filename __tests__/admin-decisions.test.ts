@@ -29,6 +29,7 @@ import {
 } from "@/db";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -397,14 +398,15 @@ describe("enforce_institutional_no_pets trigger (migration 0015)", () => {
       })
       .returning();
 
-    await expect(
+    await expectDbError(
       db.insert(ownerships).values({
         petId: pet.id,
         ownerUserId: adminUserId,
         role: "owner",
         startedAt: new Date(),
       }),
-    ).rejects.toThrow(/institutional|restrict/i);
+      { constraint: /institutional|restrict/i },
+    );
 
     // Cleanup the pet (ownership was never inserted).
     await withMutationOverride(async (tx) => {

@@ -21,6 +21,7 @@
 //   - auditLog insert (action concerns)
 //   - revalidatePath
 
+import { matchesDbError } from "@/lib/db-errors";
 import { generatePrefixedToken } from "@/lib/publicToken";
 import {
   computeTransferExpiresAt,
@@ -135,10 +136,12 @@ export async function initiatePetTransfer(
       );
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido.";
-    if (message.includes("pet_transfers_one_pending_per_pet")) {
+    // drizzle 0.45 wraps pg errors; matchesDbError walks the `.cause` chain to
+    // the real constraint name (no longer on the top-level message).
+    if (matchesDbError(err, { constraint: /pet_transfers_one_pending_per_pet/ })) {
       return { ok: false, error: "Ya hay una transferencia pendiente para esta mascota." };
     }
+    const message = err instanceof Error ? err.message : "Error desconocido.";
     return { ok: false, error: `No se pudo crear la transferencia: ${message}` };
   }
 
