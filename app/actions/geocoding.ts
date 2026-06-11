@@ -24,7 +24,7 @@ import {
   geocodeAddress,
   reverseGeocode,
 } from "@/lib/geocoding";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 
 export type { GeocodeBias, GeocodeResult, ReverseGeocodeResult };
 
@@ -68,9 +68,7 @@ const PUBLIC_GEOCODING_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
 
 async function callerIpAddress(): Promise<string> {
   const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
-  return reqHeaders.get("x-real-ip") ?? "unknown";
+  return callerIp(reqHeaders);
 }
 
 // @no-auth-required: anonymous geocoding autocomplete on public surfaces

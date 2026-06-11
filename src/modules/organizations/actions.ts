@@ -29,7 +29,7 @@ import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/ar-provincias";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { generateInvitationToken } from "@/lib/publicToken";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
 import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
@@ -582,9 +582,7 @@ export type SubmitOrgContactState = { ok: boolean; error: string | null };
 async function callerIpAddress(): Promise<string> {
   try {
     const reqHeaders = await headers();
-    const forwardedFor = reqHeaders.get("x-forwarded-for");
-    if (forwardedFor) return forwardedFor.split(",")[0].trim();
-    return reqHeaders.get("x-real-ip") ?? "unknown";
+    return callerIp(reqHeaders);
   } catch {
     return "unknown";
   }

@@ -46,7 +46,7 @@ import {
   resolveCanonicalJurisdiction,
 } from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -516,7 +516,7 @@ export async function createWelfareReportAction(
   // Rate-limit anonymous submissions only. Auth users skip entirely.
   if (!user) {
     const hdrs = await headers();
-    const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = callerIp(hdrs);
     try {
       await enforceRateLimit("welfare_anon", ip, {
         maxPerMinute: 1,

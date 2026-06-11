@@ -21,15 +21,19 @@ vi.mock("@/lib/auth-guards", () => ({
   requireAdminOrRedirect: vi.fn(),
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
-  enforceRateLimit: vi.fn(),
-  RateLimitError: class RateLimitError extends Error {
-    constructor(message = "Rate limit exceeded") {
-      super(message);
-      this.name = "RateLimitError";
-    }
-  },
-}));
+vi.mock("@/lib/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: vi.fn(),
+    RateLimitError: class RateLimitError extends Error {
+      constructor(message = "Rate limit exceeded") {
+        super(message);
+        this.name = "RateLimitError";
+      }
+    },
+  };
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({

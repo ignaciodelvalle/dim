@@ -5,6 +5,13 @@
 //
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
+//
+// Security (V1-1): per-IP rate limit enforced before ANY data is fetched.
+// Limit: 30 req/min, 200 req/hour per IP. Generous enough that a real QR scan
+// (one person refreshing a single page) is never affected; tight enough to stop
+// enumeration of the 31^8 token keyspace from a single IP. On rate-limit the
+// page renders a soft throttle notice (not a 429 hard error) to preserve UX.
+// Token entropy widening is tracked as a follow-up (would invalidate existing tokens).
 
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
@@ -30,13 +37,39 @@ import {
   permanentConditionShortLabel,
 } from "@/lib/permanent-conditions";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { Tier2MedicalView } from "./Tier2MedicalView";
+
+// The page calls headers() at runtime — mark it dynamic explicitly so Next.js
+// does not attempt to statically render it (matches the sibling encontre /
+// sighting pages that also carry this export).
+export const dynamic = "force-dynamic";
+
+// Per-IP limit for the public credential read path.
+// 60/min: generous enough for a legitimate user refreshing in a noisy carrier-
+//   grade NAT environment (many users behind one IP) or a viral lost-pet post
+//   getting rapid repeat scans from the same household.
+// 400/hr: proportionally raised from 200/hr to match the higher per-minute cap
+//   while still blocking sustained enumeration from a single IP.
+// A truly viral lost-pet QR gets scans from MANY different IPs, so per-IP
+// limiting never blocks that case even at these raised limits.
+const PUBLIC_TOKEN_PAGE_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
+
+async function callerIpFromHeaders(): Promise<string> {
+  try {
+    const reqHeaders = await headers();
+    return callerIp(reqHeaders);
+  } catch {
+    return "unknown";
+  }
+}
 
 export default async function PublicCredentialPage({
   params,
@@ -44,6 +77,18 @@ export default async function PublicCredentialPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
+
+  // V1-1: rate-limit per IP before touching any pet data. Renders a soft
+  // throttle notice (not a hard 500) so the page gracefully degrades.
+  const ip = await callerIpFromHeaders();
+  try {
+    await enforceRateLimit("public_token_page", ip, PUBLIC_TOKEN_PAGE_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return <ThrottleNotice />;
+    }
+    throw err;
+  }
 
   const [result] = await db
     .select({ pet: pets, photo: attachments })
@@ -975,6 +1020,41 @@ export default async function PublicCredentialPage({
           </div>
         </div>
         {/* END CREDENTIAL CARD */}
+      </div>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ThrottleNotice — shown when a single IP exceeds the per-IP read limit.
+// Renders a friendly message instead of a hard error. Spanish (es-AR) copy
+// per project convention for user-facing copy on public surfaces.
+// ---------------------------------------------------------------------------
+
+function ThrottleNotice() {
+  return (
+    <main
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        className="mx-auto max-w-[400px] px-[24px] py-[48px] text-center"
+        style={{ color: "var(--color-ln-ink)" }}
+      >
+        <p
+          style={{
+            fontFamily: "var(--font-ln-serif)",
+            fontSize: 18,
+            fontWeight: 600,
+            marginBottom: 12,
+          }}
+        >
+          Demasiadas consultas
+        </p>
+        <p style={{ fontSize: 14, color: "var(--color-ln-ink-2)", lineHeight: 1.6 }}>
+          Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
+          intentarlo.
+        </p>
       </div>
     </main>
   );

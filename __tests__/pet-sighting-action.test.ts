@@ -27,7 +27,8 @@ const PREVIOUS_STATE = { ok: false as const, error: null };
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => ({
-    get: (key: string) => (key === "x-forwarded-for" ? "1.2.3.4" : null),
+    // x-real-ip is the trusted edge IP — callerIp() prefers it over XFF.
+    get: (key: string) => (key === "x-real-ip" ? "1.2.3.4" : null),
   })),
 }));
 
@@ -51,14 +52,36 @@ vi.mock("@/lib/uploads", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/rate-limit — always allow
+// Mock: @/lib/rate-limit — allow by default.
+// The action now uses the persistent DB-backed enforceRateLimit.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/rate-limit", () => ({
-  makeMemoryRateLimiter: () => ({
-    check: () => ({ allowed: true }),
-  }),
-}));
+const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
+  class MockRateLimitError extends Error {
+    resetAt: Date;
+    reason: string;
+    constructor(resetAt: Date, reason: string) {
+      super(`Rate limit exceeded: ${reason}`);
+      this.name = "RateLimitError";
+      this.resetAt = resetAt;
+      this.reason = reason;
+    }
+  }
+  return {
+    MockRateLimitError,
+    mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock("@/lib/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
+      mockEnforceRateLimit(endpoint, id, cfg),
+    RateLimitError: MockRateLimitError,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Mock: @/db — pet + owner + case queries + inserts
@@ -164,6 +187,7 @@ describe("reportPetSightingAction — P0d payload fields", () => {
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
     capturedAttachmentInsert = null;
+    mockEnforceRateLimit.mockResolvedValue(undefined);
     mockUpload.mockReset();
     mockUpload.mockResolvedValue({
       uploadedPath: "abc123.jpg",
@@ -252,6 +276,28 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
+  });
+
+  // --- Rate limiting (persistent DB-backed enforceRateLimit) ---
+
+  it("returns ok:false when enforceRateLimit throws RateLimitError", async () => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockRejectedValue(
+      new MockRateLimitError(
+        new Date(Date.now() + 60_000),
+        "sighting:DIM-TEST-SIGHTING-001:1.2.3.4:minute",
+      ),
+    );
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const fd = makeFormData({ ...BASE_LOCATION });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("poco");
+    expect(capturedPetEventInsert).toBeNull();
   });
 
   it("includes finder contact in notification body when finderName + finderContact set", async () => {
