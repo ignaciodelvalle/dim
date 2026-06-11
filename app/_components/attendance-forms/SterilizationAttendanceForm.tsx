@@ -3,7 +3,7 @@
 // Sterilization attendance form.
 // Maps to the sterilization_performed event payload schema in lib/event-schemas.ts.
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import type { AttendanceResult, SterilizationPayload } from "@/app/actions/attendance";
 
@@ -23,9 +23,11 @@ export function SterilizationAttendanceForm({
   submitLabel = "Marcar asistencia",
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     const form = e.currentTarget;
     const data = new FormData(form);
 
@@ -40,7 +42,7 @@ export function SterilizationAttendanceForm({
     startTransition(async () => {
       const result = await onSubmit(payload);
       if ("error" in result) {
-        alert(result.error);
+        setError(result.error);
         return;
       }
       onSuccess?.();
@@ -49,6 +51,14 @@ export function SterilizationAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+        >
+          {error}
+        </p>
+      )}
       <div>
         <label htmlFor="ster-procedure" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Procedimiento

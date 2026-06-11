@@ -61,6 +61,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [step, setStep] = useState(1);
 
   const isWithdrawn = initial?.status === "withdrawn";
@@ -132,16 +133,16 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
   }
 
   function withdraw() {
-    if (!confirm("¿Seguro que querés retirarte del pool? Tus propuestas pendientes se cancelan."))
-      return;
     setError(null);
     setOkMessage(null);
     startTransition(async () => {
       const result = await withdrawFosterVolunteerAction();
       if ("error" in result) {
         setError(result.error);
+        setConfirmWithdraw(false);
         return;
       }
+      setConfirmWithdraw(false);
       setOkMessage("Saliste del pool. Podés volver a inscribirte cuando quieras.");
       router.refresh();
     });
@@ -156,23 +157,51 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           <p className="text-[var(--color-ln-ok)]">
             Estás inscripto · <strong>{initial.availableSlots}</strong> slot(s) disponible(s)
           </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => submit("update_preferences_only", "paused")}
-              disabled={pending}
-              className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
-            >
-              Pausar
-            </button>
-            <button
-              type="button"
-              onClick={withdraw}
-              disabled={pending}
-              className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
-            >
-              Salir del pool
-            </button>
+          <div className="flex flex-col gap-2 items-end">
+            {confirmWithdraw ? (
+              <div className="flex flex-col items-end gap-2">
+                <p className="text-xs text-[var(--color-ln-ink-2)]">
+                  ¿Seguro? Tus propuestas pendientes se cancelan.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={withdraw}
+                    disabled={pending}
+                    className="px-3 py-1.5 rounded-[3px] text-xs bg-[var(--color-ln-seal)] text-white hover:opacity-90 disabled:opacity-60 transition-colors"
+                  >
+                    {pending ? "Saliendo…" : "Confirmar salida"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmWithdraw(false)}
+                    disabled={pending}
+                    className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => submit("update_preferences_only", "paused")}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                >
+                  Pausar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmWithdraw(true)}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
+                >
+                  Salir del pool
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

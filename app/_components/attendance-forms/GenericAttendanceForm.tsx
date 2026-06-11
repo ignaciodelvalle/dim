@@ -3,7 +3,7 @@
 // Generic attendance form — fallback for service_kinds without a specific schema.
 // Maps to the vet_visit_logged event payload schema in lib/event-schemas.ts.
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import type { AttendanceResult, VetVisitPayload } from "@/app/actions/attendance";
 
@@ -21,9 +21,11 @@ export function GenericAttendanceForm({
   submitLabel = "Marcar asistencia",
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     const form = e.currentTarget;
     const data = new FormData(form);
 
@@ -36,14 +38,14 @@ export function GenericAttendanceForm({
     };
 
     if (!payload.reason) {
-      alert("El motivo de la consulta es obligatorio.");
+      setError("El motivo de la consulta es obligatorio.");
       return;
     }
 
     startTransition(async () => {
       const result = await onSubmit(payload);
       if ("error" in result) {
-        alert(result.error);
+        setError(result.error);
         return;
       }
       onSuccess?.();
@@ -52,6 +54,14 @@ export function GenericAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+        >
+          {error}
+        </p>
+      )}
       <div>
         <label htmlFor="gen-reason" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Motivo de la consulta <span className="text-ln-op-danger">*</span>

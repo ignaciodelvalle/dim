@@ -50,27 +50,54 @@ function RevokeCell({ grantId }: { grantId: string }) {
     decideCapabilityAction,
     { error: null },
   );
+  const [confirming, setConfirming] = React.useState(false);
+
+  if (confirming) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <form action={formAction}>
+          <input type="hidden" name="grantId" value={grantId} />
+          <input type="hidden" name="decision" value="revoked" />
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            title="Confirmar revocación"
+            aria-label="Confirmar revocación"
+            onClick={() => setConfirming(false)}
+            className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
+          >
+            <span aria-hidden className="text-[12px] leading-none font-bold">
+              ✓
+            </span>
+          </button>
+        </form>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          className="text-[9px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+          aria-label="Cancelar revocación"
+        >
+          ✕
+        </button>
+        {state.error && <span className="text-[10px] text-ln-op-danger">{state.error}</span>}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <form action={formAction}>
-        <input type="hidden" name="grantId" value={grantId} />
-        <input type="hidden" name="decision" value="revoked" />
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          title="Revocar este permiso"
-          aria-label="Revocar"
-          onClick={(e) => {
-            if (!confirm("¿Revocar este permiso?")) e.preventDefault();
-          }}
-          className="group flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
-        >
-          <span aria-hidden className="text-[14px] leading-none">
-            ✓
-          </span>
-        </button>
-      </form>
+      <button
+        type="button"
+        disabled={isSubmitting}
+        title="Revocar este permiso"
+        aria-label="Revocar"
+        onClick={() => setConfirming(true)}
+        className="group flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
+      >
+        <span aria-hidden className="text-[14px] leading-none">
+          ✓
+        </span>
+      </button>
       {state.error && <span className="text-[10px] text-ln-op-danger">{state.error}</span>}
     </div>
   );
@@ -96,6 +123,7 @@ function GrantCell({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = React.useState<string | null>(null);
+  const [confirming, setConfirming] = React.useState(false);
 
   if (isSelf) {
     return (
@@ -111,17 +139,46 @@ function GrantCell({
     );
   }
 
-  function handleClick() {
-    if (!confirm(`¿Conceder el permiso "${capabilityLabel}"?`)) return;
+  function handleGrant() {
     setError(null);
     startTransition(async () => {
       const result = await grantCapabilityAction({ organizationId, membershipId, capability });
       if (result.error) {
         setError(result.error);
+        setConfirming(false);
       } else {
+        setConfirming(false);
         router.refresh();
       }
     });
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          disabled={isPending}
+          title={`Confirmar: ${capabilityLabel}`}
+          aria-label="Confirmar concesión"
+          onClick={handleGrant}
+          className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
+        >
+          <span aria-hidden className="text-[12px] leading-none font-bold">
+            ✓
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          className="text-[9px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+          aria-label="Cancelar"
+        >
+          ✕
+        </button>
+        {error && <span className="text-[10px] text-ln-op-danger">{error}</span>}
+      </div>
+    );
   }
 
   return (
@@ -131,7 +188,7 @@ function GrantCell({
         disabled={isPending}
         title={`Conceder: ${capabilityLabel}`}
         aria-label="Conceder"
-        onClick={handleClick}
+        onClick={() => setConfirming(true)}
         className="flex h-6 w-6 items-center justify-center rounded-[3px] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
       >
         <span aria-hidden className="text-[14px] leading-none">

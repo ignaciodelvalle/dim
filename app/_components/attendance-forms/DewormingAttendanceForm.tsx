@@ -3,7 +3,7 @@
 // Deworming attendance form.
 // Maps to the deworming_administered event payload schema in lib/event-schemas.ts.
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import type { AttendanceResult, DewormingPayload } from "@/app/actions/attendance";
 
@@ -21,9 +21,11 @@ export function DewormingAttendanceForm({
   submitLabel = "Marcar asistencia",
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     const form = e.currentTarget;
     const data = new FormData(form);
 
@@ -36,14 +38,14 @@ export function DewormingAttendanceForm({
     };
 
     if (!payload.product) {
-      alert("El nombre del producto es obligatorio.");
+      setError("El nombre del producto es obligatorio.");
       return;
     }
 
     startTransition(async () => {
       const result = await onSubmit(payload);
       if ("error" in result) {
-        alert(result.error);
+        setError(result.error);
         return;
       }
       onSuccess?.();
@@ -52,6 +54,14 @@ export function DewormingAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+        >
+          {error}
+        </p>
+      )}
       <div>
         <label htmlFor="dew-product" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Producto / antiparasitario <span className="text-ln-op-danger">*</span>

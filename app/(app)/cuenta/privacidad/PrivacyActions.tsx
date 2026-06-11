@@ -36,7 +36,6 @@ export function PrivacyActions() {
 
   function handleErase() {
     setError(null);
-    if (!confirm("Confirmás eliminar tu cuenta? Esta acción es irreversible.")) return;
     startTransition(async () => {
       const result = await eraseMySubjectDataAction(eraseReason);
       if (!result.ok) {

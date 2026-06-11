@@ -3,7 +3,7 @@
 // Vaccination attendance form.
 // Maps to the vaccination_administered event payload schema in lib/event-schemas.ts.
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import type { AttendanceResult, VaccinationPayload } from "@/app/actions/attendance";
 
@@ -21,9 +21,11 @@ export function VaccinationAttendanceForm({
   submitLabel = "Marcar asistencia",
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     const form = e.currentTarget;
     const data = new FormData(form);
 
@@ -37,14 +39,14 @@ export function VaccinationAttendanceForm({
     };
 
     if (!payload.vaccine_name) {
-      alert("El nombre de la vacuna es obligatorio.");
+      setError("El nombre de la vacuna es obligatorio.");
       return;
     }
 
     startTransition(async () => {
       const result = await onSubmit(payload);
       if ("error" in result) {
-        alert(result.error);
+        setError(result.error);
         return;
       }
       onSuccess?.();
@@ -53,6 +55,14 @@ export function VaccinationAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+        >
+          {error}
+        </p>
+      )}
       <div>
         <label
           htmlFor="vacc-vaccine_name"
