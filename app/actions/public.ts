@@ -85,17 +85,23 @@ export async function notifyOwnerOfFoundPetAction(
     ? `${safeName} dejó un mensaje: "${safeMessage}". Te podés contactar al ${safeContact}.`
     : `${safeName} encontró a ${pet.name}. Te podés contactar al ${safeContact}.`;
 
-  await db.insert(notifications).values({
-    userId: owner.userId,
-    notificationType: "pet_found_report",
-    title: `Alguien encontró a ${pet.name}`,
-    body,
-    severity: "urgent",
-    category: "perdidas",
-    relatedPetId: pet.id,
-    ctaLabel: "Ver mascota",
-    ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-  });
+  // Insert notification — best-effort; a failure must not surface an error to the
+  // anonymous finder (they already submitted successfully).
+  try {
+    await db.insert(notifications).values({
+      userId: owner.userId,
+      notificationType: "pet_found_report",
+      title: `Alguien encontró a ${pet.name}`,
+      body,
+      severity: "urgent",
+      category: "perdidas",
+      relatedPetId: pet.id,
+      ctaLabel: "Ver mascota",
+      ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+    });
+  } catch (e) {
+    console.error("notifications insert failed (notifyOwnerOfFoundPetAction did succeed)", e);
+  }
 
   return { ok: true, error: null };
 }

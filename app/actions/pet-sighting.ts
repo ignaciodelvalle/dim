@@ -206,17 +206,23 @@ export async function reportPetSightingAction(
     "Mirá el detalle en su perfil.",
   ].filter(Boolean);
 
-  await db.insert(notifications).values({
-    userId: owner.userId,
-    notificationType: "pet_found_report",
-    title: `Avistaje de ${pet.name}`,
-    body: bodyParts.join(" "),
-    severity: "urgent",
-    category: "perdidas",
-    relatedPetId: pet.id,
-    ctaLabel: "Ver mascota",
-    ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
-  });
+  // Insert notification — best-effort; a failure must not surface an error to the
+  // reporter (the sighting was already recorded successfully).
+  try {
+    await db.insert(notifications).values({
+      userId: owner.userId,
+      notificationType: "pet_found_report",
+      title: `Avistaje de ${pet.name}`,
+      body: bodyParts.join(" "),
+      severity: "urgent",
+      category: "perdidas",
+      relatedPetId: pet.id,
+      ctaLabel: "Ver mascota",
+      ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
+    });
+  } catch (e) {
+    console.error("notifications insert failed (reportPetSightingAction did succeed)", e);
+  }
 
   return { ok: true, error: null, warning: photoWarning };
 }
