@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import {
   approvalRequests,
+  auditLog,
   db,
   notifications,
   organizationMemberships,
@@ -426,6 +427,20 @@ export async function createOrganizationForUser(
         userId,
         role: "admin",
         canWritePetEvents: true,
+      });
+
+      // Audit: org creator is auto-added as admin at org creation.
+      await tx.insert(auditLog).values({
+        actorUserId: userId,
+        action: "org_member_added",
+        targetUserId: userId,
+        targetOrganizationId: newOrg.id,
+        payload: {
+          org_id: newOrg.id,
+          member_user_id: userId,
+          role: "admin",
+          how: "org_creation",
+        },
       });
 
       // Canonical contract: the approval request is what authorities act on.

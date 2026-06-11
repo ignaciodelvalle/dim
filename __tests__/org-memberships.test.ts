@@ -20,8 +20,8 @@
 // Runs against the local Supabase + Postgres stack (127.0.0.1:54321/54322).
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { and, eq, gte, isNull } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
@@ -31,7 +31,14 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { db, notifications, organizationMemberships, organizations, profiles } from "@/db";
+import {
+  auditLog,
+  db,
+  notifications,
+  organizationMemberships,
+  organizations,
+  profiles,
+} from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import {
   changeMemberRoleAction,
@@ -762,5 +769,296 @@ describe("leaveOrganizationAction", () => {
     // Cleanup temp user.
     await supabaseAdmin.auth.admin.deleteUser(tempUserId);
     await db.delete(profiles).where(eq(profiles.id, tempUserId));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ARCH-T: audit_log assertions — org membership lifecycle
+// ---------------------------------------------------------------------------
+
+describe("ARCH-T audit_log — org membership lifecycle", () => {
+  // audit_log is append-only (DB trigger blocks DELETE). Use a per-test
+  // timestamp to scope queries to rows created by that specific test run.
+  let testStart: Date;
+  beforeEach(() => {
+    testStart = new Date();
+  });
+
+  it("removeMemberAction writes org_member_removed with admin_remove payload", async () => {
+    // Ensure member is active.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "member" })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+
+    mockSessionAs(adminUserId);
+    const result = await removeMemberAction({
+      organizationId: orgId,
+      membershipId: memberMembershipId,
+    });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, memberUserId),
+          eq(auditLog.action, "org_member_removed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    expect(row.actorUserId).toBe(adminUserId);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.org_id).toBe(orgId);
+    expect(payload.member_user_id).toBe(memberUserId);
+    expect(payload.role).toBe("member");
+    expect(payload.how).toBe("admin_remove");
+
+    // Restore for subsequent tests.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "member" })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+  });
+
+  it("removeMemberAction (admin-target path) writes org_member_removed audit row", async () => {
+    // Both admins must be active so last-admin guard doesn't block.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+
+    mockSessionAs(adminUserId);
+    const result = await removeMemberAction({
+      organizationId: orgId,
+      membershipId: admin2MembershipId,
+    });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, admin2UserId),
+          eq(auditLog.action, "org_member_removed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    expect(row.actorUserId).toBe(adminUserId);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.org_id).toBe(orgId);
+    expect(payload.member_user_id).toBe(admin2UserId);
+    expect(payload.role).toBe("admin");
+    expect(payload.how).toBe("admin_remove");
+
+    // Restore admin2.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+  });
+
+  it("changeMemberRoleAction writes org_member_role_changed with before/after payload", async () => {
+    // Ensure admin2 is active (so demotion doesn't hit last-admin guard).
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+
+    mockSessionAs(adminUserId);
+    const result = await changeMemberRoleAction({
+      organizationId: orgId,
+      membershipId: admin2MembershipId,
+      newRole: "coordinator",
+    });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, admin2UserId),
+          eq(auditLog.action, "org_member_role_changed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    expect(row.actorUserId).toBe(adminUserId);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.org_id).toBe(orgId);
+    expect(payload.member_user_id).toBe(admin2UserId);
+    expect(payload.role_before).toBe("admin");
+    expect(payload.role_after).toBe("coordinator");
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+  });
+
+  it("changeMemberRoleAction (non-admin path) writes org_member_role_changed", async () => {
+    // Ensure member is active with 'member' role.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "member" })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+
+    mockSessionAs(adminUserId);
+    const result = await changeMemberRoleAction({
+      organizationId: orgId,
+      membershipId: memberMembershipId,
+      newRole: "volunteer",
+    });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, memberUserId),
+          eq(auditLog.action, "org_member_role_changed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.role_before).toBe("member");
+    expect(payload.role_after).toBe("volunteer");
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ role: "member" })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+  });
+
+  it("leaveOrganizationAction writes org_member_removed with self_leave payload", async () => {
+    // Ensure member is active.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "member" })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+
+    mockSessionAs(memberUserId);
+    const result = await leaveOrganizationAction({ organizationId: orgId });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, memberUserId),
+          eq(auditLog.action, "org_member_removed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    expect(row.actorUserId).toBe(memberUserId);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.org_id).toBe(orgId);
+    expect(payload.member_user_id).toBe(memberUserId);
+    expect(payload.how).toBe("self_leave");
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "member" })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+  });
+
+  it("leaveOrganizationAction (admin path) writes org_member_removed with self_leave payload", async () => {
+    // Ensure both admins are active so the last-admin guard doesn't block.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, admin2MembershipId));
+
+    mockSessionAs(adminUserId);
+    const result = await leaveOrganizationAction({ organizationId: orgId });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, adminUserId),
+          eq(auditLog.action, "org_member_removed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    expect(row.actorUserId).toBe(adminUserId);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.how).toBe("self_leave");
+    expect(payload.role).toBe("admin");
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, role: "admin" })
+      .where(eq(organizationMemberships.id, adminMembershipId));
+  });
+
+  it("setMemberEventWriteAction writes org_member_event_write_changed audit row", async () => {
+    // Ensure member is active with canWritePetEvents = false (known before state).
+    await db
+      .update(organizationMemberships)
+      .set({ leftAt: null, canWritePetEvents: false })
+      .where(eq(organizationMemberships.id, memberMembershipId));
+
+    mockSessionAs(adminUserId);
+    const result = await setMemberEventWriteAction({
+      organizationId: orgId,
+      membershipId: memberMembershipId,
+      canWrite: true,
+    });
+    expect("error" in result).toBe(false);
+
+    const rows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, memberUserId),
+          eq(auditLog.action, "org_member_event_write_changed"),
+          gte(auditLog.performedAt, testStart),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
+    expect(row.actorUserId).toBe(adminUserId);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.org_id).toBe(orgId);
+    expect(payload.member_user_id).toBe(memberUserId);
+    expect(payload.can_write_pet_events_before).toBe(false);
+    expect(payload.can_write_pet_events_after).toBe(true);
+
+    // Restore.
+    await db
+      .update(organizationMemberships)
+      .set({ canWritePetEvents: false })
+      .where(eq(organizationMemberships.id, memberMembershipId));
   });
 });

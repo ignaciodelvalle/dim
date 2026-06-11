@@ -12,11 +12,13 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import {
+  type NewAuditLogRow,
   type Organization,
   type OrganizationCapabilityGrant,
   type OrganizationCoverage,
   type OrganizationInvitation,
   type OrganizationMembership,
+  auditLog,
   db,
   orgContactMessages,
   organizationCapabilityGrants,
@@ -640,5 +642,16 @@ export class OrgRepository {
       .where(eq(organizationMemberships.id, membershipId))
       .limit(1);
     return row?.userId ?? null;
+  }
+
+  /**
+   * Insert an audit_log row. Must be called with the transaction executor when
+   * the mutation is wrapped in a tx — ensures atomicity with the membership write.
+   */
+  async insertAuditLog(
+    values: Omit<NewAuditLogRow, "id" | "performedAt">,
+    e: Exec = db,
+  ): Promise<void> {
+    await e.insert(auditLog).values(values as NewAuditLogRow);
   }
 }

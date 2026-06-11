@@ -17,7 +17,7 @@
 // Runs against the local Supabase + Postgres stack (127.0.0.1:54321/54322).
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gte, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -29,6 +29,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  auditLog,
   db,
   notifications,
   organizationInvitations,
@@ -456,6 +457,9 @@ describe("acceptInvitationAction", () => {
     if ("error" in invite) throw new Error(invite.error);
     const token = invite.inviteUrl.split("/r/invite/")[1];
 
+    // Capture timestamp immediately before accept so we can scope the audit query.
+    const acceptStart = new Date();
+
     // Invitee accepts.
     mockSessionAs(inviteeUserId, INVITEE_EMAIL);
     const result = await acceptInvitationAction({ invitationToken: token });
@@ -500,6 +504,29 @@ describe("acceptInvitationAction", () => {
         ),
       );
     expect(notifs.length).toBeGreaterThan(0);
+
+    // Verify audit_log row: org_member_added via invitation_accept.
+    // audit_log is append-only; scope by timestamp to avoid cross-test bleed.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetOrganizationId, orgId),
+          eq(auditLog.targetUserId, inviteeUserId),
+          eq(auditLog.action, "org_member_added"),
+          gte(auditLog.performedAt, acceptStart),
+        ),
+      );
+    expect(auditRows.length).toBe(1);
+    const auditRow = auditRows[0];
+    expect(auditRow.actorUserId).toBe(inviteeUserId);
+    const auditPayload = auditRow.payload as Record<string, unknown>;
+    expect(auditPayload.org_id).toBe(orgId);
+    expect(auditPayload.member_user_id).toBe(inviteeUserId);
+    expect(auditPayload.role).toBe("volunteer");
+    expect(auditPayload.how).toBe("invitation_accept");
+    expect(typeof auditPayload.invitation_id).toBe("string");
 
     // Cleanup.
     await removeMembership(inviteeUserId);

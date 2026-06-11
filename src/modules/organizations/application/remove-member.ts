@@ -9,7 +9,7 @@
 //   3. LAST-ADMIN check FIRST (highest-priority invariant).
 //   4. Self-check.
 //   5. Rank rule.
-//   6. Soft-delete.
+//   6. Soft-delete + audit_log (same tx).
 //   7. Best-effort notification (queued — caller flushes post-tx).
 
 import { lastAdminBlocks } from "@/src/modules/organizations/domain/membership-state";
@@ -38,7 +38,10 @@ export type RemoveMemberInput = {
   };
 };
 
-type RepoDeps = Pick<OrgRepository, "findActiveMembership" | "lockActiveAdmins" | "softLeave">;
+type RepoDeps = Pick<
+  OrgRepository,
+  "findActiveMembership" | "lockActiveAdmins" | "softLeave" | "insertAuditLog"
+>;
 
 type Deps = {
   repo: RepoDeps;
@@ -90,8 +93,23 @@ export async function removeMember(
           throw new Error("RANK");
         }
 
-        // 6. Soft-delete.
+        // 6. Soft-delete + audit (same tx).
         await repo.softLeave(input.membershipId, e);
+        await repo.insertAuditLog(
+          {
+            actorUserId: input.actor.userId,
+            action: "org_member_removed",
+            targetUserId: target.userId,
+            targetOrganizationId: input.organizationId,
+            payload: {
+              org_id: input.organizationId,
+              member_user_id: target.userId,
+              role: target.role,
+              how: "admin_remove",
+            },
+          },
+          e,
+        );
       });
     } catch (e) {
       if (actionError) return { ok: false, error: actionError };
@@ -114,8 +132,26 @@ export async function removeMember(
       return { ok: false, error: "No podés gestionar a alguien con un rol mayor al tuyo." };
     }
 
-    // 6. Soft-delete (no tx — uses default db executor).
-    await repo.softLeave(input.membershipId);
+    // 6. Soft-delete + audit in one tx (atomicity).
+    await transaction(async (tx) => {
+      const e = tx as Exec;
+      await repo.softLeave(input.membershipId, e);
+      await repo.insertAuditLog(
+        {
+          actorUserId: input.actor.userId,
+          action: "org_member_removed",
+          targetUserId: target.userId,
+          targetOrganizationId: input.organizationId,
+          payload: {
+            org_id: input.organizationId,
+            member_user_id: target.userId,
+            role: target.role,
+            how: "admin_remove",
+          },
+        },
+        e,
+      );
+    });
   }
 
   // 7. Best-effort notification (caller flushes post-tx).

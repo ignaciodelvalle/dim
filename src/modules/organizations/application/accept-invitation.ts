@@ -30,6 +30,7 @@ export interface AcceptInvitationRepo {
   markInviteAccepted: OrgRepository["markInviteAccepted"];
   insertMembership: OrgRepository["insertMembership"];
   findAccepterDisplayName: OrgRepository["findAccepterDisplayName"];
+  insertAuditLog: OrgRepository["insertAuditLog"];
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,25 @@ export async function acceptInvitation(
 
       // Mark accepted.
       await repo.markInviteAccepted(validInvite.id, input.userId, e);
+
+      // Audit: org_member_added via invitation accept.
+      await repo.insertAuditLog(
+        {
+          actorUserId: input.userId,
+          action: "org_member_added",
+          targetUserId: input.userId,
+          targetOrganizationId: validInvite.organizationId,
+          payload: {
+            org_id: validInvite.organizationId,
+            member_user_id: input.userId,
+            role: validInvite.invitedRole,
+            how: "invitation_accept",
+            invitation_id: validInvite.id,
+          },
+        },
+        e,
+      );
+
       orgToken = org.publicToken;
 
       // Queue inviter notification (post-tx).

@@ -487,4 +487,210 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
     expect(caughtCode).toBeDefined();
     expect(caughtCode).toBe("23001");
   });
+
+  // -------------------------------------------------------------------------
+  // Migration 0085: generalized trigger — tests for the NEW FK columns
+  // -------------------------------------------------------------------------
+  // The trigger now guards ALL nullable FK columns (target_user_id,
+  // target_organization_id, target_govt_assignment_id, approval_request_id)
+  // with the same rules as actor_user_id.  The cases below exercise the
+  // extended surface.
+
+  it("D: UPDATE that changes target_user_id from non-null to a different non-null UUID is rejected", async () => {
+    // abuseAuditIds[0] was inserted with target_user_id = NULL. We need a row
+    // that has a non-null target_user_id to test reassignment rejection.
+    // Insert a fresh controlled row inside the bypass window.
+    let targetUserId: string | undefined;
+    const rowIds: string[] = [];
+    try {
+      // Reuse abuseActorId as the target_user_id (an existing profile UUID).
+      targetUserId = abuseActorId;
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        const rows = await tx
+          .insert(auditLog)
+          .values([
+            {
+              actorUserId: abuseActorId,
+              action: "request_viewed" as const,
+              targetUserId: abuseActorId,
+              payload: { test: "target-user-reassign" },
+            },
+          ])
+          .returning({ id: auditLog.id });
+        for (const r of rows) rowIds.push(r.id);
+      });
+
+      const rowId = rowIds[0];
+      if (!rowId) throw new Error("rowIds[0] not set");
+
+      const otherUuid = "00000000-0000-0000-0000-000000000002";
+      let caughtCode: string | undefined;
+      try {
+        await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`UPDATE public.audit_log
+                SET target_user_id = ${otherUuid}::uuid
+                WHERE id = ${rowId}`,
+          );
+        });
+      } catch (err) {
+        const e = err as { code?: string; message?: string };
+        caughtCode = e.code;
+      }
+
+      expect(caughtCode).toBeDefined();
+      expect(caughtCode).toBe("23001");
+    } finally {
+      if (rowIds.length > 0) {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+          await tx.delete(auditLog).where(inArray(auditLog.id, rowIds));
+        });
+      }
+    }
+  });
+
+  it("E: UPDATE that nullifies target_user_id while also tampering payload is rejected", async () => {
+    // Nullifying a FK column is allowed ONLY when the four immutable columns
+    // (id, action, payload, performed_at) are unchanged. Changing payload at the
+    // same time must be rejected regardless of the FK nullification.
+    const rowIds: string[] = [];
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        const rows = await tx
+          .insert(auditLog)
+          .values([
+            {
+              actorUserId: abuseActorId,
+              action: "request_viewed" as const,
+              targetUserId: abuseActorId,
+              payload: { test: "target-user-null-plus-payload-tamper" },
+            },
+          ])
+          .returning({ id: auditLog.id });
+        for (const r of rows) rowIds.push(r.id);
+      });
+
+      const rowId = rowIds[0];
+      if (!rowId) throw new Error("rowIds[0] not set");
+
+      let caughtCode: string | undefined;
+      try {
+        await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`UPDATE public.audit_log
+                SET target_user_id = NULL,
+                    payload = '{"test":"tampered"}'::jsonb
+                WHERE id = ${rowId}`,
+          );
+        });
+      } catch (err) {
+        const e = err as { code?: string; message?: string };
+        caughtCode = e.code;
+      }
+
+      expect(caughtCode).toBeDefined();
+      expect(caughtCode).toBe("23001");
+    } finally {
+      if (rowIds.length > 0) {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+          await tx.delete(auditLog).where(inArray(auditLog.id, rowIds));
+        });
+      }
+    }
+  });
+
+  it("F: UPDATE that nullifies target_organization_id (legitimate cascade shape) is ALLOWED", async () => {
+    // The trigger must pass through a pure FK cascade nullification where only
+    // a nullable FK column changes from non-NULL to NULL and all four immutable
+    // columns are unchanged. This is the exact shape produced by
+    // `DELETE FROM organizations` → ON DELETE SET NULL.
+    //
+    // We cannot actually insert a real organization here cheaply, so we simulate
+    // the cascade shape directly: insert a row with a known UUID in
+    // target_organization_id via bypass, then attempt the nullification without
+    // the bypass. The trigger should allow it.
+    const rowIds: string[] = [];
+    try {
+      // Use a dummy UUID that looks like an org id — the FK is deferrable enough
+      // for the bypass insert (the bypass GUC skips trigger checks). We just need
+      // a non-null value to prove the non-null → NULL transition is allowed.
+      // However, the FK constraint itself will reject an unknown UUID even with
+      // the GUC, so we reuse abuseActorId (a real profile UUID) for the org id
+      // column insert... but that won't work either because target_organization_id
+      // references organizations.id (a different table). The cleanest approach is
+      // to insert a real org, then use its id, then clean up. We use the raw
+      // bypass window for the insert + cleanup, and the non-bypass UPDATE as the
+      // assertion step.
+      //
+      // Alternative: use an org that already exists in the test DB from another
+      // suite. But that creates test-ordering coupling. Instead we create a
+      // minimal org inline.
+      const { organizations: orgsTable } = await import("@/db");
+      const [testOrg] = await db
+        .insert(orgsTable)
+        .values({
+          publicToken: "AUDIT-ABUSE-TEST",
+          legalName: "Audit Abuse Test Org",
+          displayName: "Audit Abuse Test",
+          orgType: "shelter",
+          email: "audit-abuse-test-org@dim-test.local",
+        })
+        .returning({ id: orgsTable.id });
+      if (!testOrg) throw new Error("Failed to insert test org");
+
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+        const rows = await tx
+          .insert(auditLog)
+          .values([
+            {
+              actorUserId: abuseActorId,
+              action: "request_viewed" as const,
+              targetOrganizationId: testOrg.id,
+              payload: { test: "org-null-cascade" },
+            },
+          ])
+          .returning({ id: auditLog.id });
+        for (const r of rows) rowIds.push(r.id);
+      });
+
+      const rowId = rowIds[0];
+      if (!rowId) throw new Error("rowIds[0] not set");
+
+      // This UPDATE (without bypass) simulates what ON DELETE SET NULL produces.
+      // The trigger must allow it because: immutable columns unchanged + only
+      // target_organization_id changes from non-NULL → NULL.
+      let caughtErr: unknown;
+      try {
+        await db.transaction(async (tx) => {
+          await tx.execute(
+            sql`UPDATE public.audit_log
+                SET target_organization_id = NULL
+                WHERE id = ${rowId}`,
+          );
+        });
+      } catch (err) {
+        caughtErr = err;
+      }
+
+      // No exception should have been thrown — the trigger allows this shape.
+      expect(caughtErr).toBeUndefined();
+
+      // Clean up the org (also cascades the audit row's FK to NULL, which is fine).
+      await db.delete(orgsTable).where(eq(orgsTable.id, testOrg.id));
+    } finally {
+      if (rowIds.length > 0) {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+          // The row may already have target_organization_id = NULL at this point
+          // (either from the allowed UPDATE or from the org DELETE cascade).
+          await tx.delete(auditLog).where(inArray(auditLog.id, rowIds));
+        });
+      }
+    }
+  });
 });

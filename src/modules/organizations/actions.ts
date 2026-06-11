@@ -307,7 +307,7 @@ export async function setMemberEventWriteAction(input: {
       },
       organization: { publicToken: organization.publicToken },
     },
-    { repo },
+    { repo, transaction: db.transaction.bind(db) },
   );
 
   if (!result.ok) return { error: result.error };

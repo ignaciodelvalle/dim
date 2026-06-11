@@ -190,6 +190,7 @@ describe("removeMember", () => {
     findActiveMembership: vi.fn(),
     lockActiveAdmins: vi.fn(),
     softLeave: vi.fn().mockResolvedValue(undefined),
+    insertAuditLog: vi.fn().mockResolvedValue(undefined),
   });
 
   it("returns error when target membership not found", async () => {
@@ -300,6 +301,9 @@ describe("removeMember", () => {
           makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
         ),
     };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
     const result = await removeMember(
       {
         organizationId: "org-1",
@@ -307,11 +311,11 @@ describe("removeMember", () => {
         actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
         organization: { publicToken: "TKN", displayName: "Org" },
       },
-      { repo, transaction: vi.fn() },
+      { repo, transaction: txFn },
     );
     expect(result.ok).toBe(true);
-    // Non-admin path: no tx passed (uses default db executor)
-    expect(repo.softLeave).toHaveBeenCalledWith("mem-target");
+    // Non-admin path uses a tx for atomicity with audit write.
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-target", {});
   });
 
   it("removes admin member when 2+ admins exist", async () => {
@@ -373,6 +377,7 @@ describe("changeOrganizationMemberRole", () => {
     findActiveMembership: vi.fn(),
     lockActiveAdmins: vi.fn(),
     setRole: vi.fn().mockResolvedValue(undefined),
+    insertAuditLog: vi.fn().mockResolvedValue(undefined),
   });
 
   it("returns error for invalid new role", async () => {
@@ -513,6 +518,9 @@ describe("changeOrganizationMemberRole", () => {
         ),
       setRole: vi.fn().mockResolvedValue(undefined),
     };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
     const result = await changeOrganizationMemberRole(
       {
         organizationId: "org-1",
@@ -521,11 +529,11 @@ describe("changeOrganizationMemberRole", () => {
         actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
         organization: { publicToken: "TKN" },
       },
-      { repo, transaction: vi.fn() },
+      { repo, transaction: txFn },
     );
     expect(result.ok).toBe(true);
-    // Non-admin target path — no tx (uses default db executor)
-    expect(repo.setRole).toHaveBeenCalledWith("mem-target", "coordinator");
+    // Non-admin target path uses a tx for atomicity with audit write.
+    expect(repo.setRole).toHaveBeenCalledWith("mem-target", "coordinator", {});
   });
 });
 
@@ -537,7 +545,12 @@ describe("setMemberEventWrite", () => {
   const baseRepo = () => ({
     findActiveMembership: vi.fn(),
     setEventWrite: vi.fn().mockResolvedValue(undefined),
+    insertAuditLog: vi.fn().mockResolvedValue(undefined),
   });
+
+  // Transparent transaction mock: immediately invokes the callback with a fake tx.
+  const makeTx = () =>
+    vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb({}));
 
   it("returns error when target not found", async () => {
     const repo = { ...baseRepo(), findActiveMembership: vi.fn().mockResolvedValue(null) };
@@ -549,7 +562,7 @@ describe("setMemberEventWrite", () => {
         actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
         organization: { publicToken: "TKN" },
       },
-      { repo },
+      { repo, transaction: makeTx() },
     );
     expect(result).toEqual({ ok: false, error: "Membresía no encontrada o ya inactiva." });
   });
@@ -571,7 +584,7 @@ describe("setMemberEventWrite", () => {
         actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
         organization: { publicToken: "TKN" },
       },
-      { repo },
+      { repo, transaction: makeTx() },
     );
     expect(result).toEqual({
       ok: false,
@@ -596,7 +609,7 @@ describe("setMemberEventWrite", () => {
         actor: { userId: "user-actor", role: "coordinator", membershipId: "mem-actor" },
         organization: { publicToken: "TKN" },
       },
-      { repo },
+      { repo, transaction: makeTx() },
     );
     expect(result).toEqual({
       ok: false,
@@ -604,15 +617,19 @@ describe("setMemberEventWrite", () => {
     });
   });
 
-  it("updates event-write successfully", async () => {
+  it("updates event-write and writes audit_log in one tx", async () => {
     const repo = {
       ...baseRepo(),
-      findActiveMembership: vi
-        .fn()
-        .mockResolvedValue(
-          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
-        ),
+      findActiveMembership: vi.fn().mockResolvedValue(
+        makeMembership({
+          id: "mem-target",
+          userId: "user-target",
+          role: "member",
+          canWritePetEvents: false,
+        }),
+      ),
     };
+    const transaction = makeTx();
     const result = await setMemberEventWrite(
       {
         organizationId: "org-1",
@@ -621,11 +638,25 @@ describe("setMemberEventWrite", () => {
         actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
         organization: { publicToken: "TKN" },
       },
-      { repo },
+      { repo, transaction },
     );
     expect(result.ok).toBe(true);
-    // No tx for setEventWrite (uses default db executor)
-    expect(repo.setEventWrite).toHaveBeenCalledWith("mem-target", true);
+    // Both writes must happen inside the same transaction callback.
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(repo.setEventWrite).toHaveBeenCalledWith("mem-target", true, expect.anything());
+    expect(repo.insertAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "org_member_event_write_changed",
+        actorUserId: "user-actor",
+        targetUserId: "user-target",
+        targetOrganizationId: "org-1",
+        payload: expect.objectContaining({
+          can_write_pet_events_before: false,
+          can_write_pet_events_after: true,
+        }),
+      }),
+      expect.anything(),
+    );
   });
 });
 
@@ -638,6 +669,7 @@ describe("leaveOrganization", () => {
     findOwnActiveMembership: vi.fn(),
     lockActiveAdmins: vi.fn(),
     softLeave: vi.fn().mockResolvedValue(undefined),
+    insertAuditLog: vi.fn().mockResolvedValue(undefined),
   });
 
   it("returns error when user is not active member", async () => {
@@ -704,7 +736,7 @@ describe("leaveOrganization", () => {
     expect(repo.softLeave).toHaveBeenCalledWith("mem-1", expect.anything());
   });
 
-  it("allows non-admin self-leave directly (no tx needed)", async () => {
+  it("allows non-admin self-leave (wrapped in tx for atomicity with audit)", async () => {
     const repo = {
       ...baseRepo(),
       findOwnActiveMembership: vi
@@ -712,16 +744,19 @@ describe("leaveOrganization", () => {
         .mockResolvedValue(makeMembership({ id: "mem-1", userId: "user-1", role: "member" })),
       softLeave: vi.fn().mockResolvedValue(undefined),
     };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
     const result = await leaveOrganization(
       {
         userId: "user-1",
         organizationId: "org-1",
         organization: { publicToken: "TKN" },
       },
-      { repo, transaction: vi.fn() },
+      { repo, transaction: txFn },
     );
     expect(result.ok).toBe(true);
-    // Non-admin path: no tx (uses default db executor)
-    expect(repo.softLeave).toHaveBeenCalledWith("mem-1");
+    // Non-admin path uses tx for atomicity with audit write.
+    expect(repo.softLeave).toHaveBeenCalledWith("mem-1", {});
   });
 });

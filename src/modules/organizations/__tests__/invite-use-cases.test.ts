@@ -286,6 +286,7 @@ describe("acceptInvitation", () => {
     markInviteAccepted: vi.fn().mockResolvedValue(undefined),
     insertMembership: vi.fn().mockResolvedValue("mem-new"),
     findAccepterDisplayName: vi.fn().mockResolvedValue("Test User"),
+    insertAuditLog: vi.fn().mockResolvedValue(undefined),
   });
 
   it("returns error when invite not found (inside tx)", async () => {

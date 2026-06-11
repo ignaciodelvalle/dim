@@ -1843,6 +1843,25 @@ export const AUDIT_LOG_ACTIONS = [
   // to a verified shelter or rescue_network for field follow-up.
   // Payload: { welfareReportId, referenceCode, targetOrgId, targetOrgDisplayName }.
   "welfare_report_derived_to_org",
+  // Org membership lifecycle (ARCH-T). Covers the transitions that were
+  // previously unaudited: member added (via invitation accept or org creation),
+  // member removed (admin-initiated or self-leave), role change, and
+  // canWritePetEvents toggle.
+  //
+  // Payload keys by action:
+  //   org_member_added:              org_id, member_user_id, role,
+  //                                  how ("invitation_accept" | "org_creation"),
+  //                                  invitation_id (when how=invitation_accept)
+  //   org_member_removed:            org_id, member_user_id, role,
+  //                                  how ("admin_remove" | "self_leave")
+  //   org_member_role_changed:       org_id, member_user_id, role_before, role_after
+  //   org_member_event_write_changed: org_id, member_user_id,
+  //                                  can_write_pet_events_before,
+  //                                  can_write_pet_events_after
+  "org_member_added",
+  "org_member_removed",
+  "org_member_role_changed",
+  "org_member_event_write_changed",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
