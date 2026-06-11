@@ -39,8 +39,9 @@ export default async function EventDetailPage({
     .limit(1);
   if (!event) notFound();
 
+  const eventType = event.eventType as EventType;
   const summary = eventPayloadSummary(event.eventType, event.payload);
-  const heading = summary.primary ?? eventTypeLabel(event.eventType);
+  const heading = summary.primary ?? eventTypeLabel(eventType);
 
   const eventAttachments = await db
     .select()
@@ -75,7 +76,7 @@ export default async function EventDetailPage({
       {/* Header */}
       <div className="mb-[24px]">
         <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
-          {eventTypeLabel(event.eventType)}
+          {eventTypeLabel(eventType)}
         </p>
         <h1 className="mt-[4px] font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {heading}

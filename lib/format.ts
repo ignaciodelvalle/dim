@@ -1,6 +1,8 @@
 // Spanish-language formatting helpers for dates, enums, and event labels.
 // All UI strings live here so we can change copy without touching components.
 
+import type { EventType } from "@/db/schema";
+
 const SPANISH_DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
   month: "long",
@@ -86,53 +88,77 @@ export function statusLabel(status: string): string {
   }
 }
 
-export function eventTypeLabel(eventType: string): string {
-  switch (eventType) {
-    case "pet_registered":
-      return "Mascota registrada";
-    case "pet_profile_updated":
-      return "Perfil actualizado";
-    case "vaccination_administered":
-      return "Vacuna administrada";
-    case "deworming_administered":
-      return "Antiparasitario";
-    case "medication_started":
-      return "Inicio de medicación";
-    case "medication_stopped":
-      return "Fin de medicación";
-    case "medication_dose_taken":
-      return "Dosis administrada";
-    case "vet_visit_logged":
-      return "Visita al veterinario";
-    case "weight_recorded":
-      return "Peso registrado";
-    case "microchip_implanted":
-      return "Microchip implantado";
-    case "sterilization_performed":
-      return "Esterilización";
-    case "death_recorded":
-      return "Fallecimiento";
-    case "note_added":
-      return "Nota";
-    case "reporter_comment":
-      return "Comentario del denunciante";
-    case "status_changed":
-      return "Cambio de estado";
-    case "credential_scanned":
-      return "Credencial escaneada";
-    case "symptom_observed":
-      return "Síntoma observado";
-    case "abandonment_reported":
-      return "Abandono reportado";
-    case "maltreatment_reported":
-      return "Maltrato reportado";
-    case "ownership_claimed":
-      return "Mascota reclamada";
-    case "custody_transfer_cancelled":
-      return "Propuesta de devolución cancelada";
-    default:
-      return eventType;
-  }
+// Exhaustive map — must have exactly one entry per EventType.
+// If you add a new entry to EVENT_TYPES, TypeScript will fail here until
+// you add a corresponding label. Use `satisfies` so inference stays narrow.
+const EVENT_TYPE_LABELS = {
+  // Lifecycle
+  pet_registered: "Mascota registrada",
+  pet_profile_updated: "Perfil actualizado",
+  status_changed: "Cambio de estado",
+  death_recorded: "Fallecimiento",
+  // Preventive medicine
+  vaccination_administered: "Vacuna administrada",
+  deworming_administered: "Antiparasitario",
+  sterilization_performed: "Esterilización",
+  // Medication
+  medication_started: "Inicio de medicación",
+  medication_stopped: "Fin de medicación",
+  // Clinical encounters
+  vet_visit_logged: "Visita al veterinario",
+  // Body metrics
+  weight_recorded: "Peso registrado",
+  // Identification & legal
+  microchip_implanted: "Microchip implantado",
+  microchip_replaced: "Reemplazo de microchip",
+  tattoo_recorded: "Tatuaje registrado",
+  tattoo_updated: "Tatuaje actualizado",
+  dangerous_breed_attested: "Atestación de raza peligrosa",
+  // Free-form
+  note_added: "Nota",
+  // System / observed
+  credential_scanned: "Credencial escaneada",
+  incident_reported: "Incidente reportado",
+  rabies_observation_started: "Observación antirrábica iniciada",
+  rabies_observation_ended: "Observación antirrábica finalizada",
+  // Medication adherence
+  medication_dose_taken: "Dosis administrada",
+  // Non-owner reporting
+  symptom_observed: "Síntoma observado",
+  abandonment_reported: "Abandono reportado",
+  maltreatment_reported: "Maltrato reportado",
+  // Unified clinical information
+  clinical_info_logged: "Información clínica",
+  // Custody & adoption
+  shelter_intake_recorded: "Ingreso al refugio",
+  foster_assigned: "Tránsito asignado",
+  foster_ended: "Tránsito finalizado",
+  adoption_application_submitted: "Postulación de adopción enviada",
+  adoption_application_resolved: "Postulación de adopción resuelta",
+  adoption_finalized: "Adopción finalizada",
+  post_adoption_checkin: "Seguimiento post-adopción",
+  adoption_reversed: "Adopción revertida",
+  custody_transferred: "Custodia transferida",
+  ownership_claimed: "Mascota reclamada",
+  // Lost & Found
+  custody_transfer_proposed: "Propuesta de devolución",
+  custody_transfer_cancelled: "Propuesta de devolución cancelada",
+  // Custody disputes
+  custody_dispute_raised: "Disputa de custodia iniciada",
+  custody_dispute_resolved: "Disputa de custodia resuelta",
+  // Foster volunteers pool
+  foster_proposed: "Propuesta de tránsito",
+  foster_proposal_resolved: "Propuesta de tránsito resuelta",
+  foster_co_foster_allowed: "Co-tránsito habilitado",
+  // Adoption eligibility
+  adoption_eligibility_set: "Elegibilidad para adopción actualizada",
+  // Surveillance
+  outbreak_signal: "Señal de brote",
+  disease_reported: "Enfermedad reportada",
+} satisfies Record<EventType, string>;
+
+export function eventTypeLabel(eventType: EventType): string {
+  return EVENT_TYPE_LABELS[eventType];
 }
 
 export function relativeTime(value: Date | string | null | undefined): string {
