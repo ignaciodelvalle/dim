@@ -54,6 +54,121 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: dummy_service_role_key
           DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
 
+  dep-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+
+    # Fails on HIGH or CRITICAL advisories. The two known moderate advisories
+    # (postcss evasion — build-time only; no runtime exposure) are excluded
+    # by --audit-level=high and do NOT fail this job.
+    #
+    # If a new HIGH advisory appears and you need time to patch:
+    #   1. Run `pnpm audit --json` locally to get the advisory ID.
+    #   2. Document it in docs/ops/advisory-allowlist.md with a patch deadline.
+    #   3. Add `[skip-audit]` to the PR commit message OR apply the
+    #      `ci:skip-audit` label to unblock the PR temporarily.
+    #   pnpm has no native per-advisory ignore; the documented triage pattern
+    #   is: `pnpm audit --json | jq '.advisories | to_entries[] | select(.value.severity == "high" or .value.severity == "critical") | .value'`
+    #   Compare the IDs against your allowlist and decide whether to skip.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for skip token
+        id: skip-check
+        run: |
+          SKIP=false
+          # Check commit message for [skip-audit] token
+          if git log -1 --pretty=%B | grep -qF '[skip-audit]'; then
+            SKIP=true
+          fi
+          # Check PR labels (only available on pull_request events)
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci:skip-audit') }}" == "true" ]]; then
+            SKIP=true
+          fi
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
+      - name: Audit dependencies (HIGH+)
+        if: steps.skip-check.outputs.skip != 'true'
+        run: pnpm audit --audit-level=high
+
+  migration-presence:
+    name: Migration presence check
+    runs-on: ubuntu-latest
+    # Only meaningful on PRs — push to main/develop is already merged.
+    if: github.event_name == 'pull_request'
+
+    # Fails when db/schema.ts is modified in this PR but no new file is added
+    # under db/migrations/. This catches the common mistake of editing the
+    # schema without running `pnpm db:generate`.
+    #
+    # ESCAPE HATCH — skip this check when the schema change is comment-only
+    # or type-annotation-only (no runtime SQL impact):
+    #   • Add the label `ci:no-migration` to the PR, OR
+    #   • Include `[no-migration]` anywhere in the PR's HEAD commit message.
+    # Document WHY no migration is needed in the PR description so reviewers
+    # can verify the claim.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need the base ref to diff against
+          fetch-depth: 0
+
+      - name: Check for skip token
+        id: skip-check
+        run: |
+          SKIP=false
+          if git log -1 --pretty=%B | grep -qF '[no-migration]'; then
+            SKIP=true
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci:no-migration') }}" == "true" ]]; then
+            SKIP=true
+          fi
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
+      - name: Verify migration file present for schema changes
+        if: steps.skip-check.outputs.skip != 'true'
+        run: |
+          BASE=${{ github.base_ref }}
+          CHANGED=$(git diff --name-only "origin/${BASE}...HEAD")
+
+          SCHEMA_CHANGED=false
+          if echo "$CHANGED" | grep -qF 'db/schema.ts'; then
+            SCHEMA_CHANGED=true
+          fi
+
+          if [[ "$SCHEMA_CHANGED" == "false" ]]; then
+            echo "::notice::db/schema.ts not modified — no migration required."
+            exit 0
+          fi
+
+          NEW_MIGRATIONS=$(echo "$CHANGED" | grep -E '^db/migrations/[0-9]+.*\.sql$' || true)
+
+          if [[ -z "$NEW_MIGRATIONS" ]]; then
+            echo "::error::db/schema.ts was modified but no new migration file found under db/migrations/."
+            echo "::error::Run \`pnpm db:generate\` to generate a migration, then commit the resulting .sql file."
+            echo "::error::If this change is comment-only or has no SQL impact, add label \`ci:no-migration\` or commit token \`[no-migration]\` and document why."
+            exit 1
+          fi
+
+          echo "::notice::Schema change accompanied by migration(s):"
+          echo "$NEW_MIGRATIONS"
+
   db-check:
     name: Schema vs migrations drift
     runs-on: ubuntu-latest
@@ -132,7 +247,7 @@ jobs:
   test:
     name: Tests (vitest)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     # Tests need the full Supabase local stack (Postgres + GoTrue + PostgREST),
     # not just bare Postgres — 11 tests call admin.auth.admin.{listUsers,
@@ -144,6 +259,9 @@ jobs:
     # from `supabase status` — same across local stacks of the same CLI
     # version family. The seed step's auth.admin.createUser calls need a
     # real local key (not a dummy) to land users that the trigger picks up.
+    #
+    # timeout-minutes raised from 15 → 20 to account for v8 coverage
+    # instrumentation overhead (~20-30% on a cold run).
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
@@ -182,6 +300,11 @@ jobs:
         run: pnpm db:bootstrap
 
       - name: Run tests (vitest)
+        # NOTE: coverage-threshold enforcement (pnpm test:coverage) is enabled
+        # in the V1-9 PR, which first fills the known coverage gaps the audit
+        # found (pet-claim, custody-disputes, bulk-actions, loginAction). A
+        # gate must ride with the change that makes it pass — enabling it here
+        # would red-CI the app/actions/** 75% glob until those tests land.
         run: pnpm test
 
       - name: Stop Supabase local stack
