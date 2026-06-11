@@ -1,5 +1,9 @@
 -- DIM owner-facing tables — Row Level Security
 -- ---------------------------------------------
+-- NOTE (V0-4): This file is now REFERENCE ONLY. The source of truth for
+-- applying RLS is db/migrations/0086_track_rls_in_migrations.sql (applied by
+-- db:migrate and replayed by db:bootstrap step 2). This file is no longer
+-- applied by db-bootstrap.ts. Keep edits here in sync with migration 0086.
 -- Enforces per-user isolation on the seven core tables an authenticated owner
 -- touches: profiles, pets, ownerships, pet_events, reminders, attachments,
 -- notifications.

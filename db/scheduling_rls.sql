@@ -1,5 +1,7 @@
 -- Scheduling system — Row Level Security
 -- ----------------------------------------
+-- NOTE (V0-4): REFERENCE ONLY. Source of truth is
+-- db/migrations/0086_track_rls_in_migrations.sql. No longer applied by bootstrap.
 -- Governs PostgREST access (defense-in-depth). All Drizzle server-action
 -- queries bypass RLS via the direct DB connection.
 -- Apply once per environment: paste into Supabase Studio → SQL Editor.

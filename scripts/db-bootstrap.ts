@@ -22,12 +22,13 @@
  *      (e.g. check_pet_event_case_id_immutable, enforce_admin_no_pets,
  *      cases_set_updated_at) and triggers. Real failures here are quiet by
  *      design; if a custom function doesn't land, downstream tests will yell.
- *   3. Apply `db/*.sql` in dependency order, STRICTLY:
- *        triggers.sql → cases_rls.sql → rls.sql → per-domain RLS → storage.sql
+ *   3. Apply the non-RLS orthogonal `db/*.sql` STRICTLY:
+ *        triggers.sql → storage.sql → welfare_storage.sql
  *      These files are normally pasted into Studio by hand (see the header of
- *      db/triggers.sql). Order matters: cases_rls defines can_read_case which
- *      rls.sql references; triggers go first since later policies may call
- *      functions defined there.
+ *      db/triggers.sql). RLS is NOT applied here anymore — it lives in the
+ *      migration tree (db/migrations/0086_track_rls_in_migrations.sql, applied
+ *      in step 2) as the single source of truth. The loose db/*rls*.sql files
+ *      remain as readable reference only.
  *   4. Seed reference data + test users via the existing import scripts:
  *      import-indec-localities, import-caba-barrios, seed-test-users.
  *
@@ -329,17 +330,14 @@ console.log(
 
 header("Step 3/4 — apply db/*.sql (triggers, RLS, storage) — STRICT");
 
-const ORTHOGONAL_ORDER = [
-  "db/triggers.sql",
-  "db/cases_rls.sql",
-  "db/rls.sql",
-  "db/organizations_rls.sql",
-  "db/welfare_rls.sql",
-  "db/foster_rls.sql",
-  "db/scheduling_rls.sql",
-  "db/storage.sql",
-  "db/welfare_storage.sql",
-];
+// RLS is now applied by the migration tree (db/migrations/0086_track_rls_in_migrations.sql,
+// replayed in step 2) — it is the single source of truth for RLS application. The loose
+// db/*rls*.sql files (rls.sql, cases_rls.sql, organizations_rls.sql, welfare_rls.sql,
+// foster_rls.sql, scheduling_rls.sql) are kept as readable reference but are NO LONGER
+// applied here, so RLS is applied exactly once and there is no double-application conflict.
+// can_read_case() is defined by migration 0034 (also replayed in step 2). This list keeps
+// only the non-RLS-policy orthogonal SQL (triggers + storage buckets/policies).
+const ORTHOGONAL_ORDER = ["db/triggers.sql", "db/storage.sql", "db/welfare_storage.sql"];
 
 for (const sqlPath of ORTHOGONAL_ORDER) {
   if (!existsSync(sqlPath)) {
