@@ -6,6 +6,16 @@
 // the URL is not a public endpoint.
 //
 // On success returns JSON describing the run. On failure returns 500.
+//
+// Overlap safety: concurrent runs are safe because pickPendingBatch uses an
+// atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING *
+// to claim rows, transitioning them to status='processing'. Two concurrent runs
+// always claim disjoint sets. No session-level advisory lock is used — those
+// are pooler-unsafe on pgBouncer transaction-mode connections (lock and unlock
+// can land on different backend connections, silently voiding mutual exclusion).
+// Idempotency at the notification layer (ON CONFLICT DO NOTHING on the partial
+// unique index notifications_event_natural_key_unique, migration 0088) ensures
+// that even if overlap did occur, no duplicate legal notifications would be sent.
 
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { processEnoQueueBatch } from "@/lib/eno-queue-processor";
@@ -29,7 +39,7 @@ export async function GET(request: NextRequest) {
       skipped: result.skipped,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "error desconocido";
+    const message = err instanceof Error ? err.message : "unknown error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

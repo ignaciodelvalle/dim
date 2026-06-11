@@ -13,11 +13,18 @@
 //   - PLAIN insertEvent for clinical_info_logged (sub_kind=disease_diagnosis).
 //   - Enqueue outbox for the diagnosis event (ENO SLA).
 //   - IF reportable: insert outbreak_signal (system) + outbox + routeSignal + maybeOwnerAlert.
-//   - Post-tx: processEnoEventTrigger via @/lib/eno-trigger shim — failure is
-//     NEVER fatal: catch → insert audit_log(trigger_failed:true) best-effort.
-//   - audit_log ONLY on ENO failure, not on diagnosis success.
-//   - ENO failure NEVER rolls back the diagnosis (post-tx pattern).
 //   - Notifications flushed by caller (flushNotifications dep).
+//
+// DURABILITY (V1-4 / P1-3): the ENO govt-fanout enqueue (eno_processing_queue
+//   row) is now done INSIDE the diagnosis transaction via the enqueueEnoTrigger
+//   dep. Previously it ran post-commit, best-effort — if the process died
+//   between COMMIT and the post-tx enqueue, the diagnosis was recorded but the
+//   govt fan-out row was never created and nothing reconciled it. The
+//   eno_processing_queue insert is idempotent (onConflictDoNothing on
+//   pet_event_id, unique index from migration 0053), so a retried event write
+//   can never create a second queue row — that is what makes the in-tx move
+//   safe. The DELIVERY of that row stays async (process-eno-queue cron); only
+//   the ENQUEUE is now atomic with the event.
 
 import "server-only";
 
@@ -61,9 +68,26 @@ export type RecordDiseaseDiagnosisWriterResult =
   | { ok: false; error: string };
 
 type Deps = {
-  repo: Pick<EventsRepository, "insertEvent" | "enqueueOutbox" | "insertAuditLog">;
+  repo: Pick<EventsRepository, "insertEvent" | "enqueueOutbox">;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   flushNotifications: (pendingNotifications: NewNotification[]) => Promise<void>;
+  /**
+   * Enqueue the ENO govt-fanout row for this diagnosis event, INSIDE the given
+   * transaction (P1-3 durability). Must be idempotent on the pet_event_id so a
+   * retried write does not create a second queue row. No-ops when the disease
+   * is not ENO-reportable (the underlying use-case applies the catalog guards).
+   */
+  enqueueEnoTrigger: (
+    petEvent: {
+      id: string;
+      petId: string;
+      authorRole: string;
+      recordedByUserId: string | null;
+      authorOrganizationId: string | null;
+      payload: Record<string, unknown>;
+    },
+    tx: unknown,
+  ) => Promise<void>;
 };
 
 type DbTx = Parameters<Parameters<typeof import("@/db").db.transaction>[0]>[0];
@@ -136,6 +160,23 @@ export async function recordDiseaseDiagnosisWriter(
           jurisdictionProvince: params.petJurisdictionProvince,
           jurisdictionLocality: params.petJurisdictionLocality,
         },
+      );
+
+      // P1-3 DURABILITY: enqueue the ENO govt-fanout row IN THIS SAME tx, so it
+      // can never be lost on a crash between COMMIT and a post-commit enqueue.
+      // Idempotent on pet_event_id (onConflictDoNothing) — a rolled-back tx
+      // leaves no queue row, and a retried write never duplicates it. The
+      // delivery (process-eno-queue cron) stays async.
+      await deps.enqueueEnoTrigger(
+        {
+          id: diagnosisEvent.id,
+          petId: params.petId,
+          authorRole: "vet",
+          recordedByUserId: params.vetUserId,
+          authorOrganizationId: null,
+          payload: diagnosisPayload as Record<string, unknown>,
+        },
+        tx,
       );
 
       if (isReportable(params.diseaseCode)) {
@@ -233,42 +274,11 @@ export async function recordDiseaseDiagnosisWriter(
   // Flush pending notifications post-tx.
   await deps.flushNotifications(pendingNotifications);
 
-  // ENO pipeline — processEnoEventTrigger fires AFTER the transaction commits.
-  // Failure MUST NEVER block or roll back the diagnosis insert (defensive wrap).
-  if (diagnosisEventId) {
-    try {
-      const { processEnoEventTrigger } = await import("@/lib/eno-trigger");
-      await processEnoEventTrigger({
-        id: diagnosisEventId,
-        petId: params.petId,
-        authorRole: "vet",
-        recordedByUserId: params.vetUserId,
-        authorOrganizationId: null,
-        payload: {
-          sub_kind: "disease_diagnosis",
-          disease_code: params.diseaseCode,
-          diagnosis_date: params.diagnosisDate.toISOString(),
-        },
-      });
-    } catch (err) {
-      console.error("[recordDiseaseDiagnosisWriter] ENO trigger failed (non-fatal):", err);
-      // Audit the failure so ops can investigate without a bug report.
-      try {
-        await deps.repo.insertAuditLog({
-          actorUserId: params.vetUserId,
-          action: "eno_notification_emitted",
-          payload: {
-            disease_code: params.diseaseCode,
-            pet_id: params.petId,
-            error: err instanceof Error ? err.message : "unknown",
-            trigger_failed: true,
-          },
-        });
-      } catch {
-        // Swallow — audit insert failure is non-fatal.
-      }
-    }
-  }
+  // NOTE: the ENO govt-fanout enqueue now happens INSIDE the transaction above
+  // (deps.enqueueEnoTrigger), not here. There is no longer a post-commit,
+  // best-effort enqueue that could be lost on a crash, and therefore no
+  // trigger-failure audit_log path — a failed enqueue rolls the diagnosis back
+  // with the rest of the tx, surfacing as ok:false. See the P1-3 note above.
 
   return { ok: true, diagnosisEventId, signalEventId, ownerNotificationsDelivered };
 }

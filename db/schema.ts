@@ -1308,6 +1308,14 @@ export const notifications = pgTable(
     reminderRecentIdx: index("notifications_reminder_recent_idx")
       .on(table.relatedReminderId, table.createdAt)
       .where(sql`${table.relatedReminderId} IS NOT NULL`),
+    // Idempotency guard for event-derived notifications (ENO fanout et al.).
+    // Lets consumers insert with onConflictDoNothing so re-processing a queue
+    // row never duplicates a legal notification. Partial: free-standing /
+    // cron-emitted notifications (related_event_id IS NULL) are exempt because
+    // they legitimately repeat (user, type) across occurrences. Migration 0088.
+    eventNaturalKeyUnique: uniqueIndex("notifications_event_natural_key_unique")
+      .on(table.userId, table.relatedEventId, table.notificationType)
+      .where(sql`${table.relatedEventId} IS NOT NULL`),
   }),
 );
 
@@ -2848,24 +2856,38 @@ export type CaseSubjectKind = (typeof CASE_SUBJECT_KINDS)[number];
 // The event-insert action enqueues here cheaply; the hourly cron
 // worker drains the queue. Keeps pet_events itself pure (immutable);
 // queue state lives separately so it can be retried on failure.
+//
+// Status flow:
+//   pending → processing (claimed atomically via UPDATE ... RETURNING)
+//           → processed  (markEnoProcessed)
+//           → pending    (markEnoFailed, retryCount < 2)
+//           → failed     (markEnoFailed, retryCount >= 2)
+//
+// Overlap safety (migration 0089): pickPendingBatch claims rows with a
+// single atomic UPDATE ... RETURNING so two concurrent cron runs always
+// claim DISJOINT sets. claimed_at enables stale-claim recovery: rows
+// stuck in 'processing' for > 10 minutes (crashed run) are eligible
+// for re-claim on the next drain cycle.
 export const enoProcessingQueue = pgTable(
   "eno_processing_queue",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     petEventId: uuid("pet_event_id").notNull(),
-    /** pending | processed | failed. */
+    /** pending | processing | processed | failed. */
     status: text("status").notNull().default("pending"),
     queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
     retryCount: integer("retry_count").notNull().default(0),
     lastError: text("last_error"),
+    /** Set when status transitions to 'processing'. Enables stale-claim recovery. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
   },
   (table) => ({
     statusIdx: index("eno_processing_queue_status_idx").on(table.status, table.queuedAt),
     eventIdIdx: uniqueIndex("eno_processing_queue_event_id_unique").on(table.petEventId),
     statusCheck: check(
       "eno_processing_queue_status_check",
-      sql`${table.status} IN ('pending', 'processed', 'failed')`,
+      sql`${table.status} IN ('pending', 'processing', 'processed', 'failed')`,
     ),
   }),
 );

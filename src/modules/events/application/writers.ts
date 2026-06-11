@@ -13,6 +13,8 @@
 import "server-only";
 
 import { db, notifications } from "@/db";
+import { enqueueEnoTrigger as _enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
+import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { EventsRepository } from "../infrastructure/events-repository";
 import { recordDiseaseDiagnosisWriter as _recordDiseaseDiagnosisWriter } from "./clinical/record-disease-diagnosis-use-case";
 import type { RecordDiseaseDiagnosisWriterInput as RecordDiseaseDiagnosisWriterParams } from "./clinical/record-disease-diagnosis-use-case";
@@ -24,6 +26,27 @@ import type { CreateSymptomObservedWriterParams } from "./surveillance/symptom-o
 function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
   return <T>(cb: (tx: unknown) => Promise<T>) =>
     db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>;
+}
+
+const surveillanceRepo = new SurveillanceRepository();
+
+/**
+ * In-transaction ENO enqueue dep (P1-3 durability). Passes the diagnosis tx as
+ * the executor so the eno_processing_queue row is atomic with the event insert;
+ * DB errors propagate to roll the tx back. Idempotent on pet_event_id.
+ */
+async function enqueueEnoTriggerInTx(
+  petEvent: {
+    id: string;
+    petId: string;
+    authorRole: string;
+    recordedByUserId: string | null;
+    authorOrganizationId: string | null;
+    payload: Record<string, unknown>;
+  },
+  tx: unknown,
+): Promise<void> {
+  await _enqueueEnoTrigger(petEvent, { repo: surveillanceRepo, executor: tx });
 }
 
 async function flushNotifications(pending: import("./types").NewNotification[]): Promise<void> {
@@ -46,6 +69,7 @@ export async function recordDiseaseDiagnosisWriter(params: RecordDiseaseDiagnosi
     repo,
     transaction: makeTransaction(),
     flushNotifications,
+    enqueueEnoTrigger: enqueueEnoTriggerInTx,
   });
 }
 

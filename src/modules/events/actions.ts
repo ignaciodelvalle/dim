@@ -43,6 +43,8 @@ import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
+import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
+import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { createClinicalInfo } from "./application/clinical/clinical-info-use-case";
 import { recordDiseaseDiagnosisWriter } from "./application/clinical/record-disease-diagnosis-use-case";
 import { createVetVisit } from "./application/clinical/vet-visit-use-case";
@@ -86,6 +88,28 @@ async function cleanupAttachment(supabase: SupabaseServerClient, path: string | 
 function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
   return <T>(cb: (tx: unknown) => Promise<T>) =>
     db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>;
+}
+
+const surveillanceRepoForEno = new SurveillanceRepository();
+
+/**
+ * In-transaction ENO enqueue dep for recordDiseaseDiagnosisWriter (P1-3
+ * durability). The eno_processing_queue row is enqueued inside the diagnosis
+ * tx so it is atomic with the event insert and can never be lost on a crash.
+ * Idempotent on pet_event_id; DB errors propagate to roll the tx back.
+ */
+async function enqueueEnoTriggerInTx(
+  petEvent: {
+    id: string;
+    petId: string;
+    authorRole: string;
+    recordedByUserId: string | null;
+    authorOrganizationId: string | null;
+    payload: Record<string, unknown>;
+  },
+  tx: unknown,
+): Promise<void> {
+  await enqueueEnoTrigger(petEvent, { repo: surveillanceRepoForEno, executor: tx });
 }
 
 // ---------------------------------------------------------------------------
@@ -1027,6 +1051,7 @@ export async function recordDiseaseDiagnosisAction(
       repo,
       transaction: makeTransaction(),
       flushNotifications,
+      enqueueEnoTrigger: enqueueEnoTriggerInTx,
     },
   );
 

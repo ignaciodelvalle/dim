@@ -9,11 +9,12 @@
 //   4. Throttle: second diagnosis within 30d does not re-notify the owner.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   db,
+  enoProcessingQueue,
   eventNotificationOutbox,
   notifications,
   ownerships,
@@ -21,7 +22,9 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { recordDiseaseDiagnosisWriter as _recordDiseaseDiagnosisWriter } from "@/src/modules/events/application/clinical/record-disease-diagnosis-use-case";
 import { recordDiseaseDiagnosisWriter } from "@/src/modules/events/application/writers";
+import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -221,6 +224,17 @@ describe("recordDiseaseDiagnosisWriter", () => {
     expect(outboxRows.length).toBe(1);
     expect(outboxRows[0].targetKind).toBe("govt_webhook");
     expect(outboxRows[0].status).toBe("pending");
+
+    // DURABILITY (P1-3): the ENO govt-fanout queue row is enqueued INSIDE the
+    // diagnosis transaction — exactly one row exists for the committed event.
+    // (The enqueue is no longer a post-commit best-effort call that could be
+    // lost on a crash.) rabies_confirmed is an ENO disease, so a row is created.
+    const queueRows = await db
+      .select()
+      .from(enoProcessingQueue)
+      .where(eq(enoProcessingQueue.petEventId, diagnosisRows[0].id));
+    expect(queueRows.length).toBe(1);
+    expect(queueRows[0].status).toBe("pending");
   });
 
   it("non-reportable disease (parvovirus) → only diagnosis row, no signal", async () => {
@@ -291,6 +305,89 @@ describe("recordDiseaseDiagnosisWriter", () => {
         ),
       );
     expect(ownerAlerts.length).toBe(0);
+  });
+
+  it("durability atomicity: ENO enqueue failure rolls back the entire diagnosis tx", async () => {
+    // DURABILITY CLAIM (P1-3): the ENO eno_processing_queue enqueue runs INSIDE
+    // the diagnosis transaction. If that enqueue throws, the whole transaction
+    // must roll back — no pet_events row, no outbox row, no queue row committed.
+    // This test proves that DB-level guarantee by injecting a failing enqueue dep.
+
+    const pet = await insertTestPet(ownerUserId, "ROLLBACK");
+
+    // Snapshot: count events for this pet before the failing write.
+    const eventCountBefore = (await db.select().from(petEvents).where(eq(petEvents.petId, pet.id)))
+      .length;
+
+    const repo = new EventsRepository();
+
+    // Inject an enqueueEnoTrigger that always throws inside the tx, simulating
+    // a genuine DB error during the in-transaction ENO enqueue. The error must
+    // propagate out of the transaction callback and abort the whole tx.
+    const failingEnqueue = async (_petEvent: unknown, _tx: unknown): Promise<void> => {
+      throw new Error("injected enqueue failure — abort tx");
+    };
+
+    const result = await _recordDiseaseDiagnosisWriter(
+      {
+        petId: pet.id,
+        petName: pet.name,
+        petSpecies: pet.species,
+        petJurisdictionCountry: pet.jurisdictionCountry,
+        petJurisdictionProvince: pet.jurisdictionProvince ?? null,
+        petJurisdictionLocality: pet.jurisdictionLocality ?? null,
+        vetUserId,
+        vetDisplayName: "Dr. Test Ddx",
+        diseaseCode: "rabies_confirmed",
+        confirmedByLab: true,
+        labName: null,
+        labReportReference: null,
+        diagnosisDate: new Date(),
+        notes: null,
+      },
+      {
+        repo,
+        transaction: <T>(cb: (tx: unknown) => Promise<T>) =>
+          db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+        flushNotifications: async () => {},
+        enqueueEnoTrigger: failingEnqueue,
+      },
+    );
+
+    // Writer must surface the error.
+    expect(result.ok).toBe(false);
+
+    // DB-level proof — the transaction rolled back completely:
+
+    // 1. No new pet_events row for this pet (diagnosis event rolled back).
+    const eventsAfter = (await db.select().from(petEvents).where(eq(petEvents.petId, pet.id)))
+      .length;
+    expect(eventsAfter).toBe(eventCountBefore);
+
+    // 2. No ENO queue row exists for any event of this pet.
+    //    Since no event was committed (proven above), there is no petEventId
+    //    to reference. Belt-and-suspenders: verify via cross-join that zero
+    //    queue rows reference any event belonging to this pet.
+    const queueRowsForPet = (await db.execute(
+      sql`
+        SELECT q.id
+        FROM eno_processing_queue q
+        JOIN pet_events e ON e.id = q.pet_event_id
+        WHERE e.pet_id = ${pet.id}
+      `,
+    )) as unknown as Array<{ id: string }>;
+    expect(queueRowsForPet.length).toBe(0);
+
+    // 3. No outbox row exists for any event of this pet (cascades with sourceEventId).
+    const outboxRowsForPet = (await db.execute(
+      sql`
+        SELECT o.id
+        FROM event_notification_outbox o
+        JOIN pet_events e ON e.id = o.source_event_id
+        WHERE e.pet_id = ${pet.id}
+      `,
+    )) as unknown as Array<{ id: string }>;
+    expect(outboxRowsForPet.length).toBe(0);
   });
 
   it("throttle: re-diagnosing same disease within 30d does not re-notify owner", async () => {

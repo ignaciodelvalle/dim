@@ -54,18 +54,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     // -------------------------------------------------------------------------
     // Fetch pending rows that are due
+    //
+    // FOR UPDATE SKIP LOCKED (P1-5 cron-overlap fix): two overlapping drain
+    // runs never grab the same outbox rows — the second run skips rows already
+    // locked by the first. Wrapped in a short transaction so the lock is held
+    // through the select; it releases on commit before per-row delivery runs.
     // -------------------------------------------------------------------------
-    const pending = await db
-      .select()
-      .from(eventNotificationOutbox)
-      .where(
-        and(
-          eq(eventNotificationOutbox.status, "pending"),
-          lte(eventNotificationOutbox.nextRetryAt, now),
-        ),
-      )
-      .orderBy(eventNotificationOutbox.nextRetryAt)
-      .limit(BATCH_SIZE);
+    const pending = await db.transaction(async (tx) =>
+      tx
+        .select()
+        .from(eventNotificationOutbox)
+        .where(
+          and(
+            eq(eventNotificationOutbox.status, "pending"),
+            lte(eventNotificationOutbox.nextRetryAt, now),
+          ),
+        )
+        .orderBy(eventNotificationOutbox.nextRetryAt)
+        .limit(BATCH_SIZE)
+        .for("update", { skipLocked: true }),
+    );
 
     // -------------------------------------------------------------------------
     // Process each row

@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   auditLog,
   db,
+  enoProcessingQueue,
   govtAssignments,
   notifications,
   ownerships,
@@ -328,6 +329,62 @@ describe("processEnoEventTrigger", () => {
     expect(auditRows[0].payload.targets_count).toBe(2);
     expect(auditRows[0].payload.owner_was_notified).toBe(true);
     expect(auditRows[0].payload.disease_code).toBe("rabies");
+  });
+
+  it("re-processing the same queue row does NOT duplicate notifications (P1-4 idempotency)", async () => {
+    const pet = await insertTestPet(ownerUserId, "IDEMPOTENT");
+
+    const [clinicEvent] = await db
+      .insert(petEvents)
+      .values({
+        petId: pet.id,
+        eventType: "clinical_info_logged",
+        occurredAt: new Date(),
+        recordedByUserId: vetUserId,
+        authorRole: "vet",
+        payload: {
+          sub_kind: "disease_diagnosis",
+          disease_code: "rabies",
+          diagnosis_date: new Date().toISOString(),
+        },
+      })
+      .returning();
+
+    // First pass: enqueue + drain → fanout happens.
+    await processEnoEventTrigger(makeDiagnosisEvent(clinicEvent.id, pet.id, "rabies"));
+    await processEnoQueueBatch();
+
+    const countNotifs = async () =>
+      (
+        await db
+          .select()
+          .from(notifications)
+          .where(eq(notifications.relatedEventId, clinicEvent.id))
+      ).length;
+
+    const afterFirst = await countNotifs();
+    expect(afterFirst).toBe(3); // 2 govt + 1 owner
+
+    // Simulate a crash that left the queue row pending AFTER the notifications
+    // were inserted (the exact P1-4 scenario): flip the row back to pending and
+    // re-drain. The natural-key unique index + onConflictDoNothing must prevent
+    // any duplicate govt/owner notifications on the re-run.
+    await db
+      .update(enoProcessingQueue)
+      .set({ status: "pending", processedAt: null })
+      .where(eq(enoProcessingQueue.petEventId, clinicEvent.id));
+
+    await processEnoQueueBatch();
+
+    const afterSecond = await countNotifs();
+    expect(afterSecond).toBe(afterFirst); // no duplicates created
+
+    // The row is processed again (idempotent re-run completes cleanly).
+    const [queueRow] = await db
+      .select()
+      .from(enoProcessingQueue)
+      .where(eq(enoProcessingQueue.petEventId, clinicEvent.id));
+    expect(queueRow.status).toBe("processed");
   });
 
   // Regression: before the diseaseCodeToEnoCode bridge, the trigger silently
