@@ -13,8 +13,8 @@ import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
+  computeDiseaseSummary,
   fetchCasesPerLocality,
-  fetchDiseaseSummary,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
@@ -80,13 +80,22 @@ export default async function GobVigilanciaPage({
     }
   }
 
-  const [metrics, signals, mapData, trend, summary] = await Promise.all([
+  // The disease summary always covers the last 30 days regardless of the
+  // period picker. When the period picker is also 30d, signals30d doubles
+  // as the signals panel data — no second DB round-trip needed.
+  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const periodMatchesSummary = days === 30;
+
+  const [metrics, signals30d, mapData, trend, signalsPeriod] = await Promise.all([
     fetchVigilanciaMetrics(actor, filteredJurisdictions),
-    fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+    fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
     fetchCasesPerLocality(actor, filteredJurisdictions),
     fetchZoonosisTrend(actor, filteredJurisdictions),
-    fetchDiseaseSummary(actor, filteredJurisdictions),
+    periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
   ]);
+
+  const signals = signalsPeriod ?? signals30d;
+  const summary = computeDiseaseSummary(signals30d);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 

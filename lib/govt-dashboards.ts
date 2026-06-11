@@ -153,18 +153,10 @@ export async function fetchSurveillanceSignals(
   }));
 }
 
-// Period rollup grouped by disease_code (default last 30 days), with
-// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
-// as the detail feed so the totals match exactly. `count30d` holds the
-// window total (named for the default; callers may pass a custom `since`).
-export async function fetchDiseaseSummary(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
-): Promise<DiseaseSummary[]> {
-  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
-  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
-
+// Pure rollup: groups already-fetched signals by disease_code and computes
+// sub-window counts (7d, 24h) in JS. No DB call. The caller is responsible
+// for fetching signals with a window >= 30 days so count30d is correct.
+export function computeDiseaseSummary(signals: SurveillanceSignal[]): DiseaseSummary[] {
   const now = Date.now();
   const byCode = new Map<string, DiseaseSummary>();
   for (const s of signals) {
@@ -181,8 +173,24 @@ export async function fetchDiseaseSummary(
     if (age <= DAY_MS) entry.count24h += 1;
     byCode.set(s.diseaseCode, entry);
   }
-
   return [...byCode.values()].sort((a, b) => b.count30d - a.count30d);
+}
+
+// Period rollup grouped by disease_code (default last 30 days), with
+// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
+// as the detail feed so the totals match exactly. `count30d` holds the
+// window total (named for the default; callers may pass a custom `since`).
+//
+// When the caller already has a 30-day SurveillanceSignal[] in hand, prefer
+// calling computeDiseaseSummary(signals) directly to avoid a second DB round-trip.
+export async function fetchDiseaseSummary(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
+): Promise<DiseaseSummary[]> {
+  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
+  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
+  return computeDiseaseSummary(signals);
 }
 
 export type LostPetRow = {
