@@ -13,6 +13,11 @@ import { cases, db, organizationMemberships, pets, welfareReports } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
 import {
+  ORG_WELFARE_CASE_COLS,
+  ORG_WELFARE_PET_COLS,
+  ORG_WELFARE_SELECT,
+} from "@/lib/welfare-org-projection";
+import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
@@ -49,6 +54,8 @@ const ALLOWED_ROLES = new Set(["admin", "coordinator", "member", "vet_individual
 type TabKey = "recibidos" | "emitidos";
 
 // Shared row shape for both queries.
+// Derived from ORG_WELFARE_SELECT to ensure structural alignment with the
+// org-safe projection — PII fields are absent by construction.
 type ReportRow = {
   reportId: string;
   referenceCode: string;
@@ -105,25 +112,20 @@ export default async function OrgMaltratoRecibidosPage({
     );
   }
 
-  // Common select shape — derivedAt from the actual column or NULL literal.
-  const selectShape = {
-    reportId: welfareReports.id,
-    referenceCode: welfareReports.referenceCode,
-    kind: welfareReports.kind,
-    severity: welfareReports.severity,
-    status: welfareReports.status,
-    subjectKind: welfareReports.subjectKind,
-    subjectDescription: welfareReports.subjectDescription,
-    createdAt: welfareReports.createdAt,
-    casePublicCode: cases.publicCode,
-    petName: pets.name,
+  // Both queries use ORG_WELFARE_SELECT — the org-safe projection from
+  // lib/welfare-org-projection.ts. PII columns (reporterContactEmail,
+  // reporterContactPhone, reporterUserId) are structurally absent.
+  const orgSafeShape = {
+    ...ORG_WELFARE_SELECT,
+    ...ORG_WELFARE_CASE_COLS,
+    ...ORG_WELFARE_PET_COLS,
   } as const;
 
   let rows: ReportRow[] = [];
 
   if (activeTab === "recibidos") {
     const rawRows = await db
-      .select({ ...selectShape, derivedAt: welfareReports.derivedAt })
+      .select({ ...orgSafeShape, derivedAt: welfareReports.derivedAt })
       .from(welfareReports)
       .leftJoin(cases, eq(cases.id, welfareReports.caseId))
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
@@ -133,7 +135,7 @@ export default async function OrgMaltratoRecibidosPage({
     rows = rawRows;
   } else {
     const rawRows = await db
-      .select({ ...selectShape, derivedAt: sql<Date | null>`null` })
+      .select({ ...orgSafeShape, derivedAt: sql<Date | null>`null` })
       .from(welfareReports)
       .leftJoin(cases, eq(cases.id, welfareReports.caseId))
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
