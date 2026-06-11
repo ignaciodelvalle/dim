@@ -3,7 +3,7 @@
 // Auth-guard is mocked. Users provisioned via Supabase admin SDK.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-guards", () => ({
@@ -200,6 +200,9 @@ describe("openOutbreakInvestigationAction", () => {
     const events = await db.select().from(caseEvents).where(eq(caseEvents.caseId, caseRow.id));
     expect(events.some((n) => n.entryType === "case_opened")).toBe(true);
 
+    // Order by most recent: audit rows for this user/action accumulate across
+    // suite runs (audit_log is append-only and not cleaned by teardown), so an
+    // unordered pick is nondeterministic.
     const auditRows = await db
       .select()
       .from(auditLog)
@@ -209,7 +212,8 @@ describe("openOutbreakInvestigationAction", () => {
           eq(auditLog.action, "outbreak_investigation_opened"),
         ),
       )
-      .limit(5);
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
     expect(auditRows.length).toBeGreaterThan(0);
     const payload = auditRows[0].payload as Record<string, unknown>;
     expect(payload.v1_noop).toBe(true);
