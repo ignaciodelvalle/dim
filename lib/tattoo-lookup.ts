@@ -1,9 +1,15 @@
 // Tattoo cross-check helper.
 //
-// Reads from the polymorphic `pet_identifications` table (compliance PR 0).
-// Tattoo codes legitimately collide across registries; we return the FIRST
-// active match and require visual confirmation downstream (always say
-// "posible coincidencia, verificá con foto" — never auto-merge).
+// Reads exclusively from the canonical `pet_identifications` table
+// (kind='tattoo', status='active'). Tattoo codes legitimately collide across
+// registries; we return the FIRST active match and require visual confirmation
+// downstream (always say "posible coincidencia, verificá con foto" — never
+// auto-merge).
+//
+// Migration 0082 completed the backfill — no active pet has a tattoo in the
+// legacy pets.tattoo_* columns that is absent from pet_identifications.
+// The legacy fallback (compliance PR 0 transition shim) has been removed in
+// ARCH-Q now that canonical completeness is verified.
 
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -31,7 +37,7 @@ export async function lookupByTattoo(rawCode: string): Promise<TattooLookupResul
   const normalized = normalizeTattooCode(rawCode);
   if (!normalized) return null;
 
-  const [canonical] = await db
+  const [row] = await db
     .select({
       petId: pets.id,
       petPublicToken: pets.publicToken,
@@ -58,10 +64,6 @@ export async function lookupByTattoo(rawCode: string): Promise<TattooLookupResul
     )
     .limit(1);
 
-  // Transition shim (compliance PR 0): fall back to the legacy pets.tattoo_*
-  // columns if no canonical row matched. Migration 0057 drops both the
-  // legacy columns and this fallback.
-  const row = canonical ?? (await legacyTattooFallback(normalized));
   if (!row) return null;
 
   return {
@@ -76,27 +78,4 @@ export async function lookupByTattoo(rawCode: string): Promise<TattooLookupResul
     },
     ownerFirstName: row.ownerDisplayName ? row.ownerDisplayName.split(" ")[0] : null,
   };
-}
-
-async function legacyTattooFallback(normalized: string) {
-  const [row] = await db
-    .select({
-      petId: pets.id,
-      petPublicToken: pets.publicToken,
-      petName: pets.name,
-      petStatus: pets.status,
-      tattooLocation: pets.tattooLocation,
-      tattooPhotoId: pets.tattooPhotoId,
-      ownershipOwnerUserId: ownerships.ownerUserId,
-      ownerDisplayName: profiles.displayName,
-    })
-    .from(pets)
-    .leftJoin(
-      ownerships,
-      and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),
-    )
-    .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-    .where(eq(pets.tattooCode, normalized))
-    .limit(1);
-  return row ?? null;
 }

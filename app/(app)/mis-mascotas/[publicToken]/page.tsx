@@ -99,6 +99,7 @@ import {
   fetchPetWeightHistory,
 } from "@/lib/owner-dashboard";
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
@@ -843,6 +844,7 @@ export default async function PetDetailPage({
     upcomingAppointments,
     weightHistory,
     historialCount,
+    canonicalIds,
   ] = await Promise.all([
     // Vaccine reminders for owner path only.
     accessPath === "owner"
@@ -889,6 +891,8 @@ export default async function PetDetailPage({
       .from(petEvents)
       .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
       .then((rows) => rows[0]?.value ?? 0),
+    // Canonical chip/tattoo identifiers (ARCH-Q).
+    fetchActiveIdentifications(pet.id),
   ]);
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
@@ -922,7 +926,7 @@ export default async function PetDetailPage({
   })();
 
   const heroTags: Array<{ key: string; label: string; variant?: "celeste" | "gray" }> = [];
-  if (pet.microchipId) heroTags.push({ key: "chip", label: "Microchip verificado" });
+  if (canonicalIds.microchip) heroTags.push({ key: "chip", label: "Microchip verificado" });
   if (pet.jurisdictionLocality)
     heroTags.push({ key: "loc", label: pet.jurisdictionLocality, variant: "gray" });
 
@@ -1024,7 +1028,7 @@ export default async function PetDetailPage({
           <ServiceDogCredentialCard
             petPublicToken={pet.publicToken}
             petName={pet.name}
-            microchipId={pet.microchipId}
+            microchipId={canonicalIds.microchip?.code ?? null}
             serviceDog={serviceDogRow}
             photoUrl={photoUrl}
           />
@@ -1240,10 +1244,12 @@ export default async function PetDetailPage({
                   <LnCardHead title="Identificación" />
                   <LnCardBody>
                     <div className="space-y-[10px] font-[var(--font-ln-mono)] text-[12px] leading-[1.9]">
-                      {pet.microchipId && (
+                      {canonicalIds.microchip && (
                         <>
                           <p className="text-[var(--color-ln-mute)]">MICROCHIP</p>
-                          <p className="mb-[6px] text-[var(--color-ln-ink)]">{pet.microchipId}</p>
+                          <p className="mb-[6px] text-[var(--color-ln-ink)]">
+                            {canonicalIds.microchip.code}
+                          </p>
                         </>
                       )}
                       <p className="text-[var(--color-ln-mute)]">LIBRETA</p>
@@ -1299,8 +1305,8 @@ export default async function PetDetailPage({
                 discloseEmailWhenLost: pet.discloseEmailWhenLost,
                 discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
                 allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
-                petHasMicrochip: !!pet.microchipId,
-                petHasTattoo: !!pet.tattooCode,
+                petHasMicrochip: canonicalIds.microchip !== null,
+                petHasTattoo: canonicalIds.tattoo !== null,
                 petColor: pet.color ?? null,
                 petDistinguishingFeatures: pet.distinguishingFeatures ?? null,
                 petJurisdictionProvince: pet.jurisdictionProvince ?? null,

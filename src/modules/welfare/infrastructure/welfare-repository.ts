@@ -11,7 +11,7 @@
 //   - No auth logic — auth lives at the action / use-case edge.
 //   - Reads return Drizzle row shapes ($inferSelect) — callers expect them.
 
-import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne, sql } from "drizzle-orm";
 
 import {
   auditLog,
@@ -23,6 +23,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
   welfareReportAttachments,
@@ -333,6 +334,8 @@ export class WelfareRepository {
 
   /**
    * Return minimal subject pet info (name + microchipId) for MPF export.
+   * microchipId is sourced from the canonical pet_identifications table
+   * (kind='microchip_iso', status='active') via a single LEFT JOIN.
    * Returns null when the report has no subjectPetId or the pet row is not found.
    */
   async findSubjectPet(
@@ -340,8 +343,19 @@ export class WelfareRepository {
   ): Promise<{ name: string; microchipId: string | null } | null> {
     if (!subjectPetId) return null;
     const [row] = await db
-      .select({ name: pets.name, microchipId: pets.microchipId })
+      .select({
+        name: pets.name,
+        microchipId: petIdentifications.code,
+      })
       .from(pets)
+      .leftJoin(
+        petIdentifications,
+        and(
+          eq(petIdentifications.petId, pets.id),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
       .where(eq(pets.id, subjectPetId))
       .limit(1);
     if (!row) return null;

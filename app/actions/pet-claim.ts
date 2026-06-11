@@ -26,6 +26,7 @@ import {
   notifications,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
 } from "@/db";
@@ -119,9 +120,8 @@ export async function lookupForClaimAction(input: {
     };
   }
 
-  // Tattoo path — pets.tattooCode is currently unique-by-app-code, not by DB
-  // constraint. lookupByChip equivalent for tattoos would belong in
-  // lib/chip-lookup, but for now we do the same shape inline.
+  // Tattoo path — look up via the canonical pet_identifications table
+  // (kind='tattoo', status='active'). Migration 0082 ensures completeness.
   const [row] = await db
     .select({
       petId: pets.id,
@@ -131,13 +131,20 @@ export async function lookupForClaimAction(input: {
       ownerUserId: ownerships.ownerUserId,
       ownerDisplayName: profiles.displayName,
     })
-    .from(pets)
+    .from(petIdentifications)
+    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
     .leftJoin(
       ownerships,
       and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),
     )
     .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-    .where(eq(pets.tattooCode, value))
+    .where(
+      and(
+        eq(petIdentifications.kind, "tattoo"),
+        eq(petIdentifications.code, value),
+        eq(petIdentifications.status, "active"),
+      ),
+    )
     .limit(1);
 
   if (!row) return { variant: "not_found" };

@@ -1,4 +1,5 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import Link from "next/link";
 import { ReplaceMicrochipForm } from "./ReplaceMicrochipForm";
@@ -14,8 +15,9 @@ export default async function ReplaceMicrochipPage({
   const { pet } = session;
 
   const boundAction = replaceMicrochipOwnerAction.bind(null, pet.publicToken);
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
 
-  if (!pet.microchipId) {
+  if (!canonicalIds.microchip) {
     return (
       <LnSheetWrap>
         <LnSheetCard>
@@ -42,7 +44,7 @@ export default async function ReplaceMicrochipPage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <ReplaceMicrochipForm action={boundAction} currentChip={pet.microchipId} />
+        <ReplaceMicrochipForm action={boundAction} currentChip={canonicalIds.microchip.code} />
       </LnSheetCard>
     </LnSheetWrap>
   );

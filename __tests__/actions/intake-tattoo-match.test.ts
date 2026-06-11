@@ -13,7 +13,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, pets } from "@/db";
+import { db, ownerships, petIdentifications, pets } from "@/db";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import {
   generateTattooAckToken,
@@ -133,6 +133,8 @@ beforeAll(async () => {
     await tx.execute(sql`DELETE FROM pets WHERE tattoo_code LIKE 'INTAKE-TAT-%'`);
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const [petActive] = await db
     .insert(pets)
     .values({
@@ -147,6 +149,13 @@ beforeAll(async () => {
     })
     .returning();
   petActiveId = petActive.id;
+  await db.insert(petIdentifications).values({
+    petId: petActiveId,
+    kind: "tattoo",
+    code: TEST_CODE_ACTIVE,
+    tattooLocation: "inner_ear_left",
+    recordedAt: today,
+  });
 
   const [petLost] = await db
     .insert(pets)
@@ -161,6 +170,12 @@ beforeAll(async () => {
     })
     .returning();
   petLostId = petLost.id;
+  await db.insert(petIdentifications).values({
+    petId: petLostId,
+    kind: "tattoo",
+    code: TEST_CODE_LOST,
+    recordedAt: today,
+  });
 
   const [petDeceased] = await db
     .insert(pets)
@@ -175,6 +190,12 @@ beforeAll(async () => {
     })
     .returning();
   petDeceasedId = petDeceased.id;
+  await db.insert(petIdentifications).values({
+    petId: petDeceasedId,
+    kind: "tattoo",
+    code: TEST_CODE_DECEASED,
+    recordedAt: today,
+  });
 });
 
 afterAll(async () => {

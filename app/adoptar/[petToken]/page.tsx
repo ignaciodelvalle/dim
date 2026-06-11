@@ -10,6 +10,7 @@ import {
   isPermanentCondition,
   permanentConditionLabel,
 } from "@/lib/permanent-conditions";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -174,8 +175,11 @@ export default async function AdoptarFichaPage({
     .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
     .limit(1);
   const isSterilized = Boolean(sterilizationRow);
-  const hasMicrochip = Boolean(pet.microchipId);
-  const microchipMasked = pet.microchipId ? `••••${pet.microchipId.slice(-4)}` : null;
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
+  const hasMicrochip = canonicalIds.microchip !== null;
+  const microchipMasked = canonicalIds.microchip
+    ? `••••${canonicalIds.microchip.code.slice(-4)}`
+    : null;
 
   const facts: string[] = [];
   if (pet.adoptionAgeBucket) facts.push(ageBucketLabel(pet.adoptionAgeBucket, pet.sex));

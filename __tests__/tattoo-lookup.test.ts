@@ -3,7 +3,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, pets } from "@/db";
+import { db, ownerships, petIdentifications, pets } from "@/db";
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -26,6 +26,8 @@ beforeAll(async () => {
     await tx.delete(pets).where(sql`tattoo_code IN ('LOOKUP-A', 'LOOKUP-DUP')`);
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const [petA] = await db
     .insert(pets)
     .values({
@@ -39,6 +41,13 @@ beforeAll(async () => {
     })
     .returning();
   petAId = petA.id;
+  await db.insert(petIdentifications).values({
+    petId: petAId,
+    kind: "tattoo",
+    code: "LOOKUP-A",
+    tattooLocation: "inner_ear_left",
+    recordedAt: today,
+  });
 
   const [petB] = await db
     .insert(pets)
@@ -53,6 +62,13 @@ beforeAll(async () => {
     })
     .returning();
   petBId = petB.id;
+  await db.insert(petIdentifications).values({
+    petId: petBId,
+    kind: "tattoo",
+    code: "LOOKUP-DUP",
+    tattooLocation: "belly",
+    recordedAt: today,
+  });
 
   // Second pet with the SAME code to exercise the collision behavior.
   const [petB2] = await db
@@ -68,6 +84,13 @@ beforeAll(async () => {
     })
     .returning();
   petB2Id = petB2.id;
+  await db.insert(petIdentifications).values({
+    petId: petB2Id,
+    kind: "tattoo",
+    code: "LOOKUP-DUP",
+    tattooLocation: "inner_thigh",
+    recordedAt: today,
+  });
 });
 
 afterAll(async () => {

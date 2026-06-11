@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { setPetLostAction } from "@/src/modules/events/actions";
 import { MarkLostWizard } from "./MarkLostWizard";
@@ -25,6 +26,7 @@ export default async function MarkPetLostPage({
   }
 
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
 
   const disclosureDefaults = {
     discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
@@ -61,8 +63,8 @@ export default async function MarkPetLostPage({
         disclosureDefaults={disclosureDefaults}
         petName={pet.name}
         petPublicToken={pet.publicToken}
-        petHasMicrochip={!!pet.microchipId}
-        petHasTattoo={!!pet.tattooCode}
+        petHasMicrochip={canonicalIds.microchip !== null}
+        petHasTattoo={canonicalIds.tattoo !== null}
         petColor={pet.color ?? null}
         petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
         petJurisdictionProvince={pet.jurisdictionProvince ?? null}

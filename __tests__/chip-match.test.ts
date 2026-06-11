@@ -28,6 +28,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
 } from "@/db";
@@ -169,7 +170,28 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Helper: generate a deterministic 15-digit ISO-compliant chip code from an
+// arbitrary test name so that insertPetWithChip can satisfy the
+// chip_requires_iso_fields CHECK constraint (code must be exactly 15 numeric
+// digits for kind='microchip_iso').  Using prefix "999" (test/research range)
+// and a 12-digit hash suffix keeps collisions negligible across test names.
+// ---------------------------------------------------------------------------
+
+function isoChipFromTestName(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  }
+  const abs = Math.abs(hash) % 999_999_999_999;
+  return `999${abs.toString().padStart(12, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
 // Helper: insert a pet with a microchip + ownership for tests.
+// Returns the canonical chip code (stored in pet_identifications) alongside
+// petId and publicToken.  Callers that look up the chip via lookupByChip must
+// use canonicalChip, not the original microchipId, because lookupByChip reads
+// exclusively from pet_identifications (ARCH-Q — canonical readers only).
 // ---------------------------------------------------------------------------
 
 async function insertPetWithChip(opts: {
@@ -177,7 +199,7 @@ async function insertPetWithChip(opts: {
   status: "active" | "lost" | "deceased";
   ownerUserId: string;
   tokenSuffix: string;
-}): Promise<{ petId: string; publicToken: string }> {
+}): Promise<{ petId: string; publicToken: string; canonicalChip: string }> {
   const token = `LF2-${opts.tokenSuffix}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
   const now = new Date();
   const [pet] = await db
@@ -202,7 +224,33 @@ async function insertPetWithChip(opts: {
     startedAt: now,
   });
 
-  return { petId: pet.id, publicToken: token };
+  // Dual-write canonical identifier row so lookupByChip (which now reads only
+  // from pet_identifications) can find the pet. Mirrors what real writers do.
+  // The chip_requires_iso_fields CHECK constraint requires a 15-digit numeric
+  // code. Test chips like "CHIP-LOOKUP-..." are not ISO-valid. Pad the code to
+  // 15 digits by hashing it so the constraint is satisfied, and update the pets
+  // row to match (so legacy AND canonical agree on what chip to look up).
+  const ISO_CHIP_RE = /^\d{15}$/;
+  const canonicalCode = ISO_CHIP_RE.test(opts.microchipId)
+    ? opts.microchipId
+    : isoChipFromTestName(opts.microchipId);
+  if (canonicalCode !== opts.microchipId) {
+    // Keep pets.microchipId in sync with the canonical code so tests that
+    // assert against pets.microchipId still pass.
+    await db.update(pets).set({ microchipId: canonicalCode }).where(eq(pets.id, pet.id));
+  }
+  await db.insert(petIdentifications).values({
+    petId: pet.id,
+    kind: "microchip_iso",
+    code: canonicalCode,
+    recordedAt: now.toISOString().slice(0, 10),
+    isoCountryCode: canonicalCode.slice(0, 3),
+    isoManufacturerCode: canonicalCode.slice(3, 7),
+    isoNationalId: canonicalCode.slice(7, 15),
+    isoCompliant: true,
+  });
+
+  return { petId: pet.id, publicToken: token, canonicalChip: canonicalCode };
 }
 
 // ---------------------------------------------------------------------------
@@ -217,14 +265,14 @@ describe("lookupByChip", () => {
 
   it("returns pet shape when a matching pet exists", async () => {
     const chip = `CHIP-LOOKUP-${Date.now()}`;
-    const { petId, publicToken } = await insertPetWithChip({
+    const { petId, publicToken, canonicalChip } = await insertPetWithChip({
       microchipId: chip,
       status: "active",
       ownerUserId: ownerUserId,
       tokenSuffix: "LOOKUP",
     });
 
-    const result = await lookupByChip(chip);
+    const result = await lookupByChip(canonicalChip);
     expect(result).not.toBeNull();
     expect(result?.pet.id).toBe(petId);
     expect(result?.pet.publicToken).toBe(publicToken);
@@ -235,27 +283,27 @@ describe("lookupByChip", () => {
 
   it("returns status='lost' when the matched pet is lost", async () => {
     const chip = `CHIP-LOST-${Date.now()}`;
-    await insertPetWithChip({
+    const { canonicalChip } = await insertPetWithChip({
       microchipId: chip,
       status: "lost",
       ownerUserId: ownerUserId,
       tokenSuffix: "LOSTCHK",
     });
 
-    const result = await lookupByChip(chip);
+    const result = await lookupByChip(canonicalChip);
     expect(result?.pet.status).toBe("lost");
   });
 
   it("returns status='deceased' when the matched pet is deceased", async () => {
     const chip = `CHIP-DEC-${Date.now()}`;
-    await insertPetWithChip({
+    const { canonicalChip } = await insertPetWithChip({
       microchipId: chip,
       status: "deceased",
       ownerUserId: ownerUserId,
       tokenSuffix: "DECCHK",
     });
 
-    const result = await lookupByChip(chip);
+    const result = await lookupByChip(canonicalChip);
     expect(result?.pet.status).toBe("deceased");
   });
 });
@@ -550,13 +598,13 @@ describe("cross-check logic — intake scenarios", () => {
 
   it("chip with lost match → should block (CHIP_MATCH_LOST)", async () => {
     const chip = `CHIP-LOST-BLOCK-${Date.now()}`;
-    await insertPetWithChip({
+    const { canonicalChip } = await insertPetWithChip({
       microchipId: chip,
       status: "lost",
       ownerUserId: ownerUserId,
       tokenSuffix: "LOSTBLK",
     });
-    const result = await lookupByChip(chip);
+    const result = await lookupByChip(canonicalChip);
     expect(result).not.toBeNull();
     expect(result?.pet.status).toBe("lost");
     // Caller: redirect to match confirmation page.
@@ -564,13 +612,13 @@ describe("cross-check logic — intake scenarios", () => {
 
   it("chip with active match without forceToken → should warn (CHIP_MATCH_ACTIVE)", async () => {
     const chip = `CHIP-ACT-WARN-${Date.now()}`;
-    await insertPetWithChip({
+    const { canonicalChip } = await insertPetWithChip({
       microchipId: chip,
       status: "active",
       ownerUserId: ownerUserId,
       tokenSuffix: "ACTWARN",
     });
-    const result = await lookupByChip(chip);
+    const result = await lookupByChip(canonicalChip);
     expect(result).not.toBeNull();
     expect(result?.pet.status).toBe("active");
     // Caller: check forceToken; if absent → return warning.
@@ -593,13 +641,13 @@ describe("cross-check logic — intake scenarios", () => {
 
   it("chip with deceased match → should block unconditionally (CHIP_MATCH_DECEASED)", async () => {
     const chip = `CHIP-DEC-BLOCK-${Date.now()}`;
-    await insertPetWithChip({
+    const { canonicalChip } = await insertPetWithChip({
       microchipId: chip,
       status: "deceased",
       ownerUserId: ownerUserId,
       tokenSuffix: "DECBLK",
     });
-    const result = await lookupByChip(chip);
+    const result = await lookupByChip(canonicalChip);
     expect(result).not.toBeNull();
     expect(result?.pet.status).toBe("deceased");
     // Caller: always return error regardless of forceToken.

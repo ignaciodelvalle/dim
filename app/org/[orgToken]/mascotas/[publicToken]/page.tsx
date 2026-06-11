@@ -12,6 +12,7 @@ import { Suspense } from "react";
 import { fetchPendingOwnerReturnProposalForOrg } from "@/app/actions/return-to-owner";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
@@ -149,6 +150,8 @@ export default async function OrgPetDetailPage({
     }
   }
 
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
+
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
   const canReplaceMicrochip = granted.has("event.write");
   const canEndFoster = granted.has("foster.end") && !!fosterName;
@@ -221,11 +224,11 @@ export default async function OrgPetDetailPage({
                     ? "Tránsito"
                     : ownershipRole}
               </dd>
-              {pet.microchipId && (
+              {canonicalIds.microchip && (
                 <>
                   <dt className="text-ln-op-mute">Microchip</dt>
                   <dd>
-                    <OpCodeBadge tone="blue">{pet.microchipId}</OpCodeBadge>
+                    <OpCodeBadge tone="blue">{canonicalIds.microchip.code}</OpCodeBadge>
                   </dd>
                 </>
               )}
@@ -305,7 +308,7 @@ export default async function OrgPetDetailPage({
             petPublicToken={publicToken}
             petName={pet.name}
             eligibility={eligibility}
-            currentChip={pet.microchipId ?? null}
+            currentChip={canonicalIds.microchip?.code ?? null}
             fosterName={fosterName}
             canProposeReturn={canProposeReturn}
           />

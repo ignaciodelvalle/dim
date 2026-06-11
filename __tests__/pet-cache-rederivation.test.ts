@@ -22,9 +22,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
 import { createTattooForUser } from "@/app/actions/tattoo";
-import { custodyDisputes, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  custodyDisputes,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  petIdentifications,
+  pets,
+  profiles,
+} from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/rederive-pet-cache";
+import { sql } from "drizzle-orm";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -357,5 +367,116 @@ describe("pet-cache non-vacuity (harness detects skew)", () => {
     expect(report.inCustodyDispute.stored).toBe(true);
     expect(report.inCustodyDispute.derived).toBe(false);
     expect(report.inCustodyDispute.matches).toBe(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Backfill-sentinel contract tests (ARCH-Q / migration 0083)
+  //
+  // The harness suppresses false positives for backfill-labeled canonical rows
+  // because the backfill approximates some dates from created_at/current_date.
+  // These tests document that contract explicitly:
+  //
+  //  A. A non-backfill chip row whose microchipId is directly skewed DOES get
+  //     detected (proves the harness isn't universally suppressing chip checks).
+  //
+  //  B. A backfill-labeled row with a deliberately divergent recordedAt is
+  //     SKIPPED (the "backfill sentinel suppresses date comparison" contract).
+  // -------------------------------------------------------------------------
+
+  it("detects skew on a non-backfill canonical chip row (sentinel does not suppress real drift)", async () => {
+    const pet = await insertTestPet("SKEW-CHIP-REAL");
+    const now = new Date();
+
+    // Dual-write: emit the event AND insert the canonical row so both the
+    // projection (event-derived) and the stored side (canonical row) agree
+    // on the chip code before any skew is introduced.
+    await withMutationOverride(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "microchip_implanted",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: ownerUserId,
+        ...ownerAuthorship,
+        payload: validateEventPayload("microchip_implanted", {
+          chip_number: "100000000000001",
+          country_code: "100",
+          implant_date_known: false,
+          implanted_by: null,
+          location_on_body: null,
+        }),
+      });
+      await tx.insert(petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso" as const,
+        status: "active" as const,
+        code: "100000000000001",
+        isoCountryCode: "100",
+        isoManufacturerCode: "0000",
+        isoNationalId: "00000001",
+        isoCompliant: true,
+        recordedAt: now.toISOString().slice(0, 10),
+        recordedByLabel: "dr-real-vet",
+      });
+      await tx.update(pets).set({ microchipId: "100000000000001" }).where(eq(pets.id, pet.id));
+    });
+
+    // Pre-skew: microchipId must match (canonical=event-derived=same code).
+    const cleanReport = await rederivePetCache(pet.id);
+    expect(cleanReport.microchipId.matches).toBe(true);
+
+    // Skew the canonical row's code — simulates canonical drift.
+    await db.execute(
+      sql`UPDATE pet_identifications SET code = '999999999999999'
+              WHERE pet_id = ${pet.id} AND kind = 'microchip_iso' AND status = 'active'`,
+    );
+
+    const skewedReport = await rederivePetCache(pet.id);
+    // stored='999999999999999' (canonical), derived='100000000000001' (event) → detected.
+    expect(skewedReport.microchipId.matches).toBe(false);
+    expect(skewedReport.microchipId.stored).toBe("999999999999999");
+  });
+
+  it("backfill-labeled canonical row: recordedAt mismatch is SKIPPED (sentinel suppresses date)", async () => {
+    const pet = await insertTestPet("SKEW-CHIP-BACKFILL");
+
+    // A backfill-labeled row represents a legacy pet with no microchip_implanted
+    // event. The 0082/0083 backfills approximate recordedAt from created_at or
+    // current_date, which may differ from any real implant date. The harness
+    // suppresses microchipImplantedAt and microchipImplantedBy for backfill rows
+    // to avoid false-positive drift alarms.
+    //
+    // We deliberately set recordedAt="2020-01-15" (a past date that will NOT match
+    // the derived null since there's no event) and verify the harness treats the
+    // mismatch as irrelevant (by treating stored as derived).
+    await withMutationOverride(async (tx) => {
+      await tx.insert(petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso" as const,
+        status: "active" as const,
+        code: "200000000000002",
+        isoCountryCode: "200",
+        isoManufacturerCode: "0000",
+        isoNationalId: "00000002",
+        isoCompliant: true,
+        // Intentionally divergent from what a real event would produce (null).
+        // 0083 sets current_date when microchip_implanted_at was null.
+        recordedAt: "2020-01-15",
+        recordedByLabel: "legacy_backfill_0083",
+      });
+      await tx.update(pets).set({ microchipId: "200000000000002" }).where(eq(pets.id, pet.id));
+    });
+
+    const report = await rederivePetCache(pet.id);
+    // microchipImplantedAt: stored is undefined (sentinel → uses derived=null) → matches.
+    expect(report.microchipImplantedAt.matches).toBe(true);
+    // microchipImplantedBy: stored is null (sentinel) and derived is null (no event) → matches.
+    expect(report.microchipImplantedBy.matches).toBe(true);
+    // microchipId: stored='200000000000002' (canonical), derived=null (no event).
+    // This is intentional: for backfill rows without events, the harness correctly
+    // flags microchipId as a drift (the canonical has data but no event backs it).
+    // The sentinel ONLY suppresses date/person fields — not the code itself.
+    expect(report.microchipId.stored).toBe("200000000000002");
+    expect(report.microchipId.derived).toBeNull();
   });
 });

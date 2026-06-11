@@ -29,6 +29,7 @@ import {
   isPermanentCondition,
   permanentConditionShortLabel,
 } from "@/lib/permanent-conditions";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
@@ -55,14 +56,17 @@ export default async function PublicCredentialPage({
   const { pet, photo } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
+  // Canonical identifier rows — used for boolean indicators and lost-branch display.
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
+
   // Tier 0 rollups — boolean indicators, never the raw data.
   const vaccinations = await db
     .select({ id: petEvents.id })
     .from(petEvents)
     .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")));
   const hasVaccinations = vaccinations.length > 0;
-  const hasMicrochip = !!pet.microchipId;
-  const hasTattoo = !!pet.tattooCode;
+  const hasMicrochip = canonicalIds.microchip !== null;
+  const hasTattoo = canonicalIds.tattoo !== null;
 
   // A.4: Confidence badge on public credential — only for institutional_verified
   // or professional_verified (no shame on self_reported). Fetch the most recent
@@ -386,12 +390,13 @@ export default async function PublicCredentialPage({
     // credentials never query this attachment to keep the data surface
     // minimal (D3 closed 2026-05-22 — code + location + photo are gated by
     // lost status, mirroring how the chip number is gated).
+    // Photo ID is sourced from the canonical tattoo row (ARCH-Q).
     let tattooPhotoUrl: string | null = null;
-    if (pet.tattooPhotoId) {
+    if (canonicalIds.tattoo?.photoId) {
       const [tattooPhoto] = await db
         .select({ storagePath: attachments.storagePath })
         .from(attachments)
-        .where(eq(attachments.id, pet.tattooPhotoId))
+        .where(eq(attachments.id, canonicalIds.tattoo.photoId))
         .limit(1);
       tattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
     }
@@ -415,9 +420,9 @@ export default async function PublicCredentialPage({
           lastSeenLat={pet.discloseLastLocationWhenLost ? lostContext.lostLat : null}
           lastSeenLng={pet.discloseLastLocationWhenLost ? lostContext.lostLng : null}
           lostSince={lostContext.lostSince ?? new Date()}
-          tattooCode={pet.tattooCode}
-          tattooLocation={pet.tattooLocation}
-          tattooDescription={pet.tattooDescription}
+          tattooCode={canonicalIds.tattoo?.code ?? null}
+          tattooLocation={canonicalIds.tattoo?.tattooLocation ?? null}
+          tattooDescription={canonicalIds.tattoo?.tattooDescription ?? null}
           tattooPhotoUrl={tattooPhotoUrl}
           lostDescription={lostContext.lostDescription}
         />
