@@ -1184,6 +1184,22 @@ export const attachments = pgTable(
   (table) => ({
     petIdx: index("attachments_pet_id_idx").on(table.petId),
     eventIdx: index("attachments_event_id_idx").on(table.eventId),
+    // Parent FK XOR constraint (ARCH-D).
+    //
+    // Attachments have two distinct parent groups:
+    //   content group      — pet_id / event_id (event attachments carry both)
+    //   approval-flow group — approval_request_id / audit_log_id (revocation
+    //                         evidence, approval evidence — never mixed)
+    //
+    // Invariant: approval-flow parents are mutually exclusive with content
+    // parents and with each other. "Zero parents" is a valid transient state
+    // (uploadRevocationEvidence stages the row before claimAttachmentsForAudit
+    // claims it inside the revocation transaction). Two members of the same
+    // group simultaneously — or one from each group — is always a data error.
+    atMostOneParent: check(
+      "attachments_at_most_one_parent",
+      sql`num_nonnulls(${table.approvalRequestId}, ${table.auditLogId}) <= 1 AND ((${table.approvalRequestId} IS NULL AND ${table.auditLogId} IS NULL) OR (${table.petId} IS NULL AND ${table.eventId} IS NULL))`,
+    ),
   }),
 );
 
