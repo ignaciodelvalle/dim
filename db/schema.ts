@@ -1860,9 +1860,10 @@ export const auditLog = pgTable(
   "audit_log",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    actorUserId: uuid("actor_user_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    // Nullable after ARCH-H (migration 0080): ON DELETE SET NULL so a hard-
+    // deleted profile does not block audit trail retention. NULL actor is
+    // displayed as "Usuario eliminado" in admin audit UI.
+    actorUserId: uuid("actor_user_id").references(() => profiles.id, { onDelete: "set null" }),
     action: text("action").notNull().$type<AuditLogAction>(),
     approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id, {
       onDelete: "set null",
@@ -1922,12 +1923,12 @@ export const govtBusinessRules = pgTable(
     notes: text("notes"),
     legalAnchorIds: text("legal_anchor_ids").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    createdByUserId: uuid("created_by_user_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedByUserId: uuid("updated_by_user_id").references(() => profiles.id, {
-      onDelete: "restrict",
+      onDelete: "set null",
     }),
   },
   (table) => ({

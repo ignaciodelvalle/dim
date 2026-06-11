@@ -39,8 +39,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // Pick the oldest active admin as the system actor. audit_log.actor_user_id
-  // is a NOT NULL FK to profiles.id so we need a real row; this matches the
-  // pattern used by other auto-emitted audit rows.
+  // is a nullable SET NULL FK (migration 0080) — a real profile is no longer
+  // required, but using a real admin actor produces more meaningful audit rows.
   const [systemActor] = await db
     .select({ id: profiles.id })
     .from(profiles)

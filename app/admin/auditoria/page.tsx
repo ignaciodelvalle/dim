@@ -53,8 +53,11 @@ export default async function AdminAuditoriaPage({
     entries = entries.filter((e) => e.actorUserId === actorFilter);
   }
 
-  // Resolve actor names in one batch.
-  const actorIds = Array.from(new Set(entries.map((e) => e.actorUserId)));
+  // Resolve actor names in one batch. actorUserId is nullable (ARCH-H,
+  // migration 0080): rows whose actor was hard-deleted have NULL actor_user_id.
+  const actorIds = Array.from(
+    new Set(entries.map((e) => e.actorUserId).filter((id): id is string => id !== null)),
+  );
   const namesById = new Map<string, string>();
   if (actorIds.length > 0) {
     const rows = await db
@@ -118,7 +121,9 @@ export default async function AdminAuditoriaPage({
                       {ACTION_LABELS[entry.action] ?? entry.action}
                     </p>
                     <p className="text-[12px] text-ln-op-mute">
-                      {namesById.get(entry.actorUserId) ?? "Desconocido"}
+                      {entry.actorUserId
+                        ? (namesById.get(entry.actorUserId) ?? "Desconocido")
+                        : "Usuario eliminado"}
                       {entry.approvalRequestId && (
                         <>
                           {" "}

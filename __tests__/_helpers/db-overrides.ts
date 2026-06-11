@@ -7,11 +7,10 @@
 //   set local app.allow_event_mutation_actor = '<actor-uuid>'
 //
 // The actor is mandatory since PR #56 ("require accountable actor for
-// pet_events mutation override") and is written into audit_log.actor_user_id,
-// which has a NOT NULL FK to profiles.id (ON DELETE RESTRICT). Tests must
-// pass an actor that exists in profiles AND that won't be deleted as part of
-// the same cleanup — otherwise the FK blocks the auth.users teardown that
-// follows the tx.
+// pet_events mutation override") and is written into audit_log.actor_user_id
+// (nullable FK to profiles.id, ON DELETE SET NULL since ARCH-H migration 0080).
+// Tests must pass an actor that exists in profiles — the FK no longer blocks
+// teardown, but the trigger still validates the actor UUID at insertion time.
 //
 // We resolve the actor lazily to admin@dim.test (seeded by
 // scripts/seed-test-users.ts). admin is never torn down by fixtures, so the

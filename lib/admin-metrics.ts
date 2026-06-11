@@ -168,7 +168,11 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
       ),
     )
     .groupBy(auditLog.actorUserId);
-  for (const r of decRows) decisionsByGovt.set(r.actorUserId, Number(r.cnt));
+  // actorUserId is nullable (ARCH-H), but the WHERE clause above filters to
+  // govtIds so NULL rows are excluded at the DB level.
+  for (const r of decRows) {
+    if (r.actorUserId) decisionsByGovt.set(r.actorUserId, Number(r.cnt));
+  }
 
   const lastRows = await db
     .select({
@@ -178,7 +182,9 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
     .from(auditLog)
     .where(sql`${auditLog.actorUserId} = ANY(${govtIds})`)
     .groupBy(auditLog.actorUserId);
-  for (const r of lastRows) lastActionByGovt.set(r.actorUserId, r.lastAt);
+  for (const r of lastRows) {
+    if (r.actorUserId) lastActionByGovt.set(r.actorUserId, r.lastAt);
+  }
 
   return govts.map((g) => ({
     userId: g.id,

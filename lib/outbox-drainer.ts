@@ -61,10 +61,11 @@ export async function deliverOutboxRow(row: EventNotificationOutbox): Promise<De
       case "audit_export":
       case "internal_dashboard": {
         // v1: write an audit-log entry documenting what WOULD have been sent.
-        // The audit_log.actor_user_id FK requires a real profile — we use the
-        // system-actor pattern from the auto-expire-approvals cron: the oldest
-        // active institutional admin. If no admin exists (empty DB / test env),
-        // we skip the audit row rather than blocking delivery.
+        // audit_log.actor_user_id is a nullable SET NULL FK (migration 0080) — a
+        // real profile is not strictly required, but we use the system-actor
+        // pattern (oldest active institutional admin) so the row carries a
+        // meaningful actor when possible. If no admin exists (empty DB / test
+        // env), we skip the audit row rather than blocking delivery.
         const { profiles } = await import("@/db");
         const { and, eq, isNull } = await import("drizzle-orm");
 
