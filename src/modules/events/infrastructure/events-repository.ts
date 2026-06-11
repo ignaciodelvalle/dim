@@ -23,10 +23,11 @@ import {
   notifications,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   reminders,
 } from "@/db";
-import type { NewAuditLogRow, NewPetEvent, PetEvent } from "@/db/schema";
+import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
 
@@ -98,6 +99,56 @@ export class EventsRepository {
    */
   async insertAttachment(input: AttachmentInput, executor: DbOrTx = db): Promise<void> {
     await executor.insert(attachments).values(input);
+  }
+
+  /**
+   * Insert a canonical pet_identifications row.
+   *
+   * Skips the insert if an active row for the same (pet, kind) already exists:
+   * callers of this helper are "add identifier to a pet that has none" flows
+   * (createMicrochip backfill, set-pet-lost retroactive chip), so an existing
+   * active row means a prior partial write — keeping it is the correct
+   * re-sync, and inserting would trip the chip_unique partial index with a
+   * raw 500. Replacement flows expire the old row first (see
+   * expireActiveIdentification) and use direct inserts.
+   */
+  async insertIdentification(values: NewPetIdentification, executor: DbOrTx = db): Promise<void> {
+    const [existing] = await executor
+      .select({ id: petIdentifications.id })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, values.petId),
+          eq(petIdentifications.kind, values.kind),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+    if (existing) return;
+    await executor.insert(petIdentifications).values(values);
+  }
+
+  /**
+   * Flip an existing active identification row to status='replaced'.
+   * Used by chip-replacement flows before inserting the new active row.
+   * Matches by (petId, kind, status='active') — at most one row per chip
+   * per the chip_unique partial index.
+   */
+  async expireActiveIdentification(
+    petId: string,
+    kind: "microchip_iso" | "tattoo" | "collar_tag" | "photo_biometric",
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(petIdentifications)
+      .set({ status: "replaced", updatedAt: new Date() })
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, kind),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
   }
 
   /**

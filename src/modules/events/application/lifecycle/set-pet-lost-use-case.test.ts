@@ -65,6 +65,7 @@ function makeRepo() {
     insertEvent: vi.fn().mockResolvedValue({ id: randomUUID() }),
     updatePetLostProjection: vi.fn().mockResolvedValue(undefined),
     updateMicrochipBackfill: vi.fn().mockResolvedValue(undefined),
+    insertIdentification: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -145,7 +146,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -163,7 +168,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -192,7 +201,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -208,7 +221,10 @@ describe("setPetLostWriter", () => {
     const result = await setPetLostWriter(baseParams, {
       repo: repo as unknown as Pick<
         EventsRepository,
-        "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+        | "insertEvent"
+        | "updatePetLostProjection"
+        | "updateMicrochipBackfill"
+        | "insertIdentification"
       >,
       transaction: tx,
       broadcastLostPet: mockBroadcastLostPet,
@@ -261,7 +277,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -302,7 +322,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -339,7 +363,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -357,7 +385,10 @@ describe("setPetLostWriter", () => {
     await setPetLostWriter(baseParams, {
       repo: repo as unknown as Pick<
         EventsRepository,
-        "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+        | "insertEvent"
+        | "updatePetLostProjection"
+        | "updateMicrochipBackfill"
+        | "insertIdentification"
       >,
       transaction: tx,
       broadcastLostPet: mockBroadcastLostPet,
@@ -373,7 +404,11 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+          | "insertEvent"
+          | "updatePetLostProjection"
+          | "updateMicrochipBackfill"
+          | "insertIdentification"
+          | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,

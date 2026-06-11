@@ -11,6 +11,7 @@
 //   - No outbox. No audit_log.
 
 import { validateEventPayload } from "@/lib/event-schemas";
+import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";
@@ -42,7 +43,10 @@ export type CreateMicrochipInput = {
 type Deps = {
   repo: Pick<
     EventsRepository,
-    "insertEventIdempotent" | "insertAttachment" | "updateMicrochipBackfill"
+    | "insertEventIdempotent"
+    | "insertAttachment"
+    | "updateMicrochipBackfill"
+    | "insertIdentification"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
@@ -129,6 +133,27 @@ export async function createMicrochip(
         },
         now,
         tx as Parameters<typeof repo.updateMicrochipBackfill>[3],
+      );
+
+      // Canonical dual-write — insert active microchip row in pet_identifications.
+      // Only when the pet had no prior chip (same guard as the pets column
+      // backfill); insertIdentification itself skips if an active row exists.
+      const implantSite = chipImplantSiteFromLocation(locationOnBody);
+      await repo.insertIdentification(
+        {
+          petId: pet.id,
+          kind: "microchip_iso",
+          code: chipNumber,
+          recordedAt: occurredAt.toISOString().slice(0, 10),
+          recordedByUserId: user.id,
+          recordedByLabel: implantedBy,
+          isoCountryCode: chipNumber.slice(0, 3),
+          isoManufacturerCode: chipNumber.slice(3, 7),
+          isoNationalId: chipNumber.slice(7, 15),
+          isoCompliant: true,
+          implantationSite: implantSite ?? undefined,
+        },
+        tx as Parameters<typeof repo.insertIdentification>[1],
       );
     }
 

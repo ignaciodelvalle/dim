@@ -344,8 +344,6 @@ export const PetsRepository = {
     }
 
     // Emit microchip_implanted when chip was newly added.
-    // NOTE: Does NOT double-write petIdentifications on update — matches
-    // exact behavior of the original updatePetAction (parity).
     if (chipNewlyAdded && parsed.microchipId) {
       const microchipEventPayload = validateEventPayload("microchip_implanted", {
         chip_number: parsed.microchipId,
@@ -365,6 +363,25 @@ export const PetsRepository = {
         authorOrganizationId: eventAuthorship.authorOrganizationId,
         authorVerified: eventAuthorship.authorVerified,
         payload: microchipEventPayload,
+      });
+
+      // Canonical dual-write — insert active microchip row in pet_identifications.
+      // Only when the chip was newly added (chipNewlyAdded guard already asserts
+      // no prior chip existed on this pet).
+      const chipCode = parsed.microchipId;
+      const chipImplantSite = chipImplantSiteFromLocation(parsed.microchipLocation);
+      await tx.insert(petIdentifications).values({
+        petId,
+        kind: "microchip_iso",
+        code: chipCode,
+        recordedAt: (parsed.microchipImplantedAt ?? now.toISOString().slice(0, 10)) as string,
+        recordedByUserId: userId,
+        recordedByLabel: parsed.microchipImplantedBy,
+        isoCountryCode: chipCode.slice(0, 3),
+        isoManufacturerCode: chipCode.slice(3, 7),
+        isoNationalId: chipCode.slice(7, 15),
+        isoCompliant: true,
+        implantationSite: chipImplantSite as string | undefined,
       });
     }
 

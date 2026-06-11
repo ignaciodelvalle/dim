@@ -21,7 +21,7 @@
 // with a tattooAckToken. Re-submitting with a valid tattooAckToken proceeds.
 // Never auto-merges; always "posible coincidencia, verificá con foto".
 
-import { db, notifications, ownerships, petEvents, pets } from "@/db";
+import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { openCase } from "@/lib/case-helpers";
@@ -39,6 +39,7 @@ import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/unique-token";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 import { redirect } from "next/navigation";
 
 export type IntakeFormState = {
@@ -394,6 +395,35 @@ export async function createIntakeAction(
         payload: intakePayload,
         caseId: custodyCase.id,
       });
+
+      // Canonical dual-write — insert pet_identifications rows for any
+      // identifiers captured at intake time (chip and/or tattoo).
+      if (parsed.microchipId) {
+        const chipCode = parsed.microchipId;
+        const implantSite = chipImplantSiteFromLocation(null); // no location at intake
+        await tx.insert(petIdentifications).values({
+          petId: newPet.id,
+          kind: "microchip_iso",
+          code: chipCode,
+          recordedAt: parsed.occurredAt.toISOString().slice(0, 10),
+          recordedByUserId: user.id,
+          isoCountryCode: chipCode.slice(0, 3),
+          isoManufacturerCode: chipCode.slice(3, 7),
+          isoNationalId: chipCode.slice(7, 15),
+          isoCompliant: true,
+          implantationSite: implantSite ?? undefined,
+        });
+      }
+
+      if (parsed.tattooCode) {
+        await tx.insert(petIdentifications).values({
+          petId: newPet.id,
+          kind: "tattoo",
+          code: parsed.tattooCode,
+          recordedAt: parsed.occurredAt.toISOString().slice(0, 10),
+          recordedByUserId: user.id,
+        });
+      }
 
       // Heads-up notification to the user who recorded the intake. This is a
       // confirmation, not an alert — severity=success. The refugio's other

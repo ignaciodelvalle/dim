@@ -3,7 +3,16 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { auditLog, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  auditLog,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  petIdentifications,
+  pets,
+  profiles,
+} from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -264,6 +273,35 @@ export async function replaceMicrochipForUser(
         .update(pets)
         .set({ microchipId: parsed.newChipNumber, updatedAt: now })
         .where(eq(pets.id, pet.id));
+
+      // Canonical dual-write: flip old active canonical row to 'replaced',
+      // then insert the new active row (skip insert on pure revocation).
+      await tx
+        .update(petIdentifications)
+        .set({ status: "replaced", updatedAt: now })
+        .where(
+          and(
+            eq(petIdentifications.petId, pet.id),
+            eq(petIdentifications.kind, "microchip_iso"),
+            eq(petIdentifications.status, "active"),
+          ),
+        );
+
+      if (parsed.newChipNumber) {
+        const newChip = parsed.newChipNumber;
+        await tx.insert(petIdentifications).values({
+          petId: pet.id,
+          kind: "microchip_iso",
+          code: newChip,
+          recordedAt: now.toISOString().slice(0, 10),
+          recordedByUserId: userId,
+          recordedByLabel: parsed.replacedBy ?? null,
+          isoCountryCode: newChip.slice(0, 3),
+          isoManufacturerCode: newChip.slice(3, 7),
+          isoNationalId: newChip.slice(7, 15),
+          isoCompliant: true,
+        });
+      }
 
       // Write audit_log row. The audit_log table has no targetPetId column;
       // pet identity is carried in the JSONB payload alongside event_id.

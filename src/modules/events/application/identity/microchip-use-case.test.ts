@@ -20,7 +20,7 @@ function makeRepo(
   overrides: Partial<EventsRepository> = {},
 ): Pick<
   EventsRepository,
-  "insertEventIdempotent" | "insertAttachment" | "updateMicrochipBackfill"
+  "insertEventIdempotent" | "insertAttachment" | "updateMicrochipBackfill" | "insertIdentification"
 > {
   return {
     insertEventIdempotent: vi.fn().mockResolvedValue({
@@ -29,6 +29,7 @@ function makeRepo(
     }),
     insertAttachment: vi.fn().mockResolvedValue(undefined),
     updateMicrochipBackfill: vi.fn().mockResolvedValue(undefined),
+    insertIdentification: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

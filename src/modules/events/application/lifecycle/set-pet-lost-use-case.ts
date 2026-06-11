@@ -82,7 +82,7 @@ type BroadcastFn = (db: any, pet: any, owner: any, lastLocation: any) => Promise
 type Deps = {
   repo: Pick<
     EventsRepository,
-    "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
+    "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill" | "insertIdentification"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   broadcastLostPet: BroadcastFn;
@@ -269,6 +269,22 @@ export async function setPetLostWriter(
           now,
           tx as Parameters<typeof deps.repo.updateMicrochipBackfill>[3],
         );
+
+        // Canonical dual-write — insert active microchip row in pet_identifications.
+        await deps.repo.insertIdentification(
+          {
+            petId,
+            kind: "microchip_iso",
+            code: newChipId,
+            recordedAt: now.toISOString().slice(0, 10),
+            recordedByUserId,
+            isoCountryCode: newChipId.slice(0, 3),
+            isoManufacturerCode: newChipId.slice(3, 7),
+            isoNationalId: newChipId.slice(7, 15),
+            isoCompliant: true,
+          },
+          tx as Parameters<typeof deps.repo.insertIdentification>[1],
+        );
       }
 
       // Retroactive tattoo capture — only when code provided AND pet had no tattoo before.
@@ -323,7 +339,7 @@ export async function setPetLostWriter(
           // the drizzle executor, so we cast and call update on it.
           // Per design: "reuse existing pure modules — do not rewrite them".
           // We need to accept `tx` as the Drizzle executor here.
-          const { pets } = await import("@/db");
+          const { pets, petIdentifications } = await import("@/db");
           const { eq } = await import("drizzle-orm");
           await (tx as { update: typeof import("@/db").db.update })
             .update(pets)
@@ -334,6 +350,20 @@ export async function setPetLostWriter(
               updatedAt: now,
             })
             .where(eq(pets.id, petId));
+
+          // Canonical dual-write — insert active tattoo row in pet_identifications.
+          // Same guard as pets column write: only when the pet had no prior tattoo.
+          await (tx as { insert: typeof import("@/db").db.insert })
+            .insert(petIdentifications)
+            .values({
+              petId,
+              kind: "tattoo",
+              code: normalizedTattoo,
+              recordedAt: now.toISOString().slice(0, 10),
+              recordedByUserId: recordedByUserId,
+              tattooLocation: tattooLoc,
+              tattooDescription: tattooDesc,
+            });
         }
       }
     });

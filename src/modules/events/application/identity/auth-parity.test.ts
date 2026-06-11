@@ -33,6 +33,7 @@ function makeBaseRepo(): Pick<
   | "insertEvent"
   | "insertAttachment"
   | "updateMicrochipBackfill"
+  | "insertIdentification"
   | "markPppReminderRead"
 > {
   return {
@@ -40,6 +41,7 @@ function makeBaseRepo(): Pick<
     insertEvent: vi.fn().mockResolvedValue({ id: "ev-1" }),
     insertAttachment: vi.fn().mockResolvedValue(undefined),
     updateMicrochipBackfill: vi.fn().mockResolvedValue(undefined),
+    insertIdentification: vi.fn().mockResolvedValue(undefined),
     markPppReminderRead: vi.fn().mockResolvedValue(undefined),
   };
 }
