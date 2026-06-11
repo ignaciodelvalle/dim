@@ -693,6 +693,29 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
       payload: { source: "seed-script" },
     });
 
+    // Microchip is a dual-write cache: real writers (createPetAction /
+    // createMicrochipAction) insert a microchip_implanted event alongside the
+    // pets.* columns. Mirror that here so the seed data stays re-derivable and
+    // the pet-cache drift harness (lib/rederive-pet-cache.ts) sees zero drift.
+    if (seed.microchipId) {
+      const chipNow = new Date();
+      await db.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "microchip_implanted",
+        occurredAt: chipNow,
+        recordedAt: chipNow,
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          chip_number: seed.microchipId,
+          country_code: "858",
+          implanted_by: null,
+          location_on_body: null,
+          implant_date_known: true,
+        },
+      });
+    }
+
     if (seed.withVaccine) {
       const dueAt = new Date(Date.now() + 365 * 24 * 3600 * 1000);
       const [vaccineEvent] = await db
@@ -820,6 +843,30 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
         location_description: "Vía pública — La Plata",
       },
     });
+
+    // Mirror the microchip dual-write so seed data stays re-derivable (see the
+    // owner-pet loop above). This shelter pet's microchipImplantedAt column is
+    // unset, so implant_date_known=false keeps the derived implant date null.
+    if (seed.microchipId) {
+      const chipNow = new Date();
+      await db.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "microchip_implanted",
+        occurredAt: chipNow,
+        recordedAt: chipNow,
+        recordedByUserId: intakeActorId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: true,
+        payload: {
+          chip_number: seed.microchipId,
+          country_code: "858",
+          implanted_by: null,
+          location_on_body: null,
+          implant_date_known: false,
+        },
+      });
+    }
 
     log("OK", `shelter pet ${seed.name} (${pet.publicToken})`);
   }

@@ -1,0 +1,361 @@
+// Fitness + non-vacuity tests for the pet-cache re-derivation harness (ARCH-I).
+//
+// THREE layers of assurance:
+//
+//  1. FITNESS SWEEP — for every pet currently in the test DB, assert that every
+//     derivable cache column equals its re-derived value. Because all
+//     integration tests create pets through the REAL writers, this sweep
+//     catches any future writer that forgets the cache half of a dual-write
+//     (the column would drift from the events and this test would go red).
+//
+//  2. WRITER ROUND-TRIP — drive real writers (weight, pregnancy, tattoo,
+//     custody dispute) against a fresh pet and assert rederivePetCache reports
+//     all-match. This proves the derivation rules agree with the writers.
+//
+//  3. NON-VACUITY — deliberately skew a cache column via raw SQL and assert the
+//     harness DETECTS the mismatch. Without this, a harness that always returns
+//     "matches: true" would pass layers 1 and 2 silently.
+
+import { createClient } from "@supabase/supabase-js";
+import { and, eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
+import { createTattooForUser } from "@/app/actions/tattoo";
+import { custodyDisputes, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import { validateEventPayload } from "@/lib/event-schemas";
+import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/rederive-pet-cache";
+import { withMutationOverride } from "./_helpers/db-overrides";
+
+const SUPABASE_URL = "http://127.0.0.1:54321";
+const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const supabase = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
+
+const OWNER_EMAIL = "rederive-owner@dim-test.local";
+const PASS = "Rederive_2026!";
+let ownerUserId: string;
+const insertedPetIds: string[] = [];
+
+const ownerAuthorship = {
+  authorRole: "owner" as const,
+  authorOrganizationId: null,
+  authorVerified: false,
+};
+
+async function purgeUserByEmail(email: string) {
+  const { data } = await supabase.auth.admin.listUsers();
+  const found = data?.users.find((u) => u.email === email);
+  const displayName = email.split("@")[0];
+  const orphans = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.displayName, displayName));
+  const ids = [
+    ...(found ? [found.id] : []),
+    ...orphans.map((o) => o.id).filter((id) => id !== found?.id),
+  ];
+  await withMutationOverride(async (tx) => {
+    for (const uid of ids) {
+      await tx.delete(notifications).where(eq(notifications.userId, uid));
+      await tx.delete(profiles).where(eq(profiles.id, uid));
+    }
+  });
+  if (found) await supabase.auth.admin.deleteUser(found.id);
+}
+
+async function insertTestPet(
+  suffix: string,
+  opts: { sex: "female" | "male"; species: "dog" | "cat" } = { sex: "female", species: "dog" },
+) {
+  const token = `REDERIVE-${suffix}-${Date.now()}`;
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: token,
+      name: `RederivePet${suffix}`,
+      species: opts.species,
+      sex: opts.sex,
+      status: "active",
+    })
+    .returning();
+  await db.insert(ownerships).values({ petId: pet.id, ownerUserId, role: "owner" });
+  insertedPetIds.push(pet.id);
+  return pet;
+}
+
+beforeAll(async () => {
+  await purgeUserByEmail(OWNER_EMAIL);
+  const o = await supabase.auth.admin.createUser({
+    email: OWNER_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
+  ownerUserId = o.data.user.id;
+});
+
+afterAll(async () => {
+  for (const petId of insertedPetIds) {
+    await withMutationOverride(async (tx) => {
+      // custody_dispute_parties cascade-delete when their dispute row is deleted.
+      await tx.delete(custodyDisputes).where(eq(custodyDisputes.petId, petId));
+      await tx.delete(pets).where(eq(pets.id, petId));
+    });
+  }
+  await db.delete(notifications).where(eq(notifications.userId, ownerUserId));
+  await purgeUserByEmail(OWNER_EMAIL);
+});
+
+// ---------------------------------------------------------------------------
+// Layer 1 — fitness sweep over every pet in the DB
+// ---------------------------------------------------------------------------
+
+describe("pet-cache fitness sweep", () => {
+  it("every pet in the DB has a cache that matches its re-derived value", async () => {
+    const allPets = await db.select({ id: pets.id, publicToken: pets.publicToken }).from(pets);
+    // The test DB is small but non-empty; if it were empty the sweep would be
+    // vacuous, so guard against that to keep the fitness signal meaningful.
+    expect(allPets.length).toBeGreaterThan(0);
+
+    const drifted: Array<{ token: string; columns: string[] }> = [];
+    for (const p of allPets) {
+      const report = await rederivePetCache(p.id);
+      if (hasDrift(report)) {
+        drifted.push({
+          token: p.publicToken,
+          columns: Object.entries(report)
+            .filter(([, r]) => !r.matches)
+            .map(
+              ([c, r]) =>
+                `${c}(stored=${JSON.stringify(r.stored)} derived=${JSON.stringify(r.derived)})`,
+            ),
+        });
+      }
+    }
+
+    // A failure here means a writer dual-write is broken OR a derivation rule
+    // is wrong. The message names the exact pets + columns.
+    expect(drifted, JSON.stringify(drifted, null, 2)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Layer 2 — writer round-trips
+// ---------------------------------------------------------------------------
+
+describe("pet-cache writer round-trips", () => {
+  it("a freshly registered pet (no events) re-derives with no drift", async () => {
+    const pet = await insertTestPet("FRESH");
+    const report = await rederivePetCache(pet.id);
+    expect(hasDrift(report)).toBe(false);
+    // Sanity: a fresh pet's derivable columns are all the empty/default value.
+    expect(report.status.derived).toBe("active");
+    expect(report.pregnancyStatus.derived).toBeNull();
+    expect(report.inCustodyDispute.derived).toBe(false);
+  });
+
+  it("checks every documented column (no silently-missing column)", async () => {
+    const pet = await insertTestPet("COLS");
+    const report = await rederivePetCache(pet.id);
+    expect(Object.keys(report).sort()).toEqual([...CHECKED_COLUMN_NAMES].sort());
+  });
+
+  it("weight_recorded dual-write re-derives with no drift", async () => {
+    const pet = await insertTestPet("WEIGHT");
+    const now = new Date();
+    // Drive the real dual-write seam: insert the event AND the cache column.
+    await db.transaction(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "weight_recorded",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: ownerUserId,
+        ...ownerAuthorship,
+        payload: validateEventPayload("weight_recorded", { kg: "8.50" }),
+      });
+      await tx
+        .update(pets)
+        .set({ estimatedWeightKg: "8.50", updatedAt: now })
+        .where(eq(pets.id, pet.id));
+    });
+
+    const report = await rederivePetCache(pet.id);
+    expect(hasDrift(report)).toBe(false);
+    expect(report.estimatedWeightKg.matches).toBe(true);
+  });
+
+  it("pregnancy writer flips the cache and re-derives with no drift", async () => {
+    const pet = await insertTestPet("PREG", { sex: "female", species: "dog" });
+    const result = await recordPregnancyStartedWriter({
+      pet,
+      recordedByUserId: ownerUserId,
+      eventAuthorship: ownerAuthorship,
+      occurredAt: new Date(),
+      weeksAtDiagnosis: null,
+      vetConsulted: null,
+      notes: null,
+    });
+    expect(result.ok).toBe(true);
+
+    const report = await rederivePetCache(pet.id);
+    expect(hasDrift(report)).toBe(false);
+    expect(report.pregnancyStatus.stored).toBe("in_progress");
+    expect(report.pregnancyStatus.derived).toBe("in_progress");
+  });
+
+  it("tattoo writer dual-write re-derives with no drift", async () => {
+    const pet = await insertTestPet("TATTOO");
+    const result = await createTattooForUser(pet.id, ownerUserId, ownerAuthorship, {
+      code: "DIM-RDV-001",
+      location: "inner_ear_left",
+      description: "test tattoo",
+      recordedAt: new Date("2026-01-15"),
+      recordedBy: "Dr. Test",
+      uploadedAttachment: { path: "fake/path.jpg", mimeType: "image/jpeg", size: 100 },
+    });
+    expect("eventId" in result).toBe(true);
+
+    const report = await rederivePetCache(pet.id);
+    expect(hasDrift(report)).toBe(false);
+    expect(report.tattooCode.stored).toBe("DIM-RDV-001");
+    expect(report.tattooCode.derived).toBe("DIM-RDV-001");
+    expect(report.tattooRecordedAt.matches).toBe(true);
+  });
+
+  it("custody dispute (table-sourced) re-derives true while open, false after close", async () => {
+    const pet = await insertTestPet("DISPUTE");
+    const now = new Date();
+
+    // Emit a raising event + open dispute row + flip the cache flag — mirrors
+    // openDisputeFromEvent's dual-write (event spine + custody_disputes table).
+    await db.transaction(async (tx) => {
+      const [raisingEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "custody_dispute_raised",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: ownerUserId,
+          authorRole: "govt",
+          authorOrganizationId: null,
+          authorVerified: true,
+          payload: validateEventPayload("custody_dispute_raised", {
+            raised_by_role: "govt",
+            raised_by_user_id: ownerUserId,
+            external_proceeding_reference: null,
+            reason: "Test dispute for re-derivation harness coverage.",
+          }),
+        })
+        .returning({ id: petEvents.id });
+
+      await tx.insert(custodyDisputes).values({
+        publicToken: `DIS-RDV-${Date.now()}`,
+        petId: pet.id,
+        raisedByUserId: ownerUserId,
+        raisedByRole: "govt",
+        raisingEventId: raisingEvent.id,
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      });
+
+      await tx
+        .update(pets)
+        .set({ inCustodyDispute: true, updatedAt: now })
+        .where(eq(pets.id, pet.id));
+    });
+
+    const openReport = await rederivePetCache(pet.id);
+    expect(openReport.inCustodyDispute.stored).toBe(true);
+    expect(openReport.inCustodyDispute.derived).toBe(true);
+    expect(openReport.inCustodyDispute.matches).toBe(true);
+
+    // Resolve the dispute + flip the flag back (resolveDisputeAction's seam).
+    const resolvedAt = new Date();
+    await db
+      .update(custodyDisputes)
+      .set({
+        status: "resolved",
+        resolution: "ownership_confirmed",
+        resolutionSummary: "x".repeat(120),
+        resolvedByUserId: ownerUserId,
+        resolvedAt,
+        updatedAt: resolvedAt,
+      })
+      .where(and(eq(custodyDisputes.petId, pet.id), eq(custodyDisputes.status, "open")));
+    await db
+      .update(pets)
+      .set({ inCustodyDispute: false, updatedAt: resolvedAt })
+      .where(eq(pets.id, pet.id));
+
+    const closedReport = await rederivePetCache(pet.id);
+    expect(closedReport.inCustodyDispute.derived).toBe(false);
+    expect(closedReport.inCustodyDispute.matches).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Layer 3 — non-vacuity: the harness must DETECT a deliberate skew
+// ---------------------------------------------------------------------------
+
+describe("pet-cache non-vacuity (harness detects skew)", () => {
+  it("detects a skewed pregnancyStatus cache (events say in_progress, cache forced null)", async () => {
+    const pet = await insertTestPet("SKEW-PREG", { sex: "female", species: "dog" });
+    const ok = await recordPregnancyStartedWriter({
+      pet,
+      recordedByUserId: ownerUserId,
+      eventAuthorship: ownerAuthorship,
+      occurredAt: new Date(),
+      weeksAtDiagnosis: null,
+      vetConsulted: null,
+      notes: null,
+    });
+    expect(ok.ok).toBe(true);
+
+    // Pre-skew: clean.
+    expect(hasDrift(await rederivePetCache(pet.id))).toBe(false);
+
+    // SKEW the cache directly (simulates a writer that forgot the cache half).
+    await db.update(pets).set({ pregnancyStatus: null }).where(eq(pets.id, pet.id));
+
+    const report = await rederivePetCache(pet.id);
+    expect(hasDrift(report)).toBe(true);
+    expect(report.pregnancyStatus.matches).toBe(false);
+    expect(report.pregnancyStatus.stored).toBeNull();
+    expect(report.pregnancyStatus.derived).toBe("in_progress");
+  });
+
+  it("detects a skewed estimatedWeightKg cache", async () => {
+    const pet = await insertTestPet("SKEW-WEIGHT");
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "weight_recorded",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: ownerUserId,
+        ...ownerAuthorship,
+        payload: validateEventPayload("weight_recorded", { kg: "5.00" }),
+      });
+      await tx.update(pets).set({ estimatedWeightKg: "5.00" }).where(eq(pets.id, pet.id));
+    });
+    expect(hasDrift(await rederivePetCache(pet.id))).toBe(false);
+
+    // Skew to a different number — numeric compare must flag it.
+    await db.update(pets).set({ estimatedWeightKg: "9.90" }).where(eq(pets.id, pet.id));
+    const report = await rederivePetCache(pet.id);
+    expect(report.estimatedWeightKg.matches).toBe(false);
+  });
+
+  it("detects a skewed inCustodyDispute flag (no open dispute but flag true)", async () => {
+    const pet = await insertTestPet("SKEW-DISPUTE");
+    // No dispute row exists → derived false. Force the cache flag true.
+    await db.update(pets).set({ inCustodyDispute: true }).where(eq(pets.id, pet.id));
+    const report = await rederivePetCache(pet.id);
+    expect(report.inCustodyDispute.stored).toBe(true);
+    expect(report.inCustodyDispute.derived).toBe(false);
+    expect(report.inCustodyDispute.matches).toBe(false);
+  });
+});
