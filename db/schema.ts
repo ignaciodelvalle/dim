@@ -1109,6 +1109,19 @@ export const petEvents = pgTable(
     tipoEventoCodeIdx: index("pet_events_tipo_evento_code_idx")
       .on(table.tipoEventoCode)
       .where(sql`${table.tipoEventoCode} IS NOT NULL`),
+    // ARCH-K (migration 0081): JSONB payload expression indexes for hot-path
+    // queries that filter on payload field values in WHERE / NOT EXISTS clauses.
+    // Expression syntax mirrors org_invitations_active_unique (lower(email)).
+    // Partial (IS NOT NULL) keeps indexes small — only rows that carry the field.
+    payloadMedStartedIdx: index("pet_events_payload_med_started_idx")
+      .on(sql`(payload->>'medication_started_event_id')`)
+      .where(sql`payload->>'medication_started_event_id' IS NOT NULL`),
+    payloadAppEventIdIdx: index("pet_events_payload_app_event_id_idx")
+      .on(sql`(payload->>'application_event_id')`)
+      .where(sql`payload->>'application_event_id' IS NOT NULL`),
+    payloadApplicantUserIdIdx: index("pet_events_payload_applicant_user_id_idx")
+      .on(sql`(payload->>'applicant_user_id')`)
+      .where(sql`payload->>'applicant_user_id' IS NOT NULL`),
   }),
 );
 
