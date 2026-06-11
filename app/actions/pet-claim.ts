@@ -30,6 +30,7 @@ import {
   profiles,
 } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
@@ -240,6 +241,26 @@ export async function submitClaimDisputeAction(
         reason: input.reason.trim(),
       });
 
+      // ARCH-E sequencing fix: create the case BEFORE inserting the raising
+      // event so the event row can carry case_id in the same transaction.
+      // pet_events.case_id is append-only (trigger-enforced) — a post-insert
+      // UPDATE is blocked without the GUC escape hatch.
+      // custodyDisputeId is backfilled by openDisputeFromEvent once the
+      // dispute row exists (passed via preCreatedCaseId).
+      const disputeCase = await openCase(
+        {
+          kind: "custody_dispute",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          jurisdictionProvince: pet.jurisdictionProvince ?? "",
+          jurisdictionLocality: pet.jurisdictionLocality ?? "",
+          openedByUserId: user.id,
+          openedByOrganizationId: null,
+          openedReason: "Custody dispute raised on pet — raised_by_role=owner",
+        },
+        tx,
+      );
+
       const [raisingEvent] = await tx
         .insert(petEvents)
         .values({
@@ -250,6 +271,7 @@ export async function submitClaimDisputeAction(
           recordedByUserId: user.id,
           authorRole: "owner",
           payload,
+          caseId: disputeCase.id,
         })
         .returning({ id: petEvents.id });
 
@@ -265,6 +287,7 @@ export async function submitClaimDisputeAction(
           { userId: ownership.ownerUserId, role: "current_owner" },
           { userId: user.id, role: "claimant_owner", positionSummary: input.reason.trim() },
         ],
+        preCreatedCaseId: disputeCase.id,
       });
       disputeToken = publicToken;
 

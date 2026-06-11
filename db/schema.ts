@@ -1060,9 +1060,16 @@ export const petEvents = pgTable(
     // customType support for it; lift-and-shift will be straightforward.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
-    // Cases system (migration 0033). Nullable — at most one case per event.
-    // The case_id is append-only at the DB level (enforced by trigger).
-    caseId: uuid("case_id"),
+    // Cases system (migration 0033 + FK added migration 0079). Nullable — at
+    // most one case per event. The case_id is append-only at the DB level
+    // (enforced by trigger). ON DELETE RESTRICT: events are immutable records
+    // that predate any case deletion; hard-deleting a case while events reference
+    // it is an integrity error, not a silent cascade.
+    // NOTE: cases is declared after petEvents in this file, so we use the
+    // forward-reference pattern via a lambda.
+    caseId: uuid("case_id").references((): AnyPgColumn => cases.id, {
+      onDelete: "restrict",
+    }),
     // ENO Event-Trust Tier 1 Fase B (migration 0047). UUID v4 generated
     // client-side before form submission. NULL for admin writes and any
     // path that does not supply a key. The partial unique index
@@ -2453,11 +2460,15 @@ export const fosterProposals = pgTable(
       onDelete: "set null",
     }),
 
-    // Cases system (migration 0068). Linked to the foster_proposal case
-    // opened atomically by proposeFosterAction. Nullable for historical rows
-    // predating the wiring. No Drizzle .references() — mirrors petEvents.caseId
-    // pattern to avoid the forward-reference cycle (cases is declared after).
-    caseId: uuid("case_id"),
+    // Cases system (migration 0068 + FK added migration 0079). Linked to the
+    // foster_proposal case opened atomically by proposeFosterAction. Nullable
+    // for historical rows predating the wiring. ON DELETE SET NULL: if a case
+    // is ever hard-deleted (admin correction), the proposal loses the link but
+    // remains valid (matches welfare_reports.case_id pattern).
+    // Forward-reference lambda required because cases is declared after.
+    caseId: uuid("case_id").references((): AnyPgColumn => cases.id, {
+      onDelete: "set null",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
