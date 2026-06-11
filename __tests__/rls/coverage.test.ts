@@ -93,6 +93,8 @@ const RLS_INTENTIONALLY_EXCLUDED: Readonly<Record<string, string>> = {
   ar_localities_import_runs:
     "Import bookkeeping for the public locality reference dataset; no PII.",
   cron_runs: "System cron execution bookkeeping; no PII or tenant data.",
+  _dim_migrations:
+    "Migration runner tracking table (V0-6): applied migration filenames + checksums. Ops metadata, no PII; written only by scripts/migrate.ts via the BYPASSRLS connection.",
 };
 
 // ---------------------------------------------------------------------------
