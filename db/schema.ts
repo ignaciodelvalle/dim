@@ -1862,6 +1862,12 @@ export const AUDIT_LOG_ACTIONS = [
   "org_member_removed",
   "org_member_role_changed",
   "org_member_event_write_changed",
+  // V0-5: direct admin verify/unverify (no evidence upload required).
+  // For evidence-backed formal revocations use revocation_org_verified instead.
+  //   org_verified payload:   { org_id, org_display_name }
+  //   org_unverified payload: { org_id, org_display_name, reason? }
+  "org_verified",
+  "org_unverified",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

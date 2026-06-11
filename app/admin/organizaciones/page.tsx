@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
+import { VerifyOrgButton } from "@/components/VerifyOrgButton";
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { searchOrganizations } from "@/lib/admin-search";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
@@ -20,16 +21,26 @@ const ORG_TYPE_LABELS: Record<string, string> = {
 export default async function AdminOrganizacionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
+  // Default to "pendiente" so the page opens on the actionable queue
+  const estado = sp.estado === "todas" ? "todas" : "pendiente";
   const { user } = await requireAdminOrRedirect();
 
   // Admin sees all orgs — pass role=admin and empty jurisdictions.
-  const results = await searchOrganizations(query, { role: "admin", jurisdictions: [] });
+  // verifiedFilter is pushed into SQL so the DB LIMIT applies after the filter
+  // (prevents the "Pendientes" tab from silently truncating the queue).
+  const verifiedFilter = estado === "pendiente" ? "pending" : "all";
+  const { items: results, truncated } = await searchOrganizations(
+    query,
+    { role: "admin", jurisdictions: [] },
+    verifiedFilter,
+  );
 
   if (query) {
+    // Log the count of rows the DB actually returned (exposed row count).
     void logPiiQueryForAuthority(user.id, query, results.length, "organizations");
   }
 
@@ -41,11 +52,13 @@ export default async function AdminOrganizacionesPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Organizaciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Busca por nombre, razon social o CUIT. Vista universal — todas las jurisdicciones.
+          Verificá organizaciones pendientes o buscá por nombre, razon social o CUIT.
         </p>
       </header>
 
+      {/* Search */}
       <form action="/admin/organizaciones" method="get" className="flex items-center gap-2">
+        <input type="hidden" name="estado" value={estado} />
         <input
           type="text"
           name="q"
@@ -61,12 +74,42 @@ export default async function AdminOrganizacionesPage({
         </button>
       </form>
 
+      {/* Estado filter tabs */}
+      <div className="flex items-center gap-2">
+        <Link
+          href={`/admin/organizaciones?estado=pendiente${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+          className={[
+            "text-[12px] px-3 py-1 rounded-[6px] border no-underline",
+            estado === "pendiente"
+              ? "border-ln-op-azul bg-ln-op-azul text-white font-semibold"
+              : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe",
+          ].join(" ")}
+        >
+          Pendientes
+        </Link>
+        <Link
+          href={`/admin/organizaciones?estado=todas${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+          className={[
+            "text-[12px] px-3 py-1 rounded-[6px] border no-underline",
+            estado === "todas"
+              ? "border-ln-op-azul bg-ln-op-azul text-white font-semibold"
+              : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe",
+          ].join(" ")}
+        >
+          Todas
+        </Link>
+      </div>
+
       <p className="text-[11px] text-ln-op-mute">
         {results.length === 0
           ? query
             ? "Sin resultados."
-            : "Ingresa una consulta para buscar organizaciones."
-          : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
+            : estado === "pendiente"
+              ? "No hay organizaciones pendientes de verificación."
+              : "No hay organizaciones registradas."
+          : truncated
+            ? `Mostrando los primeros ${results.length} resultado${results.length === 1 ? "" : "s"}. Usá el buscador para acotar la lista.`
+            : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
       </p>
 
       <BulkRevokeList
@@ -99,7 +142,14 @@ export default async function AdminOrganizacionesPage({
                       )}
                     </div>
                   </div>
+
+                  {/* Verify action — only for unverified orgs */}
+                  {!o.verified && <VerifyOrgButton org={o} />}
+
+                  {/* Propose approval request (existing) */}
                   <ProposeOrgActions org={o} />
+
+                  {/* Evidence-backed formal revocation (existing) */}
                   {o.verified && (
                     <RevokeOrgActions
                       org={o}

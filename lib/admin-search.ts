@@ -77,15 +77,23 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
   return rows;
 }
 
+export type OrgVerifiedFilter = "pending" | "verified" | "all";
+
 // Search organizations. Admin sees all; govt sees only orgs whose
 // (jurisdiction_province, jurisdiction_locality) matches one of their
 // active assignments.
+//
+// `verifiedFilter` pushes the verified/unverified predicate into SQL so the
+// LIMIT is applied AFTER the filter — preventing the "Pendientes" tab from
+// silently truncating the queue when more than SEARCH_LIMIT orgs exist.
 export async function searchOrganizations(
   query: string,
   scope: { role: "admin" | "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] },
-): Promise<OrgSearchResult[]> {
+  verifiedFilter: OrgVerifiedFilter = "all",
+): Promise<{ items: OrgSearchResult[]; truncated: boolean }> {
   // Govt with zero assignments sees nothing; skip the query entirely.
-  if (scope.role === "govt" && scope.jurisdictions.length === 0) return [];
+  if (scope.role === "govt" && scope.jurisdictions.length === 0)
+    return { items: [], truncated: false };
 
   const trimmed = query.trim();
   const textPredicate = trimmed
@@ -108,12 +116,28 @@ export async function searchOrganizations(
           ),
         );
 
-  const where =
-    textPredicate && scopePredicate
-      ? and(textPredicate, scopePredicate)
-      : (textPredicate ?? scopePredicate);
+  const verifiedPredicate =
+    verifiedFilter === "pending"
+      ? eq(organizations.verified, false)
+      : verifiedFilter === "verified"
+        ? eq(organizations.verified, true)
+        : undefined;
 
-  return db
+  // Combine all predicates. and() with every defined clause produces a single
+  // SQL<unknown> that drizzle's .where() accepts cleanly.
+  const activeClauses = [textPredicate, scopePredicate, verifiedPredicate].filter(
+    (c): c is NonNullable<typeof c> => c !== undefined,
+  );
+  const where =
+    activeClauses.length === 0
+      ? undefined
+      : activeClauses.length === 1
+        ? activeClauses[0]
+        : and(...activeClauses);
+
+  // Fetch one extra row to detect truncation without a separate COUNT query.
+  const limit = SEARCH_LIMIT;
+  const rows = await db
     .select({
       id: organizations.id,
       displayName: organizations.displayName,
@@ -126,7 +150,10 @@ export async function searchOrganizations(
     })
     .from(organizations)
     .where(where)
-    .limit(SEARCH_LIMIT);
+    .limit(limit + 1);
+
+  const truncated = rows.length > limit;
+  return { items: truncated ? rows.slice(0, limit) : rows, truncated };
 }
 
 // Re-export for keep-it-tree-shakeable test imports.
