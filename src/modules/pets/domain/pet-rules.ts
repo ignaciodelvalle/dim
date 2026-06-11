@@ -74,9 +74,7 @@ type UpdateFlags = {
  * no flag flip, and no new chip. Used to short-circuit the transaction.
  */
 export function isNoOp(flags: UpdateFlags): boolean {
-  return (
-    !flags.hasContentChanges && !flags.hasPhoto && !flags.flagChanged && !flags.chipNewlyAdded
-  );
+  return !flags.hasContentChanges && !flags.hasPhoto && !flags.flagChanged && !flags.chipNewlyAdded;
 }
 
 /**
