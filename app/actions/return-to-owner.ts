@@ -821,6 +821,19 @@ export async function ownerRejectReturnWriter({
 
   try {
     await db.transaction(async (tx) => {
+      // TOCTOU fix: serialize against ownerAcceptReturnWriter (and the
+      // propose writers) on the same pet. Same advisory key as the accept
+      // path — without it a reject can race an accept and emit a spurious
+      // custody_transfer_cancelled into the immutable log.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify the proposal is still pending UNDER the lock. If an accept
+      // (or another cancel) already resolved it, do not emit a cancellation.
+      const stillPending = await hasPendingProposal(pet.id, tx);
+      if (!stillPending) {
+        throw new Error("No hay propuestas de devolución pendientes.");
+      }
+
       // Emit custody_transfer_cancelled (ARCH-B: replaces marker note_added).
       const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
         proposal_event_id: latestProposal.id,
@@ -960,6 +973,19 @@ export async function actorCancelProposalWriter({
 
   try {
     await db.transaction(async (tx) => {
+      // TOCTOU fix: serialize against ownerAcceptReturnWriter (and the
+      // propose writers) on the same pet. Same advisory key as the accept
+      // path — without it a cancel can race an accept and emit a spurious
+      // custody_transfer_cancelled into the immutable log.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify the proposal is still pending UNDER the lock. If an accept
+      // (or a reject) already resolved it, do not emit a cancellation.
+      const stillPending = await hasPendingProposal(pet.id, tx);
+      if (!stillPending) {
+        throw new Error("No hay propuestas de devolución pendientes.");
+      }
+
       // Emit custody_transfer_cancelled (ARCH-B: replaces marker note_added).
       const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
         proposal_event_id: latestProposal.id,
@@ -1481,7 +1507,7 @@ export async function orgAcceptOwnerReturnAction({
   petPublicToken: string;
   orgToken: string;
 }): Promise<OrgAcceptOwnerReturnResult> {
-  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership, user } = await requireOrgAccessByToken(orgToken);
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("custody.transfer")) {
     return { error: "Se necesita el permiso custody.transfer para aceptar la devolución." };
@@ -1489,6 +1515,7 @@ export async function orgAcceptOwnerReturnAction({
   return orgAcceptOwnerReturnWriter({
     orgId: organization.id,
     orgDisplayName: organization.displayName,
+    actingUserId: user.id,
     petPublicToken,
   });
 }
@@ -1500,10 +1527,17 @@ export async function orgAcceptOwnerReturnAction({
 export async function orgAcceptOwnerReturnWriter({
   orgId,
   orgDisplayName,
+  actingUserId,
   petPublicToken,
 }: {
   orgId: string;
   orgDisplayName: string;
+  /**
+   * Authenticated org member performing the accept. Audit-integrity fix: the
+   * emitted pet_events MUST be attributed to the member who acted, not to the
+   * owner who authored the proposal (latestProposal.recordedByUserId).
+   */
+  actingUserId: string;
   petPublicToken: string;
 }): Promise<OrgAcceptOwnerReturnResult> {
   const [petRow] = await db
@@ -1539,7 +1573,7 @@ export async function orgAcceptOwnerReturnWriter({
       if (!pending) {
         throw new Error("No hay propuesta de devolución pendiente para esta mascota.");
       }
-      const { proposal: latestProposal, ownerUserId } = pending;
+      const { ownerUserId } = pending;
 
       // Verify the owner still holds their active owner ownership row.
       const [ownerOwnership] = await tx
@@ -1588,7 +1622,9 @@ export async function orgAcceptOwnerReturnWriter({
             eventType: "foster_ended",
             occurredAt: now,
             recordedAt: now,
-            recordedByUserId: latestProposal.recordedByUserId,
+            // Audit-integrity fix: attribute to the acting org member, not the
+            // owner who proposed (latestProposal.recordedByUserId).
+            recordedByUserId: actingUserId,
             authorRole: "shelter",
             authorOrganizationId: orgId,
             payload: fosterEndedPayload,
@@ -1619,7 +1655,9 @@ export async function orgAcceptOwnerReturnWriter({
           eventType: "custody_transferred",
           occurredAt: now,
           recordedAt: now,
-          recordedByUserId: latestProposal.recordedByUserId,
+          // Audit-integrity fix: attribute to the acting org member, not the
+          // owner who proposed (latestProposal.recordedByUserId).
+          recordedByUserId: actingUserId,
           authorRole: "shelter",
           authorOrganizationId: orgId,
           payload: transferPayload,
@@ -1686,7 +1724,7 @@ export async function orgRejectOwnerReturnAction({
   orgToken: string;
   reason: string;
 }): Promise<OrgRejectOwnerReturnResult> {
-  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership, user } = await requireOrgAccessByToken(orgToken);
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("custody.transfer")) {
     return { error: "Se necesita el permiso custody.transfer para rechazar la devolución." };
@@ -1694,6 +1732,7 @@ export async function orgRejectOwnerReturnAction({
   return orgRejectOwnerReturnWriter({
     orgId: organization.id,
     orgDisplayName: organization.displayName,
+    actingUserId: user.id,
     petPublicToken,
     reason,
   });
@@ -1706,11 +1745,18 @@ export async function orgRejectOwnerReturnAction({
 export async function orgRejectOwnerReturnWriter({
   orgId,
   orgDisplayName,
+  actingUserId,
   petPublicToken,
   reason,
 }: {
   orgId: string;
   orgDisplayName: string;
+  /**
+   * Authenticated org member performing the reject. Audit-integrity fix: the
+   * emitted custody_transfer_cancelled MUST be attributed to the member who
+   * acted, not to the owner who authored the proposal.
+   */
+  actingUserId: string;
   petPublicToken: string;
   reason: string;
 }): Promise<OrgRejectOwnerReturnResult> {
@@ -1746,7 +1792,9 @@ export async function orgRejectOwnerReturnWriter({
         eventType: "custody_transfer_cancelled",
         occurredAt: now,
         recordedAt: now,
-        recordedByUserId: latestProposal.recordedByUserId,
+        // Audit-integrity fix: attribute to the acting org member, not the
+        // owner who proposed (latestProposal.recordedByUserId).
+        recordedByUserId: actingUserId,
         authorRole: "shelter",
         authorOrganizationId: orgId,
         payload: cancelPayload,

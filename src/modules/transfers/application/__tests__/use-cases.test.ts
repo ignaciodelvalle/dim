@@ -116,7 +116,8 @@ function makeFakeRepo(
     // owner-flow writes
     insertPetTransfer: vi.fn().mockResolvedValue(undefined),
     findTransferByToken: vi.fn().mockResolvedValue(makeTransfer()),
-    updateTransferStatus: vi.fn().mockResolvedValue(undefined),
+    findTransferByIdForUpdate: vi.fn().mockResolvedValue(makeTransfer()),
+    updateTransferStatus: vi.fn().mockResolvedValue(1),
     expirablePetTransfers: vi.fn().mockResolvedValue([]),
     closeOwnerOwnerships: vi.fn().mockResolvedValue(undefined),
     insertOwnerOwnership: vi.fn().mockResolvedValue({ id: "own-new" }),
@@ -477,6 +478,68 @@ describe("acceptPetTransfer", () => {
     const n = r.notifications.find((n) => n.notificationType === "pet_transfer_accepted");
     expect(n).toBeDefined();
     expect(n?.userId).toBe("user-sender");
+  });
+
+  // -------------------------------------------------------------------------
+  // Fix A — concurrency: in-tx lock + re-check, not the unique-index side effect
+  // -------------------------------------------------------------------------
+
+  it("locks the transfer row FOR UPDATE inside the tx before mutating ownerships", async () => {
+    const repo = makeFakeRepo();
+    await acceptPetTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    // The row lock runs with the tx client, before the ownership close/insert.
+    expect(repo.findTransferByIdForUpdate).toHaveBeenCalledWith("tr-1", fakeTx);
+    const lockOrder = (repo.findTransferByIdForUpdate as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const closeOrder = (repo.closeOwnerOwnerships as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(closeOrder);
+  });
+
+  it("flips status conditionally with expectedStatus=pending", async () => {
+    const repo = makeFakeRepo();
+    await acceptPetTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.updateTransferStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "accepted", expectedStatus: "pending" }),
+      fakeTx,
+    );
+  });
+
+  it("aborts in-tx when the locked row is no longer pending (concurrent accept already won)", async () => {
+    // The pre-tx read still says pending (stale), but the FOR UPDATE re-read
+    // under the lock sees the row already accepted by a racing writer.
+    const repo = makeFakeRepo({
+      findTransferByToken: vi.fn().mockResolvedValue(makeTransfer({ status: "pending" })),
+      findTransferByIdForUpdate: vi.fn().mockResolvedValue(makeTransfer({ status: "accepted" })),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/accepted|aceptada/i);
+    // The guard fired BEFORE any ownership mutation — integrity is not held by
+    // the unique-active-owner index side effect.
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+    expect(repo.insertOwnerOwnership).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("aborts when the conditional status flip updates zero rows (lost race under the lock)", async () => {
+    // Lock re-read passes (still pending), but the conditional UPDATE matches
+    // no row — another writer flipped it between the lock read and the update.
+    const repo = makeFakeRepo({
+      findTransferByIdForUpdate: vi.fn().mockResolvedValue(makeTransfer({ status: "pending" })),
+      updateTransferStatus: vi.fn().mockResolvedValue(0),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/ya está/i);
   });
 });
 

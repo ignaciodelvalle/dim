@@ -58,14 +58,23 @@ export async function cancelPetTransfer(
   try {
     await transaction(async (tx) => {
       const now = new Date();
-      await repo.updateTransferStatus(
+      // Conditional flip: only cancel while still pending. Serializes against a
+      // concurrent accept on the same transfer — whichever conditional UPDATE
+      // commits first wins; the loser sees zero rows and aborts. Without this,
+      // a sender cancelling while the recipient accepts could mark an
+      // already-accepted transfer as cancelled.
+      const updatedRows = await repo.updateTransferStatus(
         {
           id: transfer.id,
           status: "cancelled",
           respondedAt: now,
+          expectedStatus: "pending",
         },
         tx as Parameters<typeof repo.updateTransferStatus>[1],
       );
+      if (updatedRows === 0) {
+        throw new Error("La transferencia ya no está pendiente.");
+      }
 
       // Parity: notify recipient only if toOwnerId is known.
       if (transfer.toOwnerId) {

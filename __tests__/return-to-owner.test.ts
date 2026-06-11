@@ -16,7 +16,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   actorCancelProposalWriter,
+  orgAcceptOwnerReturnWriter,
+  orgRejectOwnerReturnWriter,
   ownerAcceptReturnWriter,
+  ownerProposeReturnToOrgWriter,
   ownerRejectReturnWriter,
   proposeReturnAsRefugioWriter,
   proposeReturnAsVecinoWriter,
@@ -974,5 +977,240 @@ describe("actorCancelProposalWriter", () => {
     expect("error" in result).toBe(true);
     if (!("error" in result)) throw new Error("Expected error");
     expect(result.error).toMatch(/propuesta/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Fix B — reject/cancel after accept must NOT emit a spurious cancellation
+// ---------------------------------------------------------------------------
+//
+// Under the advisory lock, ownerRejectReturnWriter / actorCancelProposalWriter
+// re-verify hasPendingProposal inside the tx. Once the owner has accepted the
+// return (custody_transferred emitted), the proposal is resolved, so a late
+// reject/cancel must be a no-op: error returned, no custody_transfer_cancelled
+// written to the immutable log.
+
+describe("Fix B — reject/cancel after accept does not forge a cancellation", () => {
+  it("ownerRejectReturnWriter is a no-op when the proposal was already accepted", async () => {
+    const { petId, publicToken } = await insertLostPet({
+      ownerUserId,
+      shelterCustodyUserId: vecinoUserId,
+    });
+
+    // Propose then accept — proposal becomes resolved (custody_transferred).
+    await proposeReturnAsVecinoWriter({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      notes: null,
+    });
+    const accept = await ownerAcceptReturnWriter({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+    });
+    expect("error" in accept).toBe(false);
+
+    // No cancellation should exist after a clean accept.
+    const before = await db
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(before.length).toBe(0);
+
+    // Late reject — must be rejected by the in-tx hasPendingProposal re-check.
+    const reject = await ownerRejectReturnWriter({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+      reason: "Cambié de opinión tarde.",
+    });
+    expect("error" in reject).toBe(true);
+    if (!("error" in reject)) throw new Error("Expected error");
+    expect(reject.error).toMatch(/propuesta/i);
+
+    // CRITICAL: no spurious custody_transfer_cancelled emitted into the log.
+    const after = await db
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(after.length).toBe(0);
+  });
+
+  it("actorCancelProposalWriter is a no-op when the proposal was already accepted", async () => {
+    const { petId, publicToken } = await insertLostPet({
+      ownerUserId,
+      shelterCustodyUserId: vecinoUserId,
+    });
+
+    await proposeReturnAsVecinoWriter({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      notes: null,
+    });
+    const accept = await ownerAcceptReturnWriter({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+    });
+    expect("error" in accept).toBe(false);
+
+    // Late cancel by the actor who proposed — must be a no-op.
+    const cancel = await actorCancelProposalWriter({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      reason: "Ya no hace falta.",
+    });
+    expect("error" in cancel).toBe(true);
+    if (!("error" in cancel)) throw new Error("Expected error");
+    expect(cancel.error).toMatch(/propuesta/i);
+
+    const cancelEvents = await db
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(cancelEvents.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Fix C — org accept/reject events attributed to the acting org member
+// ---------------------------------------------------------------------------
+//
+// Owner proposes a return to the org (from_user_id=owner, to_organization_id=org).
+// When the org member accepts/rejects, the emitted pet_events must carry
+// recordedByUserId = the acting org member, NOT the owner who proposed.
+
+describe("Fix C — org accept/reject attribution", () => {
+  // Inserts a pet adopted from the org: active owner row + a historical
+  // adoption_finalized event so ownerProposeReturnToOrgWriter resolves the
+  // target org WITHOUT an active shelter_custody row. This mirrors the real
+  // post-adoption return flow (the org's custody was ended at adoption), so
+  // the org-accept writer can cleanly open a fresh shelter_custody row.
+  async function insertAdoptedPetFromOrg(): Promise<{ petId: string; publicToken: string }> {
+    const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
+      .toUpperCase()
+      .slice(-6);
+    const token = `RTO-${suffix}`;
+    const now = new Date();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        name: `OrgReturnPet-${suffix}`,
+        species: "dog",
+        sex: "unknown",
+        status: "active",
+        potentiallyDangerousBreed: false,
+      })
+      .returning();
+    insertedPetIds.push(pet.id);
+
+    await db.insert(ownerships).values({
+      petId: pet.id,
+      ownerUserId,
+      role: "owner",
+      startedAt: now,
+    });
+
+    // Historical adoption event — resolves the originating org for the return.
+    const adoptionPayload = validateEventPayload("adoption_finalized", {
+      previous_owner_organization_id: orgId,
+      adopter_user_id: ownerUserId,
+      foster_user_id: null,
+      contract_attachment_id: null,
+      post_adoption_followup_months: null,
+      notes: null,
+    });
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "adoption_finalized",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: refugioMemberUserId,
+      authorRole: "shelter",
+      authorOrganizationId: orgId,
+      payload: adoptionPayload,
+    });
+
+    return { petId: pet.id, publicToken: token };
+  }
+
+  it("orgAcceptOwnerReturnWriter attributes custody_transferred to the acting org member, not the proposing owner", async () => {
+    const { petId, publicToken } = await insertAdoptedPetFromOrg();
+
+    // Owner proposes the return to the org.
+    const propose = await ownerProposeReturnToOrgWriter({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+      reason: "post_adoption_failed_return",
+      notes: null,
+      proposedAt: new Date().toISOString(),
+      callerRole: "owner",
+    });
+    expect("ok" in propose && propose.ok).toBe(true);
+    if ("error" in propose) throw new Error(`Unexpected propose error: ${propose.error}`);
+
+    // Org member accepts.
+    const accept = await orgAcceptOwnerReturnWriter({
+      orgId,
+      orgDisplayName: "Return Test Refugio",
+      actingUserId: refugioMemberUserId,
+      petPublicToken: publicToken,
+    });
+    if ("error" in accept) throw new Error(`Unexpected error: ${accept.error}`);
+    expect("error" in accept).toBe(false);
+
+    const [transferEvent] = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transferred")))
+      .orderBy(desc(petEvents.recordedAt))
+      .limit(1);
+    expect(transferEvent).toBeDefined();
+    // Attribution is the acting org member, NOT the owner who proposed.
+    expect(transferEvent.recordedByUserId).toBe(refugioMemberUserId);
+    expect(transferEvent.recordedByUserId).not.toBe(ownerUserId);
+    // Org context unchanged.
+    expect(transferEvent.authorRole).toBe("shelter");
+    expect(transferEvent.authorOrganizationId).toBe(orgId);
+  });
+
+  it("orgRejectOwnerReturnWriter attributes custody_transfer_cancelled to the acting org member, not the proposing owner", async () => {
+    const { petId, publicToken } = await insertAdoptedPetFromOrg();
+
+    const propose = await ownerProposeReturnToOrgWriter({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+      reason: "post_adoption_failed_return",
+      notes: null,
+      proposedAt: new Date().toISOString(),
+      callerRole: "owner",
+    });
+    expect("ok" in propose && propose.ok).toBe(true);
+
+    const reject = await orgRejectOwnerReturnWriter({
+      orgId,
+      orgDisplayName: "Return Test Refugio",
+      actingUserId: refugioMemberUserId,
+      petPublicToken: publicToken,
+      reason: "No podemos recibirla ahora.",
+    });
+    expect("error" in reject).toBe(false);
+    if ("error" in reject) throw new Error(`Unexpected error: ${reject.error}`);
+
+    const [cancelEvent] = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")))
+      .orderBy(desc(petEvents.recordedAt))
+      .limit(1);
+    expect(cancelEvent).toBeDefined();
+    expect(cancelEvent.recordedByUserId).toBe(refugioMemberUserId);
+    expect(cancelEvent.recordedByUserId).not.toBe(ownerUserId);
+    expect(cancelEvent.authorRole).toBe("shelter");
+    expect(cancelEvent.authorOrganizationId).toBe(orgId);
   });
 });

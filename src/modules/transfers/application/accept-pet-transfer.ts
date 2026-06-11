@@ -84,6 +84,22 @@ export async function acceptPetTransfer(
     await transaction(async (tx) => {
       const now = new Date();
 
+      // CONCURRENCY GUARD: re-read the transfer row FOR UPDATE inside the tx
+      // and re-check it is still pending. The pre-tx status check above is a
+      // stale read — two concurrent accepts (or an accept racing the
+      // expire-pet-transfers cron) both pass it. The row lock serializes them;
+      // the loser sees the flipped status here and aborts BEFORE touching
+      // ownerships (no longer relying on the unique-active-owner index to catch
+      // the second insert). Mirrors submitFreeClaimAction's SELECT ... FOR
+      // UPDATE + in-tx re-check.
+      const locked = await repo.findTransferByIdForUpdate(
+        transfer.id,
+        tx as Parameters<typeof repo.findTransferByIdForUpdate>[1],
+      );
+      if (!locked || locked.status !== "pending") {
+        throw new Error(`La transferencia ya está ${locked?.status ?? "no encontrada"}.`);
+      }
+
       // PARITY QUIRK: close BEFORE insert.
       await repo.closeOwnerOwnerships(
         transfer.petId,
@@ -114,15 +130,22 @@ export async function acceptPetTransfer(
         tx as Parameters<typeof repo.insertPetEvent>[1],
       );
 
-      await repo.updateTransferStatus(
+      // Conditional flip: only update while still pending. Belt-and-suspenders
+      // with the FOR UPDATE re-check above — a zero-row result means another
+      // writer won the race under the lock, so we abort the whole tx.
+      const updatedRows = await repo.updateTransferStatus(
         {
           id: transfer.id,
           status: "accepted",
           respondedAt: now,
           toOwnerId: user.id,
+          expectedStatus: "pending",
         },
         tx as Parameters<typeof repo.updateTransferStatus>[1],
       );
+      if (updatedRows === 0) {
+        throw new Error(`La transferencia ya está ${transfer.status}.`);
+      }
 
       pendingNotifications.push({
         userId: transfer.fromOwnerId,
