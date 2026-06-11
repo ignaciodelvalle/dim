@@ -10,7 +10,9 @@ import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui
 import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { findServiceKind } from "@/lib/service-kinds";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
+import { CapacityEditor } from "./CapacityEditor";
 import { OfferingActions } from "./OfferingActions";
 
 type StatusTone = "open" | "ok" | "danger" | "neutral";
@@ -33,7 +35,9 @@ export default async function OfferingDetailPage({
   params: Promise<{ orgToken: string; offeringToken: string }>;
 }) {
   const { orgToken, offeringToken } = await params;
-  const { organization } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const granted = await getGrantedCapabilities(membership);
+  const canCreate = granted.has("service_offering.create");
 
   // Verify the offering belongs to this org.
   const [row] = await db
@@ -160,10 +164,23 @@ export default async function OfferingDetailPage({
               }
             />
             <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
-            <Row
-              label="Capacidad por turno"
-              value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
-            />
+            {canCreate && offering.status !== "archived" ? (
+              <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
+                <dt className="text-[12px] text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
+                <dd className="text-[13px] text-ln-op-ink flex-1">
+                  <CapacityEditor
+                    orgToken={orgToken}
+                    offeringToken={offeringToken}
+                    currentCapacity={offering.slotCapacity}
+                  />
+                </dd>
+              </div>
+            ) : (
+              <Row
+                label="Capacidad por turno"
+                value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
+              />
+            )}
             {offering.description && <Row label="Descripción" value={offering.description} />}
             {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
               <Row
