@@ -18,7 +18,7 @@ import Link from "next/link";
 import { CaseBadge } from "@/components/CaseBadge";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { type CaseListItem, listCasesForOrg } from "@/lib/case-queries";
+import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
 import { type CaseKind, caseKindLabel, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
 
@@ -47,18 +47,16 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
   const { kind: kindParam, status: statusParam } = await searchParams;
 
   const { organization } = await requireOrgAccessByToken(orgToken);
-  const allItems = await listCasesForOrg(organization.id);
 
   const activeKind: CaseKind | null = isCaseKind(kindParam ?? "") ? (kindParam as CaseKind) : null;
   const activeStatus: "open" | "closed" | null =
     statusParam === "open" || statusParam === "closed" ? statusParam : null;
 
-  const items: CaseListItem[] = allItems.filter((c) => {
-    if (activeKind && c.caseKind !== activeKind) return false;
-    if (activeStatus === "open" && c.closedAt !== null) return false;
-    if (activeStatus === "closed" && c.closedAt === null) return false;
-    return true;
-  });
+  // Filters are pushed into SQL — no in-memory filtering.
+  const [{ items, truncated }, presentKinds] = await Promise.all([
+    listCasesForOrg(organization.id, { kind: activeKind, status: activeStatus }),
+    listCaseKindDistributionForOrg(organization.id),
+  ]);
 
   // Build filter href helper — preserves the other filter.
   function kindHref(k: CaseKind | null) {
@@ -76,9 +74,6 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
     const qs = p.toString();
     return `/org/${orgToken}/casos${qs ? `?${qs}` : ""}`;
   }
-
-  // Only show kind options that have at least one case in the unfiltered set.
-  const presentKinds = [...new Set(allItems.map((c) => c.caseKind))];
 
   return (
     <div className="space-y-6">
@@ -119,7 +114,7 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
 
       {items.length === 0 ? (
         <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {allItems.length === 0
+          {presentKinds.length === 0 && !activeKind && !activeStatus
             ? "Sin casos abiertos ni cerrados por ahora."
             : "Ningún caso coincide con los filtros seleccionados."}
         </p>
@@ -127,7 +122,7 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
         <OpCard>
           <OpCardHead
             title="Expedientes"
-            actions={`${items.length} caso${items.length !== 1 ? "s" : ""}`}
+            actions={`${items.length} caso${items.length !== 1 ? "s" : ""}${truncated ? "+" : ""}`}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
@@ -161,6 +156,12 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
                 </li>
               ))}
             </ul>
+            {truncated && (
+              <p className="border-t border-ln-op-line px-4 py-3 text-[12px] text-ln-op-mute">
+                Mostrando los primeros {items.length} resultados. Usá los filtros para acotar la
+                búsqueda.
+              </p>
+            )}
           </OpCardBody>
         </OpCard>
       )}

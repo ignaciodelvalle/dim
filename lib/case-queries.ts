@@ -7,7 +7,7 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
   type Case,
@@ -304,7 +304,66 @@ function mapListRow(row: {
   };
 }
 
-export async function listCasesForOrg(orgId: string): Promise<CaseListItem[]> {
+// ---------------------------------------------------------------------------
+// Org case list filters — all applied in SQL (no in-memory filtering).
+// ---------------------------------------------------------------------------
+
+export interface ListCasesForOrgFilters {
+  /** Filter by case kind. Null = all kinds. */
+  kind?: CaseKind | null;
+  /** Filter by open/closed status. Null = all statuses. */
+  status?: "open" | "closed" | null;
+}
+
+/**
+ * Maximum number of cases returned by listCasesForOrg when no cursor is
+ * supplied. Exposed so tests can inject a smaller cap without patching code.
+ */
+export const LIST_CASES_FOR_ORG_LIMIT = 200;
+
+/**
+ * Returns up to LIST_CASES_FOR_ORG_LIMIT cases visible to the org (opener or
+ * active owner), filtered entirely in SQL. When the cap is reached the caller
+ * should surface a hint — check `truncated` in the returned object.
+ *
+ * `_limitOverride` is for tests only: pass a small number to verify that
+ * results beyond the cap are found when filters are set.
+ */
+export async function listCasesForOrg(
+  orgId: string,
+  filters?: ListCasesForOrgFilters,
+  _limitOverride?: number,
+): Promise<{ items: CaseListItem[]; truncated: boolean }> {
+  const limit = _limitOverride ?? LIST_CASES_FOR_ORG_LIMIT;
+
+  // Ownership match via EXISTS instead of a join: a pet can carry multiple
+  // active ownership rows (co-owners), and join duplicates would eat slots of
+  // the limit+1 fetch — under-filling the page and skewing `truncated`.
+  const orgCondition = or(
+    eq(cases.openedByOrganizationId, orgId),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(ownerships)
+        .where(
+          and(
+            eq(ownerships.petId, cases.primaryPetId),
+            isNull(ownerships.endedAt),
+            eq(ownerships.ownerOrganizationId, orgId),
+          ),
+        ),
+    ),
+  );
+
+  // Build filter conditions pushed entirely into SQL.
+  const kindCondition = filters?.kind ? eq(cases.caseKind, filters.kind) : undefined;
+  const statusCondition =
+    filters?.status === "open"
+      ? isNull(cases.closedAt)
+      : filters?.status === "closed"
+        ? isNotNull(cases.closedAt)
+        : undefined;
+
   const rows = await db
     .select({
       c: cases,
@@ -313,19 +372,29 @@ export async function listCasesForOrg(orgId: string): Promise<CaseListItem[]> {
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    .leftJoin(ownerships, and(eq(ownerships.petId, cases.primaryPetId), isNull(ownerships.endedAt)))
-    .where(or(eq(cases.openedByOrganizationId, orgId), eq(ownerships.ownerOrganizationId, orgId)))
+    .where(and(orgCondition, kindCondition, statusCondition))
     .orderBy(desc(cases.openedAt))
-    .limit(200);
-  // De-dupe by case id (a case can match via both opened_by and ownership).
-  const seen = new Set<string>();
-  return rows
-    .filter((r) => {
-      if (seen.has(r.c.id)) return false;
-      seen.add(r.c.id);
-      return true;
-    })
-    .map(mapListRow);
+    // Fetch one extra row so we know whether results were truncated.
+    .limit(limit + 1);
+
+  const truncated = rows.length > limit;
+  const items = rows.slice(0, limit).map(mapListRow);
+  return { items, truncated };
+}
+
+/**
+ * Returns the distinct case kinds present for the org (opener OR active owner)
+ * regardless of status or kind filters. Used to build the kind filter chips.
+ *
+ * No LIMIT — kind cardinality is bounded by CASE_KINDS (~12 values).
+ */
+export async function listCaseKindDistributionForOrg(orgId: string): Promise<CaseKind[]> {
+  const rows = await db
+    .selectDistinct({ caseKind: cases.caseKind })
+    .from(cases)
+    .leftJoin(ownerships, and(eq(ownerships.petId, cases.primaryPetId), isNull(ownerships.endedAt)))
+    .where(or(eq(cases.openedByOrganizationId, orgId), eq(ownerships.ownerOrganizationId, orgId)));
+  return rows.map((r) => r.caseKind).filter(isCaseKind) as CaseKind[];
 }
 
 export async function listCasesForGovt(
