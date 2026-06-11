@@ -1306,6 +1306,25 @@ const adoptionEligibilitySet = z
     "ineligible_reason_notes required when reason='other'",
   );
 
+// Custody transfer cancelled — structured termination of a
+// custody_transfer_proposed (ARCH-B). Replaces the fragile marker-text
+// note_added that was previously used to signal cancellation.
+// cancelled_by discriminates who terminated the proposal:
+//   owner_reject   — the owner actively rejected it
+//   actor_cancel   — the proposing actor withdrew it
+//   org_reject     — the receiving org rejected an owner-initiated proposal
+//   auto_cancel    — system auto-cancelled during the owner-accept precondition check
+const custodyTransferCancelled = z
+  .object(
+    withVersion({
+      // The custody_transfer_proposed event being cancelled.
+      proposal_event_id: z.string().uuid(),
+      cancelled_by: z.enum(["owner_reject", "actor_cancel", "org_reject", "auto_cancel"]),
+      reason: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // Custody transfer proposed — Phase 1 of the return-to-owner two-phase
 // handshake (Lost & Found Fase 5). An actor holding shelter_custody proposes
 // returning the pet to the original owner (or to another org). The owner
@@ -1412,6 +1431,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   custody_transferred: custodyTransferred,
   ownership_claimed: ownershipClaimed,
   custody_transfer_proposed: custodyTransferProposed,
+  custody_transfer_cancelled: custodyTransferCancelled,
   custody_dispute_raised: custodyDisputeRaised,
   custody_dispute_resolved: custodyDisputeResolved,
   foster_proposed: fosterProposed,

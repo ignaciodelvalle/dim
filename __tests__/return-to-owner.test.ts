@@ -31,6 +31,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { validateEventPayload } from "@/lib/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -580,14 +581,17 @@ describe("ownerAcceptReturnWriter — auto-cancel", () => {
     if ("error" in result) throw new Error(result.error);
     expect("autoCancelled" in result && result.autoCancelled).toBe(true);
 
-    // Verify auto-cancel note_added event was emitted.
-    const cancelNotes = await db
+    // Verify auto-cancel emitted custody_transfer_cancelled (ARCH-B).
+    const cancelEvents = await db
       .select()
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
-    expect(cancelNotes.length).toBeGreaterThan(0);
-    const lastNote = cancelNotes[cancelNotes.length - 1].payload as Record<string, unknown>;
-    expect(String(lastNote.text)).toMatch(/Auto-cancelled/i);
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(cancelEvents.length).toBeGreaterThan(0);
+    const cancelPayload = cancelEvents[cancelEvents.length - 1].payload as Record<string, unknown>;
+    expect(cancelPayload.cancelled_by).toBe("auto_cancel");
+    expect(typeof cancelPayload.proposal_event_id).toBe("string");
   });
 
   it("auto-cancels when shelter_custody was revoked between propose and accept", async () => {
@@ -672,7 +676,7 @@ describe("ownerAcceptReturnWriter — auto-cancel", () => {
 // ---------------------------------------------------------------------------
 
 describe("ownerRejectReturnWriter", () => {
-  it("emits note_added event, does not change pet status, notifies actor", async () => {
+  it("emits custody_transfer_cancelled, does not change pet status, notifies actor", async () => {
     const { petId, publicToken } = await insertLostPet({
       ownerUserId,
       shelterCustodyUserId: vecinoUserId,
@@ -694,15 +698,18 @@ describe("ownerRejectReturnWriter", () => {
 
     expect("ok" in result && result.ok).toBe(true);
 
-    // Verify note_added event.
-    const notes = await db
+    // Verify custody_transfer_cancelled emitted with correct payload (ARCH-B).
+    const cancelEvents = await db
       .select()
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
-    expect(notes.length).toBeGreaterThan(0);
-    const notePayload = notes[notes.length - 1].payload as Record<string, unknown>;
-    expect(String(notePayload.text)).toMatch(/rechazó/i);
-    expect(String(notePayload.text)).toMatch(/Coordinamos por otro medio/);
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(cancelEvents.length).toBeGreaterThan(0);
+    const cancelPayload = cancelEvents[cancelEvents.length - 1].payload as Record<string, unknown>;
+    expect(cancelPayload.cancelled_by).toBe("owner_reject");
+    expect(cancelPayload.reason).toBe("Coordinamos por otro medio.");
+    expect(typeof cancelPayload.proposal_event_id).toBe("string");
 
     // Verify pet status unchanged (still lost).
     const [currentPet] = await db
@@ -718,6 +725,33 @@ describe("ownerRejectReturnWriter", () => {
       .where(and(eq(notifications.userId, vecinoUserId), eq(notifications.relatedPetId, petId)));
     // Should have at least the proposal notification + rejection notification.
     expect(actorNotifs.length).toBeGreaterThan(0);
+  });
+
+  it("hasPendingProposal resolves false after rejection (no duplicate proposals allowed)", async () => {
+    const { publicToken } = await insertLostPet({
+      ownerUserId,
+      shelterCustodyUserId: vecinoUserId,
+    });
+
+    await proposeReturnAsVecinoWriter({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      notes: null,
+    });
+
+    await ownerRejectReturnWriter({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+      reason: "No quiero.",
+    });
+
+    // A second proposal must succeed (meaning hasPendingProposal returned false after rejection).
+    const second = await proposeReturnAsVecinoWriter({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      notes: null,
+    });
+    expect("ok" in second && second.ok).toBe(true);
   });
 
   it("returns error when caller is not the owner", async () => {
@@ -751,7 +785,7 @@ describe("ownerRejectReturnWriter", () => {
 // ---------------------------------------------------------------------------
 
 describe("actorCancelProposalWriter", () => {
-  it("vecino cancels own proposal: emits note_added, notifies owner", async () => {
+  it("vecino cancels own proposal: emits custody_transfer_cancelled, notifies owner", async () => {
     const { petId, publicToken } = await insertLostPet({
       ownerUserId,
       shelterCustodyUserId: vecinoUserId,
@@ -771,15 +805,18 @@ describe("actorCancelProposalWriter", () => {
 
     expect("ok" in result && result.ok).toBe(true);
 
-    // Verify note_added event.
-    const notes = await db
+    // Verify custody_transfer_cancelled emitted with correct payload (ARCH-B).
+    const cancelEvents = await db
       .select()
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
-    expect(notes.length).toBeGreaterThan(0);
-    const notePayload = notes[notes.length - 1].payload as Record<string, unknown>;
-    expect(String(notePayload.text)).toMatch(/canceló/i);
-    expect(String(notePayload.text)).toMatch(/Ya no puedo entregarlo/);
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(cancelEvents.length).toBeGreaterThan(0);
+    const cancelPayload = cancelEvents[cancelEvents.length - 1].payload as Record<string, unknown>;
+    expect(cancelPayload.cancelled_by).toBe("actor_cancel");
+    expect(cancelPayload.reason).toBe("Ya no puedo entregarlo hoy.");
+    expect(typeof cancelPayload.proposal_event_id).toBe("string");
 
     // Verify owner was notified.
     const ownerCancelNotifs = await db
@@ -795,7 +832,7 @@ describe("actorCancelProposalWriter", () => {
     expect(ownerCancelNotifs.length).toBeGreaterThan(0);
   });
 
-  it("refugio org actor cancels own proposal: note emitted, owner notified", async () => {
+  it("refugio org actor cancels own proposal: custody_transfer_cancelled emitted, owner notified", async () => {
     const { petId, publicToken } = await insertLostPet({
       ownerUserId,
       shelterCustodyOrgId: orgId,
@@ -817,11 +854,16 @@ describe("actorCancelProposalWriter", () => {
 
     expect("ok" in result && result.ok).toBe(true);
 
-    const notes = await db
+    // Verify structured cancellation event (ARCH-B).
+    const cancelEvents = await db
       .select()
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
-    expect(notes.length).toBeGreaterThan(0);
+      .where(
+        and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(cancelEvents.length).toBeGreaterThan(0);
+    const cancelPayload = cancelEvents[cancelEvents.length - 1].payload as Record<string, unknown>;
+    expect(cancelPayload.cancelled_by).toBe("actor_cancel");
 
     // Owner notified.
     const ownerNotifs = await db
@@ -835,6 +877,61 @@ describe("actorCancelProposalWriter", () => {
         ),
       );
     expect(ownerNotifs.length).toBeGreaterThan(0);
+  });
+
+  it("forgery: owner-authored note_added with proposal marker does NOT cancel a NEW proposal", async () => {
+    const { petId, publicToken } = await insertLostPet({
+      ownerUserId,
+      shelterCustodyOrgId: orgId,
+    });
+
+    // Propose as refugio.
+    const propose = await proposeReturnAsRefugioWriter({
+      userId: refugioMemberUserId,
+      organization: { id: orgId, displayName: "Return Test Refugio" },
+      petPublicToken: publicToken,
+      notes: null,
+    });
+    expect("ok" in propose && propose.ok).toBe(true);
+    if (!("ok" in propose)) throw new Error("Expected ok");
+
+    // Fetch the real proposal event id.
+    const [proposalEvent] = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+    expect(proposalEvent).toBeDefined();
+
+    // Craft a forged owner-authored note using the legacy marker pattern.
+    await withMutationOverride(async (tx) => {
+      const forgedPayload = validateEventPayload("note_added", {
+        category: null,
+        text: `Proposal event_id=${proposalEvent.id}`,
+      });
+      await tx.insert(petEvents).values({
+        petId,
+        eventType: "note_added",
+        occurredAt: new Date(),
+        recordedAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: forgedPayload,
+      });
+    });
+
+    // The proposal must still be detected as pending (forged note ignored).
+    // A second propose attempt must be blocked.
+    const second = await proposeReturnAsRefugioWriter({
+      userId: refugioMemberUserId,
+      organization: { id: orgId, displayName: "Return Test Refugio" },
+      petPublicToken: publicToken,
+      notes: null,
+    });
+    expect("error" in second).toBe(true);
+    if (!("error" in second)) throw new Error("Expected error");
+    expect(second.error).toMatch(/pendiente/i);
   });
 
   it("returns error when caller is not the actor who proposed", async () => {

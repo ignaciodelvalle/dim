@@ -333,6 +333,20 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
     }
     case "ownership_claimed":
       return { primary: "Mascota reclamada", secondary: null };
+    case "custody_transfer_cancelled": {
+      const cancelledBy = str("cancelled_by");
+      const reason = str("reason");
+      const primaryMap: Record<string, string> = {
+        owner_reject: "Rechazada por el dueño/a",
+        actor_cancel: "Cancelada por quien la propuso",
+        org_reject: "Rechazada por la organización",
+        auto_cancel: "Cancelada automáticamente",
+      };
+      return {
+        primary: (cancelledBy && primaryMap[cancelledBy]) || "Propuesta cancelada",
+        secondary: reason,
+      };
+    }
     default:
       return { primary: null, secondary: null };
   }

@@ -321,6 +321,13 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
     compatibleWith: ["custody_transfer_handshake"],
     opensKind: "custody_transfer_handshake",
   },
+  // Cancellation terminates a custody_transfer_handshake (same episodes as
+  // custody_transferred). attaches-when-open so the closing action can mark
+  // the handshake case closed.
+  custody_transfer_cancelled: {
+    mode: "attaches-when-open",
+    compatibleWith: ["custody_transfer_handshake", "custody_episode", "lost_pet_episode"],
+  },
   custody_dispute_raised: {
     mode: "opens",
     compatibleWith: ["custody_dispute"],

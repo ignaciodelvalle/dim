@@ -128,6 +128,8 @@ export function eventTypeLabel(eventType: string): string {
       return "Maltrato reportado";
     case "ownership_claimed":
       return "Mascota reclamada";
+    case "custody_transfer_cancelled":
+      return "Propuesta de devolución cancelada";
     default:
       return eventType;
   }

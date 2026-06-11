@@ -338,6 +338,10 @@ export const EVENT_TYPES = [
   // Lost & Found — two-phase return-to-owner handshake (Fase 5).
   // Proposed by the actor holding shelter_custody; accepted by the owner.
   "custody_transfer_proposed",
+  // Structured cancellation of a custody_transfer_proposed. Replaces the
+  // fragile marker-text note_added approach (ARCH-B). The cancelled_by
+  // discriminator records who terminated the proposal.
+  "custody_transfer_cancelled",
   // Custody disputes — admin/govt flag the pet for external legal proceedings.
   // Set `pets.in_custody_dispute=true` on raised, false on resolved.
   "custody_dispute_raised",

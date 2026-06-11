@@ -73,8 +73,9 @@ export const NON_LIBRETA_EVENT_TYPES = [
   "abandonment_reported",
   "maltreatment_reported",
   "note_added",
-  // Lost & Found — custody proposal event (Fase 5). Not a medical entry.
+  // Lost & Found — custody proposal/cancellation events (Fase 5 + ARCH-B). Not medical entries.
   "custody_transfer_proposed",
+  "custody_transfer_cancelled",
   // Custody disputes — external legal proceedings flagged by admin/govt.
   // Not pet medical history.
   "custody_dispute_raised",
