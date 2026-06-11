@@ -71,7 +71,10 @@ export async function fetchActiveIdentifications(petId: string): Promise<ActiveI
       ),
     );
 
-  return rowsToIdentifications(rows)[petId] ?? { microchip: null, tattoo: null };
+  // The single-pet projection omits petId (the WHERE already filters by it),
+  // so rowsToIdentifications keys these rows under SINGLE_PET_KEY — indexing
+  // by the UUID here would always miss and return empty identifications.
+  return rowsToIdentifications(rows)[SINGLE_PET_KEY] ?? { microchip: null, tattoo: null };
 }
 
 // ---------------------------------------------------------------------------
