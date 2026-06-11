@@ -15,6 +15,7 @@ import {
   PayloadSchemas,
   validateEventPayload,
 } from "@/lib/event-schemas";
+import { registeredUpcasterTypes } from "@/lib/event-upcasters";
 
 // Event types from EVENT_TYPES that have NO writer today but ALSO no schema —
 // they sit in the const ahead of their flow being designed. Every other
@@ -60,7 +61,7 @@ describe("PayloadSchemas — coverage", () => {
     expect(result.payload_version).toBe(1);
   });
 
-  it("validateEventPayload rejects payload_version=2 (no upcaster registered yet)", () => {
+  it("validateEventPayload rejects payload_version=2 for a schema still at v1", () => {
     expect(() =>
       validateEventPayload("weight_recorded", { kg: "12.50", payload_version: 2 }),
     ).toThrow(EventPayloadValidationError);
@@ -93,6 +94,51 @@ describe("PayloadSchemas — payload_version coverage", () => {
       ).toContain("payload_version");
     });
   }
+});
+
+// §4.5 — upcaster coverage. Every schema whose `payload_version` literal is
+// greater than 1 MUST have a corresponding entry in lib/event-upcasters.ts.
+// Without an upcaster, historical v1 rows flowing through `upcastPayload` are
+// silently left in the old shape, defeating the whole versioning contract.
+describe("PayloadSchemas — upcaster coverage", () => {
+  // `payload_version` fields are declared as z.literal(N).default(N), so the
+  // shape entry is a ZodDefault wrapping a ZodLiteral. Unwrap any wrapper
+  // chain (_def.innerType) before reading the literal value.
+  type ZodNode = {
+    value?: unknown;
+    _def?: { value?: unknown; values?: unknown[]; innerType?: ZodNode };
+  };
+  const extractLiteralVersion = (field: unknown): number => {
+    let node = field as ZodNode | undefined;
+    while (node?._def?.innerType) {
+      node = node._def.innerType;
+    }
+    const candidate = node?.value ?? node?._def?.value ?? node?._def?.values?.[0];
+    return typeof candidate === "number" ? candidate : 1;
+  };
+
+  it("extraction is not vacuous: adoption_application_submitted reads as v2", () => {
+    const shape = (
+      PayloadSchemas.adoption_application_submitted as unknown as {
+        shape: Record<string, unknown>;
+      }
+    ).shape;
+    expect(extractLiteralVersion(shape.payload_version)).toBe(2);
+  });
+
+  it("every schema at payload_version > 1 has a registered upcaster", () => {
+    const upcasted = new Set(registeredUpcasterTypes());
+    for (const [eventType, schema] of Object.entries(PayloadSchemas)) {
+      const shape = (schema as { shape?: Record<string, unknown> }).shape;
+      const version = extractLiteralVersion(shape?.payload_version);
+      if (version > 1) {
+        expect(
+          upcasted.has(eventType as EventType),
+          `Schema for '${eventType}' is at payload_version ${version} but has no registered upcaster in lib/event-upcasters.ts. Add a v1→v${version} upcaster entry.`,
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 describe("PayloadSchemas — canonical writer payloads", () => {

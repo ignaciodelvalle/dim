@@ -13,6 +13,7 @@ import { notFound } from "next/navigation";
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { upcastPayload } from "@/lib/event-upcasters";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ReviewButtons } from "./ReviewButtons";
@@ -63,14 +64,16 @@ export default async function AdoptionReviewDetailPage({
   if (!row) notFound();
   const { application, pet } = row;
 
-  const payload = application.payload as {
+  // Upcast before consuming — v1 rows lack motivation/prior_pets; the upcaster
+  // fills them with null so downstream rendering is always on the v2 shape.
+  const payload = upcastPayload("adoption_application_submitted", application.payload) as {
     applicant_user_id: string;
     housing_type: string;
     other_pets: string | null;
     daily_routine: string | null;
     notes: string | null;
-    motivation?: string | null;
-    prior_pets?: "yes_currently" | "yes_before" | "no" | null;
+    motivation: string | null;
+    prior_pets: "yes_currently" | "yes_before" | "no" | null;
   };
 
   // Applicant identity. profiles.id may not be FK-backed via auth.users

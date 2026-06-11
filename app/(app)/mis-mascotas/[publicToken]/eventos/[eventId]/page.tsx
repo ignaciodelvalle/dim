@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { attachments, db, petEvents } from "@/db";
+import type { EventType } from "@/db/schema";
+import { upcastPayload } from "@/lib/event-upcasters";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
@@ -54,7 +56,10 @@ export default async function EventDetailPage({
   );
 
   const point = readPoint(event);
-  const payload = (event.payload ?? {}) as Record<string, unknown>;
+  const payload = (upcastPayload(event.eventType as EventType, event.payload) ?? {}) as Record<
+    string,
+    unknown
+  >;
   const payloadEntries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined);
 
   return (
