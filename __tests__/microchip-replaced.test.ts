@@ -18,6 +18,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
 } from "@/db";
@@ -206,10 +207,18 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helper: reset primaryPet's chip back to CHIP_ORIGINAL between tests
+// Helper: reset primaryPet's chip state between tests
 // ---------------------------------------------------------------------------
 async function resetPrimaryChip() {
+  // Keep the legacy pets.microchipId column in sync so tests that use it for
+  // setup (duplicate-scan fixture) still work while the column exists.
   await db.update(pets).set({ microchipId: CHIP_ORIGINAL }).where(eq(pets.id, primaryPetId));
+  // Clean up canonical rows from this test so the next test starts fresh.
+  await withMutationOverride(async (tx) => {
+    await tx.execute(
+      sql`DELETE FROM pet_identifications WHERE pet_id = ${primaryPetId}::uuid AND kind = 'microchip_iso'`,
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -217,7 +226,22 @@ async function resetPrimaryChip() {
 // ---------------------------------------------------------------------------
 
 describe("replaceMicrochipForUser — owner emits damaged", () => {
-  it("emits the event, opens no case, and updates pets.microchipId", async () => {
+  it("emits the event, opens no case, and flips canonical row", async () => {
+    // Seed a canonical row for CHIP_ORIGINAL so the replace action has a row to flip.
+    await db
+      .insert(petIdentifications)
+      .values({
+        petId: primaryPetId,
+        kind: "microchip_iso",
+        code: CHIP_ORIGINAL,
+        recordedAt: new Date().toISOString().slice(0, 10),
+        isoCountryCode: CHIP_ORIGINAL.slice(0, 3),
+        isoManufacturerCode: CHIP_ORIGINAL.slice(3, 7),
+        isoNationalId: CHIP_ORIGINAL.slice(7, 15),
+        isoCompliant: true,
+      })
+      .onConflictDoNothing();
+
     const result = await replaceMicrochipForUser(ownerUserId, {
       petId: primaryPetId,
       previousChipNumber: CHIP_ORIGINAL,
@@ -236,12 +260,27 @@ describe("replaceMicrochipForUser — owner emits damaged", () => {
     expect(event.eventType).toBe("microchip_replaced");
     expect(event.caseId).toBeNull();
 
-    // pets.microchipId updated.
-    const [pet] = await db
-      .select({ microchipId: pets.microchipId })
-      .from(pets)
-      .where(eq(pets.id, primaryPetId));
-    expect(pet.microchipId).toBe(CHIP_REPLACEMENT);
+    // Canonical row for CHIP_ORIGINAL flipped to 'replaced'.
+    const oldRows = await db
+      .select({ status: petIdentifications.status })
+      .from(petIdentifications)
+      .where(
+        and(eq(petIdentifications.petId, primaryPetId), eq(petIdentifications.code, CHIP_ORIGINAL)),
+      );
+    expect(oldRows[0]?.status).toBe("replaced");
+
+    // New active canonical row for CHIP_REPLACEMENT.
+    const newRows = await db
+      .select({ code: petIdentifications.code, status: petIdentifications.status })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, primaryPetId),
+          eq(petIdentifications.code, CHIP_REPLACEMENT),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(newRows).toHaveLength(1);
 
     // No case opened.
     expect(result.caseId).toBeNull();
@@ -327,6 +366,22 @@ describe("replaceMicrochipForUser — cross-pet dup scan finds another pet", () 
     await db.update(pets).set({ microchipId: null }).where(eq(pets.id, primaryPetId));
     await db.update(pets).set({ microchipId: CHIP_ORIGINAL }).where(eq(pets.id, duplicatePetId));
 
+    // Seed canonical row for duplicatePetId with CHIP_ORIGINAL so the canonical
+    // duplicate scan (petIdentifications, ARCH-R) finds it.
+    await db
+      .insert(petIdentifications)
+      .values({
+        petId: duplicatePetId,
+        kind: "microchip_iso",
+        code: CHIP_ORIGINAL,
+        recordedAt: new Date().toISOString().slice(0, 10),
+        isoCountryCode: CHIP_ORIGINAL.slice(0, 3),
+        isoManufacturerCode: CHIP_ORIGINAL.slice(3, 7),
+        isoNationalId: CHIP_ORIGINAL.slice(7, 15),
+        isoCompliant: true,
+      })
+      .onConflictDoNothing();
+
     const result = await replaceMicrochipForUser(vetUserId, {
       petId: primaryPetId,
       previousChipNumber: CHIP_ORIGINAL,
@@ -347,11 +402,16 @@ describe("replaceMicrochipForUser — cross-pet dup scan finds another pet", () 
     // The secondaryPetId is embedded in openedReason.
     expect(c.openedReason).toContain(duplicatePetId);
 
-    // Restore duplicate pet's chip.
+    // Restore duplicate pet's chip (legacy column) and clean up canonical row.
     await db
       .update(pets)
       .set({ microchipId: CHIP_DUPLICATE_TARGET })
       .where(eq(pets.id, duplicatePetId));
+    await withMutationOverride(async (tx) => {
+      await tx.execute(
+        sql`DELETE FROM pet_identifications WHERE pet_id = ${duplicatePetId}::uuid AND kind = 'microchip_iso'`,
+      );
+    });
     await resetPrimaryChip();
   });
 });
@@ -417,7 +477,22 @@ describe("replaceMicrochipForUser — pure revocation with reason damaged", () =
 });
 
 describe("replaceMicrochipForUser — pure revocation with reason owner_request", () => {
-  it("succeeds and sets microchipId to null", async () => {
+  it("succeeds and flips canonical row to replaced (no new active row)", async () => {
+    // Seed canonical row for CHIP_ORIGINAL.
+    await db
+      .insert(petIdentifications)
+      .values({
+        petId: primaryPetId,
+        kind: "microchip_iso",
+        code: CHIP_ORIGINAL,
+        recordedAt: new Date().toISOString().slice(0, 10),
+        isoCountryCode: CHIP_ORIGINAL.slice(0, 3),
+        isoManufacturerCode: CHIP_ORIGINAL.slice(3, 7),
+        isoNationalId: CHIP_ORIGINAL.slice(7, 15),
+        isoCompliant: true,
+      })
+      .onConflictDoNothing();
+
     const result = await replaceMicrochipForUser(ownerUserId, {
       petId: primaryPetId,
       previousChipNumber: CHIP_ORIGINAL,
@@ -429,11 +504,17 @@ describe("replaceMicrochipForUser — pure revocation with reason owner_request"
 
     expect(result).toMatchObject({ ok: true });
 
-    const [pet] = await db
-      .select({ microchipId: pets.microchipId })
-      .from(pets)
-      .where(eq(pets.id, primaryPetId));
-    expect(pet.microchipId).toBeNull();
+    // The canonical row for CHIP_ORIGINAL must be 'replaced', no new active row.
+    const rows = await db
+      .select({ status: petIdentifications.status })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, primaryPetId),
+          eq(petIdentifications.kind, "microchip_iso"),
+        ),
+      );
+    expect(rows.every((r) => r.status !== "active")).toBe(true);
 
     await resetPrimaryChip();
   });

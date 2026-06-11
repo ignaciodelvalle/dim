@@ -9,8 +9,9 @@
 //   - PLAIN insert of status_changed event with disclosure_prefs_snapshot + optional lost_description.
 //   - pets projection: status=lost + 5 disclosure cols + optional color/distinguishingFeatures.
 //   - openCase called for lost_pet_episode BEFORE status_changed insert.
-//   - Retroactive microchip: if validatedRetroChipId && !petMicrochipId → insert microchip_implanted + update pets.
-//   - Retroactive tattoo: if tattooCode && !petTattooCode → insert tattoo_recorded + update pets.
+//   - Retroactive microchip: if validatedRetroChipId && !petMicrochipId → insert microchip_implanted + insertIdentification.
+//   - Retroactive tattoo: if tattooCode && !petTattooCode → insert tattoo_recorded + insertIdentification.
+//   - ARCH-R: updateMicrochipBackfill removed; canonical rows via insertIdentification only.
 //   - INVALID_MICROCHIP_FORMAT returned BEFORE any DB write.
 //   - broadcastLostPet called post-tx (best-effort) when petPublicToken provided.
 //   - Result: { error: null } on success.
@@ -64,7 +65,6 @@ function makeRepo() {
   return {
     insertEvent: vi.fn().mockResolvedValue({ id: randomUUID() }),
     updatePetLostProjection: vi.fn().mockResolvedValue(undefined),
-    updateMicrochipBackfill: vi.fn().mockResolvedValue(undefined),
     insertIdentification: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -146,11 +146,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -168,11 +164,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -201,11 +193,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -221,10 +209,7 @@ describe("setPetLostWriter", () => {
     const result = await setPetLostWriter(baseParams, {
       repo: repo as unknown as Pick<
         EventsRepository,
-        | "insertEvent"
-        | "updatePetLostProjection"
-        | "updateMicrochipBackfill"
-        | "insertIdentification"
+        "insertEvent" | "updatePetLostProjection" | "insertIdentification"
       >,
       transaction: tx,
       broadcastLostPet: mockBroadcastLostPet,
@@ -255,7 +240,7 @@ describe("setPetLostWriter", () => {
     expect(projArg).toBe(petId);
   });
 
-  it("inserts microchip_implanted + updates pets when retroactive chip provided and pet had none", async () => {
+  it("inserts microchip_implanted + canonical identification when retroactive chip provided and pet had none", async () => {
     const normalizedChip = "982000123456789";
     mockValidateMicrochipId.mockReturnValue({ ok: true, normalized: normalizedChip });
 
@@ -277,11 +262,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -296,8 +277,8 @@ describe("setPetLostWriter", () => {
     const microchipCall = calls.find(([arg]) => arg.eventType === "microchip_implanted");
     expect(microchipCall).toBeDefined();
 
-    // pets microchip backfill
-    expect(repo.updateMicrochipBackfill).toHaveBeenCalledTimes(1);
+    // Canonical identification inserted (ARCH-R: legacy pets.microchipId backfill removed).
+    expect(repo.insertIdentification).toHaveBeenCalledTimes(1);
   });
 
   it("skips retroactive microchip when pet already has a chip", async () => {
@@ -322,11 +303,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -335,7 +312,7 @@ describe("setPetLostWriter", () => {
 
     // Only status_changed, no microchip
     expect(repo.insertEvent).toHaveBeenCalledTimes(1);
-    expect(repo.updateMicrochipBackfill).not.toHaveBeenCalled();
+    expect(repo.insertIdentification).not.toHaveBeenCalled();
   });
 
   it("inserts tattoo_recorded when retroactive tattoo provided and pet had none", async () => {
@@ -363,11 +340,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,
@@ -385,10 +358,7 @@ describe("setPetLostWriter", () => {
     await setPetLostWriter(baseParams, {
       repo: repo as unknown as Pick<
         EventsRepository,
-        | "insertEvent"
-        | "updatePetLostProjection"
-        | "updateMicrochipBackfill"
-        | "insertIdentification"
+        "insertEvent" | "updatePetLostProjection" | "insertIdentification"
       >,
       transaction: tx,
       broadcastLostPet: mockBroadcastLostPet,
@@ -404,11 +374,7 @@ describe("setPetLostWriter", () => {
       {
         repo: repo as unknown as Pick<
           EventsRepository,
-          | "insertEvent"
-          | "updatePetLostProjection"
-          | "updateMicrochipBackfill"
-          | "insertIdentification"
-          | "insertIdentification"
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
         >,
         transaction: tx,
         broadcastLostPet: mockBroadcastLostPet,

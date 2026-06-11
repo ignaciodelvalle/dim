@@ -80,10 +80,7 @@ export type SetPetLostWriterResult = { error: string | null };
 type BroadcastFn = (db: any, pet: any, owner: any, lastLocation: any) => Promise<any>;
 
 type Deps = {
-  repo: Pick<
-    EventsRepository,
-    "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill" | "insertIdentification"
-  >;
+  repo: Pick<EventsRepository, "insertEvent" | "updatePetLostProjection" | "insertIdentification">;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   broadcastLostPet: BroadcastFn;
 };
@@ -257,20 +254,8 @@ export async function setPetLostWriter(
           tx as Parameters<typeof deps.repo.insertEvent>[1],
         );
 
-        await deps.repo.updateMicrochipBackfill(
-          petId,
-          {
-            microchipId: newChipId,
-            microchipCountryCode: null,
-            microchipImplantedAt: null,
-            microchipImplantedBy: null,
-            microchipLocation: null,
-          },
-          now,
-          tx as Parameters<typeof deps.repo.updateMicrochipBackfill>[3],
-        );
-
-        // Canonical dual-write — insert active microchip row in pet_identifications.
+        // Insert canonical microchip row in pet_identifications.
+        // Legacy pets.microchipId write removed in ARCH-R.
         await deps.repo.insertIdentification(
           {
             petId,
@@ -331,28 +316,9 @@ export async function setPetLostWriter(
             tx as Parameters<typeof deps.repo.insertEvent>[1],
           );
 
-          // We reuse updatePetLostProjection is not the right method here — need direct update.
-          // The original code does a direct tx.update(pets).set({tattooCode,...}).
-          // Since EventsRepository doesn't have a tattoo update method, we use the repo's
-          // updateMicrochipBackfill pattern — but for tattoo. We call tx directly (the tx
-          // is opaque `unknown` here). The original does this via db.transaction tx which IS
-          // the drizzle executor, so we cast and call update on it.
-          // Per design: "reuse existing pure modules — do not rewrite them".
-          // We need to accept `tx` as the Drizzle executor here.
-          const { pets, petIdentifications } = await import("@/db");
-          const { eq } = await import("drizzle-orm");
-          await (tx as { update: typeof import("@/db").db.update })
-            .update(pets)
-            .set({
-              tattooCode: normalizedTattoo,
-              tattooLocation: tattooLoc,
-              tattooDescription: tattooDesc,
-              updatedAt: now,
-            })
-            .where(eq(pets.id, petId));
-
-          // Canonical dual-write — insert active tattoo row in pet_identifications.
-          // Same guard as pets column write: only when the pet had no prior tattoo.
+          // Canonical write to pet_identifications.
+          // Legacy pets.tattooCode write removed in ARCH-R.
+          const { petIdentifications } = await import("@/db");
           await (tx as { insert: typeof import("@/db").db.insert })
             .insert(petIdentifications)
             .values({

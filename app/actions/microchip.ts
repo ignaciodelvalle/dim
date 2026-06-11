@@ -178,21 +178,24 @@ export async function replaceMicrochipForUser(
       }
 
       // Cross-pet duplicate scan — only for duplicate_detected.
+      // Reads from canonical pet_identifications (legacy pets.microchipId
+      // writes removed in ARCH-R — scanning the legacy column would miss
+      // new chips inserted after this PR).
       let secondaryPetId: string | null = null;
       if (parsed.reason === "duplicate_detected") {
         const dupes = await tx
-          .select({ id: pets.id })
-          .from(pets)
+          .select({ petId: petIdentifications.petId })
+          .from(petIdentifications)
           .where(
             and(
-              eq(pets.microchipId, parsed.previousChipNumber),
-              ne(pets.id, pet.id),
-              // pets has no deletedAt; filter out deceased/lost to find active duplicates.
-              inArray(pets.status, ["active", "lost"]),
+              eq(petIdentifications.code, parsed.previousChipNumber),
+              eq(petIdentifications.kind, "microchip_iso"),
+              eq(petIdentifications.status, "active"),
+              ne(petIdentifications.petId, pet.id),
             ),
           )
           .limit(1);
-        secondaryPetId = dupes[0]?.id ?? null;
+        secondaryPetId = dupes[0]?.petId ?? null;
       }
 
       // Open a microchip_remediation case for fraud or duplicate reasons.
@@ -268,11 +271,9 @@ export async function replaceMicrochipForUser(
         })
         .returning();
 
-      // Update pets.microchipId (the denormalized chip column).
-      await tx
-        .update(pets)
-        .set({ microchipId: parsed.newChipNumber, updatedAt: now })
-        .where(eq(pets.id, pet.id));
+      // Bump updatedAt on the pets row (legacy microchipId column write removed
+      // in ARCH-R — canonical row managed via petIdentifications below).
+      await tx.update(pets).set({ updatedAt: now }).where(eq(pets.id, pet.id));
 
       // Canonical dual-write: flip old active canonical row to 'replaced',
       // then insert the new active row (skip insert on pure revocation).

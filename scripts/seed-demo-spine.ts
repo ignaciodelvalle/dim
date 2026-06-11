@@ -160,6 +160,8 @@ async function seedArgo(): Promise<void> {
   const weight1 = daysAgo(28);
   const weight2 = daysAgo(10);
 
+  const ARGO_CHIP = "858985112999000111";
+
   const [pet] = await db
     .insert(schemas.pets)
     .values({
@@ -172,11 +174,8 @@ async function seedArgo(): Promise<void> {
       birthDateIsEstimated: true,
       color: "Marrón con manchas blancas",
       distinguishingFeatures: "Oreja izquierda con muesca",
-      microchipId: "858985112999000111",
-      microchipCountryCode: "858",
-      microchipImplantedAt: microchipDate.toISOString().slice(0, 10),
-      microchipImplantedBy: "Refugio Patitas del Norte",
-      microchipLocation: "interscapular_left",
+      // Legacy chip columns omitted — ARCH-R; canonical row written to
+      // pet_identifications below.
       estimatedWeightKg: "22.5",
       potentiallyDangerousBreed: false,
       jurisdictionCountry: "AR",
@@ -258,6 +257,19 @@ async function seedArgo(): Promise<void> {
       payload: e.payload as Record<string, unknown>,
     });
   }
+
+  // Canonical microchip row — legacy pets.* columns not written (ARCH-R).
+  await db.insert(schemas.petIdentifications).values({
+    petId: pet.id,
+    kind: "microchip_iso",
+    code: ARGO_CHIP,
+    recordedAt: microchipDate.toISOString().slice(0, 10),
+    recordedByLabel: "Refugio Patitas del Norte",
+    isoCountryCode: ARGO_CHIP.slice(0, 3),
+    isoManufacturerCode: ARGO_CHIP.slice(3, 7),
+    isoNationalId: ARGO_CHIP.slice(7, 15),
+    isoCompliant: true,
+  });
 
   log(
     "OK",

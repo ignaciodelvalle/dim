@@ -6,8 +6,8 @@
 // Parity:
 //   - Uses insertEventIdempotent; wasNoop=true → skip ALL side-effects.
 //   - Attachment inserted when uploadedPath provided.
-//   - PROJECTION: updateMicrochipBackfill called ONLY when pet.microchipId is null.
-//     The repository method also guards on null via WHERE clause — double safety.
+//   - ARCH-R: legacy updateMicrochipBackfill (pets.microchipId column) removed.
+//     Canonical row written to pet_identifications via insertIdentification.
 //   - No outbox. No audit_log.
 
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -43,10 +43,7 @@ export type CreateMicrochipInput = {
 type Deps = {
   repo: Pick<
     EventsRepository,
-    | "insertEventIdempotent"
-    | "insertAttachment"
-    | "updateMicrochipBackfill"
-    | "insertIdentification"
+    "insertEventIdempotent" | "insertAttachment" | "insertIdentification"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
@@ -117,27 +114,11 @@ export async function createMicrochip(
       );
     }
 
-    // Back-fill denormalized microchip columns on the pets row ONLY if
-    // the pet had no chip before (never overwrite existing data).
-    // The repository method also filters by WHERE microchipId IS NULL as
-    // a second safety layer.
+    // Insert canonical microchip row in pet_identifications.
+    // Only when the pet had no prior chip; insertIdentification itself skips
+    // if an active row already exists (re-sync guard).
+    // Legacy pets.microchipId write removed in ARCH-R.
     if (!pet.microchipId) {
-      await repo.updateMicrochipBackfill(
-        pet.id,
-        {
-          microchipId: chipNumber,
-          microchipCountryCode: countryCode,
-          microchipImplantedAt: occurredAt.toISOString().slice(0, 10),
-          microchipImplantedBy: implantedBy,
-          microchipLocation: locationOnBody,
-        },
-        now,
-        tx as Parameters<typeof repo.updateMicrochipBackfill>[3],
-      );
-
-      // Canonical dual-write — insert active microchip row in pet_identifications.
-      // Only when the pet had no prior chip (same guard as the pets column
-      // backfill); insertIdentification itself skips if an active row exists.
       const implantSite = chipImplantSiteFromLocation(locationOnBody);
       await repo.insertIdentification(
         {

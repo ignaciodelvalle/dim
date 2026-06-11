@@ -99,7 +99,9 @@ export const PetsRepository = {
       now,
     } = args;
 
-    // Insert pet row.
+    // Insert pet row. Legacy chip/tattoo columns (microchipId, microchipCountryCode,
+    // microchipImplantedAt, microchipImplantedBy, microchipLocation) omitted —
+    // ARCH-R removes these writes; canonical rows go to pet_identifications below.
     const [newPet] = await tx
       .insert(pets)
       .values({
@@ -111,11 +113,6 @@ export const PetsRepository = {
         dateOfBirth: parsed.dateOfBirth,
         birthDateIsEstimated: parsed.birthDateIsEstimated,
         color: parsed.color,
-        microchipId: parsed.microchipId,
-        microchipCountryCode: parsed.microchipCountryCode,
-        microchipImplantedAt: parsed.microchipImplantedAt,
-        microchipImplantedBy: parsed.microchipImplantedBy,
-        microchipLocation: parsed.microchipLocation,
         estimatedWeightKg: parsed.estimatedWeightKg,
         favouriteFoods: parsed.favouriteFoods.length > 0 ? parsed.favouriteFoods : null,
         knownAllergies: parsed.knownAllergies.length > 0 ? parsed.knownAllergies : null,
@@ -268,6 +265,9 @@ export const PetsRepository = {
     } = args;
 
     // Always update the pet row (covers flag-only and content changes).
+    // Legacy chip columns (microchipId, microchipCountryCode, microchipImplantedAt,
+    // microchipImplantedBy, microchipLocation) omitted — ARCH-R; canonical rows
+    // are managed via pet_identifications (see chipNewlyAdded block below).
     await tx
       .update(pets)
       .set({
@@ -278,11 +278,6 @@ export const PetsRepository = {
         dateOfBirth: parsed.dateOfBirth,
         birthDateIsEstimated: parsed.birthDateIsEstimated,
         color: parsed.color,
-        microchipId: parsed.microchipId,
-        microchipCountryCode: parsed.microchipCountryCode,
-        microchipImplantedAt: parsed.microchipImplantedAt,
-        microchipImplantedBy: parsed.microchipImplantedBy,
-        microchipLocation: parsed.microchipLocation,
         estimatedWeightKg: parsed.estimatedWeightKg,
         favouriteFoods: parsed.favouriteFoods.length > 0 ? parsed.favouriteFoods : null,
         knownAllergies: parsed.knownAllergies.length > 0 ? parsed.knownAllergies : null,

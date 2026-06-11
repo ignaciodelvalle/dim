@@ -10,7 +10,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createTattooForUser } from "@/app/actions/tattoo";
-import { attachments, db, ownerships, petEvents, pets } from "@/db";
+import { attachments, db, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { withMutationOverride } from "../_helpers/db-overrides";
 
@@ -106,17 +106,7 @@ async function resetPetTattoo() {
   await withMutationOverride(async (tx) => {
     await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}::uuid`);
     await tx.execute(sql`DELETE FROM attachments WHERE pet_id = ${petId}::uuid`);
-    await tx
-      .update(pets)
-      .set({
-        tattooCode: null,
-        tattooLocation: null,
-        tattooDescription: null,
-        tattooRecordedAt: null,
-        tattooRecordedBy: null,
-        tattooPhotoId: null,
-      })
-      .where(eq(pets.id, petId));
+    await tx.execute(sql`DELETE FROM pet_identifications WHERE pet_id = ${petId}::uuid`);
   });
 }
 
@@ -131,7 +121,7 @@ describe("normalizeTattooCode", () => {
 });
 
 describe("createTattooForUser", () => {
-  it("creates event + attachment + updates pets cache", async () => {
+  it("creates event + attachment + canonical identification row", async () => {
     await resetPetTattoo();
 
     const result = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
@@ -162,11 +152,17 @@ describe("createTattooForUser", () => {
     expect(attachmentRows).toHaveLength(1);
     expect(attachmentRows[0].storagePath).toBe(FAKE_UPLOAD.path);
 
-    const [petRow] = await db.select().from(pets).where(eq(pets.id, petId));
-    expect(petRow.tattooCode).toBe("K9-2014-A");
-    expect(petRow.tattooLocation).toBe("inner_ear_left");
-    expect(petRow.tattooDescription).toBe("Criadero FCA");
-    expect(petRow.tattooPhotoId).toBe(attachmentRows[0].id);
+    // Canonical row in pet_identifications (legacy pets.* tattoo columns removed — ARCH-R).
+    const canonicalRows = await db
+      .select()
+      .from(petIdentifications)
+      .where(eq(petIdentifications.petId, petId));
+    expect(canonicalRows).toHaveLength(1);
+    expect(canonicalRows[0].kind).toBe("tattoo");
+    expect(canonicalRows[0].code).toBe("K9-2014-A");
+    expect(canonicalRows[0].tattooLocation).toBe("inner_ear_left");
+    expect(canonicalRows[0].tattooDescription).toBe("Criadero FCA");
+    expect(canonicalRows[0].photoId).toBe(attachmentRows[0].id);
   });
 
   it("normalizes the code before persisting (trim + uppercase + collapse whitespace)", async () => {
@@ -184,8 +180,13 @@ describe("createTattooForUser", () => {
     expect("ok" in result && result.ok).toBe(true);
     if (!("ok" in result)) throw new Error("expected ok");
 
-    const [petRow] = await db.select().from(pets).where(eq(pets.id, petId));
-    expect(petRow.tattooCode).toBe("K92014");
+    // Canonical row carries the normalized code (legacy pets.tattooCode removed — ARCH-R).
+    const canonicalRows = await db
+      .select()
+      .from(petIdentifications)
+      .where(eq(petIdentifications.petId, petId));
+    expect(canonicalRows).toHaveLength(1);
+    expect(canonicalRows[0].code).toBe("K92014");
 
     const events = await db.select().from(petEvents).where(eq(petEvents.id, result.eventId));
     const payload = events[0].payload as Record<string, unknown>;
@@ -231,7 +232,7 @@ describe("createTattooForUser", () => {
     }
   });
 
-  it("re-registration overwrites the cache but keeps both events in the append-only log", async () => {
+  it("re-registration keeps both events in the append-only log and both canonical rows are written", async () => {
     await resetPetTattoo();
 
     const first = await createTattooForUser(petId, ownerUserId, OWNER_AUTHORSHIP, {
@@ -258,9 +259,14 @@ describe("createTattooForUser", () => {
     expect(allEvents).toHaveLength(2);
     expect(allEvents.every((e) => e.eventType === "tattoo_recorded")).toBe(true);
 
-    const [petRow] = await db.select().from(pets).where(eq(pets.id, petId));
-    expect(petRow.tattooCode).toBe("SECOND-CODE");
-    expect(petRow.tattooLocation).toBe("belly");
-    expect(petRow.tattooDescription).toBe("re-recorded with better photo");
+    // Both canonical rows exist (tattoo identifications are not retired on re-write,
+    // only a new one is appended — legacy "overwrite" behavior removed with ARCH-R).
+    const canonicalRows = await db
+      .select()
+      .from(petIdentifications)
+      .where(eq(petIdentifications.petId, petId));
+    expect(canonicalRows).toHaveLength(2);
+    const codes = canonicalRows.map((r) => r.code).sort();
+    expect(codes).toEqual(["FIRST-CODE", "SECOND-CODE"]);
   });
 });

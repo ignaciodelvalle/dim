@@ -91,6 +91,7 @@ const {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
   reminders,
@@ -668,9 +669,8 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
         name: seed.name,
         sex: seed.sex,
         color: seed.color,
-        microchipId: seed.microchipId,
-        microchipCountryCode: seed.microchipId ? "858" : null,
-        microchipImplantedAt: seed.microchipId ? new Date().toISOString().slice(0, 10) : null,
+        // Legacy chip columns omitted — ARCH-R; canonical row written to
+        // pet_identifications below.
         status: "active",
         jurisdictionProvince: "CABA",
         jurisdictionLocality: "CABA",
@@ -693,11 +693,11 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
       payload: { source: "seed-script" },
     });
 
-    // Microchip is a dual-write cache: real writers (createPetAction /
-    // createMicrochipAction) insert a microchip_implanted event alongside the
-    // pets.* columns. Mirror that here so the seed data stays re-derivable and
-    // the pet-cache drift harness (lib/rederive-pet-cache.ts) sees zero drift.
+    // Microchip: emit event + canonical pet_identifications row so the seed
+    // data stays re-derivable and the pet-cache drift harness sees zero drift.
+    // Legacy pets.* chip columns not written — ARCH-R.
     if (seed.microchipId) {
+      const chip = seed.microchipId;
       const chipNow = new Date();
       await db.insert(petEvents).values({
         petId: pet.id,
@@ -707,12 +707,22 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
         recordedByUserId: ownerUserId,
         authorRole: "owner",
         payload: {
-          chip_number: seed.microchipId,
+          chip_number: chip,
           country_code: "858",
           implanted_by: null,
           location_on_body: null,
           implant_date_known: true,
         },
+      });
+      await db.insert(petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso",
+        code: chip,
+        recordedAt: chipNow.toISOString().slice(0, 10),
+        isoCountryCode: chip.slice(0, 3),
+        isoManufacturerCode: chip.slice(3, 7),
+        isoNationalId: chip.slice(7, 15),
+        isoCompliant: true,
       });
     }
 
@@ -814,8 +824,8 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
         sex: seed.sex,
         color: seed.color,
         distinguishingFeatures: seed.distinguishingFeatures,
-        microchipId: seed.microchipId,
-        microchipCountryCode: seed.microchipId ? "858" : null,
+        // Legacy chip columns omitted — ARCH-R; canonical row written to
+        // pet_identifications below.
         status: "active",
         jurisdictionProvince: "Buenos Aires",
         jurisdictionLocality: "La Plata",
@@ -844,10 +854,10 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
       },
     });
 
-    // Mirror the microchip dual-write so seed data stays re-derivable (see the
-    // owner-pet loop above). This shelter pet's microchipImplantedAt column is
-    // unset, so implant_date_known=false keeps the derived implant date null.
+    // Microchip: emit event + canonical pet_identifications row.
+    // Legacy pets.* chip columns not written — ARCH-R.
     if (seed.microchipId) {
+      const chip = seed.microchipId;
       const chipNow = new Date();
       await db.insert(petEvents).values({
         petId: pet.id,
@@ -859,12 +869,22 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
         authorOrganizationId: orgId,
         authorVerified: true,
         payload: {
-          chip_number: seed.microchipId,
+          chip_number: chip,
           country_code: "858",
           implanted_by: null,
           location_on_body: null,
           implant_date_known: false,
         },
+      });
+      await db.insert(petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso",
+        code: chip,
+        recordedAt: chipNow.toISOString().slice(0, 10),
+        isoCountryCode: chip.slice(0, 3),
+        isoManufacturerCode: chip.slice(3, 7),
+        isoNationalId: chip.slice(7, 15),
+        isoCompliant: true,
       });
     }
 

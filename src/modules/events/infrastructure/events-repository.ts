@@ -40,14 +40,6 @@ type DbOrTx = typeof db | Tx;
 
 export type EventsRepositoryPet = typeof pets.$inferSelect;
 
-export type MicrochipBackfillInput = {
-  microchipId: string;
-  microchipCountryCode: string | null;
-  microchipImplantedAt: string | null;
-  microchipImplantedBy: string | null;
-  microchipLocation: string | null;
-};
-
 export type AttachmentInput = {
   petId: string;
   eventId: string;
@@ -228,29 +220,6 @@ export class EventsRepository {
       .update(pets)
       .set({ estimatedWeightKg: kgStr, updatedAt: now })
       .where(eq(pets.id, petId));
-  }
-
-  /**
-   * Back-fill microchip columns — only when pets.microchipId is currently null.
-   * Never overwrites existing chip data (spec invariant).
-   */
-  async updateMicrochipBackfill(
-    petId: string,
-    data: MicrochipBackfillInput,
-    now: Date = new Date(),
-    executor: DbOrTx = db,
-  ): Promise<void> {
-    await executor
-      .update(pets)
-      .set({
-        microchipId: data.microchipId,
-        microchipCountryCode: data.microchipCountryCode,
-        microchipImplantedAt: data.microchipImplantedAt,
-        microchipImplantedBy: data.microchipImplantedBy,
-        microchipLocation: data.microchipLocation,
-        updatedAt: now,
-      })
-      .where(and(eq(pets.id, petId), isNull(pets.microchipId)));
   }
 
   /**
