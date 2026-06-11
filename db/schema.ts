@@ -422,6 +422,14 @@ export const profiles = pgTable(
     // Irreversible soft-deactivation timestamp. NULL = active. Set by
     // deactivateAdminAction / deactivateGovtAction in Fase 5.
     deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+    // Legal consent proof (Ley 25.326 art. 5 — informed, express, provable).
+    // Written at signup when the TOS/privacy checkbox is accepted. tosVersion
+    // stores the LEGAL_VERSION (lib/legal-version.ts) in force at that moment so
+    // we can demonstrate WHAT the user agreed to. NULL for accounts created
+    // before migration 0087 / institutional accounts provisioned by admins.
+    // Added by migration 0087.
+    tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
+    tosVersion: text("tos_version"),
     // PII baseline (compliance PR 1, migration 0058). Added by
     // pii.apply_baseline(). See lib/audit/log.ts (todo, separate sprint).
     createdBy: uuid("created_by").references((): AnyPgColumn => profiles.id, {

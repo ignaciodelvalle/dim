@@ -13,12 +13,47 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { eq, inArray, isNull, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { auditLog, db, ownerships, pets, profiles } from "@/db";
+import { completeIdentityAction } from "@/app/actions/auth";
+import {
+  auditLog,
+  db,
+  notifications,
+  orgContactMessages,
+  organizationMemberships,
+  organizations,
+  ownerships,
+  petTransfers,
+  pets,
+  profiles,
+  welfareReports,
+} from "@/db";
 import { pgErrorCode } from "@/lib/db-errors";
+import { LEGAL_VERSION } from "@/lib/legal-version";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
+
+// Mock next/navigation redirect so completeIdentityAction doesn't throw NEXT_REDIRECT.
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+
+// Mock the Supabase server client so completeIdentityAction can resolve a user
+// without a real Next.js request context. The mock is swapped per-test via
+// setMockUserId() before tests that exercise the action end-to-end.
+let _mockUserId: string | null = null;
+function setMockUserId(id: string | null) {
+  _mockUserId = id;
+}
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => ({
+    auth: {
+      getUser: vi.fn(async () => ({
+        data: { user: _mockUserId ? { id: _mockUserId } : null },
+      })),
+    },
+  })),
+}));
 
 // We call the RPCs via raw SQL (drizzle/postgres-js) instead of the supabase
 // client. PostgREST has a schema cache that doesn't always pick up new
@@ -66,6 +101,26 @@ let ownerUserId: string;
 let otherUserId: string;
 const createdPetIds: string[] = [];
 
+// V1-2 (fix B + C): rows owned by / addressed to the subject, seeded so the
+// extended export returns them and the extended erase scrubs them.
+let seededWelfareReportId: string | undefined;
+let seededTransferId: string | undefined;
+let seededOrgId: string | undefined;
+let seededOrgMessageId: string | undefined;
+let seededNotificationId: string | undefined;
+let seededMembershipId: string | undefined;
+
+function makeReferenceCode(): string {
+  const part = () =>
+    Math.random()
+      .toString(36)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 4)
+      .padEnd(4, "X");
+  return `DEN-${part()}-${part()}`;
+}
+
 // Reuse the auth user across runs. audit_log is append-only with no test
 // override and points back to actor_user_id via ON DELETE RESTRICT, so a
 // "delete + create fresh" strategy breaks on the second run. Instead we
@@ -91,6 +146,19 @@ async function resetProfilePIIToFresh(userId: string, displayName: string) {
       displayName,
       phone: "+5491100000000",
       dniNumber: null,
+      // Seed the extended PII columns so the erase test can assert they are
+      // nulled (V1-2 fix B). preferred_vet_* is third-party PII, avatar_url a
+      // face photo, matricula_* professional-license PII.
+      preferredVetName: "Dr. Vet Fixture",
+      preferredVetPhone: "+5491155550000",
+      avatarUrl: "https://example.test/avatar.png",
+      matriculaNumber: null,
+      matriculaJurisdiccion: null,
+      // Seed consent so a fresh re-run starts from a known state. The signup
+      // consent test asserts these get written by completeIdentityAction; here
+      // we pre-clear/reset for the erase + export suites.
+      tosAcceptedAt: null,
+      tosVersion: null,
       deletedAt: null,
       updatedAt: new Date(),
     })
@@ -120,9 +188,118 @@ beforeAll(async () => {
     ownerUserId,
     role: "owner",
   });
+
+  // --- V1-2 export/erase fixtures: data the subject filed or is party to ----
+
+  // Welfare report FILED BY the subject (reporter contact + self-identifying
+  // description). Export must return it; erase must scrub it.
+  const [welfare] = await db
+    .insert(welfareReports)
+    .values({
+      referenceCode: makeReferenceCode(),
+      reporterUserId: ownerUserId,
+      reporterContactEmail: "reporter-contact@dim-test.local",
+      reporterContactPhone: "+5491166660000",
+      kind: "neglect",
+      severity: "high",
+      description: "Mi nombre es SR Test Owner y vi un animal en mal estado en mi cuadra.",
+      subjectKind: "unowned_animal",
+      subjectDescription: "Perro mestizo, atado sin agua.",
+      // Free-text location address — the reporter may have written their own
+      // home address here. Erase must null it (fix 1).
+      locationAddress: "Av. Siempreviva 742, Springfield",
+    })
+    .returning({ id: welfareReports.id });
+  seededWelfareReportId = welfare.id;
+
+  // Pet transfer INITIATED BY the subject (from_owner_id). Export must return
+  // it; erase must null to_owner_email.
+  const [transfer] = await db
+    .insert(petTransfers)
+    .values({
+      publicToken: generatePublicToken(),
+      petId: pet.id,
+      fromOwnerId: ownerUserId,
+      toOwnerEmail: "recipient@dim-test.local",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
+    .returning({ id: petTransfers.id });
+  seededTransferId = transfer.id;
+
+  // Org + contact message SENT BY the subject (inquirer_email = OWNER_EMAIL).
+  // Export does not include org messages, but erase must scrub the email.
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      publicToken: `SR-TEST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      legalName: "SR Test Org",
+      displayName: "SR Test Org",
+      orgType: "shelter",
+      email: `sr-test-org-${Math.random().toString(36).slice(2, 8)}@dim-test.local`,
+    })
+    .returning({ id: organizations.id });
+  seededOrgId = org.id;
+
+  const [orgMessage] = await db
+    .insert(orgContactMessages)
+    .values({
+      organizationId: org.id,
+      inquirerName: "SR Test Owner",
+      inquirerEmail: OWNER_EMAIL,
+      message: "Hola, quisiera ofrecerme como voluntario.",
+    })
+    .returning({ id: orgContactMessages.id });
+  seededOrgMessageId = orgMessage.id;
+
+  // Notification ADDRESSED TO the subject. Export must return it.
+  const [notification] = await db
+    .insert(notifications)
+    .values({
+      userId: ownerUserId,
+      notificationType: "test_subject_rights",
+      title: "Notificación de prueba",
+      body: "Cuerpo de la notificación.",
+    })
+    .returning({ id: notifications.id });
+  seededNotificationId = notification.id;
+
+  // Organization membership HELD BY the subject. Export must return it.
+  const [membership] = await db
+    .insert(organizationMemberships)
+    .values({
+      organizationId: org.id,
+      userId: ownerUserId,
+      role: "member",
+    })
+    .returning({ id: organizationMemberships.id });
+  seededMembershipId = membership.id;
 });
 
 afterAll(async () => {
+  // V1-2 seeded relations. Delete before the pet (pet_transfers cascades on
+  // pet delete, but we remove explicitly to keep cleanup deterministic) and
+  // before the org (org_contact_messages + memberships cascade on org delete).
+  if (seededWelfareReportId) {
+    await db.delete(welfareReports).where(eq(welfareReports.id, seededWelfareReportId));
+  }
+  if (seededTransferId) {
+    await db.delete(petTransfers).where(eq(petTransfers.id, seededTransferId));
+  }
+  if (seededNotificationId) {
+    await db.delete(notifications).where(eq(notifications.id, seededNotificationId));
+  }
+  if (seededMembershipId) {
+    await db
+      .delete(organizationMemberships)
+      .where(eq(organizationMemberships.id, seededMembershipId));
+  }
+  if (seededOrgMessageId) {
+    await db.delete(orgContactMessages).where(eq(orgContactMessages.id, seededOrgMessageId));
+  }
+  if (seededOrgId) {
+    await db.delete(organizations).where(eq(organizations.id, seededOrgId));
+  }
+
   // Pet rows: append-only via trigger, need the override.
   // audit_log entries leak by design (append-only); test users leak too.
   // Next run reuses them via ensureUser.
@@ -168,6 +345,42 @@ describe("export_subject_data RPC", () => {
     // SQLSTATE 42501 = insufficient_privilege (raised by the RPC).
     expect(error?.code).toBe("42501");
   });
+
+  // V1-2 fix C: export now includes every relation the subject is party to.
+  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v2)", async () => {
+    const { data, error } = await callRpcAs<Record<string, unknown>>(
+      ownerUserId,
+      sql`SELECT public.export_subject_data(${ownerUserId}::uuid) AS result`,
+    );
+    expect(error).toBeNull();
+    const payload = data as Record<string, unknown>;
+
+    expect(payload.schema_version).toBe(2);
+
+    const welfare = payload.welfare_reports_filed as Array<Record<string, unknown>>;
+    expect(Array.isArray(welfare)).toBe(true);
+    expect(welfare.some((w) => w.id === seededWelfareReportId)).toBe(true);
+
+    const transfers = payload.pet_transfers as Array<Record<string, unknown>>;
+    expect(Array.isArray(transfers)).toBe(true);
+    expect(transfers.some((t) => t.id === seededTransferId)).toBe(true);
+
+    const notifs = payload.notifications as Array<Record<string, unknown>>;
+    expect(Array.isArray(notifs)).toBe(true);
+    expect(notifs.some((n) => n.id === seededNotificationId)).toBe(true);
+
+    const memberships = payload.organization_memberships as Array<Record<string, unknown>>;
+    expect(Array.isArray(memberships)).toBe(true);
+    expect(memberships.some((m) => m.id === seededMembershipId)).toBe(true);
+
+    // custody_disputes + audit_log are present as arrays even when empty for
+    // this subject (the prior export call already wrote a subject_data_exported
+    // audit row, so audit_log is non-empty).
+    expect(Array.isArray(payload.custody_disputes)).toBe(true);
+    const auditRows = payload.audit_log as Array<Record<string, unknown>>;
+    expect(Array.isArray(auditRows)).toBe(true);
+    expect(auditRows.length).toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -186,6 +399,12 @@ describe("erase_subject_data RPC", () => {
         phone: profiles.phone,
         dniNumber: profiles.dniNumber,
         deletedAt: profiles.deletedAt,
+        // V1-2 fix B: extended PII columns.
+        preferredVetName: profiles.preferredVetName,
+        preferredVetPhone: profiles.preferredVetPhone,
+        avatarUrl: profiles.avatarUrl,
+        matriculaNumber: profiles.matriculaNumber,
+        matriculaJurisdiccion: profiles.matriculaJurisdiccion,
       })
       .from(profiles)
       .where(eq(profiles.id, ownerUserId));
@@ -193,6 +412,12 @@ describe("erase_subject_data RPC", () => {
     expect(row.displayName).toMatch(/^erased:/);
     expect(row.phone).toBeNull();
     expect(row.dniNumber).toBeNull();
+    // Newly-covered profile PII columns are nulled.
+    expect(row.preferredVetName).toBeNull();
+    expect(row.preferredVetPhone).toBeNull();
+    expect(row.avatarUrl).toBeNull();
+    expect(row.matriculaNumber).toBeNull();
+    expect(row.matriculaJurisdiccion).toBeNull();
 
     // Owned pet was soft-deleted too.
     const [petRow] = await db
@@ -201,11 +426,191 @@ describe("erase_subject_data RPC", () => {
       .where(eq(pets.id, createdPetIds[0]));
     expect(petRow.deletedAt).not.toBeNull();
 
+    // V1-2 fix B: welfare report the subject filed — reporter contact + free-text
+    // location address cleared; description redacted to the sentinel.
+    // subject_description + location_lat/lng are NOT erased (retention exemption).
+    if (!seededWelfareReportId) throw new Error("seededWelfareReportId not set");
+    const [welfareRow] = await db
+      .select({
+        reporterContactEmail: welfareReports.reporterContactEmail,
+        reporterContactPhone: welfareReports.reporterContactPhone,
+        locationAddress: welfareReports.locationAddress,
+        description: welfareReports.description,
+      })
+      .from(welfareReports)
+      .where(eq(welfareReports.id, seededWelfareReportId));
+    expect(welfareRow.reporterContactEmail).toBeNull();
+    expect(welfareRow.reporterContactPhone).toBeNull();
+    expect(welfareRow.locationAddress).toBeNull();
+    expect(welfareRow.description).toBe("[contenido eliminado a pedido del titular]");
+
+    // V1-2 fix B: pet transfer recipient email scrubbed.
+    if (!seededTransferId) throw new Error("seededTransferId not set");
+    const [transferRow] = await db
+      .select({ toOwnerEmail: petTransfers.toOwnerEmail })
+      .from(petTransfers)
+      .where(eq(petTransfers.id, seededTransferId));
+    expect(transferRow.toOwnerEmail).toBe("erased@invalid.local");
+
+    // V1-2 fix B: org contact message inquirer email scrubbed.
+    if (!seededOrgMessageId) throw new Error("seededOrgMessageId not set");
+    const [orgMsgRow] = await db
+      .select({
+        inquirerEmail: orgContactMessages.inquirerEmail,
+        inquirerName: orgContactMessages.inquirerName,
+      })
+      .from(orgContactMessages)
+      .where(eq(orgContactMessages.id, seededOrgMessageId));
+    expect(orgMsgRow.inquirerEmail).toBe("erased@invalid.local");
+    expect(orgMsgRow.inquirerName).toBeNull();
+
     // Audit entry present with the citation.
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "subject_erasure"));
     const ours = audits.find((a) => a.targetUserId === ownerUserId);
     expect(ours).toBeDefined();
     expect((ours?.payload as Record<string, unknown>).norma).toBe("Ley 25.326 art. 16");
+
+    // Idempotent + safe to re-run: a second erase must not error.
+    const { error: secondErr } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'test cleanup re-run'::text) AS result`,
+    );
+    expect(secondErr).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// V1-2 fix B (negative): erase must NOT touch reports the subject did NOT file.
+// ---------------------------------------------------------------------------
+// Seeds a welfare report where reporter_user_id = otherUserId (NOT the subject
+// being erased). Erases ownerUserId. Asserts that the other reporter's contact
+// fields and description are unchanged.
+
+describe("erase_subject_data — negative: third-party welfare reports are untouched", () => {
+  let thirdPartyReportId: string | undefined;
+
+  beforeAll(async () => {
+    // Seed a report filed by otherUserId — ownerUserId is the *reported* party
+    // (via subjectKind=unowned_animal; reporter_user_id is otherUserId).
+    const [report] = await db
+      .insert(welfareReports)
+      .values({
+        referenceCode: makeReferenceCode(),
+        reporterUserId: otherUserId,
+        reporterContactEmail: "third-party-reporter@dim-test.local",
+        reporterContactPhone: "+5491177770000",
+        kind: "physical_abuse",
+        severity: "medium",
+        description: "Descripción original del tercero denunciante.",
+        subjectKind: "unowned_animal",
+        subjectDescription: "Perro mestizo, sin collar.",
+      })
+      .returning({ id: welfareReports.id });
+    thirdPartyReportId = report.id;
+  });
+
+  afterAll(async () => {
+    if (thirdPartyReportId) {
+      await db.delete(welfareReports).where(eq(welfareReports.id, thirdPartyReportId));
+    }
+  });
+
+  it("erasing the subject leaves reporter contact + description on a third-party report intact", async () => {
+    // Ensure the subject's profile is in an erasable state (re-seed after the
+    // main erase test which already ran beforeAll in the same suite).
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner Neg");
+
+    // Erase ownerUserId — should only touch rows where reporter_user_id = ownerUserId.
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'negative test'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    // The third-party report (reporter_user_id = otherUserId) must be untouched.
+    if (!thirdPartyReportId) throw new Error("thirdPartyReportId not set");
+    const [row] = await db
+      .select({
+        reporterContactEmail: welfareReports.reporterContactEmail,
+        reporterContactPhone: welfareReports.reporterContactPhone,
+        description: welfareReports.description,
+      })
+      .from(welfareReports)
+      .where(eq(welfareReports.id, thirdPartyReportId));
+
+    expect(row.reporterContactEmail).toBe("third-party-reporter@dim-test.local");
+    expect(row.reporterContactPhone).toBe("+5491177770000");
+    expect(row.description).toBe("Descripción original del tercero denunciante.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// V1-2 fix A: provable consent persisted at signup (Ley 25.326 art. 5).
+// ---------------------------------------------------------------------------
+// We call completeIdentityAction end-to-end with a mocked Supabase session
+// (see vi.mock at the top of this file). This proves the action itself writes
+// tos_accepted_at + tos_version — a gap in column existence would be caught
+// by the DB write, and a gap in the action's SET clause would leave the
+// columns NULL even though the DB supports them.
+//
+// Also verifies the COALESCE idempotency: a second call must not overwrite
+// the original consent timestamp.
+
+describe("consent persistence (art. 5)", () => {
+  it("completeIdentityAction writes tos_accepted_at + tos_version = LEGAL_VERSION", async () => {
+    // Ensure the profile starts with NULL consent so the first call sets it.
+    await db
+      .update(profiles)
+      .set({ tosAcceptedAt: null, tosVersion: null, updatedAt: new Date() })
+      .where(eq(profiles.id, otherUserId));
+
+    setMockUserId(otherUserId);
+    const fd = new FormData();
+    fd.set("firstName", "Test");
+    fd.set("lastName", "Consent");
+    const result = await completeIdentityAction({ error: null }, fd);
+    expect(result.error).toBeNull();
+
+    const [row] = await db
+      .select({ tosAcceptedAt: profiles.tosAcceptedAt, tosVersion: profiles.tosVersion })
+      .from(profiles)
+      .where(eq(profiles.id, otherUserId));
+
+    expect(row.tosAcceptedAt).not.toBeNull();
+    expect(row.tosVersion).toBe(LEGAL_VERSION);
+    // The constant must be a non-empty ISO-date-shaped version string.
+    expect(LEGAL_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("completeIdentityAction on retry preserves the original consent timestamp (COALESCE)", async () => {
+    // First call — sets the initial timestamp.
+    await db
+      .update(profiles)
+      .set({ tosAcceptedAt: null, tosVersion: null, updatedAt: new Date() })
+      .where(eq(profiles.id, otherUserId));
+
+    setMockUserId(otherUserId);
+    const fd = new FormData();
+    fd.set("firstName", "Test");
+    fd.set("lastName", "Retry");
+
+    await completeIdentityAction({ error: null }, fd);
+    const [first] = await db
+      .select({ tosAcceptedAt: profiles.tosAcceptedAt })
+      .from(profiles)
+      .where(eq(profiles.id, otherUserId));
+    const originalTs = first.tosAcceptedAt;
+    expect(originalTs).not.toBeNull();
+
+    // Second call — must not overwrite the timestamp.
+    await completeIdentityAction({ error: null }, fd);
+    const [second] = await db
+      .select({ tosAcceptedAt: profiles.tosAcceptedAt })
+      .from(profiles)
+      .where(eq(profiles.id, otherUserId));
+
+    // Timestamps must be identical (COALESCE returns the existing value).
+    expect(second.tosAcceptedAt?.toISOString()).toBe(originalTs?.toISOString());
   });
 });
 
