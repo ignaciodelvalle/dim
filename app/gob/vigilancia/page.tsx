@@ -6,6 +6,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -37,8 +38,7 @@ export default async function GobVigilanciaPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const { since } = resolveAnalyticsPeriod(sp);
 
   // Resolve selected province ISO code (e.g. "AR-B") → ProvinceCode + canonical name.
   const selectedProvinceIso = sp.province ?? null;
@@ -84,13 +84,13 @@ export default async function GobVigilanciaPage({
   // period picker. When the period picker is also 30d, signals30d doubles
   // as the signals panel data — no second DB round-trip needed.
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const periodMatchesSummary = days === 30;
+  const periodMatchesSummary = sp.period === "30d" || !sp.period;
 
   const [metrics, signals30d, mapData, trend, signalsPeriod] = await Promise.all([
     fetchVigilanciaMetrics(actor, filteredJurisdictions),
     fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
     fetchCasesPerLocality(actor, filteredJurisdictions),
-    fetchZoonosisTrend(actor, filteredJurisdictions),
+    fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
     periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
   ]);
 

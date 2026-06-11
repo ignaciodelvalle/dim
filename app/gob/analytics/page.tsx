@@ -5,6 +5,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -86,11 +87,13 @@ export default async function GobAnalyticsPage({
     }
   }
 
+  const { since } = resolveAnalyticsPeriod(sp);
+
   const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerCapita] =
     await Promise.all([
-      fetchAnalyticsMetrics(actor, filteredJurisdictions),
-      fetchAcquisitionTrend(actor, filteredJurisdictions),
-      fetchDeathCauses(actor, filteredJurisdictions),
+      fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
+      fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
+      fetchDeathCauses(actor, filteredJurisdictions, { since }),
       fetchOutbreakHistory(actor, filteredJurisdictions),
       fetchCasesPerCapita(actor, filteredJurisdictions),
     ]);

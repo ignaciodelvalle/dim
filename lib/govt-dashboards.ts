@@ -774,8 +774,9 @@ export type ZoonosisTrendPoint = {
 export async function fetchZoonosisTrend(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<ZoonosisTrendPoint[]> {
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const conditions = [
     sql`${petEvents.eventType} LIKE ${"outbreak_%"}`,
@@ -1238,13 +1239,14 @@ export type AnalyticsMetrics = {
 export async function fetchAnalyticsMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<AnalyticsMetrics> {
   // Early-return for govt with no assignments.
   if (actor.role === "govt" && jurisdictions.length === 0) {
     return { totalPets: 0, adoptionRate: 0, rabiesVaccinationRate: 0, custodyDisputes: 0 };
   }
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const petsScope = petsScopeClause(actor, jurisdictions);
   const casesScope = casesScopeClause(actor, jurisdictions);
@@ -1408,10 +1410,11 @@ export type AcquisitionTrendPoint = {
 export async function fetchAcquisitionTrend(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<AcquisitionTrendPoint[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const conditions = [
     eq(petEvents.eventType, "pet_registered"),
@@ -1492,10 +1495,11 @@ export type DeathCauseRow = {
 export async function fetchDeathCauses(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<DeathCauseRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const conditions = [
     eq(petEvents.eventType, "death_recorded"),
