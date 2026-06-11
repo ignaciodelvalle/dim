@@ -24,7 +24,10 @@ export default async function SignupPage({
   if (user) redirect(returnTo ?? "/mis-mascotas");
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-[var(--color-ln-paper)]">
+    <main
+      id="main-content"
+      className="flex min-h-screen flex-col items-center justify-center p-6 bg-[var(--color-ln-paper)]"
+    >
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
           <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">

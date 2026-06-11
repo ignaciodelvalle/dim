@@ -90,7 +90,7 @@
 
   --color-ln-seal: #a23a2c;
   --color-ln-ok: #2e7d4f;
-  --color-ln-warn: #b0771a;
+  --color-ln-warn: #96600e; /* darkened from #b0771a — 5.28:1 on white (was 3.82:1, WCAG AA fail) */
   --color-ln-err: #c0392b;
   --color-ln-rosa: #b5497e;
 
@@ -120,7 +120,7 @@
   --color-gob-danger: #a23a2c; /* → ln-seal */
   --color-gob-danger-hover: #832e23;
   --color-gob-warning: #e0a93e; /* warm amber bg */
-  --color-gob-warning-text: #b0771a; /* → ln-warn */
+  --color-gob-warning-text: #96600e; /* → ln-warn (updated to match) */
   --color-gob-info: #4e97d1; /* → ln-celeste */
 
   /* Neutros → LN ink/line/paper scale */

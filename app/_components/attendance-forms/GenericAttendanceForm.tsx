@@ -53,47 +53,55 @@ export function GenericAttendanceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="gen-reason" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Motivo de la consulta <span className="text-ln-op-danger">*</span>
         </label>
         <input
+          id="gen-reason"
           name="reason"
           type="text"
           required
           placeholder="Ej: Control de rutina, revisación"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="gen-diagnosis" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Diagnóstico / observaciones
         </label>
         <input
+          id="gen-diagnosis"
           name="diagnosis"
           type="text"
           placeholder="Opcional"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Veterinario/a</label>
+          <label htmlFor="gen-vet_name" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+            Veterinario/a
+          </label>
           <input
+            id="gen-vet_name"
             name="vet_name"
             type="text"
             placeholder="Nombre (opcional)"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Clínica</label>
+          <label htmlFor="gen-clinic" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+            Clínica
+          </label>
           <input
+            id="gen-clinic"
             name="clinic"
             type="text"
             placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
           />
         </div>
       </div>

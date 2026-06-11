@@ -54,61 +54,77 @@ export function VaccinationAttendanceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label
+          htmlFor="vacc-vaccine_name"
+          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
+        >
           Nombre de la vacuna <span className="text-ln-op-danger">*</span>
         </label>
         <input
+          id="vacc-vaccine_name"
           name="vaccine_name"
           type="text"
           required
           placeholder="Ej: Antirrábica"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+          <label htmlFor="vacc-brand" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
             Marca / laboratorio
           </label>
           <input
+            id="vacc-brand"
             name="brand"
             type="text"
             placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+          <label htmlFor="vacc-batch" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
             Lote / número de batch
           </label>
           <input
+            id="vacc-batch"
             name="batch"
             type="text"
             placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Administrado por</label>
+        <label
+          htmlFor="vacc-administered_by"
+          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
+        >
+          Administrado por
+        </label>
         <input
+          id="vacc-administered_by"
           name="administered_by"
           type="text"
           placeholder="Nombre del profesional (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label
+          htmlFor="vacc-next_due_at"
+          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
+        >
           Próxima dosis (fecha)
         </label>
         <input
+          id="vacc-next_due_at"
           name="next_due_at"
           type="date"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
         <p className="text-xs text-ln-op-mute mt-1">
           Si se completa, se crea un recordatorio automático para el dueño.

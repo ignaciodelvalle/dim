@@ -49,7 +49,7 @@ export function OpShell({ rail, topbar, children, variant = "gob", maxWidth }: P
       {rail}
 
       {/* Main column */}
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <main id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         {topbar}
 

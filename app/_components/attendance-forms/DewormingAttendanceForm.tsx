@@ -53,26 +53,28 @@ export function DewormingAttendanceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="dew-product" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Producto / antiparasitario <span className="text-ln-op-danger">*</span>
         </label>
         <input
+          id="dew-product"
           name="product"
           type="text"
           required
           placeholder="Ej: Nexgard, Milbemax"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="dew-type" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Tipo de desparasitación
         </label>
         <select
+          id="dew-type"
           name="type"
           defaultValue="internal"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         >
           <option value="internal">Interna</option>
           <option value="external">Externa</option>
@@ -81,13 +83,17 @@ export function DewormingAttendanceForm({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label
+          htmlFor="dew-next_due_at"
+          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
+        >
           Próxima dosis (fecha)
         </label>
         <input
+          id="dew-next_due_at"
           name="next_due_at"
           type="date"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 

@@ -50,11 +50,14 @@ export function SterilizationAttendanceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Procedimiento</label>
+        <label htmlFor="ster-procedure" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+          Procedimiento
+        </label>
         <select
+          id="ster-procedure"
           name="procedure"
           defaultValue="castration"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         >
           <option value="castration">Castración (macho)</option>
           <option value="spay">Ovariectomía / Castración (hembra)</option>
@@ -62,24 +65,31 @@ export function SterilizationAttendanceForm({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">Realizado por</label>
+        <label
+          htmlFor="ster-performed_by"
+          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
+        >
+          Realizado por
+        </label>
         <input
+          id="ster-performed_by"
           name="performed_by"
           type="text"
           placeholder="Nombre del cirujano (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="ster-clinic" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Clínica / establecimiento
         </label>
         <input
+          id="ster-clinic"
           name="clinic"
           type="text"
           placeholder="Nombre del lugar (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
