@@ -26,6 +26,7 @@ import {
 } from "drizzle-orm";
 
 import {
+  caseEvents,
   cases,
   db,
   jurisdictionsCensus,
@@ -1055,6 +1056,46 @@ export type TimelineEvent = {
  *
  * Actor names resolved from profiles in a single batch query.
  */
+/**
+ * Map a case_events row to a gov-timeline summary string. Returns null for
+ * entry types that should NOT surface in the gov welfare timeline. The org
+ * display name is read from the payload when present.
+ *
+ * Exported for testing (UI-7 Part C).
+ */
+export function caseEventTimelineSummary(
+  entryType: string,
+  notes: string | null,
+  payload: unknown,
+): string | null {
+  const orgName =
+    payload && typeof payload === "object" && "orgDisplayName" in payload
+      ? String((payload as Record<string, unknown>).orgDisplayName)
+      : null;
+  const trimmedNotes = notes?.trim() ? notes.trim() : null;
+
+  switch (entryType) {
+    case "reporter_comment":
+      return trimmedNotes
+        ? `Comentario del denunciante: ${trimmedNotes}`
+        : "El denunciante agregó un comentario.";
+    case "org_intervention_taken":
+      return orgName
+        ? `${orgName} tomó la denuncia y está interviniendo.`
+        : "La organización tomó la denuncia y está interviniendo.";
+    case "org_intervention_note":
+      return trimmedNotes
+        ? `Nota de intervención${orgName ? ` (${orgName})` : ""}: ${trimmedNotes}`
+        : "La organización agregó una nota de intervención.";
+    case "org_intervention_return":
+      return `${orgName ?? "La organización"} devolvió la denuncia${
+        trimmedNotes ? `: ${trimmedNotes}` : "."
+      }`;
+    default:
+      return null;
+  }
+}
+
 export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEvent[]> {
   const [report] = await db
     .select()
@@ -1079,7 +1120,36 @@ export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEv
     occurredAt: Date;
     recordedByUserId: string | null;
   }> = [];
+  // Pull case_events (reporter comments + org intervention notes) so the gov
+  // timeline shows them. These live in case_events, NOT welfare_reports, so the
+  // gov detail was previously blind to them (UI-7 Part C).
+  let linkedCaseEvents: Array<{
+    id: string;
+    entryType: string;
+    occurredAt: Date;
+    notes: string | null;
+    payload: unknown;
+    recordedByUserId: string | null;
+  }> = [];
   if (report.caseId) {
+    linkedCaseEvents = await db
+      .select({
+        id: caseEvents.id,
+        entryType: caseEvents.entryType,
+        occurredAt: caseEvents.occurredAt,
+        notes: caseEvents.notes,
+        payload: caseEvents.payload,
+        recordedByUserId: caseEvents.recordedByUserId,
+      })
+      .from(caseEvents)
+      .where(eq(caseEvents.caseId, report.caseId))
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(50);
+
+    for (const e of linkedCaseEvents) {
+      if (e.recordedByUserId) actorIdSet.add(e.recordedByUserId);
+    }
+
     const [linkedCase] = await db
       .select({ primaryPetId: cases.primaryPetId })
       .from(cases)
@@ -1189,6 +1259,20 @@ export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEv
       kind: "pet_event",
       actorName: e.recordedByUserId ? (actorNames.get(e.recordedByUserId) ?? undefined) : undefined,
       summary: `Evento de mascota: ${e.eventType.replace(/_/g, " ")}.`,
+    });
+  }
+
+  // 6. Case events — reporter comments + org intervention notes (UI-7 Part C).
+  // Surfaced to gov so the maltrato detail shows the full case conversation.
+  for (const e of linkedCaseEvents) {
+    const summary = caseEventTimelineSummary(e.entryType, e.notes, e.payload);
+    if (!summary) continue; // skip unknown / internal entry types
+    events.push({
+      id: `case-event-${e.id}`,
+      occurredAt: e.occurredAt,
+      kind: e.entryType,
+      actorName: e.recordedByUserId ? (actorNames.get(e.recordedByUserId) ?? undefined) : undefined,
+      summary,
     });
   }
 

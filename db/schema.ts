@@ -1442,6 +1442,14 @@ export const welfareReports = pgTable(
     derivedByUserId: uuid("derived_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
+
+    // Org intervention state (migration 0092, UI-7). Set by an org member that
+    // received the derived report. NULL = no org action yet; 'tomado' = taken
+    // (under intervention); 'devuelto' = org returned it (cannot intervene).
+    // NON-PII workflow metadata — safe for the org-facing projection. Gov stays
+    // the only closer; these columns never transition the welfare status enum.
+    orgInterventionStatus: text("org_intervention_status"),
+    orgInterventionAt: timestamp("org_intervention_at", { withTimezone: true }),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1467,6 +1475,10 @@ export const welfareReports = pgTable(
     welfareReportsJurisdictionProvinceCanonical: check(
       "welfare_reports_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+    welfareReportsOrgInterventionStatusCheck: check(
+      "welfare_reports_org_intervention_status_check",
+      sql`${table.orgInterventionStatus} is null or ${table.orgInterventionStatus} in ('tomado', 'devuelto')`,
     ),
   }),
 );

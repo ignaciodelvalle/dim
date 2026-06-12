@@ -31,9 +31,24 @@ const ENTRY_LABEL: Record<string, string> = {
   control_action: "Medida de control",
   contact_tracing: "Rastreo de contactos",
   final_report: "Informe final",
+  external_notification: "Notificación externa registrada",
   signal_link: "Signal vinculada",
   system: "Nota",
 };
+
+// Format an external_notification payload (channel / reference / date) for
+// distinct rendering in the timeline (UI-7 B9).
+function externalNotificationDetail(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof p.channel === "string" && p.channel.trim()) parts.push(`Canal: ${p.channel.trim()}`);
+  if (typeof p.notified_at === "string" && p.notified_at.trim())
+    parts.push(`Fecha: ${p.notified_at.trim()}`);
+  if (typeof p.reference === "string" && p.reference.trim())
+    parts.push(`Ref.: ${p.reference.trim()}`);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 function parseDiseaseCode(openedReason: string | null): string | null {
   if (!openedReason) return null;
@@ -68,13 +83,15 @@ export default async function InvestigacionDetailPage({
     locality: detail.jurisdictionLocality ?? undefined,
   });
 
-  const datasetNotes = detail.notes.filter((n) =>
-    ["classification", "lab_result", "control_action", "contact_tracing"].includes(n.entryType),
-  );
-  const timelineNotes = detail.notes.filter(
-    (n) =>
-      !["classification", "lab_result", "control_action", "contact_tracing"].includes(n.entryType),
-  );
+  const DATASET_ENTRY_TYPES = [
+    "classification",
+    "lab_result",
+    "control_action",
+    "contact_tracing",
+    "external_notification",
+  ];
+  const datasetNotes = detail.notes.filter((n) => DATASET_ENTRY_TYPES.includes(n.entryType));
+  const timelineNotes = detail.notes.filter((n) => !DATASET_ENTRY_TYPES.includes(n.entryType));
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -101,10 +118,10 @@ export default async function InvestigacionDetailPage({
         </p>
       </header>
 
-      {/* PERSISTENT honesty banner */}
+      {/* PERSISTENT honesty banner — now points to the in-app audit action. */}
       <OpBreach
         title="Notificacion externa no integrada"
-        detail="La notificacion obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) no esta integrada en esta version. La notificacion legal obligatoria debe realizarse a traves de los canales habituales de la jurisdiccion."
+        detail="La notificacion obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) no esta integrada en esta version: debe realizarse por los canales habituales de la jurisdiccion. Registrá acá cuándo y por qué canal notificaste para dejar el rastro de auditoría."
         icon="⚠"
       />
 
@@ -145,21 +162,36 @@ export default async function InvestigacionDetailPage({
           <OpCardHead title={`Datos epidemiologicos (${datasetNotes.length})`} />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
-              {datasetNotes.map((n) => (
-                <li key={n.id} className="px-4 py-3 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-medium text-ln-op-ink">
-                      {ENTRY_LABEL[n.entryType] ?? n.entryType}
-                    </span>
-                    <span className="text-[12px] text-ln-op-mute">
-                      {formatDateTime(n.occurredAt)}
-                    </span>
-                  </div>
-                  {n.notes && (
-                    <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{n.notes}</p>
-                  )}
-                </li>
-              ))}
+              {datasetNotes.map((n) => {
+                const isExternal = n.entryType === "external_notification";
+                const externalDetail = isExternal ? externalNotificationDetail(n.payload) : null;
+                return (
+                  <li key={n.id} className="px-4 py-3 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
+                        {isExternal && (
+                          <span
+                            className="inline-flex items-center rounded-[3px] border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ln-op-ink-2"
+                            aria-hidden="true"
+                          >
+                            Externa
+                          </span>
+                        )}
+                        {ENTRY_LABEL[n.entryType] ?? n.entryType}
+                      </span>
+                      <span className="text-[12px] text-ln-op-mute">
+                        {formatDateTime(n.occurredAt)}
+                      </span>
+                    </div>
+                    {externalDetail && (
+                      <p className="text-[12px] font-mono text-ln-op-ink-2">{externalDetail}</p>
+                    )}
+                    {n.notes && (
+                      <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{n.notes}</p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </OpCardBody>
         </OpCard>

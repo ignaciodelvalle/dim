@@ -32,6 +32,7 @@
 //                locationLat, locationLng
 //   Workflow   : triagedAt, closedAt, resolutionNotes, caseId
 //   Derivation : derivedToOrganizationId, derivedAt
+//   Intervention: orgInterventionStatus, orgInterventionAt (org workflow, non-PII)
 //   Org-reporter: reporterOrganizationId (the ORG that filed — not a person)
 //
 // Note: triagedByUserId, moderationResolvedByUserId, derivedByUserId and
@@ -91,6 +92,10 @@ export const ORG_WELFARE_SELECT = {
   // Derivation — org needs to see when/by-whom it was derived (org ID is safe)
   derivedToOrganizationId: welfareReports.derivedToOrganizationId,
   derivedAt: welfareReports.derivedAt,
+  // Org intervention state (UI-7) — workflow metadata, NON-PII. The org reads
+  // these to render its own intervention badge ('tomado' / 'devuelto' / none).
+  orgInterventionStatus: welfareReports.orgInterventionStatus,
+  orgInterventionAt: welfareReports.orgInterventionAt,
   // Org-reporter — the org that filed the report (not a person — safe)
   reporterOrganizationId: welfareReports.reporterOrganizationId,
 } as const;

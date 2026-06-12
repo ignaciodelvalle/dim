@@ -10,7 +10,13 @@ import {
   escalateInvestigationAction,
 } from "@/src/modules/surveillance/actions";
 
-type Mode = "none" | "add_note" | "escalate" | "close_resolved" | "close_dismissed";
+type Mode =
+  | "none"
+  | "add_note"
+  | "external_notification"
+  | "escalate"
+  | "close_resolved"
+  | "close_dismissed";
 
 const ENTRY_TYPES: { value: InvestigationNoteEntryType; label: string }[] = [
   { value: "classification", label: "Clasificacion de caso" },
@@ -34,12 +40,19 @@ export function InvestigationActions({
   const [notes, setNotes] = useState("");
   const [finalReport, setFinalReport] = useState("");
   const [entryType, setEntryType] = useState<InvestigationNoteEntryType>("system");
+  // External notification (UI-7 B9) — date + channel + reference audit trail.
+  const [extDate, setExtDate] = useState("");
+  const [extChannel, setExtChannel] = useState("");
+  const [extReference, setExtReference] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setMode("none");
     setNotes("");
     setFinalReport("");
+    setExtDate("");
+    setExtChannel("");
+    setExtReference("");
     setError(null);
   }
 
@@ -59,6 +72,19 @@ export function InvestigationActions({
   function submit() {
     if (mode === "add_note") {
       run(() => addInvestigationNoteAction({ casePublicCode, entryType, notes }));
+    } else if (mode === "external_notification") {
+      run(() =>
+        addInvestigationNoteAction({
+          casePublicCode,
+          entryType: "external_notification",
+          notes,
+          payload: {
+            notified_at: extDate.trim() || null,
+            channel: extChannel.trim() || null,
+            reference: extReference.trim() || null,
+          },
+        }),
+      );
     } else if (mode === "escalate") {
       run(() => escalateInvestigationAction({ casePublicCode, reason: notes }));
     } else if (mode === "close_resolved") {
@@ -90,6 +116,9 @@ export function InvestigationActions({
         <ActionButton onClick={() => setMode("add_note")} tone="primary">
           Registrar dato / nota
         </ActionButton>
+        <ActionButton onClick={() => setMode("external_notification")} tone="muted">
+          Registrar notificacion externa
+        </ActionButton>
         {canEscalate && (
           <ActionButton onClick={() => setMode("escalate")} tone="warning">
             Escalar
@@ -111,6 +140,7 @@ export function InvestigationActions({
 
   const titles: Record<Exclude<Mode, "none">, string> = {
     add_note: "Registrar dato epidemiologico o nota",
+    external_notification: "Registrar notificacion externa",
     escalate: "Escalar investigacion",
     close_resolved: "Cerrar como resuelta",
     close_dismissed: "Cerrar como desestimada",
@@ -140,6 +170,52 @@ export function InvestigationActions({
         </div>
       )}
 
+      {mode === "external_notification" && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <label htmlFor="ext-date" className="block text-[12px] font-medium text-ln-op-mute">
+              Fecha de notificacion
+            </label>
+            <input
+              id="ext-date"
+              type="date"
+              value={extDate}
+              onChange={(e) => setExtDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="ext-channel" className="block text-[12px] font-medium text-ln-op-mute">
+              Canal
+            </label>
+            <input
+              id="ext-channel"
+              type="text"
+              value={extChannel}
+              onChange={(e) => setExtChannel(e.target.value)}
+              placeholder="SNVS / SENASA / zoonosis…"
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="ext-reference"
+              className="block text-[12px] font-medium text-ln-op-mute"
+            >
+              Referencia (opcional)
+            </label>
+            <input
+              id="ext-reference"
+              type="text"
+              value={extReference}
+              onChange={(e) => setExtReference(e.target.value)}
+              placeholder="N.º de expediente / acta…"
+              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+            />
+          </div>
+        </div>
+      )}
+
       {mode === "close_resolved" && (
         <div className="space-y-1.5">
           <label htmlFor="final-report" className="block text-[12px] font-medium text-ln-op-mute">
@@ -158,7 +234,11 @@ export function InvestigationActions({
 
       <div className="space-y-1.5">
         <label htmlFor="notes" className="block text-[12px] font-medium text-ln-op-mute">
-          {mode === "add_note" ? "Detalle (minimo 5 caracteres)" : "Motivo (minimo 10 caracteres)"}
+          {mode === "add_note"
+            ? "Detalle (minimo 5 caracteres)"
+            : mode === "external_notification"
+              ? "Detalle de la notificacion (minimo 5 caracteres)"
+              : "Motivo (minimo 10 caracteres)"}
         </label>
         <textarea
           id="notes"
@@ -168,7 +248,9 @@ export function InvestigationActions({
           placeholder={
             mode === "add_note"
               ? "Describi el hallazgo, resultado o medida registrada..."
-              : "Explica el motivo..."
+              : mode === "external_notification"
+                ? "A quien y que se notifico por el canal externo..."
+                : "Explica el motivo..."
           }
           className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
@@ -182,7 +264,10 @@ export function InvestigationActions({
           type="button"
           onClick={submit}
           disabled={
-            pending || (mode === "add_note" ? notes.trim().length < 5 : notes.trim().length < 10)
+            pending ||
+            (mode === "add_note" || mode === "external_notification"
+              ? notes.trim().length < 5
+              : notes.trim().length < 10)
           }
           className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
         >

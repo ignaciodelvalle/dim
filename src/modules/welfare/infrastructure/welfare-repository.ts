@@ -175,6 +175,46 @@ export class WelfareRepository {
   }
 
   /**
+   * Set the org intervention state on a welfare report (UI-7). Used by
+   * takeDerivedReport. Does NOT touch the welfare status enum or derivation
+   * columns — only org_intervention_status / org_intervention_at.
+   */
+  async setOrgIntervention(
+    reportId: string,
+    patch: { orgInterventionStatus: "tomado" | "devuelto" | null; orgInterventionAt: Date | null },
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(welfareReports)
+      .set({
+        orgInterventionStatus: patch.orgInterventionStatus,
+        orgInterventionAt: patch.orgInterventionAt,
+      })
+      .where(eq(welfareReports.id, reportId));
+  }
+
+  /**
+   * Return a derived welfare report to the gov queue (UI-7). Sets
+   * org_intervention_status='devuelto' + org_intervention_at, and clears
+   * derived_to_organization_id so the gov derivation panel shows it actionable
+   * again. The return reason lives in a case_events note (caller responsibility).
+   */
+  async returnDerivation(
+    reportId: string,
+    patch: { orgInterventionAt: Date },
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(welfareReports)
+      .set({
+        orgInterventionStatus: "devuelto",
+        orgInterventionAt: patch.orgInterventionAt,
+        derivedToOrganizationId: null,
+      })
+      .where(eq(welfareReports.id, reportId));
+  }
+
+  /**
    * Append an audit_log row. The actorUserId MUST correspond to an existing
    * profiles row (NOT NULL FK with RESTRICT on delete).
    */
