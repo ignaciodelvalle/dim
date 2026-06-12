@@ -167,8 +167,13 @@ export function LostPublicCredential({
             <p className="mt-1 text-sm font-medium text-ln-ink ">
               {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10 text-3xl  ">
-              📍
+            <div className="mt-3 flex h-32 flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  ">
+              <span aria-hidden="true" className="text-3xl">
+                📍
+              </span>
+              <span className="text-[10px] text-[var(--color-ln-mute)]">
+                Mapa disponible próximamente
+              </span>
             </div>
             {mapHref && (
               <a

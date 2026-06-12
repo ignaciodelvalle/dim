@@ -25,8 +25,8 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
     startTransition(async () => {
       const result = await revokeInvitationAction({ organizationId, invitationToken });
       if ("error" in result) {
+        // Keep the confirm panel open so the error is visible to the user.
         setError(result.error);
-        setConfirming(false);
         return;
       }
       router.refresh();

@@ -294,6 +294,7 @@ export default async function InicioPage() {
                   {appointments.map(({ appointment, slot, offering, pet }) => (
                     <ApptRow
                       key={appointment.publicToken}
+                      token={appointment.publicToken}
                       date={new Date(slot.startsAt)}
                       title={`${pet.name} · ${offering.displayName}`}
                       meta={new Date(slot.startsAt).toLocaleTimeString("es-AR", {
@@ -346,9 +347,22 @@ const MONTH_ABBR = [
   "DIC",
 ];
 
-function ApptRow({ date, title, meta }: { date: Date; title: string; meta: string }) {
+function ApptRow({
+  date,
+  title,
+  meta,
+  token,
+}: {
+  date: Date;
+  title: string;
+  meta: string;
+  token: string;
+}) {
   return (
-    <div className="flex items-center gap-[12px]">
+    <Link
+      href={`/mis-turnos/${token}`}
+      className="flex items-center gap-[12px] rounded-[4px] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-[6px] px-[6px] py-[4px]"
+    >
       <div className="flex h-[44px] w-[44px] flex-shrink-0 flex-col items-center justify-center rounded-[4px] border border-[var(--color-ln-line)] text-center">
         <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
           {MONTH_ABBR[date.getMonth()]}
@@ -361,13 +375,14 @@ function ApptRow({ date, title, meta }: { date: Date; title: string; meta: strin
         <p className="text-[13px] font-medium text-[var(--color-ln-ink)]">{title}</p>
         <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">{meta}</p>
       </div>
-    </div>
+    </Link>
   );
 }
 
 type ActiveReminderRow = {
   reminderId: string;
   petName: string;
+  petToken: string;
   title: string;
   daysUntilDue: number;
   variant: ReminderVariant;
@@ -388,7 +403,10 @@ function DueRow({ reminder }: { reminder: ActiveReminderRow }) {
       : "text-[var(--color-ln-mute)]";
 
   return (
-    <div className="flex items-center gap-[10px]">
+    <Link
+      href={`/mis-mascotas/${reminder.petToken}?tab=vacunas`}
+      className="flex items-center gap-[10px] rounded-[4px] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-[6px] px-[6px] py-[4px]"
+    >
       <span
         className={`h-[8px] w-[8px] flex-shrink-0 rounded-full ${dotClass}`}
         aria-hidden="true"
@@ -401,6 +419,6 @@ function DueRow({ reminder }: { reminder: ActiveReminderRow }) {
       <span className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[11px] ${whenColor}`}>
         {isOver ? `−${Math.abs(reminder.daysUntilDue)} días` : `en ${reminder.daysUntilDue} días`}
       </span>
-    </div>
+    </Link>
   );
 }

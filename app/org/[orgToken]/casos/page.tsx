@@ -91,9 +91,9 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
           const s = value === "" ? null : (value as "open" | "closed");
           const active = activeStatus === s;
           return (
-            <a key={value} href={statusHref(s)} className={filterChipCls(active)}>
+            <Link key={value} href={statusHref(s)} className={filterChipCls(active)}>
               {label}
-            </a>
+            </Link>
           );
         })}
       </div>
@@ -101,13 +101,13 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
       {/* Kind filter chips — only show kinds present in the full list */}
       {presentKinds.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          <a href={kindHref(null)} className={filterChipCls(activeKind === null)}>
+          <Link href={kindHref(null)} className={filterChipCls(activeKind === null)}>
             Todos los tipos
-          </a>
+          </Link>
           {presentKinds.map((k) => (
-            <a key={k} href={kindHref(k)} className={filterChipCls(activeKind === k)}>
+            <Link key={k} href={kindHref(k)} className={filterChipCls(activeKind === k)}>
               {caseKindLabel(k)}
-            </a>
+            </Link>
           ))}
         </div>
       )}

@@ -152,6 +152,34 @@ export default async function GobVigilanciaPage({
         />
       )}
 
+      {/* Quick-access CTAs: zoonosis + investigaciones */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link
+          href="/gob/vigilancia/zoonosis"
+          className="flex items-center gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
+        >
+          <span className="text-[22px]" aria-hidden="true">
+            🦠
+          </span>
+          <div>
+            <p className="text-[13px] font-semibold text-ln-op-ink">Zoonosis</p>
+            <p className="text-[11px] text-ln-op-mute">Enfermedades transmisibles activas</p>
+          </div>
+        </Link>
+        <Link
+          href="/gob/vigilancia/investigaciones"
+          className="flex items-center gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
+        >
+          <span className="text-[22px]" aria-hidden="true">
+            🔬
+          </span>
+          <div>
+            <p className="text-[13px] font-semibold text-ln-op-ink">Investigaciones</p>
+            <p className="text-[11px] text-ln-op-mute">Casos bajo investigación activa</p>
+          </div>
+        </Link>
+      </div>
+
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
@@ -173,6 +201,7 @@ export default async function GobVigilanciaPage({
           label="Rábicas activas"
           value={String(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
+          href="/gob/vigilancia/zoonosis"
         />
         <OpKpi label="Pets hoy" value={String(metrics.petsRegisteredToday)} />
         <OpKpi label="Vacunaciones (7d)" value={String(metrics.vaccinationsThisWeek)} tone="ok" />

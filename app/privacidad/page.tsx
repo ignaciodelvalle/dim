@@ -40,8 +40,9 @@ export default function PrivacidadPage() {
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
             MiMAR trata los datos personales de sus usuarios conforme a la{" "}
             <strong>Ley 25.326 de Protección de Datos Personales</strong> de la República Argentina
-            y su decreto reglamentario 1558/2001. La base de datos de usuarios está registrada ante
-            la Dirección Nacional de Protección de Datos Personales (DNPDP).
+            y su decreto reglamentario 1558/2001. MiMAR cumple las obligaciones de registro ante la
+            Agencia de Acceso a la Información Pública (AAIP) / Dirección Nacional de Protección de
+            Datos Personales (DNPDP) conforme lo establece la normativa vigente.
           </p>
         </section>
 

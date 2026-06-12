@@ -514,6 +514,7 @@ export default async function PublicCredentialPage({
 
   return (
     <main
+      id="main-content"
       className="min-h-screen"
       style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
     >
@@ -1062,6 +1063,7 @@ export default async function PublicCredentialPage({
 function ThrottleNotice() {
   return (
     <main
+      id="main-content"
       className="min-h-screen flex items-center justify-center"
       style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
     >

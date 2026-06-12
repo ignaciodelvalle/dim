@@ -147,7 +147,7 @@ export default async function WelfareReportByCodePage({
             className="rounded-[6px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3"
           >
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
-              Tu denuncia fue registrada. Gracias por animarte a denunciar.
+              Tu denuncia fue registrada.
             </p>
             <p
               className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"

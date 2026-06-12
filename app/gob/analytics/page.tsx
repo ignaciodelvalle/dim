@@ -136,7 +136,7 @@ export default async function GobAnalyticsPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Analytics</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Metricas analiticas de salud animal y gestion de mascotas en tu cobertura.
+          Métricas analíticas de salud animal y gestión de mascotas en tu cobertura.
         </p>
       </header>
 
@@ -151,15 +151,20 @@ export default async function GobAnalyticsPage({
         aria-label="Indicadores de analytics"
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
-        <OpKpi label="Pets totales" value={String(metrics.totalPets)} sub="activos + perdidos" />
         <OpKpi
-          label="Tasa de adopcion (12m)"
+          label="Pets totales"
+          value={String(metrics.totalPets)}
+          sub="activos + perdidos"
+          href="/gob/perdidas"
+        />
+        <OpKpi
+          label="Tasa de adopción (12m)"
           value={`${metrics.adoptionRate}%`}
           tone={metrics.adoptionRate >= 20 ? "ok" : undefined}
           sub="del total de adquisiciones"
         />
         <OpKpi
-          label="Cobertura antirrabica"
+          label="Cobertura antirrábica"
           value={`${metrics.rabiesVaccinationRate}%`}
           tone={
             metrics.rabiesVaccinationRate >= 70
@@ -168,20 +173,22 @@ export default async function GobAnalyticsPage({
                 ? "warn"
                 : "danger"
           }
-          sub="pets con >= 1 vacuna antirrabica"
+          sub="pets con >= 1 vacuna antirrábica"
+          href="/gob/vigilancia"
         />
         <OpKpi
           label="Disputas de custodia"
           value={String(metrics.custodyDisputes)}
           tone={metrics.custodyDisputes > 0 ? "warn" : undefined}
           sub="casos abiertos"
+          href="/gob/disputas"
         />
       </section>
 
       {/* Acquisition trend + export */}
       <OpCard aria-labelledby={panelAcquisitionId}>
         <OpCardHead
-          title={<span id={panelAcquisitionId}>Adquisicion por metodo</span>}
+          title={<span id={panelAcquisitionId}>Adquisición por método</span>}
           actions={
             <Link
               href="/gob/analytics/export"
@@ -195,8 +202,8 @@ export default async function GobAnalyticsPage({
           {acquisitionTrend.length === 0 ? (
             <LnEmptyState
               icon="chart-line"
-              title="Sin datos de adquisicion"
-              description="No hay registros de mascotas con metodo de adquisicion en los ultimos 12 meses."
+              title="Sin datos de adquisición"
+              description="No hay registros de mascotas con método de adquisición en los últimos 12 meses."
             />
           ) : (
             <AcquisitionChart data={acquisitionTrend} />
@@ -209,7 +216,7 @@ export default async function GobAnalyticsPage({
         <OpCardHead
           title={
             <span id={panelMapId}>
-              Distribucion geografica{" "}
+              Distribución geográfica{" "}
               <span className="text-[11px] font-normal text-ln-op-mute">
                 por 10.000 hab. (INDEC 2022)
               </span>
@@ -229,7 +236,7 @@ export default async function GobAnalyticsPage({
             <LnEmptyState
               icon="heart"
               title="Sin datos de fallecimiento"
-              description="No hay eventos de fallecimiento en los ultimos 12 meses en tu cobertura."
+              description="No hay eventos de fallecimiento en los últimos 12 meses en tu cobertura."
             />
           ) : (
             <ul className="space-y-2">
