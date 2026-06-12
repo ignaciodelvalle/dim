@@ -117,6 +117,9 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
 // underlying action redirects (server-side, no JS needed); on failure it returns
 // { error } which useActionState surfaces in-place. Keeping startApplyIntentAction
 // as the string-arg primitive preserves the existing JS-on call sites.
+// @no-auth-required: anonymous visitors start the apply-intent flow by design —
+// the wrapped action branches on session (anon → intent cookie + /signup
+// redirect; authed → straight to postular) and the postular page re-gates.
 export async function startApplyIntentFormAction(
   _prevState: StartApplyIntentResult | null,
   formData: FormData,

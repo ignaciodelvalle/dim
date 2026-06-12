@@ -1127,9 +1127,10 @@ async function hasPendingProposal(
 // to_user_id gate so the owner only sees the "Confirmar devolución" entry when the
 // pending proposal is actually directed at them.
 //
-// ForOwner suffix: read-only helper that expects PRE-AUTHORIZED owner context —
-// callers must have already confirmed the user is the active owner of the pet
-// (page-level requirePetAccess + ownership role check) before calling.
+// @no-auth-required: read-only boolean helper that expects PRE-AUTHORIZED owner
+// context — callers must have already confirmed the user is the active owner of
+// the pet (page-level requirePetAccess + ownership role check) before calling.
+// It reveals nothing beyond "a pending proposal addressed to this owner exists".
 export async function fetchPendingReturnProposalForOwner(
   petId: string,
   ownerUserId: string,
