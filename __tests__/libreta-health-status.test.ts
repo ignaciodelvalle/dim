@@ -112,13 +112,45 @@ describe("computeVaccinationSummary", () => {
     expect(row?.lastDoseAt?.toISOString()).toBe("2026-05-20T00:00:00.000Z");
   });
 
-  it("ignores free-text vaccine names not in the catalog", () => {
+  it("keeps free-text vaccine names out of perVaccine but counts them in otherCount", () => {
     const events = [
       vaxEvent({ vaccineName: "Made-Up Vaccine", occurredAt: "2026-05-01T00:00:00Z" }),
     ];
     const summary = computeVaccinationSummary(events, "dog", now);
-    // Doesn't appear in perVaccine, so cores remain missing.
+    // Doesn't appear in perVaccine (no fuzzy catalog match), so cores remain missing.
     expect(summary.perVaccine.find((v) => v.vaccineName === "Made-Up Vaccine")).toBeUndefined();
+    // But it is counted as visible-but-off-catalog so the dose is not dropped.
+    expect(summary.otherCount).toBe(1);
+  });
+
+  it("does not let non-catalog vaccines change core-vaccine headline status", () => {
+    const events = [
+      vaxEvent({ vaccineName: "Vacuna Exótica X", occurredAt: "2026-05-01T00:00:00Z" }),
+    ];
+    const summary = computeVaccinationSummary(events, "dog", now);
+    // Off-catalog dose must not inflate active/dueSoon/expired or reduce missing.
+    expect(summary.active).toBe(0);
+    expect(summary.dueSoon).toBe(0);
+    expect(summary.expired).toBe(0);
+    expect(summary.missing).toBeGreaterThanOrEqual(3);
+    expect(summary.otherCount).toBe(1);
+  });
+
+  it("dedupes multiple doses of the same off-catalog vaccine name", () => {
+    const events = [
+      vaxEvent({ vaccineName: "Giardia Vax", occurredAt: "2025-01-01T00:00:00Z" }),
+      vaxEvent({ vaccineName: "giardia vax", occurredAt: "2026-01-01T00:00:00Z" }),
+      vaxEvent({ vaccineName: "Otra Rara", occurredAt: "2026-02-01T00:00:00Z" }),
+    ];
+    const summary = computeVaccinationSummary(events, "dog", now);
+    // "Giardia Vax"/"giardia vax" collapse to one; "Otra Rara" is a second → 2.
+    expect(summary.otherCount).toBe(2);
+  });
+
+  it("reports otherCount=0 when every administered vaccine is in the catalog", () => {
+    const events = [vaxEvent({ vaccineName: "Antirrábica", occurredAt: "2026-05-01T00:00:00Z" })];
+    const summary = computeVaccinationSummary(events, "dog", now);
+    expect(summary.otherCount).toBe(0);
   });
 
   it("surfaces non-core vaccines once the owner has logged a dose", () => {

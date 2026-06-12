@@ -9,6 +9,7 @@ import { useState, useTransition } from "react";
 
 import { DewormingAttendanceForm } from "@/app/_components/attendance-forms/DewormingAttendanceForm";
 import { GenericAttendanceForm } from "@/app/_components/attendance-forms/GenericAttendanceForm";
+import { MicrochipAttendanceForm } from "@/app/_components/attendance-forms/MicrochipAttendanceForm";
 import { SterilizationAttendanceForm } from "@/app/_components/attendance-forms/SterilizationAttendanceForm";
 import { VaccinationAttendanceForm } from "@/app/_components/attendance-forms/VaccinationAttendanceForm";
 import type { AttendancePayload, AttendanceResult } from "@/app/actions/attendance";
@@ -80,6 +81,7 @@ export function AttendanceFormDispatcher({
   const isVaccination = serviceKind.startsWith("vaccination_");
   const isDeworming = serviceKind === "deworming";
   const isSterilization = serviceKind.startsWith("sterilization_");
+  const isMicrochip = serviceKind === "microchip_implantation";
 
   return (
     <div className="space-y-8">
@@ -110,7 +112,15 @@ export function AttendanceFormDispatcher({
           />
         )}
 
-        {!isVaccination && !isDeworming && !isSterilization && (
+        {isMicrochip && (
+          <MicrochipAttendanceForm
+            appointmentToken={appointmentToken}
+            onSubmit={(payload) => onAttend(appointmentToken, payload)}
+            onSuccess={handleSuccess}
+          />
+        )}
+
+        {!isVaccination && !isDeworming && !isSterilization && !isMicrochip && (
           <GenericAttendanceForm
             appointmentToken={appointmentToken}
             onSubmit={(payload) => onAttend(appointmentToken, payload)}

@@ -36,6 +36,14 @@ export type VaccinationSummary = {
   dueSoon: number;
   expired: number;
   missing: number;
+  /**
+   * Count of DISTINCT vaccines administered whose name is NOT in the species
+   * catalog (free-text names entered in the attendance/registro forms). These
+   * do not affect core-vaccine status (al día / atención) but must remain
+   * VISIBLE so the dose is not silently dropped. Deduped by normalized name —
+   * multiple doses of the same off-catalog vaccine count once.
+   */
+  otherCount: number;
   /** Per-vaccine detail in catalog order. */
   perVaccine: VaccineSnapshot[];
 };
@@ -87,13 +95,24 @@ export function computeVaccinationSummary(
 ): VaccinationSummary {
   // Latest event per vaccine name (case-insensitive match against the catalog).
   const latestByVaccine = new Map<string, { occurredAt: Date; nextDueAt: Date | null }>();
+  // Distinct off-catalog (free-text) vaccine names, normalized for dedupe.
+  // These don't change core-vaccine status but must stay visible — counting
+  // them here is what keeps free-text doses from silently vanishing.
+  const otherNames = new Set<string>();
   for (const e of events) {
     if (e.eventType !== "vaccination_administered") continue;
     const payload = (e.payload ?? {}) as Record<string, unknown>;
     const rawName = typeof payload.vaccine_name === "string" ? payload.vaccine_name : null;
     if (!rawName) continue;
     const def = findVaccineByName(rawName);
-    if (!def) continue; // skip free-text vaccines outside the catalog
+    if (!def) {
+      // Free-text vaccine outside the catalog — count it (deduped by name) so
+      // it appears in the libreta instead of disappearing. We deliberately do
+      // NOT fuzzy-match against the catalog.
+      const normalized = rawName.trim().toLowerCase();
+      if (normalized) otherNames.add(normalized);
+      continue;
+    }
     const occurredAt = asDate(e.occurredAt);
     if (!occurredAt) continue;
     const payloadNextDue = asDate((payload.next_due_at ?? null) as Date | string | null);
@@ -172,7 +191,7 @@ export function computeVaccinationSummary(
     else missing++;
   }
 
-  return { active, dueSoon, expired, missing, perVaccine };
+  return { active, dueSoon, expired, missing, otherCount: otherNames.size, perVaccine };
 }
 
 /**

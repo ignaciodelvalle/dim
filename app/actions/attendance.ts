@@ -23,17 +23,21 @@ import {
   notifications,
   organizationMemberships,
   petEvents,
+  petIdentifications,
   pets,
   reminders,
   serviceOfferings,
   timeSlots,
 } from "@/db";
+import { matchesDbError } from "@/lib/db-errors";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { findServiceKind } from "@/lib/service-kinds";
 import {
   type RequireCapabilitySuccess,
   requireCapability,
 } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 // ============================================================================
 // Result types
@@ -74,10 +78,18 @@ export type VetVisitPayload = {
   clinic: string | null;
 };
 
+export type MicrochipPayload = {
+  chip_number: string;
+  country_code: string | null;
+  implanted_by: string | null;
+  location_on_body: string | null;
+};
+
 export type AttendancePayload =
   | ({ kind: "vaccination" } & VaccinationPayload)
   | ({ kind: "deworming" } & DewormingPayload)
   | ({ kind: "sterilization" } & SterilizationPayload)
+  | ({ kind: "microchip" } & MicrochipPayload)
   | ({ kind: "vet_visit" } & VetVisitPayload);
 
 // ============================================================================
@@ -156,6 +168,13 @@ export async function markAppointmentAttendedWriter(
         performed_by: payload.performed_by,
         clinic: payload.clinic,
       };
+    } else if (payload.kind === "microchip") {
+      rawPayload = {
+        chip_number: payload.chip_number,
+        country_code: payload.country_code,
+        implanted_by: payload.implanted_by,
+        location_on_body: payload.location_on_body,
+      };
     } else {
       // vet_visit (generic fallback)
       rawPayload = {
@@ -170,6 +189,34 @@ export async function markAppointmentAttendedWriter(
     const validatedPayload = validateEventPayload(eventType, rawPayload);
 
     const now = new Date();
+
+    // Microchip pre-check: surface a friendly inline error when the chip is
+    // already registered on a DIFFERENT active pet (the chip_unique partial
+    // index would otherwise raise a raw 500). A chip already active on THIS
+    // pet is a no-op re-sync handled by insertIdentification's guard below.
+    if (payload.kind === "microchip") {
+      const dupes = await db
+        .select({ petId: petIdentifications.petId })
+        .from(petIdentifications)
+        .where(
+          and(
+            eq(petIdentifications.code, payload.chip_number),
+            eq(petIdentifications.kind, "microchip_iso"),
+            eq(petIdentifications.status, "active"),
+          ),
+        )
+        .limit(1);
+      if (dupes[0] && dupes[0].petId !== pet.id) {
+        return { error: "Ese chip ya está registrado en otra mascota activa." };
+      }
+    }
+
+    // Whether the pet already holds an active canonical microchip row — drives
+    // the dual-write guard below (same pattern as createMicrochip use-case).
+    const petHasCanonicalChip =
+      payload.kind === "microchip"
+        ? (await fetchActiveIdentifications(pet.id)).microchip !== null
+        : false;
 
     await db.transaction(async (tx) => {
       // 1. UPDATE appointment status.
@@ -204,7 +251,28 @@ export async function markAppointmentAttendedWriter(
         .set({ outcomeEventId: newEvent.id })
         .where(eq(appointments.id, appointmentId));
 
-      // 4. If vaccination with next_due_at, insert a reminder for the owner.
+      // 4. Microchip canonical dual-write (ARCH-O): every microchip_implanted
+      // writer must insert the canonical pet_identifications row, mirroring
+      // createMicrochip. Only when the pet had no prior active chip — the
+      // pre-check above already rejected a chip active on another pet.
+      if (payload.kind === "microchip" && !petHasCanonicalChip) {
+        const implantSite = chipImplantSiteFromLocation(payload.location_on_body);
+        await tx.insert(petIdentifications).values({
+          petId: pet.id,
+          kind: "microchip_iso",
+          code: payload.chip_number,
+          recordedAt: now.toISOString().slice(0, 10),
+          recordedByUserId: author.actorUserId,
+          recordedByLabel: payload.implanted_by,
+          isoCountryCode: payload.chip_number.slice(0, 3),
+          isoManufacturerCode: payload.chip_number.slice(3, 7),
+          isoNationalId: payload.chip_number.slice(7, 15),
+          isoCompliant: true,
+          ...(implantSite ? { implantationSite: implantSite } : {}),
+        });
+      }
+
+      // 5. If vaccination with next_due_at, insert a reminder for the owner.
       if (payload.kind === "vaccination" && payload.next_due_at && appointment.ownerUserId) {
         await tx.insert(reminders).values({
           petId: pet.id,
@@ -223,6 +291,11 @@ export async function markAppointmentAttendedWriter(
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "EventPayloadValidationError") {
       return { error: err.message };
+    }
+    // Duplicate-chip race: the pre-check passed but a concurrent write claimed
+    // the chip first. Surface the same friendly message instead of a raw 500.
+    if (matchesDbError(err, { constraint: /pet_identifications_chip_unique/ })) {
+      return { error: "Ese chip ya está registrado en otra mascota activa." };
     }
     throw err;
   }
