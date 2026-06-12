@@ -856,6 +856,10 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
 
     // Microchip: emit event + canonical pet_identifications row.
     // Legacy pets.* chip columns not written — ARCH-R.
+    // implant_date_known: true so the projection's microchipImplantedAt
+    // (formatDate(occurredAt)) matches the canonical row's recordedAt —
+    // both resolve to the same date and the pet-cache drift harness sees
+    // zero drift (ARCH-I).
     if (seed.microchipId) {
       const chip = seed.microchipId;
       const chipNow = new Date();
@@ -873,7 +877,7 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
           country_code: "858",
           implanted_by: null,
           location_on_body: null,
-          implant_date_known: false,
+          implant_date_known: true,
         },
       });
       await db.insert(petIdentifications).values({
