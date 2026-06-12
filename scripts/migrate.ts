@@ -457,9 +457,37 @@ async function main(): Promise<void> {
       process.stdout.write(`  applying    ${f}${noTxn ? " [no-transaction]" : ""} … `);
       try {
         if (noTxn) {
-          // File opted out of wrapping — execute as-is. MUST be idempotent
-          // because a partial failure cannot be rolled back.
-          await sql.unsafe(contents);
+          // File opted out of wrapping — execute statements individually so that
+          // CREATE/DROP INDEX CONCURRENTLY (which cannot run inside a transaction
+          // block) is not bundled with other statements. The postgres.js simple-
+          // query protocol wraps multi-statement strings in an implicit transaction,
+          // which would cause CONCURRENTLY to fail even without an explicit BEGIN.
+          // Splitting on ";\n" and trimming blank/comment-only chunks mirrors psql
+          // behavior: each statement gets its own round-trip, no implicit txn.
+          //
+          // CONSTRAINT: the splitter cannot parse dollar-quoted bodies (DO $$,
+          // CREATE FUNCTION ... $$) — internal ";\n" would split mid-body. Such
+          // statements belong in a normal transactional migration; refuse loudly
+          // rather than corrupt silently.
+          if (/\$[A-Za-z_]*\$/.test(contents)) {
+            throw new Error(
+              `${f} uses dollar-quoting inside a -- dim:no-transaction file; the statement splitter cannot parse it. Move DO/function bodies to a transactional migration.`,
+            );
+          }
+          const statements = contents
+            .split(/;\s*\n/)
+            .map((s) => s.trim())
+            .filter(
+              (s) =>
+                s.length > 0 &&
+                !s
+                  .replace(/--[^\n]*/g, "")
+                  .trim()
+                  .match(/^$/),
+            );
+          for (const stmt of statements) {
+            await sql.unsafe(`${stmt};`);
+          }
         } else {
           // Wrap in a transaction so a mid-file failure rolls back cleanly;
           // safe to retry after fixing the migration.

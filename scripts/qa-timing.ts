@@ -82,8 +82,8 @@ type TimingResult = {
   audience: string;
   route: string;
   status: number;
-  ttfb_ms: number[];   // raw TTFB per rep
-  total_ms: number[];  // raw total (TTFB + body) per rep
+  ttfb_ms: number[]; // raw TTFB per rep
+  total_ms: number[]; // raw total (TTFB + body) per rep
   median_ttfb: number;
   median_total: number;
   skipped?: boolean;
@@ -94,9 +94,7 @@ function median(arr: number[]): number {
   if (arr.length === 0) return 0;
   const sorted = [...arr].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 async function timeRoute(
@@ -175,7 +173,7 @@ async function timeRoute(
 
 async function pgQuery(sql: string): Promise<unknown[]> {
   const PGPASS = "postgres";
-  const { execSync } = await import("child_process");
+  const { execSync } = await import("node:child_process");
   const cmd = `docker exec -e PGPASSWORD=${PGPASS} supabase_db_DIM psql -U supabase_admin -d postgres -t -A -F"|||" -c "${sql.replace(/"/g, '\\"')}"`;
   try {
     const output = execSync(cmd, { encoding: "utf8" });
@@ -238,7 +236,7 @@ async function main() {
     { audience: "anon", route: "/adoptar" },
     { audience: "anon", route: "/refugios" },
     { audience: "anon", route: "/denuncias/nueva" },
-    { audience: "anon", route: "/casos" },   // skip if 404
+    { audience: "anon", route: "/casos" }, // skip if 404
     { audience: "anon", route: "/login" },
 
     // --- owner ---
@@ -247,7 +245,11 @@ async function main() {
     ...(petToken
       ? [
           { audience: "owner", route: `/mis-mascotas/${petToken}`, cookie: ownerCookie },
-          { audience: "owner", route: `/mis-mascotas/${petToken}?tab=vacunas`, cookie: ownerCookie },
+          {
+            audience: "owner",
+            route: `/mis-mascotas/${petToken}?tab=vacunas`,
+            cookie: ownerCookie,
+          },
         ]
       : []),
     { audience: "owner", route: "/notificaciones", cookie: ownerCookie },
@@ -315,11 +317,13 @@ async function main() {
     const r = await timeRoute(audience, route, cookie);
     results.push(r);
     if (r.skipped) {
-      process.stderr.write(`SKIP (404)\n`);
+      process.stderr.write("SKIP (404)\n");
     } else if (r.error) {
       process.stderr.write(`ERROR: ${r.error}\n`);
     } else {
-      process.stderr.write(`TTFB=${r.median_ttfb.toFixed(0)}ms total=${r.median_total.toFixed(0)}ms\n`);
+      process.stderr.write(
+        `TTFB=${r.median_ttfb.toFixed(0)}ms total=${r.median_total.toFixed(0)}ms\n`,
+      );
     }
   }
 
@@ -353,7 +357,9 @@ async function main() {
   console.log("═".repeat(110));
   console.log("  MIMAR PRODUCTION PAGE LATENCY REPORT  —  localhost:3001 (next start, seeded DB)");
   console.log("  Caveats: local DB is tiny (seeded only). Times are a FLOOR, not national-scale.");
-  console.log("  What matters: (a) relative ranking  (b) query COUNT per page  (c) pages slow even on tiny data");
+  console.log(
+    "  What matters: (a) relative ranking  (b) query COUNT per page  (c) pages slow even on tiny data",
+  );
   console.log("═".repeat(110));
 
   for (const aud of audiences) {
@@ -367,10 +373,14 @@ async function main() {
     console.log(`│  ${"-".repeat(100)}`);
 
     for (const r of audResults) {
-      const routeDisplay = r.route.length > 49 ? r.route.slice(0, 48) + "…" : r.route.padEnd(50);
+      const routeDisplay = r.route.length > 49 ? `${r.route.slice(0, 48)}…` : r.route.padEnd(50);
       const statusDisplay = String(r.status).padEnd(8);
-      const ttfbDisplay = r.skipped ? "SKIPPED".padEnd(12) : `${r.median_ttfb.toFixed(0)} ms`.padEnd(12);
-      const totalDisplay = r.skipped ? "SKIPPED".padEnd(12) : `${r.median_total.toFixed(0)} ms`.padEnd(12);
+      const ttfbDisplay = r.skipped
+        ? "SKIPPED".padEnd(12)
+        : `${r.median_ttfb.toFixed(0)} ms`.padEnd(12);
+      const totalDisplay = r.skipped
+        ? "SKIPPED".padEnd(12)
+        : `${r.median_total.toFixed(0)} ms`.padEnd(12);
       const notes = r.error ? `ERR: ${r.error.slice(0, 40)}` : r.skipped ? "skip (404)" : "";
       console.log(`│  ${routeDisplay} ${statusDisplay} ${ttfbDisplay} ${totalDisplay} ${notes}`);
     }
@@ -387,12 +397,14 @@ async function main() {
   console.log("═".repeat(110));
   console.log("  RANKED BY MEDIAN TTFB (slowest first)");
   console.log("═".repeat(110));
-  console.log(`  ${"#".padEnd(4)} ${"Audience".padEnd(12)} ${"Route".padEnd(50)} ${"Med TTFB".padEnd(12)} Med Total`);
+  console.log(
+    `  ${"#".padEnd(4)} ${"Audience".padEnd(12)} ${"Route".padEnd(50)} ${"Med TTFB".padEnd(12)} Med Total`,
+  );
   console.log(`  ${"-".repeat(96)}`);
   ranked.slice(0, 20).forEach((r, i) => {
-    const routeDisplay = r.route.length > 49 ? r.route.slice(0, 48) + "…" : r.route.padEnd(50);
+    const routeDisplay = r.route.length > 49 ? `${r.route.slice(0, 48)}…` : r.route.padEnd(50);
     console.log(
-      `  ${String(i + 1).padEnd(4)} ${r.audience.padEnd(12)} ${routeDisplay} ${(r.median_ttfb.toFixed(0) + " ms").padEnd(12)} ${r.median_total.toFixed(0)} ms`,
+      `  ${String(i + 1).padEnd(4)} ${r.audience.padEnd(12)} ${routeDisplay} ${(`${r.median_ttfb.toFixed(0)} ms`).padEnd(12)} ${r.median_total.toFixed(0)} ms`,
     );
   });
 
@@ -401,7 +413,9 @@ async function main() {
   // ---------------------------------------------------------------------------
   console.log("\n");
   console.log("═".repeat(110));
-  console.log("  TOP 15 APP QUERIES BY TOTAL EXEC TIME  (pg_stat_statements, reset before timed sweep)");
+  console.log(
+    "  TOP 15 APP QUERIES BY TOTAL EXEC TIME  (pg_stat_statements, reset before timed sweep)",
+  );
   console.log("═".repeat(110));
   console.log(
     `  ${"#".padEnd(4)} ${"calls".padEnd(8)} ${"mean_ms".padEnd(10)} ${"total_ms".padEnd(12)} Query (first 120 chars)`,
@@ -425,17 +439,23 @@ async function main() {
   // Queries-per-page estimate for 5 worst pages
   // ---------------------------------------------------------------------------
   const totalPageLoads = results.filter((r) => !r.skipped && r.status < 400).length * REPS;
-  const totalAppCalls = statsRows.reduce((sum, row) => {
+  const totalAppCalls = statsRows.reduce<number>((sum, row) => {
     const cols = row as string[];
-    return sum + (parseInt(cols[1] ?? "0", 10) || 0);
+    return sum + (Number.parseInt(cols[1] ?? "0", 10) || 0);
   }, 0);
 
   console.log("\n");
   console.log("═".repeat(110));
   console.log("  QUERIES-PER-PAGE ESTIMATE (5 WORST PAGES)");
-  console.log(`  Total page loads in timed sweep: ${totalPageLoads}  |  Total tracked app DB calls: ${totalAppCalls}`);
-  console.log(`  Avg queries/page (across all routes): ${totalPageLoads > 0 ? (totalAppCalls / totalPageLoads).toFixed(1) : "n/a"}`);
-  console.log("  Note: per-page breakdown requires per-route statement diffing; below uses TTFB as proxy for query depth.");
+  console.log(
+    `  Total page loads in timed sweep: ${totalPageLoads}  |  Total tracked app DB calls: ${totalAppCalls}`,
+  );
+  console.log(
+    `  Avg queries/page (across all routes): ${totalPageLoads > 0 ? (totalAppCalls / totalPageLoads).toFixed(1) : "n/a"}`,
+  );
+  console.log(
+    "  Note: per-page breakdown requires per-route statement diffing; below uses TTFB as proxy for query depth.",
+  );
   console.log("═".repeat(110));
 
   const worst5 = ranked.slice(0, 5);
@@ -444,7 +464,7 @@ async function main() {
       `  ${i + 1}. [${r.audience}] ${r.route}  →  TTFB ${r.median_ttfb.toFixed(0)}ms / total ${r.median_total.toFixed(0)}ms`,
     );
     console.log(
-      `     Interpretation: high TTFB on tiny seeded data = sequential awaits / waterfall queries, not volume.`,
+      "     Interpretation: high TTFB on tiny seeded data = sequential awaits / waterfall queries, not volume.",
     );
   });
 
