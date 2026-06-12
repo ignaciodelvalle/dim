@@ -173,7 +173,10 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
       })
       .from(petEvents)
       .where(eq(petEvents.caseId, row.c.id))
-      .orderBy(desc(petEvents.occurredAt)),
+      .orderBy(desc(petEvents.occurredAt))
+      // Cap newest 200; merged timeline sorted desc after join. PERF-5 will
+      // add cursor-based pagination for deep case histories.
+      .limit(200),
     // case_events covers pet-less cases (location/general/unowned) and
     // reporter_comment entries for welfare_denuncia. Merged into the shared
     // timeline so the case detail page shows a unified history.
@@ -188,7 +191,8 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
       })
       .from(caseEvents)
       .where(eq(caseEvents.caseId, row.c.id))
-      .orderBy(desc(caseEvents.occurredAt)),
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(200),
   ]);
 
   const caseKind = isCaseKind(row.c.caseKind) ? row.c.caseKind : ("bite_incident" as CaseKind);

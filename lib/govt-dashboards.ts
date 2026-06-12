@@ -38,6 +38,7 @@ import {
   welfareReports,
 } from "@/db";
 import { findDisease } from "@/lib/diseases";
+import { likeContains } from "@/lib/like-helpers";
 
 export type DashboardActor = { role: "admin" | "govt" };
 
@@ -244,6 +245,51 @@ export async function fetchLostPets(
     conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
   }
 
+  // Push `q` (text search) and `since` (lost-event window) into SQL so the
+  // 500-row cap is applied AFTER filtering, not before. Previously the full
+  // 500 rows were fetched and then reduced in JS — silently missing matches
+  // that fell beyond the cap.
+  //
+  // `q` matches pets.name OR the active owner's displayName (ilike contains).
+  // `since` requires a `status_changed → lost` event with occurredAt >= since.
+
+  if (filters.since) {
+    // Restrict to pets where the most recent "became lost" event is >= since.
+    // Cast the Date to an ISO string so postgres.js serialises it correctly
+    // inside the raw sql`` template (Drizzle operators handle Date natively,
+    // but raw template parameters need explicit casting).
+    const sinceIso = filters.since.toISOString();
+    conditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM pet_events pe_since
+        WHERE pe_since.pet_id = ${pets.id}
+          AND pe_since.event_type = 'status_changed'
+          AND (pe_since.payload->>'to_status') = 'lost'
+          AND pe_since.occurred_at >= ${sinceIso}::timestamptz
+      )`,
+    );
+  }
+
+  if (filters.q) {
+    const pattern = likeContains(filters.q);
+    // Match pet name or active owner's display name.
+    // Use sql template for the OR to keep strict TypeScript happy (or() has an
+    // undefined return when invoked with zero args; this variant always has two).
+    conditions.push(
+      sql`(
+        ${pets.name} ILIKE ${pattern} ESCAPE '\'
+        OR EXISTS (
+          SELECT 1 FROM ownerships o_q
+          JOIN profiles pr_q ON pr_q.id = o_q.owner_user_id
+          WHERE o_q.pet_id = ${pets.id}
+            AND o_q.role = 'owner'
+            AND o_q.ended_at IS NULL
+            AND pr_q.display_name ILIKE ${pattern} ESCAPE '\'
+        )
+      )`,
+    );
+  }
+
   const baseRows = await db
     .select({
       petId: pets.id,
@@ -313,10 +359,8 @@ export async function fetchLostPets(
     );
   for (const r of activeOwnerRows) ownerMap.set(r.petId, r.displayName);
 
-  const sinceFloor = filters.since?.getTime() ?? null;
-  // Normalised query for post-fetch search (case-insensitive, matches petName OR ownerDisplayName).
-  const qLower = filters.q ? filters.q.toLowerCase() : null;
-
+  // Both `q` and `since` are now pushed into SQL (see conditions above).
+  // Sort by markedLostAt DESC so the most recently lost pets appear first.
   return baseRows
     .map((r): LostPetRow => {
       const meta = lostMetaByPet.get(r.petId);
@@ -333,16 +377,6 @@ export async function fetchLostPets(
         lastSeenLng: meta?.locationLng ? Number(meta.locationLng) : null,
         ownerDisplayName: ownerMap.get(r.petId) ?? null,
       };
-    })
-    .filter((r) => {
-      if (sinceFloor !== null && (r.markedLostAt?.getTime() ?? 0) < sinceFloor) return false;
-      // Text search: match against pet name or owner display name.
-      if (qLower) {
-        const nameMatch = r.petName.toLowerCase().includes(qLower);
-        const ownerMatch = r.ownerDisplayName?.toLowerCase().includes(qLower) ?? false;
-        if (!nameMatch && !ownerMatch) return false;
-      }
-      return true;
     })
     .sort((a, b) => (b.markedLostAt?.getTime() ?? 0) - (a.markedLostAt?.getTime() ?? 0));
 }
@@ -372,9 +406,24 @@ export type PerdidasMetrics = {
   avgDaysActive: number;
 };
 
+/**
+ * Compute perdidas metrics using a pre-fetched LostPetRow array.
+ *
+ * `opts.lostPets` — pass ONLY when the array represents the UNFILTERED
+ * in-scope lost pets (i.e. no q / since / species / non-default status
+ * filters were applied). avgDaysActive is a population metric that must
+ * reflect ALL currently-lost pets in scope, not just those matching the
+ * current display filters. When any display filter is active, omit opts so
+ * fetchPerdidasMetrics calls fetchLostPets() internally without filters,
+ * accepting the extra DB round-trip as semantically required.
+ *
+ * activeCount and recoveredMonth are always computed via independent COUNT
+ * queries; they are unaffected by opts.lostPets.
+ */
 export async function fetchPerdidasMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts?: { lostPets?: LostPetRow[] },
 ): Promise<PerdidasMetrics> {
   const now = Date.now();
   const since30d = new Date(now - 30 * DAY_MS);
@@ -410,8 +459,14 @@ export async function fetchPerdidasMetrics(
 
   // 3. Average days active: average of (now - occurredAt) for the most recent
   // `status_changed → lost` event per pet, for pets currently in status='lost'.
-  // We compute this in JS after fetching the per-pet markedLostAt timestamps via
-  // fetchLostPets so we reuse the already-correct scoping logic.
+  // We compute this in JS using the per-pet markedLostAt timestamps from
+  // fetchLostPets. If the caller already holds the lostPets array (e.g. /gob/perdidas
+  // fetches it in parallel), pass it via opts.lostPets to avoid a redundant DB call.
+
+  const lostPetsPromise =
+    opts?.lostPets !== undefined
+      ? Promise.resolve(opts.lostPets)
+      : fetchLostPets(actor, jurisdictions);
 
   const [activeRows, recoveredRows, lostPets] = await Promise.all([
     db
@@ -428,7 +483,7 @@ export async function fetchPerdidasMetrics(
           .select({ n: count() })
           .from(petEvents)
           .where(and(...recoveredConditions)),
-    fetchLostPets(actor, jurisdictions),
+    lostPetsPromise,
   ]);
 
   const activeCount = activeRows[0]?.n ?? 0;

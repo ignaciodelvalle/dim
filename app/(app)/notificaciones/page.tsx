@@ -14,6 +14,11 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { fetchNotificationCategoryCounts } from "@/lib/owner-dashboard";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
+// Maximum notifications fetched per page. PERF-5 will replace this with
+// keyset pagination; for now a hard cap keeps the query bounded.
+// Ordered DESC so the 100 kept are always the newest.
+const NOTIFICATIONS_PAGE_LIMIT = 100;
+
 // ---------------------------------------------------------------------------
 // Grouping logic (unchanged from original)
 // ---------------------------------------------------------------------------
@@ -139,7 +144,8 @@ export default async function NotificacionesPage({
     .from(notifications)
     .leftJoin(pets, eq(notifications.relatedPetId, pets.id))
     .where(whereClause)
-    .orderBy(desc(notifications.createdAt));
+    .orderBy(desc(notifications.createdAt))
+    .limit(NOTIFICATIONS_PAGE_LIMIT);
 
   const unreadCount = rows.filter((r) => r.notification.readAt === null).length;
   const groups = groupNotifications(rows);

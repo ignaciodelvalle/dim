@@ -1,8 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { likeContains } from "@/lib/like-helpers";
 
 const ACTION_LABELS: Record<string, string> = {
   request_approved: "Solicitud aprobada",
@@ -29,8 +30,17 @@ export default async function AdminAuditoriaPage({
   const actionFilter = sp.action?.trim() || null;
   const actorFilter = sp.actor?.trim() || null;
 
-  // Build base query with optional filters.
-  const query = db
+  // Build WHERE clause — push both filters into SQL so the LIMIT 200 is
+  // applied after filtering (JS-side filtering would silently miss rows
+  // beyond the cap). actionFilter uses ILIKE for substring match;
+  // actorFilter uses exact equality on the UUID column.
+  const filterClauses = [];
+  if (actionFilter)
+    filterClauses.push(sql`${auditLog.action} ILIKE ${likeContains(actionFilter)} ESCAPE '\\'`);
+  if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
+  const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
+
+  const entries = await db
     .select({
       id: auditLog.id,
       actorUserId: auditLog.actorUserId,
@@ -40,18 +50,9 @@ export default async function AdminAuditoriaPage({
       performedAt: auditLog.performedAt,
     })
     .from(auditLog)
+    .where(whereClause)
     .orderBy(desc(auditLog.performedAt))
     .limit(200);
-
-  let entries = await query;
-
-  // Apply JS-side filters (small dataset; avoids dynamic SQL complexity).
-  if (actionFilter) {
-    entries = entries.filter((e) => e.action.includes(actionFilter));
-  }
-  if (actorFilter) {
-    entries = entries.filter((e) => e.actorUserId === actorFilter);
-  }
 
   // Resolve actor names in one batch. actorUserId is nullable (ARCH-H,
   // migration 0080): rows whose actor was hard-deleted have NULL actor_user_id.

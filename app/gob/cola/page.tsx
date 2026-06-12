@@ -37,12 +37,13 @@ export default async function ColaPage({
   const activeType = parseTypeParam(rawType);
 
   // Fetch only the rows matching the type filter in SQL (not JS post-filter) so
-  // the LIMIT inside fetchVisiblePendingRequests is applied AFTER the type
-  // predicate — prevents silently truncating the queue when many requests exist.
+  // the limit is applied AFTER the type predicate — prevents silently truncating
+  // the queue when many requests exist. PERF-5 will replace with keyset pagination.
   const pending = await fetchVisiblePendingRequests(
     profile,
     jurisdictions,
     activeType ?? undefined,
+    { limit: 200 },
   );
 
   // Resolve applicant display names in one batched query so the list

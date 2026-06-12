@@ -96,21 +96,28 @@ export function visibleRequestsClause(
 // `typeFilter` pushes the type predicate into SQL so the query returns only
 // matching rows regardless of total queue size — avoids JS-side silently
 // missing rows beyond the former LIMIT 200 ceiling (P1-10).
+//
+// `opts.limit` caps the result set. List-rendering callers (cola page, gob
+// dashboard preview) pass 200 so the query stays bounded. Omit for the rare
+// COUNT-style caller — but prefer a dedicated COUNT query for those instead.
+// PERF-5 will replace this with keyset cursor pagination.
 export async function fetchVisiblePendingRequests(
   profile: { id: string; role: "admin" | "govt" },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
   typeFilter?: ApprovalRequestType,
+  opts?: { limit?: number },
 ): Promise<ApprovalRequest[]> {
   const scopeClause = visibleRequestsClause(profile, jurisdictions);
   const typeClause = typeFilter ? eq(approvalRequests.type, typeFilter) : undefined;
   const whereClause = typeClause
     ? and(eq(approvalRequests.status, "pending"), scopeClause, typeClause)
     : and(eq(approvalRequests.status, "pending"), scopeClause);
-  return db
+  const q = db
     .select()
     .from(approvalRequests)
     .where(whereClause)
     .orderBy(desc(approvalRequests.createdAt));
+  return opts?.limit !== undefined ? q.limit(opts.limit) : q;
 }
 
 // Unused import guard for `exists` — kept for symmetry with notExists when

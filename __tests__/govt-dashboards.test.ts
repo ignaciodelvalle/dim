@@ -459,6 +459,156 @@ describe("fetchLostPets", () => {
     expect(row.lastSeenLat).toBeCloseTo(-34.6033, 3);
     expect(row.lastSeenLng).toBeCloseTo(-58.3815, 3);
   });
+
+  // ── SQL filter push tests (q, since, wildcard injection safety) ─────────────
+
+  it("q filter matches pet name case-insensitively", async () => {
+    const prov = "Mendoza";
+    const loc = "Mendoza Capital";
+    const pet = await insertFixturePet({
+      name: "Firulais",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const other = await insertFixturePet({
+      name: "NoMatch",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(pet, 1);
+    await markLost(other, 1);
+
+    // Upper-case substring — must match "Firulais" regardless of case.
+    const r = await fetchLostPets({ role: "admin" }, [], { q: "FIRULAIS" });
+    const names = r.map((p) => p.petName);
+    expect(names).toContain("Firulais");
+    expect(names).not.toContain("NoMatch");
+  });
+
+  it("q filter matches owner displayName case-insensitively", async () => {
+    const prov = "San Luis";
+    const loc = "Merlo";
+    const pet = await insertFixturePet({
+      name: "OwnerQPet",
+      species: "cat",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(pet, 1);
+
+    // The fixture inserts an ownership row linking ownerUserId to every pet.
+    // We look up the owner profile display name so the query is realistic.
+    const [profile] = await db
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, ownerUserId));
+    const displayName = profile?.displayName ?? "";
+
+    // Only run this assertion when the test owner has a non-empty display name.
+    if (!displayName) return;
+
+    const r = await fetchLostPets({ role: "admin" }, [], {
+      q: displayName.toUpperCase().slice(0, 4),
+    });
+    const names = r.map((p) => p.petName);
+    expect(names).toContain("OwnerQPet");
+  });
+
+  it("q filter returns empty result when term matches neither name nor owner", async () => {
+    const prov = "Chaco";
+    const loc = "Resistencia";
+    const pet = await insertFixturePet({
+      name: "ChacoPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(pet, 1);
+
+    const r = await fetchLostPets({ role: "govt" }, [{ province: prov, locality: loc }], {
+      q: "zzznomatch_xyz",
+    });
+    expect(r).toHaveLength(0);
+  });
+
+  it("since filter: only returns pets whose lost event is >= since boundary", async () => {
+    const prov = "Santiago del Estero";
+    const loc = "Añatuya";
+    // Pet lost 1h ago — inside any reasonable window.
+    const recent = await insertFixturePet({
+      name: "RecentLost",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Pet lost 72h ago — outside a 2h window.
+    const old = await insertFixturePet({
+      name: "OldLost",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(recent, 1);
+    await markLost(old, 72);
+
+    const since2h = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const r = await fetchLostPets({ role: "govt" }, [{ province: prov, locality: loc }], {
+      since: since2h,
+    });
+    const names = r.map((p) => p.petName);
+    expect(names).toContain("RecentLost");
+    expect(names).not.toContain("OldLost");
+  });
+
+  it("q containing % is escaped and does not act as a wildcard", async () => {
+    const prov = "Misiones";
+    const loc = "Posadas";
+    const pet = await insertFixturePet({
+      name: "EscapeTestPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(pet, 1);
+
+    // A bare "%" would match every pet name — it must match nothing here
+    // because "%" literally does not appear in "EscapeTestPet".
+    const r = await fetchLostPets({ role: "govt" }, [{ province: prov, locality: loc }], {
+      q: "%",
+    });
+    const names = r.map((p) => p.petName);
+    expect(names).not.toContain("EscapeTestPet");
+  });
+
+  it("q containing _ is escaped and does not act as a single-char wildcard", async () => {
+    const prov = "Corrientes";
+    const loc = "Goya";
+    const petA = await insertFixturePet({
+      name: "UnderscorePetA",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const petB = await insertFixturePet({
+      name: "UnderscorePetB",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(petA, 1);
+    await markLost(petB, 1);
+
+    // "_" as a wildcard would match every single character and return both pets.
+    // After escaping it must match nothing (no pet name literally contains "_").
+    const r = await fetchLostPets({ role: "govt" }, [{ province: prov, locality: loc }], {
+      q: "_",
+    });
+    const names = r.map((p) => p.petName);
+    expect(names).not.toContain("UnderscorePetA");
+    expect(names).not.toContain("UnderscorePetB");
+  });
 });
 
 // ============================================================================

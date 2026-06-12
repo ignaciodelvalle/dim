@@ -124,7 +124,7 @@ export default async function GobiernoDashboardPage({
     activeZoonosis,
     openWelfareReports,
   ] = await Promise.all([
-    fetchVisiblePendingRequests(profile, jurisdictions),
+    fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
     db
       .select({
         id: auditLog.id,
