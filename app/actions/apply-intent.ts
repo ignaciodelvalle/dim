@@ -110,6 +110,22 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
   redirect(`/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
 }
 
+// Form-action wrapper so the adoption CTA works without client JS.
+//
+// `<form action={...}>` posts a FormData and (with useActionState) threads a
+// previous-state arg. The petToken is carried in a hidden input. On success the
+// underlying action redirects (server-side, no JS needed); on failure it returns
+// { error } which useActionState surfaces in-place. Keeping startApplyIntentAction
+// as the string-arg primitive preserves the existing JS-on call sites.
+export async function startApplyIntentFormAction(
+  _prevState: StartApplyIntentResult | null,
+  formData: FormData,
+): Promise<StartApplyIntentResult> {
+  const petToken = String(formData.get("petToken") ?? "").trim();
+  if (!petToken) return { error: "Mascota no encontrada." };
+  return startApplyIntentAction(petToken);
+}
+
 // @no-auth-required: dismissing a banner is a UX preference, not a capability.
 // The action only deletes two cookies from the caller's own browser session;
 // there is nothing to authorize. The cookies it clears are themselves either

@@ -43,6 +43,7 @@
 // ---------------------------------------------------------------------------
 
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
+import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
 import { signTimelineAttachmentsForPet } from "@/app/actions/sign-timeline-attachments";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import type { CredentialChip } from "@/components/AchievementsSection";
@@ -621,6 +622,14 @@ export default async function PetDetailPage({
     ownershipRole = ownerRow?.role ?? null;
   }
 
+  // "Confirmar devolución" entry: only the legal owner sees it, and only when an
+  // actor (refugio/vecino) has a pending return proposal addressed to this owner.
+  // Reuses the same ARCH-B tri-check the /devolucion page enforces server-side.
+  let hasPendingReturnProposal = false;
+  if (accessPath === "owner" && ownershipRole === "owner") {
+    hasPendingReturnProposal = await fetchPendingReturnProposalForOwner(pet.id, user.id);
+  }
+
   // Emergency / vet contacts from the viewer's profile — only meaningful for
   // accessPath==="owner". Org-side access keeps the card empty (the org
   // viewer is not the pet's owner). J-followup wires these to the columns
@@ -1182,7 +1191,7 @@ export default async function PetDetailPage({
                     pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
                     accessPath={accessPath === "org" ? "org" : "owner"}
                     ownershipRole={ownershipRole}
-                    hasPendingReturnProposal={false}
+                    hasPendingReturnProposal={hasPendingReturnProposal}
                   />
                 </div>
 

@@ -25,6 +25,7 @@ import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
 
+import { DecomisoHandoffActions } from "./DecomisoHandoffActions";
 import { IncomingTransferActions } from "./IncomingTransferActions";
 
 const REASON_LABEL: Record<string, string> = {
@@ -261,6 +262,15 @@ export default async function OrgTransferenciasEntrantesPage({
                     {/* Accept / reject actions — only for open handshake rows */}
                     {r.status === "open" && !isDecomiso && (
                       <IncomingTransferActions
+                        receiverOrgToken={orgToken}
+                        casePublicCode={r.publicCode}
+                        petName={r.petName ?? "(sin pet)"}
+                      />
+                    )}
+
+                    {/* Accept / reject custody — only for open decomiso rows */}
+                    {r.status === "open" && isDecomiso && (
+                      <DecomisoHandoffActions
                         receiverOrgToken={orgToken}
                         casePublicCode={r.publicCode}
                         petName={r.petName ?? "(sin pet)"}

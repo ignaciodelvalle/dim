@@ -106,8 +106,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         description="Quedó registrada bajo custodia del refugio. Podés continuar el flujo desde acá."
         next={[
           {
+            // Foster placement is initiated from the volunteer pool: ?pet=<token>
+            // preselects this pet and match-scores volunteers for it, then each
+            // row's "Proponer tránsito" sends the proposal (proposeFosterAction).
             label: "Asignar tránsito",
-            href: `${orgRoot}/mascotas/${state.createdPetToken}?sheet=asignar-transito`,
+            href: `${orgRoot}/voluntarios?pet=${state.createdPetToken}`,
           },
           {
             label: "Publicar adopción",

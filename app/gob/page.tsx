@@ -201,7 +201,7 @@ export default async function GobiernoDashboardPage({
           tone={rabiesCoverage.current >= rabiesCoverage.target ? "ok" : "warn"}
           bar={rabiesCoverage.current}
           sub={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
-          href="/gob/indicadores?metric=rabies"
+          href="/gob/analytics"
         />
         <OpKpi
           label="Esterilizaciones / mes"
@@ -215,7 +215,7 @@ export default async function GobiernoDashboardPage({
               : undefined
           }
           sub={`${sterilizations.orgs} organizaciones`}
-          href="/gob/indicadores?metric=sterilizations"
+          href="/gob/analytics"
         />
         <OpKpi
           label="Mordeduras / 10k hab."
@@ -230,7 +230,7 @@ export default async function GobiernoDashboardPage({
               : undefined
           }
           sub={`${bitesPer10k.reports} reportes`}
-          href="/gob/indicadores?metric=bites"
+          href="/gob/vigilancia"
         />
         <OpKpi
           label="Casos zoonosis activos"

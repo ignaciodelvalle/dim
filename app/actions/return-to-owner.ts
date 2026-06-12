@@ -1120,6 +1120,40 @@ async function hasPendingProposal(
   return true;
 }
 
+// Returns true when there is a pending return proposal for this pet ADDRESSED to
+// the given owner (i.e. an actor — refugio or vecino — is trying to return the
+// pet to this owner). Reuses hasPendingProposal (the ARCH-B tri-check: subsequent
+// transfer, structured cancellation, time-fenced legacy marker) and adds the
+// to_user_id gate so the owner only sees the "Confirmar devolución" entry when the
+// pending proposal is actually directed at them.
+//
+// ForOwner suffix: read-only helper that expects PRE-AUTHORIZED owner context —
+// callers must have already confirmed the user is the active owner of the pet
+// (page-level requirePetAccess + ownership role check) before calling.
+export async function fetchPendingReturnProposalForOwner(
+  petId: string,
+  ownerUserId: string,
+): Promise<boolean> {
+  // Full tri-check first (cheap short-circuit when nothing is pending).
+  const pending = await hasPendingProposal(petId);
+  if (!pending) return false;
+
+  // The latest proposal is the pending one (hasPendingProposal already
+  // confirmed it is unresolved). Confirm it is addressed to this owner.
+  const [latestProposal] = await db
+    .select({ payload: petEvents.payload })
+    .from(petEvents)
+    .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+
+  if (!latestProposal) return false;
+
+  const payload = latestProposal.payload as Record<string, unknown>;
+  const toUserId = (payload.to_user_id as string | null) ?? null;
+  return toUserId === ownerUserId;
+}
+
 // Fetch the latest pending owner-initiated return proposal for a pet to a specific org.
 // Returns the proposal event and the owner user id if a pending proposal exists with
 //   from_user_id set (owner-initiated) and to_organization_id = orgId.
