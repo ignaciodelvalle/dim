@@ -1915,6 +1915,14 @@ export const AUDIT_LOG_ACTIONS = [
   //   org_unverified payload: { org_id, org_display_name, reason? }
   "org_verified",
   "org_unverified",
+  // V1-9: org-side PII access trail. Emitted when an org reviewer opens an
+  // adoption application and reads the applicant's full identity (name, phone,
+  // housing). One row per page view (server-component fetch — fires once per
+  // load, not per re-render). target_user_id = applicant (the PII subject),
+  // target_organization_id = the reviewing org.
+  //   adopter_pii_viewed payload:
+  //     { org_id, application_event_id, applicant_user_id, pet_id }
+  "adopter_pii_viewed",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

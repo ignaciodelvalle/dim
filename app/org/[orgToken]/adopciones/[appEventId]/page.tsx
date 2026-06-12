@@ -11,7 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { upcastPayload } from "@/lib/event-upcasters";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -88,6 +88,19 @@ export default async function AdoptionReviewDetailPage({
     .from(profiles)
     .where(eq(profiles.id, payload.applicant_user_id))
     .limit(1);
+
+  // PII access trail (V1-9). The org reviewer is now reading the applicant's
+  // full identity (name, phone, housing). Record one audit row per page view.
+  // This is a server-component fetch, so it fires once per load — not on every
+  // client re-render. Best-effort: a failed audit write must NOT block the
+  // render (same posture as the best-effort notification inserts elsewhere).
+  await recordAdopterPiiView({
+    actorUserId: auth.user.id,
+    organizationId: organization.id,
+    applicationEventId: appEventId,
+    applicantUserId: payload.applicant_user_id,
+    petId: pet.id,
+  });
 
   // Has this application already been resolved? If so we hide the action
   // controls and show the decision summary.
@@ -212,6 +225,35 @@ export default async function AdoptionReviewDetailPage({
       </p>
     </div>
   );
+}
+
+// Writes the adopter_pii_viewed audit row. Best-effort: errors are captured
+// and swallowed so a logging failure never blocks the reviewer from seeing the
+// application. target_user_id = applicant (PII subject); target_organization_id
+// = the reviewing org. Mirrors the pii_queried trail used for admin searches.
+async function recordAdopterPiiView(args: {
+  actorUserId: string;
+  organizationId: string;
+  applicationEventId: string;
+  applicantUserId: string;
+  petId: string;
+}): Promise<void> {
+  try {
+    await db.insert(auditLog).values({
+      actorUserId: args.actorUserId,
+      action: "adopter_pii_viewed",
+      targetUserId: args.applicantUserId,
+      targetOrganizationId: args.organizationId,
+      payload: {
+        org_id: args.organizationId,
+        application_event_id: args.applicationEventId,
+        applicant_user_id: args.applicantUserId,
+        pet_id: args.petId,
+      },
+    });
+  } catch (e) {
+    console.error("adopter_pii_viewed audit insert failed (page render continues)", e);
+  }
 }
 
 function Row({ label, value }: { label: string; value: string }) {

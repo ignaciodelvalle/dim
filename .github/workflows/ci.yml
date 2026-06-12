@@ -299,13 +299,13 @@ jobs:
         # data + test users. See scripts/db-bootstrap.ts for the contract.
         run: pnpm db:bootstrap
 
-      - name: Run tests (vitest)
-        # NOTE: coverage-threshold enforcement (pnpm test:coverage) is enabled
-        # in the V1-9 PR, which first fills the known coverage gaps the audit
-        # found (pet-claim, custody-disputes, bulk-actions, loginAction). A
-        # gate must ride with the change that makes it pass — enabling it here
-        # would red-CI the app/actions/** 75% glob until those tests land.
-        run: pnpm test
+      - name: Run tests with coverage (vitest)
+        # Coverage-threshold enforcement (V1-9). The thresholds in
+        # vitest.config.ts are RATCHET FLOORS set just under current coverage —
+        # they prevent regression below today's level. vitest exits non-zero if
+        # any glob drops below its floor. Raise the floors incrementally
+        # post-launch as coverage improves.
+        run: pnpm test:coverage
 
       - name: Stop Supabase local stack
         if: always()
