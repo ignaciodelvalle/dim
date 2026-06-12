@@ -474,6 +474,56 @@ describe("PayloadSchemas — canonical writer payloads", () => {
     ).not.toThrow();
   });
 
+  it("note_added — adoption_info_requested marker (UI-6) with application_event_id", () => {
+    expect(() =>
+      validateEventPayload("note_added", {
+        category: "system",
+        text: "¿Podés contarnos más sobre tu rutina diaria?",
+        kind: "adoption_info_requested",
+        application_event_id: "00000000-0000-4000-8000-000000000001",
+      }),
+    ).not.toThrow();
+  });
+
+  it("adoption_application_resolved — withdrawn outcome (UI-6)", () => {
+    const out = validateEventPayload("adoption_application_resolved", {
+      application_event_id: "00000000-0000-4000-8000-000000000001",
+      reviewer_user_id: "00000000-0000-4000-8000-000000000002",
+      outcome: "withdrawn",
+      auto_generated: false,
+      notes: null,
+    });
+    expect((out as { outcome: string }).outcome).toBe("withdrawn");
+  });
+
+  it("adoption_application_resolved — still accepts approved + rejected", () => {
+    expect(() =>
+      validateEventPayload("adoption_application_resolved", {
+        application_event_id: "00000000-0000-4000-8000-000000000001",
+        reviewer_user_id: "00000000-0000-4000-8000-000000000002",
+        outcome: "approved",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateEventPayload("adoption_application_resolved", {
+        application_event_id: "00000000-0000-4000-8000-000000000001",
+        reviewer_user_id: "00000000-0000-4000-8000-000000000002",
+        outcome: "rejected",
+        reason: "manual_rejection",
+      }),
+    ).not.toThrow();
+  });
+
+  it("adoption_application_resolved — rejects an unknown outcome", () => {
+    expect(() =>
+      validateEventPayload("adoption_application_resolved", {
+        application_event_id: "00000000-0000-4000-8000-000000000001",
+        reviewer_user_id: "00000000-0000-4000-8000-000000000002",
+        outcome: "cancelled",
+      }),
+    ).toThrow();
+  });
+
   it("credential_scanned", () => {
     expect(() =>
       validateEventPayload("credential_scanned", {

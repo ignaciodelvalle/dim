@@ -134,6 +134,7 @@ export async function submitAdoptionApplication(
       pendingNotifications.push({
         userId: member.userId,
         notificationType: "adoption_application_received",
+        category: "adoption",
         title: `Nueva postulación para ${pet.name}`,
         body: "Una persona se postuló para adoptar. Entrá para revisar la historia y decidir.",
         severity: "info",

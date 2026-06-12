@@ -44,6 +44,10 @@ export type NewNotification = {
   title: string;
   body: string;
   severity: "info" | "success" | "warning" | "error";
+  // Tab filter category for /notificaciones. Adoption-module notifications set
+  // "adoption" so they surface in the adoption tab (the page groups by this
+  // column; a null category is counted in "all" only and never in a tab).
+  category?: string | null;
   ctaLabel?: string | null;
   ctaUrl?: string | null;
   relatedPetId?: string | null;

@@ -153,6 +153,16 @@ describe("approveAdoptionApplication", () => {
       r.notifications.some((n) => n.notificationType === "adoption_application_approved"),
     ).toBe(true);
   });
+
+  it("approve notification carries category 'adoption'", async () => {
+    const repo = makeFakeRepo();
+    const result = await approveAdoptionApplication(
+      { applicationEventId: "evt-app-1", notes: null },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    const r = result as { ok: true; notifications: { category?: string | null }[] };
+    expect(r.notifications.every((n) => n.category === "adoption")).toBe(true);
+  });
 });
 
 describe("rejectAdoptionApplication", () => {
@@ -187,6 +197,16 @@ describe("rejectAdoptionApplication", () => {
     expect(
       r.notifications.some((n) => n.notificationType === "adoption_application_rejected"),
     ).toBe(true);
+  });
+
+  it("reject notification carries category 'adoption'", async () => {
+    const repo = makeFakeRepo();
+    const result = await rejectAdoptionApplication(
+      { applicationEventId: "evt-app-1", notes: null },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    const r = result as { ok: true; notifications: { category?: string | null }[] };
+    expect(r.notifications.every((n) => n.category === "adoption")).toBe(true);
   });
 
   it("returns error when application not found", async () => {

@@ -234,6 +234,7 @@ export async function finalizeAdoption(
         pendingNotifications.push({
           userId: app.applicantUserId,
           notificationType: "adoption_application_closed",
+          category: "adoption",
           title: `${petRow.name} encontró hogar`,
           body: `${petRow.name} fue adoptado/a por otra postulación. Sabemos que es decepcionante. ${organization.displayName} tiene otras mascotas en adopción.`,
           severity: "info",
@@ -257,6 +258,7 @@ export async function finalizeAdoption(
     pendingNotifications.push({
       userId: adopterUserId,
       notificationType: "adoption_finalized",
+      category: "adoption",
       title: `Adoptaste a ${petRow.name}`,
       body: `${organization.displayName} te registró como dueño/a de ${petRow.name}. Bienvenida a la familia.`,
       severity: "success",
@@ -270,6 +272,7 @@ export async function finalizeAdoption(
     pendingNotifications.push({
       userId: fosterUserId,
       notificationType: "foster_ended_by_adoption",
+      category: "adoption",
       title: `${petRow.name} fue adoptado/a`,
       body: `El tránsito que tenías a cargo se cerró: ${petRow.name} encontró un hogar permanente.`,
       severity: "success",

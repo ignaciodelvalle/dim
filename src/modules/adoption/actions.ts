@@ -31,6 +31,7 @@ import { setAdoptionEligibility } from "./application/set-adoption-eligibility";
 import { setAdoptionListingStatus } from "./application/set-adoption-listing-status";
 import { submitAdoptionApplication } from "./application/submit-adoption-application";
 import { updateAdoptionListingContent } from "./application/update-adoption-listing-content";
+import { withdrawAdoptionApplication } from "./application/withdraw-adoption-application";
 import { AdoptionRepository } from "./infrastructure/adoption-repository";
 
 import type { NewNotification } from "./application/set-adoption-eligibility";
@@ -260,6 +261,42 @@ export async function submitAdoptionApplicationAction(
 }
 
 // ---------------------------------------------------------------------------
+// withdrawAdoptionApplicationAction
+// ---------------------------------------------------------------------------
+// Applicant-side: retract a still-pending adoption application. Auth is the
+// presence of a session (the use-case enforces applicant ownership + pending).
+
+export type WithdrawAdoptionApplicationInput = {
+  applicationEventId: string;
+};
+
+export type WithdrawAdoptionApplicationResult = { ok: true } | { error: string };
+
+export async function withdrawAdoptionApplicationAction(
+  input: WithdrawAdoptionApplicationInput,
+): Promise<WithdrawAdoptionApplicationResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const result = await withdrawAdoptionApplication(
+    { applicationEventId: input.applicationEventId },
+    {
+      repo: AdoptionRepository,
+      applicant: user ? { userId: user.id } : null,
+      transaction: db.transaction.bind(db),
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath("/mis-mascotas/postulaciones");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // approveAdoptionApplicationAction
 // ---------------------------------------------------------------------------
 
@@ -357,7 +394,7 @@ export async function requestInfoAdoptionApplicationAction(
 ): Promise<RequestInfoAdoptionResult> {
   const auth = await requireCapability("adoption.review");
   if (auth.error !== null) return { error: auth.error };
-  const { organization } = auth;
+  const { user, organization } = auth;
 
   if (organization.publicToken !== orgToken) {
     return { error: "No tenés acceso a esta organización." };
@@ -383,6 +420,24 @@ export async function requestInfoAdoptionApplicationAction(
   const payload = application.payload as { applicant_user_id?: string };
   const applicantUserId = payload.applicant_user_id;
 
+  // Emit a lightweight note_added marker (kind=adoption_info_requested) so the
+  // info request becomes a derivable lifecycle state — the applicant's list can
+  // surface "te pidieron más información", and the org list can flag probed
+  // rows. Best-effort: a failed marker insert must NOT block the notification.
+  try {
+    await AdoptionRepository.insertInfoRequestedNote({
+      petId: pet.id,
+      applicationEventId: application.id,
+      reviewerUserId: user.id,
+      orgId: organization.id,
+      orgVerified: organization.verified,
+      message,
+      now: new Date(),
+    });
+  } catch (e) {
+    console.error("[adoption/actions] info-requested marker insert failed:", e);
+  }
+
   if (applicantUserId) {
     await flushNotifications([
       {
@@ -390,6 +445,7 @@ export async function requestInfoAdoptionApplicationAction(
         // notificationType is unconstrained TEXT — a dedicated value beats
         // recycling the approved type for an info request.
         notificationType: "adoption_info_requested",
+        category: "adoption",
         title: `${organization.displayName} te pide información sobre tu postulación`,
         body: message,
         severity: "info",

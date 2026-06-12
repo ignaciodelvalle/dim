@@ -29,6 +29,9 @@ type PendingRow = {
   applicant_name: string | null;
   housing_type: string;
   submitted_at: string;
+  // UI-6: "info pedida" marker — set when this org already probed the
+  // application for more information (note_added kind=adoption_info_requested).
+  info_requested: boolean;
 };
 
 export default async function AdoptionReviewIndexPage({
@@ -61,7 +64,14 @@ export default async function AdoptionReviewIndexPage({
       s.payload->>'applicant_user_id' AS applicant_user_id,
       pr.display_name AS applicant_name,
       s.payload->>'housing_type' AS housing_type,
-      s.recorded_at::text AS submitted_at
+      s.recorded_at::text AS submitted_at,
+      EXISTS (
+        SELECT 1 FROM pet_events n
+        WHERE n.pet_id = s.pet_id
+          AND n.event_type = 'note_added'
+          AND n.payload->>'kind' = 'adoption_info_requested'
+          AND n.payload->>'application_event_id' = s.id::text
+      ) AS info_requested
     FROM pet_events s
     JOIN pets p ON p.id = s.pet_id
     JOIN ownerships o ON o.pet_id = p.id
@@ -156,8 +166,13 @@ export default async function AdoptionReviewIndexPage({
                         className="block px-4 py-3 space-y-1"
                       >
                         <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-[13px] font-medium text-ln-op-ink">
+                          <p className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
                             {app.applicant_name ?? "Postulante"}
+                            {app.info_requested && (
+                              <span className="inline-flex items-center rounded-[2px] border border-ln-op-azul bg-ln-op-celeste-050 px-[6px] py-[1px] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
+                                Info pedida
+                              </span>
+                            )}
                           </p>
                           <span className="text-[12px] text-ln-op-mute">
                             {new Date(app.submitted_at).toLocaleDateString("es-AR")}
