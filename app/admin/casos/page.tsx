@@ -1,18 +1,40 @@
 // Admin-scope case index - universal view across all jurisdictions.
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForAdmin } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
-import { redirect } from "next/navigation";
+import { newerHref, olderHref } from "@/lib/keyset-pagination";
 
-export default async function AdminCasosPage() {
+const ADMIN_CASOS_PAGE_LIMIT = 500;
+
+export default async function AdminCasosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string }>;
+}) {
   const session = await requireAdminOrGovtOrRedirect();
   if (session.profile.role !== "admin") redirect("/gob/casos");
 
-  const items = await listCasesForAdmin();
+  const { cursor: rawCursor } = await searchParams;
+
+  // Fetch limit+1 to detect hasMore.
+  const rawItems = await listCasesForAdmin({
+    limit: ADMIN_CASOS_PAGE_LIMIT + 1,
+    cursor: rawCursor,
+  });
+  const hasMore = rawItems.length > ADMIN_CASOS_PAGE_LIMIT;
+  const items = hasMore ? rawItems.slice(0, ADMIN_CASOS_PAGE_LIMIT) : rawItems;
+
+  const lastItem = items.at(-1);
+  const olderLink =
+    hasMore && lastItem
+      ? olderHref("/admin/casos", {}, { ts: lastItem.openedAt, id: lastItem.id })
+      : null;
+  const newerLink = rawCursor ? newerHref("/admin/casos", {}) : null;
 
   return (
     <div className="space-y-6">
@@ -62,6 +84,35 @@ export default async function AdminCasosPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Pagination footer */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de casos"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   );

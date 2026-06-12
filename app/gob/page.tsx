@@ -124,6 +124,7 @@ export default async function GobiernoDashboardPage({
     activeZoonosis,
     openWelfareReports,
   ] = await Promise.all([
+    // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
     fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
     db
       .select({

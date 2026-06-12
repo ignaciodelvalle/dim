@@ -6,6 +6,7 @@
 // matching rows beyond position 200 (P1-12).
 // Filter form uses <form method="get"> — no JS required.
 
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
@@ -59,6 +60,8 @@ const TARGET_KIND_VALUES = [
 
 const STATUS_VALUES = ["pending", "delivered", "failed"] as const;
 
+const OUTBOX_PAGE_LIMIT = 200;
+
 export default async function AdminOutboxPage({
   searchParams,
 }: {
@@ -67,6 +70,7 @@ export default async function AdminOutboxPage({
     target_kind?: string;
     breach?: string;
     province?: string;
+    cursor?: string;
   }>;
 }) {
   await requireAdminOrRedirect();
@@ -78,12 +82,15 @@ export default async function AdminOutboxPage({
     breach: sp.breach?.trim() || undefined,
     province: sp.province?.trim() || undefined,
   };
+  const rawCursor = sp.cursor;
+  const cursor = decodeCursor(rawCursor);
 
   const hasFilters = Object.values(filters).some(Boolean);
 
   // Build SQL WHERE clauses for each active filter so the LIMIT is applied
   // AFTER narrowing — prevents silently missing matching rows beyond 200 (P1-12).
-  const conditions: ReturnType<typeof eq>[] = [];
+  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous Drizzle SQL expression union
+  const conditions: any[] = [];
   // When breach=yes, status is implied to be 'pending' — skip the standalone status
   // condition to avoid the always-false contradiction (e.g. status='delivered' AND status='pending').
   if (
@@ -119,16 +126,42 @@ export default async function AdminOutboxPage({
     );
   }
 
+  // Keyset predicate — AND-composed with filter conditions so limit is applied after narrowing.
+  const cursorClause = keysetWhere(
+    eventNotificationOutbox.createdAt,
+    eventNotificationOutbox.id,
+    cursor,
+  );
+  if (cursorClause) conditions.push(cursorClause);
+
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const rows = await db
+  // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
+  const rawRows = await db
     .select()
     .from(eventNotificationOutbox)
     .where(whereClause)
-    .orderBy(desc(eventNotificationOutbox.createdAt))
-    .limit(200);
+    .orderBy(desc(eventNotificationOutbox.createdAt), desc(eventNotificationOutbox.id))
+    .limit(OUTBOX_PAGE_LIMIT + 1);
+
+  const hasMore = rawRows.length > OUTBOX_PAGE_LIMIT;
+  const rows = hasMore ? rawRows.slice(0, OUTBOX_PAGE_LIMIT) : rawRows;
 
   const breachCount = rows.filter((r) => buildBreachCue(r.status, r.slaDueAt) === "breach").length;
+
+  // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
+  const filterParams: Record<string, string | undefined> = {
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.target_kind ? { target_kind: filters.target_kind } : {}),
+    ...(filters.breach ? { breach: filters.breach } : {}),
+    ...(filters.province ? { province: filters.province } : {}),
+  };
+  const lastRow = rows.at(-1);
+  const olderLink =
+    hasMore && lastRow
+      ? olderHref("/admin/outbox", filterParams, { ts: lastRow.createdAt, id: lastRow.id })
+      : null;
+  const newerLink = rawCursor ? newerHref("/admin/outbox", filterParams) : null;
 
   return (
     <div className="space-y-6">
@@ -318,6 +351,35 @@ export default async function AdminOutboxPage({
             </table>
           </div>
         </OpCard>
+      )}
+
+      {/* Pagination footer */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de outbox"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   );

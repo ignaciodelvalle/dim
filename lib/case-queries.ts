@@ -7,6 +7,7 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
+import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagination";
 import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
@@ -401,10 +402,22 @@ export async function listCaseKindDistributionForOrg(orgId: string): Promise<Cas
   return rows.map((r) => r.caseKind).filter(isCaseKind) as CaseKind[];
 }
 
+// opts.cursor enables keyset pagination (PERF-5): when provided, only rows
+// OLDER than the cursor are returned — (openedAt, id) < (cursorTs, cursorId).
+// Callers should fetch limit+1 to detect hasMore; render limit rows only.
 export async function listCasesForGovt(
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  opts?: { limit?: number; cursor?: KeysetCursor },
 ): Promise<CaseListItem[]> {
   if (jurisdictions.length === 0) return [];
+  const jurisdictionFilter = or(
+    ...jurisdictions.map((j) =>
+      and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
+    ),
+  );
+  const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
+  const whereClause = cursorClause ? and(jurisdictionFilter, cursorClause) : jurisdictionFilter;
+  const limit = opts?.limit ?? 300;
   const rows = await db
     .select({
       c: cases,
@@ -413,22 +426,19 @@ export async function listCasesForGovt(
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    .where(
-      or(
-        ...jurisdictions.map((j) =>
-          and(
-            eq(cases.jurisdictionProvince, j.province),
-            eq(cases.jurisdictionLocality, j.locality),
-          ),
-        ),
-      ),
-    )
-    .orderBy(desc(cases.openedAt))
-    .limit(300);
+    .where(whereClause)
+    .orderBy(desc(cases.openedAt), desc(cases.id))
+    .limit(limit);
   return rows.map(mapListRow);
 }
 
-export async function listCasesForAdmin(): Promise<CaseListItem[]> {
+// opts.cursor enables keyset pagination (PERF-5): see listCasesForGovt.
+export async function listCasesForAdmin(opts?: {
+  limit?: number;
+  cursor?: KeysetCursor;
+}): Promise<CaseListItem[]> {
+  const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
+  const limit = opts?.limit ?? 500;
   const rows = await db
     .select({
       c: cases,
@@ -437,8 +447,10 @@ export async function listCasesForAdmin(): Promise<CaseListItem[]> {
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    .orderBy(desc(cases.openedAt))
-    .limit(500);
+    // Drizzle's .where(undefined) emits no WHERE clause — deliberate: admin sees all cases on page 1.
+    .where(cursorClause)
+    .orderBy(desc(cases.openedAt), desc(cases.id))
+    .limit(limit);
   return rows.map(mapListRow);
 }
 
