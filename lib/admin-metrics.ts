@@ -2,7 +2,7 @@
 // All metrics are computed live from the existing tables — no projections,
 // no caching. The dashboard is admin-only so the query volume is bounded.
 
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { approvalRequests, auditLog, cronRuns, db, govtAssignments, profiles } from "@/db";
 
@@ -56,9 +56,9 @@ export async function fetchUserMetrics(): Promise<UserMetrics> {
     .select({
       totalPersonal: sql<number>`count(*) filter (where ${profiles.accountType} = 'personal')`,
       totalInstitutionalActive: sql<number>`count(*) filter (where ${profiles.accountType} = 'institutional' and ${profiles.deactivatedAt} is null)`,
-      new24h: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - DAY_MS)})`,
-      new7d: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - 7 * DAY_MS)})`,
-      new30d: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - 30 * DAY_MS)})`,
+      new24h: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - DAY_MS).toISOString()})`,
+      new7d: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - 7 * DAY_MS).toISOString()})`,
+      new30d: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - 30 * DAY_MS).toISOString()})`,
     })
     .from(profiles);
   return {
@@ -78,9 +78,9 @@ export async function fetchQueueHealth(): Promise<QueueHealth> {
       oldestPendingMs: sql<
         number | null
       >`extract(epoch from (now() - min(${approvalRequests.createdAt}) filter (where ${approvalRequests.status} = 'pending'))) * 1000`,
-      pending14dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 14 * DAY_MS)})`,
-      pending30dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 30 * DAY_MS)})`,
-      pending60dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 60 * DAY_MS)})`,
+      pending14dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 14 * DAY_MS).toISOString()})`,
+      pending30dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 30 * DAY_MS).toISOString()})`,
+      pending60dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 60 * DAY_MS).toISOString()})`,
     })
     .from(approvalRequests);
   return {
@@ -103,11 +103,11 @@ export async function fetchDecisionsMetrics(): Promise<DecisionsMetrics> {
   const since30 = new Date(now - 30 * DAY_MS);
   const [row] = await db
     .select({
-      approved7d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_approved' and ${auditLog.performedAt} >= ${since7})`,
-      rejected7d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_rejected' and ${auditLog.performedAt} >= ${since7})`,
-      approved30d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_approved' and ${auditLog.performedAt} >= ${since30})`,
-      rejected30d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_rejected' and ${auditLog.performedAt} >= ${since30})`,
-      revocations30d: sql<number>`count(*) filter (where ${auditLog.action} like 'revocation_%' and ${auditLog.performedAt} >= ${since30})`,
+      approved7d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_approved' and ${auditLog.performedAt} >= ${since7.toISOString()})`,
+      rejected7d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_rejected' and ${auditLog.performedAt} >= ${since7.toISOString()})`,
+      approved30d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_approved' and ${auditLog.performedAt} >= ${since30.toISOString()})`,
+      rejected30d: sql<number>`count(*) filter (where ${auditLog.action} = 'request_rejected' and ${auditLog.performedAt} >= ${since30.toISOString()})`,
+      revocations30d: sql<number>`count(*) filter (where ${auditLog.action} like 'revocation_%' and ${auditLog.performedAt} >= ${since30.toISOString()})`,
     })
     .from(auditLog);
   return {
@@ -147,12 +147,7 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
       cnt: sql<number>`count(distinct (${govtAssignments.jurisdictionProvince}, ${govtAssignments.jurisdictionLocality}))`,
     })
     .from(govtAssignments)
-    .where(
-      and(
-        sql`${govtAssignments.userId} = ANY(${govtIds})`,
-        sql`${govtAssignments.revokedAt} is null`,
-      ),
-    )
+    .where(and(inArray(govtAssignments.userId, govtIds), sql`${govtAssignments.revokedAt} is null`))
     .groupBy(govtAssignments.userId);
   for (const r of locRows) localitiesByGovt.set(r.userId, Number(r.cnt));
 
@@ -165,7 +160,7 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
     .from(auditLog)
     .where(
       and(
-        sql`${auditLog.actorUserId} = ANY(${govtIds})`,
+        inArray(auditLog.actorUserId, govtIds),
         sql`${auditLog.action} in ('request_approved','request_rejected')`,
         gte(auditLog.performedAt, since30),
       ),
@@ -183,7 +178,7 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
       lastAt: sql<Date>`max(${auditLog.performedAt})`,
     })
     .from(auditLog)
-    .where(sql`${auditLog.actorUserId} = ANY(${govtIds})`)
+    .where(inArray(auditLog.actorUserId, govtIds))
     .groupBy(auditLog.actorUserId);
   for (const r of lastRows) {
     if (r.actorUserId) lastActionByGovt.set(r.actorUserId, r.lastAt);

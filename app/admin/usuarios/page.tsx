@@ -78,13 +78,11 @@ export default async function AdminUsuariosPage({
       </p>
 
       <BulkRevokeList
-        items={results.map((u) => ({ id: u.id, label: `${u.displayName} (${u.role})`, raw: u }))}
-        targetKind="vet"
-        actorUserId={user.id}
-        isRevocable={(item) => (item as { raw: (typeof results)[number] }).raw.role === "vet"}
-        renderItem={(item) => {
-          const u = (item as { raw: (typeof results)[number] }).raw;
-          return (
+        items={results.map((u) => ({
+          id: u.id,
+          label: `${u.displayName} (${u.role})`,
+          revocable: u.role === "vet",
+          content: (
             <OpCard>
               <OpCardBody>
                 <div className="space-y-3">
@@ -117,8 +115,10 @@ export default async function AdminUsuariosPage({
                 </div>
               </OpCardBody>
             </OpCard>
-          );
-        }}
+          ),
+        }))}
+        targetKind="vet"
+        actorUserId={user.id}
       />
 
       <p className="text-[11px] text-ln-op-mute">

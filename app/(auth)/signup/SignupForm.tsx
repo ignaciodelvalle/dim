@@ -128,11 +128,80 @@ export function SignupForm({
         Paso 1 de 2
       </p>
 
-      {/* Email/password form comes first in DOM for correct tab order and screen-reader flow.
-          The Mi Argentina stub follows visually via flex-direction: column-reverse so it
-          renders above the divider, but tab focus hits email first. */}
-      <div className="flex flex-col-reverse gap-5">
-        {/* Mi Argentina stub — last in DOM so tab order: email → password → ... → submit → stub */}
+      {/* Email/password form is FIRST in DOM — correct tab order and screen-reader flow.
+          The Mi Argentina stub renders below (visually and in DOM). */}
+      <div className="flex flex-col gap-5">
+        <form action={authFormAction} className="space-y-4">
+          <Field
+            id="email"
+            name="email"
+            type="email"
+            label="Correo electrónico"
+            autoComplete="email"
+            required
+          />
+          <Field
+            id="password"
+            name="password"
+            type="password"
+            label="Contraseña"
+            autoComplete="new-password"
+            minLength={8}
+            required
+            hint="Mínimo 8 caracteres."
+          />
+          <Field
+            id="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            label="Repetir contraseña"
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+
+          <LnCheckbox id="tosAccepted" name="tosAccepted" required>
+            Leí y acepto los{" "}
+            <Link
+              href="/terminos"
+              target="_blank"
+              className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
+            >
+              Términos y condiciones
+            </Link>{" "}
+            y la{" "}
+            <Link
+              href="/privacidad"
+              target="_blank"
+              className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
+            >
+              Política de privacidad
+            </Link>
+            .
+          </LnCheckbox>
+
+          {authState.error && (
+            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
+              {authState.error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={authPending}
+            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {authPending ? "Procesando..." : "Continuar"}
+          </button>
+        </form>
+
+        <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
+          <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
+          <span>o</span>
+          <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
+        </div>
+
+        {/* Mi Argentina stub — after the form in DOM (and visually) */}
         <button
           type="button"
           disabled
@@ -142,78 +211,6 @@ export function SignupForm({
         >
           Conectar con Mi Argentina (próximamente)
         </button>
-
-        <div className="flex flex-col gap-5">
-          <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
-            <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
-            <span>o</span>
-            <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
-          </div>
-
-          <form action={authFormAction} className="space-y-4">
-            <Field
-              id="email"
-              name="email"
-              type="email"
-              label="Correo electrónico"
-              autoComplete="email"
-              required
-            />
-            <Field
-              id="password"
-              name="password"
-              type="password"
-              label="Contraseña"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              hint="Mínimo 8 caracteres."
-            />
-            <Field
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              label="Repetir contraseña"
-              autoComplete="new-password"
-              minLength={8}
-              required
-            />
-
-            <LnCheckbox id="tosAccepted" name="tosAccepted" required>
-              Leí y acepto los{" "}
-              <Link
-                href="/terminos"
-                target="_blank"
-                className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
-              >
-                Términos y condiciones
-              </Link>{" "}
-              y la{" "}
-              <Link
-                href="/privacidad"
-                target="_blank"
-                className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
-              >
-                Política de privacidad
-              </Link>
-              .
-            </LnCheckbox>
-
-            {authState.error && (
-              <p className="text-sm text-[var(--color-ln-err)]" role="alert">
-                {authState.error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={authPending}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {authPending ? "Procesando..." : "Continuar"}
-            </button>
-          </form>
-        </div>
       </div>
     </div>
   );

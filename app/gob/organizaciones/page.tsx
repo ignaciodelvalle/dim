@@ -75,13 +75,11 @@ export default async function OrganizacionesPage({
       </p>
 
       <BulkRevokeList
-        items={results.map((o) => ({ id: o.id, label: o.displayName, raw: o }))}
-        targetKind="org"
-        actorUserId={user.id}
-        isRevocable={(item) => (item as { raw: (typeof results)[number] }).raw.verified}
-        renderItem={(item) => {
-          const o = (item as { raw: (typeof results)[number] }).raw;
-          return (
+        items={results.map((o) => ({
+          id: o.id,
+          label: o.displayName,
+          revocable: o.verified,
+          content: (
             <OpCard>
               <OpCardBody>
                 <div className="space-y-3">
@@ -116,8 +114,10 @@ export default async function OrganizacionesPage({
                 </div>
               </OpCardBody>
             </OpCard>
-          );
-        }}
+          ),
+        }))}
+        targetKind="org"
+        actorUserId={user.id}
       />
 
       <p className="text-[12px] text-ln-op-mute">

@@ -7,7 +7,7 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
-import { and, desc, eq, exists, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
   type Case,
@@ -593,7 +593,7 @@ export async function listOutbreakInvestigationsForGovt(
         eq(cases.caseKind, "outbreak_investigation"),
         or(
           inArray(cases.status, ["open", "escalated"]),
-          and(eq(cases.status, "closed"), sql`${cases.closedAt} >= ${ninetyDaysAgo}`),
+          and(eq(cases.status, "closed"), gte(cases.closedAt, ninetyDaysAgo)),
         ),
         jurisdictionFilter,
       ),

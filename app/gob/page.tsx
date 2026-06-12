@@ -12,7 +12,8 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { JurisdictionFilterBar, readFilterParams } from "@/components/JurisdictionFilterBar";
+import { JurisdictionFilterBar } from "@/components/JurisdictionFilterBar";
+import { readFilterParams } from "@/components/jurisdiction-filter-params";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";

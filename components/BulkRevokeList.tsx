@@ -6,7 +6,7 @@
 //   - /admin/organizaciones (targetKind='org') — revoke org verification
 //   - /gob/organizaciones (targetKind='org')
 //
-// Renders each item via the caller's `renderItem` prop with a checkbox.
+// Renders each item's pre-built `content` node with a checkbox.
 // When ≥1 are selected, a floating action bar appears with a single
 // "Revocar seleccionados" button that opens a modal collecting the
 // shared motivo (≥30 chars) + evidence files. On submit, calls
@@ -26,35 +26,21 @@ import { createClient } from "@/lib/supabase/client";
 export interface BulkRevokableItem {
   id: string;
   label: string;
+  /** Whether this item is eligible for bulk revocation. False hides the checkbox. */
+  revocable: boolean;
+  /** Server-rendered row content (JSX from the server page). */
+  content: React.ReactNode;
 }
 
 type UploadedFile = { name: string; attachmentId: string };
 
-interface Props<T extends BulkRevokableItem> {
-  items: T[];
+interface Props {
+  items: BulkRevokableItem[];
   targetKind: BulkRevokeKind;
   actorUserId: string;
-  /**
-   * Renders the row content (everything except the checkbox the
-   * BulkRevokeList provides). The caller controls the existing
-   * single-revoke / propose actions inside.
-   */
-  renderItem: (item: T, selected: boolean) => React.ReactNode;
-  /**
-   * Whether a given item is bulk-revocable. Use this to skip items
-   * that wouldn't apply (e.g. non-verified orgs, owners). Returning
-   * false hides the checkbox for that row.
-   */
-  isRevocable: (item: T) => boolean;
 }
 
-export function BulkRevokeList<T extends BulkRevokableItem>({
-  items,
-  targetKind,
-  actorUserId,
-  renderItem,
-  isRevocable,
-}: Props<T>) {
+export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -73,26 +59,23 @@ export function BulkRevokeList<T extends BulkRevokableItem>({
   return (
     <>
       <ul className="space-y-2">
-        {items.map((item) => {
-          const revocable = isRevocable(item);
-          return (
-            <li key={item.id} className="rounded-lg border border-ln-op-line px-4 py-3">
-              <div className="flex items-start gap-3">
-                {revocable ? (
-                  <LnCheckbox
-                    checked={selected.has(item.id)}
-                    onChange={() => toggle(item.id)}
-                    aria-label={`Seleccionar ${item.label} para revocación masiva`}
-                    className="mt-1.5"
-                  />
-                ) : (
-                  <div className="mt-1.5 h-4 w-4 shrink-0" aria-hidden />
-                )}
-                <div className="min-w-0 flex-1">{renderItem(item, selected.has(item.id))}</div>
-              </div>
-            </li>
-          );
-        })}
+        {items.map((item) => (
+          <li key={item.id} className="rounded-lg border border-ln-op-line px-4 py-3">
+            <div className="flex items-start gap-3">
+              {item.revocable ? (
+                <LnCheckbox
+                  checked={selected.has(item.id)}
+                  onChange={() => toggle(item.id)}
+                  aria-label={`Seleccionar ${item.label} para revocación masiva`}
+                  className="mt-1.5"
+                />
+              ) : (
+                <div className="mt-1.5 h-4 w-4 shrink-0" aria-hidden />
+              )}
+              <div className="min-w-0 flex-1">{item.content}</div>
+            </div>
+          </li>
+        ))}
       </ul>
 
       {hasSelection && (
