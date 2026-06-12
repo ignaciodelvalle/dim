@@ -86,6 +86,8 @@ export async function cancelPetTransfer(
           body: "El emisor canceló la propuesta antes de que respondieras.",
           relatedPetId: transfer.petId,
           category: "custody",
+          // no-cta: the incoming transfer was cancelled before acceptance, so the
+          // recipient never gained the pet and there is no transfer/pet surface to open.
         });
       }
     });

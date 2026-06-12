@@ -523,6 +523,21 @@ export const TransfersRepository = {
   },
 
   /**
+   * Resolve an org's publicToken by id — for notification ctaUrls targeting the
+   * org portal (org members cannot read custody_transfer_handshake cases via
+   * /casos, so their CTAs must point inside /org/{token}/...). Null when missing.
+   */
+  async orgPublicTokenById(orgId: string, tx?: Tx): Promise<string | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return row?.publicToken ?? null;
+  },
+
+  /**
    * Returns (userId, orgId) for active admin+coordinator members of an org.
    */
   async orgCoordinatorAdminUserIds(orgId: string, tx?: Tx): Promise<Array<{ userId: string }>> {

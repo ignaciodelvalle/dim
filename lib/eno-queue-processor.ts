@@ -41,6 +41,7 @@ export async function processEnoQueueBatch() {
         .select({
           id: pets.id,
           name: pets.name,
+          publicToken: pets.publicToken,
           jurisdictionProvince: pets.jurisdictionProvince,
           jurisdictionLocality: pets.jurisdictionLocality,
         })

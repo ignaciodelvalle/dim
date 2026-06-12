@@ -56,6 +56,7 @@ function makeFakeRepo(
     updateProposalStatus: vi.fn().mockResolvedValue(undefined),
     findVolunteerByUserId: vi.fn().mockResolvedValue(null),
     orgFosterCoordinatorUserIds: vi.fn().mockResolvedValue([]),
+    orgPublicTokenById: vi.fn().mockResolvedValue("org-token-1"),
     expirablePending: vi.fn().mockResolvedValue([]),
     expirePendingProposals: vi.fn().mockResolvedValue({ candidates: 0, expired: 0, errors: 0 }),
     upsertVolunteer: vi.fn().mockResolvedValue({ id: "vol-1", availableSlots: 1 }),

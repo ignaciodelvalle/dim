@@ -90,6 +90,7 @@ export async function rejectFosterProposal(
   }
 
   // 4. Collect post-tx notifications for org coordinators.
+  const orgToken = await repo.orgPublicTokenById(proposal.organizationId);
   for (const uid of orgCoordinatorIds) {
     pendingNotifications.push({
       userId: uid,
@@ -98,6 +99,8 @@ export async function rejectFosterProposal(
       title: "Una propuesta de tránsito fue rechazada",
       body: `Motivo: ${rejectionReason}. Probá con otro voluntario del pool.`,
       relatedPetId: proposal.petId,
+      ctaLabel: "Ver propuestas",
+      ctaUrl: orgToken ? `/org/${orgToken}/voluntarios/propuestas` : "/org",
     });
   }
 

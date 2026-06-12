@@ -104,6 +104,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             title: "Tu solicitud fue auto-expirada",
             body: "Tu solicitud pendiente fue cerrada automáticamente por inactividad mayor a 60 días. Podés volver a iniciarla cuando quieras.",
             severity: "info",
+            ctaLabel: "Ver solicitudes",
+            ctaUrl: "/cuenta/solicitudes",
           });
         });
         itemsProcessed += 1;

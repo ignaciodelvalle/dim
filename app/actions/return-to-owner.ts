@@ -588,6 +588,9 @@ export async function ownerAcceptReturnWriter({
             title: `Propuesta de devolución cancelada — ${pet.name}`,
             body: autoCancelBody(reason, pet.name),
             relatedPetId: pet.id,
+            // no-cta: recipient is the superseded proposer (vecino finder or org member);
+            // their accessible surface differs by role and the proposal is gone — no single
+            // safe destination.
           });
         }
       });
@@ -717,6 +720,9 @@ export async function ownerAcceptReturnWriter({
           body: `El dueño confirmó que recibió a ${pet.name}. La custodia fue cerrada correctamente.`,
           relatedPetId: pet.id,
           relatedEventId: transferEvent.id,
+          // no-cta: recipient is the return proposer (vecino finder or org member);
+          // the pet has gone back to the owner, so the proposer has no accessible
+          // surface for it. Terminal confirmation.
         });
       } else if (fromOrgId) {
         // For org actors, try to notify the member who submitted the proposal.
@@ -730,6 +736,8 @@ export async function ownerAcceptReturnWriter({
             body: `El dueño confirmó que recibió a ${pet.name}. La custodia fue cerrada correctamente.`,
             relatedPetId: pet.id,
             relatedEventId: transferEvent.id,
+            // no-cta: recipient is the org member who proposed; the pet has gone back to
+            // the owner, so the org no longer has a pet surface for it. Terminal confirmation.
           });
         }
       }
@@ -860,6 +868,8 @@ export async function ownerRejectReturnWriter({
           title: `Propuesta rechazada — ${pet.name}`,
           body: `El dueño de ${pet.name} rechazó la propuesta de devolución. Motivo: ${reason}`,
           relatedPetId: pet.id,
+          // no-cta: recipient is the return proposer (vecino finder or org member);
+          // the rejected proposal has no surface they can act on. Terminal notice.
         });
       } else if (fromOrgId) {
         const proposalAuthorId = latestProposal.recordedByUserId;
@@ -871,6 +881,8 @@ export async function ownerRejectReturnWriter({
             title: `Propuesta rechazada — ${pet.name}`,
             body: `El dueño de ${pet.name} rechazó la propuesta de devolución. Motivo: ${reason}`,
             relatedPetId: pet.id,
+            // no-cta: recipient is the org member who proposed; the rejected proposal has
+            // no surface they can act on. Terminal notice.
           });
         }
       }
@@ -1012,6 +1024,8 @@ export async function actorCancelProposalWriter({
           title: `Propuesta cancelada — ${pet.name}`,
           body: `Quien tenía a ${pet.name} canceló la propuesta de devolución. Motivo: ${reason}`,
           relatedPetId: pet.id,
+          ctaLabel: "Ver mi mascota",
+          ctaUrl: `/mis-mascotas/${pet.publicToken}`,
         });
       }
     });
@@ -1843,6 +1857,8 @@ export async function orgRejectOwnerReturnWriter({
         title: `Propuesta rechazada — ${pet.name}`,
         body: `${orgDisplayName} rechazó tu propuesta de devolución de ${pet.name}. Motivo: ${reason}`,
         relatedPetId: pet.id,
+        ctaLabel: "Ver mi mascota",
+        ctaUrl: `/mis-mascotas/${pet.publicToken}`,
       });
     });
   } catch (err) {

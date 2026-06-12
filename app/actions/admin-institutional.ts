@@ -840,7 +840,7 @@ export async function assignGovtLocalityForAuthority(
       body: `Un administrador asignó la localidad ${canonicalLocality}, ${canonicalProvince} a tu jurisdicción.`,
       severity: "info",
       ctaLabel: "Ver mis localidades",
-      ctaUrl: "/admin",
+      ctaUrl: "/gob",
     });
   } catch (e) {
     console.error("notifications insert failed (assignGovtLocalityForAuthority did succeed)", e);

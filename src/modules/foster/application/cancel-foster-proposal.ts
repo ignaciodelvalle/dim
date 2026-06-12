@@ -80,6 +80,8 @@ export async function cancelFosterProposal(
         title: "Una propuesta de tránsito fue cancelada",
         body: "La organización canceló la propuesta antes de tu respuesta.",
         relatedPetId: proposal.petId,
+        ctaLabel: "Ver propuestas",
+        ctaUrl: "/cuenta/transitos/propuestas",
       });
     });
   } catch (err) {

@@ -238,6 +238,9 @@ export async function addDisputePartyAction(input: AddPartyInput): Promise<AddPa
           title: "Te sumaron a una disputa de custodia",
           body: "Una autoridad te registró como parte interesada en una disputa abierta sobre la custodia de un animal. Vas a poder ver el expediente desde tu cuenta.",
           severity: "info",
+          // no-cta: disputes only have a govt-portal surface (/gob/disputas); there
+          // is no citizen-facing dispute view yet, so a party recipient has no
+          // accessible destination. Tracked as a product gap.
         });
       }
 
@@ -493,6 +496,9 @@ export async function resolveDisputeAction(
           title: "Disputa de custodia resuelta",
           body: `Resolución: ${input.resolution}. La autoridad cerró el caso.`,
           severity: "info",
+          // no-cta: disputes only have a govt-portal surface (/gob/disputas); there
+          // is no citizen-facing dispute view yet, so a party recipient has no
+          // accessible destination. Tracked as a product gap.
         });
       }
 

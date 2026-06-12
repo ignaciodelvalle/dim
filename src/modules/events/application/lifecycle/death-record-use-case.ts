@@ -259,6 +259,8 @@ export async function createDeathRecord(
           relatedPetId: pet.id,
           relatedEventId: event.id,
           relatedCaseId: fosterCaseId ?? null,
+          // no-cta: terminal condolence to the ex-foster; the foster relationship
+          // ended with the death, so there is no actionable destination.
         });
       }
 
@@ -366,6 +368,9 @@ export async function createDeathRecord(
               body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. Requiere revisión inmediata por riesgo de rabia.`,
               relatedPetId: pet.id,
               relatedEventId: insertedEventId as string,
+              // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+              ctaLabel: "Ver vigilancia",
+              ctaUrl: "/gob/vigilancia",
             })),
           );
         }

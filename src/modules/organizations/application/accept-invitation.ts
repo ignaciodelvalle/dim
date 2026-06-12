@@ -167,6 +167,8 @@ export async function acceptInvitation(
           severity: "success",
           title: `${accepterName ?? "Un usuario"} aceptó tu invitación`,
           body: `Ahora es miembro de ${org.displayName} con el rol ${validInvite.invitedRole}.`,
+          ctaLabel: "Ver miembros",
+          ctaUrl: `/org/${org.publicToken}/miembros`,
         });
       }
     });

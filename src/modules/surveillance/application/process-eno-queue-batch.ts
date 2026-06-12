@@ -41,6 +41,7 @@ export type EnoBatchDeps = {
   getPet: (petId: string) => Promise<{
     id: string;
     name: string;
+    publicToken: string;
     jurisdictionProvince: string | null;
     jurisdictionLocality: string | null;
   } | null>;
@@ -153,6 +154,9 @@ async function processOne(petEventId: string, deps: EnoBatchDeps): Promise<boole
         relatedPetId: petRow.id,
         relatedEventId: eventRow.id,
         category: "health",
+        // Govt recipient cannot open /mis-mascotas; surveillance hub is their surface.
+        ctaLabel: "Ver vigilancia",
+        ctaUrl: "/gob/vigilancia",
       });
     }
   }
@@ -169,6 +173,8 @@ async function processOne(petEventId: string, deps: EnoBatchDeps): Promise<boole
       relatedPetId: petRow.id,
       relatedEventId: eventRow.id,
       category: "health",
+      ctaLabel: "Ver mascota",
+      ctaUrl: `/mis-mascotas/${petRow.publicToken}`,
     });
   }
 

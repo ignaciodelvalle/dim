@@ -127,6 +127,13 @@ export async function cancelCrossOrgTransfer(
           receiverOrgId,
           tx as Parameters<typeof repo.orgCoordinatorAdminUserIds>[1],
         );
+        // CTA must live inside the receiver's org portal: org members cannot
+        // read custody_transfer_handshake cases via /casos (canReadCase has no
+        // branch for that kind), so a /casos/{code} link would dead-end them.
+        const receiverOrgToken = await repo.orgPublicTokenById(
+          receiverOrgId,
+          tx as Parameters<typeof repo.orgPublicTokenById>[1],
+        );
         for (const r of receiverCoords) {
           pendingNotifications.push({
             userId: r.userId,
@@ -136,6 +143,8 @@ export async function cancelCrossOrgTransfer(
             body: `${organization.displayName} canceló la propuesta. Motivo: ${reasonNote}`,
             relatedCaseId: caseRow.id,
             relatedPetId: caseRow.primaryPetId,
+            ctaLabel: "Ver transferencias",
+            ctaUrl: receiverOrgToken ? `/org/${receiverOrgToken}/transferencias/recibidas` : "/org",
           });
         }
       }

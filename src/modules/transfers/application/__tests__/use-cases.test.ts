@@ -109,6 +109,7 @@ function makeFakeRepo(
     // shared reads
     findPetByToken: vi.fn().mockResolvedValue(makePet()),
     findPetPublicTokenById: vi.fn().mockResolvedValue("PET-pub-tok"),
+    orgPublicTokenById: vi.fn().mockResolvedValue("receiver-tok"),
     findActiveOwnerOwnership: vi
       .fn()
       .mockResolvedValue({ id: "own-1", ownerUserId: "user-sender" }),

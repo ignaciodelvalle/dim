@@ -200,6 +200,7 @@ export async function replaceMicrochipForUser(
 
       // Open a microchip_remediation case for fraud or duplicate reasons.
       let caseId: string | null = null;
+      let casePublicCode: string | null = null;
       if (parsed.reason === "fraud_detected" || parsed.reason === "duplicate_detected") {
         const secondaryNote = secondaryPetId ? ` secondaryPetId=${secondaryPetId}` : "";
         const caseRow = await openCase(
@@ -215,6 +216,7 @@ export async function replaceMicrochipForUser(
           tx,
         );
         caseId = caseRow.id;
+        casePublicCode = caseRow.publicCode;
       }
 
       // Resolve authorship fields — inlined per decision (no separate helper for
@@ -345,6 +347,8 @@ export async function replaceMicrochipForUser(
             relatedPetId: pet.id,
             relatedCaseId: caseId,
             relatedEventId: event.id,
+            ctaLabel: "Ver caso",
+            ctaUrl: casePublicCode ? `/casos/${casePublicCode}` : "/admin/casos",
           });
         }
       }
@@ -379,6 +383,10 @@ export async function replaceMicrochipForUser(
             relatedPetId: pet.id,
             relatedCaseId: caseId,
             relatedEventId: event.id,
+            // Recipients are govt or admin; /casos/{code} is the shared case viewer
+            // both roles can open.
+            ctaLabel: "Ver caso",
+            ctaUrl: casePublicCode ? `/casos/${casePublicCode}` : "/admin/casos",
           });
         }
       }
@@ -407,6 +415,8 @@ export async function replaceMicrochipForUser(
             relatedPetId: pet.id,
             relatedEventId: event.id,
             ...(caseId ? { relatedCaseId: caseId } : {}),
+            ctaLabel: "Ver mascota",
+            ctaUrl: `/mis-mascotas/${pet.publicToken}`,
           });
         }
       }

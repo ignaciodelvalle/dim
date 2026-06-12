@@ -155,12 +155,16 @@ export async function removeMember(
   }
 
   // 7. Best-effort notification (caller flushes post-tx).
+  // The removed member can no longer access /org/* pages, so the CTA points at
+  // their own account surface, not the organization.
   pendingNotifications.push({
     userId: target.userId,
     notificationType: "org_membership_removed",
     severity: "info",
     title: `Fuiste quitado de ${input.organization.displayName}`,
     body: `Tu membresía en ${input.organization.displayName} fue finalizada por un administrador.`,
+    ctaLabel: "Ver mi cuenta",
+    ctaUrl: "/cuenta",
   });
 
   return { ok: true, value: undefined, notifications: pendingNotifications };

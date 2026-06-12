@@ -591,8 +591,16 @@ export const FosterRepository = {
             title: "Una propuesta de tránsito expiró",
             body: "La propuesta que recibiste expiró sin respuesta. Si te interesa, pedile al refugio que vuelva a proponer.",
             relatedPetId: p.petId,
+            ctaLabel: "Ver propuestas",
+            ctaUrl: "/cuenta/transitos/propuestas",
           });
 
+          // Resolve the org token so coordinators get a working CTA into the pool.
+          const [orgRow] = await tx
+            .select({ publicToken: organizations.publicToken })
+            .from(organizations)
+            .where(eq(organizations.id, p.organizationId))
+            .limit(1);
           const orgCoordinators = await getOrgFosterCoordinatorUserIds(p.organizationId, tx);
           for (const uid of orgCoordinators) {
             await tx.insert(notifications).values({
@@ -602,6 +610,8 @@ export const FosterRepository = {
               title: "Tu propuesta de tránsito expiró",
               body: "El voluntario no respondió en 7 días. Probá con otro candidato del pool.",
               relatedPetId: p.petId,
+              ctaLabel: "Ver propuestas",
+              ctaUrl: orgRow ? `/org/${orgRow.publicToken}/voluntarios/propuestas` : "/org",
             });
           }
         });
@@ -1312,6 +1322,20 @@ export const FosterRepository = {
       )
       .limit(1);
     return row?.ownerUserId ? (row as { id: string; ownerUserId: string; petId: string }) : null;
+  },
+
+  /**
+   * Resolves an organization's public token by id. Used to build org-portal
+   * CTA URLs (/org/{token}/...) for coordinator notifications.
+   */
+  async orgPublicTokenById(orgId: string, tx?: Tx): Promise<string | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return row?.publicToken ?? null;
   },
 
   /**
