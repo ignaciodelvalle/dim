@@ -9,51 +9,32 @@
 // Visual chrome: Libreta Nacional design system (LnShell + LnOwnerNav).
 // Auth + role gates are unchanged.
 
-import { count } from "drizzle-orm";
-import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { LnGuilloche } from "@/components/ui/DocElements";
 import { LnOwnerNav } from "@/components/ui/LnOwnerNav";
 import { LnOwnerSubBar } from "@/components/ui/LnOwnerSubBar";
-import { db, notifications, profiles } from "@/db";
-import { createClient } from "@/lib/supabase/server";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { getProfileCached, getUnreadCountCached } from "@/lib/request-cache";
 
 export default async function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await requireUserOrRedirect();
 
-  if (!user) redirect("/login");
-
-  const [profile] = await db
-    .select({ role: profiles.role, displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  // Profile first: institutional roles redirect away, and the unread-count
+  // query should not run at all on that path.
+  const profile = await getProfileCached(user.id);
   if (profile?.role === "admin") redirect("/admin");
   if (profile?.role === "govt") redirect("/gob");
 
-  const displayName =
-    profile?.displayName && profile.displayName.trim().length > 0
-      ? profile.displayName
-      : (user.email?.split("@")[0] ?? "");
+  const unreadCount = await getUnreadCountCached(user.id);
 
-  const [{ unreadCount }] = await db
-    .select({ unreadCount: count() })
-    .from(notifications)
-    .where(
-      and(
-        eq(notifications.userId, user.id),
-        isNull(notifications.readAt),
-        isNull(notifications.archivedAt),
-      ),
-    );
+  // displayName is NOT NULL in the DB, but an empty string would render a
+  // blank nav avatar — fall back to the email prefix like the pre-cache code.
+  const displayName = profile?.displayName?.trim() || user.email?.split("@")[0] || "";
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]">

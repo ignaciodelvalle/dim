@@ -3,8 +3,9 @@ import Link from "next/link";
 
 import { ADMIN_NAV } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
-import { db, eventNotificationOutbox, profiles } from "@/db";
+import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { getProfileCached } from "@/lib/request-cache";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
 // to / (root). Uses the strict requireAdminOrRedirect guard which also rejects
@@ -25,13 +26,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   const breachCount = breachCountRow?.count ?? 0;
 
-  // profiles.displayName is NOT NULL — always present.
-  const [profileRow] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, profile.id))
-    .limit(1);
-
+  // getProfileCached is already warmed by requireAdminOrRedirect above —
+  // this call is a memoized hit, not a second DB round-trip.
+  const profileRow = await getProfileCached(profile.id);
   const displayName = profileRow?.displayName ?? "";
 
   // Inject the breach badge on the outbox nav item.

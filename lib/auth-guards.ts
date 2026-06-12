@@ -7,17 +7,22 @@
 // authenticated user. The return type is non-nullable: if you got here, the
 // guard passed.
 
-import { and, eq, isNull } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 
-import { db, govtAssignments, organizationMemberships, organizations, profiles } from "@/db";
 import type { Organization, OrganizationMembership } from "@/db";
 import type { ActorProfile } from "@/lib/institutional-scope";
+import {
+  getJurisdictionsCached,
+  getOrgMembershipCached,
+  getProfileCached,
+} from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthenticatedSession = {
   supabase: Awaited<ReturnType<typeof createClient>>;
-  user: { id: string };
+  // Runtime value is the full Supabase User; the type stays narrow on purpose.
+  // email is exposed for display fallbacks (nav avatar) only — never for authz.
+  user: { id: string; email?: string };
 };
 
 // Require an authenticated session. Redirects to /login if absent.
@@ -47,18 +52,7 @@ export type OrgAccessSession = AuthenticatedSession & {
 export async function requireOrgAccessByToken(orgToken: string): Promise<OrgAccessSession> {
   const { supabase, user } = await requireUserOrRedirect();
 
-  const [row] = await db
-    .select({ organization: organizations, membership: organizationMemberships })
-    .from(organizationMemberships)
-    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
-    .where(
-      and(
-        eq(organizationMemberships.userId, user.id),
-        eq(organizations.publicToken, orgToken),
-        isNull(organizationMemberships.leftAt),
-      ),
-    )
-    .limit(1);
+  const row = await getOrgMembershipCached(orgToken, user.id);
 
   if (!row) notFound();
 
@@ -83,26 +77,13 @@ export type AdminOrGovtSession = AuthenticatedSession & {
 // active scope — empty for admin, who has universal scope.
 export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
   const session = await requireUserOrRedirect();
-  const [profile] = await db
-    .select({ id: profiles.id, role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, session.user.id))
-    .limit(1);
+  const profile = await getProfileCached(session.user.id);
   if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
     redirect("/mis-mascotas");
   }
 
-  let jurisdictions: AdminOrGovtJurisdiction[] = [];
-  if (profile.role === "govt") {
-    const rows = await db
-      .select({
-        province: govtAssignments.jurisdictionProvince,
-        locality: govtAssignments.jurisdictionLocality,
-      })
-      .from(govtAssignments)
-      .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)));
-    jurisdictions = rows;
-  }
+  const jurisdictions: AdminOrGovtJurisdiction[] =
+    profile.role === "govt" ? await getJurisdictionsCached(profile.id) : [];
 
   return {
     ...session,
@@ -132,16 +113,7 @@ export type AdminSession = AuthenticatedSession & {
 export async function requireAdminOrRedirect(): Promise<AdminSession> {
   const session = await requireUserOrRedirect();
 
-  const [profile] = await db
-    .select({
-      id: profiles.id,
-      role: profiles.role,
-      accountType: profiles.accountType,
-      deactivatedAt: profiles.deactivatedAt,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, session.user.id))
-    .limit(1);
+  const profile = await getProfileCached(session.user.id);
 
   if (!profile) redirect("/");
   if (profile.role !== "admin") redirect("/");

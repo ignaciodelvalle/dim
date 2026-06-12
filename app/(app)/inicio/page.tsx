@@ -15,9 +15,6 @@ import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
-import { and, count, eq, isNull } from "drizzle-orm";
-
-import { db, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { speciesLabel } from "@/lib/format";
 import type { DashboardPet, WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
@@ -27,6 +24,7 @@ import {
   fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/owner-dashboard";
+import { getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
@@ -98,29 +96,21 @@ function toLnStatus(status: string): "ok" | "lost" {
 export default async function InicioPage() {
   const { user } = await requireUserOrRedirect();
 
-  const [profile, pets, openWf, appointments, reminders, [{ unreadCount }]] = await Promise.all([
-    db
-      .select({ displayName: profiles.displayName })
-      .from(profiles)
-      .where(and(eq(profiles.id, user.id), isNull(profiles.deactivatedAt)))
-      .limit(1),
+  // getProfileCached is warmed by (app)/layout.tsx in the same render pass —
+  // this is a memoized hit, not an extra DB round-trip.
+  const [profileRow, pets, openWf, appointments, reminders] = await Promise.all([
+    getProfileCached(user.id),
     fetchPetsForOwner(user.id),
     fetchOpenWorkflows(user.id),
     fetchUpcomingAppointments(user.id, 5),
     fetchActiveReminders(user.id),
-    db
-      .select({ unreadCount: count() })
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.userId, user.id),
-          isNull(notifications.readAt),
-          isNull(notifications.archivedAt),
-        ),
-      ),
   ]);
-
-  const firstName = (profile[0]?.displayName ?? "").trim().split(/\s+/)[0] || "amigo";
+  // Deactivated profiles greet generically — parity with the pre-cache query,
+  // which filtered deactivated_at IS NULL.
+  const firstName =
+    profileRow && profileRow.deactivatedAt === null
+      ? (profileRow.displayName ?? "").trim().split(/\s+/)[0] || "amigo"
+      : "amigo";
 
   const eventCatcherPets = pets.map(adaptPet);
   const cases = openWf.map(adaptWorkflow);

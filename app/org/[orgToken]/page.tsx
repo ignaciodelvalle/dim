@@ -20,9 +20,9 @@ import {
   db,
   fosterProposals,
   organizationCapabilityGrants,
-  profiles,
 } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { getProfileCached } from "@/lib/request-cache";
 import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -84,12 +84,8 @@ export default async function OrgDashboardPage({
   const { orgToken } = await params;
   const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
 
-  // Fetch profile role for the cross-portal nav rail.
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  // getProfileCached is warmed by the org layout's call in the same render pass.
+  const profile = await getProfileCached(user.id);
   const userRole = profile?.role ?? "owner";
 
   const granted = await getGrantedCapabilities(membership);
