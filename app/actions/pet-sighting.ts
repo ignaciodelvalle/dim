@@ -222,7 +222,9 @@ export async function reportPetSightingAction(
       category: "perdidas",
       relatedPetId: pet.id,
       ctaLabel: "Ver mascota",
-      ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
+      // Land on the cockpit (/mis-mascotas/{token}) which now surfaces sighting
+      // and possession reports while the pet is lost (UI-4 fix 7).
+      ctaUrl: `/mis-mascotas/${publicToken}`,
     });
   } catch (e) {
     console.error("notifications insert failed (reportPetSightingAction did succeed)", e);

@@ -32,14 +32,22 @@ export type ScanFeedItem =
       kind: "finder";
       id: string;
       at: Date;
-      /** Display name from finder form (or "Anónimo"). */
+      /** Display name from the finder-in-possession form (or "Alguien"). */
       finderName: string;
-      /** Snippet — first line of the message. */
-      snippet: string;
-      /** Optional distance from last-known location, e.g. "5 cuadras". */
-      distanceLabel?: string;
-      /** Where to open the finder message. */
-      href: string;
+      /** Finder contact string (phone and/or email). */
+      finderContact: string | null;
+      /** Reported pet condition: bien | herida | asustada | necesita_vet_urgente. */
+      petCondition: string | null;
+      /** Locality/place where the finder has the pet. */
+      localityLabel: string | null;
+      /** Free-text message left by the finder (truncated). */
+      message: string | null;
+      /** How long the finder can keep the pet: a date label, or "indefinido". */
+      availabilityLabel: string | null;
+      /** P0g: storage path set when the finder attached a photo. */
+      photoStoragePath?: string | null;
+      /** Pre-resolved signed URL for the finder photo (set by the server page). */
+      photoUrl?: string | null;
     }
   | {
       kind: "sighting";
@@ -72,11 +80,28 @@ interface Props {
 }
 
 export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Props) {
+  const possessionCount = items.filter((it) => it.kind === "finder").length;
   return (
     <section
       aria-labelledby="lp-feed-h"
       className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
+      {/* Possession callout — the most important signal in the feed: someone
+          reported they physically HAVE the pet. Surfaced above everything. */}
+      {possessionCount > 0 && (
+        <div
+          role="alert"
+          className="mb-3 rounded-xl border border-ln-ok bg-[var(--color-ln-ok-050)] px-4 py-2.5"
+        >
+          <p className="text-sm font-bold text-ln-ok">🏠 ¡Alguien tiene a tu mascota!</p>
+          <p className="mt-0.5 text-xs text-ln-ink-2">
+            {possessionCount === 1
+              ? "Una persona reportó que la tiene con ella. Contactala para coordinar el reencuentro."
+              : `${possessionCount} personas reportaron tenerla. Contactalas para coordinar el reencuentro.`}
+          </p>
+        </div>
+      )}
+
       <div className="mb-3 flex items-baseline justify-between">
         <h2 id="lp-feed-h" className="text-base font-semibold text-ln-ink ">
           Actividad
@@ -115,28 +140,80 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
   );
 }
 
+const CONDITION_LABELS: Record<string, string> = {
+  bien: "Está bien",
+  herida: "Está herida",
+  asustada: "Está asustada",
+  necesita_vet_urgente: "Necesita veterinario urgente",
+};
+
 function FeedRow({ item }: { item: ScanFeedItem }) {
   if (item.kind === "finder") {
+    // The handoff crux: a finder physically HAS the pet. Render it as a
+    // highlighted, high-contrast row so the owner can contact them immediately.
+    const urgent = item.petCondition === "necesita_vet_urgente";
+    const conditionLabel = item.petCondition
+      ? (CONDITION_LABELS[item.petCondition] ?? item.petCondition)
+      : null;
     return (
-      <Link
-        href={item.href}
-        className="flex items-start gap-3 py-2.5 transition-colors hover:bg-ln-stripe "
+      <div
+        className={`my-2 flex items-start gap-3 rounded-xl border p-3 ${
+          urgent
+            ? "border-ln-err bg-[var(--color-ln-err-050)]"
+            : "border-ln-ok bg-[var(--color-ln-ok-050)]"
+        }`}
       >
         <span
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-ln-warn-050)] text-ln-warn  "
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg ${
+            urgent ? "bg-ln-err text-white" : "bg-ln-ok text-white"
+          }`}
         >
-          ✉
+          🏠
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ln-ink ">Mensaje de {item.finderName}</p>
-          <p className="mt-0.5 line-clamp-2 text-xs text-ln-mute ">
-            {item.snippet}
-            {item.distanceLabel && <span> · {item.distanceLabel} del último punto</span>}
-          </p>
+          <p className="text-sm font-semibold text-ln-ink">{item.finderName} tiene a tu mascota</p>
+          {conditionLabel && (
+            <p className={`mt-0.5 text-xs font-medium ${urgent ? "text-ln-err" : "text-ln-ink-2"}`}>
+              {conditionLabel}
+              {item.localityLabel && <span className="text-ln-mute"> · {item.localityLabel}</span>}
+            </p>
+          )}
+          {!conditionLabel && item.localityLabel && (
+            <p className="mt-0.5 text-xs text-ln-mute">{item.localityLabel}</p>
+          )}
+          {item.finderContact && (
+            <p className="mt-1 text-sm font-semibold text-ln-azul">
+              📞{" "}
+              <a href={`tel:${item.finderContact}`} className="hover:underline">
+                {item.finderContact}
+              </a>
+            </p>
+          )}
+          {item.availabilityLabel && (
+            <p className="mt-0.5 text-[11px] text-ln-mute">
+              {item.availabilityLabel === "indefinido"
+                ? "Puede cuidarla indefinidamente"
+                : `Puede cuidarla hasta ${item.availabilityLabel}`}
+            </p>
+          )}
+          {item.message && (
+            <p className="mt-1 line-clamp-3 text-xs italic text-ln-ink-2">"{item.message}"</p>
+          )}
+          {item.photoUrl && (
+            <div className="mt-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.photoUrl}
+                alt="Foto enviada por quien encontró a la mascota"
+                loading="lazy"
+                className="h-20 w-20 rounded-lg object-cover"
+              />
+            </div>
+          )}
         </div>
-        <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
-      </Link>
+        <p className="shrink-0 text-[11px] text-ln-mute">{relativeShort(item.at)}</p>
+      </div>
     );
   }
 

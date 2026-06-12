@@ -712,12 +712,13 @@ export default async function PetDetailPage({
     const episode = await fetchLostEpisodeForPet(pet.id);
     const rawScans = await fetchLostScanEvents(pet.id, undefined, episode?.id ?? undefined);
 
-    // P0g: resolve signed URLs for sighting items that have a photoStoragePath.
-    // event-attachments is a private bucket so thumbnails need short-lived signed URLs.
-    // We use the SSR supabase client (owner is authenticated at this point).
+    // P0g: resolve signed URLs for sighting AND finder-in-possession items that
+    // carry a photoStoragePath. event-attachments is a private bucket so
+    // thumbnails need short-lived signed URLs. We use the SSR supabase client
+    // (owner is authenticated at this point).
     const scans = await Promise.all(
       rawScans.map(async (item) => {
-        if (item.kind === "sighting" && item.photoStoragePath) {
+        if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
           const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
           return { ...item, photoUrl: url };
         }

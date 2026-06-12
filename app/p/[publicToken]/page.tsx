@@ -479,6 +479,7 @@ export default async function PublicCredentialPage({
         <LostPublicCredential
           petName={pet.name}
           petPhotoUrl={photoUrl}
+          petSex={pet.sex}
           identityLine={identityLine}
           ownerFirstName={pet.discloseFirstNameWhenLost ? lostContext.ownerFirstName : null}
           ownerPhoneE164={pet.disclosePhoneWhenLost ? lostContext.phone : null}

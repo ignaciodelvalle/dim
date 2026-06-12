@@ -40,7 +40,7 @@ import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
@@ -1304,19 +1304,55 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
 
   const repo = new EventsRepository();
 
-  const result = await setPetFound(
+  // Resolve the active owner USER id so the recovery confirmation reaches the
+  // human owner even when an org member triggers the action. Falls back to the
+  // acting user when no owner-user row exists (e.g. org-owned pet).
+  const { ownerships } = await import("@/db");
+  const { isNull } = await import("drizzle-orm");
+  const [ownerRow] = await db
+    .select({ ownerUserId: ownerships.ownerUserId })
+    .from(ownerships)
+    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+    .limit(1);
+  const ownerUserId = ownerRow?.ownerUserId ?? user.id;
+
+  // Resolves the audience of the original lost_pet_broadcast for this pet by
+  // reading the broadcast notification rows (relatedPetId scoped, distinct user).
+  async function findBroadcastRecipientUserIds(petId: string): Promise<string[]> {
+    const { notifications } = await import("@/db");
+    const rows = await db
+      .selectDistinct({ userId: notifications.userId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.notificationType, "lost_pet_broadcast"),
+          eq(notifications.relatedPetId, petId),
+        ),
+      );
+    return rows.map((r) => r.userId).filter((id): id is string => Boolean(id));
+  }
+
+  await setPetFound(
     {
       petId: pet.id,
       petStatus: pet.status,
       petPublicToken: pet.publicToken,
+      petName: pet.name,
+      petSex: pet.sex,
       recordedByUserId: user.id,
+      ownerUserId,
       eventAuthorship: eventAuthorship as {
         authorRole: string;
         authorOrganizationId: string | null;
         authorVerified: boolean;
       },
     },
-    { repo, transaction: makeTransaction() },
+    {
+      repo,
+      transaction: makeTransaction(),
+      findBroadcastRecipientUserIds,
+      flushNotifications,
+    },
   );
 
   redirect(`/mis-mascotas/${publicToken}`);

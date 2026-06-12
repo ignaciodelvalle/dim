@@ -133,6 +133,31 @@ beforeAll(async () => {
     authorRole: "scanner",
     payload: scanPayload,
   });
+
+  // Insert 1 finder_in_possession event (the handoff crux — UI-4 fix 2).
+  // Occurs BEFORE the sightings so we can also assert it sorts to the TOP.
+  const possessionPayload = validateEventPayload("note_added", {
+    category: "otro" as const,
+    text: "Tengo a este perro en casa.",
+    kind: "finder_in_possession" as const,
+    finderName: "Vecina Ana",
+    finderContact: "11-5555-9999",
+    photoStoragePath: null,
+    location: {
+      localityName: "La Plata",
+      provinceCode: "BA",
+      provinceName: "Buenos Aires",
+    },
+    petCondition: "bien" as const,
+    canKeepUntil: null,
+    canKeepIndefinite: true,
+    message: "Está tranquilo, lo tengo a salvo.",
+  });
+  await db.insert(petEvents).values({
+    ...sightingBase,
+    occurredAt: new Date(episodeOpenedAt.getTime() + 30_000), // earlier than sightings
+    payload: possessionPayload,
+  });
 });
 
 afterAll(async () => {
@@ -173,10 +198,32 @@ describe("fetchLostScanEvents — unified feed", () => {
     expect(scans).toHaveLength(1);
   });
 
-  it("items are sorted DESC by at", async () => {
+  it("items are sorted DESC by at within the non-finder group", async () => {
     const items = await fetchLostScanEvents(petId, episodeOpenedAt);
-    for (let i = 1; i < items.length; i++) {
-      expect(items[i - 1].at.getTime()).toBeGreaterThanOrEqual(items[i].at.getTime());
+    const nonFinder = items.filter((i) => i.kind !== "finder");
+    for (let i = 1; i < nonFinder.length; i++) {
+      expect(nonFinder[i - 1].at.getTime()).toBeGreaterThanOrEqual(nonFinder[i].at.getTime());
     }
+  });
+
+  it("includes the finder_in_possession event mapped to a 'finder' item", async () => {
+    const items = await fetchLostScanEvents(petId, episodeOpenedAt);
+    const finders = items.filter((i) => i.kind === "finder");
+    expect(finders).toHaveLength(1);
+    const finder = finders[0] as Extract<
+      Awaited<ReturnType<typeof fetchLostScanEvents>>[number],
+      { kind: "finder" }
+    >;
+    expect(finder.finderName).toBe("Vecina Ana");
+    expect(finder.finderContact).toBe("11-5555-9999");
+    expect(finder.petCondition).toBe("bien");
+    expect(finder.localityLabel).toBe("La Plata, Buenos Aires");
+    expect(finder.availabilityLabel).toBe("indefinido");
+    expect(finder.message).toContain("a salvo");
+  });
+
+  it("sorts finder_in_possession to the TOP even when it is older than sightings", async () => {
+    const items = await fetchLostScanEvents(petId, episodeOpenedAt);
+    expect(items[0].kind).toBe("finder");
   });
 });

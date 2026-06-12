@@ -88,6 +88,74 @@ export function statusLabel(status: string): string {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sex-aware lost-mode copy (UI-4)
+// ---------------------------------------------------------------------------
+//
+// The public credential and cockpit must gender the "lost" wording by the
+// pet's recorded sex instead of guessing from the name ending. Three cases:
+//   - male    → masculine ("perdido")
+//   - female  → feminine  ("perdida")
+//   - unknown → a sex-neutral phrasing that reads naturally in es-AR and never
+//               assumes a gender ("Se perdió" / "Me perdí").
+//
+// Pure functions — no DOM, exported for unit testing.
+
+export type PetSex = "male" | "female" | "unknown";
+
+function normalizeSex(sex: string | null | undefined): PetSex {
+  return sex === "male" || sex === "female" ? sex : "unknown";
+}
+
+/** Banner headline, e.g. "ESTÁ PERDIDO" / "ESTÁ PERDIDA" / "SE PERDIÓ". */
+export function lostBannerHeadline(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "ESTÁ PERDIDO";
+    case "female":
+      return "ESTÁ PERDIDA";
+    default:
+      return "SE PERDIÓ";
+  }
+}
+
+/** First-person hero line spoken by the pet, e.g. "Estoy perdido" / "Me perdí". */
+export function lostFirstPersonLine(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Estoy perdido";
+    case "female":
+      return "Estoy perdida";
+    default:
+      return "Me perdí";
+  }
+}
+
+/** Third-person "está perdid{o|a}" / "se perdió" used in cockpit/share copy. */
+export function lostThirdPersonPhrase(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "está perdido";
+    case "female":
+      return "está perdida";
+    default:
+      return "se perdió";
+  }
+}
+
+/** Mark-found button / past-participle wording, e.g. "encontrado" / "encontrada". */
+export function foundParticiple(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "encontrado";
+    case "female":
+      return "encontrada";
+    default:
+      // Neutral: "encontrada/o" reads as the inclusive form when sex is unknown.
+      return "encontrada/o";
+  }
+}
+
 // Exhaustive map — must have exactly one entry per EventType.
 // If you add a new entry to EVENT_TYPES, TypeScript will fail here until
 // you add a corresponding label. Use `satisfies` so inference stays narrow.
@@ -192,6 +260,64 @@ export function notificationSeverityLabel(severity: string): string {
     default:
       return severity;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Phone normalization for tel: hrefs (UI-4 fix 6)
+// ---------------------------------------------------------------------------
+//
+// Produces a dialable value for a tel: href from a raw, human-entered AR phone.
+// Conservative: when confident, returns E.164 (+54…); otherwise returns the
+// digits-only form so the link still dials something rather than choking on
+// spaces/dashes/parens. The display string can keep its pretty form.
+//
+// Rules (best-effort, AR-centric):
+//   - Already starts with "+": strip non-digits after the leading +, keep it.
+//   - Starts with "00": treat as international prefix → "+" + rest.
+//   - Starts with "0" (national trunk) or "15" handling is intentionally NOT
+//     attempted (mobile 15 prefixes are ambiguous without an area code split);
+//     we only confidently prepend +54 when the local number, after dropping a
+//     single leading 0, has a plausible AR length (10 digits).
+//   - Otherwise: return digits only (no guessing).
+export function normalizePhoneForTel(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // International, explicit "+".
+  if (trimmed.startsWith("+")) {
+    const digits = trimmed.slice(1).replace(/\D/g, "");
+    return digits ? `+${digits}` : null;
+  }
+
+  // International access code "00…" → "+…".
+  if (trimmed.startsWith("00")) {
+    const digits = trimmed.slice(2).replace(/\D/g, "");
+    return digits ? `+${digits}` : null;
+  }
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+
+  // Already carries the AR country code.
+  if (digits.startsWith("54")) {
+    return `+${digits}`;
+  }
+
+  // National form with leading trunk "0": drop it. A plausible AR national
+  // significant number is 10 digits (area code + subscriber). Only then are we
+  // confident enough to stamp +54.
+  if (digits.startsWith("0")) {
+    const national = digits.replace(/^0+/, "");
+    if (national.length === 10) return `+54${national}`;
+    return national; // digits-only fallback — not confidently AR.
+  }
+
+  // Bare 10-digit national number (no trunk, no country code) → +54.
+  if (digits.length === 10) return `+54${digits}`;
+
+  // Anything else: conservative digits-only fallback.
+  return digits;
 }
 
 export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {

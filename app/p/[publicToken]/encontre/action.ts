@@ -311,8 +311,10 @@ export async function reportFinderInPossessionAction(
     severity: "urgent",
     category: "perdidas",
     relatedPetId: pet.id,
-    ctaLabel: "Ver eventos",
-    ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
+    ctaLabel: "Ver mascota",
+    // When the pet is lost the cockpit IS /mis-mascotas/{token} and now surfaces
+    // possession/sighting reports — land the owner there so they can act (UI-4 fix 7).
+    ctaUrl: `/mis-mascotas/${publicToken}`,
   });
 
   return { ok: true, error: null, warning: photoWarning };

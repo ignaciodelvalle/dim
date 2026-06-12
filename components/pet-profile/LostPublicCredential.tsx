@@ -15,12 +15,15 @@
 // `pets`. The component itself never decides what to show — the page
 // passes only what's actually disclosable.
 
+import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/format";
 import { tattooLocationLabel } from "@/lib/lookups";
 import Link from "next/link";
 
 interface Props {
   petName: string;
   petPhotoUrl: string | null;
+  /** Pet sex ('male' | 'female' | 'unknown') — genders the lost-mode copy. */
+  petSex: string | null;
   /** "Canino · marrón · collar rojo" — short identifying line. */
   identityLine: string;
   /** Owner first name, or null if hidden by prefs. */
@@ -65,6 +68,7 @@ interface Props {
 export function LostPublicCredential({
   petName,
   petPhotoUrl,
+  petSex,
   identityLine,
   ownerFirstName,
   ownerPhoneE164,
@@ -97,7 +101,7 @@ export function LostPublicCredential({
           role="alert"
           data-section="lost-urgent-banner"
         >
-          <p className="text-base font-bold tracking-wide">⚠ ESTÁ PERDIDA</p>
+          <p className="text-base font-bold tracking-wide">⚠ {lostBannerHeadline(petSex)}</p>
           <p className="mt-0.5 text-xs opacity-90">{formatLostSince(lostSince)}</p>
         </div>
 
@@ -114,7 +118,7 @@ export function LostPublicCredential({
             </span>
           </div>
           <h1 className="mt-4 text-2xl font-bold text-ln-err ">
-            ¡Hola! Soy {petName} — Estoy perdida
+            ¡Hola! Soy {petName} — {lostFirstPersonLine(petSex)}
           </h1>
           <p className="mt-1 text-sm text-ln-ink-2 ">{identityLine}</p>
           {distinguishingFeatures && (
@@ -124,7 +128,7 @@ export function LostPublicCredential({
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {ownerPhoneE164 && (
               <a
-                href={`tel:${ownerPhoneE164}`}
+                href={`tel:${normalizePhoneForTel(ownerPhoneE164) ?? ownerPhoneE164}`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-ok px-5 text-sm font-semibold text-white hover:bg-ln-ok/90"
               >
                 📞 Llamar{ownerFirstName ? ` a ${ownerFirstName}` : ""}
