@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Page latency sweep for MiMAR production build at http://localhost:3001
  *
  * Usage: pnpm exec tsx scripts/qa-timing.ts
@@ -174,6 +174,7 @@ async function timeRoute(
 async function pgQuery(sql: string): Promise<unknown[]> {
   const PGPASS = "postgres";
   const { execSync } = await import("node:child_process");
+  // postgres superuser: supabase_admin lacks SELECT on pg_stat_statements.
   const cmd = `docker exec -e PGPASSWORD=${PGPASS} supabase_db_DIM psql -U postgres -d postgres -t -A -F"|||" -c "${sql.replace(/"/g, '\\"')}"`;
   try {
     const output = execSync(cmd, { encoding: "utf8" });
@@ -285,7 +286,7 @@ async function main() {
   ];
 
   // ---------------------------------------------------------------------------
-  // Warm-up pass (untimed) â€” also resets pg_stat_statements after warm-up
+  // Warm-up pass (untimed) — also resets pg_stat_statements after warm-up
   // ---------------------------------------------------------------------------
   console.error(`\n[qa-timing] Warm-up pass (${routes.length} routes)...`);
   for (const { route, cookie } of routes) {
@@ -328,7 +329,7 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------------
-  // pg_stat_statements â€” top 15 app queries
+  // pg_stat_statements — top 15 app queries
   // ---------------------------------------------------------------------------
   console.error("\n[qa-timing] Querying pg_stat_statements...");
 
@@ -354,26 +355,26 @@ async function main() {
   const audiences = ["anon", "owner", "orgadmin", "govt-local", "admin"];
 
   console.log("\n");
-  console.log("â•".repeat(110));
-  console.log("  MIMAR PRODUCTION PAGE LATENCY REPORT  â€”  localhost:3001 (next start, seeded DB)");
+  console.log("═".repeat(110));
+  console.log("  MIMAR PRODUCTION PAGE LATENCY REPORT  —  localhost:3001 (next start, seeded DB)");
   console.log("  Caveats: local DB is tiny (seeded only). Times are a FLOOR, not national-scale.");
   console.log(
     "  What matters: (a) relative ranking  (b) query COUNT per page  (c) pages slow even on tiny data",
   );
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
 
   for (const aud of audiences) {
     const audResults = results.filter((r) => r.audience === aud);
     if (audResults.length === 0) continue;
 
-    console.log(`\nâ”Œâ”€ ${aud.toUpperCase()}`);
+    console.log(`\n┌─ ${aud.toUpperCase()}`);
     console.log(
-      `â”‚  ${"Route".padEnd(50)} ${"Status".padEnd(8)} ${"Med TTFB".padEnd(12)} ${"Med Total".padEnd(12)} Notes`,
+      `│  ${"Route".padEnd(50)} ${"Status".padEnd(8)} ${"Med TTFB".padEnd(12)} ${"Med Total".padEnd(12)} Notes`,
     );
-    console.log(`â”‚  ${"-".repeat(100)}`);
+    console.log(`│  ${"-".repeat(100)}`);
 
     for (const r of audResults) {
-      const routeDisplay = r.route.length > 49 ? `${r.route.slice(0, 48)}â€¦` : r.route.padEnd(50);
+      const routeDisplay = r.route.length > 49 ? `${r.route.slice(0, 48)}…` : r.route.padEnd(50);
       const statusDisplay = String(r.status).padEnd(8);
       const ttfbDisplay = r.skipped
         ? "SKIPPED".padEnd(12)
@@ -382,7 +383,7 @@ async function main() {
         ? "SKIPPED".padEnd(12)
         : `${r.median_total.toFixed(0)} ms`.padEnd(12);
       const notes = r.error ? `ERR: ${r.error.slice(0, 40)}` : r.skipped ? "skip (404)" : "";
-      console.log(`â”‚  ${routeDisplay} ${statusDisplay} ${ttfbDisplay} ${totalDisplay} ${notes}`);
+      console.log(`│  ${routeDisplay} ${statusDisplay} ${ttfbDisplay} ${totalDisplay} ${notes}`);
     }
   }
 
@@ -394,15 +395,15 @@ async function main() {
     .sort((a, b) => b.median_ttfb - a.median_ttfb);
 
   console.log("\n");
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
   console.log("  RANKED BY MEDIAN TTFB (slowest first)");
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
   console.log(
     `  ${"#".padEnd(4)} ${"Audience".padEnd(12)} ${"Route".padEnd(50)} ${"Med TTFB".padEnd(12)} Med Total`,
   );
   console.log(`  ${"-".repeat(96)}`);
   ranked.slice(0, 20).forEach((r, i) => {
-    const routeDisplay = r.route.length > 49 ? `${r.route.slice(0, 48)}â€¦` : r.route.padEnd(50);
+    const routeDisplay = r.route.length > 49 ? `${r.route.slice(0, 48)}…` : r.route.padEnd(50);
     console.log(
       `  ${String(i + 1).padEnd(4)} ${r.audience.padEnd(12)} ${routeDisplay} ${(`${r.median_ttfb.toFixed(0)} ms`).padEnd(12)} ${r.median_total.toFixed(0)} ms`,
     );
@@ -412,18 +413,18 @@ async function main() {
   // pg_stat_statements
   // ---------------------------------------------------------------------------
   console.log("\n");
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
   console.log(
     "  TOP 15 APP QUERIES BY TOTAL EXEC TIME  (pg_stat_statements, reset before timed sweep)",
   );
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
   console.log(
     `  ${"#".padEnd(4)} ${"calls".padEnd(8)} ${"mean_ms".padEnd(10)} ${"total_ms".padEnd(12)} Query (first 120 chars)`,
   );
   console.log(`  ${"-".repeat(106)}`);
 
   if (statsRows.length === 0) {
-    console.log("  (no rows â€” pg_stat_statements may not be enabled or extension missing)");
+    console.log("  (no rows — pg_stat_statements may not be enabled or extension missing)");
   } else {
     statsRows.forEach((row, i) => {
       const cols = row as string[];
@@ -445,7 +446,7 @@ async function main() {
   }, 0);
 
   console.log("\n");
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
   console.log("  QUERIES-PER-PAGE ESTIMATE (5 WORST PAGES)");
   console.log(
     `  Total page loads in timed sweep: ${totalPageLoads}  |  Total tracked app DB calls: ${totalAppCalls}`,
@@ -456,12 +457,12 @@ async function main() {
   console.log(
     "  Note: per-page breakdown requires per-route statement diffing; below uses TTFB as proxy for query depth.",
   );
-  console.log("â•".repeat(110));
+  console.log("═".repeat(110));
 
   const worst5 = ranked.slice(0, 5);
   worst5.forEach((r, i) => {
     console.log(
-      `  ${i + 1}. [${r.audience}] ${r.route}  â†’  TTFB ${r.median_ttfb.toFixed(0)}ms / total ${r.median_total.toFixed(0)}ms`,
+      `  ${i + 1}. [${r.audience}] ${r.route}  →  TTFB ${r.median_ttfb.toFixed(0)}ms / total ${r.median_total.toFixed(0)}ms`,
     );
     console.log(
       "     Interpretation: high TTFB on tiny seeded data = sequential awaits / waterfall queries, not volume.",

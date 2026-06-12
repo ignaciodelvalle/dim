@@ -20,7 +20,12 @@
 //   targeted selects. Those pages fetch ONCE and are not part of the 220-
 //   call per-sweep churn documented in PERF-2.
 
-import "server-only";
+// NOTE: deliberately NO `import "server-only"` here. The seed and bootstrap
+// scripts (tsx, outside the Next.js bundler) import action writers that reach
+// this module through lib/auth-guards — "server-only" throws unconditionally
+// in that context (see scripts/seed-test-users.ts header for the same
+// constraint). Outside a React render pass, cache() simply doesn't memoize;
+// the queries still run correctly. Never import this module from client code.
 
 import { cache } from "react";
 
