@@ -87,9 +87,16 @@ export default function PrivacidadPage() {
             Tus derechos (Art. 14 Ley 25.326)
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
-            Tenés derecho a acceder, rectificar, actualizar y suprimir tus datos personales. Para
-            ejercerlos, escribinos a la dirección de contacto indicada más abajo. Respondemos dentro
-            de los plazos que establece la ley.
+            Tenés derecho a acceder, rectificar, actualizar y suprimir tus datos personales. Desde
+            tu cuenta podés{" "}
+            <Link
+              href="/cuenta/privacidad"
+              className="underline underline-offset-4 hover:text-[var(--color-ln-azul)] transition-colors"
+            >
+              descargar una copia de tus datos o solicitar la eliminación de tu cuenta
+            </Link>
+            . Para otros ejercicios de derechos, escribinos a la dirección de contacto indicada más
+            abajo. Respondemos dentro de los plazos que establece la ley.
           </p>
         </section>
 

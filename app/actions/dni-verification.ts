@@ -92,7 +92,7 @@ export async function verifyDniForUser(userId: string, rawDni: string): Promise<
       await tx.insert(notifications).values({
         userId,
         notificationType: "profile_self_updated",
-        title: "DNI verificado",
+        title: "DNI declarado",
         body: "Tu DNI fue registrado correctamente en MiMAR.",
         severity: "success",
         ctaLabel: "Ver mi cuenta",
