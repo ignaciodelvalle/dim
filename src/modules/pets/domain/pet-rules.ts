@@ -44,6 +44,14 @@ type ChipImplantSite =
  */
 export function chipImplantSiteFromLocation(location: string | null): ChipImplantSite {
   switch (location) {
+    // Canonical enum pass-throughs — already normalized, return as-is.
+    case "interescapular":
+      return "interescapular";
+    case "lateral_cuello_izq":
+      return "lateral_cuello_izq";
+    case "lateral_cuello_der":
+      return "lateral_cuello_der";
+    // Legacy form-field aliases → canonical enum.
     case "interscapular_left":
     case "interscapular_right":
     case "interscapular":

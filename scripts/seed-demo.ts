@@ -76,17 +76,21 @@ if (!STATS_ONLY) {
 // ---------------------------------------------------------------------------
 
 import { EVENT_TYPES, type EventType } from "../db/schema";
+import { chipImplantSiteFromLocation } from "../src/modules/pets/domain/pet-rules";
 import { DANGEROUS_STORYLINES } from "./seed-storylines-dangerous";
 import { STORYLINES as ICONIC_STORYLINES } from "./seed-storylines-iconic";
+import { LEGEND_STORYLINES } from "./seed-storylines-legends";
 import { ORIGINAL_10_STORYLINES } from "./seed-storylines-original10";
 import { SUPPORTING_STORYLINES } from "./seed-storylines-supporting";
 
 // Aggregated registry — single source of truth for the loader.
+// Modules: iconic (7), original10 (11), dangerous (2), supporting (14), legends (3).
 export const STORYLINES = [
   ...ICONIC_STORYLINES,
   ...ORIGINAL_10_STORYLINES,
   ...DANGEROUS_STORYLINES,
   ...SUPPORTING_STORYLINES,
+  ...LEGEND_STORYLINES,
 ];
 
 type DbDeps = {
@@ -104,6 +108,7 @@ type DbDeps = {
     organizationCoverage: any;
     govtAssignments: any;
     attachments: any;
+    petServiceDog: any;
     reminders: any;
     notifications: any;
     auditLog: any;
@@ -136,6 +141,7 @@ async function loadDbDeps(): Promise<DbDeps> {
       organizationCoverage: db.organizationCoverage,
       govtAssignments: db.govtAssignments,
       attachments: db.attachments,
+      petServiceDog: db.petServiceDog,
       reminders: db.reminders,
       notifications: db.notifications,
       auditLog: db.auditLog,
@@ -347,6 +353,10 @@ function resolveOwnerForStoryline(pet: any): { user?: UserKey; org?: OrgKey } {
   if (publicToken.startsWith("DIM-TRRY")) return { user: "ignacio" };
   if (publicToken.startsWith("DIM-KABO")) return { user: "noeli" };
   if (publicToken.startsWith("DIM-HNKO")) return { user: "noeli" };
+  // Legends batch (2026-06)
+  if (publicToken.startsWith("DIM-BOBB")) return { user: "graciela" };
+  if (publicToken.startsWith("DIM-FRID")) return { org: "mascotas-ba-centro" };
+  if (publicToken.startsWith("DIM-OWNY")) return { org: "rescate-puerto-madero" };
   return { user: "ignacio" };
 }
 
@@ -885,23 +895,202 @@ async function loadStoryline(
   }
 
   // Canonical microchip row — legacy pets.* columns not written (ARCH-R).
-  const chipCode = (story.pet as any).microchip_id as string | null | undefined;
+  //
+  // Cache contract: the canonical row's recordedAt / recordedByLabel /
+  // implantationSite must agree with what the re-derivation projection
+  // (replayPetMicrochip) would compute from the microchip_implanted event.
+  // The projection uses implant_date_known to decide whether to surface a
+  // real date (true) or null (false/absent), and implanted_by for the label.
+  // We derive from the microchip_implanted event in the story so the two
+  // sources stay in sync instead of copying the (potentially different) bio
+  // static fields.
+  // Prefer bio.microchip_id; fall back to the chip_number in the microchip_implanted
+  // event so storylines that omit the static field still get a canonical row.
+  const chipEvent = (story.events as any[]).find((e) => e.event_type === "microchip_implanted");
+  const chipCodeFromBio = (story.pet as any).microchip_id as string | null | undefined;
+  const chipCodeFromEvent =
+    typeof chipEvent?.payload?.chip_number === "string"
+      ? (chipEvent.payload.chip_number as string)
+      : null;
+  const chipCode = chipCodeFromBio ?? chipCodeFromEvent;
   if (chipCode) {
-    const implantedAt =
-      (story.pet as any).microchip_implanted_at ?? new Date().toISOString().slice(0, 10);
-    const implantedBy = (story.pet as any).microchip_implanted_by ?? null;
+    // Find the microchip_implanted event whose chip_number matches chipCode.
+    const chipEventMatched = (story.events as any[]).find(
+      (e) =>
+        e.event_type === "microchip_implanted" &&
+        (e.payload?.chip_number === chipCode || e.payload?.chip_number == null),
+    );
+    const chipPayload = (chipEventMatched?.payload ?? {}) as Record<string, unknown>;
+
+    // recordedAt: only set when implant_date_known is explicitly true (mirrors
+    // replayPetMicrochip which returns null when the flag is absent/false).
+    const implantDateKnown = chipPayload.implant_date_known === true;
+    const implantedAt = implantDateKnown
+      ? ((chipEventMatched?.date as string | undefined) ??
+        ((story.pet as any).microchip_implanted_at as string | undefined) ??
+        null)
+      : null;
+
+    // recordedByLabel: from event payload.implanted_by (mirrors projection).
+    const implantedBy =
+      typeof chipPayload.implanted_by === "string" && chipPayload.implanted_by.length > 0
+        ? chipPayload.implanted_by
+        : null;
+
+    // implantationSite: normalize event payload.location_on_body through the
+    // same chipImplantSiteFromLocation() the canonical writers use.
+    const locationOnBody =
+      typeof chipPayload.location_on_body === "string" ? chipPayload.location_on_body : null;
+    // Map the form-field alias to the canonical DB enum (delegates to shared domain rule).
+    const implantationSite = chipImplantSiteFromLocation(locationOnBody);
+
     await db.insert(schemas.petIdentifications).values({
       petId: pet.id,
       kind: "microchip_iso",
       code: chipCode,
-      recordedAt: implantedAt,
+      recordedAt: implantedAt ?? story.events[0].date,
       recordedByLabel: implantedBy,
+      implantationSite,
       isoCountryCode: chipCode.slice(0, 3),
       isoManufacturerCode: chipCode.slice(3, 7),
       isoNationalId: chipCode.slice(7, 15),
       isoCompliant: true,
     });
   }
+
+  // Canonical tattoo row — written when the storyline carries a tattoo_recorded event.
+  // Uses the FIRST tattoo_recorded event's payload as the canonical identifier.
+  // If a subsequent tattoo_updated event changes the code, the original row is
+  // NOT mutated (append-only events); the canonical row records the initial tattoo.
+  const tattooEvent = (story.events as any[]).find((e) => e.event_type === "tattoo_recorded");
+  if (tattooEvent) {
+    const tp = (tattooEvent.payload ?? {}) as Record<string, unknown>;
+    const tattooCode = typeof tp.tattoo_code === "string" ? tp.tattoo_code : null;
+    const tattooLocation = typeof tp.location_on_body === "string" ? tp.location_on_body : null;
+    const tattooDescription = typeof tp.description === "string" ? tp.description : null;
+    const tattooRecordedBy = typeof tp.recorded_by === "string" ? tp.recorded_by : null;
+    const tattooRecordedAt = typeof tp.recorded_at === "string" ? tp.recorded_at : tattooEvent.date;
+    if (tattooCode) {
+      const [existingTattoo] = await db
+        .select({ id: schemas.petIdentifications.id })
+        .from(schemas.petIdentifications)
+        .where(
+          drizzle.and(
+            drizzle.eq(schemas.petIdentifications.petId, pet.id),
+            drizzle.eq(schemas.petIdentifications.kind, "tattoo"),
+          ),
+        )
+        .limit(1);
+      if (!existingTattoo) {
+        await db.insert(schemas.petIdentifications).values({
+          petId: pet.id,
+          kind: "tattoo",
+          code: tattooCode,
+          recordedAt: tattooRecordedAt,
+          recordedByLabel: tattooRecordedBy,
+          tattooLocation: tattooLocation,
+          tattooDescription: tattooDescription,
+        });
+        log("OK", `  tattoo row → ${publicToken}`);
+      } else {
+        log("SKIP", `  tattoo already exists → ${publicToken}`);
+      }
+    }
+  }
+
+  // pet_service_dog row — written when the storyline pet bio carries a
+  // service_dog field. Idempotent upsert mirrors the existing pattern.
+  const serviceDogSpec = (story.pet as any).service_dog as
+    | {
+        service_type: string;
+        credential_status: string;
+        training_center: string;
+        training_cert_date?: string;
+        in_service?: boolean;
+        notes?: string;
+      }
+    | undefined;
+  if (serviceDogSpec) {
+    const [existingSd] = await db
+      .select({ id: schemas.petServiceDog.id })
+      .from(schemas.petServiceDog)
+      .where(drizzle.eq(schemas.petServiceDog.petId, pet.id))
+      .limit(1);
+    if (!existingSd) {
+      await db.insert(schemas.petServiceDog).values({
+        petId: pet.id,
+        serviceType: serviceDogSpec.service_type,
+        credentialStatus: serviceDogSpec.credential_status,
+        trainingCenter: serviceDogSpec.training_center,
+        trainingCertDate: serviceDogSpec.training_cert_date ?? null,
+        inService: serviceDogSpec.in_service ?? false,
+        notes: serviceDogSpec.notes ?? null,
+      });
+      log("OK", `  service_dog row → ${publicToken}`);
+    } else {
+      log("SKIP", `  service_dog already exists → ${publicToken}`);
+    }
+  }
+
+  // Cache: estimatedWeightKg must equal the last weight_recorded event's kg
+  // value (replayPetWeight picks the chronologically-last event).  The bio
+  // static field is documentation/fallback only; the DB column must mirror the
+  // event spine to pass the fitness sweep.
+  const lastWeightEvent = [...(story.events as any[])]
+    .reverse()
+    .find((e) => e.event_type === "weight_recorded");
+  if (lastWeightEvent) {
+    const kg = lastWeightEvent.payload?.kg;
+    const kgStr =
+      typeof kg === "number" && Number.isFinite(kg)
+        ? String(kg)
+        : typeof kg === "string" && kg.length > 0
+          ? kg
+          : null;
+    if (kgStr !== null) {
+      await db
+        .update(schemas.pets)
+        .set({ estimatedWeightKg: kgStr, updatedAt: new Date() })
+        .where(drizzle.eq(schemas.pets.id, pet.id));
+    }
+  } else {
+    // No weight events — clear any static bio value written at insert time so
+    // the stored column is null (matching the projection's null).
+    await db
+      .update(schemas.pets)
+      .set({ estimatedWeightKg: null, updatedAt: new Date() })
+      .where(drizzle.eq(schemas.pets.id, pet.id));
+  }
+
+  // Cache: rabiesObservationStatus must mirror the re-derivation projection.
+  // Scan events chronologically from the end; last observation event wins.
+  const VALID_RABIES_OUTCOMES = ["negative", "positive_rabies", "dead", "lost_to_followup"];
+  const OUTCOME_TO_STATUS: Record<string, string> = {
+    negative: "completed_negative",
+    positive_rabies: "completed_positive_rabies",
+    dead: "completed_dead",
+    lost_to_followup: "completed_lost_to_followup",
+  };
+  let rabiesStatus: string | null = null;
+  const eventsDesc = [...(story.events as any[])].reverse();
+  for (const e of eventsDesc) {
+    if (e.event_type === "rabies_observation_started") {
+      rabiesStatus = "in_progress";
+      break;
+    }
+    if (e.event_type === "rabies_observation_ended") {
+      const outcome = e.payload?.outcome;
+      if (typeof outcome === "string" && VALID_RABIES_OUTCOMES.includes(outcome)) {
+        rabiesStatus = OUTCOME_TO_STATUS[outcome] ?? null;
+        break;
+      }
+      // Invalid/missing outcome — keep scanning backwards (mirrors projection).
+    }
+  }
+  await db
+    .update(schemas.pets)
+    .set({ rabiesObservationStatus: rabiesStatus, updatedAt: new Date() })
+    .where(drizzle.eq(schemas.pets.id, pet.id));
 
   log("OK", `${publicToken} (${story.pet.display_name}) — ${eventCount} events`);
 }

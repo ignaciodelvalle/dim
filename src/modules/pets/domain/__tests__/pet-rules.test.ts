@@ -48,6 +48,18 @@ describe("custodyKindToRegisteredPayloadKind", () => {
 // ---------------------------------------------------------------------------
 
 describe("chipImplantSiteFromLocation", () => {
+  it("passes through the canonical value interescapular unchanged", () => {
+    expect(chipImplantSiteFromLocation("interescapular")).toBe("interescapular");
+  });
+
+  it("passes through the canonical value lateral_cuello_izq unchanged", () => {
+    expect(chipImplantSiteFromLocation("lateral_cuello_izq")).toBe("lateral_cuello_izq");
+  });
+
+  it("passes through the canonical value lateral_cuello_der unchanged", () => {
+    expect(chipImplantSiteFromLocation("lateral_cuello_der")).toBe("lateral_cuello_der");
+  });
+
   it("maps interscapular_left to interescapular", () => {
     expect(chipImplantSiteFromLocation("interscapular_left")).toBe("interescapular");
   });
