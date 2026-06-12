@@ -11,7 +11,6 @@ import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagin
 import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
-  type Case,
   type CaseClosedReason,
   type CaseEvent,
   type CaseStatus,
@@ -29,6 +28,77 @@ import {
   welfareReports,
 } from "@/db";
 import { type CaseKind, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
+
+// ---------------------------------------------------------------------------
+// Performance projections — perf-only, not security boundaries.
+// List views and detail joins use these to avoid fetching all 27 cols of cases.
+// ---------------------------------------------------------------------------
+
+// Columns consumed by mapListRow + list pages (8 of 27 cols).
+const CASE_LIST_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  caseKind: cases.caseKind,
+  status: cases.status,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  closedAt: cases.closedAt,
+} as const;
+
+// Columns consumed by getCaseDetailByPublicCode (20 of 27 cols).
+const CASE_DETAIL_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  caseKind: cases.caseKind,
+  status: cases.status,
+  closedReason: cases.closedReason,
+  primarySubjectKind: cases.primarySubjectKind,
+  primaryLocationLat: cases.primaryLocationLat,
+  primaryLocationLng: cases.primaryLocationLng,
+  jurisdictionCountry: cases.jurisdictionCountry,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  openedReason: cases.openedReason,
+  closedAt: cases.closedAt,
+  primaryPetId: cases.primaryPetId,
+  welfareReportId: cases.welfareReportId,
+  custodyDisputeId: cases.custodyDisputeId,
+  openedByOrganizationId: cases.openedByOrganizationId,
+  closedByUserId: cases.closedByUserId,
+  openedByUserId: cases.openedByUserId,
+} as const;
+
+// Columns consumed by getOutbreakInvestigationDetail (13 of 27 cols).
+const CASE_OUTBREAK_DETAIL_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  caseKind: cases.caseKind,
+  status: cases.status,
+  closedReason: cases.closedReason,
+  jurisdictionCountry: cases.jurisdictionCountry,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  openedReason: cases.openedReason,
+  closedAt: cases.closedAt,
+  closedByUserId: cases.closedByUserId,
+  openedByUserId: cases.openedByUserId,
+} as const;
+
+// Columns consumed by listOutbreakInvestigationsForGovt (9 of 27 cols).
+const CASE_OUTBREAK_LIST_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  status: cases.status,
+  closedReason: cases.closedReason,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  closedAt: cases.closedAt,
+  openedReason: cases.openedReason,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Case detail
@@ -94,9 +164,16 @@ export interface CaseEventRow {
 export async function getCaseDetailByPublicCode(publicCode: string): Promise<CaseDetail | null> {
   const [row] = await db
     .select({
-      c: cases,
-      pet: pets,
-      petPhotoPath: attachments.storagePath,
+      c: CASE_DETAIL_SELECT,
+      pet: {
+        id: pets.id,
+        publicToken: pets.publicToken,
+        name: pets.name,
+        species: pets.species,
+        sex: pets.sex,
+        primaryPhotoStoragePath: attachments.storagePath,
+        status: pets.status,
+      },
       openedByUser: {
         id: profiles.id,
         displayName: profiles.displayName,
@@ -218,15 +295,15 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
     openedAt: row.c.openedAt,
     openedReason: row.c.openedReason,
     closedAt: row.c.closedAt,
-    pet: row.pet
+    pet: row.pet?.id
       ? {
           id: row.pet.id,
-          publicToken: row.pet.publicToken,
-          name: row.pet.name,
-          species: row.pet.species,
-          sex: row.pet.sex,
-          primaryPhotoStoragePath: row.petPhotoPath ?? null,
-          status: row.pet.status,
+          publicToken: row.pet.publicToken ?? "",
+          name: row.pet.name ?? "",
+          species: row.pet.species ?? "",
+          sex: row.pet.sex ?? "",
+          primaryPhotoStoragePath: row.pet.primaryPhotoStoragePath ?? null,
+          status: row.pet.status ?? "",
         }
       : null,
     welfareReport: welfareReportRow,
@@ -290,8 +367,19 @@ export interface CaseListItem {
   closedAt: Date | null;
 }
 
+type CaseListRow = {
+  id: string;
+  publicCode: string;
+  caseKind: string;
+  status: CaseStatus;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+  openedAt: Date;
+  closedAt: Date | null;
+};
+
 function mapListRow(row: {
-  c: Case;
+  c: CaseListRow;
   petName: string | null;
   petPublicToken: string | null;
 }): CaseListItem {
@@ -371,7 +459,7 @@ export async function listCasesForOrg(
 
   const rows = await db
     .select({
-      c: cases,
+      c: CASE_LIST_SELECT,
       petName: pets.name,
       petPublicToken: pets.publicToken,
     })
@@ -420,7 +508,7 @@ export async function listCasesForGovt(
   const limit = opts?.limit ?? 300;
   const rows = await db
     .select({
-      c: cases,
+      c: CASE_LIST_SELECT,
       petName: pets.name,
       petPublicToken: pets.publicToken,
     })
@@ -441,7 +529,7 @@ export async function listCasesForAdmin(opts?: {
   const limit = opts?.limit ?? 500;
   const rows = await db
     .select({
-      c: cases,
+      c: CASE_LIST_SELECT,
       petName: pets.name,
       petPublicToken: pets.publicToken,
     })
@@ -478,7 +566,7 @@ export async function listOpenCasesForAdminPreview(limit = 5): Promise<OpenCases
   const [items, totalRow] = await Promise.all([
     db
       .select({
-        c: cases,
+        c: CASE_LIST_SELECT,
         petName: pets.name,
         petPublicToken: pets.publicToken,
       })
@@ -519,7 +607,7 @@ export async function listOpenCasesForGovtPreview(
   const [items, total] = await Promise.all([
     db
       .select({
-        c: cases,
+        c: CASE_LIST_SELECT,
         petName: pets.name,
         petPublicToken: pets.publicToken,
       })
@@ -602,7 +690,7 @@ export async function listOutbreakInvestigationsForGovt(
       : undefined;
 
   const rows = await db
-    .select({ c: cases })
+    .select({ c: CASE_OUTBREAK_LIST_SELECT })
     .from(cases)
     .where(
       and(
@@ -635,7 +723,7 @@ export async function getOutbreakInvestigationDetail(
 ): Promise<OutbreakInvestigationDetail | null> {
   const [row] = await db
     .select({
-      c: cases,
+      c: CASE_OUTBREAK_DETAIL_SELECT,
       openedByUser: {
         id: profiles.id,
         displayName: profiles.displayName,

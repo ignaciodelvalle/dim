@@ -10,6 +10,7 @@ import { excludeSelfScansClause } from "@/lib/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
 import { validateShareToken } from "@/lib/libreta-share-token";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { PET_LIBRETA_SHARE_SELECT } from "@/lib/pet-projections";
 import { petPhotoUrl } from "@/lib/storage";
 
 import { ViewLogger } from "./ViewLogger";
@@ -57,7 +58,11 @@ export default async function PublicLibretaPage({
   // Always load the pet so terminal views (revoked / expired / deceased) can
   // show context. If the pet row vanished (cascade or hard delete), fall back
   // to a 404 since the share token is meaningless without it.
-  const [pet] = await db.select().from(pets).where(eq(pets.id, share.petId)).limit(1);
+  const [pet] = await db
+    .select(PET_LIBRETA_SHARE_SELECT)
+    .from(pets)
+    .where(eq(pets.id, share.petId))
+    .limit(1);
   if (!pet) notFound();
 
   let photoUrl: string | null = null;
@@ -94,6 +99,7 @@ export default async function PublicLibretaPage({
   // Libreta events and canonical identifiers in parallel.
   const [events, identifications] = await Promise.all([
     db
+      // full row deliberate: payload is rendered by LibretaSanitariaView per event type
       .select()
       .from(petEvents)
       .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))

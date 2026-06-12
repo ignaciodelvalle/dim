@@ -40,7 +40,30 @@ export default async function CuentaPage() {
   // Profile DB read and admin auth email lookup are independent — run in parallel.
   const adminClient = createAdminClient();
   const [[profile], emailResult] = await Promise.all([
-    db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1),
+    db
+      .select({
+        role: profiles.role,
+        displayName: profiles.displayName,
+        avatarUrl: profiles.avatarUrl,
+        accountType: profiles.accountType,
+        dniNumber: profiles.dniNumber,
+        dniVerified: profiles.dniVerified,
+        matriculaNumber: profiles.matriculaNumber,
+        matriculaJurisdiccion: profiles.matriculaJurisdiccion,
+        matriculaVerified: profiles.matriculaVerified,
+        discloseNameCredential: profiles.discloseNameCredential,
+        disclosePhoneCredential: profiles.disclosePhoneCredential,
+        allowOrgContact: profiles.allowOrgContact,
+        allowLostAlertsInZone: profiles.allowLostAlertsInZone,
+        preferredVetName: profiles.preferredVetName,
+        preferredVetPhone: profiles.preferredVetPhone,
+        emergencyContactName: profiles.emergencyContactName,
+        emergencyContactPhone: profiles.emergencyContactPhone,
+        phone: profiles.phone,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1),
     adminClient.auth.admin.getUserById(user.id).catch(() => ({ data: null })),
   ]);
   const email = emailResult.data?.user?.email ?? "";

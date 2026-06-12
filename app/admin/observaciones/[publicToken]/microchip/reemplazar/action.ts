@@ -28,7 +28,11 @@ export async function replaceMicrochipAdminAction(
 ): Promise<EventFormState> {
   const { user } = await requireAdminOrRedirect();
 
-  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  const [pet] = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(eq(pets.publicToken, publicToken))
+    .limit(1);
   if (!pet) return { error: "Mascota no encontrada." };
 
   // ARCH-S: legacy pets.microchipId column dropped — read from canonical.

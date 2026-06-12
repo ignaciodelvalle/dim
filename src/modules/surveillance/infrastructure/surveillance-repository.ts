@@ -38,8 +38,24 @@ import { insertEventIdempotent } from "@/lib/event-idempotency";
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type DbOrTx = typeof db | Tx;
 
-// Lightweight shape returned by findPetByToken (avoids pulling whole row for auth).
-export type SurveillancePet = typeof pets.$inferSelect;
+// Narrow projection shape for surveillance pet reads.
+// Contains only the columns that surveillance use-cases actually consume:
+//   id + publicToken — event/notification FK and logging
+//   status — deceased guard in bite-report action
+//   species — notification body text (report-bite / report-bite-from-org)
+//   rabiesObservationStatus — in-progress guard, professional-close guard
+//   jurisdictionProvince/Locality — scope check, authority notification fan-out
+//   name — notification body text
+export type SurveillancePet = {
+  id: string;
+  publicToken: string;
+  name: string;
+  species: string;
+  status: string;
+  rabiesObservationStatus: string | null;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+};
 
 // Shape returned by ENO queue finds.
 export type EnoQueueRow = typeof enoProcessingQueue.$inferSelect;
@@ -54,10 +70,23 @@ export class SurveillanceRepository {
   // ===========================================================================
 
   /**
-   * Find a pet by its publicToken. Returns the full pet row when found, null otherwise.
+   * Find a pet by its publicToken. Returns a narrow surveillance projection when found, null otherwise.
    */
   async findPetByToken(publicToken: string): Promise<SurveillancePet | null> {
-    const [row] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+    const [row] = await db
+      .select({
+        id: pets.id,
+        publicToken: pets.publicToken,
+        name: pets.name,
+        species: pets.species,
+        status: pets.status,
+        rabiesObservationStatus: pets.rabiesObservationStatus,
+        jurisdictionProvince: pets.jurisdictionProvince,
+        jurisdictionLocality: pets.jurisdictionLocality,
+      })
+      .from(pets)
+      .where(eq(pets.publicToken, publicToken))
+      .limit(1);
     return row ?? null;
   }
 
@@ -172,7 +201,24 @@ export class SurveillanceRepository {
    * Used by the cron closer to iterate eligible candidates.
    */
   async findPetsInProgress(): Promise<SurveillancePet[]> {
-    return db.select().from(pets).where(eq(pets.rabiesObservationStatus, "in_progress"));
+    return (
+      db
+        .select({
+          id: pets.id,
+          publicToken: pets.publicToken,
+          name: pets.name,
+          species: pets.species,
+          status: pets.status,
+          rabiesObservationStatus: pets.rabiesObservationStatus,
+          jurisdictionProvince: pets.jurisdictionProvince,
+          jurisdictionLocality: pets.jurisdictionLocality,
+        })
+        .from(pets)
+        .where(eq(pets.rabiesObservationStatus, "in_progress"))
+        // Defensive ceiling: the cron drains observations in passes; a pass over
+        // 500 is fine — the next run picks up the rest.
+        .limit(500)
+    );
   }
 
   /**

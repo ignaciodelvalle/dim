@@ -19,6 +19,7 @@ import {
   countPendingTransfers,
   fetchActiveReminders,
 } from "@/lib/owner-dashboard";
+import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/pet-projections";
 import { getProfileCached } from "@/lib/request-cache";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
@@ -51,7 +52,11 @@ export default async function MisMascotasPage({
   const [ownedPets, activeReminders, pendingApplicationsCount, pendingTransfersCount] =
     await Promise.all([
       db
-        .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
+        .select({
+          pet: PET_CARD_SELECT,
+          photo: PET_CARD_PHOTO_SELECT,
+          ownershipRole: ownerships.role,
+        })
         .from(pets)
         .innerJoin(ownerships, eq(ownerships.petId, pets.id))
         .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))

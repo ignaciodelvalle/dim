@@ -11,6 +11,42 @@ import {
   welfareReportAttachments,
   welfareReports,
 } from "@/db";
+
+// Govt detail projection — all PII fields included (govt role is permitted).
+// Performance projection only: drops flaggedAt, flagReasons, moderationResolvedAt,
+// moderationResolvedByUserId, reporterOrganizationId, derivedByUserId — not rendered here.
+const GOB_WELFARE_DETAIL_SELECT = {
+  id: welfareReports.id,
+  referenceCode: welfareReports.referenceCode,
+  kind: welfareReports.kind,
+  severity: welfareReports.severity,
+  status: welfareReports.status,
+  description: welfareReports.description,
+  subjectKind: welfareReports.subjectKind,
+  subjectPetId: welfareReports.subjectPetId,
+  subjectDescription: welfareReports.subjectDescription,
+  locationAddress: welfareReports.locationAddress,
+  jurisdictionProvince: welfareReports.jurisdictionProvince,
+  jurisdictionLocality: welfareReports.jurisdictionLocality,
+  locationLat: welfareReports.locationLat,
+  locationLng: welfareReports.locationLng,
+  occurredAt: welfareReports.occurredAt,
+  createdAt: welfareReports.createdAt,
+  triagedAt: welfareReports.triagedAt,
+  triagedByUserId: welfareReports.triagedByUserId,
+  closedAt: welfareReports.closedAt,
+  resolutionNotes: welfareReports.resolutionNotes,
+  caseId: welfareReports.caseId,
+  assignedToUserId: welfareReports.assignedToUserId,
+  derivedToOrganizationId: welfareReports.derivedToOrganizationId,
+  derivedAt: welfareReports.derivedAt,
+  orgInterventionStatus: welfareReports.orgInterventionStatus,
+  orgInterventionAt: welfareReports.orgInterventionAt,
+  // PII — allowed: govt/admin role, not org-facing
+  reporterUserId: welfareReports.reporterUserId,
+  reporterContactEmail: welfareReports.reporterContactEmail,
+  reporterContactPhone: welfareReports.reporterContactPhone,
+} as const;
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -59,7 +95,11 @@ export default async function GobMaltratoDetailPage({
   const { id } = await params;
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
 
-  const [report] = await db.select().from(welfareReports).where(eq(welfareReports.id, id)).limit(1);
+  const [report] = await db
+    .select(GOB_WELFARE_DETAIL_SELECT)
+    .from(welfareReports)
+    .where(eq(welfareReports.id, id))
+    .limit(1);
   if (!report) notFound();
 
   // Govt scope guard — return notFound rather than a permission error so
