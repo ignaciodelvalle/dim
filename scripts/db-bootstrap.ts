@@ -230,30 +230,42 @@ function findPostgresContainer(): string | null {
 const POSTGRES_CONTAINER = findPostgresContainer();
 
 function psql(file: string, opts: { strict: boolean }): boolean {
-  const onErrorStop = opts.strict ? ["-v", "ON_ERROR_STOP=1"] : [];
   const sql = readFileSync(file, "utf8");
+  if (opts.strict) {
+    // Strict mode: abort the entire file on the first error (used for step 3).
+    const onErrorStop = ["-v", "ON_ERROR_STOP=1"];
+    if (POSTGRES_CONTAINER) {
+      const result = spawnSync(
+        "docker",
+        ["exec", "-i", POSTGRES_CONTAINER, "psql", "-U", pg.user, "-d", pg.db, ...onErrorStop],
+        { input: sql, stdio: ["pipe", "inherit", "inherit"] },
+      );
+      return result.status === 0;
+    }
+    const result = spawnSync(
+      "psql",
+      ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorStop, "-f", file],
+      { stdio: "inherit", env: { ...process.env, PGPASSWORD: pg.password } },
+    );
+    return result.status === 0;
+  }
+  // Best-effort mode (step 2 migration replay): each statement gets an implicit
+  // savepoint so that an "already exists" error rolls back only that statement
+  // and psql continues. Without ON_ERROR_ROLLBACK, a single error inside a
+  // BEGIN/COMMIT block (like 0086_track_rls_in_migrations.sql) aborts the
+  // entire transaction and silently skips every subsequent statement.
+  const onErrorRollback = ["-v", "ON_ERROR_ROLLBACK=on"];
   if (POSTGRES_CONTAINER) {
     const result = spawnSync(
       "docker",
-      [
-        "exec",
-        "-i",
-        POSTGRES_CONTAINER,
-        "psql",
-        "-U",
-        "postgres",
-        "-d",
-        "postgres",
-        ...onErrorStop,
-      ],
+      ["exec", "-i", POSTGRES_CONTAINER, "psql", "-U", pg.user, "-d", pg.db, ...onErrorRollback],
       { input: sql, stdio: ["pipe", "inherit", "inherit"] },
     );
     return result.status === 0;
   }
-  // Fallback: host psql via DATABASE_URL.
   const result = spawnSync(
     "psql",
-    ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorStop, "-f", file],
+    ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorRollback, "-f", file],
     { stdio: "inherit", env: { ...process.env, PGPASSWORD: pg.password } },
   );
   return result.status === 0;

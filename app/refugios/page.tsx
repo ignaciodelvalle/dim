@@ -12,9 +12,10 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { db, organizations } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
 
-// ISR: the verified-org directory changes rarely and has no per-request
-// personalization — revalidate hourly instead of hitting the DB per view.
-export const revalidate = 3600;
+// CI builds run without a database, so ISR prerender is not available.
+// Use force-dynamic (matching every other public page in this repo) so
+// Next.js never attempts a DB query at build time.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Refugios y redes de rescate — MiMAR",

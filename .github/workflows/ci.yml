@@ -229,6 +229,12 @@ jobs:
         #      (drizzle-orm 0.36 vs PG array default normalization)
         #   2. pet_achievement_views.pulse_until — `now() + interval '7 days'`
         #      (drizzle's sql template emits without parens, PG stores with)
+        #   3. organization_coverage unique constraint — drizzle-kit 0.45 introspection
+        #      churn: drops and re-adds as UNIQUE NULLS NOT DISTINCT
+        #   4. org_invitations_active_unique index — drizzle-kit 0.45 introspection
+        #      churn: drops and re-creates expression+partial index
+        #   5. organization_invitations.expires_at default — same class as (1)/(2),
+        #      interval default serialization churn
         run: |
           OUTPUT=$(pnpm db:push 2>&1)
           echo "$OUTPUT"
@@ -237,12 +243,17 @@ jobs:
           fi
           FILTERED=$(echo "$OUTPUT" \
             | grep -vF 'ALTER TABLE "pets" ALTER COLUMN "permanent_conditions" SET DEFAULT' \
-            | grep -vF 'ALTER TABLE "pet_achievement_views" ALTER COLUMN "pulse_until" SET DEFAULT')
+            | grep -vF 'ALTER TABLE "pet_achievement_views" ALTER COLUMN "pulse_until" SET DEFAULT' \
+            | grep -vF 'ALTER TABLE "organization_coverage" DROP CONSTRAINT "org_coverage_org_province_locality_unique"' \
+            | grep -vF 'ALTER TABLE "organization_coverage" ADD CONSTRAINT "org_coverage_org_province_locality_unique" UNIQUE NULLS NOT DISTINCT' \
+            | grep -vF 'DROP INDEX "org_invitations_active_unique"' \
+            | grep -vF 'CREATE UNIQUE INDEX "org_invitations_active_unique"' \
+            | grep -vF 'ALTER TABLE "organization_invitations" ALTER COLUMN "expires_at" SET DEFAULT')
           if echo "$FILTERED" | grep -qE "^(ALTER TABLE|CREATE|DROP|DO )"; then
             echo "::error::Drizzle reports pending changes — schema.ts ↔ migrations drift"
             exit 1
           fi
-          echo "::notice::Only known false-positive drifts detected (permanent_conditions, pulse_until); treating as no-op."
+          echo "::notice::Only known false-positive drifts detected (permanent_conditions, pulse_until, org_coverage constraint, org_invitations index, expires_at default); treating as no-op."
 
   test:
     name: Tests (vitest)
