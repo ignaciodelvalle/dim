@@ -120,23 +120,25 @@ const ACTION_LABELS: Record<string, string> = {
 export default async function GobHistorialPage() {
   const { user } = await requireAdminOrGovtOrRedirect();
 
-  const entries = await db
-    .select({
-      id: auditLog.id,
-      action: auditLog.action,
-      performedAt: auditLog.performedAt,
-      approvalRequestId: auditLog.approvalRequestId,
-    })
-    .from(auditLog)
-    .where(eq(auditLog.actorUserId, user.id))
-    .orderBy(desc(auditLog.performedAt))
-    .limit(100);
-
-  const [actor] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  // Entries and actor profile are independent — run in parallel.
+  const [[actor], entries] = await Promise.all([
+    db
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1),
+    db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        performedAt: auditLog.performedAt,
+        approvalRequestId: auditLog.approvalRequestId,
+      })
+      .from(auditLog)
+      .where(eq(auditLog.actorUserId, user.id))
+      .orderBy(desc(auditLog.performedAt))
+      .limit(100),
+  ]);
 
   // Build a lookup from approvalRequestId → publicToken so we can link to the
   // detail page instead of showing raw UUIDs (P2 audit action labels).

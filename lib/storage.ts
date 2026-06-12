@@ -47,3 +47,27 @@ export async function welfareAttachmentSignedUrl(
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
 }
+
+/**
+ * Batch-sign multiple event-attachment paths in a single Storage round-trip.
+ * Returns a Map<storagePath, signedUrl> for each path that signed successfully.
+ * Paths that fail (missing, permission error) are omitted from the map.
+ */
+export async function eventAttachmentSignedUrls(
+  supabase: SupabaseServerClient,
+  storagePaths: string[],
+  expiresIn: number = EVENT_ATTACHMENT_URL_TTL_SECONDS,
+): Promise<Map<string, string>> {
+  if (storagePaths.length === 0) return new Map();
+  const { data, error } = await supabase.storage
+    .from("event-attachments")
+    .createSignedUrls(storagePaths, expiresIn);
+  if (error || !data) return new Map();
+  const result = new Map<string, string>();
+  for (const item of data) {
+    if (item.signedUrl && item.path) {
+      result.set(item.path, item.signedUrl);
+    }
+  }
+  return result;
+}

@@ -102,7 +102,7 @@ import {
 import { requirePetAccess } from "@/lib/pet-access";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
-import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
+import { eventAttachmentSignedUrl, eventAttachmentSignedUrls, petPhotoUrl } from "@/lib/storage";
 import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -588,52 +588,55 @@ export default async function PetDetailPage({
     return "resumen";
   })();
 
-  // Photo: separate small query indexed on primaryPhotoId, only if set.
-  const [photo] = pet.primaryPhotoId
-    ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
-    : [];
-  const photoUrl = petPhotoUrl(photo?.storagePath);
+  // Stage 1: photo + ownership role + service-dog + cases (all independent).
+  // Photo query runs once; both photoUrl and editPhotoUrl are derived from it.
+  // allCases: full row select (Case[] required by AchievementInput), capped at 50.
+  const [[photoRow], [ownerRow], [serviceDogRow], allCases] = await Promise.all([
+    pet.primaryPhotoId
+      ? db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
+      : (Promise.resolve([]) as Promise<(typeof attachments.$inferSelect)[]>),
+    accessPath === "owner"
+      ? db
+          .select({ role: ownerships.role })
+          .from(ownerships)
+          .where(
+            and(
+              eq(ownerships.petId, pet.id),
+              eq(ownerships.ownerUserId, user.id),
+              isNull(ownerships.endedAt),
+            ),
+          )
+          .limit(1)
+      : (Promise.resolve([]) as Promise<{ role: string }[]>),
+    db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1),
+    // Capped at 50, most recent first — the cap needs a deterministic order or
+    // a pet with >50 cases would silently lose an arbitrary subset.
+    db
+      .select()
+      .from(cases)
+      .where(eq(cases.primaryPetId, pet.id))
+      .orderBy(desc(cases.openedAt))
+      .limit(50),
+  ]);
 
-  // Edit photo — same query, reused for the editar-mascota sheet.
-  const [editPhotoRow] = pet.primaryPhotoId
-    ? await db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
-    : [];
-  const editPhotoUrl = petPhotoUrl(editPhotoRow?.storagePath);
+  // Both photoUrl and editPhotoUrl come from the same single row.
+  const photoUrl = petPhotoUrl(photoRow?.storagePath);
+  const editPhotoUrl = photoUrl;
 
+  // isTransit = true for users with an active foster ownership row.
+  // Note: shelter_custody is an org-level role (ownerOrganizationId), not a
+  // user-level role, so it cannot appear here via the ownerUserId path.
   let isTransit = false;
   let ownershipRole: string | null = null;
   if (accessPath === "owner") {
-    const [ownerRow] = await db
-      .select({ role: ownerships.role })
-      .from(ownerships)
-      .where(
-        and(
-          eq(ownerships.petId, pet.id),
-          eq(ownerships.ownerUserId, user.id),
-          isNull(ownerships.endedAt),
-        ),
-      )
-      .limit(1);
-    // isTransit = true for users who have an active foster ownership row
-    // (role='foster'). This is the canonical "viewer is fostering this pet" check.
-    // Note: shelter_custody is an org-level role (ownerOrganizationId), not a
-    // user-level role, so it cannot appear here via the ownerUserId path.
     isTransit = ownerRow?.role === "foster";
     ownershipRole = ownerRow?.role ?? null;
   }
 
-  // "Confirmar devolución" entry: only the legal owner sees it, and only when an
-  // actor (refugio/vecino) has a pending return proposal addressed to this owner.
-  // Reuses the same ARCH-B tri-check the /devolucion page enforces server-side.
+  // Stage 2: queries that depend on ownershipRole or are owner-only.
+  // hasPendingReturnProposal depends on ownershipRole (must be "owner").
+  // viewerContacts and physicalTagInterest are owner-only but independent of each other.
   let hasPendingReturnProposal = false;
-  if (accessPath === "owner" && ownershipRole === "owner") {
-    hasPendingReturnProposal = await fetchPendingReturnProposalForOwner(pet.id, user.id);
-  }
-
-  // Emergency / vet contacts from the viewer's profile — only meaningful for
-  // accessPath==="owner". Org-side access keeps the card empty (the org
-  // viewer is not the pet's owner). J-followup wires these to the columns
-  // added in migration 0042.
   let viewerContacts: {
     preferredVetName: string | null;
     preferredVetPhone: string | null;
@@ -641,8 +644,18 @@ export default async function PetDetailPage({
     emergencyContactPhone: string | null;
     displayName: string;
   } | null = null;
+  let physicalTagInterest: Awaited<ReturnType<typeof getPhysicalTagInterest>> | null = null;
+
   if (accessPath === "owner") {
-    const [profileRow] = await db
+    // "Confirmar devolución": only the legal owner, only when a pending return
+    // proposal exists. Reuses the same ARCH-B tri-check as /devolucion.
+    const returnProposalQuery =
+      ownershipRole === "owner"
+        ? fetchPendingReturnProposalForOwner(pet.id, user.id)
+        : Promise.resolve(false);
+
+    // Emergency / vet contacts from the viewer's profile — J-followup columns (migration 0042).
+    const contactsQuery = db
       .select({
         preferredVetName: profiles.preferredVetName,
         preferredVetPhone: profiles.preferredVetPhone,
@@ -653,19 +666,20 @@ export default async function PetDetailPage({
       .from(profiles)
       .where(eq(profiles.id, user.id))
       .limit(1);
+
+    // §4.20 physical-tag-interest — legal owner path only.
+    const tagInterestQuery = getPhysicalTagInterest(pet.id, user.id);
+
+    const [returnProposalResult, [profileRow], tagInterest] = await Promise.all([
+      returnProposalQuery,
+      contactsQuery,
+      tagInterestQuery,
+    ]);
+
+    hasPendingReturnProposal = returnProposalResult;
     viewerContacts = profileRow ?? null;
+    physicalTagInterest = tagInterest;
   }
-
-  // §4.20 physical-tag-interest state — only meaningful for the legal owner
-  // path. Org-path viewers (foster, shelter custody) don't see the card.
-  const physicalTagInterest =
-    accessPath === "owner" ? await getPhysicalTagInterest(pet.id, user.id) : null;
-
-  // Achievements — service dog row + cases needed for getEarnedAchievements.
-  const [[serviceDogRow], allCases] = await Promise.all([
-    db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1),
-    db.select().from(cases).where(eq(cases.primaryPetId, pet.id)),
-  ]);
 
   // EARLY RETURN for deceased: need full event list + signed attachments for
   // the DeceasedView (EventTimeline component). Only this branch fetches the
@@ -681,14 +695,22 @@ export default async function PetDetailPage({
       deceasedEventIds.length > 0
         ? await db.select().from(attachments).where(inArray(attachments.eventId, deceasedEventIds))
         : [];
+
+    // Batch-sign all attachment paths in a single Storage round-trip instead
+    // of N sequential createSignedUrl calls.
+    const pathsToSign = deceasedAttachmentRows
+      .filter((a) => a.eventId != null)
+      .map((a) => a.storagePath);
+    const deceasedUrlByPath = await eventAttachmentSignedUrls(supabase, pathsToSign);
+
+    // Build event-id → signed-url map (one attachment per event).
     const deceasedUrlMap = new Map<string, string>();
-    await Promise.all(
-      deceasedAttachmentRows.map(async (a) => {
-        if (!a.eventId) return;
-        const url = await eventAttachmentSignedUrl(supabase, a.storagePath);
-        if (url) deceasedUrlMap.set(a.eventId, url);
-      }),
-    );
+    for (const a of deceasedAttachmentRows) {
+      if (!a.eventId) continue;
+      const url = deceasedUrlByPath.get(a.storagePath);
+      if (url) deceasedUrlMap.set(a.eventId, url);
+    }
+
     const deceasedEventsWithAttachments = deceasedEvents.map((e) => ({
       ...e,
       attachmentUrl: deceasedUrlMap.get(e.id) ?? null,
@@ -797,58 +819,10 @@ export default async function PetDetailPage({
     }
   }
 
-  // Achievement views — load pulse_until rows for the current owner session.
-  // Only meaningful for the owner path; org-path viewers don't see pulse UX.
-  let viewsMap: Map<string, Date | null> | undefined;
-  if (accessPath === "owner") {
-    const viewRows = await db
-      .select({
-        achievementId: petAchievementViews.achievementId,
-        pulseUntil: petAchievementViews.pulseUntil,
-      })
-      .from(petAchievementViews)
-      .where(and(eq(petAchievementViews.userId, user.id), eq(petAchievementViews.petId, pet.id)));
-    viewsMap = new Map(viewRows.map((r) => [r.achievementId, r.pulseUntil]));
-  }
-
-  // Achievements — typedEvents ordered ASC from the helper.
-  // Pass viewsMap so pulse_until is populated (or defaulted to +7d for new achievements).
-  const earnedAchievements = getEarnedAchievements(
-    {
-      pet,
-      events: typedEvents,
-      serviceDog: serviceDogRow ?? null,
-      cases: allCases,
-    },
-    viewsMap,
-  );
-
-  // Fire markAchievementSeenAction for each newly-earned achievement that has
-  // no view row yet (viewsMap missing the key). Swallow errors — this is a
-  // best-effort UX pulse, not load-bearing.
-  if (accessPath === "owner" && viewsMap !== undefined) {
-    const unseenIds = earnedAchievements.map((a) => a.id).filter((id) => !viewsMap?.has(id));
-    // Fire-and-forget in background — page render must not block on this.
-    void Promise.all(
-      unseenIds.map((id) =>
-        markAchievementSeenAction(pet.publicToken, id).catch((err) =>
-          console.warn("[markAchievementSeenAction]", err),
-        ),
-      ),
-    );
-  }
-
-  // Credential chips — rendered leftmost in AchievementsSection.
-  const credentialChips: CredentialChip[] = [];
-  if (pet.potentiallyDangerousBreed) {
-    credentialChips.push({ kind: "ppp", label: "PPP", icon: "⚠️" });
-  }
-  if (serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService) {
-    credentialChips.push({ kind: "service_dog", label: "Perro de servicio", icon: "🦮" });
-  }
-
-  // Parallel data fetching — all remaining queries.
+  // Parallel data fetching: achievement views + all remaining queries run together.
+  // viewsMap is independent of typedEvents result — it only needs pet.id + user.id.
   const [
+    achievementViewRows,
     petActiveReminders,
     pendingMedicationReminders,
     upcomingAppointments,
@@ -856,6 +830,18 @@ export default async function PetDetailPage({
     historialCount,
     canonicalIds,
   ] = await Promise.all([
+    // Achievement views — pulse_until rows for the owner; empty for org-path viewers.
+    accessPath === "owner"
+      ? db
+          .select({
+            achievementId: petAchievementViews.achievementId,
+            pulseUntil: petAchievementViews.pulseUntil,
+          })
+          .from(petAchievementViews)
+          .where(
+            and(eq(petAchievementViews.userId, user.id), eq(petAchievementViews.petId, pet.id)),
+          )
+      : Promise.resolve([] as { achievementId: string; pulseUntil: Date | null }[]),
     // Vaccine reminders for owner path only.
     accessPath === "owner"
       ? fetchActiveRemindersForPet(user.id, pet.id)
@@ -904,6 +890,48 @@ export default async function PetDetailPage({
     // Canonical chip/tattoo identifiers (ARCH-Q).
     fetchActiveIdentifications(pet.id),
   ]);
+
+  // Build viewsMap from the co-fetched achievement view rows.
+  const viewsMap: Map<string, Date | null> | undefined =
+    accessPath === "owner"
+      ? new Map(achievementViewRows.map((r) => [r.achievementId, r.pulseUntil]))
+      : undefined;
+
+  // Achievements — typedEvents ordered ASC from the helper.
+  // Pass viewsMap so pulse_until is populated (or defaulted to +7d for new achievements).
+  const earnedAchievements = getEarnedAchievements(
+    {
+      pet,
+      events: typedEvents,
+      serviceDog: serviceDogRow ?? null,
+      cases: allCases,
+    },
+    viewsMap,
+  );
+
+  // Fire markAchievementSeenAction for each newly-earned achievement that has
+  // no view row yet (viewsMap missing the key). Swallow errors — this is a
+  // best-effort UX pulse, not load-bearing.
+  if (accessPath === "owner" && viewsMap !== undefined) {
+    const unseenIds = earnedAchievements.map((a) => a.id).filter((id) => !viewsMap?.has(id));
+    // Fire-and-forget in background — page render must not block on this.
+    void Promise.all(
+      unseenIds.map((id) =>
+        markAchievementSeenAction(pet.publicToken, id).catch((err) =>
+          console.warn("[markAchievementSeenAction]", err),
+        ),
+      ),
+    );
+  }
+
+  // Credential chips — rendered leftmost in AchievementsSection.
+  const credentialChips: CredentialChip[] = [];
+  if (pet.potentiallyDangerousBreed) {
+    credentialChips.push({ kind: "ppp", label: "PPP", icon: "⚠️" });
+  }
+  if (serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService) {
+    credentialChips.push({ kind: "service_dog", label: "Perro de servicio", icon: "🦮" });
+  }
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 

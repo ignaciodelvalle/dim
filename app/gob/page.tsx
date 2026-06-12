@@ -97,22 +97,6 @@ export default async function GobiernoDashboardPage({
           return p ? [{ value: p.slug as string, label: p.name as string }] : [];
         });
 
-  // --- Live queries (preserved from old /gob/page.tsx) -------------------
-
-  const pending = await fetchVisiblePendingRequests(profile, jurisdictions);
-
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const recentDecisions = await db
-    .select({
-      id: auditLog.id,
-      action: auditLog.action,
-      performedAt: auditLog.performedAt,
-    })
-    .from(auditLog)
-    .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
-    .orderBy(desc(auditLog.performedAt))
-    .limit(10);
-
   // --- Scope label --------------------------------------------------------
 
   const scopeLabel =
@@ -124,17 +108,39 @@ export default async function GobiernoDashboardPage({
           ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
           : `${jurisdictions.length} localidades`;
 
-  // --- KPI live queries (L-followup) -------------------------------------
+  // --- All live queries in one Promise.all (7-way) -----------------------
+  // pending, recentDecisions, and the 5 KPI queries are all independent —
+  // merge them to eliminate two sequential waterfall steps.
 
   const actor = { role: profile.role } as const;
-  const [rabiesCoverage, sterilizations, bitesPer10k, activeZoonosis, openWelfareReports] =
-    await Promise.all([
-      fetchRabiesCoverage(actor, filteredJurisdictions),
-      fetchSterilizationMetrics(actor, filteredJurisdictions),
-      fetchBitesPer10k(actor, filteredJurisdictions),
-      fetchActiveZoonosis(actor, filteredJurisdictions),
-      fetchOpenWelfareReportsCount(actor, filteredJurisdictions),
-    ]);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [
+    pending,
+    recentDecisions,
+    rabiesCoverage,
+    sterilizations,
+    bitesPer10k,
+    activeZoonosis,
+    openWelfareReports,
+  ] = await Promise.all([
+    fetchVisiblePendingRequests(profile, jurisdictions),
+    db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        performedAt: auditLog.performedAt,
+      })
+      .from(auditLog)
+      .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
+      .orderBy(desc(auditLog.performedAt))
+      .limit(10),
+    fetchRabiesCoverage(actor, filteredJurisdictions),
+    fetchSterilizationMetrics(actor, filteredJurisdictions),
+    fetchBitesPer10k(actor, filteredJurisdictions),
+    fetchActiveZoonosis(actor, filteredJurisdictions),
+    fetchOpenWelfareReportsCount(actor, filteredJurisdictions),
+  ]);
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------
   // Status filter + LIMIT 5 are pushed into SQL: admin sees universal scope,
