@@ -1164,7 +1164,7 @@ const pal: Storyline = {
       date: "1941-02-24",
       event_type: "rabies_observation_ended",
       location: CABA("San Telmo"),
-      payload: { outcome: "sin_signos" },
+      payload: { outcome: "negative" },
       uncommon: true,
     },
     {
@@ -2423,7 +2423,11 @@ const hanako: Storyline = {
       date: "2024-08-16",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "941300400500101", country_code: "941" },
+      payload: {
+        chip_number: "941300400500101",
+        country_code: "941",
+        implant_date_known: true,
+      },
     },
     {
       date: "2024-08-20",

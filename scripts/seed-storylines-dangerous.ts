@@ -79,7 +79,13 @@ const cujo: Storyline = {
       date: "2018-07-15",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858700200300400", country_code: "858" },
+      payload: {
+        chip_number: "858700200300400",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2018-08-20",
@@ -291,7 +297,7 @@ const cujo: Storyline = {
       event_type: "rabies_observation_ended",
       author_role: "vet",
       payload: {
-        outcome: "completed_positive_rabies",
+        outcome: "positive_rabies",
         lab_result: "RIFI positivo confirmado",
         closed_by_vet: true,
       },
@@ -408,7 +414,13 @@ const roco: Storyline = {
       date: "2023-01-20",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858800400500600", country_code: "858" },
+      payload: {
+        chip_number: "858800400500600",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2023-01-22",
@@ -560,7 +572,7 @@ const roco: Storyline = {
       event_type: "rabies_observation_ended",
       author_role: "vet",
       payload: {
-        outcome: "completed_negative",
+        outcome: "negative",
         closed_by_vet: true,
         notes: "10 días sin signos. Cierre administrativo.",
       },

@@ -89,6 +89,7 @@ const scooby: Storyline = {
         country_code: "858",
         implanted_by: "Clínica Veterinaria Recoleta",
         location_on_body: "interscapular_left",
+        implant_date_known: true,
       },
     },
     {
@@ -372,7 +373,13 @@ const slh: Storyline = {
       date: "2018-02-08",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858088100200300", country_code: "858" },
+      payload: {
+        chip_number: "858088100200300",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2018-04-22",
@@ -599,6 +606,8 @@ const snoopy: Storyline = {
         chip_number: "858200100555100",
         country_code: "858",
         implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
         note: "implantado tras tercer extravío",
       },
       uncommon: true,
@@ -742,7 +751,13 @@ const tom: Storyline = {
       date: "2009-12-04",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858500700700700", country_code: "858" },
+      payload: {
+        chip_number: "858500700700700",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2010-03-22",
@@ -914,7 +929,13 @@ const blue: Storyline = {
       date: "2014-11-20",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858600101202303", country_code: "858" },
+      payload: {
+        chip_number: "858600101202303",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2014-12-01",
@@ -1077,7 +1098,13 @@ const bolt: Storyline = {
       date: "2015-11-16",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858400555666777", country_code: "858" },
+      payload: {
+        chip_number: "858400555666777",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2015-12-04",
@@ -1462,7 +1489,13 @@ const vinny: Storyline = {
       date: "2023-12-20",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858200200200200", country_code: "858" },
+      payload: {
+        chip_number: "858200200200200",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2024-01-10",
@@ -1678,6 +1711,9 @@ const puss: Storyline = {
       payload: {
         chip_number: "858220300400500",
         country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
         note: "implantado finalmente tras 14 años — 9na vida",
       },
       uncommon: true,

@@ -501,4 +501,186 @@ Counts across the 5 iconic + 2 replacement storylines:
 9. **Behavioral-history-driven ownership transfer using adoption_revoked outside an org context** — Pal 1942-03-15. Edge case for `adoption_revoked` validation.
 10. **Single bite incident triggering the full rabies pair** — Pal 1941-02. Useful baseline for the rabies-observation cron.
 
+---
+
+---
+
+## Legends Batch (seed-storylines-legends.ts)
+
+Three historically iconic dogs relocated to Argentina, purpose-built to cover the 5 event types
+missing from the iconic + original-10 + dangerous + supporting batches.
+
+> Tokens: `DIM-BOBB-0022`, `DIM-FRID-0023`, `DIM-OWNY-0024`.  
+> Collision note: 0020 = Cujo, 0021 = Roco (dangerous batch). Legends start at 0022.
+
+---
+
+### 8. Bobbie el Maravilla  ·  `dog`  ·  Scotch Collie  ·  Male
+
+- **Public token:** `DIM-BOBB-0022`
+- **DOB:** 1921-09-01 (estimated)
+- **Color:** Sable y blanco
+- **Owner:** Graciela Saavedra (`graciela`)
+- **Jurisdiction:** AR / Buenos Aires / Mar del Plata
+- **Status:** `deceased` (1927-03-18)
+- **Microchip:** None (1921 — predates technology)
+- **Tattoo:** `MDP-1923-BOB` (inner_ear_left, re-tattooed via `tattoo_updated`)
+- **Weight:** 8.0 kg estimated
+- **Notable:** Canon adaptation of the real Bobbie the Wonder Dog (1923). Lost in Salta during a vacation trip; walked ~4,000 km back to Mar del Plata alone in ~6 months.
+
+| # | Date | Event | Location | Details |
+|---|------|-------|----------|---------|
+| 1 | 1921-09-15 | `pet_registered` | Mar del Plata, BA | Scotch collie cachorro, `acquisition_method='purchased'`. |
+| 2 | 1921-10-01 | `vet_visit_logged` | Mar del Plata | Examen de ingreso. |
+| 3 | 1921-10-15 | `vaccination_administered` | Mar del Plata | Antirrábica. |
+| 4 | 1922-03-10 | `weight_recorded` | Mar del Plata | 11.0 kg. |
+| 5 | 1922-06-15 | `vaccination_administered` | Mar del Plata | Moquillo + parvovirus. |
+| 6 | 1922-09-01 | `note_added` ⚑ | Mar del Plata | Siempre vuelve a casa solo desde la costa. |
+| 7 | 1923-01-22 | `weight_recorded` | Mar del Plata | 14.0 kg. |
+| 8 | 1923-04-08 | `vaccination_administered` | Mar del Plata | Antirrábica. |
+| 9 | 1923-07-15 | `vet_visit_logged` | Mar del Plata | Control anual. Sano, excelente condición física. |
+| 10 | 1923-07-20 | `tattoo_recorded` ⚑ | Mar del Plata | Código `MDP-1923-BOB`, `inner_ear_left`, `tattoo_date_known=true`. Pre-viaje. Canonical row → `pet_identifications`. |
+| 11 | 1923-08-15 | `status_changed` ⚑ | Salta Capital | `to_status='lost'`. Perdido en viaje vacacional. |
+| 12 | 1923-08-22 | `note_added` ⚑ | Tucumán Capital | Avistamiento — llevado al refugio municipal. |
+| 13 | 1923-08-25 | `custody_transfer_proposed` ⚑ | Tucumán Capital | Refugio propone devolución a familia Nores. `proposed_at` ISO datetime. |
+| 14 | 1923-09-02 | `custody_transfer_cancelled` ⚑ | Tucumán Capital | Refugio cancela: Bobbie escapó antes de ingresar. `cancelled_by='auto_cancel'`. |
+| 15–20 | 1923-09-10 → 1924-01-10 | `note_added` ×6 ⚑ | Santiago del Estero → Córdoba → Santa Fe → BA (Tandil) | Avistamientos a lo largo de la ruta. `author_role='system'`. |
+| 21 | 1924-02-04 | `status_changed` | Mar del Plata | `to_status='active'`. Regresó solo. |
+| 22 | 1924-02-04 | `ownership_claimed` ⚑ | Mar del Plata | Familia reclamó por tatuaje. `identifier_kind='tattoo'`. |
+| 23 | 1924-02-05 | `note_added` ⚑ | Mar del Plata | Noticia en El Atlántico. "El perro que caminó solo desde Salta." |
+| 24 | 1924-02-10 | `vet_visit_logged` ⚑ | Mar del Plata | Examen post-regreso. Desnutrición moderada, callosidades. |
+| 25 | 1924-02-12 | `weight_recorded` | Mar del Plata | 11.5 kg. |
+| 26 | 1924-02-15 | `medication_started` | Mar del Plata | Suplemento vitamínico + proteico 30 días. |
+| 27 | 1924-03-20 | `medication_stopped` | Mar del Plata | Recuperación completa. |
+| 28 | 1924-04-22 | `vaccination_administered` | Mar del Plata | Antirrábica (dosis de reingreso). |
+| 29 | 1924-06-01 | `weight_recorded` | Mar del Plata | 13.8 kg. |
+| 30 | 1924-09-15 | `vaccination_administered` | Mar del Plata | Anual. |
+| 31 | 1924-11-03 | `note_added` ⚑ | Mar del Plata | Placa municipal "El Perro Viajero". Ceremonia plaza San Martín. |
+| 32 | 1925-04-15 | `vaccination_administered` | Mar del Plata | Anual. |
+| 33 | 1925-08-08 | `vet_visit_logged` | Mar del Plata | Wellness. |
+| 34 | 1925-11-10 | `tattoo_updated` ⚑ | Mar del Plata | Re-tatuaje por fading solar; código idéntico, trazo más profundo. |
+| 35 | 1926-04-22 | `vaccination_administered` | Mar del Plata | Anual. |
+| 36 | 1926-08-15 | `weight_recorded` | Mar del Plata | 13.2 kg. |
+| 37 | 1926-11-20 | `symptom_observed` ⚑ | Mar del Plata | Cojera posterior izquierda. Artritis senil incipiente. |
+| 38 | 1926-12-01 | `medication_started` | Mar del Plata | Aspirina paliativa, 60 días. |
+| 39 | 1927-03-18 | `death_recorded` ⚑ | Mar del Plata | `cause='natural'`. Vejez + artritis + fallo orgánico. No reportable. |
+| 40 | 1927-03-19 | `note_added` ⚑ | Mar del Plata | Despedida de la familia. "Caminaste más que ninguno." |
+
+**Workflow stressors:**
+- `custody_transfer_proposed` → `custody_transfer_cancelled` (first in dataset to exercise the cancel path).
+- `ownership_claimed` with `identifier_kind='tattoo'` — temporally coherent: tattoo recorded pre-viaje (1923-07-20), claimed by tattoo on return (1924-02-04).
+- 6 `note_added` avistamiento records with `author_role='system'` spanning 5 provinces.
+- `tattoo_recorded` (pre-trip) + `tattoo_updated` (sun-fading) pair (canonical `pet_identifications` row written by seed, fitness sweep validates).
+
+---
+
+### 9. Frida la Rescatista  ·  `dog`  ·  Labrador Retriever  ·  Female
+
+- **Public token:** `DIM-FRID-0023`
+- **DOB:** 2009-04-15
+- **Color:** Castaña (chocolate)
+- **Owner:** org `mascotas-ba-centro` (Mascotas BA Centro — sanitary authority)
+- **Jurisdiction:** AR / CABA / Retiro
+- **Status:** `deceased` (2022-11-15)
+- **Microchip:** `985170007654321` (implanted 2009-06-10, `interescapular`). Canonical row derived from `microchip_implanted` event (bio field is null — tests event-fallback path in seed loader).
+- **Service dog:** `pet_service_dog` row — USAR / Defensa Civil CABA, `credential_status='vencida'` (expired at retirement 2019).
+- **Weight:** 32.0 kg
+- **Notable:** USAR dog with 52 certified rescues 2012–2018. Deployed Catamarca 2017 earthquake. Leishmaniasis 2017, treated, survived. Retired 2019, died 2022.
+
+| # | Date | Event | Location | Details |
+|---|------|-------|----------|---------|
+| 1 | 2009-06-01 | `pet_registered` | Retiro, CABA | `acquisition_method='bred'`. |
+| 2 | 2009-06-10 | `microchip_implanted` | Retiro, CABA | Chip `985170007654321`, interscapular. `implant_date_known=true`. |
+| 3 | 2009-06-15 | `vet_visit_logged` | Retiro | Examen de ingreso. |
+| 4 | 2009-06-20 | `vaccination_administered` | Retiro | Antirrábica. |
+| 5 | 2009-07-05 | `deworming_administered` | Retiro | Estándar. |
+| 6 | 2009-09-01 | `weight_recorded` | Retiro | 12.5 kg (cachorra). |
+| 7–20 | 2010–2016 | Rutina (vacunas, peso, vet, notas de entrenamiento) | Retiro, CABA | Formación USAR + despliegues CABA. |
+| 21 | 2017-01-17 | `status_changed` | Catamarca Capital | `to_status='lost'` durante sismo. Despegue urgente. |
+| 22 | 2017-01-17 | `note_added` | Catamarca | Sismo 5.8. Frida desplegada en búsqueda de víctimas. |
+| 23 | 2017-01-20 | `symptom_observed` | Catamarca | Fiebre, lesiones cutáneas. `welfare_report_id=null` (source='libreta'). |
+| 24 | 2017-01-22 | `clinical_info_logged` | Catamarca | Sub_kind='lab_work'. PCR leishmania positivo. |
+| 25 | 2017-01-25 | `disease_reported` ⚑ | Catamarca | `disease='other'`, `confirmed_by_lab=true`, `date_of_onset='2017-03-01'`. Clinical notes: leishmaniasis visceral. |
+| 26 | 2017-01-26 | `medication_started` | Catamarca | Glucantime. `frequency='once_daily'`. |
+| 27 | 2017-01-30 | `status_changed` | Catamarca | `to_status='active'` (regresó al equipo). |
+| 28–35 | 2017-02 → 2019-05 | Medicación, seguimiento, vacunas, peso | Retiro, CABA | Tratamiento y recuperación leishmania. |
+| 36 | 2019-06-15 | `note_added` ⚑ | Retiro, CABA | Retiro con honores. 52 rescates certificados. |
+| 37–46 | 2019-07 → 2022-10 | Rutina geriátrica (vet, vacunas, peso, síntomas) | Retiro, CABA | Seguimiento post-retiro. Signos de vejez. |
+| 47–53 | 2022-10 → 2022-11-14 | `symptom_observed`, `clinical_info_logged`, medicaciones | Retiro, CABA | Deterioro. Anemia, pérdida de peso severa. |
+| 54 | 2022-11-15 | `death_recorded` ⚑ | Retiro, CABA | `cause='disease'`. Incineración pública con ceremonia. |
+| 55 | 2022-11-16 | `note_added` | Retiro, CABA | "Frida, 52 vidas salvadas. La recordamos." |
+
+**Workflow stressors:**
+- `disease_reported` (first in dataset).
+- `microchip_implanted` event present but `bio.microchip_id=null` → tests seed's event-fallback path for canonical `pet_identifications` row.
+- `pet_service_dog` table row (USAR credential, `vigente → vencida` at retirement).
+- `symptom_observed` with `welfare_report_id=null` and `source='libreta'` (schema constraint test).
+
+---
+
+### 10. Owney el Perro Postal  ·  `dog`  ·  Terrier Mestizo  ·  Male
+
+- **Public token:** `DIM-OWNY-0024`
+- **DOB:** 1888-01-01 (estimated)
+- **Color:** Gris y blanco jaspeado
+- **Owner:** org `rescate-puerto-madero` (Red de Rescate Puerto Madero)
+- **Jurisdiction:** AR / CABA / Retiro
+- **Status:** `deceased` (1897-06-11)
+- **Microchip:** None (1888 — predates technology)
+- **Tattoo:** `CAR-1888-OWN` (inner_ear_left, re-tattooed `CAR-1888-OWN-V2` via `tattoo_updated` after fading)
+- **Weight:** 10.0 kg estimated
+- **Notable:** Canon adaptation of Owney, the unofficial mascot of the U.S. Railway Mail Service. Relocated to Correo Argentino base Retiro. 10+ provinces visited. International trip to Montevideo. 36 events spanning 9 years.
+
+| # | Date | Event | Location | Details |
+|---|------|-------|----------|---------|
+| 1 | 1888-03-01 | `pet_registered` | Retiro, CABA | `acquisition_method='found_stray'`. Cachorro callejero adoptado por el Correo. |
+| 2 | 1888-03-10 | `vet_visit_logged` | Retiro | Examen de ingreso. Sano. |
+| 3 | 1888-04-01 | `vaccination_administered` | Retiro | Antirrábica (nueva política del correo). |
+| 4 | 1888-05-15 | `tattoo_recorded` ⚑ | Retiro, CABA | Código `CAR-1888-OWN`, `inner_ear_left`, `tattoo_date_known=true`. |
+| 5–7 | 1888-06 → 1888-12 | `note_added` ×3 | Rosario, Santa Fe; Córdoba Capital; Mendoza Capital | Primeros viajes a bordo de valijas postales. Avistamientos registrados. |
+| 8 | 1889-03-01 | `weight_recorded` | Retiro, CABA | 9.2 kg. |
+| 9–11 | 1889-04 → 1889-11 | `note_added` ×3 | Tucumán; Salta; Jujuy | Ruta norte. Postal confirma presencia en sacas de correo. |
+| 12 | 1890-02-01 | `tattoo_updated` ⚑ | Retiro, CABA | Código `CAR-1888-OWN-V2`, mismo sitio. Repasado por desvanecimiento. |
+| 13–15 | 1890-06 → 1891-03 | `note_added` ×3 | Bariloche, Río Negro; Neuquén; Mar del Plata, BA | Rutas patagónica y atlántica. |
+| 16–17 | 1891-06 → 1891-09 | `note_added` ×2 | Montevideo, Uruguay (viaje internacional) | Ferry Buenos Aires–Montevideo. Única salida internacional registrada. |
+| 18 | 1892-01-15 | `vaccination_administered` | Retiro, CABA | Antirrábica refuerzo. |
+| 19–21 | 1892-06 → 1893-04 | `note_added` ×3 | Paraná, Entre Ríos; Corrientes; Posadas, Misiones | Ruta litoral noreste. |
+| 22 | 1893-09-01 | `weight_recorded` | Retiro, CABA | 10.3 kg (adulto maduro). |
+| 23–25 | 1894-02 → 1895-08 | `note_added` ×3 | La Rioja; San Juan; San Luis | Rutas del interior. |
+| 26 | 1895-10-15 | `vet_visit_logged` | Retiro, CABA | Signos de vejez. Artritis leve. |
+| 27–28 | 1896-02 → 1896-06 | `note_added` ×2 | Santiago del Estero; Chaco | Últimas rutas largas. Viaje más lento. |
+| 29 | 1896-09-01 | `symptom_observed` | Retiro, CABA | Cojera pronunciada artritis. |
+| 30 | 1896-10-01 | `clinical_info_logged` | Retiro, CABA | Diagnóstico: artritis avanzada. Reposo recomendado. |
+| 31 | 1896-11-01 | `medication_started` | Retiro, CABA | Analgésico. `frequency='once_daily'`. |
+| 32 | 1897-01-15 | `note_added` | Retiro, CABA | "Owney ya no embarca. Se queda en la oficina central." |
+| 33 | 1897-03-01 | `weight_recorded` | Retiro, CABA | 8.9 kg (pérdida por vejez). |
+| 34 | 1897-04-01 | `vet_visit_logged` | Retiro, CABA | Deterioro progresivo. |
+| 35 | 1897-06-01 | `clinical_info_logged` | Retiro, CABA | Fallo orgánico múltiple. Pronóstico reservado. |
+| 36 | 1897-06-11 | `death_recorded` ⚑ | Retiro, CABA | `cause='violent'` (veterinario aplicó eutanasia). |
+
+**Workflow stressors:**
+- 14+ `note_added` records across 14 provinces + 1 international stop. Tests timeline rendering with large geographic spread.
+- `tattoo_recorded` + `tattoo_updated` pair (second in dataset alongside Bobbie).
+- Death via euthanasia (`cause='violent'` — vet-administered — the only such cause in the dataset).
+- Canonical tattoo code (`CAR-1888-OWN`) in `pet_identifications`; fitness sweep validates it against projection.
+
+---
+
+## Known coverage gaps (2026-06)
+
+The following event types exist in `EVENT_TYPES` but are not exercised by any
+storyline in the current dataset. Left as TODOs for the next batch:
+
+1. **`microchip_corrected`** — no storyline records a chip number correction after
+   an initial implant. The `replayPetMicrochip` projection does not yet branch on
+   this type; once it does, a storyline will be needed.
+2. **`custody_dispute_cancelled`** — disputes in the dataset are always resolved,
+   never cancelled before resolution.
+3. **`welfare_report_escalated`** — `welfare_reports` exist but none have an
+   escalation event attached.
+4. **`outbreak_signal_closed`** — Laika's 2022 outbreak signal is seeded but the
+   corresponding close event is absent.
+5. **`physical_tag_issued`** — no pet in the seed has received a physical collar
+   tag via the platform.
+
 — End —

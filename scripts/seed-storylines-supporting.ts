@@ -79,7 +79,13 @@ const firulais: Storyline = {
       date: "2019-10-15",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858001000000001", country_code: "858" },
+      payload: {
+        chip_number: "858001000000001",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2019-11-01",
@@ -225,7 +231,13 @@ const romeo: Storyline = {
       date: "2022-01-15",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858003000000003", country_code: "858" },
+      payload: {
+        chip_number: "858003000000003",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2022-02-01",
@@ -312,7 +324,13 @@ const hercules: Storyline = {
       date: "2014-09-22",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858004000000004", country_code: "858" },
+      payload: {
+        chip_number: "858004000000004",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2014-10-15",
@@ -430,7 +448,13 @@ const luna: Storyline = {
       date: "2023-07-20",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858005000000005", country_code: "858" },
+      payload: {
+        chip_number: "858005000000005",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2023-08-01",
@@ -537,7 +561,13 @@ const pelusa: Storyline = {
       date: "2020-12-01",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858006000000006", country_code: "858" },
+      payload: {
+        chip_number: "858006000000006",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2020-12-15",
@@ -651,7 +681,13 @@ const cielo: Storyline = {
       date: "2020-04-22",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858007000000007", country_code: "858" },
+      payload: {
+        chip_number: "858007000000007",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2020-05-01",
@@ -732,7 +768,13 @@ const toby: Storyline = {
       date: "2024-05-10",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858008000000008", country_code: "858" },
+      payload: {
+        chip_number: "858008000000008",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2024-05-15",
@@ -839,7 +881,13 @@ const lola: Storyline = {
       date: "2024-11-15",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858009000000009", country_code: "858" },
+      payload: {
+        chip_number: "858009000000009",
+        country_code: "858",
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2024-11-20",
@@ -935,7 +983,13 @@ const pampita: Storyline = {
       date: "2019-06-15",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858010000000010", country_code: "858" },
+      payload: {
+        chip_number: "858010000000010",
+        country_code: "858",
+        implanted_by: "Clínica Veterinaria Recoleta",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
+      },
     },
     {
       date: "2019-07-01",
@@ -1017,7 +1071,13 @@ const coco: Storyline = {
       date: "2024-12-05",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858011000000011", country_code: "858" },
+      payload: {
+        chip_number: "858011000000011",
+        country_code: "858",
+        implant_date_known: true,
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+      },
     },
     {
       date: "2024-12-15",
@@ -1149,7 +1209,13 @@ const negro: Storyline = {
       date: "2025-01-10",
       event_type: "microchip_implanted",
       author_role: "vet",
-      payload: { chip_number: "858012000000012", country_code: "858" },
+      payload: {
+        chip_number: "858012000000012",
+        country_code: "858",
+        implant_date_known: true,
+        implanted_by: "Refugio Patitas del Norte",
+        location_on_body: "interscapular_left",
+      },
     },
     {
       date: "2025-01-20",
