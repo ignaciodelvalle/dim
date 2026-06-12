@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { approveRequestAction, rejectRequestAction } from "@/app/actions/admin-decisions";
@@ -7,6 +8,7 @@ import { approveRequestAction, rejectRequestAction } from "@/app/actions/admin-d
 type Mode = "idle" | "approving" | "rejecting";
 
 export function ReviewActions({ publicToken }: { publicToken: string }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("idle");
   const [notes, setNotes] = useState("");
@@ -21,6 +23,7 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
       else {
         setMode("idle");
         setNotes("");
+        router.refresh();
       }
     });
   }
@@ -33,6 +36,7 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
       else {
         setMode("idle");
         setReason("");
+        router.refresh();
       }
     });
   }

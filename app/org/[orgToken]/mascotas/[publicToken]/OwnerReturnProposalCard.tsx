@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -23,6 +24,7 @@ export function OwnerReturnProposalCard({
   proposedAt: string;
   proposalNotes: string | null;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -49,6 +51,7 @@ export function OwnerReturnProposalCard({
       }
       setDoneMode("accept");
       setDone(true);
+      router.refresh();
     });
   }
 
@@ -70,6 +73,7 @@ export function OwnerReturnProposalCard({
       }
       setDoneMode("reject");
       setDone(true);
+      router.refresh();
     });
   }
 

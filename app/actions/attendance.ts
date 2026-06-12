@@ -236,14 +236,16 @@ export async function markAppointmentAttendedAction(
   appointmentToken: string,
   payload: AttendancePayload,
 ): Promise<AttendanceResult> {
-  // Load the appointment to determine provider type.
+  // Load the appointment (with pet public token) to determine provider type.
   const [appt] = await db
     .select({
       id: appointments.id,
       organizationId: appointments.organizationId,
       serviceOfferingId: appointments.serviceOfferingId,
+      petPublicToken: pets.publicToken,
     })
     .from(appointments)
+    .innerJoin(pets, eq(pets.id, appointments.petId))
     .where(eq(appointments.publicToken, appointmentToken))
     .limit(1);
 
@@ -269,6 +271,7 @@ export async function markAppointmentAttendedAction(
   if ("ok" in result) {
     revalidatePath(`/org/${cap.organization.publicToken}/agenda`);
     revalidatePath("/mis-mascotas");
+    revalidatePath(`/mis-mascotas/${appt.petPublicToken}/libreta`);
   }
   return result;
 }
@@ -315,6 +318,7 @@ export async function markAppointmentNoShowAction(
     .where(eq(appointments.id, appt.id));
 
   revalidatePath(`/org/${cap.organization.publicToken}/agenda`);
+  revalidatePath("/mis-turnos");
 
   return { ok: true };
 }
