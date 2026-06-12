@@ -11,7 +11,7 @@
 //   - No auth logic — auth lives at the action / use-case edge.
 //   - Reads return Drizzle row shapes ($inferSelect) — callers expect them.
 
-import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne, sql } from "drizzle-orm";
 
 import {
   auditLog,
@@ -23,6 +23,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
   welfareReportAttachments,
@@ -34,6 +35,7 @@ import type {
   WelfareReport,
   WelfareReportAttachment,
 } from "@/db/schema";
+import { isUniqueViolation } from "@/lib/db-errors";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -103,13 +105,15 @@ export class WelfareRepository {
           .returning({ id: welfareReports.id, referenceCode: welfareReports.referenceCode });
         return { id: row.id, referenceCode: row.referenceCode };
       } catch (err) {
-        const pgCode = (err as { code?: string }).code;
-        if (pgCode === "23505" && attempts < maxAttempts - 1 && codeGenerator) {
+        // drizzle 0.45 wraps pg errors; isUniqueViolation walks the `.cause`
+        // chain to find the real SQLSTATE 23505.
+        const isUnique = isUniqueViolation(err);
+        if (isUnique && attempts < maxAttempts - 1 && codeGenerator) {
           currentValues = { ...currentValues, referenceCode: codeGenerator() };
           attempts++;
           continue;
         }
-        if (pgCode === "23505") {
+        if (isUnique) {
           throw new Error("No se pudo generar un código único para la denuncia. Probá de nuevo.");
         }
         throw err;
@@ -167,6 +171,46 @@ export class WelfareRepository {
     await db
       .update(welfareReports)
       .set({ assignedToUserId: userId })
+      .where(eq(welfareReports.id, reportId));
+  }
+
+  /**
+   * Set the org intervention state on a welfare report (UI-7). Used by
+   * takeDerivedReport. Does NOT touch the welfare status enum or derivation
+   * columns — only org_intervention_status / org_intervention_at.
+   */
+  async setOrgIntervention(
+    reportId: string,
+    patch: { orgInterventionStatus: "tomado" | "devuelto" | null; orgInterventionAt: Date | null },
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(welfareReports)
+      .set({
+        orgInterventionStatus: patch.orgInterventionStatus,
+        orgInterventionAt: patch.orgInterventionAt,
+      })
+      .where(eq(welfareReports.id, reportId));
+  }
+
+  /**
+   * Return a derived welfare report to the gov queue (UI-7). Sets
+   * org_intervention_status='devuelto' + org_intervention_at, and clears
+   * derived_to_organization_id so the gov derivation panel shows it actionable
+   * again. The return reason lives in a case_events note (caller responsibility).
+   */
+  async returnDerivation(
+    reportId: string,
+    patch: { orgInterventionAt: Date },
+    executor: DbOrTx = db,
+  ): Promise<void> {
+    await executor
+      .update(welfareReports)
+      .set({
+        orgInterventionStatus: "devuelto",
+        orgInterventionAt: patch.orgInterventionAt,
+        derivedToOrganizationId: null,
+      })
       .where(eq(welfareReports.id, reportId));
   }
 
@@ -333,6 +377,8 @@ export class WelfareRepository {
 
   /**
    * Return minimal subject pet info (name + microchipId) for MPF export.
+   * microchipId is sourced from the canonical pet_identifications table
+   * (kind='microchip_iso', status='active') via a single LEFT JOIN.
    * Returns null when the report has no subjectPetId or the pet row is not found.
    */
   async findSubjectPet(
@@ -340,8 +386,19 @@ export class WelfareRepository {
   ): Promise<{ name: string; microchipId: string | null } | null> {
     if (!subjectPetId) return null;
     const [row] = await db
-      .select({ name: pets.name, microchipId: pets.microchipId })
+      .select({
+        name: pets.name,
+        microchipId: petIdentifications.code,
+      })
       .from(pets)
+      .leftJoin(
+        petIdentifications,
+        and(
+          eq(petIdentifications.petId, pets.id),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
       .where(eq(pets.id, subjectPetId))
       .limit(1);
     if (!row) return null;

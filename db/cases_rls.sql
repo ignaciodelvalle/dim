@@ -1,5 +1,10 @@
 -- Cases RLS — Fase F (expanded). Production rules per kind.
 --
+-- NOTE (V0-4): This file is now REFERENCE ONLY. The source of truth for
+-- applying RLS is db/migrations/0094_cases_rls.sql (applied by db:migrate
+-- and replayed by db:bootstrap step 2). This file is no longer applied by
+-- db-bootstrap.ts. Keep edits here in sync with migration 0094.
+--
 -- `can_read_case(case_id, user_id)` is the single hook every related
 -- policy composes with (pet_events SELECT, attachments SELECT). The
 -- function returns true for admin, govt-in-scope, subject-pet-owner
@@ -9,9 +14,7 @@
 -- Drizzle (server-side) bypasses RLS via the service role. These
 -- policies guard PostgREST and any future RLS-aware reader.
 --
--- Idempotent — safe to re-run. The applied migration is
--- `db/migrations/0034_cases_rls_expanded.sql`; this file mirrors the
--- final state for fresh DB bootstraps.
+-- Idempotent — safe to re-run.
 
 -- ===========================================================================
 -- Enable RLS on cases

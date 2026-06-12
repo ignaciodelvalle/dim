@@ -11,7 +11,7 @@
 //   5. LAST-ADMIN check FIRST.
 //   6. Self-check.
 //   7. Rank rule on target's CURRENT role.
-//   8. setRole.
+//   8. setRole + audit_log (same tx).
 
 import { lastAdminBlocks } from "@/src/modules/organizations/domain/membership-state";
 import { INVITABLE_ROLES, ROLE_RANK } from "@/src/modules/organizations/domain/role-rules";
@@ -39,7 +39,10 @@ export type ChangeOrganizationMemberRoleInput = {
   };
 };
 
-type RepoDeps = Pick<OrgRepository, "findActiveMembership" | "lockActiveAdmins" | "setRole">;
+type RepoDeps = Pick<
+  OrgRepository,
+  "findActiveMembership" | "lockActiveAdmins" | "setRole" | "insertAuditLog"
+>;
 
 type Deps = {
   repo: RepoDeps;
@@ -104,10 +107,25 @@ export async function changeOrganizationMemberRole(
           throw new Error("RANK");
         }
 
-        // 8. Update role.
+        // 8. Update role + audit (same tx).
         await repo.setRole(
           input.membershipId,
           input.newRole as Parameters<typeof repo.setRole>[1],
+          e,
+        );
+        await repo.insertAuditLog(
+          {
+            actorUserId: input.actor.userId,
+            action: "org_member_role_changed",
+            targetUserId: target.userId,
+            targetOrganizationId: input.organizationId,
+            payload: {
+              org_id: input.organizationId,
+              member_user_id: target.userId,
+              role_before: target.role,
+              role_after: input.newRole,
+            },
+          },
           e,
         );
       });
@@ -128,8 +146,30 @@ export async function changeOrganizationMemberRole(
       return { ok: false, error: "No podés gestionar a alguien con un rol mayor al tuyo." };
     }
 
-    // 8. Update role (no tx — uses default db executor).
-    await repo.setRole(input.membershipId, input.newRole as Parameters<typeof repo.setRole>[1]);
+    // 8. Update role + audit in one tx.
+    await transaction(async (tx) => {
+      const e = tx as Exec;
+      await repo.setRole(
+        input.membershipId,
+        input.newRole as Parameters<typeof repo.setRole>[1],
+        e,
+      );
+      await repo.insertAuditLog(
+        {
+          actorUserId: input.actor.userId,
+          action: "org_member_role_changed",
+          targetUserId: target.userId,
+          targetOrganizationId: input.organizationId,
+          payload: {
+            org_id: input.organizationId,
+            member_user_id: target.userId,
+            role_before: target.role,
+            role_after: input.newRole,
+          },
+        },
+        e,
+      );
+    });
   }
 
   return { ok: true, value: undefined, notifications: [] };

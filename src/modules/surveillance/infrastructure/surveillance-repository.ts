@@ -277,10 +277,30 @@ export class SurveillanceRepository {
   /**
    * Insert notification rows. Uses the top-level db (not a tx) because
    * notifications are best-effort post-tx.
+   *
+   * Idempotency (P1-4): inserts with ON CONFLICT DO NOTHING on the event
+   * natural key (user_id, related_event_id, notification_type) so re-processing
+   * the same ENO queue row — or two overlapping cron runs — never duplicates a
+   * legal govt/owner notification. The conflict target is the partial unique
+   * index notifications_event_natural_key_unique (migration 0088), which only
+   * covers rows where related_event_id IS NOT NULL; free-standing notifications
+   * (related_event_id IS NULL) are unaffected and still insert normally.
    */
   async insertNotifications(rows: (typeof notifications.$inferInsert)[]): Promise<void> {
     if (rows.length === 0) return;
-    await db.insert(notifications).values(rows);
+    await db
+      .insert(notifications)
+      .values(rows)
+      .onConflictDoNothing({
+        target: [
+          notifications.userId,
+          notifications.relatedEventId,
+          notifications.notificationType,
+        ],
+        // Conflict-target predicate must match the partial unique index
+        // notifications_event_natural_key_unique (WHERE related_event_id IS NOT NULL).
+        where: sql`${notifications.relatedEventId} IS NOT NULL`,
+      });
   }
 
   // ===========================================================================
@@ -330,11 +350,19 @@ export class SurveillanceRepository {
 
   /**
    * Enqueue a pet event for ENO processing.
+   *
+   * Accepts an optional `executor` so the enqueue can participate in the SAME
+   * transaction as the source disease_diagnosis event insert (P1-3 durability:
+   * the govt-fanout queue row is now atomic with the event — it can never be
+   * lost on a crash between COMMIT and a post-commit best-effort enqueue).
+   *
    * Returns the inserted row, or null if a row with this pet_event_id already
    * exists (onConflictDoNothing idempotency — unique index on pet_event_id).
+   * The conflict guard means re-inserting the same event (e.g. a retried write)
+   * never creates a second queue row, which is what makes the in-tx move safe.
    */
-  async insertEnoQueueRow(petEventId: string): Promise<EnoQueueRow | null> {
-    const rows = await db
+  async insertEnoQueueRow(petEventId: string, executor: DbOrTx = db): Promise<EnoQueueRow | null> {
+    const rows = await executor
       .insert(enoProcessingQueue)
       .values({ petEventId })
       .onConflictDoNothing({
@@ -345,15 +373,41 @@ export class SurveillanceRepository {
   }
 
   /**
-   * Pick the oldest BATCH_SIZE pending rows for processing.
+   * Atomically claim the oldest BATCH_SIZE claimable rows and return them.
+   *
+   * Pooler-safe overlap guard (migration 0089): a single UPDATE ... WHERE id IN
+   * (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING * claims rows and advances
+   * their status to 'processing' in one statement. Two concurrent cron runs
+   * therefore claim DISJOINT sets — SKIP LOCKED inside the subquery skips rows
+   * already locked by the concurrent UPDATE, and status='processing' prevents
+   * re-claim after the lock releases. No session-level advisory lock is needed
+   * (and none is acquired — those are pooler-unsafe on pgBouncer
+   * transaction-mode connections).
+   *
+   * Stale-claim recovery: rows whose claimed_at is older than 10 minutes are
+   * re-eligible so a crashed run never strands rows in 'processing' forever.
    */
   async pickPendingBatch(batchSize: number): Promise<EnoQueueRow[]> {
+    const staleThreshold = sql`now() - interval '10 minutes'`;
     return db
-      .select()
-      .from(enoProcessingQueue)
-      .where(eq(enoProcessingQueue.status, "pending"))
-      .orderBy(asc(enoProcessingQueue.queuedAt))
-      .limit(batchSize);
+      .update(enoProcessingQueue)
+      .set({ status: "processing", claimedAt: sql`now()` })
+      .where(
+        sql`${enoProcessingQueue.id} IN (
+          SELECT id FROM ${enoProcessingQueue}
+          WHERE (
+            ${enoProcessingQueue.status} = 'pending'
+            OR (
+              ${enoProcessingQueue.status} = 'processing'
+              AND ${enoProcessingQueue.claimedAt} < ${staleThreshold}
+            )
+          )
+          ORDER BY ${enoProcessingQueue.queuedAt} ASC
+          LIMIT ${batchSize}
+          FOR UPDATE SKIP LOCKED
+        )`,
+      )
+      .returning();
   }
 
   /**
@@ -370,23 +424,20 @@ export class SurveillanceRepository {
    * Mark a queue row as failed or increment retryCount.
    * If retryCount reaches 2, status becomes 'failed'. Otherwise stays 'pending'.
    * Retry ≤ 2 semantics match the spec (retry count: 0, 1 → retry; 2 → failed).
+   *
+   * Atomicity (P2-11): a single UPDATE does `retry_count = retry_count + 1` and
+   * derives status with a CASE on the incremented value, instead of the old
+   * read-modify-write (SELECT then UPDATE). The read-modify-write lost
+   * increments under concurrency — two failures racing both read the same
+   * retry_count and each wrote +1, so a row could be retried more than twice.
+   * One statement makes the increment race-free.
    */
   async markEnoFailed(queueRowId: string, error: string): Promise<void> {
-    // Read current retryCount to decide next status.
-    const [row] = await db
-      .select({ retryCount: enoProcessingQueue.retryCount })
-      .from(enoProcessingQueue)
-      .where(eq(enoProcessingQueue.id, queueRowId));
-
-    if (!row) return;
-    const nextRetry = (row.retryCount ?? 0) + 1;
-    const nextStatus = nextRetry >= 2 ? "failed" : "pending";
-
     await db
       .update(enoProcessingQueue)
       .set({
-        status: nextStatus,
-        retryCount: nextRetry,
+        retryCount: sql`${enoProcessingQueue.retryCount} + 1`,
+        status: sql`CASE WHEN ${enoProcessingQueue.retryCount} + 1 >= 2 THEN 'failed' ELSE 'pending' END`,
         lastError: error,
       })
       .where(eq(enoProcessingQueue.id, queueRowId));

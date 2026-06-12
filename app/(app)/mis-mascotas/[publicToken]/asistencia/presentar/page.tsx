@@ -9,6 +9,7 @@ import QRCode from "qrcode";
 import { attachments, db, petServiceDog } from "@/db";
 import { formatDate } from "@/lib/format";
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { SERVICE_TYPE_LABELS } from "@/lib/service-dog-labels";
 import { buildPublicVerifyUrl, isCredentialPresentable } from "@/lib/service-dog-presentar";
 import { petPhotoUrl } from "@/lib/storage";
@@ -37,14 +38,19 @@ export default async function AsistenciaPresentarPage({
     redirect(`/mis-mascotas/${publicToken}/asistencia`);
   }
 
-  const [photoAttachment] = pet.primaryPhotoId
-    ? await db
-        .select({ storagePath: attachments.storagePath })
-        .from(attachments)
-        .where(and(eq(attachments.id, pet.primaryPhotoId)))
-        .limit(1)
-    : [];
-  const photoUrl = petPhotoUrl(photoAttachment?.storagePath);
+  const [[photoAttachment], canonicalIds] = await Promise.all([
+    pet.primaryPhotoId
+      ? db
+          .select({ storagePath: attachments.storagePath })
+          .from(attachments)
+          .where(and(eq(attachments.id, pet.primaryPhotoId)))
+          .limit(1)
+      : Promise.resolve([]),
+    fetchActiveIdentifications(pet.id),
+  ]);
+  const photoUrl = petPhotoUrl(
+    (photoAttachment as { storagePath?: string } | undefined)?.storagePath,
+  );
 
   const serviceTypeLabel = SERVICE_TYPE_LABELS[serviceDog.serviceType] ?? serviceDog.serviceType;
 
@@ -104,11 +110,11 @@ export default async function AsistenciaPresentarPage({
 
         {/* Credential fields */}
         <dl className="w-full divide-y divide-[var(--color-ln-line)]">
-          {pet.microchipId && (
+          {canonicalIds.microchip && (
             <div className="flex justify-between py-[10px]">
               <dt className="text-[13px] text-[var(--color-ln-mute)]">Microchip</dt>
               <dd className="font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)]">
-                {pet.microchipId}
+                {canonicalIds.microchip.code}
               </dd>
             </div>
           )}

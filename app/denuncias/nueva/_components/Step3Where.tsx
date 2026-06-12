@@ -5,6 +5,8 @@
 // - Three radio options for "cuándo" that resolve to an ISO date string for occurredAt.
 // - Textarea for description (maps to welfareReports.description).
 
+import { useState } from "react";
+
 import { LocationFields } from "@/components/LocationFields";
 import { LnTextarea } from "@/components/ui/Field";
 
@@ -64,6 +66,10 @@ export function Step3Where({
   onDescriptionChange,
   error,
 }: Step3WhereProps) {
+  // Location is optional, but an empty location can't be routed to the local
+  // authority — warn the reporter without blocking submission (UI-7 B6).
+  const [hasLocation, setHasLocation] = useState(false);
+
   return (
     <section className="space-y-6">
       <div className="space-y-1">
@@ -173,7 +179,13 @@ export function Step3Where({
         >
           Lugar (opcional pero muy útil)
         </p>
-        <LocationFields mode="l2" allowAnonymous />
+        <LocationFields mode="l2" allowAnonymous onLocationPresenceChange={setHasLocation} />
+        {!hasLocation && (
+          <output className="mt-2 block rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-[12.5px] text-[var(--color-ln-warn)] leading-snug">
+            Sin ubicación, la denuncia no puede dirigirse a la autoridad de tu zona. Podés enviarla
+            igual, pero agregar el lugar ayuda a que llegue a quien corresponde.
+          </output>
+        )}
       </div>
 
       {error && (

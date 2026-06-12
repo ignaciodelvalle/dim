@@ -338,6 +338,10 @@ export const EVENT_TYPES = [
   // Lost & Found — two-phase return-to-owner handshake (Fase 5).
   // Proposed by the actor holding shelter_custody; accepted by the owner.
   "custody_transfer_proposed",
+  // Structured cancellation of a custody_transfer_proposed. Replaces the
+  // fragile marker-text note_added approach (ARCH-B). The cancelled_by
+  // discriminator records who terminated the proposal.
+  "custody_transfer_cancelled",
   // Custody disputes — admin/govt flag the pet for external legal proceedings.
   // Set `pets.in_custody_dispute=true` on raised, false on resolved.
   "custody_dispute_raised",
@@ -418,6 +422,14 @@ export const profiles = pgTable(
     // Irreversible soft-deactivation timestamp. NULL = active. Set by
     // deactivateAdminAction / deactivateGovtAction in Fase 5.
     deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+    // Legal consent proof (Ley 25.326 art. 5 — informed, express, provable).
+    // Written at signup when the TOS/privacy checkbox is accepted. tosVersion
+    // stores the LEGAL_VERSION (lib/legal-version.ts) in force at that moment so
+    // we can demonstrate WHAT the user agreed to. NULL for accounts created
+    // before migration 0087 / institutional accounts provisioned by admins.
+    // Added by migration 0087.
+    tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
+    tosVersion: text("tos_version"),
     // PII baseline (compliance PR 1, migration 0058). Added by
     // pii.apply_baseline(). See lib/audit/log.ts (todo, separate sprint).
     createdBy: uuid("created_by").references((): AnyPgColumn => profiles.id, {
@@ -485,28 +497,12 @@ export const pets = pgTable(
     birthDateIsEstimated: boolean("birth_date_is_estimated").notNull().default(false),
     color: text("color"),
     distinguishingFeatures: text("distinguishing_features"),
-    // Microchip — full implant record. The number lives on the pet for fast
-    // lookup; the implant event is also recorded as a microchip_implanted
-    // PetEvent for the timeline. Country code defaults to '858' (Argentina,
-    // ISO 3166 numeric) — chip numbers in AR follow ISO 11784/11785 (15 digits).
-    microchipId: text("microchip_id"),
-    microchipCountryCode: text("microchip_country_code"),
-    microchipImplantedAt: date("microchip_implanted_at"),
-    microchipImplantedBy: text("microchip_implanted_by"),
-    microchipLocation: text("microchip_location"), // e.g. "interscapular_left"
-    // Tattoo — secondary identifier. Free-form code (no uniqueness, codes collide
-    // across registries). Location is a closed lookup; description is free-form
-    // for the origin (FCA, campaign, kennel, etc.). Photo is required at create
-    // time (enforced in app code, not DB) because tattoos need visual verification.
-    // Normalization (uppercase + strip whitespace) lives in createTattooForUser
-    // and lookupByTattoo, not in DB constraint.
-    tattooCode: text("tattoo_code"),
-    tattooLocation: text("tattoo_location"),
-    tattooDescription: text("tattoo_description"),
-    tattooRecordedAt: date("tattoo_recorded_at"),
-    tattooRecordedBy: text("tattoo_recorded_by"),
-    // FK-by-convention to attachments.id, same loose-FK pattern as primaryPhotoId.
-    tattooPhotoId: uuid("tattoo_photo_id"),
+    // ARCH-S: microchipId, microchipCountryCode, microchipImplantedAt,
+    // microchipImplantedBy, microchipLocation dropped — canonical data lives
+    // in pet_identifications (migration 0084).
+    // ARCH-S: tattooCode, tattooLocation, tattooDescription, tattooRecordedAt,
+    // tattooRecordedBy, tattooPhotoId dropped — canonical data lives in
+    // pet_identifications (migration 0084).
     // FK to attachments.id. NOT a hard FK at the DB level — circular reference
     // with attachments.pet_id. Application code keeps these in sync.
     primaryPhotoId: uuid("primary_photo_id"),
@@ -641,9 +637,7 @@ export const pets = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    microchipUnique: uniqueIndex("pets_microchip_unique_when_present")
-      .on(table.microchipId)
-      .where(sql`${table.microchipId} IS NOT NULL`),
+    // ARCH-S: microchipUnique (pets_microchip_unique_when_present) dropped — migration 0084.
     jurisdictionIdx: index("pets_jurisdiction_idx").on(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
@@ -706,13 +700,8 @@ export const pets = pgTable(
       "pets_pregnancy_status_valid",
       sql`${table.pregnancyStatus} is null or ${table.pregnancyStatus} in ('in_progress', 'completed_live_birth', 'completed_stillbirth', 'completed_miscarriage', 'completed_termination')`,
     ),
-    petsTattooLocationValid: check(
-      "pets_tattoo_location_valid",
-      sql`${table.tattooLocation} is null or ${table.tattooLocation} in ('inner_ear_left','inner_ear_right','inner_thigh','belly','other')`,
-    ),
-    tattooCodeIdx: index("pets_tattoo_code_idx")
-      .on(table.tattooCode)
-      .where(sql`${table.tattooCode} IS NOT NULL`),
+    // ARCH-S: petsTattooLocationValid (pets_tattoo_location_valid) dropped — migration 0084.
+    // ARCH-S: tattooCodeIdx (pets_tattoo_code_idx) dropped — migration 0084.
     petsJurisdictionProvinceCanonical: check(
       "pets_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
@@ -1056,9 +1045,16 @@ export const petEvents = pgTable(
     // customType support for it; lift-and-shift will be straightforward.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
-    // Cases system (migration 0033). Nullable — at most one case per event.
-    // The case_id is append-only at the DB level (enforced by trigger).
-    caseId: uuid("case_id"),
+    // Cases system (migration 0033 + FK added migration 0079). Nullable — at
+    // most one case per event. The case_id is append-only at the DB level
+    // (enforced by trigger). ON DELETE RESTRICT: events are immutable records
+    // that predate any case deletion; hard-deleting a case while events reference
+    // it is an integrity error, not a silent cascade.
+    // NOTE: cases is declared after petEvents in this file, so we use the
+    // forward-reference pattern via a lambda.
+    caseId: uuid("case_id").references((): AnyPgColumn => cases.id, {
+      onDelete: "restrict",
+    }),
     // ENO Event-Trust Tier 1 Fase B (migration 0047). UUID v4 generated
     // client-side before form submission. NULL for admin writes and any
     // path that does not supply a key. The partial unique index
@@ -1098,6 +1094,34 @@ export const petEvents = pgTable(
     tipoEventoCodeIdx: index("pet_events_tipo_evento_code_idx")
       .on(table.tipoEventoCode)
       .where(sql`${table.tipoEventoCode} IS NOT NULL`),
+    // ARCH-K (migration 0081): JSONB payload expression indexes for hot-path
+    // queries that filter on payload field values in WHERE / NOT EXISTS clauses.
+    // Expression syntax mirrors org_invitations_active_unique (lower(email)).
+    // Partial (IS NOT NULL) keeps indexes small — only rows that carry the field.
+    payloadMedStartedIdx: index("pet_events_payload_med_started_idx")
+      .on(sql`(payload->>'medication_started_event_id')`)
+      .where(sql`payload->>'medication_started_event_id' IS NOT NULL`),
+    payloadAppEventIdIdx: index("pet_events_payload_app_event_id_idx")
+      .on(sql`(payload->>'application_event_id')`)
+      .where(sql`payload->>'application_event_id' IS NOT NULL`),
+    payloadApplicantUserIdIdx: index("pet_events_payload_applicant_user_id_idx")
+      .on(sql`(payload->>'applicant_user_id')`)
+      .where(sql`payload->>'applicant_user_id' IS NOT NULL`),
+    // Cases system FK index (shipped in migration 0033, mirrored here for
+    // schema↔migration agreement). Partial: most events carry no case_id.
+    caseIdIdx: index("pet_events_case_id_idx")
+      .on(table.caseId)
+      .where(sql`${table.caseId} IS NOT NULL`),
+    // V1-8 perf (migration 0090): unindexed FKs caused sequential scans on
+    // author/recorder lookups. pet_events is the largest table. Partial
+    // (IS NOT NULL) keeps both small — many rows have a null author org and
+    // some legacy rows have a null recorder.
+    recordedByUserIdx: index("pet_events_recorded_by_user_id_idx")
+      .on(table.recordedByUserId)
+      .where(sql`${table.recordedByUserId} IS NOT NULL`),
+    authorOrganizationIdx: index("pet_events_author_organization_id_idx")
+      .on(table.authorOrganizationId)
+      .where(sql`${table.authorOrganizationId} IS NOT NULL`),
   }),
 );
 
@@ -1180,6 +1204,22 @@ export const attachments = pgTable(
   (table) => ({
     petIdx: index("attachments_pet_id_idx").on(table.petId),
     eventIdx: index("attachments_event_id_idx").on(table.eventId),
+    // Parent FK XOR constraint (ARCH-D).
+    //
+    // Attachments have two distinct parent groups:
+    //   content group      — pet_id / event_id (event attachments carry both)
+    //   approval-flow group — approval_request_id / audit_log_id (revocation
+    //                         evidence, approval evidence — never mixed)
+    //
+    // Invariant: approval-flow parents are mutually exclusive with content
+    // parents and with each other. "Zero parents" is a valid transient state
+    // (uploadRevocationEvidence stages the row before claimAttachmentsForAudit
+    // claims it inside the revocation transaction). Two members of the same
+    // group simultaneously — or one from each group — is always a data error.
+    atMostOneParent: check(
+      "attachments_at_most_one_parent",
+      sql`num_nonnulls(${table.approvalRequestId}, ${table.auditLogId}) <= 1 AND ((${table.approvalRequestId} IS NULL AND ${table.auditLogId} IS NULL) OR (${table.petId} IS NULL AND ${table.eventId} IS NULL))`,
+    ),
   }),
 );
 
@@ -1283,6 +1323,21 @@ export const notifications = pgTable(
     reminderRecentIdx: index("notifications_reminder_recent_idx")
       .on(table.relatedReminderId, table.createdAt)
       .where(sql`${table.relatedReminderId} IS NOT NULL`),
+    // Idempotency guard for event-derived notifications (ENO fanout et al.).
+    // Lets consumers insert with onConflictDoNothing so re-processing a queue
+    // row never duplicates a legal notification. Partial: free-standing /
+    // cron-emitted notifications (related_event_id IS NULL) are exempt because
+    // they legitimately repeat (user, type) across occurrences. Migration 0088.
+    eventNaturalKeyUnique: uniqueIndex("notifications_event_natural_key_unique")
+      .on(table.userId, table.relatedEventId, table.notificationType)
+      .where(sql`${table.relatedEventId} IS NOT NULL`),
+    // Cases system FK index (shipped in migration 0033, mirrored here for
+    // schema↔migration agreement). Lets the dashboard collapse case-derived
+    // notifications without scanning. Partial: free-standing notifications
+    // never set related_case_id.
+    relatedCaseIdIdx: index("notifications_related_case_id_idx")
+      .on(table.relatedCaseId)
+      .where(sql`${table.relatedCaseId} IS NOT NULL`),
   }),
 );
 
@@ -1387,6 +1442,14 @@ export const welfareReports = pgTable(
     derivedByUserId: uuid("derived_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
+
+    // Org intervention state (migration 0092, UI-7). Set by an org member that
+    // received the derived report. NULL = no org action yet; 'tomado' = taken
+    // (under intervention); 'devuelto' = org returned it (cannot intervene).
+    // NON-PII workflow metadata — safe for the org-facing projection. Gov stays
+    // the only closer; these columns never transition the welfare status enum.
+    orgInterventionStatus: text("org_intervention_status"),
+    orgInterventionAt: timestamp("org_intervention_at", { withTimezone: true }),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1400,9 +1463,22 @@ export const welfareReports = pgTable(
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
     derivedToOrgIdx: index("welfare_reports_derived_to_org_idx").on(table.derivedToOrganizationId),
+    // FK indexes shipped in earlier migrations, mirrored here for schema↔migration
+    // agreement. case_id (migration 0033) and reporter_organization_id (migration
+    // 0035). Both partial — most reports have neither set.
+    caseIdIdx: index("welfare_reports_case_id_idx")
+      .on(table.caseId)
+      .where(sql`${table.caseId} IS NOT NULL`),
+    reporterOrganizationIdx: index("welfare_reports_org_reporter_idx")
+      .on(table.reporterOrganizationId)
+      .where(sql`${table.reporterOrganizationId} IS NOT NULL`),
     welfareReportsJurisdictionProvinceCanonical: check(
       "welfare_reports_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+    welfareReportsOrgInterventionStatusCheck: check(
+      "welfare_reports_org_intervention_status_check",
+      sql`${table.orgInterventionStatus} is null or ${table.orgInterventionStatus} in ('tomado', 'devuelto')`,
     ),
   }),
 );
@@ -1826,6 +1902,39 @@ export const AUDIT_LOG_ACTIONS = [
   // to a verified shelter or rescue_network for field follow-up.
   // Payload: { welfareReportId, referenceCode, targetOrgId, targetOrgDisplayName }.
   "welfare_report_derived_to_org",
+  // Org membership lifecycle (ARCH-T). Covers the transitions that were
+  // previously unaudited: member added (via invitation accept or org creation),
+  // member removed (admin-initiated or self-leave), role change, and
+  // canWritePetEvents toggle.
+  //
+  // Payload keys by action:
+  //   org_member_added:              org_id, member_user_id, role,
+  //                                  how ("invitation_accept" | "org_creation"),
+  //                                  invitation_id (when how=invitation_accept)
+  //   org_member_removed:            org_id, member_user_id, role,
+  //                                  how ("admin_remove" | "self_leave")
+  //   org_member_role_changed:       org_id, member_user_id, role_before, role_after
+  //   org_member_event_write_changed: org_id, member_user_id,
+  //                                  can_write_pet_events_before,
+  //                                  can_write_pet_events_after
+  "org_member_added",
+  "org_member_removed",
+  "org_member_role_changed",
+  "org_member_event_write_changed",
+  // V0-5: direct admin verify/unverify (no evidence upload required).
+  // For evidence-backed formal revocations use revocation_org_verified instead.
+  //   org_verified payload:   { org_id, org_display_name }
+  //   org_unverified payload: { org_id, org_display_name, reason? }
+  "org_verified",
+  "org_unverified",
+  // V1-9: org-side PII access trail. Emitted when an org reviewer opens an
+  // adoption application and reads the applicant's full identity (name, phone,
+  // housing). One row per page view (server-component fetch — fires once per
+  // load, not per re-render). target_user_id = applicant (the PII subject),
+  // target_organization_id = the reviewing org.
+  //   adopter_pii_viewed payload:
+  //     { org_id, application_event_id, applicant_user_id, pet_id }
+  "adopter_pii_viewed",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -1833,9 +1942,10 @@ export const auditLog = pgTable(
   "audit_log",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    actorUserId: uuid("actor_user_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    // Nullable after ARCH-H (migration 0080): ON DELETE SET NULL so a hard-
+    // deleted profile does not block audit trail retention. NULL actor is
+    // displayed as "Usuario eliminado" in admin audit UI.
+    actorUserId: uuid("actor_user_id").references(() => profiles.id, { onDelete: "set null" }),
     action: text("action").notNull().$type<AuditLogAction>(),
     approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id, {
       onDelete: "set null",
@@ -1895,12 +2005,12 @@ export const govtBusinessRules = pgTable(
     notes: text("notes"),
     legalAnchorIds: text("legal_anchor_ids").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    createdByUserId: uuid("created_by_user_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedByUserId: uuid("updated_by_user_id").references(() => profiles.id, {
-      onDelete: "restrict",
+      onDelete: "set null",
     }),
   },
   (table) => ({
@@ -2433,11 +2543,15 @@ export const fosterProposals = pgTable(
       onDelete: "set null",
     }),
 
-    // Cases system (migration 0068). Linked to the foster_proposal case
-    // opened atomically by proposeFosterAction. Nullable for historical rows
-    // predating the wiring. No Drizzle .references() — mirrors petEvents.caseId
-    // pattern to avoid the forward-reference cycle (cases is declared after).
-    caseId: uuid("case_id"),
+    // Cases system (migration 0068 + FK added migration 0079). Linked to the
+    // foster_proposal case opened atomically by proposeFosterAction. Nullable
+    // for historical rows predating the wiring. ON DELETE SET NULL: if a case
+    // is ever hard-deleted (admin correction), the proposal loses the link but
+    // remains valid (matches welfare_reports.case_id pattern).
+    // Forward-reference lambda required because cases is declared after.
+    caseId: uuid("case_id").references((): AnyPgColumn => cases.id, {
+      onDelete: "set null",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2600,6 +2714,29 @@ export const custodyDisputes = pgTable(
     custodyDisputesDeletedIdx: index("public_custody_disputes_deleted_idx")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    // Indexes shipped in migration 0025, mirrored here for schema↔migration
+    // agreement: per-pet timeline, open-status jurisdiction lookup, and the
+    // one-open-dispute-per-pet uniqueness guard.
+    // created_at DESC matches migration 0025 exactly — without .desc() the
+    // drift check would flag a phantom diff and try to recreate the index.
+    custodyDisputesPetIdx: index("custody_disputes_pet_idx").on(
+      table.petId,
+      table.createdAt.desc(),
+    ),
+    custodyDisputesJurisOpenIdx: index("custody_disputes_juris_open_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality)
+      .where(sql`${table.status} = 'open'`),
+    custodyDisputesOneOpenPerPet: uniqueIndex("custody_disputes_one_open_per_pet")
+      .on(table.petId)
+      .where(sql`${table.status} = 'open'`),
+    // V1-8 perf (migration 0090): the public credential / custody UI filters
+    // disputes by (pet_id, status) on non-deleted rows. The existing pet_idx
+    // (pet_id, created_at) and one_open_per_pet (open only) don't cover status
+    // filtering for non-open statuses on live disputes. Partial on the active
+    // set (deleted_at IS NULL) keeps it small.
+    custodyDisputesPetStatusIdx: index("custody_disputes_pet_status_idx")
+      .on(table.petId, table.status)
+      .where(sql`${table.deletedAt} IS NULL`),
   }),
 );
 
@@ -2634,6 +2771,17 @@ export const custodyDisputeParties = pgTable(
       "dispute_party_role_valid",
       sql`${table.partyRole} in ('current_owner','claimant_owner','current_org_custody','claimant_org','witness')`,
     ),
+    // Indexes shipped in migration 0025, mirrored here for schema↔migration
+    // agreement. dispute_id is the hot lookup (list parties for a dispute);
+    // party_user_id / party_organization_id are partial (exactly one is set
+    // per row, per the dispute_party_exactly_one_subject CHECK).
+    disputeIdx: index("custody_dispute_parties_dispute_idx").on(table.disputeId),
+    partyUserIdx: index("custody_dispute_parties_user_idx")
+      .on(table.partyUserId)
+      .where(sql`${table.partyUserId} IS NOT NULL`),
+    partyOrganizationIdx: index("custody_dispute_parties_org_idx")
+      .on(table.partyOrganizationId)
+      .where(sql`${table.partyOrganizationId} IS NOT NULL`),
   }),
 );
 
@@ -2793,24 +2941,38 @@ export type CaseSubjectKind = (typeof CASE_SUBJECT_KINDS)[number];
 // The event-insert action enqueues here cheaply; the hourly cron
 // worker drains the queue. Keeps pet_events itself pure (immutable);
 // queue state lives separately so it can be retried on failure.
+//
+// Status flow:
+//   pending → processing (claimed atomically via UPDATE ... RETURNING)
+//           → processed  (markEnoProcessed)
+//           → pending    (markEnoFailed, retryCount < 2)
+//           → failed     (markEnoFailed, retryCount >= 2)
+//
+// Overlap safety (migration 0089): pickPendingBatch claims rows with a
+// single atomic UPDATE ... RETURNING so two concurrent cron runs always
+// claim DISJOINT sets. claimed_at enables stale-claim recovery: rows
+// stuck in 'processing' for > 10 minutes (crashed run) are eligible
+// for re-claim on the next drain cycle.
 export const enoProcessingQueue = pgTable(
   "eno_processing_queue",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     petEventId: uuid("pet_event_id").notNull(),
-    /** pending | processed | failed. */
+    /** pending | processing | processed | failed. */
     status: text("status").notNull().default("pending"),
     queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
     retryCount: integer("retry_count").notNull().default(0),
     lastError: text("last_error"),
+    /** Set when status transitions to 'processing'. Enables stale-claim recovery. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
   },
   (table) => ({
     statusIdx: index("eno_processing_queue_status_idx").on(table.status, table.queuedAt),
     eventIdIdx: uniqueIndex("eno_processing_queue_event_id_unique").on(table.petEventId),
     statusCheck: check(
       "eno_processing_queue_status_check",
-      sql`${table.status} IN ('pending', 'processed', 'failed')`,
+      sql`${table.status} IN ('pending', 'processing', 'processed', 'failed')`,
     ),
   }),
 );

@@ -84,6 +84,20 @@ export function deriveActionItems(input: PetActionsMenuInput): ActionItem[] {
     });
   }
 
+  // "Transferir mascota" — owner→owner titularity handoff. Only the legal owner
+  // of an active pet can initiate one. Hidden while the pet is lost/deceased
+  // (no transfer mid-episode) and for org-path / non-owner roles. The server
+  // action (initiatePetTransferAction) re-validates dispute / pending-transfer
+  // state, which is not derivable from the helper inputs.
+  if (accessPath === "owner" && ownershipRole === "owner" && pet.status === "active") {
+    items.push({
+      id: "transfer-pet",
+      label: "Transferir mascota",
+      href: `/mis-mascotas/${pet.publicToken}?sheet=transferir-mascota`,
+      variant: "default",
+    });
+  }
+
   // "Confirmar devolución" — only when a pending return proposal exists.
   if (hasPendingReturnProposal) {
     items.push({

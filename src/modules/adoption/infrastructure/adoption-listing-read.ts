@@ -69,8 +69,28 @@ export async function queryAdoptionListing(
   if (filters.needsYard === false) {
     conditions.push(or(eq(pets.adoptionNeedsYard, false), isNull(pets.adoptionNeedsYard)));
   }
-  if (filters.hasMicrochip === true) conditions.push(isNotNull(pets.microchipId));
-  if (filters.hasMicrochip === false) conditions.push(isNull(pets.microchipId));
+  // hasMicrochip filter: use EXISTS against the canonical pet_identifications
+  // table (same pattern as the sterilized EXISTS above — mirrors ARCH-M idiom).
+  if (filters.hasMicrochip === true) {
+    conditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM pet_identifications pi
+        WHERE pi.pet_id = ${pets.id}
+          AND pi.kind = 'microchip_iso'
+          AND pi.status = 'active'
+      )`,
+    );
+  }
+  if (filters.hasMicrochip === false) {
+    conditions.push(
+      sql`NOT EXISTS (
+        SELECT 1 FROM pet_identifications pi
+        WHERE pi.pet_id = ${pets.id}
+          AND pi.kind = 'microchip_iso'
+          AND pi.status = 'active'
+      )`,
+    );
+  }
   if (filters.organizationToken) {
     conditions.push(eq(organizations.publicToken, filters.organizationToken));
   }
@@ -103,7 +123,15 @@ export async function queryAdoptionListing(
       primaryPhotoStoragePath: attachments.storagePath,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
-      microchipId: pets.microchipId,
+      // microchipId: sourced from canonical pet_identifications via correlated
+      // subquery so the badge shows canonical data without a batch join.
+      microchipId: sql<string | null>`(
+        SELECT pi.code FROM pet_identifications pi
+        WHERE pi.pet_id = ${pets.id}
+          AND pi.kind = 'microchip_iso'
+          AND pi.status = 'active'
+        LIMIT 1
+      )`,
       adoptionListedAt: pets.adoptionListedAt,
       adoptionStory: pets.adoptionStory,
       adoptionRequirements: pets.adoptionRequirements,

@@ -148,6 +148,7 @@ export async function acceptFosterProposal(
 
   // 3. Collect post-tx notifications.
   // Accepting org coordinators.
+  const acceptingOrgToken = await repo.orgPublicTokenById(proposal.organizationId);
   for (const uid of acceptingOrgCoordinatorIds) {
     pendingNotifications.push({
       userId: uid,
@@ -156,11 +157,14 @@ export async function acceptFosterProposal(
       title: `${actorDisplayName ?? "Un voluntario"} aceptó la propuesta de tránsito`,
       body: "Coordiná el handoff con el voluntario.",
       relatedPetId: proposal.petId,
+      ctaLabel: "Ver propuestas",
+      ctaUrl: acceptingOrgToken ? `/org/${acceptingOrgToken}/voluntarios/propuestas` : "/org",
     });
   }
 
   // D18 cascade — fan-out to affected org coordinators (post-tx best-effort).
   for (const target of cascadeOrgNotifyTargets) {
+    const targetOrgToken = await repo.orgPublicTokenById(target.orgId);
     const coordIds = await repo.orgFosterCoordinatorUserIds(target.orgId);
     for (const uid of coordIds) {
       pendingNotifications.push({
@@ -170,6 +174,8 @@ export async function acceptFosterProposal(
         title: "Tu propuesta de tránsito fue auto-cancelada",
         body: "El voluntario aceptó otra propuesta y se quedó sin slots.",
         relatedPetId: target.petId,
+        ctaLabel: "Ver propuestas",
+        ctaUrl: targetOrgToken ? `/org/${targetOrgToken}/voluntarios/propuestas` : "/org",
       });
     }
   }

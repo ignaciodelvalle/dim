@@ -17,8 +17,14 @@ import {
   organizations,
 } from "@/db";
 import type * as schema from "@/db/schema";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+
+// Chunk size for the bulk notification insert. At national scale a single
+// jurisdiction can match thousands of org members; one giant multi-row INSERT
+// holds a long write lock and risks exceeding parameter limits. Inserting in
+// batches keeps each statement short and the lock window small.
+const NOTIFICATION_INSERT_CHUNK = 500;
 
 // The transaction type accepted by Drizzle's `db.transaction(async (tx) => …)`
 // callback. We use a looser type here so tests can pass either `db` or a `tx`.
@@ -124,26 +130,28 @@ export async function broadcastLostPet(
       return { broadcastedToMemberIds: [], orgCount: 0 };
     }
 
-    // 3. Collect unique member IDs across all covering orgs.
-    //    A user may be a member of multiple orgs in the same jurisdiction — notify only once.
+    // 3. Collect unique member IDs across all covering orgs in a SINGLE query.
+    //    Previously this looped one query per org (N+1) — at national scale a
+    //    pet lost in a populous province can match hundreds of orgs, each
+    //    triggering its own round-trip. A single `inArray` over all org ids
+    //    fetches every eligible member at once; dedup happens in JS because a
+    //    user may belong to multiple orgs in the same jurisdiction (notify once).
+    const orgIds = coveringOrgs.map((org) => org.orgId);
+    const members = await (client as typeof db)
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(
+        and(
+          inArray(organizationMemberships.organizationId, orgIds),
+          eq(organizationMemberships.receivesBroadcasts, true),
+          isNull(organizationMemberships.leftAt),
+        ),
+      );
+
     const notifiedUserIds = new Set<string>();
-
-    for (const org of coveringOrgs) {
-      const members = await (client as typeof db)
-        .select({ userId: organizationMemberships.userId })
-        .from(organizationMemberships)
-        .where(
-          and(
-            eq(organizationMemberships.organizationId, org.orgId),
-            eq(organizationMemberships.receivesBroadcasts, true),
-            isNull(organizationMemberships.leftAt),
-          ),
-        );
-
-      for (const member of members) {
-        if (member.userId) {
-          notifiedUserIds.add(member.userId);
-        }
+    for (const member of members) {
+      if (member.userId) {
+        notifiedUserIds.add(member.userId);
       }
     }
 
@@ -167,7 +175,14 @@ export async function broadcastLostPet(
       relatedPetId: pet.id,
     }));
 
-    await (client as typeof db).insert(notifications).values(notifValues);
+    // Chunked insert: one giant multi-row INSERT at national scale holds a long
+    // write lock and can blow past the bind-parameter limit. Batching keeps each
+    // statement short. The whole broadcast is non-fatal (D8), so a mid-chunk
+    // failure simply surfaces fewer notifications without blocking the lost-flip.
+    for (let i = 0; i < notifValues.length; i += NOTIFICATION_INSERT_CHUNK) {
+      const chunk = notifValues.slice(i, i + NOTIFICATION_INSERT_CHUNK);
+      await (client as typeof db).insert(notifications).values(chunk);
+    }
 
     return {
       broadcastedToMemberIds: Array.from(notifiedUserIds),

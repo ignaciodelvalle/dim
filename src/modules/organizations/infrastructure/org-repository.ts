@@ -12,11 +12,13 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import {
+  type NewAuditLogRow,
   type Organization,
   type OrganizationCapabilityGrant,
   type OrganizationCoverage,
   type OrganizationInvitation,
   type OrganizationMembership,
+  auditLog,
   db,
   orgContactMessages,
   organizationCapabilityGrants,
@@ -59,6 +61,9 @@ export interface InsertGrantInput {
   capability: string;
   status?: OrganizationCapabilityGrant["status"];
   requestedReason?: string | null;
+  decidedAt?: Date | null;
+  decidedByUserId?: string | null;
+  decisionReason?: string | null;
 }
 
 export interface InsertContactInput {
@@ -438,6 +443,9 @@ export class OrgRepository {
         capability: values.capability,
         status: values.status ?? "pending",
         requestedReason: values.requestedReason ?? null,
+        decidedAt: values.decidedAt ?? null,
+        decidedByUserId: values.decidedByUserId ?? null,
+        decisionReason: values.decisionReason ?? null,
       })
       .returning();
     if (!row) throw new Error("insertGrant: no row returned");
@@ -478,6 +486,51 @@ export class OrgRepository {
       .where(eq(organizationCapabilityGrants.id, grantId))
       .limit(1);
     return row ?? null;
+  }
+
+  /**
+   * Find an active (approved) capability grant for a membership + capability pair.
+   * Used by the EventWriteToggle capability path to find the existing grant to revoke.
+   * Returns null when no approved grant exists.
+   */
+  async findApprovedGrant(
+    membershipId: string,
+    capability: string,
+    e: Exec = db,
+  ): Promise<OrganizationCapabilityGrant | null> {
+    const [row] = await e
+      .select()
+      .from(organizationCapabilityGrants)
+      .where(
+        and(
+          eq(organizationCapabilityGrants.membershipId, membershipId),
+          eq(organizationCapabilityGrants.capability, capability),
+          eq(organizationCapabilityGrants.status, "approved"),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Revoke an approved capability grant (set status = 'revoked', stamp decidedAt/By/Reason).
+   * No-op when grantId does not exist.
+   */
+  async revokeGrant(
+    grantId: string,
+    revokedByUserId: string,
+    reason: string | null,
+    e: Exec = db,
+  ): Promise<void> {
+    await e
+      .update(organizationCapabilityGrants)
+      .set({
+        status: "revoked",
+        decidedAt: new Date(),
+        decidedByUserId: revokedByUserId,
+        decisionReason: reason,
+      })
+      .where(eq(organizationCapabilityGrants.id, grantId));
   }
 
   /**
@@ -640,5 +693,16 @@ export class OrgRepository {
       .where(eq(organizationMemberships.id, membershipId))
       .limit(1);
     return row?.userId ?? null;
+  }
+
+  /**
+   * Insert an audit_log row. Must be called with the transaction executor when
+   * the mutation is wrapped in a tx — ensures atomicity with the membership write.
+   */
+  async insertAuditLog(
+    values: Omit<NewAuditLogRow, "id" | "performedAt">,
+    e: Exec = db,
+  ): Promise<void> {
+    await e.insert(auditLog).values(values as NewAuditLogRow);
   }
 }

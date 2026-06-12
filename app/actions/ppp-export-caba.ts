@@ -20,6 +20,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { auditLog, db, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { CABA_PROVINCE, PPP_EXPORT_SCHEMA_VERSION, generatePppCabaPdf } from "@/lib/ppp-exports";
 import { createSignedExportUrl, uploadExportToStorage } from "@/lib/welfare-exports";
 
@@ -51,7 +52,6 @@ export async function generatePppExportAction(
       petSpecies: pets.species,
       petBreed: pets.breed,
       petDateOfBirth: pets.dateOfBirth,
-      petMicrochipId: pets.microchipId,
       petPotentiallyDangerousBreed: pets.potentiallyDangerousBreed,
       petJurisdictionProvince: pets.jurisdictionProvince,
       petJurisdictionLocality: pets.jurisdictionLocality,
@@ -83,15 +83,16 @@ export async function generatePppExportAction(
     return { ok: false, error: "ppp_prov_ba_not_implemented" };
   }
 
-  // Load owner profile.
-  const [ownerProfile] = await db
-    .select({
-      displayName: profiles.displayName,
-      dniNumber: profiles.dniNumber,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  // Load owner profile and canonical chip in parallel.
+  const [ownerProfile, identifications] = await Promise.all([
+    db
+      .select({ displayName: profiles.displayName, dniNumber: profiles.dniNumber })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1)
+      .then((rows) => rows[0]),
+    fetchActiveIdentifications(ownerRow.petId),
+  ]);
 
   // Get auth email from Supabase Auth (not stored in profiles by default).
   const {
@@ -108,7 +109,7 @@ export async function generatePppExportAction(
     petSpecies: ownerRow.petSpecies,
     petBreed: ownerRow.petBreed ?? null,
     petDateOfBirth: ownerRow.petDateOfBirth ?? null,
-    petMicrochipId: ownerRow.petMicrochipId ?? null,
+    petMicrochipId: identifications.microchip?.code ?? null,
     petPotentiallyDangerousBreed: ownerRow.petPotentiallyDangerousBreed,
     ownerDisplayName: ownerProfile?.displayName ?? "Propietario",
     ownerDniNumber: ownerProfile?.dniNumber ?? null,

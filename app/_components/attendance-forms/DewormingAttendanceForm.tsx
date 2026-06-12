@@ -3,7 +3,7 @@
 // Deworming attendance form.
 // Maps to the deworming_administered event payload schema in lib/event-schemas.ts.
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import type { AttendanceResult, DewormingPayload } from "@/app/actions/attendance";
 
@@ -21,9 +21,11 @@ export function DewormingAttendanceForm({
   submitLabel = "Marcar asistencia",
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     const form = e.currentTarget;
     const data = new FormData(form);
 
@@ -36,14 +38,14 @@ export function DewormingAttendanceForm({
     };
 
     if (!payload.product) {
-      alert("El nombre del producto es obligatorio.");
+      setError("El nombre del producto es obligatorio.");
       return;
     }
 
     startTransition(async () => {
       const result = await onSubmit(payload);
       if ("error" in result) {
-        alert(result.error);
+        setError(result.error);
         return;
       }
       onSuccess?.();
@@ -52,27 +54,37 @@ export function DewormingAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <p
+          role="alert"
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+        >
+          {error}
+        </p>
+      )}
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="dew-product" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Producto / antiparasitario <span className="text-ln-op-danger">*</span>
         </label>
         <input
+          id="dew-product"
           name="product"
           type="text"
           required
           placeholder="Ej: Nexgard, Milbemax"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label htmlFor="dew-type" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
           Tipo de desparasitación
         </label>
         <select
+          id="dew-type"
           name="type"
           defaultValue="internal"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         >
           <option value="internal">Interna</option>
           <option value="external">Externa</option>
@@ -81,13 +93,17 @@ export function DewormingAttendanceForm({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <label
+          htmlFor="dew-next_due_at"
+          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
+        >
           Próxima dosis (fecha)
         </label>
         <input
+          id="dew-next_due_at"
           name="next_due_at"
           type="date"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus:ring-2 focus:ring-ln-op-ok"
+          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 

@@ -690,16 +690,23 @@ export async function resetInstitutionalCredentialsForAuthority(
     },
   });
 
-  // 6. INSERT notification to target
-  await db.insert(notifications).values({
-    userId: input.targetUserId,
-    notificationType: "operator_credentials_reset",
-    title: "Tu link de acceso fue renovado",
-    body: "Un administrador generó un nuevo link de acceso para tu cuenta. Usalo para ingresar.",
-    severity: "info",
-    ctaLabel: "Acceder",
-    ctaUrl: "/login",
-  });
+  // 6. INSERT notification to target — best-effort, must not undo the credential reset.
+  try {
+    await db.insert(notifications).values({
+      userId: input.targetUserId,
+      notificationType: "operator_credentials_reset",
+      title: "Tu link de acceso fue renovado",
+      body: "Un administrador generó un nuevo link de acceso para tu cuenta. Usalo para ingresar.",
+      severity: "info",
+      ctaLabel: "Acceder",
+      ctaUrl: "/login",
+    });
+  } catch (e) {
+    console.error(
+      "notifications insert failed (resetInstitutionalCredentialsForAuthority did succeed)",
+      e,
+    );
+  }
 
   return { ok: true, magicLink };
 }
@@ -824,16 +831,20 @@ export async function assignGovtLocalityForAuthority(
     },
   });
 
-  // 7. INSERT notification to target govt
-  await db.insert(notifications).values({
-    userId: targetUserId,
-    notificationType: "govt_locality_assigned",
-    title: "Nueva localidad asignada a tu cuenta",
-    body: `Un administrador asignó la localidad ${canonicalLocality}, ${canonicalProvince} a tu jurisdicción.`,
-    severity: "info",
-    ctaLabel: "Ver mis localidades",
-    ctaUrl: "/admin",
-  });
+  // 7. INSERT notification to target govt — best-effort, must not undo the assignment.
+  try {
+    await db.insert(notifications).values({
+      userId: targetUserId,
+      notificationType: "govt_locality_assigned",
+      title: "Nueva localidad asignada a tu cuenta",
+      body: `Un administrador asignó la localidad ${canonicalLocality}, ${canonicalProvince} a tu jurisdicción.`,
+      severity: "info",
+      ctaLabel: "Ver mis localidades",
+      ctaUrl: "/gob",
+    });
+  } catch (e) {
+    console.error("notifications insert failed (assignGovtLocalityForAuthority did succeed)", e);
+  }
 
   return { ok: true, assignmentId: newAssignment.id };
 }

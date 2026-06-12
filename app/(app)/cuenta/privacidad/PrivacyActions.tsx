@@ -9,11 +9,13 @@ export function PrivacyActions() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [exported, setExported] = useState(false);
   const [showErase, setShowErase] = useState(false);
   const [eraseReason, setEraseReason] = useState("");
 
   function handleExport() {
     setError(null);
+    setExported(false);
     startTransition(async () => {
       const result = await exportMySubjectDataAction();
       if (!result.ok) {
@@ -31,12 +33,12 @@ export function PrivacyActions() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      setExported(true);
     });
   }
 
   function handleErase() {
     setError(null);
-    if (!confirm("Confirmás eliminar tu cuenta? Esta acción es irreversible.")) return;
     startTransition(async () => {
       const result = await eraseMySubjectDataAction(eraseReason);
       if (!result.ok) {
@@ -77,6 +79,11 @@ export function PrivacyActions() {
         >
           {pending ? "Generando…" : "Descargar JSON"}
         </button>
+        {exported && (
+          <output className="text-sm text-[var(--color-ln-ok)]">
+            Datos descargados correctamente.
+          </output>
+        )}
       </section>
 
       <section className="rounded-[4px] border border-[var(--color-ln-seal)]/30 bg-[var(--color-ln-err-050)]/30 p-5 space-y-3">

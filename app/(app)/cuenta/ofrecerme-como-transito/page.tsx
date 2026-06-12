@@ -112,8 +112,8 @@ function PreCheckChecklist({
     },
     {
       ok: checks.dniVerified,
-      label: "DNI verificado",
-      cta: checks.dniVerified ? null : { href: "/cuenta/verificar-dni", text: "Verificar DNI" },
+      label: "DNI declarado",
+      cta: checks.dniVerified ? null : { href: "/cuenta/verificar-dni", text: "Declarar DNI" },
     },
     {
       ok: checks.hasDisplayName,

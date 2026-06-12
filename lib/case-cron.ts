@@ -1,5 +1,5 @@
-// Shared cron runner for case-system crones. Encapsulates:
-//  - cron-secret auth (header `x-cron-secret`)
+// Shared cron runner for case-system crons. Encapsulates:
+//  - cron-secret auth (via authorizeCronRequest from lib/cron-auth.ts)
 //  - cronRuns INSERT (status='running') + UPDATE (status='ok'|'failed')
 //  - per-candidate try/catch so one bad row doesn't poison the batch
 //  - error aggregation into cron_runs.details
@@ -11,6 +11,7 @@
 import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 export interface RunCaseCronInput<TCandidate> {
   /** Stable name for this cron — used as the `cron_runs.cron_name` value. */
@@ -78,25 +79,20 @@ export async function runCaseCron<TCandidate>(
 }
 
 /**
- * Standardized cron-secret header check. Returns `null` on success or
+ * Standardized cron request auth check. Returns `null` on success or
  * a `{ ok: false, error, status }` triple on failure that the caller
  * route can serialize directly to NextResponse.json.
+ *
+ * Delegates to authorizeCronRequest (lib/cron-auth.ts) which accepts both
+ * `Authorization: Bearer <CRON_SECRET>` (Vercel contract) and the legacy
+ * `x-cron-secret` header.
+ *
+ * @deprecated Prefer importing `authorizeCronRequest` from `@/lib/cron-auth`
+ *   directly. This wrapper exists for routes that already use checkCronSecret
+ *   so they can migrate incrementally.
  */
-export function checkCronSecret(headerValue: string | null): {
-  ok: false;
-  error: string;
-  status: number;
-} | null {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    if (headerValue !== cronSecret) {
-      return { ok: false, error: "Unauthorized", status: 401 };
-    }
-    return null;
-  }
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, error: "CRON_SECRET not configured in production", status: 401 };
-  }
-  // Non-production fallback: allow but warn at the call site.
-  return null;
+export function checkCronSecret(req: {
+  headers: { get(name: string): string | null };
+}): { ok: false; error: string; status: number } | null {
+  return authorizeCronRequest(req);
 }

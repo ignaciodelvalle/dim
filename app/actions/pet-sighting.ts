@@ -27,7 +27,7 @@ import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
-import { makeMemoryRateLimiter } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 
@@ -38,10 +38,9 @@ export type SightingActionState = {
   warning?: string | null;
 };
 
-const sightingLimiter = makeMemoryRateLimiter(5 * 60 * 1000);
-
 // @no-auth-required: anonymous sighting submission via /p/[token]/sighting.
-// Rate-limited by (IP + publicToken) per 5 minutes.
+// Rate-limited by (IP + publicToken) via the persistent DB-backed limiter so
+// the limit holds cross-worker / cross cold-start. Limit: 1/min, 10/hour per key.
 export async function reportPetSightingAction(
   publicToken: string,
   _previous: SightingActionState,
@@ -50,15 +49,20 @@ export async function reportPetSightingAction(
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
   const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  const callerIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "unknown";
-  const rateLimitKey = `sighting:${callerIp}:${publicToken}`;
-  const rateResult = sightingLimiter.check(rateLimitKey);
-  if (!rateResult.allowed) {
-    return {
-      ok: false,
-      error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-    };
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`sighting:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
   }
 
   const latRaw = String(formData.get("locationLat") ?? "").trim();
@@ -206,17 +210,25 @@ export async function reportPetSightingAction(
     "Mirá el detalle en su perfil.",
   ].filter(Boolean);
 
-  await db.insert(notifications).values({
-    userId: owner.userId,
-    notificationType: "pet_found_report",
-    title: `Avistaje de ${pet.name}`,
-    body: bodyParts.join(" "),
-    severity: "urgent",
-    category: "perdidas",
-    relatedPetId: pet.id,
-    ctaLabel: "Ver mascota",
-    ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
-  });
+  // Insert notification — best-effort; a failure must not surface an error to the
+  // reporter (the sighting was already recorded successfully).
+  try {
+    await db.insert(notifications).values({
+      userId: owner.userId,
+      notificationType: "pet_found_report",
+      title: `Avistaje de ${pet.name}`,
+      body: bodyParts.join(" "),
+      severity: "urgent",
+      category: "perdidas",
+      relatedPetId: pet.id,
+      ctaLabel: "Ver mascota",
+      // Land on the cockpit (/mis-mascotas/{token}) which now surfaces sighting
+      // and possession reports while the pet is lost (UI-4 fix 7).
+      ctaUrl: `/mis-mascotas/${publicToken}`,
+    });
+  } catch (e) {
+    console.error("notifications insert failed (reportPetSightingAction did succeed)", e);
+  }
 
   return { ok: true, error: null, warning: photoWarning };
 }

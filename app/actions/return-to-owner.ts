@@ -39,7 +39,15 @@ import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/auth-guard
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+
+// ARCH-B cutoff: cancellations recorded after this moment ALWAYS emit a
+// structured custody_transfer_cancelled event. Legacy note_added markers are
+// only honoured for rows recorded before it (forgery guard — see
+// hasPendingProposal check 3). Set to the ARCH-B implementation moment; a
+// legitimate marker can only predate it because every writer since emits the
+// structured event.
+const LEGACY_CANCEL_MARKER_CUTOFF = new Date("2026-06-10T20:00:00Z");
 
 // ---------------------------------------------------------------------------
 // Return types
@@ -160,8 +168,7 @@ export async function proposeReturnAsRefugioWriter({
   }
   const ownerUserIdRefugio: string = ownerOwnership.ownerUserId;
 
-  // Anti-double-proposal: no pending custody_transfer_proposed without a
-  // subsequent custody_transferred or auto-cancel note_added.
+  // Fast pre-check outside the tx (optimistic path — avoids lock contention).
   const pendingCheck = await hasPendingProposal(pet.id);
   if (pendingCheck) {
     return { error: "Ya existe una propuesta de devolución pendiente para esta mascota." };
@@ -190,6 +197,17 @@ export async function proposeReturnAsRefugioWriter({
 
   try {
     await db.transaction(async (tx) => {
+      // TOCTOU fix: serialize concurrent proposals on the same pet.
+      // Same lock key as orgAcceptOwnerReturnWriter so propose-vs-accept also
+      // serialize — prevents a proposal slipping in while an accept is running.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify inside the tx after acquiring the lock.
+      const pendingInTx = await hasPendingProposal(pet.id, tx);
+      if (pendingInTx) {
+        throw new Error("Ya existe una propuesta de devolución pendiente para esta mascota.");
+      }
+
       // Fetch actor's display name for the notification body.
       const [actorProfile] = await tx
         .select({ displayName: profiles.displayName })
@@ -312,7 +330,7 @@ export async function proposeReturnAsVecinoWriter({
   }
   const ownerUserIdVecino: string = ownerOwnership.ownerUserId;
 
-  // Anti-double-proposal: no pending proposal exists.
+  // Fast pre-check outside the tx (optimistic path — avoids lock contention).
   const pendingCheck = await hasPendingProposal(pet.id);
   if (pendingCheck) {
     return { error: "Ya existe una propuesta de devolución pendiente para esta mascota." };
@@ -340,6 +358,15 @@ export async function proposeReturnAsVecinoWriter({
 
   try {
     await db.transaction(async (tx) => {
+      // TOCTOU fix: serialize concurrent proposals on the same pet.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify inside the tx after acquiring the lock.
+      const pendingInTx = await hasPendingProposal(pet.id, tx);
+      if (pendingInTx) {
+        throw new Error("Ya existe una propuesta de devolución pendiente para esta mascota.");
+      }
+
       const [actorProfile] = await tx
         .select({ displayName: profiles.displayName })
         .from(profiles)
@@ -527,20 +554,22 @@ export async function ownerAcceptReturnWriter({
   if (pet.status === "deceased") failures.push("pet_deceased");
 
   if (failures.length > 0) {
-    // AUTO-CANCEL: emit cancellation note + notify actor.
+    // AUTO-CANCEL: emit custody_transfer_cancelled + notify actor.
     const reason = failures[0];
     const now = new Date();
     type PendingNotification = typeof notifications.$inferInsert;
     const cancelPendingNotifications: PendingNotification[] = [];
     try {
       await db.transaction(async (tx) => {
-        const cancelPayload = validateEventPayload("note_added", {
-          category: null,
-          text: `Auto-cancelled at owner-accept: ${reason}. Proposal event_id=${latestProposal.id}`,
+        // Emit structured cancellation (ARCH-B: replaces marker note_added).
+        const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
+          proposal_event_id: latestProposal.id,
+          cancelled_by: "auto_cancel",
+          reason,
         });
         await tx.insert(petEvents).values({
           petId: pet.id,
-          eventType: "note_added",
+          eventType: "custody_transfer_cancelled",
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: userId,
@@ -559,6 +588,9 @@ export async function ownerAcceptReturnWriter({
             title: `Propuesta de devolución cancelada — ${pet.name}`,
             body: autoCancelBody(reason, pet.name),
             relatedPetId: pet.id,
+            // no-cta: recipient is the superseded proposer (vecino finder or org member);
+            // their accessible surface differs by role and the proposal is gone — no single
+            // safe destination.
           });
         }
       });
@@ -688,6 +720,9 @@ export async function ownerAcceptReturnWriter({
           body: `El dueño confirmó que recibió a ${pet.name}. La custodia fue cerrada correctamente.`,
           relatedPetId: pet.id,
           relatedEventId: transferEvent.id,
+          // no-cta: recipient is the return proposer (vecino finder or org member);
+          // the pet has gone back to the owner, so the proposer has no accessible
+          // surface for it. Terminal confirmation.
         });
       } else if (fromOrgId) {
         // For org actors, try to notify the member who submitted the proposal.
@@ -701,6 +736,8 @@ export async function ownerAcceptReturnWriter({
             body: `El dueño confirmó que recibió a ${pet.name}. La custodia fue cerrada correctamente.`,
             relatedPetId: pet.id,
             relatedEventId: transferEvent.id,
+            // no-cta: recipient is the org member who proposed; the pet has gone back to
+            // the owner, so the org no longer has a pet surface for it. Terminal confirmation.
           });
         }
       }
@@ -792,19 +829,33 @@ export async function ownerRejectReturnWriter({
 
   try {
     await db.transaction(async (tx) => {
-      // Emit note_added with rejection reason.
-      const notePayload = validateEventPayload("note_added", {
-        category: null,
-        text: `Owner rechazó propuesta de devolución. Motivo: ${reason}. Proposal event_id=${latestProposal.id}`,
+      // TOCTOU fix: serialize against ownerAcceptReturnWriter (and the
+      // propose writers) on the same pet. Same advisory key as the accept
+      // path — without it a reject can race an accept and emit a spurious
+      // custody_transfer_cancelled into the immutable log.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify the proposal is still pending UNDER the lock. If an accept
+      // (or another cancel) already resolved it, do not emit a cancellation.
+      const stillPending = await hasPendingProposal(pet.id, tx);
+      if (!stillPending) {
+        throw new Error("No hay propuestas de devolución pendientes.");
+      }
+
+      // Emit custody_transfer_cancelled (ARCH-B: replaces marker note_added).
+      const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
+        proposal_event_id: latestProposal.id,
+        cancelled_by: "owner_reject",
+        reason: reason ?? null,
       });
       await tx.insert(petEvents).values({
         petId: pet.id,
-        eventType: "note_added",
+        eventType: "custody_transfer_cancelled",
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: userId,
         authorRole: "owner",
-        payload: notePayload,
+        payload: cancelPayload,
       });
 
       // Notify the actor.
@@ -817,6 +868,8 @@ export async function ownerRejectReturnWriter({
           title: `Propuesta rechazada — ${pet.name}`,
           body: `El dueño de ${pet.name} rechazó la propuesta de devolución. Motivo: ${reason}`,
           relatedPetId: pet.id,
+          // no-cta: recipient is the return proposer (vecino finder or org member);
+          // the rejected proposal has no surface they can act on. Terminal notice.
         });
       } else if (fromOrgId) {
         const proposalAuthorId = latestProposal.recordedByUserId;
@@ -828,6 +881,8 @@ export async function ownerRejectReturnWriter({
             title: `Propuesta rechazada — ${pet.name}`,
             body: `El dueño de ${pet.name} rechazó la propuesta de devolución. Motivo: ${reason}`,
             relatedPetId: pet.id,
+            // no-cta: recipient is the org member who proposed; the rejected proposal has
+            // no surface they can act on. Terminal notice.
           });
         }
       }
@@ -930,13 +985,28 @@ export async function actorCancelProposalWriter({
 
   try {
     await db.transaction(async (tx) => {
-      const cancelPayload = validateEventPayload("note_added", {
-        category: null,
-        text: `Actor canceló la propuesta de devolución. Motivo: ${reason}. Proposal event_id=${latestProposal.id}`,
+      // TOCTOU fix: serialize against ownerAcceptReturnWriter (and the
+      // propose writers) on the same pet. Same advisory key as the accept
+      // path — without it a cancel can race an accept and emit a spurious
+      // custody_transfer_cancelled into the immutable log.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify the proposal is still pending UNDER the lock. If an accept
+      // (or a reject) already resolved it, do not emit a cancellation.
+      const stillPending = await hasPendingProposal(pet.id, tx);
+      if (!stillPending) {
+        throw new Error("No hay propuestas de devolución pendientes.");
+      }
+
+      // Emit custody_transfer_cancelled (ARCH-B: replaces marker note_added).
+      const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
+        proposal_event_id: latestProposal.id,
+        cancelled_by: "actor_cancel",
+        reason: reason ?? null,
       });
       await tx.insert(petEvents).values({
         petId: pet.id,
-        eventType: "note_added",
+        eventType: "custody_transfer_cancelled",
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: userId,
@@ -954,6 +1024,8 @@ export async function actorCancelProposalWriter({
           title: `Propuesta cancelada — ${pet.name}`,
           body: `Quien tenía a ${pet.name} canceló la propuesta de devolución. Motivo: ${reason}`,
           relatedPetId: pet.id,
+          ctaLabel: "Ver mi mascota",
+          ctaUrl: `/mis-mascotas/${pet.publicToken}`,
         });
       }
     });
@@ -979,15 +1051,25 @@ export async function actorCancelProposalWriter({
 // ---------------------------------------------------------------------------
 
 // Returns true if there is a pending custody_transfer_proposed event with no
-// subsequent custody_transferred event or cancellation note_added that closes it.
-// "Pending" = latest proposal has no subsequent transfer/cancel note.
+// subsequent event that resolves it.
 //
-// Cancel note detection: all cancel paths (ownerReject, orgReject, actorCancel,
-// auto-cancel) emit a note_added whose text contains "Proposal event_id=<id>"
-// referencing the proposal they close. Checking for that marker after the
-// proposal's occurredAt is sufficient to resolve the pending flag.
-async function hasPendingProposal(petId: string): Promise<boolean> {
-  const [latestProposal] = await db
+// Resolution checks (tri-check — ARCH-B):
+//   1. custody_transferred after the proposal (happy path accepted).
+//   2. custody_transfer_cancelled with payload->>'proposal_event_id' = proposal.id
+//      (structured cancellation — new path since ARCH-B).
+//   3. Legacy: note_added with marker text LIKE '%Proposal event_id=<id>%'
+//      AND recordedAt before the ARCH-B cutoff. Historical owner-reject
+//      markers were authored as 'owner', so a role filter would resurrect
+//      old resolved proposals — the time fence is the correct forgery guard:
+//      every cancellation since the cutoff emits the structured event, so a
+//      marker note recorded after it can only be a crafted note.
+async function hasPendingProposal(
+  petId: string,
+  tx?: Parameters<Parameters<typeof db.transaction>[0]>[0],
+): Promise<boolean> {
+  const exec = tx ?? db;
+
+  const [latestProposal] = await exec
     .select({ id: petEvents.id, occurredAt: petEvents.occurredAt })
     .from(petEvents)
     .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
@@ -996,8 +1078,8 @@ async function hasPendingProposal(petId: string): Promise<boolean> {
 
   if (!latestProposal) return false;
 
-  // Check for a subsequent custody_transferred event.
-  const [subsequentTransfer] = await db
+  // Check 1: subsequent custody_transferred.
+  const [subsequentTransfer] = await exec
     .select({ id: petEvents.id })
     .from(petEvents)
     .where(
@@ -1011,9 +1093,29 @@ async function hasPendingProposal(petId: string): Promise<boolean> {
 
   if (subsequentTransfer) return false;
 
-  // Check for a subsequent cancel note_added that references this proposal.
+  // Check 2: structured cancellation referencing this proposal (ARCH-B).
+  const [structuredCancel] = await exec
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "custody_transfer_cancelled"),
+        gt(petEvents.occurredAt, latestProposal.occurredAt),
+        sql`${petEvents.payload}->>'proposal_event_id' = ${latestProposal.id}`,
+      ),
+    )
+    .limit(1);
+
+  if (structuredCancel) return false;
+
+  // Check 3: legacy marker note_added (historical rows only — pre-ARCH-B data).
+  // Time-fenced: legacy owner-reject markers were authored as 'owner', so we
+  // cannot filter by role. Markers recorded after the cutoff are ignored —
+  // real cancellations emit custody_transfer_cancelled since ARCH-B, so a
+  // post-cutoff marker can only be a crafted note (forgery guard).
   const proposalMarker = `Proposal event_id=${latestProposal.id}`;
-  const [cancelNote] = await db
+  const [cancelNote] = await exec
     .select({ id: petEvents.id })
     .from(petEvents)
     .where(
@@ -1022,6 +1124,7 @@ async function hasPendingProposal(petId: string): Promise<boolean> {
         eq(petEvents.eventType, "note_added"),
         gt(petEvents.occurredAt, latestProposal.occurredAt),
         sql`${petEvents.payload}->>'text' LIKE ${`%${proposalMarker}%`}`,
+        lt(petEvents.recordedAt, LEGACY_CANCEL_MARKER_CUTOFF),
       ),
     )
     .limit(1);
@@ -1029,6 +1132,41 @@ async function hasPendingProposal(petId: string): Promise<boolean> {
   if (cancelNote) return false;
 
   return true;
+}
+
+// Returns true when there is a pending return proposal for this pet ADDRESSED to
+// the given owner (i.e. an actor — refugio or vecino — is trying to return the
+// pet to this owner). Reuses hasPendingProposal (the ARCH-B tri-check: subsequent
+// transfer, structured cancellation, time-fenced legacy marker) and adds the
+// to_user_id gate so the owner only sees the "Confirmar devolución" entry when the
+// pending proposal is actually directed at them.
+//
+// @no-auth-required: read-only boolean helper that expects PRE-AUTHORIZED owner
+// context — callers must have already confirmed the user is the active owner of
+// the pet (page-level requirePetAccess + ownership role check) before calling.
+// It reveals nothing beyond "a pending proposal addressed to this owner exists".
+export async function fetchPendingReturnProposalForOwner(
+  petId: string,
+  ownerUserId: string,
+): Promise<boolean> {
+  // Full tri-check first (cheap short-circuit when nothing is pending).
+  const pending = await hasPendingProposal(petId);
+  if (!pending) return false;
+
+  // The latest proposal is the pending one (hasPendingProposal already
+  // confirmed it is unresolved). Confirm it is addressed to this owner.
+  const [latestProposal] = await db
+    .select({ payload: petEvents.payload })
+    .from(petEvents)
+    .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+
+  if (!latestProposal) return false;
+
+  const payload = latestProposal.payload as Record<string, unknown>;
+  const toUserId = (payload.to_user_id as string | null) ?? null;
+  return toUserId === ownerUserId;
 }
 
 // Fetch the latest pending owner-initiated return proposal for a pet to a specific org.
@@ -1075,7 +1213,23 @@ export async function fetchPendingOwnerReturnProposalForOrg(
     .limit(1);
   if (subsequentTransfer) return null;
 
-  // Must not have a cancel note.
+  // Check 2: structured cancellation referencing this proposal (ARCH-B).
+  const [structuredCancel] = await db
+    .select({ id: petEvents.id })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "custody_transfer_cancelled"),
+        gt(petEvents.occurredAt, latestProposal.occurredAt),
+        sql`${petEvents.payload}->>'proposal_event_id' = ${latestProposal.id}`,
+      ),
+    )
+    .limit(1);
+  if (structuredCancel) return null;
+
+  // Check 3: legacy marker note_added (historical rows — pre-ARCH-B data).
+  // Time-fenced against forgery (see hasPendingProposal).
   const proposalMarker = `Proposal event_id=${latestProposal.id}`;
   const [cancelNote] = await db
     .select({ id: petEvents.id })
@@ -1086,6 +1240,7 @@ export async function fetchPendingOwnerReturnProposalForOrg(
         eq(petEvents.eventType, "note_added"),
         gt(petEvents.occurredAt, latestProposal.occurredAt),
         sql`${petEvents.payload}->>'text' LIKE ${`%${proposalMarker}%`}`,
+        lt(petEvents.recordedAt, LEGACY_CANCEL_MARKER_CUTOFF),
       ),
     )
     .limit(1);
@@ -1206,7 +1361,7 @@ export async function ownerProposeReturnToOrgWriter({
       : { error: "No sos el dueño activo de esta mascota." };
   }
 
-  // Reject if a proposal is already pending.
+  // Fast pre-check outside the tx (optimistic path — avoids lock contention).
   const alreadyPending = await hasPendingProposal(pet.id);
   if (alreadyPending) {
     return { error: "Ya existe una propuesta de devolución pendiente para esta mascota." };
@@ -1302,6 +1457,15 @@ export async function ownerProposeReturnToOrgWriter({
 
   try {
     await db.transaction(async (tx) => {
+      // TOCTOU fix: serialize concurrent proposals on the same pet.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      // Re-verify inside the tx after acquiring the lock.
+      const pendingInTx = await hasPendingProposal(pet.id, tx);
+      if (pendingInTx) {
+        throw new Error("Ya existe una propuesta de devolución pendiente para esta mascota.");
+      }
+
       const payload = validateEventPayload("custody_transfer_proposed", {
         from_user_id: userId,
         from_organization_id: null,
@@ -1392,7 +1556,7 @@ export async function orgAcceptOwnerReturnAction({
   petPublicToken: string;
   orgToken: string;
 }): Promise<OrgAcceptOwnerReturnResult> {
-  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership, user } = await requireOrgAccessByToken(orgToken);
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("custody.transfer")) {
     return { error: "Se necesita el permiso custody.transfer para aceptar la devolución." };
@@ -1400,6 +1564,7 @@ export async function orgAcceptOwnerReturnAction({
   return orgAcceptOwnerReturnWriter({
     orgId: organization.id,
     orgDisplayName: organization.displayName,
+    actingUserId: user.id,
     petPublicToken,
   });
 }
@@ -1411,10 +1576,17 @@ export async function orgAcceptOwnerReturnAction({
 export async function orgAcceptOwnerReturnWriter({
   orgId,
   orgDisplayName,
+  actingUserId,
   petPublicToken,
 }: {
   orgId: string;
   orgDisplayName: string;
+  /**
+   * Authenticated org member performing the accept. Audit-integrity fix: the
+   * emitted pet_events MUST be attributed to the member who acted, not to the
+   * owner who authored the proposal (latestProposal.recordedByUserId).
+   */
+  actingUserId: string;
   petPublicToken: string;
 }): Promise<OrgAcceptOwnerReturnResult> {
   const [petRow] = await db
@@ -1450,7 +1622,7 @@ export async function orgAcceptOwnerReturnWriter({
       if (!pending) {
         throw new Error("No hay propuesta de devolución pendiente para esta mascota.");
       }
-      const { proposal: latestProposal, ownerUserId } = pending;
+      const { ownerUserId } = pending;
 
       // Verify the owner still holds their active owner ownership row.
       const [ownerOwnership] = await tx
@@ -1499,7 +1671,9 @@ export async function orgAcceptOwnerReturnWriter({
             eventType: "foster_ended",
             occurredAt: now,
             recordedAt: now,
-            recordedByUserId: latestProposal.recordedByUserId,
+            // Audit-integrity fix: attribute to the acting org member, not the
+            // owner who proposed (latestProposal.recordedByUserId).
+            recordedByUserId: actingUserId,
             authorRole: "shelter",
             authorOrganizationId: orgId,
             payload: fosterEndedPayload,
@@ -1530,7 +1704,9 @@ export async function orgAcceptOwnerReturnWriter({
           eventType: "custody_transferred",
           occurredAt: now,
           recordedAt: now,
-          recordedByUserId: latestProposal.recordedByUserId,
+          // Audit-integrity fix: attribute to the acting org member, not the
+          // owner who proposed (latestProposal.recordedByUserId).
+          recordedByUserId: actingUserId,
           authorRole: "shelter",
           authorOrganizationId: orgId,
           payload: transferPayload,
@@ -1597,7 +1773,7 @@ export async function orgRejectOwnerReturnAction({
   orgToken: string;
   reason: string;
 }): Promise<OrgRejectOwnerReturnResult> {
-  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const { organization, membership, user } = await requireOrgAccessByToken(orgToken);
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("custody.transfer")) {
     return { error: "Se necesita el permiso custody.transfer para rechazar la devolución." };
@@ -1605,6 +1781,7 @@ export async function orgRejectOwnerReturnAction({
   return orgRejectOwnerReturnWriter({
     orgId: organization.id,
     orgDisplayName: organization.displayName,
+    actingUserId: user.id,
     petPublicToken,
     reason,
   });
@@ -1617,11 +1794,18 @@ export async function orgRejectOwnerReturnAction({
 export async function orgRejectOwnerReturnWriter({
   orgId,
   orgDisplayName,
+  actingUserId,
   petPublicToken,
   reason,
 }: {
   orgId: string;
   orgDisplayName: string;
+  /**
+   * Authenticated org member performing the reject. Audit-integrity fix: the
+   * emitted custody_transfer_cancelled MUST be attributed to the member who
+   * acted, not to the owner who authored the proposal.
+   */
+  actingUserId: string;
   petPublicToken: string;
   reason: string;
 }): Promise<OrgRejectOwnerReturnResult> {
@@ -1646,20 +1830,23 @@ export async function orgRejectOwnerReturnWriter({
 
   try {
     await db.transaction(async (tx) => {
-      // Emit cancel note with the standard marker so hasPendingProposal resolves false.
-      const notePayload = validateEventPayload("note_added", {
-        category: null,
-        text: `Org rechazó propuesta de devolución. Motivo: ${reason}. Proposal event_id=${latestProposal.id}`,
+      // Emit custody_transfer_cancelled (ARCH-B: replaces marker note_added).
+      const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
+        proposal_event_id: latestProposal.id,
+        cancelled_by: "org_reject",
+        reason: reason ?? null,
       });
       await tx.insert(petEvents).values({
         petId: pet.id,
-        eventType: "note_added",
+        eventType: "custody_transfer_cancelled",
         occurredAt: now,
         recordedAt: now,
-        recordedByUserId: latestProposal.recordedByUserId,
+        // Audit-integrity fix: attribute to the acting org member, not the
+        // owner who proposed (latestProposal.recordedByUserId).
+        recordedByUserId: actingUserId,
         authorRole: "shelter",
         authorOrganizationId: orgId,
-        payload: notePayload,
+        payload: cancelPayload,
       });
 
       // Notify the owner.
@@ -1670,6 +1857,8 @@ export async function orgRejectOwnerReturnWriter({
         title: `Propuesta rechazada — ${pet.name}`,
         body: `${orgDisplayName} rechazó tu propuesta de devolución de ${pet.name}. Motivo: ${reason}`,
         relatedPetId: pet.id,
+        ctaLabel: "Ver mi mascota",
+        ctaUrl: `/mis-mascotas/${pet.publicToken}`,
       });
     });
   } catch (err) {

@@ -29,7 +29,12 @@ export function ReminderActions({ reminderId, petToken, title, variant }: Props)
   const [error, setError] = useState<string | null>(null);
 
   const registerHref = `/mis-mascotas/${petToken}?sheet=vacuna&text=${encodeURIComponent(title)}`;
-  const scheduleHref = `/turnos/buscar?pet=${petToken}&service=vaccine`;
+  // /turnos/buscar reads `service_kind` (not `service`/`pet`). The pet is chosen
+  // later at reserve time via the booking form's pet selector, so only the
+  // service kind needs to travel. vaccination_rabies is the generic vaccination
+  // entry point — applies to both dogs and cats, and the user can switch kinds
+  // with the on-page service filter.
+  const scheduleHref = "/turnos/buscar?service_kind=vaccination_rabies";
 
   if (hidden) return null;
 

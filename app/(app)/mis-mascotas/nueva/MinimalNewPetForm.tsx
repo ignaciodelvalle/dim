@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { type FormEvent, useActionState, useState } from "react";
 
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
@@ -25,9 +25,23 @@ const OTHER_SPECIES = [
 
 export function MinimalNewPetForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    // The SpeciesField uses chip buttons + a hidden input; browser's required
+    // attribute can't guard the no-selection case. Validate client-side.
+    const form = e.currentTarget;
+    const speciesValue = (form.elements.namedItem("species") as HTMLInputElement | null)?.value;
+    if (!speciesValue) {
+      e.preventDefault();
+      setClientError("Elegí la especie antes de continuar.");
+      return;
+    }
+    setClientError(null);
+  }
 
   return (
-    <form action={formAction} className="flex flex-col gap-[20px]">
+    <form action={formAction} onSubmit={handleSubmit} className="flex flex-col gap-[20px]">
       {/* ── Name ─────────────────────────────────────────────────────── */}
       <LnField label="Nombre" required>
         {({ id, describedBy, invalid }) => (
@@ -67,12 +81,12 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
       </div>
 
       {/* ── Error ────────────────────────────────────────────────────── */}
-      {state?.error && (
+      {(clientError ?? state?.error) && (
         <p
           className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
           role="alert"
         >
-          {state.error}
+          {clientError ?? state?.error}
         </p>
       )}
 

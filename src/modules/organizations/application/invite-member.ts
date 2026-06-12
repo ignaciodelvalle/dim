@@ -146,6 +146,8 @@ export async function inviteMember(
         severity: "info",
         title: `Nueva invitación enviada en ${input.organization.displayName}`,
         body: `Se invitó a ${normalizedEmail} con el rol ${input.invitedRole}.`,
+        ctaLabel: "Ver miembros",
+        ctaUrl: `/org/${input.organization.publicToken}/miembros`,
       });
     }
   } catch (e) {

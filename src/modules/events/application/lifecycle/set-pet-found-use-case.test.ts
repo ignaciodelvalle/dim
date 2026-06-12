@@ -49,13 +49,17 @@ function makeTransaction() {
 
 const petId = randomUUID();
 const userId = randomUUID();
+const ownerUserId = randomUUID();
 const caseId = randomUUID();
 
 const baseParams = {
   petId,
   petStatus: "lost",
   petPublicToken: "abc123",
+  petName: "Firulais",
+  petSex: "male" as const,
   recordedByUserId: userId,
+  ownerUserId,
   eventAuthorship: {
     authorRole: "owner" as const,
     authorOrganizationId: null,
@@ -151,5 +155,106 @@ describe("setPetFound", () => {
     const [insertArg] = repo.insertEvent.mock.calls[0] as [Record<string, unknown>, unknown];
     expect(insertArg.caseId).toBeNull();
     expect(mockCloseCase).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Recovery notifications (UI-4 fix 3)
+  // -------------------------------------------------------------------------
+
+  it("emits an owner confirmation notification on found", async () => {
+    mockFindOpenCaseForPetAndKind.mockResolvedValue({ id: caseId });
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flushNotifications = vi.fn().mockResolvedValue(undefined);
+
+    await setPetFound(baseParams, {
+      repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "updateStatusProjection">,
+      transaction: tx,
+      flushNotifications,
+    });
+
+    expect(flushNotifications).toHaveBeenCalledTimes(1);
+    const [pending] = flushNotifications.mock.calls[0] as [Array<Record<string, unknown>>];
+    const ownerNotif = pending.find((n) => n.notificationType === "lost_episode_resolved_owner");
+    expect(ownerNotif).toBeDefined();
+    expect(ownerNotif?.userId).toBe(ownerUserId);
+    // Must carry a CTA (notification-cta-fitness convention).
+    expect(ownerNotif?.ctaUrl).toBe(`/mis-mascotas/${baseParams.petPublicToken}`);
+    expect(ownerNotif?.title).toContain("encontrado"); // sex=male
+  });
+
+  it("notifies the original broadcast recipients (dedup owner) with a CTA", async () => {
+    mockFindOpenCaseForPetAndKind.mockResolvedValue({ id: caseId });
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flushNotifications = vi.fn().mockResolvedValue(undefined);
+    const memberA = randomUUID();
+    const memberB = randomUUID();
+    // Include the owner in the recipients to assert dedup.
+    const findBroadcastRecipientUserIds = vi
+      .fn()
+      .mockResolvedValue([memberA, memberB, ownerUserId]);
+
+    await setPetFound(baseParams, {
+      repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "updateStatusProjection">,
+      transaction: tx,
+      flushNotifications,
+      findBroadcastRecipientUserIds,
+    });
+
+    expect(findBroadcastRecipientUserIds).toHaveBeenCalledWith(petId);
+    const [pending] = flushNotifications.mock.calls[0] as [Array<Record<string, unknown>>];
+    const broadcastNotifs = pending.filter(
+      (n) => n.notificationType === "lost_episode_resolved_broadcast",
+    );
+    // memberA + memberB, but NOT the owner (deduped).
+    expect(broadcastNotifs).toHaveLength(2);
+    const recipientIds = broadcastNotifs.map((n) => n.userId);
+    expect(recipientIds).toContain(memberA);
+    expect(recipientIds).toContain(memberB);
+    expect(recipientIds).not.toContain(ownerUserId);
+    for (const n of broadcastNotifs) {
+      expect(n.ctaUrl).toBe(`/p/${baseParams.petPublicToken}`);
+    }
+  });
+
+  it("still recovers when the broadcast recipient lookup throws (non-fatal)", async () => {
+    mockFindOpenCaseForPetAndKind.mockResolvedValue({ id: caseId });
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flushNotifications = vi.fn().mockResolvedValue(undefined);
+    const findBroadcastRecipientUserIds = vi.fn().mockRejectedValue(new Error("db down"));
+
+    const result = await setPetFound(baseParams, {
+      repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "updateStatusProjection">,
+      transaction: tx,
+      flushNotifications,
+      findBroadcastRecipientUserIds,
+    });
+
+    expect(result).toEqual({ ok: true, alreadyActive: false });
+    // Owner confirmation still flushed despite the recipient lookup failing.
+    const [pending] = flushNotifications.mock.calls[0] as [Array<Record<string, unknown>>];
+    expect(pending.some((n) => n.notificationType === "lost_episode_resolved_owner")).toBe(true);
+  });
+
+  it("uses the neutral participle when sex is unknown", async () => {
+    mockFindOpenCaseForPetAndKind.mockResolvedValue(null);
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flushNotifications = vi.fn().mockResolvedValue(undefined);
+
+    await setPetFound(
+      { ...baseParams, petSex: "unknown" },
+      {
+        repo: repo as unknown as Pick<EventsRepository, "insertEvent" | "updateStatusProjection">,
+        transaction: tx,
+        flushNotifications,
+      },
+    );
+
+    const [pending] = flushNotifications.mock.calls[0] as [Array<Record<string, unknown>>];
+    const ownerNotif = pending.find((n) => n.notificationType === "lost_episode_resolved_owner");
+    expect(ownerNotif?.title).toContain("encontrada/o");
   });
 });

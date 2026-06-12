@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets } from "@/db";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -83,15 +84,18 @@ afterAll(async () => {
 
 describe("pet_events append-only trigger", () => {
   it("rejects db.update(petEvents) from a normal Drizzle path", async () => {
-    await expect(
+    // The trigger raises with errcode restrict_violation (23001) and a message
+    // mentioning "append-only"; expectDbError matches it on the .cause chain.
+    await expectDbError(
       db.update(petEvents).set({ notes: "should not stick" }).where(eq(petEvents.id, eventId)),
-    ).rejects.toThrow(/append-only/i);
+      { constraint: /append-only/i },
+    );
   });
 
   it("rejects db.delete(petEvents) from a normal Drizzle path", async () => {
-    await expect(db.delete(petEvents).where(eq(petEvents.id, eventId))).rejects.toThrow(
-      /append-only/i,
-    );
+    await expectDbError(db.delete(petEvents).where(eq(petEvents.id, eventId)), {
+      constraint: /append-only/i,
+    });
   });
 
   it("event row is unchanged after the rejected mutations", async () => {
@@ -114,11 +118,12 @@ describe("pet_events append-only trigger", () => {
   });
 
   it("blocks future mutations again once the tx with the escape hatch ends", async () => {
-    await expect(
+    await expectDbError(
       db
         .update(petEvents)
         .set({ notes: "should not stick either" })
         .where(eq(petEvents.id, eventId)),
-    ).rejects.toThrow(/append-only/i);
+      { constraint: /append-only/i },
+    );
   });
 });

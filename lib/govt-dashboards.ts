@@ -26,6 +26,7 @@ import {
 } from "drizzle-orm";
 
 import {
+  caseEvents,
   cases,
   db,
   jurisdictionsCensus,
@@ -153,18 +154,10 @@ export async function fetchSurveillanceSignals(
   }));
 }
 
-// Period rollup grouped by disease_code (default last 30 days), with
-// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
-// as the detail feed so the totals match exactly. `count30d` holds the
-// window total (named for the default; callers may pass a custom `since`).
-export async function fetchDiseaseSummary(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
-): Promise<DiseaseSummary[]> {
-  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
-  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
-
+// Pure rollup: groups already-fetched signals by disease_code and computes
+// sub-window counts (7d, 24h) in JS. No DB call. The caller is responsible
+// for fetching signals with a window >= 30 days so count30d is correct.
+export function computeDiseaseSummary(signals: SurveillanceSignal[]): DiseaseSummary[] {
   const now = Date.now();
   const byCode = new Map<string, DiseaseSummary>();
   for (const s of signals) {
@@ -181,8 +174,24 @@ export async function fetchDiseaseSummary(
     if (age <= DAY_MS) entry.count24h += 1;
     byCode.set(s.diseaseCode, entry);
   }
-
   return [...byCode.values()].sort((a, b) => b.count30d - a.count30d);
+}
+
+// Period rollup grouped by disease_code (default last 30 days), with
+// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
+// as the detail feed so the totals match exactly. `count30d` holds the
+// window total (named for the default; callers may pass a custom `since`).
+//
+// When the caller already has a 30-day SurveillanceSignal[] in hand, prefer
+// calling computeDiseaseSummary(signals) directly to avoid a second DB round-trip.
+export async function fetchDiseaseSummary(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
+): Promise<DiseaseSummary[]> {
+  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
+  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
+  return computeDiseaseSummary(signals);
 }
 
 export type LostPetRow = {
@@ -766,8 +775,9 @@ export type ZoonosisTrendPoint = {
 export async function fetchZoonosisTrend(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<ZoonosisTrendPoint[]> {
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const conditions = [
     sql`${petEvents.eventType} LIKE ${"outbreak_%"}`,
@@ -1046,6 +1056,46 @@ export type TimelineEvent = {
  *
  * Actor names resolved from profiles in a single batch query.
  */
+/**
+ * Map a case_events row to a gov-timeline summary string. Returns null for
+ * entry types that should NOT surface in the gov welfare timeline. The org
+ * display name is read from the payload when present.
+ *
+ * Exported for testing (UI-7 Part C).
+ */
+export function caseEventTimelineSummary(
+  entryType: string,
+  notes: string | null,
+  payload: unknown,
+): string | null {
+  const orgName =
+    payload && typeof payload === "object" && "orgDisplayName" in payload
+      ? String((payload as Record<string, unknown>).orgDisplayName)
+      : null;
+  const trimmedNotes = notes?.trim() ? notes.trim() : null;
+
+  switch (entryType) {
+    case "reporter_comment":
+      return trimmedNotes
+        ? `Comentario del denunciante: ${trimmedNotes}`
+        : "El denunciante agregó un comentario.";
+    case "org_intervention_taken":
+      return orgName
+        ? `${orgName} tomó la denuncia y está interviniendo.`
+        : "La organización tomó la denuncia y está interviniendo.";
+    case "org_intervention_note":
+      return trimmedNotes
+        ? `Nota de intervención${orgName ? ` (${orgName})` : ""}: ${trimmedNotes}`
+        : "La organización agregó una nota de intervención.";
+    case "org_intervention_return":
+      return `${orgName ?? "La organización"} devolvió la denuncia${
+        trimmedNotes ? `: ${trimmedNotes}` : "."
+      }`;
+    default:
+      return null;
+  }
+}
+
 export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEvent[]> {
   const [report] = await db
     .select()
@@ -1070,7 +1120,36 @@ export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEv
     occurredAt: Date;
     recordedByUserId: string | null;
   }> = [];
+  // Pull case_events (reporter comments + org intervention notes) so the gov
+  // timeline shows them. These live in case_events, NOT welfare_reports, so the
+  // gov detail was previously blind to them (UI-7 Part C).
+  let linkedCaseEvents: Array<{
+    id: string;
+    entryType: string;
+    occurredAt: Date;
+    notes: string | null;
+    payload: unknown;
+    recordedByUserId: string | null;
+  }> = [];
   if (report.caseId) {
+    linkedCaseEvents = await db
+      .select({
+        id: caseEvents.id,
+        entryType: caseEvents.entryType,
+        occurredAt: caseEvents.occurredAt,
+        notes: caseEvents.notes,
+        payload: caseEvents.payload,
+        recordedByUserId: caseEvents.recordedByUserId,
+      })
+      .from(caseEvents)
+      .where(eq(caseEvents.caseId, report.caseId))
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(50);
+
+    for (const e of linkedCaseEvents) {
+      if (e.recordedByUserId) actorIdSet.add(e.recordedByUserId);
+    }
+
     const [linkedCase] = await db
       .select({ primaryPetId: cases.primaryPetId })
       .from(cases)
@@ -1183,6 +1262,20 @@ export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEv
     });
   }
 
+  // 6. Case events — reporter comments + org intervention notes (UI-7 Part C).
+  // Surfaced to gov so the maltrato detail shows the full case conversation.
+  for (const e of linkedCaseEvents) {
+    const summary = caseEventTimelineSummary(e.entryType, e.notes, e.payload);
+    if (!summary) continue; // skip unknown / internal entry types
+    events.push({
+      id: `case-event-${e.id}`,
+      occurredAt: e.occurredAt,
+      kind: e.entryType,
+      actorName: e.recordedByUserId ? (actorNames.get(e.recordedByUserId) ?? undefined) : undefined,
+      summary,
+    });
+  }
+
   // Sort chronologically.
   return events.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 }
@@ -1230,13 +1323,14 @@ export type AnalyticsMetrics = {
 export async function fetchAnalyticsMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<AnalyticsMetrics> {
   // Early-return for govt with no assignments.
   if (actor.role === "govt" && jurisdictions.length === 0) {
     return { totalPets: 0, adoptionRate: 0, rabiesVaccinationRate: 0, custodyDisputes: 0 };
   }
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const petsScope = petsScopeClause(actor, jurisdictions);
   const casesScope = casesScopeClause(actor, jurisdictions);
@@ -1400,10 +1494,11 @@ export type AcquisitionTrendPoint = {
 export async function fetchAcquisitionTrend(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<AcquisitionTrendPoint[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const conditions = [
     eq(petEvents.eventType, "pet_registered"),
@@ -1484,10 +1579,11 @@ export type DeathCauseRow = {
 export async function fetchDeathCauses(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date } = {},
 ): Promise<DeathCauseRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
   const conditions = [
     eq(petEvents.eventType, "death_recorded"),

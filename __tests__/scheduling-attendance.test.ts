@@ -30,6 +30,7 @@ import {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
   reminders,
@@ -94,6 +95,20 @@ let ownerCancelApptToken: string;
 let vetAttendSlotId: string;
 let vetAttendApptId: string;
 let vetAttendApptToken: string;
+
+// Microchip-implantation attendance (Fix UI-5 / P0).
+let offeringMicrochipId: string;
+let microchipSlotId: string;
+let microchipApptId: string;
+let microchipDupSlotId: string;
+let microchipDupApptId: string;
+
+// A second pet that already owns a chip, so the duplicate-chip guard can fire.
+let secondPetId: string;
+
+// Stable chip numbers for the microchip attendance tests.
+const ATTEND_CHIP = "982000900000001";
+const DUP_CHIP = "982000900000002";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -319,6 +334,86 @@ beforeAll(async () => {
   const va = await createAppointment(vetAttendSlotId, petId, ownerUserId, null, offeringVetId);
   vetAttendApptId = va.id;
   vetAttendApptToken = va.token;
+
+  // --- Microchip-implantation attendance fixtures (Fix UI-5) ---
+
+  // Clean up any leftover pets that own our test chip numbers from a prior run.
+  for (const chip of [ATTEND_CHIP, DUP_CHIP]) {
+    const rows = (await db.execute(
+      sql`SELECT DISTINCT pet_id FROM pet_identifications WHERE code = ${chip} AND kind = 'microchip_iso'`,
+    )) as unknown as Array<{ pet_id: string }>;
+    for (const r of rows) {
+      if (r.pet_id === petId) {
+        await withMutationOverride(async (tx) => {
+          await tx.execute(sql`DELETE FROM pet_identifications WHERE pet_id = ${r.pet_id}::uuid`);
+        });
+      }
+    }
+  }
+
+  // Org-side microchip-implantation offering.
+  const microchipOfferingToken = generateOfferingToken();
+  const [microchipOffering] = await db
+    .insert(serviceOfferings)
+    .values({
+      publicToken: microchipOfferingToken,
+      organizationId: orgId,
+      serviceKind: "microchip_implantation",
+      displayName: "Colocación de microchip test",
+      durationMinutes: 15,
+      slotCapacity: 2,
+      status: "approved",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "CABA",
+    })
+    .returning();
+  offeringMicrochipId = microchipOffering.id;
+
+  microchipSlotId = await createSlot(offeringMicrochipId, 8);
+  const mc = await createAppointment(
+    microchipSlotId,
+    petId,
+    ownerUserId,
+    orgId,
+    offeringMicrochipId,
+  );
+  microchipApptId = mc.id;
+
+  microchipDupSlotId = await createSlot(offeringMicrochipId, 9);
+  const mcDup = await createAppointment(
+    microchipDupSlotId,
+    petId,
+    ownerUserId,
+    orgId,
+    offeringMicrochipId,
+  );
+  microchipDupApptId = mcDup.id;
+
+  // A second pet that already holds DUP_CHIP as an active canonical row — used
+  // to trigger the friendly duplicate-chip guard.
+  const secondPetToken = generatePublicToken();
+  const [secondPet] = await db
+    .insert(pets)
+    .values({
+      publicToken: secondPetToken,
+      species: "dog",
+      name: "Dup Chip Owner Dog",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "CABA",
+    })
+    .returning();
+  secondPetId = secondPet.id;
+  await db.insert(ownerships).values({ petId: secondPetId, ownerUserId, role: "owner" });
+  await db.insert(petIdentifications).values({
+    petId: secondPetId,
+    kind: "microchip_iso",
+    code: DUP_CHIP,
+    recordedAt: new Date().toISOString().slice(0, 10),
+    isoCountryCode: DUP_CHIP.slice(0, 3),
+    isoManufacturerCode: DUP_CHIP.slice(3, 7),
+    isoNationalId: DUP_CHIP.slice(7, 15),
+    isoCompliant: true,
+  });
 }, 60_000);
 
 // ---------------------------------------------------------------------------
@@ -332,22 +427,25 @@ afterAll(async () => {
     // pet_events deletes are blocked by enforce_pet_events_append_only;
     // bypass via the SET LOCAL GUC inside a transaction (same pattern as
     // admin-decisions.test.ts).
+    const offeringList = [offeringOrgId, offeringVetId, offeringMicrochipId].filter(Boolean);
+    const petList = [petId, secondPetId].filter(Boolean);
     await withMutationOverride(async (tx) => {
-      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}`);
-      await tx.execute(sql`DELETE FROM reminders WHERE pet_id = ${petId}`);
+      for (const pid of petList) {
+        await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pid}`);
+        await tx.execute(sql`DELETE FROM reminders WHERE pet_id = ${pid}`);
+        await tx.execute(sql`DELETE FROM pet_identifications WHERE pet_id = ${pid}::uuid`);
+      }
       // Delete appointments + slots by service_offering_id (broader than pet_id —
       // catches any orphan rows from prior failed runs).
-      await tx.execute(
-        sql`DELETE FROM appointments WHERE service_offering_id IN (${offeringOrgId}, ${offeringVetId})`,
-      );
-      await tx.execute(
-        sql`DELETE FROM time_slots WHERE service_offering_id IN (${offeringOrgId}, ${offeringVetId})`,
-      );
-      await tx.execute(
-        sql`DELETE FROM service_offerings WHERE id IN (${offeringOrgId}, ${offeringVetId})`,
-      );
-      await tx.delete(ownerships).where(eq(ownerships.petId, petId));
-      await tx.execute(sql`DELETE FROM pets WHERE id = ${petId}`);
+      for (const oid of offeringList) {
+        await tx.execute(sql`DELETE FROM appointments WHERE service_offering_id = ${oid}`);
+        await tx.execute(sql`DELETE FROM time_slots WHERE service_offering_id = ${oid}`);
+        await tx.execute(sql`DELETE FROM service_offerings WHERE id = ${oid}`);
+      }
+      for (const pid of petList) {
+        await tx.delete(ownerships).where(eq(ownerships.petId, pid));
+        await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
+      }
       await tx.execute(sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`);
       await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
     });
@@ -668,5 +766,109 @@ describe("markAppointmentAttendedWriter (vet provider path)", () => {
     expect(ev.authorRole).toBe("vet");
     expect(ev.authorOrganizationId).toBeNull();
     expect(ev.authorVerified).toBe(true);
+  });
+});
+
+describe("markAppointmentAttendedWriter (microchip implantation — Fix UI-5)", () => {
+  const author: AuthorDescriptor = {
+    actorUserId: "", // set in the test (orgMemberUserId not in scope here yet)
+    authorRole: "vet",
+    authorOrganizationId: null,
+    authorVerified: true,
+  };
+
+  it("payload validates → microchip_implanted event AND canonical pet_identifications row created", async () => {
+    const payload: AttendancePayload = {
+      kind: "microchip",
+      chip_number: ATTEND_CHIP,
+      country_code: "858",
+      implanted_by: "Dr. Chip",
+      location_on_body: "interscapular",
+    };
+
+    const result = await markAppointmentAttendedWriter(microchipApptId, payload, {
+      ...author,
+      actorUserId: orgMemberUserId,
+      authorOrganizationId: orgId,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+
+    // Appointment marked attended.
+    const [appt] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.id, microchipApptId))
+      .limit(1);
+    expect(appt!.status).toBe("attended");
+
+    // microchip_implanted event inserted with the right payload shape.
+    const events = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")));
+    expect(events.length).toBeGreaterThan(0);
+    const ev = events[events.length - 1]!;
+    const evPayload = ev.payload as Record<string, unknown>;
+    expect(evPayload.chip_number).toBe(ATTEND_CHIP);
+    expect(evPayload.country_code).toBe("858");
+    expect(evPayload.implanted_by).toBe("Dr. Chip");
+
+    // Canonical dual-write: active pet_identifications microchip row exists.
+    const idRows = await db
+      .select()
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.code, ATTEND_CHIP),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(idRows).toHaveLength(1);
+    expect(idRows[0]!.isoCountryCode).toBe(ATTEND_CHIP.slice(0, 3));
+    expect(idRows[0]!.isoNationalId).toBe(ATTEND_CHIP.slice(7, 15));
+    expect(idRows[0]!.implantationSite).toBe("interescapular");
+  });
+
+  it("duplicate chip (already active on another pet) → friendly error, no event, appointment stays confirmed", async () => {
+    const payload: AttendancePayload = {
+      kind: "microchip",
+      chip_number: DUP_CHIP, // seeded as active on secondPetId
+      country_code: "858",
+      implanted_by: null,
+      location_on_body: null,
+    };
+
+    const eventCountBefore = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")),
+    );
+
+    const result = await markAppointmentAttendedWriter(microchipDupApptId, payload, {
+      ...author,
+      actorUserId: orgMemberUserId,
+      authorOrganizationId: orgId,
+    });
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining("ya está registrado en otra mascota"),
+    });
+
+    // No new event was inserted.
+    const eventCountAfter = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")),
+    );
+    expect(eventCountAfter).toBe(eventCountBefore);
+
+    // Appointment remains confirmed (not consumed by the failed attempt).
+    const [appt] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.id, microchipDupApptId))
+      .limit(1);
+    expect(appt!.status).toBe("confirmed");
   });
 });

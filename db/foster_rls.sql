@@ -1,5 +1,7 @@
 -- DIM foster volunteers pool — Row Level Security
 -- ------------------------------------------------
+-- NOTE (V0-4): REFERENCE ONLY. Source of truth is
+-- db/migrations/0086_track_rls_in_migrations.sql. No longer applied by bootstrap.
 -- Spec foster-volunteers-pool v1.4 §8.
 -- Apply once per environment by pasting into Supabase Studio → SQL Editor.
 -- Idempotent — safe to re-run.

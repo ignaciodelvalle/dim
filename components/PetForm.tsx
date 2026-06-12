@@ -38,10 +38,24 @@ const initialState: NewPetFormState = { error: null };
 
 type FormAction = (prev: NewPetFormState, formData: FormData) => Promise<NewPetFormState>;
 
+/**
+ * Canonical microchip data for pre-filling the form in edit mode.
+ * ARCH-S: replaces the dropped pets.microchipId* columns.
+ * Sourced from pet_identifications by the edit page server component.
+ */
+export type ExistingCanonicalChip = {
+  code: string | null;
+  isoCountryCode: string | null;
+  recordedAt: string | null;
+  recordedByLabel: string | null;
+  implantationSite: string | null;
+};
+
 export function PetForm({
   action,
   existingPet,
   existingPhotoUrl,
+  existingCanonicalChip,
   compact,
   submitLabel,
   pendingLabel,
@@ -50,6 +64,8 @@ export function PetForm({
   action: FormAction;
   existingPet?: Pet;
   existingPhotoUrl?: string | null;
+  /** ARCH-S: canonical chip pre-fill for edit mode. Replaces dropped pets.microchipId* columns. */
+  existingCanonicalChip?: ExistingCanonicalChip | null;
   compact?: boolean;
   submitLabel?: string;
   pendingLabel?: string;
@@ -127,7 +143,8 @@ export function PetForm({
 
   // Determine which accordions are "complete" (have data filled in).
   const basicComplete = !!(species && (existingPet?.name || !isEdit));
-  const identComplete = !!(breed || existingPet?.microchipId);
+  // ARCH-S: chip presence now from canonical prop, not pets.microchipId.
+  const identComplete = !!(breed || existingCanonicalChip?.code);
   const healthComplete = !!(selectedAllergies.length || selectedFoods.length || conditions.size);
 
   return (
@@ -313,7 +330,7 @@ export function PetForm({
                 )}
               </LnField>
 
-              <MicrochipBlock existingPet={existingPet} />
+              <MicrochipBlock existingCanonicalChip={existingCanonicalChip} />
             </div>
           </LnSheetAccordion>
 
@@ -721,7 +738,12 @@ function LnAgeFields({
   );
 }
 
-function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
+function MicrochipBlock({
+  existingCanonicalChip,
+}: {
+  // ARCH-S: canonical chip data replaces dropped pets.microchipId* columns.
+  existingCanonicalChip?: ExistingCanonicalChip | null;
+}) {
   return (
     <div className="flex flex-col gap-[10px] border-t border-[var(--color-ln-line-2)] pt-[12px]">
       <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
@@ -735,7 +757,7 @@ function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
             type="text"
             mono
             autoComplete="off"
-            defaultValue={existingPet?.microchipId ?? undefined}
+            defaultValue={existingCanonicalChip?.code ?? undefined}
             aria-describedby={describedBy}
           />
         )}
@@ -747,7 +769,7 @@ function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
             name="microchipCountryCode"
             type="text"
             mono
-            defaultValue={existingPet?.microchipCountryCode ?? "858"}
+            defaultValue={existingCanonicalChip?.isoCountryCode ?? "858"}
             aria-describedby={describedBy}
           />
         )}
@@ -759,7 +781,7 @@ function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
             name="microchipImplantedAt"
             type="date"
             mono
-            defaultValue={existingPet?.microchipImplantedAt ?? undefined}
+            defaultValue={existingCanonicalChip?.recordedAt ?? undefined}
             aria-describedby={describedBy}
           />
         )}
@@ -770,7 +792,7 @@ function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
             id={id}
             name="microchipImplantedBy"
             type="text"
-            defaultValue={existingPet?.microchipImplantedBy ?? undefined}
+            defaultValue={existingCanonicalChip?.recordedByLabel ?? undefined}
             aria-describedby={describedBy}
           />
         )}
@@ -780,7 +802,7 @@ function MicrochipBlock({ existingPet }: { existingPet?: Pet }) {
           <LnSelect
             id={id}
             name="microchipLocation"
-            defaultValue={existingPet?.microchipLocation ?? ""}
+            defaultValue={existingCanonicalChip?.implantationSite ?? ""}
             aria-describedby={describedBy}
             invalid={invalid}
           >

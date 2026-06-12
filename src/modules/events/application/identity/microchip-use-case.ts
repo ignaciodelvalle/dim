@@ -6,11 +6,14 @@
 // Parity:
 //   - Uses insertEventIdempotent; wasNoop=true → skip ALL side-effects.
 //   - Attachment inserted when uploadedPath provided.
-//   - PROJECTION: updateMicrochipBackfill called ONLY when pet.microchipId is null.
-//     The repository method also guards on null via WHERE clause — double safety.
+//   - ARCH-R: legacy updateMicrochipBackfill (pets.microchipId column) removed.
+//     Canonical row written to pet_identifications via insertIdentification.
+//   - ARCH-S: pet.microchipId replaced by petHasCanonicalChip (pre-resolved by
+//     caller from pet_identifications) so no legacy column is needed.
 //   - No outbox. No audit_log.
 
 import { validateEventPayload } from "@/lib/event-schemas";
+import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";
@@ -20,7 +23,7 @@ import type { UseCaseResult } from "../types";
 // ---------------------------------------------------------------------------
 
 export type CreateMicrochipInput = {
-  pet: { id: string; microchipId: string | null };
+  pet: { id: string; petHasCanonicalChip: boolean };
   user: { id: string };
   eventAuthorship: {
     authorRole: string;
@@ -42,7 +45,7 @@ export type CreateMicrochipInput = {
 type Deps = {
   repo: Pick<
     EventsRepository,
-    "insertEventIdempotent" | "insertAttachment" | "updateMicrochipBackfill"
+    "insertEventIdempotent" | "insertAttachment" | "insertIdentification"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
@@ -113,22 +116,28 @@ export async function createMicrochip(
       );
     }
 
-    // Back-fill denormalized microchip columns on the pets row ONLY if
-    // the pet had no chip before (never overwrite existing data).
-    // The repository method also filters by WHERE microchipId IS NULL as
-    // a second safety layer.
-    if (!pet.microchipId) {
-      await repo.updateMicrochipBackfill(
-        pet.id,
+    // Insert canonical microchip row in pet_identifications.
+    // Only when the pet had no prior chip; insertIdentification itself skips
+    // if an active row already exists (re-sync guard).
+    // ARCH-R: legacy pets.microchipId write removed.
+    // ARCH-S: guard uses petHasCanonicalChip (pre-resolved from pet_identifications by caller).
+    if (!pet.petHasCanonicalChip) {
+      const implantSite = chipImplantSiteFromLocation(locationOnBody);
+      await repo.insertIdentification(
         {
-          microchipId: chipNumber,
-          microchipCountryCode: countryCode,
-          microchipImplantedAt: occurredAt.toISOString().slice(0, 10),
-          microchipImplantedBy: implantedBy,
-          microchipLocation: locationOnBody,
+          petId: pet.id,
+          kind: "microchip_iso",
+          code: chipNumber,
+          recordedAt: occurredAt.toISOString().slice(0, 10),
+          recordedByUserId: user.id,
+          recordedByLabel: implantedBy,
+          isoCountryCode: chipNumber.slice(0, 3),
+          isoManufacturerCode: chipNumber.slice(3, 7),
+          isoNationalId: chipNumber.slice(7, 15),
+          isoCompliant: true,
+          implantationSite: implantSite ?? undefined,
         },
-        now,
-        tx as Parameters<typeof repo.updateMicrochipBackfill>[3],
+        tx as Parameters<typeof repo.insertIdentification>[1],
       );
     }
 

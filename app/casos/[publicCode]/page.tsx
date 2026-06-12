@@ -16,6 +16,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
 import { db, govtAssignments, profiles } from "@/db";
+import type { EventType } from "@/db/schema";
 import { canReadCase } from "@/lib/case-access";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
@@ -277,7 +278,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
               >
                 <div className="flex items-baseline justify-between">
                   <span className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">
-                    {eventTypeLabel(e.eventType)}
+                    {eventTypeLabel(e.eventType as EventType)}
                   </span>
                   <time className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                     {formatDateTime(e.occurredAt)}

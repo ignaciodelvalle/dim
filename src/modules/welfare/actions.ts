@@ -46,7 +46,7 @@ import {
   resolveCanonicalJurisdiction,
 } from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -61,6 +61,7 @@ import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { and, eq, isNull } from "drizzle-orm";
 
+import { addInterventionNote } from "./application/add-intervention-note";
 import { addReporterComment } from "./application/add-reporter-comment";
 import { assignWelfare } from "./application/assign-welfare";
 import { closeWelfareReport } from "./application/close-welfare-report";
@@ -69,7 +70,9 @@ import { createOrgWelfareReport } from "./application/create-org-welfare-report"
 import { createWelfareReport } from "./application/create-welfare-report";
 import { generateMpfExport } from "./application/generate-mpf-export";
 import { passWelfareToTriage } from "./application/pass-welfare-to-triage";
+import { returnDerivedReport } from "./application/return-derived-report";
 import { startWelfareReport } from "./application/start-welfare-report";
+import { takeDerivedReport } from "./application/take-derived-report";
 import { triageWelfareReport } from "./application/triage-welfare-report";
 import { unassignWelfare } from "./application/unassign-welfare";
 import { WelfareRepository } from "./infrastructure/welfare-repository";
@@ -364,13 +367,21 @@ export async function deriveWelfareToOrgAction(input: {
     return { ok: false, error: "Solo se puede derivar a refugios o redes de rescate verificados." };
   }
 
-  // Persist derivation fields.
+  // Capture the previous derivation target BEFORE overwriting, so we can send a
+  // corrective notice when re-deriving to a different org (UI-7 B8). True
+  // notification retraction isn't possible — the corrective notice is the fix.
+  const previousOrgId = report.derivedToOrganizationId;
+
+  // Persist derivation fields. Re-deriving resets any prior org intervention
+  // state so the new org starts from a clean slate ('tomado'/'devuelto' cleared).
   await db
     .update(welfareReports)
     .set({
       derivedToOrganizationId: targetOrg.id,
       derivedAt: new Date(),
       derivedByUserId: user.id,
+      orgInterventionStatus: null,
+      orgInterventionAt: null,
     })
     .where(eq(welfareReports.id, input.welfareReportId));
 
@@ -400,7 +411,7 @@ export async function deriveWelfareToOrgAction(input: {
     .limit(10);
 
   const ctaUrl = `/org/${targetOrg.publicToken}/maltrato/recibidos?tab=recibidos`;
-  const pendingNotifications = memberRows.map((m) => ({
+  const pendingNotifications: Parameters<typeof flushNotifications>[0] = memberRows.map((m) => ({
     userId: m.userId,
     notificationType: "welfare_report_derived_to_org",
     title: "Nueva derivación de denuncia",
@@ -411,11 +422,244 @@ export async function deriveWelfareToOrgAction(input: {
     category: "welfare",
   }));
 
+  // Re-derivation de-notify (UI-7 B8): when the report was previously derived to
+  // a DIFFERENT org, notify that org's active members that they are no longer
+  // responsible. Corrective notice (info) with a CTA to their recibidos list.
+  if (previousOrgId && previousOrgId !== targetOrg.id) {
+    const [previousOrg] = await db
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, previousOrgId))
+      .limit(1);
+
+    const previousMemberRows = await db
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, previousOrgId),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(10);
+
+    const previousCtaUrl = previousOrg
+      ? `/org/${previousOrg.publicToken}/maltrato/recibidos?tab=recibidos`
+      : null;
+
+    for (const m of previousMemberRows) {
+      pendingNotifications.push({
+        userId: m.userId,
+        notificationType: "welfare_report_rederived_away",
+        title: "Derivación reasignada",
+        body: `El gobierno reasignó la denuncia ${report.referenceCode} a otra organización. Tu organización ya no es responsable de su seguimiento.`,
+        severity: "info",
+        // CTA only when the previous org still resolves — a label without a
+        // destination violates the notification CTA contract.
+        ctaLabel: previousCtaUrl ? "Ver mis recibidos" : null,
+        ctaUrl: previousCtaUrl,
+        category: "welfare",
+      });
+    }
+  }
+
   await flushNotifications(pendingNotifications);
 
   revalidatePath("/gob/maltrato");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   revalidatePath(`/org/${targetOrg.publicToken}/maltrato/recibidos`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Org intervention actions (UI-7) — take / note / return a derived report
+// ---------------------------------------------------------------------------
+//
+// AUTH SCOPE: requireUserOrRedirect THEN org-membership gate scoped to the
+// org's publicToken, requiring an active membership with a case-handling role.
+// No welfare case-handling capability exists in ORGANIZATION_CAPABILITIES, so
+// these mutating actions gate on coordinator/admin (the privileged operative
+// roles) — consistent with the gov-side actors being the only closers and with
+// derivation being an institutional-grade workflow.
+//
+// GOV stays the ONLY closer. None of these actions touch the welfare status
+// enum; they only set org_intervention_status / case_events notes.
+
+// Roles allowed to ACT on (not just view) a derived report.
+const ORG_INTERVENTION_ROLES = new Set(["admin", "coordinator"]);
+
+export type OrgInterventionResult = { ok: true } | { ok: false; error: string };
+
+type OrgInterventionActor = {
+  userId: string;
+  orgId: string;
+  orgDisplayName: string;
+  orgPublicToken: string;
+};
+
+/**
+ * Org-membership gate for intervention actions, scoped to a publicToken.
+ * Returns the resolved actor or a Spanish error string. SCOPED TO THIS ORG ONLY
+ * (foster cross-org bypass lesson) — membership is matched by publicToken.
+ */
+async function requireOrgInterventionAccess(
+  orgToken: string,
+): Promise<OrgInterventionActor | { error: string }> {
+  const { user } = await requireUserOrRedirect();
+
+  const [orgRow] = await db
+    .select({
+      orgId: organizations.id,
+      orgDisplayName: organizations.displayName,
+      orgPublicToken: organizations.publicToken,
+      orgVerified: organizations.verified,
+      orgType: organizations.orgType,
+      memberRole: organizationMemberships.role,
+    })
+    .from(organizations)
+    .innerJoin(
+      organizationMemberships,
+      eq(organizationMemberships.organizationId, organizations.id),
+    )
+    .where(
+      and(
+        eq(organizations.publicToken, orgToken),
+        eq(organizationMemberships.userId, user.id),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  if (!orgRow) return { error: "No sos miembro activo de esta organización." };
+  if (!orgRow.orgVerified)
+    return { error: "Tu organización todavía no está verificada por MiMAR." };
+  // Defense-in-depth: derivation targets are restricted to shelter /
+  // rescue_network in deriveWelfareToOrgAction; mirror that constraint here so
+  // a data-integrity drift can never widen the intervention surface.
+  if (orgRow.orgType !== "shelter" && orgRow.orgType !== "rescue_network") {
+    return { error: "Solo refugios y redes de rescate pueden intervenir denuncias derivadas." };
+  }
+  if (!ORG_INTERVENTION_ROLES.has(orgRow.memberRole)) {
+    return {
+      error:
+        "Tu rol no habilita intervenir denuncias derivadas. Pediselo a un coordinador o administrador.",
+    };
+  }
+
+  return {
+    userId: user.id,
+    orgId: orgRow.orgId,
+    orgDisplayName: orgRow.orgDisplayName,
+    orgPublicToken: orgRow.orgPublicToken,
+  };
+}
+
+/**
+ * Resolve gov recipients for an intervention notification: the deriving user
+ * (if known) plus the jurisdiction authorities. Returns distinct user IDs.
+ */
+async function findGovInterventionRecipients(input: {
+  derivedByUserId: string | null;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+}): Promise<string[]> {
+  const ids = new Set<string>();
+  if (input.derivedByUserId) ids.add(input.derivedByUserId);
+  if (input.jurisdictionProvince && input.jurisdictionLocality) {
+    const authorities = await findAuthoritiesForJurisdiction({
+      province: input.jurisdictionProvince,
+      locality: input.jurisdictionLocality,
+    });
+    for (const id of authorities) ids.add(id);
+  }
+  return [...ids];
+}
+
+export async function takeDerivedReportAction(input: {
+  orgToken: string;
+  welfareReportId: string;
+}): Promise<OrgInterventionResult> {
+  const access = await requireOrgInterventionAccess(input.orgToken);
+  if ("error" in access) return { ok: false, error: access.error };
+
+  const result = await takeDerivedReport(
+    { welfareReportId: input.welfareReportId },
+    {
+      repo: {
+        findById: repo.findById.bind(repo),
+        setOrgIntervention: repo.setOrgIntervention.bind(repo),
+        insertCaseEvent: (v) => repo.insertCaseEvent(v),
+      },
+      findGovRecipients: findGovInterventionRecipients,
+      actor: { userId: access.userId, orgId: access.orgId, orgDisplayName: access.orgDisplayName },
+    },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await flushNotifications(result.notifications);
+
+  revalidatePath(`/org/${access.orgPublicToken}/maltrato/recibidos`);
+  revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
+  return { ok: true };
+}
+
+export async function addInterventionNoteAction(input: {
+  orgToken: string;
+  welfareReportId: string;
+  text: string;
+}): Promise<OrgInterventionResult> {
+  const access = await requireOrgInterventionAccess(input.orgToken);
+  if ("error" in access) return { ok: false, error: access.error };
+
+  const result = await addInterventionNote(
+    { welfareReportId: input.welfareReportId, text: input.text },
+    {
+      repo: {
+        findById: repo.findById.bind(repo),
+        insertCaseEvent: (v) => repo.insertCaseEvent(v),
+      },
+      findGovRecipients: findGovInterventionRecipients,
+      actor: { userId: access.userId, orgId: access.orgId, orgDisplayName: access.orgDisplayName },
+    },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await flushNotifications(result.notifications);
+
+  revalidatePath(`/org/${access.orgPublicToken}/maltrato/recibidos`);
+  revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
+  return { ok: true };
+}
+
+export async function returnDerivedReportAction(input: {
+  orgToken: string;
+  welfareReportId: string;
+  reason: string;
+}): Promise<OrgInterventionResult> {
+  const access = await requireOrgInterventionAccess(input.orgToken);
+  if ("error" in access) return { ok: false, error: access.error };
+
+  const result = await returnDerivedReport(
+    { welfareReportId: input.welfareReportId, reason: input.reason },
+    {
+      repo: {
+        findById: repo.findById.bind(repo),
+        returnDerivation: repo.returnDerivation.bind(repo),
+        insertCaseEvent: (v) => repo.insertCaseEvent(v),
+      },
+      findGovRecipients: findGovInterventionRecipients,
+      actor: { userId: access.userId, orgId: access.orgId, orgDisplayName: access.orgDisplayName },
+    },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await flushNotifications(result.notifications);
+
+  revalidatePath(`/org/${access.orgPublicToken}/maltrato/recibidos`);
+  revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
 
@@ -516,7 +760,7 @@ export async function createWelfareReportAction(
   // Rate-limit anonymous submissions only. Auth users skip entirely.
   if (!user) {
     const hdrs = await headers();
-    const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = callerIp(hdrs);
     try {
       await enforceRateLimit("welfare_anon", ip, {
         maxPerMinute: 1,

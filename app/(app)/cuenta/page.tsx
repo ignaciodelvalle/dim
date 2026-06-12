@@ -156,19 +156,21 @@ export default async function CuentaPage() {
                   <span className="font-[var(--font-ln-mono)]">
                     {profile.dniVerified ? `••••${profile.dniNumber.slice(-3)}` : profile.dniNumber}
                   </span>{" "}
-                  {profile.dniVerified ? "verificado" : "sin verificar"}
+                  {/* DNI verification is self-declared (trust-on-input) until the Mi Argentina
+                      integration lands. Use "declarado" to avoid overclaiming identity assurance. */}
+                  {profile.dniVerified ? "declarado" : "no declarado"}
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-[10px]">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-mute)]" />
                 <span className="text-[13px] text-[var(--color-ln-mute)]">
-                  DNI no provisto —{" "}
+                  DNI no declarado —{" "}
                   <Link
                     href="?sheet=verificar-dni"
                     className="text-[var(--color-ln-azul)] no-underline hover:underline"
                   >
-                    Verificar ahora
+                    Declarar ahora
                   </Link>
                 </span>
               </div>
@@ -245,6 +247,11 @@ export default async function CuentaPage() {
           href="?sheet=editar-perfil"
           label="Editar mi información"
           description="Nombre, teléfono y foto de perfil"
+        />
+        <ActionRow
+          href="/notificaciones"
+          label="Notificaciones"
+          description="Avisos, alertas y novedades de tus mascotas"
         />
         <ActionRow
           href="/cuenta/memberships"
@@ -354,7 +361,7 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
       <span
-        aria-label="verificado"
+        aria-label="declarado"
         className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[11px] font-bold text-[var(--color-ln-ok)]"
       >
         ✓
@@ -363,7 +370,7 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   }
   return (
     <span
-      aria-label="pendiente"
+      aria-label="no declarado"
       className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[11px] text-[var(--color-ln-warn)]"
     >
       ⏳

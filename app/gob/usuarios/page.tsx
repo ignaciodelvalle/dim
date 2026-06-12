@@ -32,7 +32,7 @@ export default async function UsuariosPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const results = await searchUsers(query);
+  const results = await searchUsers(query, { role: profile.role, jurisdictions });
 
   // Fire-and-forget pii_queried entry. Logging only happens when the user
   // typed a query — empty-query landings are not a PII read.
@@ -80,13 +80,11 @@ export default async function UsuariosPage({
       </p>
 
       <BulkRevokeList
-        items={results.map((u) => ({ id: u.id, label: `${u.displayName} (${u.role})`, raw: u }))}
-        targetKind="vet"
-        actorUserId={user.id}
-        isRevocable={(item) => (item as { raw: (typeof results)[number] }).raw.role === "vet"}
-        renderItem={(item) => {
-          const u = (item as { raw: (typeof results)[number] }).raw;
-          return (
+        items={results.map((u) => ({
+          id: u.id,
+          label: `${u.displayName} (${u.role})`,
+          revocable: u.role === "vet",
+          content: (
             <OpCard>
               <OpCardBody>
                 <div className="space-y-3">
@@ -119,8 +117,10 @@ export default async function UsuariosPage({
                 </div>
               </OpCardBody>
             </OpCard>
-          );
-        }}
+          ),
+        }))}
+        targetKind="vet"
+        actorUserId={user.id}
       />
 
       <p className="text-[12px] text-ln-op-mute">

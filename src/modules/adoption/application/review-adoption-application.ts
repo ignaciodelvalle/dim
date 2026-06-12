@@ -104,6 +104,7 @@ export async function approveAdoptionApplication(
       pendingNotifications.push({
         userId: applicantUserId,
         notificationType: "adoption_application_approved",
+        category: "adoption",
         title: `Tu postulación para ${pet.name} fue aprobada`,
         body: `${organization.displayName} quiere avanzar con tu postulación. Te van a contactar por email para coordinar los próximos pasos.`,
         severity: "success",
@@ -159,6 +160,7 @@ export async function rejectAdoptionApplication(
       pendingNotifications.push({
         userId: applicantUserId,
         notificationType: "adoption_application_rejected",
+        category: "adoption",
         title: `Tu postulación para ${pet.name} no avanzó`,
         body: `${organization.displayName} no avanzó con tu postulación esta vez. Hay otras mascotas buscando hogar.`,
         severity: "info",

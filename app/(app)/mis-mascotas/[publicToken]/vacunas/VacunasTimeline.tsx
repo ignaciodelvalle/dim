@@ -115,6 +115,13 @@ function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }) {
           </div>
         ))}
       </div>
+      {summary.otherCount > 0 && (
+        <p className="mt-[8px] text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
+          {summary.otherCount === 1
+            ? "1 vacuna registrada fuera del calendario"
+            : `${summary.otherCount} vacunas registradas fuera del calendario`}
+        </p>
+      )}
     </section>
   );
 }

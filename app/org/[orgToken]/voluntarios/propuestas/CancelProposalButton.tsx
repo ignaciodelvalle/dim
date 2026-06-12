@@ -9,9 +9,9 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   function cancel() {
-    if (!confirm("¿Cancelar la propuesta? El voluntario va a recibir aviso.")) return;
     setError(null);
     startTransition(async () => {
       const result = await cancelFosterProposalAction({
@@ -20,23 +20,57 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(false);
         return;
       }
       router.refresh();
     });
   }
 
+  if (!confirming) {
+    return (
+      <div className="text-right">
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={pending}
+          className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="text-right">
-      <button
-        type="button"
-        onClick={cancel}
-        disabled={pending}
-        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
-      >
-        {pending ? "Cancelando..." : "Cancelar"}
-      </button>
-      {error && <output className="mt-1 block text-[12px] text-ln-op-danger">{error}</output>}
+    <div className="flex flex-col items-end gap-1">
+      <p className="text-[12px] text-ln-op-ink-2">El voluntario va a recibir aviso.</p>
+      {error && (
+        <output role="alert" className="text-[12px] text-ln-op-danger">
+          {error}
+        </output>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={cancel}
+          disabled={pending}
+          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {pending ? "Cancelando..." : "Confirmar cancelación"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setConfirming(false);
+            setError(null);
+          }}
+          disabled={pending}
+          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
+        >
+          No, volver
+        </button>
+      </div>
     </div>
   );
 }

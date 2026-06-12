@@ -2,7 +2,15 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { db, organizations, pets, profiles, welfareReportAttachments, welfareReports } from "@/db";
+import {
+  caseEvents,
+  db,
+  organizations,
+  pets,
+  profiles,
+  welfareReportAttachments,
+  welfareReports,
+} from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -16,7 +24,7 @@ import {
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 
@@ -166,6 +174,25 @@ export default async function GobMaltratoDetailPage({
         derivedAt: report.derivedAt,
       };
     }
+  }
+
+  // Org intervention state (UI-7). On "devuelto" the org cleared
+  // derivedToOrganizationId, so derivedOrgInfo is null but orgInterventionStatus
+  // stays 'devuelto' — surface the return reason from the latest return note.
+  let orgReturnReason: string | null = null;
+  if (report.orgInterventionStatus === "devuelto" && report.caseId) {
+    const [returnNote] = await db
+      .select({ notes: caseEvents.notes })
+      .from(caseEvents)
+      .where(
+        and(
+          eq(caseEvents.caseId, report.caseId),
+          eq(caseEvents.entryType, "org_intervention_return"),
+        ),
+      )
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(1);
+    orgReturnReason = returnNote?.notes ?? null;
   }
 
   const isTerminal =
@@ -400,6 +427,31 @@ export default async function GobMaltratoDetailPage({
                 Derivá esta denuncia a un refugio o red de rescate verificada para seguimiento en
                 campo. La organización recibirá una notificación.
               </p>
+              {/* Org intervention state (UI-7) */}
+              {report.orgInterventionStatus === "tomado" && (
+                <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-3 py-2">
+                  <p className="text-[12px] text-ln-op-ink">
+                    <span className="font-medium">En intervención</span> — la organización tomó la
+                    denuncia
+                    {report.orgInterventionAt && (
+                      <span className="text-ln-op-mute">
+                        {" "}
+                        el {formatDateTime(report.orgInterventionAt)}
+                      </span>
+                    )}
+                    .
+                  </p>
+                </div>
+              )}
+              {report.orgInterventionStatus === "devuelto" && (
+                <div className="rounded-[4px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2">
+                  <p className="text-[12px] text-ln-op-warn">
+                    <span className="font-medium">Devuelta por la organización</span>
+                    {orgReturnReason ? `: ${orgReturnReason}` : "."} Volvé a derivarla a otra
+                    organización o gestionala directamente.
+                  </p>
+                </div>
+              )}
               <DerivationPanel
                 welfareReportId={report.id}
                 availableOrgs={derivableOrgs}

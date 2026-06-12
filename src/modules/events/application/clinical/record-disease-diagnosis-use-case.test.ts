@@ -1,14 +1,15 @@
 // Use-case test: recordDiseaseDiagnosis (writer + action parity)
 //
-// RED → GREEN TDD. Tests cover:
+// Tests cover:
 //   - Happy path: plain insert + outbox enqueue for diagnosis.
 //   - Reportable disease: outbreak_signal emitted + outbox enqueue for signal.
 //   - Non-reportable: no outbreak_signal, no signal outbox.
 //   - AUTH PARITY: VET-ONLY. Writer itself is auth-agnostic (action validates vet role).
 //     Parity test proves non-vet is rejected BY THE ACTION (tested via action-layer mock).
 //   - Auth parity: NO ownership check — any pet's publicToken resolves.
-//   - ENO failure → audit_log insert (best-effort, does NOT rollback diagnosis).
-//   - ENO failure → does NOT return ok:false (diagnosis is committed).
+//   - DURABILITY (V1-4 / P1-3): the ENO govt-fanout enqueue runs INSIDE the
+//     diagnosis transaction (deps.enqueueEnoTrigger), NOT post-commit. A failing
+//     enqueue rolls the diagnosis back (ok:false) instead of being swallowed.
 //
 // Note: the writer exports a Result type with { ok, diagnosisEventId, signalEventId }.
 // Auth guard (vet + matriculaVerified) is in the action, NOT the writer.
@@ -32,24 +33,30 @@ function makeRepo(
   overrides: Partial<{
     insertEvent: EventsRepository["insertEvent"];
     enqueueOutbox: EventsRepository["enqueueOutbox"];
-    insertAuditLog: (...args: unknown[]) => Promise<void>;
   }> = {},
-): Pick<EventsRepository, "insertEvent" | "enqueueOutbox"> & {
-  insertAuditLog: (...args: unknown[]) => Promise<void>;
-} {
+): Pick<EventsRepository, "insertEvent" | "enqueueOutbox"> {
   return {
     insertEvent: vi
       .fn()
       .mockResolvedValueOnce({ id: DIAG_EV_UUID })
       .mockResolvedValueOnce({ id: SIGNAL_EV_UUID }),
     enqueueOutbox: vi.fn().mockResolvedValue(undefined),
-    insertAuditLog: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
 
+/**
+ * Transaction stub. Propagates throws from the callback (real db.transaction
+ * rolls back and rethrows) so we can assert rollback semantics on enqueue
+ * failure. The writer wraps the tx in its own try/catch and returns ok:false.
+ */
 function makeTx() {
   return <T>(cb: (tx: unknown) => Promise<T>) => cb({} as unknown);
+}
+
+/** Default in-tx ENO enqueue dep: a no-op spy that succeeds. */
+function makeEnqueueEnoTrigger() {
+  return vi.fn().mockResolvedValue(undefined);
 }
 
 // NOTE: we do NOT mock @/lib/diseases — we use real disease codes that exist
@@ -65,11 +72,6 @@ vi.mock("./route-outbreak-signal-notifications", () => ({
 // maybeNotifyOwnersOfPublicAlert mock
 vi.mock("@/lib/owner-disease-alerts", () => ({
   maybeNotifyOwnersOfPublicAlert: vi.fn().mockResolvedValue({ delivered: 0 }),
-}));
-
-// processEnoEventTrigger mock (post-tx, dynamic import)
-vi.mock("@/lib/eno-trigger", () => ({
-  processEnoEventTrigger: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Use valid UUIDs — the schema validator runs z.string().uuid() on performed_by_user_id.
@@ -104,7 +106,12 @@ describe("recordDiseaseDiagnosisWriter", () => {
     const repo = makeRepo();
     const result = await recordDiseaseDiagnosisWriter(
       { ...BASE_INPUT, diseaseCode: "not_a_real_disease_xyz" },
-      { repo, transaction: makeTx(), flushNotifications: vi.fn() },
+      {
+        repo,
+        transaction: makeTx(),
+        flushNotifications: vi.fn(),
+        enqueueEnoTrigger: makeEnqueueEnoTrigger(),
+      },
     );
 
     expect(result.ok).toBe(false);
@@ -120,6 +127,7 @@ describe("recordDiseaseDiagnosisWriter", () => {
       repo,
       transaction: makeTx(),
       flushNotifications: vi.fn(),
+      enqueueEnoTrigger: makeEnqueueEnoTrigger(),
     });
 
     expect(result.ok).toBe(true);
@@ -142,6 +150,7 @@ describe("recordDiseaseDiagnosisWriter", () => {
       repo,
       transaction: makeTx(),
       flushNotifications: vi.fn(),
+      enqueueEnoTrigger: makeEnqueueEnoTrigger(),
     });
 
     // enqueueOutbox called at least once for the diagnosis
@@ -151,6 +160,51 @@ describe("recordDiseaseDiagnosisWriter", () => {
     expect(firstCall[1].id).toBe(DIAG_EV_UUID);
   });
 
+  it("enqueues the ENO trigger INSIDE the transaction (P1-3 durability)", async () => {
+    const repo = makeRepo();
+    const enqueueEnoTrigger = makeEnqueueEnoTrigger();
+    let txHandle: unknown;
+
+    await recordDiseaseDiagnosisWriter(BASE_INPUT, {
+      repo,
+      // Capture the tx handle the writer threads into deps so we can assert the
+      // ENO enqueue received the SAME tx (i.e. it ran inside the transaction).
+      transaction: <T>(cb: (tx: unknown) => Promise<T>) => {
+        txHandle = Symbol("tx");
+        return cb(txHandle);
+      },
+      flushNotifications: vi.fn(),
+      enqueueEnoTrigger,
+    });
+
+    expect(enqueueEnoTrigger).toHaveBeenCalledOnce();
+    const [petEventArg, txArg] = enqueueEnoTrigger.mock.calls[0];
+    // The enqueue ran with the diagnosis event id and the transaction handle.
+    expect(petEventArg.id).toBe(DIAG_EV_UUID);
+    expect(petEventArg.payload.sub_kind).toBe("disease_diagnosis");
+    expect(txArg).toBe(txHandle);
+  });
+
+  it("rolls back the diagnosis (ok:false) when the in-tx ENO enqueue throws", async () => {
+    // P1-3: the enqueue is now atomic with the event. A genuine enqueue failure
+    // propagates out of the tx callback (real db.transaction rolls back and
+    // rethrows), so the writer returns ok:false instead of silently committing
+    // a diagnosis whose govt-fanout row was never created.
+    const repo = makeRepo();
+    const enqueueEnoTrigger = vi.fn().mockRejectedValue(new Error("enqueue failed"));
+
+    const result = await recordDiseaseDiagnosisWriter(BASE_INPUT, {
+      repo,
+      transaction: makeTx(),
+      flushNotifications: vi.fn(),
+      enqueueEnoTrigger,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("enqueue failed");
+  });
+
   it("emits outbreak_signal and second outbox enqueue for reportable disease", async () => {
     const repo = makeRepo();
 
@@ -158,6 +212,7 @@ describe("recordDiseaseDiagnosisWriter", () => {
       repo,
       transaction: makeTx(),
       flushNotifications: vi.fn(),
+      enqueueEnoTrigger: makeEnqueueEnoTrigger(),
     });
 
     expect(result.ok).toBe(true);
@@ -184,7 +239,12 @@ describe("recordDiseaseDiagnosisWriter", () => {
     // "distemper" exists in the AR catalog and is NOT reportable
     const result = await recordDiseaseDiagnosisWriter(
       { ...BASE_INPUT, diseaseCode: "distemper" },
-      { repo, transaction: makeTx(), flushNotifications: vi.fn() },
+      {
+        repo,
+        transaction: makeTx(),
+        flushNotifications: vi.fn(),
+        enqueueEnoTrigger: makeEnqueueEnoTrigger(),
+      },
     );
 
     expect(result.ok).toBe(true);
@@ -195,59 +255,6 @@ describe("recordDiseaseDiagnosisWriter", () => {
     const calls = (repo.insertEvent as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBe(1);
     expect(calls[0][0].eventType).toBe("clinical_info_logged");
-  });
-
-  it("ENO trigger failure → inserts audit_log, does NOT return ok:false", async () => {
-    // Set up: ENO trigger will throw
-    const { processEnoEventTrigger } = await import("@/lib/eno-trigger");
-    vi.mocked(processEnoEventTrigger).mockRejectedValueOnce(new Error("ENO timeout"));
-
-    const repo = makeRepo();
-
-    const result = await recordDiseaseDiagnosisWriter(BASE_INPUT, {
-      repo,
-      transaction: makeTx(),
-      flushNotifications: vi.fn(),
-    });
-
-    // Diagnosis is COMMITTED (ok:true) even though ENO failed
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.diagnosisEventId).toBe(DIAG_EV_UUID);
-
-    // Audit log was inserted for the ENO failure
-    expect(repo.insertAuditLog).toHaveBeenCalledOnce();
-    const [auditArgs] = (repo.insertAuditLog as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(auditArgs.action).toBe("eno_notification_emitted");
-    expect(auditArgs.payload.trigger_failed).toBe(true);
-    expect(auditArgs.payload.disease_code).toBe("rabies_confirmed");
-
-    // Restore mock for subsequent tests
-    vi.mocked(processEnoEventTrigger).mockResolvedValue(undefined);
-  });
-
-  it("ENO trigger failure does NOT roll back diagnosis (transaction already committed)", async () => {
-    // This is an architectural assertion: the ENO trigger runs AFTER the transaction.
-    // The writer's design places processEnoEventTrigger outside the tx block.
-    // We verify: even when ENO throws, we get ok:true with a valid diagnosisEventId.
-    const { processEnoEventTrigger } = await import("@/lib/eno-trigger");
-    vi.mocked(processEnoEventTrigger).mockRejectedValueOnce(new Error("ENO connection refused"));
-
-    const repo = makeRepo();
-
-    const result = await recordDiseaseDiagnosisWriter(BASE_INPUT, {
-      repo,
-      transaction: makeTx(),
-      flushNotifications: vi.fn(),
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    // diagnosisEventId must be the committed row's ID
-    expect(result.diagnosisEventId).toBe(DIAG_EV_UUID);
-
-    // Restore
-    vi.mocked(processEnoEventTrigger).mockResolvedValue(undefined);
   });
 });
 
@@ -266,6 +273,7 @@ describe("recordDiseaseDiagnosis auth-parity", () => {
       repo,
       transaction: makeTx(),
       flushNotifications: vi.fn(),
+      enqueueEnoTrigger: makeEnqueueEnoTrigger(),
     });
 
     expect(result.ok).toBe(true);
@@ -279,7 +287,12 @@ describe("recordDiseaseDiagnosis auth-parity", () => {
 
     const result = await recordDiseaseDiagnosisWriter(
       { ...BASE_INPUT, petId: unownedPetId },
-      { repo, transaction: makeTx(), flushNotifications: vi.fn() },
+      {
+        repo,
+        transaction: makeTx(),
+        flushNotifications: vi.fn(),
+        enqueueEnoTrigger: makeEnqueueEnoTrigger(),
+      },
     );
 
     expect(result.ok).toBe(true);

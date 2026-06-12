@@ -193,9 +193,15 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Quiet links — denuncia + buscar with code. Both anonymous flows. */}
+      {/* Quiet links — lost listing + denuncia + buscar with code. Anonymous. */}
       <section className="py-10 px-8 text-center bg-ln-paper">
         <div className="max-w-md mx-auto flex flex-col items-center gap-2">
+          <Link
+            href="/perdidas"
+            className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"
+          >
+            Buscá mascotas perdidas cerca tuyo →
+          </Link>
           <Link
             href="/denuncias/nueva"
             className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"

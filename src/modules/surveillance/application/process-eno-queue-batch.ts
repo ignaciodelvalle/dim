@@ -16,7 +16,6 @@
 
 import { type EnoDisease, diseaseCodeToEnoCode, isEnoCode } from "../domain/eno-catalog";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
-import type { NewNotification } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +41,7 @@ export type EnoBatchDeps = {
   getPet: (petId: string) => Promise<{
     id: string;
     name: string;
+    publicToken: string;
     jurisdictionProvince: string | null;
     jurisdictionLocality: string | null;
   } | null>;
@@ -137,7 +137,7 @@ async function processOne(petEventId: string, deps: EnoBatchDeps): Promise<boole
   const targets = await deps.getGovtTargets(province, locality);
   const targetsCount = targets.length;
 
-  const notifications: typeof import("@/db")["notifications"]["$inferInsert"][] = [];
+  const notifications: Parameters<typeof deps.repo.insertNotifications>[0] = [];
 
   if (targetsCount > 0) {
     for (const t of targets) {
@@ -154,7 +154,10 @@ async function processOne(petEventId: string, deps: EnoBatchDeps): Promise<boole
         relatedPetId: petRow.id,
         relatedEventId: eventRow.id,
         category: "health",
-      } as NewNotification & { relatedPetId: string; relatedEventId: string; category: string });
+        // Govt recipient cannot open /mis-mascotas; surveillance hub is their surface.
+        ctaLabel: "Ver vigilancia",
+        ctaUrl: "/gob/vigilancia",
+      });
     }
   }
 
@@ -170,12 +173,13 @@ async function processOne(petEventId: string, deps: EnoBatchDeps): Promise<boole
       relatedPetId: petRow.id,
       relatedEventId: eventRow.id,
       category: "health",
-    } as NewNotification & { relatedPetId: string; relatedEventId: string; category: string });
+      ctaLabel: "Ver mascota",
+      ctaUrl: `/mis-mascotas/${petRow.publicToken}`,
+    });
   }
 
   if (notifications.length > 0) {
-    // biome-ignore lint/suspicious/noExplicitAny: notification row shape matches DB schema
-    await deps.repo.insertNotifications(notifications as any);
+    await deps.repo.insertNotifications(notifications);
   }
 
   // 6. Audit log — CONDITIONAL on vetUserId (spec §G parity quirk).

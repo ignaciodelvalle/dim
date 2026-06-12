@@ -11,6 +11,10 @@ const KIND_DOT: Record<string, string> = {
   invalid: "bg-ln-op-line",
   duplicate: "bg-ln-op-line",
   pet_event: "bg-ln-op-celeste",
+  reporter_comment: "bg-ln-op-mute",
+  org_intervention_taken: "bg-ln-op-viol",
+  org_intervention_note: "bg-ln-op-viol",
+  org_intervention_return: "bg-ln-op-warn",
 };
 
 function kindDot(kind: string): string {

@@ -6,7 +6,7 @@
 // Server callers (page.tsx, sitemap.ts) import from here; everything else
 // imports from `@/lib/lost-listing`.
 
-import { and, desc, eq, ilike, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, sql } from "drizzle-orm";
 
 import { attachments, db, petEvents, pets } from "@/db";
 
@@ -36,7 +36,18 @@ export async function queryLostListing(
   if (filters.province) baseConditions.push(eq(pets.jurisdictionProvince, filters.province));
   if (filters.locality) baseConditions.push(eq(pets.jurisdictionLocality, filters.locality));
   if (filters.color) baseConditions.push(ilike(pets.color, `%${filters.color}%`));
-  if (filters.hasMicrochip === true) baseConditions.push(isNotNull(pets.microchipId));
+  // hasMicrochip filter: EXISTS against canonical pet_identifications
+  // (same ARCH-M idiom used by queryAdoptionListing).
+  if (filters.hasMicrochip === true) {
+    baseConditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM pet_identifications pi
+        WHERE pi.pet_id = ${pets.id}
+          AND pi.kind = 'microchip_iso'
+          AND pi.status = 'active'
+      )`,
+    );
+  }
 
   // Sterilized: derive via EXISTS subquery on pet_events. Same pattern as
   // queryAdoptionListing's isSterilized SELECT-side computation, but here
@@ -69,7 +80,15 @@ export async function queryLostListing(
       primaryPhotoStoragePath: attachments.storagePath,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
-      microchipId: pets.microchipId,
+      // microchipId: sourced from canonical pet_identifications via correlated
+      // subquery so the badge shows canonical data without a batch join.
+      microchipId: sql<string | null>`(
+        SELECT pi.code FROM pet_identifications pi
+        WHERE pi.pet_id = ${pets.id}
+          AND pi.kind = 'microchip_iso'
+          AND pi.status = 'active'
+        LIMIT 1
+      )`,
       discloseLastLocationWhenLost: pets.discloseLastLocationWhenLost,
       isSterilized: sql<boolean>`EXISTS (
         SELECT 1 FROM pet_events e

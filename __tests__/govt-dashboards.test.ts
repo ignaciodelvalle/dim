@@ -1906,3 +1906,146 @@ describe("fetchOutbreakHistory", () => {
     }
   });
 });
+
+// ============================================================================
+// Period-window tests — assert that the `since` option is honoured by each
+// analytics fetcher that previously hardcoded 12 months.
+// ============================================================================
+
+describe("fetchAcquisitionTrend — period window", () => {
+  it("only returns rows within the requested window", async () => {
+    const prov = "Santiago del Estero";
+    const loc = "Santiago del Estero Capital";
+    const pet = await insertFixturePet({
+      name: "PeriodAcqPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Event 5 days ago — inside a 30d window.
+    await emitPetRegisteredEvent({ petId: pet, acquisitionMethod: "adopted", daysAgo: 5 });
+    // Event 200 days ago — outside a 30d window.
+    await emitPetRegisteredEvent({ petId: pet, acquisitionMethod: "adopted", daysAgo: 200 });
+
+    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const trend30d = await fetchAcquisitionTrend(
+      { role: "govt" },
+      [{ province: prov, locality: loc }],
+      {
+        since: since30d,
+      },
+    );
+    const trend365d = await fetchAcquisitionTrend({ role: "govt" }, [
+      { province: prov, locality: loc },
+    ]);
+
+    const total30d = trend30d.reduce((s, p) => s + p.y, 0);
+    const total365d = trend365d.reduce((s, p) => s + p.y, 0);
+
+    // 30d window must see fewer registrations than the default 12m window.
+    expect(total365d).toBeGreaterThan(total30d);
+    // 30d window must still capture the 5-day-old event.
+    expect(total30d).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("fetchDeathCauses — period window", () => {
+  it("only returns deaths within the requested window", async () => {
+    const prov = "San Juan";
+    const loc = "San Juan Capital";
+    const petRecent = await insertFixturePet({
+      name: "PeriodDeathRecent",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const petOld = await insertFixturePet({
+      name: "PeriodDeathOld",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Recent death — inside 30d window.
+    await emitDeathEvent({
+      petId: petRecent,
+      cause: "natural",
+      province: prov,
+      locality: loc,
+      daysAgo: 5,
+    });
+    // Old death — outside 30d window, inside 12m window.
+    await emitDeathEvent({
+      petId: petOld,
+      cause: "disease",
+      province: prov,
+      locality: loc,
+      daysAgo: 200,
+    });
+
+    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const r30d = await fetchDeathCauses({ role: "govt" }, [{ province: prov, locality: loc }], {
+      since: since30d,
+    });
+    const r365d = await fetchDeathCauses({ role: "govt" }, [{ province: prov, locality: loc }]);
+
+    const total30d = r30d.reduce((s, r) => s + r.count, 0);
+    const total365d = r365d.reduce((s, r) => s + r.count, 0);
+
+    // Default 12m window sees more deaths than the 30d window.
+    expect(total365d).toBeGreaterThan(total30d);
+    // 30d window still captures the recent death.
+    expect(total30d).toBeGreaterThanOrEqual(1);
+    // The old death is absent from the 30d result.
+    const diseaseIn30d = r30d.find((r) => r.cause === "disease");
+    expect(diseaseIn30d).toBeUndefined();
+  });
+});
+
+describe("fetchZoonosisTrend — period window", () => {
+  it("only returns outbreak signals within the requested window", async () => {
+    const prov = "La Rioja";
+    const loc = "La Rioja Capital";
+    const pet = await insertFixturePet({
+      name: "PeriodTrendPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // Signal 5 days ago — inside a 30d window.
+    await emitOutbreakSignal({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: prov,
+      locality: loc,
+      hoursAgo: 5 * 24,
+    });
+    // Signal 200 days ago — outside a 30d window, inside 12m.
+    await emitOutbreakSignalAt({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: prov,
+      locality: loc,
+      occurredAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000),
+    });
+
+    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const trend30d = await fetchZoonosisTrend(
+      { role: "govt" },
+      [{ province: prov, locality: loc }],
+      {
+        since: since30d,
+      },
+    );
+    const trend365d = await fetchZoonosisTrend({ role: "govt" }, [
+      { province: prov, locality: loc },
+    ]);
+
+    const total30d = trend30d.reduce((s, p) => s + p.y, 0);
+    const total365d = trend365d.reduce((s, p) => s + p.y, 0);
+
+    // Default 12m window must see more signals (includes 200d-old signal).
+    expect(total365d).toBeGreaterThan(total30d);
+    // 30d window must still capture the 5d-old signal.
+    expect(total30d).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -15,8 +15,16 @@ import { useTransition } from "react";
 // this component stays free of @/db imports.
 //
 // Spec: docs/gob-dashboard-plan-2026-05-20.md — Phase 1.
+//
+// NOTE: TimeRange, RANGE_ORDER, and readFilterParams live in
+// jurisdiction-filter-params.ts (non-client) so server components can import
+// them without crossing the "use client" boundary. Re-exported here for
+// backward compatibility with any existing client-side importers; server
+// components must import directly from jurisdiction-filter-params.ts.
+export type { TimeRange } from "./jurisdiction-filter-params";
+export { RANGE_ORDER, readFilterParams } from "./jurisdiction-filter-params";
 
-export type TimeRange = "hoy" | "semana" | "mes" | "30d" | "custom";
+import { RANGE_ORDER, type TimeRange } from "./jurisdiction-filter-params";
 
 export interface JurisdictionOption {
   value: string;
@@ -47,8 +55,6 @@ const RANGE_LABELS: Record<TimeRange, string> = {
   "30d": "Últimos 30 días",
   custom: "Personalizado",
 };
-
-const RANGE_ORDER: ReadonlyArray<TimeRange> = ["hoy", "semana", "mes", "30d", "custom"];
 
 export function JurisdictionFilterBar({
   range,
@@ -163,20 +169,4 @@ function FilterSelect({
       </select>
     </label>
   );
-}
-
-// Server-side helper: parse the search params shape into a typed bag the
-// dashboard page can pass back into the FilterBar (so the URL is the source
-// of truth and the server reads it once).
-export function readFilterParams(sp: URLSearchParams) {
-  const rangeRaw = sp.get("range") ?? "mes";
-  const range: TimeRange = (RANGE_ORDER as ReadonlyArray<string>).includes(rangeRaw)
-    ? (rangeRaw as TimeRange)
-    : "mes";
-  return {
-    range,
-    province: sp.get("province") ?? "",
-    locality: sp.get("locality") ?? "",
-    orgType: sp.get("orgType") ?? "",
-  };
 }

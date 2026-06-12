@@ -99,7 +99,9 @@ export const PetsRepository = {
       now,
     } = args;
 
-    // Insert pet row.
+    // Insert pet row. Legacy chip/tattoo columns (microchipId, microchipCountryCode,
+    // microchipImplantedAt, microchipImplantedBy, microchipLocation) omitted —
+    // ARCH-R removes these writes; canonical rows go to pet_identifications below.
     const [newPet] = await tx
       .insert(pets)
       .values({
@@ -111,11 +113,6 @@ export const PetsRepository = {
         dateOfBirth: parsed.dateOfBirth,
         birthDateIsEstimated: parsed.birthDateIsEstimated,
         color: parsed.color,
-        microchipId: parsed.microchipId,
-        microchipCountryCode: parsed.microchipCountryCode,
-        microchipImplantedAt: parsed.microchipImplantedAt,
-        microchipImplantedBy: parsed.microchipImplantedBy,
-        microchipLocation: parsed.microchipLocation,
         estimatedWeightKg: parsed.estimatedWeightKg,
         favouriteFoods: parsed.favouriteFoods.length > 0 ? parsed.favouriteFoods : null,
         knownAllergies: parsed.knownAllergies.length > 0 ? parsed.knownAllergies : null,
@@ -268,6 +265,9 @@ export const PetsRepository = {
     } = args;
 
     // Always update the pet row (covers flag-only and content changes).
+    // Legacy chip columns (microchipId, microchipCountryCode, microchipImplantedAt,
+    // microchipImplantedBy, microchipLocation) omitted — ARCH-R; canonical rows
+    // are managed via pet_identifications (see chipNewlyAdded block below).
     await tx
       .update(pets)
       .set({
@@ -278,11 +278,6 @@ export const PetsRepository = {
         dateOfBirth: parsed.dateOfBirth,
         birthDateIsEstimated: parsed.birthDateIsEstimated,
         color: parsed.color,
-        microchipId: parsed.microchipId,
-        microchipCountryCode: parsed.microchipCountryCode,
-        microchipImplantedAt: parsed.microchipImplantedAt,
-        microchipImplantedBy: parsed.microchipImplantedBy,
-        microchipLocation: parsed.microchipLocation,
         estimatedWeightKg: parsed.estimatedWeightKg,
         favouriteFoods: parsed.favouriteFoods.length > 0 ? parsed.favouriteFoods : null,
         knownAllergies: parsed.knownAllergies.length > 0 ? parsed.knownAllergies : null,
@@ -344,8 +339,6 @@ export const PetsRepository = {
     }
 
     // Emit microchip_implanted when chip was newly added.
-    // NOTE: Does NOT double-write petIdentifications on update — matches
-    // exact behavior of the original updatePetAction (parity).
     if (chipNewlyAdded && parsed.microchipId) {
       const microchipEventPayload = validateEventPayload("microchip_implanted", {
         chip_number: parsed.microchipId,
@@ -365,6 +358,25 @@ export const PetsRepository = {
         authorOrganizationId: eventAuthorship.authorOrganizationId,
         authorVerified: eventAuthorship.authorVerified,
         payload: microchipEventPayload,
+      });
+
+      // Canonical dual-write — insert active microchip row in pet_identifications.
+      // Only when the chip was newly added (chipNewlyAdded guard already asserts
+      // no prior chip existed on this pet).
+      const chipCode = parsed.microchipId;
+      const chipImplantSite = chipImplantSiteFromLocation(parsed.microchipLocation);
+      await tx.insert(petIdentifications).values({
+        petId,
+        kind: "microchip_iso",
+        code: chipCode,
+        recordedAt: (parsed.microchipImplantedAt ?? now.toISOString().slice(0, 10)) as string,
+        recordedByUserId: userId,
+        recordedByLabel: parsed.microchipImplantedBy,
+        isoCountryCode: chipCode.slice(0, 3),
+        isoManufacturerCode: chipCode.slice(3, 7),
+        isoNationalId: chipCode.slice(7, 15),
+        isoCompliant: true,
+        implantationSite: chipImplantSite as string | undefined,
       });
     }
 

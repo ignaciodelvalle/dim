@@ -40,13 +40,15 @@ begin
     resolved_display_name
   );
 
-  insert into public.notifications (user_id, notification_type, title, body, severity)
+  insert into public.notifications (user_id, notification_type, title, body, severity, cta_label, cta_url)
   values (
     new.id,
     'welcome',
     '¡Bienvenido a DIM, ' || resolved_display_name || '!',
     'La libreta digital de tu mascota empieza acá. Empezá agregando tu primera mascota — vamos a generar su credencial digital y armar el historial juntos.',
-    'info'::public.notification_severity
+    'info'::public.notification_severity,
+    'Registrá tu primera mascota',
+    '/mis-mascotas/nueva'
   );
 
   return new;

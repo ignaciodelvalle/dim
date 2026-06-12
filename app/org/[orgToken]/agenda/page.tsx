@@ -159,6 +159,10 @@ export default async function OrgAgendaPage({
   const current = new Date(`${targetDateStr}T00:00:00`);
   const prevDate = new Date(current.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const nextDate = new Date(current.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
+  const isToday = targetDateStr === todayStr;
 
   return (
     <div className="space-y-6">
@@ -178,6 +182,14 @@ export default async function OrgAgendaPage({
         >
           ← Anterior
         </Link>
+        {!isToday && (
+          <Link
+            href={`/org/${orgToken}/agenda`}
+            className="px-3 py-1.5 rounded-[6px] border border-ln-op-azul bg-ln-op-card text-[12px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
+          >
+            Hoy
+          </Link>
+        )}
         <span className="text-[13px] font-medium text-ln-op-ink">
           {new Date(`${targetDateStr}T12:00:00`).toLocaleDateString("es-AR", {
             weekday: "long",

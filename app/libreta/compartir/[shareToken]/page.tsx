@@ -9,6 +9,7 @@ import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "
 import { excludeSelfScansClause } from "@/lib/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
 import { validateShareToken } from "@/lib/libreta-share-token";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { petPhotoUrl } from "@/lib/storage";
 
 import { ViewLogger } from "./ViewLogger";
@@ -90,12 +91,15 @@ export default async function PublicLibretaPage({
   if (status === "expired") return <ExpiredView context={context} />;
   if (pet.status === "deceased") return <DeceasedView context={context} />;
 
-  // Libreta events (same filter as the owner view).
-  const events = await db
-    .select()
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))
-    .orderBy(desc(petEvents.occurredAt));
+  // Libreta events and canonical identifiers in parallel.
+  const [events, identifications] = await Promise.all([
+    db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))
+      .orderBy(desc(petEvents.occurredAt)),
+    fetchActiveIdentifications(pet.id),
+  ]);
 
   const grouped = groupLibretaEvents(events);
 
@@ -162,7 +166,20 @@ export default async function PublicLibretaPage({
           </div>
         )}
 
-        <LibretaIdentityHeader pet={pet} photoUrl={photoUrl} ownerFirstName={null} />
+        <LibretaIdentityHeader
+          pet={{
+            name: pet.name,
+            species: pet.species,
+            breed: pet.breed,
+            sex: pet.sex,
+            microchipId: identifications.microchip?.code ?? null,
+            tattooCode: identifications.tattoo?.code ?? null,
+            tattooLocation: identifications.tattoo?.tattooLocation ?? null,
+            publicToken: pet.publicToken,
+          }}
+          photoUrl={photoUrl}
+          ownerFirstName={null}
+        />
 
         <LibretaSanitariaView
           groupedEvents={grouped}

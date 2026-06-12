@@ -15,6 +15,7 @@ import {
   db,
   petIdentifications,
 } from "@/db";
+import { matchesDbError } from "@/lib/db-errors";
 
 // ---------------------------------------------------------------------------
 // Add — creates a new active identifier for a pet.
@@ -122,10 +123,12 @@ export async function addIdentification(input: AddIdentificationInput): Promise<
       .returning({ id: petIdentifications.id });
     return { id: row.id };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido.";
-    if (message.includes("pet_identifications_chip_unique")) {
+    // drizzle 0.45 wraps pg errors; matchesDbError walks the `.cause` chain to
+    // find the real constraint name (no longer on the top-level message).
+    if (matchesDbError(err, { constraint: /pet_identifications_chip_unique/ })) {
       return { error: "Ese chip ya está registrado en otra mascota activa." };
     }
+    const message = err instanceof Error ? err.message : "Error desconocido.";
     return { error: `No se pudo registrar el identificador: ${message}` };
   }
 }

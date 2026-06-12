@@ -1,5 +1,6 @@
 import { db, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
@@ -20,8 +21,9 @@ export default async function ReplaceMicrochipAdminPage({
   if (!pet) notFound();
 
   const boundAction = replaceMicrochipAdminAction.bind(null, pet.publicToken);
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
 
-  if (!pet.microchipId) {
+  if (!canonicalIds.microchip) {
     return (
       <div className="space-y-6">
         <OpCrumbs
@@ -76,7 +78,7 @@ export default async function ReplaceMicrochipAdminPage({
       <OpCard>
         <OpCardHead title="Datos del reemplazo" />
         <OpCardBody>
-          <ReplaceMicrochipForm action={boundAction} currentChip={pet.microchipId} />
+          <ReplaceMicrochipForm action={boundAction} currentChip={canonicalIds.microchip.code} />
         </OpCardBody>
       </OpCard>
     </div>

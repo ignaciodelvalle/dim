@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import {
   approvalRequests,
+  auditLog,
   db,
   notifications,
   organizationMemberships,
@@ -14,6 +15,7 @@ import {
 } from "@/db";
 import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { pgError } from "@/lib/db-errors";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import {
   JurisdictionValidationError,
@@ -140,13 +142,15 @@ function validateOrgInput(input: CreateOrganizationInput): string | null {
 // Postgres 23505 = unique_violation. Match by constraint metadata, not the
 // error-message string, so renamed constraints or driver-level message
 // changes don't silently miscategorize the error.
+//
+// pgError unwraps drizzle 0.45's `.cause` chain to the real postgres-js error;
+// `column_name` / `detail` live on that raw object alongside `constraint`.
 function isUniqueViolationOn(err: unknown, column: string): boolean {
-  if (!err || typeof err !== "object") return false;
-  const record = err as Record<string, unknown>;
-  if (record.code !== "23505") return false;
-  const constraint = typeof record.constraint_name === "string" ? record.constraint_name : "";
-  const columnName = typeof record.column_name === "string" ? record.column_name : "";
-  const detail = typeof record.detail === "string" ? record.detail : "";
+  const info = pgError(err);
+  if (!info || info.code !== "23505") return false;
+  const constraint = info.constraint ?? "";
+  const columnName = typeof info.raw.column_name === "string" ? info.raw.column_name : "";
+  const detail = typeof info.raw.detail === "string" ? info.raw.detail : "";
   return constraint.includes(column) || columnName === column || detail.includes(`(${column})`);
 }
 
@@ -426,6 +430,20 @@ export async function createOrganizationForUser(
         userId,
         role: "admin",
         canWritePetEvents: true,
+      });
+
+      // Audit: org creator is auto-added as admin at org creation.
+      await tx.insert(auditLog).values({
+        actorUserId: userId,
+        action: "org_member_added",
+        targetUserId: userId,
+        targetOrganizationId: newOrg.id,
+        payload: {
+          org_id: newOrg.id,
+          member_user_id: userId,
+          role: "admin",
+          how: "org_creation",
+        },
       });
 
       // Canonical contract: the approval request is what authorities act on.

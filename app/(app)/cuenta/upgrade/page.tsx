@@ -61,13 +61,15 @@ export default async function UpgradePage() {
       {/* DNI prereq banner */}
       {!profile?.dniVerified && (
         <div className="mb-[24px]">
-          <LnCallout tone="warn" title="Te falta verificar tu DNI">
-            Necesitás verificar tu identidad antes de enviar cualquier solicitud de rol.{" "}
+          {/* DNI declaration is self-declared (trust-on-input) — "declarar" avoids overclaiming
+              identity assurance until the Mi Argentina integration lands. */}
+          <LnCallout tone="warn" title="Te falta declarar tu DNI">
+            Necesitás declarar tu número de DNI antes de enviar cualquier solicitud de rol.{" "}
             <a
               href="/cuenta/verificar-dni?next=/cuenta/upgrade"
               className="text-[var(--color-ln-azul)] no-underline hover:underline"
             >
-              Verificar ahora →
+              Declarar ahora →
             </a>
           </LnCallout>
         </div>
@@ -98,6 +100,21 @@ export default async function UpgradePage() {
                         Tu matrícula: <strong>{profile.matriculaNumber}</strong>
                       </>
                     )}
+                  </div>
+                ) : latestVetRequest?.status === "approved" ? (
+                  // Approved but profile.role not yet "vet" — role update may be in-flight
+                  // (e.g. session cache stale). Show a success state instead of the blank form.
+                  <div className="rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[12px] py-[10px]">
+                    <p className="text-[13px] font-semibold text-[var(--color-ln-ok)]">
+                      ¡Solicitud aprobada!
+                    </p>
+                    <p className="mt-[2px] text-[12px] text-[var(--color-ln-ok)]">
+                      Tu matrícula fue verificada. Tu cuenta va a reflejar el rol veterinario en tu
+                      próxima sesión.{" "}
+                      <a href="/cuenta" className="underline hover:no-underline">
+                        Volver a mi cuenta →
+                      </a>
+                    </p>
                   </div>
                 ) : latestVetRequest?.status === "rejected" ? (
                   <>

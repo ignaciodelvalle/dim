@@ -98,6 +98,7 @@ type DbDeps = {
     pets: any;
     ownerships: any;
     petEvents: any;
+    petIdentifications: any;
     organizations: any;
     organizationMemberships: any;
     organizationCoverage: any;
@@ -129,6 +130,7 @@ async function loadDbDeps(): Promise<DbDeps> {
       pets: db.pets,
       ownerships: db.ownerships,
       petEvents: db.petEvents,
+      petIdentifications: db.petIdentifications,
       organizations: db.organizations,
       organizationMemberships: db.organizationMemberships,
       organizationCoverage: db.organizationCoverage,
@@ -823,11 +825,8 @@ async function loadStoryline(
       birthDateIsEstimated: story.pet.birth_date_is_estimated ?? false,
       color: story.pet.color ?? null,
       distinguishingFeatures: story.pet.distinguishing_features ?? null,
-      microchipId: story.pet.microchip_id ?? null,
-      microchipCountryCode: story.pet.microchip_country_code ?? null,
-      microchipImplantedAt: story.pet.microchip_implanted_at ?? null,
-      microchipImplantedBy: story.pet.microchip_implanted_by ?? null,
-      microchipLocation: story.pet.microchip_location ?? null,
+      // Legacy chip columns omitted — ARCH-R; canonical row written to
+      // pet_identifications below if the storyline carries a microchip_id.
       estimatedWeightKg: story.pet.estimated_weight_kg
         ? String(story.pet.estimated_weight_kg)
         : null,
@@ -883,6 +882,25 @@ async function loadStoryline(
       payload: e.payload ?? {},
     });
     eventCount++;
+  }
+
+  // Canonical microchip row — legacy pets.* columns not written (ARCH-R).
+  const chipCode = (story.pet as any).microchip_id as string | null | undefined;
+  if (chipCode) {
+    const implantedAt =
+      (story.pet as any).microchip_implanted_at ?? new Date().toISOString().slice(0, 10);
+    const implantedBy = (story.pet as any).microchip_implanted_by ?? null;
+    await db.insert(schemas.petIdentifications).values({
+      petId: pet.id,
+      kind: "microchip_iso",
+      code: chipCode,
+      recordedAt: implantedAt,
+      recordedByLabel: implantedBy,
+      isoCountryCode: chipCode.slice(0, 3),
+      isoManufacturerCode: chipCode.slice(3, 7),
+      isoNationalId: chipCode.slice(7, 15),
+      isoCompliant: true,
+    });
   }
 
   log("OK", `${publicToken} (${story.pet.display_name}) — ${eventCount} events`);

@@ -9,14 +9,17 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
-import { cases, db, organizationMemberships, pets, welfareReports } from "@/db";
+import { db, organizationMemberships, pets, welfareReports } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { formatDate } from "@/lib/format";
+import { ORG_WELFARE_PET_COLS, ORG_WELFARE_SELECT } from "@/lib/welfare-org-projection";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
+
+import { InterventionActions } from "./InterventionActions";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "Abierta",
@@ -46,9 +49,25 @@ const SEVERITY_PILL_TONE: Record<string, "danger" | "escalated" | "neutral"> = {
 // Welfare reports are sensitive — restrict to operative roles only.
 const ALLOWED_ROLES = new Set(["admin", "coordinator", "member", "vet_individual"]);
 
+// Roles that may ACT on a derived report (take / note / return). Mirrors
+// ORG_INTERVENTION_ROLES in src/modules/welfare/actions.ts.
+const INTERVENTION_ROLES = new Set(["admin", "coordinator"]);
+
+// Org intervention badge copy + tone (UI-7).
+const INTERVENTION_LABELS: Record<string, string> = {
+  tomado: "En intervención",
+  devuelto: "Devuelta al gobierno",
+};
+const INTERVENTION_PILL_TONE: Record<string, "ok" | "escalated" | "neutral"> = {
+  tomado: "escalated",
+  devuelto: "neutral",
+};
+
 type TabKey = "recibidos" | "emitidos";
 
 // Shared row shape for both queries.
+// Derived from ORG_WELFARE_SELECT to ensure structural alignment with the
+// org-safe projection — PII fields are absent by construction.
 type ReportRow = {
   reportId: string;
   referenceCode: string;
@@ -59,7 +78,8 @@ type ReportRow = {
   subjectDescription: string | null;
   createdAt: Date;
   derivedAt: Date | null;
-  casePublicCode: string | null;
+  orgInterventionStatus: string | null;
+  orgInterventionAt: Date | null;
   petName: string | null;
 };
 
@@ -105,27 +125,23 @@ export default async function OrgMaltratoRecibidosPage({
     );
   }
 
-  // Common select shape — derivedAt from the actual column or NULL literal.
-  const selectShape = {
-    reportId: welfareReports.id,
-    referenceCode: welfareReports.referenceCode,
-    kind: welfareReports.kind,
-    severity: welfareReports.severity,
-    status: welfareReports.status,
-    subjectKind: welfareReports.subjectKind,
-    subjectDescription: welfareReports.subjectDescription,
-    createdAt: welfareReports.createdAt,
-    casePublicCode: cases.publicCode,
-    petName: pets.name,
+  // Whether this member may act on derived reports (take / note / return).
+  const canIntervene = INTERVENTION_ROLES.has(membership.role);
+
+  // Both queries use ORG_WELFARE_SELECT — the org-safe projection from
+  // lib/welfare-org-projection.ts. PII columns (reporterContactEmail,
+  // reporterContactPhone, reporterUserId) are structurally absent.
+  const orgSafeShape = {
+    ...ORG_WELFARE_SELECT,
+    ...ORG_WELFARE_PET_COLS,
   } as const;
 
   let rows: ReportRow[] = [];
 
   if (activeTab === "recibidos") {
     const rawRows = await db
-      .select({ ...selectShape, derivedAt: welfareReports.derivedAt })
+      .select({ ...orgSafeShape, derivedAt: welfareReports.derivedAt })
       .from(welfareReports)
-      .leftJoin(cases, eq(cases.id, welfareReports.caseId))
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
       .where(eq(welfareReports.derivedToOrganizationId, organization.id))
       .orderBy(desc(welfareReports.derivedAt))
@@ -133,9 +149,8 @@ export default async function OrgMaltratoRecibidosPage({
     rows = rawRows;
   } else {
     const rawRows = await db
-      .select({ ...selectShape, derivedAt: sql<Date | null>`null` })
+      .select({ ...orgSafeShape, derivedAt: sql<Date | null>`null` })
       .from(welfareReports)
-      .leftJoin(cases, eq(cases.id, welfareReports.caseId))
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
       .where(eq(welfareReports.reporterOrganizationId, organization.id))
       .orderBy(desc(welfareReports.createdAt))
@@ -203,46 +218,56 @@ export default async function OrgMaltratoRecibidosPage({
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
               {rows.map((r) => (
-                <li key={r.reportId} className="flex items-start justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
-                      {welfareReportKindLabel(r.kind)}{" "}
-                      <OpPill
-                        tone={
-                          (SEVERITY_PILL_TONE[r.severity] ?? "neutral") as
-                            | "danger"
-                            | "escalated"
-                            | "neutral"
-                        }
-                      >
-                        {welfareReportSeverityLabel(r.severity)}
+                <li key={r.reportId} className="px-4 py-3 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-[13px] font-medium text-ln-op-ink">
+                        {welfareReportKindLabel(r.kind)}{" "}
+                        <OpPill
+                          tone={
+                            (SEVERITY_PILL_TONE[r.severity] ?? "neutral") as
+                              | "danger"
+                              | "escalated"
+                              | "neutral"
+                          }
+                        >
+                          {welfareReportSeverityLabel(r.severity)}
+                        </OpPill>
+                      </p>
+                      <p className="text-[12px] text-ln-op-mute">
+                        {welfareReportSubjectKindLabel(r.subjectKind)}
+                        {r.petName ? ` · 🐾 ${r.petName}` : ""}
+                        {!r.petName && r.subjectDescription
+                          ? ` · ${r.subjectDescription.slice(0, 60)}`
+                          : ""}
+                      </p>
+                      <p className="text-[12px] font-mono text-ln-op-mute">
+                        {r.referenceCode} ·{" "}
+                        {activeTab === "recibidos" && r.derivedAt
+                          ? `derivada el ${formatDate(r.derivedAt)}`
+                          : `creada el ${formatDate(r.createdAt)}`}
+                      </p>
+                    </div>
+                    <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                      <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>
+                        {STATUS_LABELS[r.status] ?? r.status}
                       </OpPill>
-                    </p>
-                    <p className="text-[12px] text-ln-op-mute">
-                      {welfareReportSubjectKindLabel(r.subjectKind)}
-                      {r.petName ? ` · 🐾 ${r.petName}` : ""}
-                      {!r.petName && r.subjectDescription
-                        ? ` · ${r.subjectDescription.slice(0, 60)}`
-                        : ""}
-                    </p>
-                    <p className="text-[12px] font-mono text-ln-op-mute">
-                      {r.referenceCode} ·{" "}
-                      {activeTab === "recibidos" && r.derivedAt
-                        ? `derivada el ${formatDate(r.derivedAt)}`
-                        : `creada el ${formatDate(r.createdAt)}`}
-                    </p>
-                    {r.casePublicCode && (
-                      <Link
-                        href={`/casos/${r.casePublicCode}`}
-                        className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
-                      >
-                        Ver caso →
-                      </Link>
-                    )}
+                      {activeTab === "recibidos" && r.orgInterventionStatus && (
+                        <OpPill tone={INTERVENTION_PILL_TONE[r.orgInterventionStatus] ?? "neutral"}>
+                          {INTERVENTION_LABELS[r.orgInterventionStatus] ?? r.orgInterventionStatus}
+                        </OpPill>
+                      )}
+                    </div>
                   </div>
-                  <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>
-                    {STATUS_LABELS[r.status] ?? r.status}
-                  </OpPill>
+                  {/* Org action surface (UI-7) — only on derived (recibidos) rows
+                      for members with an intervention role. */}
+                  {activeTab === "recibidos" && canIntervene && (
+                    <InterventionActions
+                      orgToken={orgToken}
+                      welfareReportId={r.reportId}
+                      interventionStatus={r.orgInterventionStatus}
+                    />
+                  )}
                 </li>
               ))}
             </ul>

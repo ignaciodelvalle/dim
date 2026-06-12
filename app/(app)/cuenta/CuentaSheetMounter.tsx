@@ -94,7 +94,7 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   if (sheet === "verificar-dni") {
     if (dniVerified) return null; // already verified — no-op
     return (
-      <Sheet id="verificar-dni" title="Verificar DNI" open onClose={close}>
+      <Sheet id="verificar-dni" title="Declarar DNI" open onClose={close}>
         <DniVerifyForm next="/cuenta" />
       </Sheet>
     );

@@ -217,6 +217,9 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           title: `Mordedura reportada — ${pet.name} (${pet.species})`,
           body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
           relatedPetId: pet.id,
+          // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+          ctaLabel: "Ver vigilancia",
+          ctaUrl: "/gob/vigilancia",
         });
       }
     } catch (err) {

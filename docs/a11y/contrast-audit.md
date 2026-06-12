@@ -59,6 +59,26 @@ Fórmula WCAG 2.1:
 
 Valores verificados manualmente contra [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/). Margen de redondeo ± 0.1 :1.
 
+## Actualización — 2026-06-11
+
+### `--color-ln-warn` (texto de advertencia)
+
+| Token | Valor anterior | Valor nuevo | Motivo |
+| --- | --- | --- | --- |
+| `--color-ln-warn` | `#b0771a` | `#96600e` | El valor anterior daba 3.82:1 sobre blanco (fallo AA). |
+
+**Nuevas ratios verificadas:**
+
+| Combinación | Ratio | Veredicto |
+| --- | --- | --- |
+| `#96600e` sobre `#ffffff` (texto normal) | **5.28 : 1** | ✅ AA |
+| `#96600e` sobre `#fdf2e0` (`--color-ln-warn-050`) | **4.77 : 1** | ✅ AA |
+| `#96600e` sobre `#fdf6ea` (`--color-ln-warn-025`) | **4.92 : 1** | ✅ AA |
+
+El token `--color-gob-warning-text` (alias legacy) fue actualizado en paralelo para mantener consistencia.
+
+---
+
 ## Cuándo re-auditar
 
 - Cuando se agregue un nuevo `--color-*` token a `app/globals.css`.

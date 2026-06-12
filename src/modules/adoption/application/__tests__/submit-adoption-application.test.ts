@@ -218,8 +218,18 @@ describe("submitAdoptionApplication", () => {
       transaction: fakeTransaction,
     });
     expect(result).toMatchObject({ ok: true });
-    const r = result as { ok: true; value: { eventId: string }; notifications: unknown[] };
+    const r = result as {
+      ok: true;
+      value: { eventId: string };
+      notifications: { notificationType: string; category?: string | null }[];
+    };
     expect(r.notifications.length).toBeGreaterThan(0);
+    // Org-member fan-out notifications carry the adoption category (UI-6) so
+    // they surface in the /notificaciones adoption tab.
+    expect(r.notifications.every((n) => n.category === "adoption")).toBe(true);
+    expect(
+      r.notifications.every((n) => n.notificationType === "adoption_application_received"),
+    ).toBe(true);
     // Notifications are returned, not flushed (best-effort is action's job).
     expect(repo.insertApplication).toHaveBeenCalledOnce();
   });

@@ -106,36 +106,69 @@ export default async function AdminSistemaPage() {
           <OpCardHead title="Crons" />
           <OpCardBody>
             {crons.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">
-                Sin runs registrados. La tabla <code>cron_runs</code> aparece en Fase 14.
-              </p>
+              <p className="text-[13px] text-ln-op-mute">Sin runs registrados.</p>
             ) : (
-              <ul className="space-y-1">
-                {crons.map((c) => (
-                  <li key={c.cronName} className="flex items-baseline justify-between gap-3">
-                    <span className="text-[12px] text-ln-op-ink-2">{c.cronName}</span>
-                    <span className="tabular-nums text-[11px] flex items-center gap-1.5">
-                      {c.lastRunAt
-                        ? new Date(c.lastRunAt).toLocaleString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—"}
-                      {c.lastStatus && (
-                        <OpPill tone={STATUS_TONE[c.lastStatus] ?? "neutral"}>
-                          {STATUS_LABEL[c.lastStatus] ?? c.lastStatus}
-                        </OpPill>
-                      )}
-                      {c.itemsProcessed != null && (
-                        <span className="text-ln-op-mute">
-                          {"·"} {c.itemsProcessed} items
+              <ul className="space-y-3">
+                {crons.map((c) => {
+                  // Extract error summary from details JSONB when present.
+                  // Route handlers write: { errors: [{ id: string, reason: string }] }
+                  const errorList = Array.isArray((c.lastDetails as { errors?: unknown })?.errors)
+                    ? (c.lastDetails as { errors: { id: string; reason: string }[] }).errors
+                    : [];
+                  const errorSummary =
+                    errorList.length > 0 ? errorList.map((e) => e.reason).join("; ") : null;
+
+                  return (
+                    <li key={c.cronName} className="space-y-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[12px] text-ln-op-ink-2">{c.cronName}</span>
+                        <span className="tabular-nums text-[11px] flex items-center gap-1.5">
+                          {c.lastRunAt
+                            ? new Date(c.lastRunAt).toLocaleString("es-AR", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—"}
+                          {c.lastStatus && (
+                            <OpPill tone={STATUS_TONE[c.lastStatus] ?? "neutral"}>
+                              {STATUS_LABEL[c.lastStatus] ?? c.lastStatus}
+                            </OpPill>
+                          )}
+                          {c.itemsProcessed != null && (
+                            <span className="text-ln-op-mute">
+                              {"·"} {c.itemsProcessed} items
+                            </span>
+                          )}
                         </span>
+                      </div>
+                      {/* Failure diagnostic: show error detail inline with a copy hint.
+                          No automated re-trigger is provided because the cron routes
+                          require `Authorization: Bearer <CRON_SECRET>` from the Vercel
+                          infrastructure and there is no safe way to reconstruct that header
+                          in a server action without exposing the secret value in the
+                          browser. Diagnose via server logs / Vercel dashboard instead. */}
+                      {c.lastStatus === "failed" && (
+                        <details className="text-[11px] text-ln-op-danger space-y-0.5">
+                          <summary className="cursor-pointer select-none font-medium">
+                            Ver detalle del error
+                          </summary>
+                          <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-ln-op-danger-bg px-2 py-1 text-[10px] text-ln-op-danger">
+                            {errorSummary ??
+                              JSON.stringify(c.lastDetails, null, 2) ??
+                              "Sin detalle disponible."}
+                          </pre>
+                          <p className="text-ln-op-mute">
+                            Para reintentar: revisá los logs del servidor en el dashboard de Vercel
+                            y ejecutá el cron manualmente desde ahí o vía curl con el CRON_SECRET
+                            configurado.
+                          </p>
+                        </details>
                       )}
-                    </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </OpCardBody>

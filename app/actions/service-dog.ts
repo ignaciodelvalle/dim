@@ -427,6 +427,8 @@ export async function revokeServiceDogCredentialAction(
           body: `Motivo: ${motivo}. El banner público de acceso ya no se muestra. Comunicate con ANDIS si querés apelar.`,
           severity: "warning",
           relatedPetId: petRow.pet.id,
+          ctaLabel: "Ver mascota",
+          ctaUrl: `/mis-mascotas/${input.petPublicToken}/asistencia`,
         });
       }
     });

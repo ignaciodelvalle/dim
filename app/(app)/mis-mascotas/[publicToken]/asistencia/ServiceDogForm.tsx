@@ -36,6 +36,7 @@ export function ServiceDogForm({
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
 
+  const [confirmRetire, setConfirmRetire] = useState(false);
   const [serviceType, setServiceType] = useState<ServiceDogType>(initial?.serviceType ?? "guia");
   const [trainingCenter, setTrainingCenter] = useState(initial?.trainingCenter ?? "");
   const [trainingCertDate, setTrainingCertDate] = useState(initial?.trainingCertDate ?? "");
@@ -111,20 +112,16 @@ export function ServiceDogForm({
   }
 
   function retire() {
-    if (
-      !confirm(
-        "¿Retirar el perro del servicio? Va a perder los derechos de acceso bajo Ley 26.858. El banner público deja de aparecer. Podés mantener esta info como historial.",
-      )
-    )
-      return;
     setError(null);
     setOkMessage(null);
     startTransition(async () => {
       const result = await retireServiceDogAction({ petPublicToken });
       if ("error" in result) {
         setError(result.error);
+        setConfirmRetire(false);
         return;
       }
+      setConfirmRetire(false);
       router.refresh();
     });
   }
@@ -330,15 +327,41 @@ export function ServiceDogForm({
               Solicitar verificación
             </button>
           )}
-          {initial?.inService && (
+          {initial?.inService && !confirmRetire && (
             <button
               type="button"
-              onClick={retire}
+              onClick={() => setConfirmRetire(true)}
               disabled={pending}
               className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] text-sm hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
             >
               Retirar del servicio
             </button>
+          )}
+          {initial?.inService && confirmRetire && (
+            <div className="w-full rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)]/30 px-3 py-3 space-y-2">
+              <p className="text-sm text-[var(--color-ln-ink-2)]">
+                ¿Retirar el perro del servicio? Va a perder los derechos de acceso bajo Ley 26.858.
+                El banner público deja de aparecer.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={retire}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-seal)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-colors"
+                >
+                  {pending ? "Retirando…" : "Confirmar retiro"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRetire(false)}
+                  disabled={pending}
+                  className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </form>

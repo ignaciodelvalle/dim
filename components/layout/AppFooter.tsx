@@ -19,6 +19,7 @@ const DEFAULT_COLUMNS: Column[] = [
     title: "Producto",
     links: [
       { href: "/", label: "Inicio" },
+      { href: "/perdidas", label: "Mascotas perdidas" },
       { href: "/adoptar", label: "Adoptar" },
       { href: "/denuncias", label: "Denuncias" },
       { href: "/libreta", label: "Mi libreta" },

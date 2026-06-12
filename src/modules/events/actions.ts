@@ -40,9 +40,11 @@ import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
+import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
+import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { createClinicalInfo } from "./application/clinical/clinical-info-use-case";
 import { recordDiseaseDiagnosisWriter } from "./application/clinical/record-disease-diagnosis-use-case";
 import { createVetVisit } from "./application/clinical/vet-visit-use-case";
@@ -86,6 +88,28 @@ async function cleanupAttachment(supabase: SupabaseServerClient, path: string | 
 function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
   return <T>(cb: (tx: unknown) => Promise<T>) =>
     db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>;
+}
+
+const surveillanceRepoForEno = new SurveillanceRepository();
+
+/**
+ * In-transaction ENO enqueue dep for recordDiseaseDiagnosisWriter (P1-3
+ * durability). The eno_processing_queue row is enqueued inside the diagnosis
+ * tx so it is atomic with the event insert and can never be lost on a crash.
+ * Idempotent on pet_event_id; DB errors propagate to roll the tx back.
+ */
+async function enqueueEnoTriggerInTx(
+  petEvent: {
+    id: string;
+    petId: string;
+    authorRole: string;
+    recordedByUserId: string | null;
+    authorOrganizationId: string | null;
+    payload: Record<string, unknown>;
+  },
+  tx: unknown,
+): Promise<void> {
+  await enqueueEnoTrigger(petEvent, { repo: surveillanceRepoForEno, executor: tx });
 }
 
 // ---------------------------------------------------------------------------
@@ -609,10 +633,14 @@ export async function createMicrochipAction(
 
   const repo = new EventsRepository();
 
+  // ARCH-S: read canonical chip status (legacy pets.microchipId column dropped).
+  const { fetchActiveIdentifications } = await import("@/lib/pet-identifiers");
+  const existingIds = await fetchActiveIdentifications(pet.id);
+
   try {
     const result = await createMicrochip(
       {
-        pet: { id: pet.id, microchipId: pet.microchipId ?? null },
+        pet: { id: pet.id, petHasCanonicalChip: existingIds.microchip !== null },
         user: { id: user.id },
         eventAuthorship: eventAuthorship as {
           authorRole: string;
@@ -1023,6 +1051,7 @@ export async function recordDiseaseDiagnosisAction(
       repo,
       transaction: makeTransaction(),
       flushNotifications,
+      enqueueEnoTrigger: enqueueEnoTriggerInTx,
     },
   );
 
@@ -1228,8 +1257,6 @@ export async function setPetLostAction(
       petPublicToken: pet.publicToken,
       petName: pet.name,
       petStatus: pet.status,
-      petMicrochipId: pet.microchipId,
-      petTattooCode: pet.tattooCode,
       petSpecies: pet.species,
       petBreed: pet.breed,
       petColor: pet.color,
@@ -1277,19 +1304,55 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
 
   const repo = new EventsRepository();
 
-  const result = await setPetFound(
+  // Resolve the active owner USER id so the recovery confirmation reaches the
+  // human owner even when an org member triggers the action. Falls back to the
+  // acting user when no owner-user row exists (e.g. org-owned pet).
+  const { ownerships } = await import("@/db");
+  const { isNull } = await import("drizzle-orm");
+  const [ownerRow] = await db
+    .select({ ownerUserId: ownerships.ownerUserId })
+    .from(ownerships)
+    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+    .limit(1);
+  const ownerUserId = ownerRow?.ownerUserId ?? user.id;
+
+  // Resolves the audience of the original lost_pet_broadcast for this pet by
+  // reading the broadcast notification rows (relatedPetId scoped, distinct user).
+  async function findBroadcastRecipientUserIds(petId: string): Promise<string[]> {
+    const { notifications } = await import("@/db");
+    const rows = await db
+      .selectDistinct({ userId: notifications.userId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.notificationType, "lost_pet_broadcast"),
+          eq(notifications.relatedPetId, petId),
+        ),
+      );
+    return rows.map((r) => r.userId).filter((id): id is string => Boolean(id));
+  }
+
+  await setPetFound(
     {
       petId: pet.id,
       petStatus: pet.status,
       petPublicToken: pet.publicToken,
+      petName: pet.name,
+      petSex: pet.sex,
       recordedByUserId: user.id,
+      ownerUserId,
       eventAuthorship: eventAuthorship as {
         authorRole: string;
         authorOrganizationId: string | null;
         authorVerified: boolean;
       },
     },
-    { repo, transaction: makeTransaction() },
+    {
+      repo,
+      transaction: makeTransaction(),
+      findBroadcastRecipientUserIds,
+      flushNotifications,
+    },
   );
 
   redirect(`/mis-mascotas/${publicToken}`);

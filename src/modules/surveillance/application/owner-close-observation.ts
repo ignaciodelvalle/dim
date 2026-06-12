@@ -152,6 +152,8 @@ export async function ownerCloseObservation(
         body: `La observación antirrábica de 10 días terminó sin incidentes. ${pet.name} sigue normal.`,
         relatedPetId: pet.id,
         relatedCaseId: biteCase?.id ?? null,
+        ctaLabel: "Ver mascota",
+        ctaUrl: `/mis-mascotas/${pet.publicToken}`,
       });
     });
   } catch (err) {

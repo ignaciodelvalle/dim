@@ -29,8 +29,13 @@ export interface AcceptInvitationRepo {
   findExistingActiveMembership: OrgRepository["findExistingActiveMembership"];
   markInviteAccepted: OrgRepository["markInviteAccepted"];
   insertMembership: OrgRepository["insertMembership"];
+  insertGrant: OrgRepository["insertGrant"];
   findAccepterDisplayName: OrgRepository["findAccepterDisplayName"];
+  insertAuditLog: OrgRepository["insertAuditLog"];
 }
+
+// Roles that receive event.write implicitly via authz-resolver (no grant row needed).
+const IMPLICIT_EVENT_WRITE_ROLES = new Set(["admin", "vet_individual"]);
 
 // ---------------------------------------------------------------------------
 // Input / Deps
@@ -122,7 +127,7 @@ export async function acceptInvitation(
       const now = new Date();
 
       // 5. Insert membership.
-      await repo.insertMembership(
+      const newMembershipId = await repo.insertMembership(
         {
           organizationId: validInvite.organizationId,
           userId: input.userId,
@@ -134,8 +139,48 @@ export async function acceptInvitation(
         e,
       );
 
+      // 5a. Insert event.write capability grant for roles that don't get it implicitly.
+      // Roles 'admin' and 'vet_individual' are resolved via implicit caps in authz-resolver;
+      // a grant row for them would be redundant (though harmless). Skip to keep data clean.
+      if (
+        validInvite.canWritePetEvents &&
+        !IMPLICIT_EVENT_WRITE_ROLES.has(validInvite.invitedRole)
+      ) {
+        await repo.insertGrant(
+          {
+            membershipId: newMembershipId,
+            organizationId: validInvite.organizationId,
+            capability: "event.write",
+            status: "approved",
+            decidedAt: now,
+            decidedByUserId: validInvite.invitedByUserId ?? null,
+            decisionReason: "invitation",
+          },
+          e,
+        );
+      }
+
       // Mark accepted.
       await repo.markInviteAccepted(validInvite.id, input.userId, e);
+
+      // Audit: org_member_added via invitation accept.
+      await repo.insertAuditLog(
+        {
+          actorUserId: input.userId,
+          action: "org_member_added",
+          targetUserId: input.userId,
+          targetOrganizationId: validInvite.organizationId,
+          payload: {
+            org_id: validInvite.organizationId,
+            member_user_id: input.userId,
+            role: validInvite.invitedRole,
+            how: "invitation_accept",
+            invitation_id: validInvite.id,
+          },
+        },
+        e,
+      );
+
       orgToken = org.publicToken;
 
       // Queue inviter notification (post-tx).
@@ -147,6 +192,8 @@ export async function acceptInvitation(
           severity: "success",
           title: `${accepterName ?? "Un usuario"} aceptó tu invitación`,
           body: `Ahora es miembro de ${org.displayName} con el rol ${validInvite.invitedRole}.`,
+          ctaLabel: "Ver miembros",
+          ctaUrl: `/org/${org.publicToken}/miembros`,
         });
       }
     });

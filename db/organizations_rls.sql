@@ -1,5 +1,7 @@
 -- DIM organizations — Row Level Security
 -- ---------------------------------------
+-- NOTE (V0-4): REFERENCE ONLY. Source of truth is
+-- db/migrations/0086_track_rls_in_migrations.sql. No longer applied by bootstrap.
 -- Conservative read-only RLS for the three organization tables. v1 has no
 -- self-serve admin UI for orgs; INSERT/UPDATE/DELETE happen via Supabase Studio
 -- by an admin until the refugio portal lands. See AGENTS.md → Organizations.

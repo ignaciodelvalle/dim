@@ -12,14 +12,15 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { JurisdictionFilterBar, readFilterParams } from "@/components/JurisdictionFilterBar";
+import { JurisdictionFilterBar } from "@/components/JurisdictionFilterBar";
+import { readFilterParams } from "@/components/jurisdiction-filter-params";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { PROVINCES, type ProvinceCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { listCasesForAdmin, listCasesForGovt } from "@/lib/case-queries";
+import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
 import {
   fetchActiveZoonosis,
@@ -136,17 +137,16 @@ export default async function GobiernoDashboardPage({
     ]);
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------
-  // Admin sees universal scope via listCasesForAdmin; govt is jurisdiction-scoped.
+  // Status filter + LIMIT 5 are pushed into SQL: admin sees universal scope,
+  // govt is jurisdiction-scoped. Previously this loaded up to 500/300 rows and
+  // sliced 5 in JS — a full table scan on every dashboard render.
 
-  const allCases =
+  const openCasesPreview =
     profile.role === "admin"
-      ? await listCasesForAdmin()
-      : filteredJurisdictions.length === 0
-        ? []
-        : await listCasesForGovt(filteredJurisdictions);
-  const openCasesAll = allCases.filter((c) => c.status === "open" || c.status === "escalated");
-  const openCases = openCasesAll.slice(0, 5);
-  const openCasesTotal = openCasesAll.length;
+      ? await listOpenCasesForAdminPreview(5)
+      : await listOpenCasesForGovtPreview(filteredJurisdictions, 5);
+  const openCases = openCasesPreview.items;
+  const openCasesTotal = openCasesPreview.total;
 
   return (
     <div className="space-y-6">
@@ -202,7 +202,7 @@ export default async function GobiernoDashboardPage({
           tone={rabiesCoverage.current >= rabiesCoverage.target ? "ok" : "warn"}
           bar={rabiesCoverage.current}
           sub={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
-          href="/gob/indicadores?metric=rabies"
+          href="/gob/analytics"
         />
         <OpKpi
           label="Esterilizaciones / mes"
@@ -216,7 +216,7 @@ export default async function GobiernoDashboardPage({
               : undefined
           }
           sub={`${sterilizations.orgs} organizaciones`}
-          href="/gob/indicadores?metric=sterilizations"
+          href="/gob/analytics"
         />
         <OpKpi
           label="Mordeduras / 10k hab."
@@ -231,7 +231,7 @@ export default async function GobiernoDashboardPage({
               : undefined
           }
           sub={`${bitesPer10k.reports} reportes`}
-          href="/gob/indicadores?metric=bites"
+          href="/gob/vigilancia"
         />
         <OpKpi
           label="Casos zoonosis activos"

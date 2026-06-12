@@ -166,6 +166,8 @@ export async function professionalCloseObservation(
           body: `La observación antirrábica de ${pet.name} fue cerrada por ${actor.profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con outcome: ${input.outcome}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
           relatedPetId: pet.id,
           relatedCaseId: biteCase?.id ?? null,
+          ctaLabel: "Ver mascota",
+          ctaUrl: `/mis-mascotas/${pet.publicToken}`,
         });
       }
     });

@@ -63,6 +63,65 @@ describe("deriveActionItems — conditional rules", () => {
     expect(withoutProposal.map((a) => a.id)).not.toContain("confirm-return");
   });
 
+  it("'Confirmar devolución' links to the /devolucion surface", () => {
+    const items = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "lost", publicToken: "TK" },
+        hasPendingReturnProposal: true,
+      }),
+    );
+    const item = items.find((a) => a.id === "confirm-return");
+    expect(item?.href).toBe("/mis-mascotas/TK/devolucion");
+  });
+
+  it("'Transferir mascota' only for active owner, not org/non-owner/lost/deceased", () => {
+    const activeOwner = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "active", publicToken: "TK" },
+        accessPath: "owner",
+        ownershipRole: "owner",
+      }),
+    );
+    const lostOwner = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "lost", publicToken: "TK" },
+        accessPath: "owner",
+        ownershipRole: "owner",
+      }),
+    );
+    const orgAccess = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "active", publicToken: "TK" },
+        accessPath: "org",
+        ownershipRole: null,
+      }),
+    );
+    const fosterOwner = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "active", publicToken: "TK" },
+        accessPath: "owner",
+        ownershipRole: "foster",
+      }),
+    );
+
+    expect(activeOwner.map((a) => a.id)).toContain("transfer-pet");
+    expect(lostOwner.map((a) => a.id)).not.toContain("transfer-pet");
+    expect(orgAccess.map((a) => a.id)).not.toContain("transfer-pet");
+    expect(fosterOwner.map((a) => a.id)).not.toContain("transfer-pet");
+  });
+
+  it("'Transferir mascota' opens the transferir-mascota sheet", () => {
+    const items = deriveActionItems(
+      makeInput({
+        pet: { species: "dog", status: "active", publicToken: "TK" },
+        accessPath: "owner",
+        ownershipRole: "owner",
+      }),
+    );
+    const item = items.find((a) => a.id === "transfer-pet");
+    expect(item?.href).toBe("/mis-mascotas/TK?sheet=transferir-mascota");
+  });
+
   it("no extra service-dog action rendered for accessPath === 'org'", () => {
     const orgAccess = deriveActionItems(makeInput({ accessPath: "org", ownershipRole: null }));
     expect(orgAccess.map((a) => a.id)).not.toContain("service-dog");

@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 
 import { buildOrgNav } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
+import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -68,6 +69,7 @@ export default async function OrgLayout({
       topbar={
         <OpTopbar
           crumbs={[{ label: "Panel" }]}
+          customCrumbs={<OrgBreadcrumbs orgToken={orgToken} />}
           scope={{
             code: "ORG",
             label: organization.displayName,

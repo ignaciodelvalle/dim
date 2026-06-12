@@ -3,7 +3,16 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { auditLog, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  auditLog,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  petIdentifications,
+  pets,
+  profiles,
+} from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
@@ -169,25 +178,29 @@ export async function replaceMicrochipForUser(
       }
 
       // Cross-pet duplicate scan — only for duplicate_detected.
+      // Reads from canonical pet_identifications (legacy pets.microchipId
+      // writes removed in ARCH-R — scanning the legacy column would miss
+      // new chips inserted after this PR).
       let secondaryPetId: string | null = null;
       if (parsed.reason === "duplicate_detected") {
         const dupes = await tx
-          .select({ id: pets.id })
-          .from(pets)
+          .select({ petId: petIdentifications.petId })
+          .from(petIdentifications)
           .where(
             and(
-              eq(pets.microchipId, parsed.previousChipNumber),
-              ne(pets.id, pet.id),
-              // pets has no deletedAt; filter out deceased/lost to find active duplicates.
-              inArray(pets.status, ["active", "lost"]),
+              eq(petIdentifications.code, parsed.previousChipNumber),
+              eq(petIdentifications.kind, "microchip_iso"),
+              eq(petIdentifications.status, "active"),
+              ne(petIdentifications.petId, pet.id),
             ),
           )
           .limit(1);
-        secondaryPetId = dupes[0]?.id ?? null;
+        secondaryPetId = dupes[0]?.petId ?? null;
       }
 
       // Open a microchip_remediation case for fraud or duplicate reasons.
       let caseId: string | null = null;
+      let casePublicCode: string | null = null;
       if (parsed.reason === "fraud_detected" || parsed.reason === "duplicate_detected") {
         const secondaryNote = secondaryPetId ? ` secondaryPetId=${secondaryPetId}` : "";
         const caseRow = await openCase(
@@ -203,6 +216,7 @@ export async function replaceMicrochipForUser(
           tx,
         );
         caseId = caseRow.id;
+        casePublicCode = caseRow.publicCode;
       }
 
       // Resolve authorship fields — inlined per decision (no separate helper for
@@ -259,11 +273,38 @@ export async function replaceMicrochipForUser(
         })
         .returning();
 
-      // Update pets.microchipId (the denormalized chip column).
+      // Bump updatedAt on the pets row (legacy microchipId column write removed
+      // in ARCH-R — canonical row managed via petIdentifications below).
+      await tx.update(pets).set({ updatedAt: now }).where(eq(pets.id, pet.id));
+
+      // Canonical dual-write: flip old active canonical row to 'replaced',
+      // then insert the new active row (skip insert on pure revocation).
       await tx
-        .update(pets)
-        .set({ microchipId: parsed.newChipNumber, updatedAt: now })
-        .where(eq(pets.id, pet.id));
+        .update(petIdentifications)
+        .set({ status: "replaced", updatedAt: now })
+        .where(
+          and(
+            eq(petIdentifications.petId, pet.id),
+            eq(petIdentifications.kind, "microchip_iso"),
+            eq(petIdentifications.status, "active"),
+          ),
+        );
+
+      if (parsed.newChipNumber) {
+        const newChip = parsed.newChipNumber;
+        await tx.insert(petIdentifications).values({
+          petId: pet.id,
+          kind: "microchip_iso",
+          code: newChip,
+          recordedAt: now.toISOString().slice(0, 10),
+          recordedByUserId: userId,
+          recordedByLabel: parsed.replacedBy ?? null,
+          isoCountryCode: newChip.slice(0, 3),
+          isoManufacturerCode: newChip.slice(3, 7),
+          isoNationalId: newChip.slice(7, 15),
+          isoCompliant: true,
+        });
+      }
 
       // Write audit_log row. The audit_log table has no targetPetId column;
       // pet identity is carried in the JSONB payload alongside event_id.
@@ -306,6 +347,8 @@ export async function replaceMicrochipForUser(
             relatedPetId: pet.id,
             relatedCaseId: caseId,
             relatedEventId: event.id,
+            ctaLabel: "Ver caso",
+            ctaUrl: casePublicCode ? `/casos/${casePublicCode}` : "/admin/casos",
           });
         }
       }
@@ -340,6 +383,10 @@ export async function replaceMicrochipForUser(
             relatedPetId: pet.id,
             relatedCaseId: caseId,
             relatedEventId: event.id,
+            // Recipients are govt or admin; /casos/{code} is the shared case viewer
+            // both roles can open.
+            ctaLabel: "Ver caso",
+            ctaUrl: casePublicCode ? `/casos/${casePublicCode}` : "/admin/casos",
           });
         }
       }
@@ -368,6 +415,8 @@ export async function replaceMicrochipForUser(
             relatedPetId: pet.id,
             relatedEventId: event.id,
             ...(caseId ? { relatedCaseId: caseId } : {}),
+            ctaLabel: "Ver mascota",
+            ctaUrl: `/mis-mascotas/${pet.publicToken}`,
           });
         }
       }

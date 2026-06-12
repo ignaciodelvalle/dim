@@ -27,6 +27,12 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   ),
 });
 
+// Terminal statuses where the "integration pending" banner contradicts the
+// status badge and should be hidden (UI-7 B7).
+function isTerminalStatus(status: string): boolean {
+  return status === "closed" || status === "invalid" || status === "duplicate";
+}
+
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "closed":
@@ -141,7 +147,7 @@ export default async function WelfareReportByCodePage({
             className="rounded-[6px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3"
           >
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
-              Tu denuncia fue registrada. Gracias por animarte a denunciar.
+              Tu denuncia fue registrada.
             </p>
             <p
               className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
@@ -315,12 +321,15 @@ export default async function WelfareReportByCodePage({
           </section>
         )}
 
-        {/* Integration-pending notice */}
-        <div className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
-          Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
-          canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
-          enviado cuando la integración esté disponible.
-        </div>
+        {/* Integration-pending notice — only while the report is non-terminal.
+            On closed / invalid / duplicate it contradicts the status badge. */}
+        {!isTerminalStatus(report.status) && (
+          <div className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
+            Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
+            canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
+            enviado cuando la integración esté disponible.
+          </div>
+        )}
       </div>
     </main>
   );

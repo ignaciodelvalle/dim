@@ -10,9 +10,11 @@
 //   - openCase(lost_pet_episode) INSIDE tx.
 //   - PLAIN insert of status_changed with disclosure_prefs_snapshot + optional lost_description.
 //   - updatePetLostProjection: status=lost + 5 disclosure cols + optional color/distinguishingFeatures.
-//   - Retroactive microchip: ONLY when validatedRetroChipId && !petMicrochipId.
+//   - Retroactive microchip: ONLY when validatedRetroChipId && pet has no active canonical chip.
+//     Guard reads from canonical pet_identifications (ARCH-S: legacy petMicrochipId param removed).
 //     Validation via validateMicrochipId BEFORE the tx (error before any write).
-//   - Retroactive tattoo: ONLY when rawTattooCode && !petTattooCode AND normalizeTattooCode succeeds.
+//   - Retroactive tattoo: ONLY when rawTattooCode && pet has no active canonical tattoo.
+//     Guard reads from canonical pet_identifications (ARCH-S: legacy petTattooCode param removed).
 //   - broadcastLostPet post-tx (best-effort) when petPublicToken is provided.
 //   - Result: { error: null | string }
 
@@ -22,6 +24,7 @@ import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { writePoint } from "@/lib/location";
 import { validateMicrochipId } from "@/lib/microchip-validation";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 
 import type { DisclosurePrefsInput } from "../../domain/disclosure-prefs";
@@ -53,8 +56,6 @@ export type SetPetLostWriterParams = {
   petPublicToken?: string;
   petName?: string;
   petStatus: string;
-  petMicrochipId?: string | null;
-  petTattooCode?: string | null;
   petSpecies?: string | null;
   petBreed?: string | null;
   petColor?: string | null;
@@ -80,10 +81,7 @@ export type SetPetLostWriterResult = { error: string | null };
 type BroadcastFn = (db: any, pet: any, owner: any, lastLocation: any) => Promise<any>;
 
 type Deps = {
-  repo: Pick<
-    EventsRepository,
-    "insertEvent" | "updatePetLostProjection" | "updateMicrochipBackfill"
-  >;
+  repo: Pick<EventsRepository, "insertEvent" | "updatePetLostProjection" | "insertIdentification">;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   broadcastLostPet: BroadcastFn;
 };
@@ -106,8 +104,6 @@ export async function setPetLostWriter(
     petPublicToken = "",
     petName = "",
     petStatus,
-    petMicrochipId = null,
-    petTattooCode = null,
     petSpecies = null,
     petBreed = null,
     petColor = null,
@@ -172,6 +168,14 @@ export async function setPetLostWriter(
     validatedRetroChipId = chipValidation.normalized;
   }
 
+  // Read canonical identifiers once — both retroactive guards use these results.
+  // ARCH-S: legacy petMicrochipId / petTattooCode params removed; guard now reads
+  // from the canonical pet_identifications table so the check is always accurate.
+  const canonicalIds =
+    rawRetroChipId || enrichedDescription?.tattooCode
+      ? await fetchActiveIdentifications(petId)
+      : { microchip: null, tattoo: null };
+
   try {
     await deps.transaction(async (tx) => {
       // Open a lost_pet_episode case atomically with the status_changed event.
@@ -234,8 +238,8 @@ export async function setPetLostWriter(
         tx as Parameters<typeof deps.repo.updatePetLostProjection>[3],
       );
 
-      // Retroactive microchip capture — only when validated chip AND pet had no chip before.
-      if (validatedRetroChipId && !petMicrochipId) {
+      // Retroactive microchip capture — only when validated chip AND pet has no active canonical chip.
+      if (validatedRetroChipId && !canonicalIds.microchip) {
         const newChipId = validatedRetroChipId;
         const microchipPayload = validateEventPayload("microchip_implanted", {
           chip_number: newChipId,
@@ -257,23 +261,27 @@ export async function setPetLostWriter(
           tx as Parameters<typeof deps.repo.insertEvent>[1],
         );
 
-        await deps.repo.updateMicrochipBackfill(
-          petId,
+        // Insert canonical microchip row in pet_identifications.
+        // Legacy pets.microchipId write removed in ARCH-R.
+        await deps.repo.insertIdentification(
           {
-            microchipId: newChipId,
-            microchipCountryCode: null,
-            microchipImplantedAt: null,
-            microchipImplantedBy: null,
-            microchipLocation: null,
+            petId,
+            kind: "microchip_iso",
+            code: newChipId,
+            recordedAt: now.toISOString().slice(0, 10),
+            recordedByUserId,
+            isoCountryCode: newChipId.slice(0, 3),
+            isoManufacturerCode: newChipId.slice(3, 7),
+            isoNationalId: newChipId.slice(7, 15),
+            isoCompliant: true,
           },
-          now,
-          tx as Parameters<typeof deps.repo.updateMicrochipBackfill>[3],
+          tx as Parameters<typeof deps.repo.insertIdentification>[1],
         );
       }
 
-      // Retroactive tattoo capture — only when code provided AND pet had no tattoo before.
+      // Retroactive tattoo capture — only when code provided AND pet has no active canonical tattoo.
       const rawRetroTattooCode = enrichedDescription?.tattooCode?.trim() || null;
-      if (rawRetroTattooCode && !petTattooCode) {
+      if (rawRetroTattooCode && !canonicalIds.tattoo) {
         const normalizedTattoo = normalizeTattooCode(rawRetroTattooCode);
         if (normalizedTattoo) {
           const rawLoc = enrichedDescription?.tattooLocation ?? null;
@@ -315,25 +323,20 @@ export async function setPetLostWriter(
             tx as Parameters<typeof deps.repo.insertEvent>[1],
           );
 
-          // We reuse updatePetLostProjection is not the right method here — need direct update.
-          // The original code does a direct tx.update(pets).set({tattooCode,...}).
-          // Since EventsRepository doesn't have a tattoo update method, we use the repo's
-          // updateMicrochipBackfill pattern — but for tattoo. We call tx directly (the tx
-          // is opaque `unknown` here). The original does this via db.transaction tx which IS
-          // the drizzle executor, so we cast and call update on it.
-          // Per design: "reuse existing pure modules — do not rewrite them".
-          // We need to accept `tx` as the Drizzle executor here.
-          const { pets } = await import("@/db");
-          const { eq } = await import("drizzle-orm");
-          await (tx as { update: typeof import("@/db").db.update })
-            .update(pets)
-            .set({
-              tattooCode: normalizedTattoo,
+          // Canonical write to pet_identifications.
+          // Legacy pets.tattooCode write removed in ARCH-R.
+          const { petIdentifications } = await import("@/db");
+          await (tx as { insert: typeof import("@/db").db.insert })
+            .insert(petIdentifications)
+            .values({
+              petId,
+              kind: "tattoo",
+              code: normalizedTattoo,
+              recordedAt: now.toISOString().slice(0, 10),
+              recordedByUserId: recordedByUserId,
               tattooLocation: tattooLoc,
               tattooDescription: tattooDesc,
-              updatedAt: now,
-            })
-            .where(eq(pets.id, petId));
+            });
         }
       }
     });

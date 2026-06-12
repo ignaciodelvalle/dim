@@ -78,7 +78,9 @@ type InsertApplicationArgs = {
 type ResolveApplicationArgs = {
   petId: string;
   applicationEventId: string;
-  outcome: "approved" | "rejected";
+  outcome: "approved" | "rejected" | "withdrawn";
+  // For approved/rejected this is the shelter reviewer; for withdrawn it is the
+  // applicant's own user id (they are the actor who resolved their application).
   reviewerUserId: string;
   orgId: string;
   orgVerified: boolean;
@@ -686,6 +688,177 @@ export const AdoptionRepository = {
       authorRole: "shelter",
       authorOrganizationId: args.orgId,
       authorVerified: args.orgVerified,
+      payload,
+    });
+  },
+
+  /**
+   * Loads a pending application for the APPLICANT-side withdrawal flow.
+   *
+   * Verifies, in one read:
+   *   - the event exists and is an adoption_application_submitted
+   *   - the caller (applicantUserId) is the submitter (ownership guard)
+   *   - the application is still unresolved (no adoption_application_resolved
+   *     for it) — same NOT EXISTS pending-derivation the postulaciones list
+   *     and the org review query use.
+   *
+   * Returns the application + pet (id, name) + the shelter org id (for the
+   * org-side notification), or an error string.
+   */
+  async findApplicationForWithdrawal(
+    applicationEventId: string,
+    applicantUserId: string,
+    tx?: Tx,
+  ): Promise<
+    | {
+        application: { id: string };
+        pet: { id: string; name: string };
+        org: { id: string; publicToken: string; displayName: string };
+      }
+    | { error: string }
+  > {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({
+        applicationId: petEvents.id,
+        applicantUserId: sql<string>`${petEvents.payload}->>'applicant_user_id'`,
+        petId: pets.id,
+        petName: pets.name,
+        orgId: organizations.id,
+        orgPublicToken: organizations.publicToken,
+        orgDisplayName: organizations.displayName,
+      })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .innerJoin(
+        ownerships,
+        and(
+          eq(ownerships.petId, pets.id),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+      .where(
+        and(
+          eq(petEvents.id, applicationEventId),
+          eq(petEvents.eventType, "adoption_application_submitted"),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      return { error: "No encontramos esta postulación." };
+    }
+    if (row.applicantUserId !== applicantUserId) {
+      return { error: "Solo podés retirar tus propias postulaciones." };
+    }
+
+    // Already resolved (approved / rejected / closed / withdrawn)?
+    const decided = await client.execute<{ id: string }>(sql`
+      SELECT id FROM pet_events
+      WHERE pet_id = ${row.petId}
+        AND event_type = 'adoption_application_resolved'
+        AND payload->>'application_event_id' = ${applicationEventId}
+      LIMIT 1
+    `);
+    if (decided.length > 0) {
+      return { error: "Esta postulación ya fue resuelta y no se puede retirar." };
+    }
+
+    // Pet already adopted? A finalize cascade should already have resolved
+    // this application, but defend anyway.
+    const finalized = await client.execute<{ id: string }>(sql`
+      SELECT id FROM pet_events
+      WHERE pet_id = ${row.petId} AND event_type = 'adoption_finalized'
+      LIMIT 1
+    `);
+    if (finalized.length > 0) {
+      return { error: "Esta postulación ya fue resuelta y no se puede retirar." };
+    }
+
+    return {
+      application: { id: row.applicationId },
+      pet: { id: row.petId, name: row.petName },
+      org: {
+        id: row.orgId,
+        publicToken: row.orgPublicToken,
+        displayName: row.orgDisplayName,
+      },
+    };
+  },
+
+  /**
+   * Inserts a lightweight `note_added` marker (kind=adoption_info_requested)
+   * recording that the shelter probed an adoption application for more info.
+   * Reuses note_added (category=system) rather than a new event type — the
+   * marker carries the application_event_id so both sides can derive the
+   * "info requested" state (applicant: "te pidieron más info"; org: probed row).
+   *
+   * Attached to the application's pet, authored by the shelter org. Idempotent
+   * by intent at the action layer (a re-probe simply appends a newer marker —
+   * the derivation reads the latest).
+   */
+  async insertInfoRequestedNote(
+    args: {
+      petId: string;
+      applicationEventId: string;
+      reviewerUserId: string;
+      orgId: string;
+      orgVerified: boolean;
+      message: string;
+      now: Date;
+    },
+    tx?: Tx,
+  ): Promise<void> {
+    const client = tx ?? db;
+    const payload = validateEventPayload("note_added", {
+      category: "system",
+      text: args.message,
+      kind: "adoption_info_requested",
+      application_event_id: args.applicationEventId,
+    });
+
+    await client.insert(petEvents).values({
+      petId: args.petId,
+      eventType: "note_added",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.reviewerUserId,
+      authorRole: "shelter",
+      authorOrganizationId: args.orgId,
+      authorVerified: args.orgVerified,
+      payload,
+    });
+  },
+
+  /**
+   * Inserts an adoption_application_resolved event with outcome=withdrawn.
+   * The author is the APPLICANT (owner role, no org) — distinct from the
+   * shelter-authored approve/reject path. Must be called inside a
+   * db.transaction().
+   */
+  async withdrawApplication(
+    args: { petId: string; applicationEventId: string; applicantUserId: string; now: Date },
+    tx: Tx,
+  ): Promise<void> {
+    const payload = validateEventPayload("adoption_application_resolved", {
+      application_event_id: args.applicationEventId,
+      reviewer_user_id: args.applicantUserId,
+      outcome: "withdrawn",
+      auto_generated: false,
+      notes: null,
+    });
+
+    await tx.insert(petEvents).values({
+      petId: args.petId,
+      eventType: "adoption_application_resolved",
+      occurredAt: args.now,
+      recordedAt: args.now,
+      recordedByUserId: args.applicantUserId,
+      authorRole: "owner",
+      authorOrganizationId: null,
+      authorVerified: false,
       payload,
     });
   },

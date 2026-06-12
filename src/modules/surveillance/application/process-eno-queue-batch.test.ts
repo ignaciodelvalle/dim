@@ -99,6 +99,7 @@ function makePetRow(
   overrides: Partial<{
     id: string;
     name: string;
+    publicToken: string;
     jurisdictionProvince: string;
     jurisdictionLocality: string;
   }> = {},
@@ -106,6 +107,7 @@ function makePetRow(
   return {
     id: "pet-1",
     name: "Firulais",
+    publicToken: "pet-token-1",
     jurisdictionProvince: "Buenos Aires",
     jurisdictionLocality: "La Plata",
     ...overrides,

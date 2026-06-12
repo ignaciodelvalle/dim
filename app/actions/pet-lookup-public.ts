@@ -17,7 +17,7 @@ import { headers } from "next/headers";
 
 import { db, ownerships, pets, profiles } from "@/db";
 import { lookupByChip } from "@/lib/chip-lookup";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 
 export type PublicLookupResult =
   | { found: false }
@@ -35,9 +35,7 @@ const TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 async function callerIpAddress(): Promise<string> {
   try {
     const reqHeaders = await headers();
-    const forwardedFor = reqHeaders.get("x-forwarded-for");
-    if (forwardedFor) return forwardedFor.split(",")[0].trim();
-    return reqHeaders.get("x-real-ip") ?? "unknown";
+    return callerIp(reqHeaders);
   } catch {
     return "unknown";
   }

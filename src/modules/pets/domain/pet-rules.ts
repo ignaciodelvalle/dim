@@ -65,14 +65,16 @@ type UpdateFlags = {
   hasContentChanges: boolean;
   hasPhoto: boolean;
   flagChanged: boolean;
+  /** ARCH-S: chip presence newly detected (was absent, now present). */
+  chipNewlyAdded?: boolean;
 };
 
 /**
  * Returns true when absolutely nothing changed — no content diff, no photo,
- * no flag flip. Used to short-circuit the transaction.
+ * no flag flip, and no new chip. Used to short-circuit the transaction.
  */
 export function isNoOp(flags: UpdateFlags): boolean {
-  return !flags.hasContentChanges && !flags.hasPhoto && !flags.flagChanged;
+  return !flags.hasContentChanges && !flags.hasPhoto && !flags.flagChanged && !flags.chipNewlyAdded;
 }
 
 /**

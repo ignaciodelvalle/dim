@@ -22,12 +22,13 @@
  *      (e.g. check_pet_event_case_id_immutable, enforce_admin_no_pets,
  *      cases_set_updated_at) and triggers. Real failures here are quiet by
  *      design; if a custom function doesn't land, downstream tests will yell.
- *   3. Apply `db/*.sql` in dependency order, STRICTLY:
- *        triggers.sql → cases_rls.sql → rls.sql → per-domain RLS → storage.sql
+ *   3. Apply the non-RLS orthogonal `db/*.sql` STRICTLY:
+ *        triggers.sql → storage.sql → welfare_storage.sql
  *      These files are normally pasted into Studio by hand (see the header of
- *      db/triggers.sql). Order matters: cases_rls defines can_read_case which
- *      rls.sql references; triggers go first since later policies may call
- *      functions defined there.
+ *      db/triggers.sql). RLS is NOT applied here anymore — it lives in the
+ *      migration tree (db/migrations/0086_track_rls_in_migrations.sql, applied
+ *      in step 2) as the single source of truth. The loose db/*rls*.sql files
+ *      remain as readable reference only.
  *   4. Seed reference data + test users via the existing import scripts:
  *      import-indec-localities, import-caba-barrios, seed-test-users.
  *
@@ -229,30 +230,42 @@ function findPostgresContainer(): string | null {
 const POSTGRES_CONTAINER = findPostgresContainer();
 
 function psql(file: string, opts: { strict: boolean }): boolean {
-  const onErrorStop = opts.strict ? ["-v", "ON_ERROR_STOP=1"] : [];
   const sql = readFileSync(file, "utf8");
+  if (opts.strict) {
+    // Strict mode: abort the entire file on the first error (used for step 3).
+    const onErrorStop = ["-v", "ON_ERROR_STOP=1"];
+    if (POSTGRES_CONTAINER) {
+      const result = spawnSync(
+        "docker",
+        ["exec", "-i", POSTGRES_CONTAINER, "psql", "-U", pg.user, "-d", pg.db, ...onErrorStop],
+        { input: sql, stdio: ["pipe", "inherit", "inherit"] },
+      );
+      return result.status === 0;
+    }
+    const result = spawnSync(
+      "psql",
+      ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorStop, "-f", file],
+      { stdio: "inherit", env: { ...process.env, PGPASSWORD: pg.password } },
+    );
+    return result.status === 0;
+  }
+  // Best-effort mode (step 2 migration replay): each statement gets an implicit
+  // savepoint so that an "already exists" error rolls back only that statement
+  // and psql continues. Without ON_ERROR_ROLLBACK, a single error inside a
+  // BEGIN/COMMIT block (like 0086_track_rls_in_migrations.sql) aborts the
+  // entire transaction and silently skips every subsequent statement.
+  const onErrorRollback = ["-v", "ON_ERROR_ROLLBACK=on"];
   if (POSTGRES_CONTAINER) {
     const result = spawnSync(
       "docker",
-      [
-        "exec",
-        "-i",
-        POSTGRES_CONTAINER,
-        "psql",
-        "-U",
-        "postgres",
-        "-d",
-        "postgres",
-        ...onErrorStop,
-      ],
+      ["exec", "-i", POSTGRES_CONTAINER, "psql", "-U", pg.user, "-d", pg.db, ...onErrorRollback],
       { input: sql, stdio: ["pipe", "inherit", "inherit"] },
     );
     return result.status === 0;
   }
-  // Fallback: host psql via DATABASE_URL.
   const result = spawnSync(
     "psql",
-    ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorStop, "-f", file],
+    ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...onErrorRollback, "-f", file],
     { stdio: "inherit", env: { ...process.env, PGPASSWORD: pg.password } },
   );
   return result.status === 0;
@@ -324,22 +337,43 @@ console.log(
 );
 
 // ---------------------------------------------------------------------------
+// Step 2.5 — Baseline the migration tracking table
+// ---------------------------------------------------------------------------
+//
+// Step 2 above replays every db/migrations/*.sql via psql, but that replay is
+// UNTRACKED — it leaves no record of which migrations ran. The production
+// deploy contract is `pnpm db:migrate` (scripts/migrate.ts), a forward-only
+// runner that tracks applied files in public._dim_migrations. If we left that
+// table empty after bootstrap, a subsequent `db:migrate` would try to RE-APPLY
+// 0000 onward against a DB that already has the schema — and the bare
+// CREATE TABLEs in early migrations would error.
+//
+// So immediately after the replay, we baseline: mark every migration as
+// applied WITHOUT executing any SQL. `migrate.ts --baseline` only INSERTs
+// tracking rows (idempotent via ON CONFLICT). A `db:migrate` right after a
+// fresh bootstrap is then a correct no-op. This is the single place that keeps
+// `db:bootstrap` and `db:migrate` consistent.
+
+header("Step 2.5/4 — baseline migration tracking table (_dim_migrations)");
+if (!pnpmRun("db:migrate:baseline")) {
+  console.error("FATAL: baseline of the migration tracking table failed.");
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
 // Step 3 — Orthogonal SQL (strict)
 // ---------------------------------------------------------------------------
 
 header("Step 3/4 — apply db/*.sql (triggers, RLS, storage) — STRICT");
 
-const ORTHOGONAL_ORDER = [
-  "db/triggers.sql",
-  "db/cases_rls.sql",
-  "db/rls.sql",
-  "db/organizations_rls.sql",
-  "db/welfare_rls.sql",
-  "db/foster_rls.sql",
-  "db/scheduling_rls.sql",
-  "db/storage.sql",
-  "db/welfare_storage.sql",
-];
+// RLS is now applied by the migration tree (db/migrations/0086_track_rls_in_migrations.sql,
+// replayed in step 2) — it is the single source of truth for RLS application. The loose
+// db/*rls*.sql files (rls.sql, cases_rls.sql, organizations_rls.sql, welfare_rls.sql,
+// foster_rls.sql, scheduling_rls.sql) are kept as readable reference but are NO LONGER
+// applied here, so RLS is applied exactly once and there is no double-application conflict.
+// can_read_case() is defined by migration 0034 (also replayed in step 2). This list keeps
+// only the non-RLS-policy orthogonal SQL (triggers + storage buckets/policies).
+const ORTHOGONAL_ORDER = ["db/triggers.sql", "db/storage.sql", "db/welfare_storage.sql"];
 
 for (const sqlPath of ORTHOGONAL_ORDER) {
   if (!existsSync(sqlPath)) {

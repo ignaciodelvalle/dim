@@ -34,7 +34,7 @@ import {
   profiles,
 } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { closeCase, openCase } from "@/lib/case-helpers";
+import { closeCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { generatePrefixedToken } from "@/lib/publicToken";
 
@@ -76,6 +76,13 @@ export type WithdrawDisputeResult = { withdrawnAt: Date } | { error: string };
 // Inserts the dispute row, the initial parties, audit_log entry, and flips
 // pets.in_custody_dispute = true. Caller must already have validated the
 // raising event and pass it explicitly so the FK lands cleanly.
+//
+// Sequencing contract (ARCH-E): the caller MUST pre-create the case via
+// openCase before inserting the raising pet_event, then pass the resulting
+// caseId here. This ensures the raising event row carries case_id in the
+// same transaction (pet_events.case_id is append-only — no post-insert update
+// is possible without the GUC escape hatch). openDisputeFromEvent then updates
+// the case row with custodyDisputeId once the dispute row exists.
 export async function openDisputeFromEvent(
   tx: Tx,
   input: {
@@ -92,6 +99,12 @@ export async function openDisputeFromEvent(
       role: DisputePartyRole;
       positionSummary?: string | null;
     }[];
+    /**
+     * Pre-created case id. The case MUST be opened BEFORE the raising event
+     * is inserted (see sequencing contract above); openDisputeFromEvent links
+     * the dispute row to this existing case instead of opening a new one.
+     */
+    preCreatedCaseId: string;
   },
 ): Promise<{ disputeId: string; publicToken: string }> {
   // Guard: no two open disputes per pet (enforced by partial unique index too,
@@ -136,26 +149,17 @@ export async function openDisputeFromEvent(
     .set({ inCustodyDispute: true, updatedAt: new Date() })
     .where(eq(pets.id, input.petId));
 
-  // Cases system (Fase D4): open the custody_dispute case so the
-  // dispute's lifecycle has a first-class entry in /casos. The raising
-  // event row (input.raisingEventId) already exists at this point —
-  // pet_events.case_id is append-only so we don't backfill it. Future
-  // iterations of the dispute-raising flow should pre-create the case,
-  // pass case_id to the raising event INSERT, then call this helper.
-  await openCase(
-    {
-      kind: "custody_dispute",
-      primarySubjectKind: "registered_pet",
-      primaryPetId: input.petId,
-      jurisdictionProvince: input.jurisdictionProvince,
-      jurisdictionLocality: input.jurisdictionLocality,
-      openedByUserId: input.raisedByUserId,
-      openedByOrganizationId: input.raisedByOrgId ?? null,
-      openedReason: `Custody dispute raised on pet — raised_by_role=${input.raisedByRole}`,
-      custodyDisputeId: dispute.id,
-    },
-    tx,
-  );
+  // Link the now-known dispute id back to the pre-created case row. A zero-row
+  // update would leave the case permanently unlinked (resolveDisputeAction
+  // could never close it), so fail the transaction instead of continuing.
+  const [linkedCase] = await tx
+    .update(cases)
+    .set({ custodyDisputeId: dispute.id, updatedAt: new Date() })
+    .where(eq(cases.id, input.preCreatedCaseId))
+    .returning({ id: cases.id });
+  if (!linkedCase) {
+    throw new Error(`Pre-created case ${input.preCreatedCaseId} not found while opening dispute.`);
+  }
 
   await tx.insert(auditLog).values({
     actorUserId: input.raisedByUserId,
@@ -234,6 +238,9 @@ export async function addDisputePartyAction(input: AddPartyInput): Promise<AddPa
           title: "Te sumaron a una disputa de custodia",
           body: "Una autoridad te registró como parte interesada en una disputa abierta sobre la custodia de un animal. Vas a poder ver el expediente desde tu cuenta.",
           severity: "info",
+          // no-cta: disputes only have a govt-portal surface (/gob/disputas); there
+          // is no citizen-facing dispute view yet, so a party recipient has no
+          // accessible destination. Tracked as a product gap.
         });
       }
 
@@ -489,6 +496,9 @@ export async function resolveDisputeAction(
           title: "Disputa de custodia resuelta",
           body: `Resolución: ${input.resolution}. La autoridad cerró el caso.`,
           severity: "info",
+          // no-cta: disputes only have a govt-portal surface (/gob/disputas); there
+          // is no citizen-facing dispute view yet, so a party recipient has no
+          // accessible destination. Tracked as a product gap.
         });
       }
 

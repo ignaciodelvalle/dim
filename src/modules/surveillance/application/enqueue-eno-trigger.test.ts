@@ -161,15 +161,45 @@ describe("enqueueEnoTrigger — early exits", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Error swallowing — NEVER throws (spec §F)
+// Error swallowing — post-commit mode (no executor) NEVER throws (spec §F)
 // ---------------------------------------------------------------------------
 
-describe("enqueueEnoTrigger — error swallowing", () => {
+describe("enqueueEnoTrigger — error swallowing (post-commit mode)", () => {
   it("swallows errors from insertEnoQueueRow and resolves undefined", async () => {
     const repo = makeRepo({
       insertEnoQueueRow: vi.fn().mockRejectedValue(new Error("DB down")),
     });
     // Must not throw
     await expect(enqueueEnoTrigger(DISEASE_DIAGNOSIS_EVENT, { repo })).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// In-transaction mode (executor set) — durability (V1-4 / P1-3)
+// ---------------------------------------------------------------------------
+
+describe("enqueueEnoTrigger — in-transaction mode", () => {
+  it("passes the executor (tx) through to insertEnoQueueRow", async () => {
+    const repo = makeRepo();
+    const tx = Symbol("tx");
+    await enqueueEnoTrigger(DISEASE_DIAGNOSIS_EVENT, { repo, executor: tx });
+    expect(repo.insertEnoQueueRow).toHaveBeenCalledWith("evt-1", tx);
+  });
+
+  it("PROPAGATES errors when running in a transaction (so the tx rolls back)", async () => {
+    // Durability: a real enqueue failure inside the diagnosis tx must NOT be
+    // swallowed — it has to bubble up so the whole diagnosis rolls back.
+    const repo = makeRepo({
+      insertEnoQueueRow: vi.fn().mockRejectedValue(new Error("DB down")),
+    });
+    await expect(
+      enqueueEnoTrigger(DISEASE_DIAGNOSIS_EVENT, { repo, executor: Symbol("tx") }),
+    ).rejects.toThrow("DB down");
+  });
+
+  it("still no-ops (no insert) for non-ENO events even with an executor", async () => {
+    const repo = makeRepo();
+    await enqueueEnoTrigger(NON_ENO_EVENT, { repo, executor: Symbol("tx") });
+    expect(repo.insertEnoQueueRow).not.toHaveBeenCalled();
   });
 });

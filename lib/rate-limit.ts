@@ -1,19 +1,11 @@
-// Two rate-limit implementations live here.
+// Persistent rate limiter backed by rate_limit_buckets (rate-limit.ts).
 //
-// 1. `makeMemoryRateLimiter` — per-worker in-memory, used for short-window
-//    server actions where multi-worker drift is acceptable (≤5 min windows).
-//    LIMITATION: per-worker only; serverless cold starts reset the store.
+// All anonymous public-write and public-read rate limiting uses enforceRateLimit
+// (DB-backed, atomic UPSERT, cross-worker). This is the only implementation;
+// the former makeMemoryRateLimiter (per-worker, not cold-start-safe) has been
+// removed. Do NOT re-introduce in-memory limiting for multi-instance deployments.
 //
-// 2. `enforceRateLimit` (below) — persistent, backed by `rate_limit_buckets`.
-//    Use this when the limit must hold across workers / cold starts, e.g.
-//    anonymous welfare report submissions. Atomic UPSERT prevents races.
-//
-// Usage (memory):
-//   const limiter = makeMemoryRateLimiter(5 * 60 * 1000);
-//   const result = limiter.check(`${ip}:${publicToken}`);
-//   if (!result.allowed) return { error: "RATE_LIMITED" };
-//
-// Usage (persistent):
+// Usage:
 //   try {
 //     await enforceRateLimit("welfare_anon", ip, { maxPerHour: 3, maxPerMinute: 1 });
 //   } catch (err) {
@@ -21,56 +13,66 @@
 //     throw err;
 //   }
 
-export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterMs: number };
-
-export interface MemoryRateLimiter {
-  /**
-   * Checks whether the key is allowed to proceed.
-   *
-   * @param key     - Unique string identifying the caller+resource pair.
-   * @param now     - Timestamp in ms. Defaults to Date.now(). Injecting this
-   *                  allows tests to advance the clock without real timers.
-   */
-  check(key: string, now?: number): RateLimitResult;
-}
-
-/**
- * Creates a rate limiter that allows one request per key per `windowMs`.
- *
- * The first call for a key within a window is always allowed and records the
- * timestamp. Subsequent calls within the same window are rejected with the
- * milliseconds remaining until the window expires.
- *
- * After the window expires the key is treated as fresh (allowed again).
- */
-export function makeMemoryRateLimiter(windowMs: number): MemoryRateLimiter {
-  // key → timestamp of the first (allowed) call in the current window
-  const store = new Map<string, number>();
-
-  return {
-    check(key: string, now: number = Date.now()): RateLimitResult {
-      const lastAllowedAt = store.get(key);
-
-      if (lastAllowedAt !== undefined) {
-        const elapsed = now - lastAllowedAt;
-        if (elapsed < windowMs) {
-          return { allowed: false, retryAfterMs: windowMs - elapsed };
-        }
-      }
-
-      // First call or window expired — allow and record.
-      store.set(key, now);
-      return { allowed: true };
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Persistent rate limiter — backed by rate_limit_buckets
 // ---------------------------------------------------------------------------
 
 import { db, rateLimitBuckets } from "@/db";
 import { lt, sql } from "drizzle-orm";
+
+// ---------------------------------------------------------------------------
+// callerIp — derive the trusted client IP from request headers.
+//
+// WHY NOT split(",")[0]:
+//   The first segment of x-forwarded-for is CLIENT-CONTROLLED. An attacker
+//   can send "X-Forwarded-For: 1.2.3.4, 5.6.7.8" and the first segment will
+//   be "1.2.3.4" — a value the attacker chose, giving them a fresh rate-limit
+//   bucket per request. This defeats every IP-keyed rate limit.
+//
+// TRUSTED SOURCES (Vercel / nginx / typical CDN):
+//   1. x-real-ip  — set by the edge; never forwarded from the client. Preferred.
+//   2. LAST segment of x-forwarded-for  — the edge appends the real observed
+//      source IP as the rightmost hop. Prior hops may be spoofed; the last is
+//      edge-appended and trustworthy.
+//   3. "unknown" — local dev / direct invocation with no proxy headers.
+//
+// This function accepts a Headers / ReadonlyHeaders object (the value returned
+// by next/headers `headers()`, already awaited) so it stays synchronous and
+// pure — easy to unit-test without touching next/headers.
+// ---------------------------------------------------------------------------
+
+/** Minimal header-bag shape compatible with both Headers and ReadonlyHeaders. */
+export interface HeaderGetter {
+  get(name: string): string | null;
+}
+
+/**
+ * Returns the trusted caller IP from the request headers.
+ *
+ * Priority:
+ *   1. x-real-ip (edge-set, not spoofable)
+ *   2. last non-empty segment of x-forwarded-for (edge-appended hop)
+ *   3. "unknown"
+ */
+export function callerIp(hdrs: HeaderGetter): string {
+  // 1. x-real-ip — Vercel's trusted edge IP header.
+  const realIp = hdrs.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  // 2. Last segment of x-forwarded-for — the edge appends the observed source
+  //    IP as the rightmost entry. DO NOT take the first segment: it is set by
+  //    the client and can be freely spoofed to bypass per-IP rate limits.
+  const xff = hdrs.get("x-forwarded-for");
+  if (xff) {
+    const segments = xff.split(",");
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i].trim();
+      if (seg) return seg;
+    }
+  }
+
+  return "unknown";
+}
 
 export type RateLimitConfig = {
   maxPerMinute?: number;
@@ -116,7 +118,7 @@ export async function enforceRateLimit(
 }
 
 async function consumeOrThrow(bucketKey: string, expiresAt: Date, limit: number): Promise<void> {
-  const [row] = await db
+  const rows = await db
     .insert(rateLimitBuckets)
     .values({ bucketKey, count: 1, expiresAt })
     .onConflictDoUpdate({
@@ -124,6 +126,15 @@ async function consumeOrThrow(bucketKey: string, expiresAt: Date, limit: number)
       set: { count: sql`${rateLimitBuckets.count} + 1` },
     })
     .returning({ count: rateLimitBuckets.count });
+
+  // Guard: the returning() array should always have exactly one row after an
+  // INSERT ... ON CONFLICT DO UPDATE. If the driver returns an empty array
+  // (connection glitch, driver edge-case) we throw a clear error rather than
+  // letting the undefined row cause a confusing TypeError downstream.
+  const row = rows[0];
+  if (!row) {
+    throw new Error(`enforceRateLimit: UPSERT returned no rows for key "${bucketKey}"`);
+  }
 
   if (row.count > limit) {
     throw new RateLimitError(expiresAt, `${bucketKey} (count=${row.count}, limit=${limit})`);

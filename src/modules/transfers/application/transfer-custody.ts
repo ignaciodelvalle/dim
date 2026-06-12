@@ -231,6 +231,8 @@ export async function transferCustody(
           title: `${petRow.pet.name} cambió de refugio`,
           body: `El tránsito que tenías a cargo se cerró porque ${petRow.pet.name} fue transferido a ${destination.displayName}.`,
           relatedPetId: petRow.pet.id,
+          ctaLabel: "Ver historial",
+          ctaUrl: "/cuenta/transitos/historial",
         });
       }
     });

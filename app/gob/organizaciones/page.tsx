@@ -25,7 +25,10 @@ export default async function OrganizacionesPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const results = await searchOrganizations(query, { role: profile.role, jurisdictions });
+  const { items: results, truncated } = await searchOrganizations(query, {
+    role: profile.role,
+    jurisdictions,
+  });
 
   if (query) {
     void logPiiQueryForAuthority(user.id, query, results.length, "organizations");
@@ -66,17 +69,17 @@ export default async function OrganizacionesPage({
           ? query
             ? "Sin resultados."
             : "Ingresa una consulta para buscar organizaciones."
-          : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
+          : truncated
+            ? `Mostrando los primeros ${results.length} resultado${results.length === 1 ? "" : "s"}. Usá el buscador para acotar la lista.`
+            : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
       </p>
 
       <BulkRevokeList
-        items={results.map((o) => ({ id: o.id, label: o.displayName, raw: o }))}
-        targetKind="org"
-        actorUserId={user.id}
-        isRevocable={(item) => (item as { raw: (typeof results)[number] }).raw.verified}
-        renderItem={(item) => {
-          const o = (item as { raw: (typeof results)[number] }).raw;
-          return (
+        items={results.map((o) => ({
+          id: o.id,
+          label: o.displayName,
+          revocable: o.verified,
+          content: (
             <OpCard>
               <OpCardBody>
                 <div className="space-y-3">
@@ -111,8 +114,10 @@ export default async function OrganizacionesPage({
                 </div>
               </OpCardBody>
             </OpCard>
-          );
-        }}
+          ),
+        }))}
+        targetKind="org"
+        actorUserId={user.id}
       />
 
       <p className="text-[12px] text-ln-op-mute">

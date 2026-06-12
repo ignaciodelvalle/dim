@@ -93,16 +93,23 @@ export function visibleRequestsClause(
 }
 
 // Convenience: pending requests visible to this authority, newest-first.
+// `typeFilter` pushes the type predicate into SQL so the query returns only
+// matching rows regardless of total queue size — avoids JS-side silently
+// missing rows beyond the former LIMIT 200 ceiling (P1-10).
 export async function fetchVisiblePendingRequests(
   profile: { id: string; role: "admin" | "govt" },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
+  typeFilter?: ApprovalRequestType,
 ): Promise<ApprovalRequest[]> {
+  const scopeClause = visibleRequestsClause(profile, jurisdictions);
+  const typeClause = typeFilter ? eq(approvalRequests.type, typeFilter) : undefined;
+  const whereClause = typeClause
+    ? and(eq(approvalRequests.status, "pending"), scopeClause, typeClause)
+    : and(eq(approvalRequests.status, "pending"), scopeClause);
   return db
     .select()
     .from(approvalRequests)
-    .where(
-      and(eq(approvalRequests.status, "pending"), visibleRequestsClause(profile, jurisdictions)),
-    )
+    .where(whereClause)
     .orderBy(desc(approvalRequests.createdAt));
 }
 

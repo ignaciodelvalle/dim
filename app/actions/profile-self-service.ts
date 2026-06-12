@@ -89,16 +89,20 @@ export async function vetSelfResignForUser(
     payload: { reason: input?.reason ?? null },
   });
 
-  // 6. Notification to self
-  await db.insert(notifications).values({
-    userId,
-    notificationType: "self_resignation_confirmed",
-    title: "Renuncia registrada",
-    body: "Renunciaste a tu rol de veterinario/a. Volviste a ser dueño/a. Tu matrícula quedó registrada pero sin verificar.",
-    severity: "info",
-    ctaLabel: "Ver mi cuenta",
-    ctaUrl: "/cuenta",
-  });
+  // 6. Notification to self — best-effort, must not roll back the role change.
+  try {
+    await db.insert(notifications).values({
+      userId,
+      notificationType: "self_resignation_confirmed",
+      title: "Renuncia registrada",
+      body: "Renunciaste a tu rol de veterinario/a. Volviste a ser dueño/a. Tu matrícula quedó registrada pero sin verificar.",
+      severity: "info",
+      ctaLabel: "Ver mi cuenta",
+      ctaUrl: "/cuenta",
+    });
+  } catch (e) {
+    console.error("notifications insert failed (vetSelfResignForUser did succeed)", e);
+  }
 
   return { ok: true };
 }

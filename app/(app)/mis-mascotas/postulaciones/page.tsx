@@ -9,6 +9,8 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
+import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
+
 // "Mis postulaciones" — applicant-side surface (spec adoption-listing-public
 // §8.4 + D17). Lists the user's own `adoption_application_submitted` events,
 // derives each application's status from later events.
@@ -19,7 +21,14 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";
 
-type ApplicationStatus = "pending" | "approved" | "finalized_to_me" | "auto_rejected" | "rejected";
+type ApplicationStatus =
+  | "pending"
+  | "info_requested"
+  | "approved"
+  | "finalized_to_me"
+  | "auto_rejected"
+  | "rejected"
+  | "withdrawn";
 
 type ApplicationRow = {
   applicationId: string;
@@ -39,6 +48,10 @@ const STATUS_CONFIG: Record<ApplicationStatus, { label: string; cls: string }> =
     label: "En revisión",
     cls: "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
   },
+  info_requested: {
+    label: "Te pidieron info",
+    cls: "border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]",
+  },
   approved: {
     label: "Aprobada",
     cls: "border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]",
@@ -53,6 +66,10 @@ const STATUS_CONFIG: Record<ApplicationStatus, { label: string; cls: string }> =
   },
   rejected: {
     label: "No avanzó",
+    cls: "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
+  },
+  withdrawn: {
+    label: "Retirada",
     cls: "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
   },
 };
@@ -114,6 +131,22 @@ export default async function MisPostulacionesPage({
         ON f.pet_id = s.pet_id
        AND f.event_type = 'adoption_finalized'
        AND f.payload->>'adopter_user_id' = ${user.id}
+    ),
+    info_requests AS (
+      -- Latest "more info requested" marker per application (UI-6). A
+      -- note_added with kind=adoption_info_requested, emitted AFTER the
+      -- application was submitted, signals the shelter probed for info.
+      SELECT
+        s.id AS application_id,
+        MAX(n.recorded_at) AS requested_at
+      FROM my_submissions s
+      JOIN pet_events n
+        ON n.pet_id = s.pet_id
+       AND n.event_type = 'note_added'
+       AND n.payload->>'kind' = 'adoption_info_requested'
+       AND n.payload->>'application_event_id' = s.id::text
+       AND n.recorded_at >= s.submitted_at
+      GROUP BY s.id
     )
     SELECT
       s.id::text AS application_id,
@@ -133,9 +166,11 @@ export default async function MisPostulacionesPage({
       CASE
         WHEN f.finalized_at IS NOT NULL THEN 'finalized_to_me'
         WHEN d.outcome = 'approved' THEN 'approved'
+        WHEN d.outcome = 'withdrawn' THEN 'withdrawn'
         WHEN d.outcome = 'rejected'
           AND COALESCE(d.auto_generated, 'false') = 'true' THEN 'auto_rejected'
         WHEN d.outcome = 'rejected' THEN 'rejected'
+        WHEN ir.requested_at IS NOT NULL THEN 'info_requested'
         ELSE 'pending'
       END AS status,
       COALESCE(f.finalized_at, d.decision_at)::text AS decision_at
@@ -164,6 +199,7 @@ export default async function MisPostulacionesPage({
       WHERE application_id = s.id
       LIMIT 1
     ) f ON TRUE
+    LEFT JOIN info_requests ir ON ir.application_id = s.id
     ORDER BY s.submitted_at DESC
     LIMIT 100
   `);
@@ -275,6 +311,11 @@ export default async function MisPostulacionesPage({
                   )}
                 </p>
                 <StatusBody status={app.status} app={app} />
+                {(app.status === "pending" || app.status === "info_requested") && (
+                  <div className="mt-[4px]">
+                    <WithdrawApplicationButton applicationEventId={app.applicationId} />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -306,6 +347,25 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
             .
           </>
         )}
+      </p>
+    );
+  }
+  if (status === "info_requested") {
+    return (
+      <p className="text-[12.5px] text-[var(--color-ln-azul)]">
+        {app.orgDisplayName} te pidió más información sobre tu postulación. Revisá tus
+        notificaciones y respondé por email para que puedan avanzar.
+      </p>
+    );
+  }
+  if (status === "withdrawn") {
+    return (
+      <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+        Retiraste esta postulación.{" "}
+        <Link href="/adoptar" className="text-[var(--color-ln-azul)] no-underline hover:underline">
+          Ver otras en adopción
+        </Link>
+        .
       </p>
     );
   }

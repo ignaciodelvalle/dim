@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 const TEST_SLUG_PREFIX = "schematest-";
 
@@ -40,7 +41,7 @@ describe("ar_localities schema", () => {
   });
 
   it("rejects an invalid province_code via the CHECK constraint", async () => {
-    await expect(
+    await expectDbError(
       db.insert(arLocalities).values({
         provinceCode: "INVALID",
         localityName: "Test",
@@ -48,11 +49,12 @@ describe("ar_localities schema", () => {
         category: "localidad",
         source: "manual",
       }),
-    ).rejects.toThrow(/ar_localities_province_valid/);
+      { constraint: /ar_localities_province_valid/ },
+    );
   });
 
   it("rejects an invalid category via the CHECK constraint", async () => {
-    await expect(
+    await expectDbError(
       db.insert(arLocalities).values({
         provinceCode: "AR-C",
         localityName: "Test",
@@ -60,11 +62,12 @@ describe("ar_localities schema", () => {
         category: "invalid_cat" as never,
         source: "manual",
       }),
-    ).rejects.toThrow(/ar_localities_category_valid/);
+      { constraint: /ar_localities_category_valid/ },
+    );
   });
 
   it("rejects an invalid source via the CHECK constraint", async () => {
-    await expect(
+    await expectDbError(
       db.insert(arLocalities).values({
         provinceCode: "AR-C",
         localityName: "Test",
@@ -72,7 +75,8 @@ describe("ar_localities schema", () => {
         category: "localidad",
         source: "wikipedia" as never,
       }),
-    ).rejects.toThrow(/ar_localities_source_valid/);
+      { constraint: /ar_localities_source_valid/ },
+    );
   });
 
   it("allows multiple rows with the same (province, slug) — INDEC ships duplicates across departments", async () => {

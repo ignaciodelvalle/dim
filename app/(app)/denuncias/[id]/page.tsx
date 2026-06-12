@@ -29,6 +29,12 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   ),
 });
 
+// Terminal statuses where the "integration pending" banner contradicts the
+// status badge and should be hidden (UI-7 B7).
+function isTerminalReportStatus(status: string): boolean {
+  return status === "closed" || status === "invalid" || status === "duplicate";
+}
+
 // LN status badge class mapping.
 function statusBadgeClass(status: string): string {
   switch (status) {
@@ -203,14 +209,17 @@ export default async function WelfareReportDetailPage({
         )}
       </div>
 
-      {/* Integration-pending notice */}
-      <div className="mb-[24px]">
-        <LnCallout tone="warn">
-          Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
-          canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
-          enviado cuando la integración esté disponible.
-        </LnCallout>
-      </div>
+      {/* Integration-pending notice — only while the report is non-terminal.
+          On closed / invalid / duplicate it contradicts the status badge (UI-7 B7). */}
+      {!isTerminalReportStatus(report.status) && (
+        <div className="mb-[24px]">
+          <LnCallout tone="warn">
+            Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
+            canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
+            enviado cuando la integración esté disponible.
+          </LnCallout>
+        </div>
+      )}
 
       <div className="flex flex-col gap-[20px]">
         {/* Description */}

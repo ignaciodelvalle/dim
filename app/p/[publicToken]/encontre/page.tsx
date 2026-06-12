@@ -48,7 +48,7 @@ export default async function FinderInPossessionPage({
   // Gate 1: not lost.
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
+      <main id="main-content" className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
         <div className="mx-auto max-w-md space-y-4 text-center">
           <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
             Esta mascota no está perdida
@@ -99,7 +99,7 @@ export default async function FinderInPossessionPage({
     }
 
     return (
-      <main className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
+      <main id="main-content" className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
         <div className="mx-auto max-w-md space-y-5">
           <header className="space-y-1">
             <Link
@@ -211,7 +211,7 @@ export default async function FinderInPossessionPage({
   const ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;
 
   return (
-    <main className="min-h-screen bg-[var(--color-ln-warn-050)] px-4 py-6">
+    <main id="main-content" className="min-h-screen bg-[var(--color-ln-warn-050)] px-4 py-6">
       <div className="mx-auto max-w-md space-y-5">
         <header className="space-y-2">
           <Link

@@ -3,6 +3,7 @@
 // Client component for approve/reject actions on a service offering (Fase 9).
 // Mirrors the pattern used in /gob/cola/[publicToken]/ReviewActions.tsx.
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -13,6 +14,7 @@ import {
 type Mode = "idle" | "approving" | "rejecting";
 
 export function OfferingReviewActions({ publicToken }: { publicToken: string }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("idle");
   const [reason, setReason] = useState("");
@@ -23,7 +25,10 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
     startTransition(async () => {
       const result = await approveServiceOfferingAction(publicToken);
       if (result.error) setError(result.error);
-      else setMode("idle");
+      else {
+        setMode("idle");
+        router.refresh();
+      }
     });
   }
 
@@ -35,6 +40,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
       else {
         setMode("idle");
         setReason("");
+        router.refresh();
       }
     });
   }

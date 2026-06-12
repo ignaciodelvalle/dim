@@ -4,6 +4,7 @@ import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { parseDateInput } from "@/lib/format";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -30,7 +31,9 @@ export async function replaceMicrochipAdminAction(
   const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
   if (!pet) return { error: "Mascota no encontrada." };
 
-  if (!pet.microchipId) {
+  // ARCH-S: legacy pets.microchipId column dropped — read from canonical.
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
+  if (!canonicalIds.microchip) {
     return { error: "Esta mascota no tiene microchip registrado." };
   }
 
@@ -66,7 +69,7 @@ export async function replaceMicrochipAdminAction(
 
   const result = await replaceMicrochipForUser(user.id, {
     petId: pet.id,
-    previousChipNumber: pet.microchipId,
+    previousChipNumber: canonicalIds.microchip.code,
     newChipNumber,
     reason: reason as
       | "damaged"

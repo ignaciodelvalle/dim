@@ -27,6 +27,7 @@ export type InvestigationNoteEntryType =
   | "control_action"
   | "contact_tracing"
   | "final_report"
+  | "external_notification"
   | "system";
 
 type Actor = {

@@ -7,7 +7,13 @@ import { and, count, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
-import { db, organizationInvitations, organizationMemberships, profiles } from "@/db";
+import {
+  db,
+  organizationCapabilityGrants,
+  organizationInvitations,
+  organizationMemberships,
+  profiles,
+} from "@/db";
 import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -57,6 +63,32 @@ export default async function MiembrosPage({
         isNull(organizationMemberships.leftAt),
       ),
     );
+
+  // Resolve which memberships have an active `event.write` capability grant.
+  // This is the authoritative enforcement state — the legacy canWritePetEvents
+  // column is deprecated (mirrors only; not used here for display).
+  //
+  // We fetch all approved `event.write` grants for this org in one query.
+  // Admin and vet_individual have `event.write` implicitly (resolveGrantedCaps)
+  // and are treated as always having it regardless of explicit grant rows.
+  const eventWriteSet = new Set<string>(); // membershipId → has event.write capability
+  const capRows = await db
+    .select({ membershipId: organizationCapabilityGrants.membershipId })
+    .from(organizationCapabilityGrants)
+    .where(
+      and(
+        eq(organizationCapabilityGrants.organizationId, organization.id),
+        eq(organizationCapabilityGrants.capability, "event.write"),
+        eq(organizationCapabilityGrants.status, "approved"),
+      ),
+    );
+  for (const r of capRows) eventWriteSet.add(r.membershipId);
+  // Admin and vet_individual have event.write implicitly (resolveGrantedCaps).
+  for (const m of members) {
+    if (m.membership.role === "admin" || m.membership.role === "vet_individual") {
+      eventWriteSet.add(m.membership.id);
+    }
+  }
 
   // Count active admins — needed to determine isLastAdmin for the self-leave button.
   const [adminCountRow] = await db
@@ -181,7 +213,7 @@ export default async function MiembrosPage({
                         <EventWriteToggle
                           organizationId={organization.id}
                           membershipId={m.id}
-                          canWrite={m.canWritePetEvents}
+                          canWrite={eventWriteSet.has(m.id)}
                         />
                         <RemoveMemberButton
                           organizationId={organization.id}

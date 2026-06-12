@@ -3,8 +3,10 @@
 // WU-4: lib/eno-trigger.ts is now a thin shim delegating to
 // src/modules/surveillance/application/enqueue-eno-trigger.ts.
 //
-// Importers (app/actions/events.ts) continue importing from @/lib/eno-trigger
-// and see no API change — same function name, same signature.
+// This shim is used by the backfill script (scripts/backfill-eno-trigger.ts).
+// The primary production caller is src/modules/events/application/writers.ts,
+// which calls enqueueEnoTrigger directly (in-transaction, P1-3 durability path).
+// This shim wires the post-commit best-effort path for legacy/script callers.
 
 import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";

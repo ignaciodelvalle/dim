@@ -61,7 +61,9 @@ export default async function AuthenticatedLayout({
       {/* LnOwnerNav is a client component — reads usePathname for active state */}
       <LnOwnerNav displayName={displayName} unreadCount={unreadCount} />
       <LnOwnerSubBar />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main id="main-content" className="flex-1 overflow-auto">
+        {children}
+      </main>
     </div>
   );
 }

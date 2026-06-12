@@ -25,6 +25,7 @@ export function AcceptTransferActions({
   const [error, setError] = useState<string | null>(null);
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (isRecipient) {
     return (
@@ -123,29 +124,50 @@ export function AcceptTransferActions({
           </p>
         )}
         <p className="text-sm text-[var(--color-ln-ink-2)]">Esperando respuesta del receptor.</p>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => {
-            if (
-              !confirm(
-                "¿Cancelar la transferencia? Si después querés transferir de nuevo tenés que iniciar otra propuesta.",
-              )
-            )
-              return;
-            startTransition(async () => {
-              const result = await cancelPetTransferAction(transferToken);
-              if ("error" in result) {
-                setError(result.error);
-                return;
-              }
-              router.refresh();
-            });
-          }}
-          className="w-full rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
-        >
-          {pending ? "Cancelando…" : "Cancelar transferencia"}
-        </button>
+        {confirmCancel ? (
+          <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 space-y-2">
+            <p className="text-sm text-[var(--color-ln-ink-2)]">
+              Si después querés transferir de nuevo tenés que iniciar otra propuesta.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await cancelPetTransferAction(transferToken);
+                    if ("error" in result) {
+                      setError(result.error);
+                      setConfirmCancel(false);
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {pending ? "Cancelando…" : "Confirmar cancelación"}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setConfirmCancel(false)}
+                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
+              >
+                Atrás
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => setConfirmCancel(true)}
+            className="w-full rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
+          >
+            Cancelar transferencia
+          </button>
+        )}
       </div>
     );
   }

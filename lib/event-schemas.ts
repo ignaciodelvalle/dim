@@ -602,7 +602,16 @@ const noteAdded = z
       // Discriminator for structured note kinds (P0c+). All optional so that
       // existing {category, text} notes continue to validate without changes.
       // P0d will populate finderName/finderContact; P0e will populate photoStoragePath.
-      kind: z.enum(["sighting", "finder_in_possession"]).optional(),
+      // `adoption_info_requested` (UI-6) marks that a shelter probed an adoption
+      // application for more info — a lightweight lifecycle marker that reuses
+      // note_added rather than minting a new event type (the catalog was
+      // deliberately consolidated). It carries `application_event_id` linking
+      // back to the adoption_application_submitted event it concerns.
+      kind: z.enum(["sighting", "finder_in_possession", "adoption_info_requested"]).optional(),
+      // Set only for kind=adoption_info_requested: the application event the
+      // shelter requested more information about. Optional so plain/sighting
+      // notes continue to validate.
+      application_event_id: z.string().uuid().optional(),
       finderName: z.string().max(80).nullable().optional(),
       finderContact: z.string().max(120).nullable().optional(),
       photoStoragePath: z.string().nullable().optional(),
@@ -1144,23 +1153,27 @@ const adoptionApplicationSubmitted = z
   })
   .strict();
 
-// Adoption application resolved — umbrella for approved + rejected
-// decisions (catalog cleanup 2026-05-19). The shelter's admin/coordinator
-// emits this from the org portal when reviewing a postulation, and the
+// Adoption application resolved — umbrella for approved + rejected +
+// withdrawn decisions (catalog cleanup 2026-05-19; "withdrawn" added UI-6
+// 2026-06-12). The shelter's admin/coordinator emits the approved/rejected
+// variants from the org portal when reviewing a postulation, and the
 // finalize-cascade in adoption.ts emits the `rejected + auto_generated`
 // variant for sibling applications when one application is finalized
 // (spec adoption-listing-public §12 Fase 5.5).
 //
 // outcome === "rejected" → reason should be set (required by app-layer
 // for manual rejections; the cascade uses literal "another_application_finalized").
-// outcome === "approved" → reason is optional. Zod stays permissive on
-// the correlation; the server actions enforce it.
+// outcome === "approved" → reason is optional.
+// outcome === "withdrawn" → the APPLICANT retracted their own pending
+// application. reviewer_user_id carries the applicant's own user id (the
+// actor who resolved it); no shelter reviewer is involved.
+// Zod stays permissive on the correlation; the server actions enforce it.
 const adoptionApplicationResolved = z
   .object(
     withVersion({
       application_event_id: z.string().uuid(),
       reviewer_user_id: z.string().uuid(),
-      outcome: z.enum(["approved", "rejected"]),
+      outcome: z.enum(["approved", "rejected", "withdrawn"]),
       reason: z.string().nullable().optional(),
       auto_generated: z.boolean().default(false).optional(),
       notes: z.string().nullable().optional(),
@@ -1306,6 +1319,25 @@ const adoptionEligibilitySet = z
     "ineligible_reason_notes required when reason='other'",
   );
 
+// Custody transfer cancelled — structured termination of a
+// custody_transfer_proposed (ARCH-B). Replaces the fragile marker-text
+// note_added that was previously used to signal cancellation.
+// cancelled_by discriminates who terminated the proposal:
+//   owner_reject   — the owner actively rejected it
+//   actor_cancel   — the proposing actor withdrew it
+//   org_reject     — the receiving org rejected an owner-initiated proposal
+//   auto_cancel    — system auto-cancelled during the owner-accept precondition check
+const custodyTransferCancelled = z
+  .object(
+    withVersion({
+      // The custody_transfer_proposed event being cancelled.
+      proposal_event_id: z.string().uuid(),
+      cancelled_by: z.enum(["owner_reject", "actor_cancel", "org_reject", "auto_cancel"]),
+      reason: z.string().nullable(),
+    }),
+  )
+  .strict();
+
 // Custody transfer proposed — Phase 1 of the return-to-owner two-phase
 // handshake (Lost & Found Fase 5). An actor holding shelter_custody proposes
 // returning the pet to the original owner (or to another org). The owner
@@ -1412,6 +1444,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   custody_transferred: custodyTransferred,
   ownership_claimed: ownershipClaimed,
   custody_transfer_proposed: custodyTransferProposed,
+  custody_transfer_cancelled: custodyTransferCancelled,
   custody_dispute_raised: custodyDisputeRaised,
   custody_dispute_resolved: custodyDisputeResolved,
   foster_proposed: fosterProposed,

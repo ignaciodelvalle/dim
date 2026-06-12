@@ -23,17 +23,16 @@ export function VetUpgradeForm() {
     return (
       <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-sm font-medium text-[var(--color-ln-warn)]">
-          Antes de enviar tu solicitud, verificá tu DNI.
+          Antes de enviar tu solicitud, declará tu DNI.
         </p>
         <p className="text-xs text-[var(--color-ln-warn)]">
-          MiMAR requiere que tu identidad esté verificada para procesar solicitudes de rol
-          profesional.
+          MiMAR requiere que declares tu DNI antes de procesar solicitudes de rol profesional.
         </p>
         <a
           href={state.prereqUrl}
           className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] text-white text-sm font-medium hover:opacity-90 transition-colors"
         >
-          Verificar DNI →
+          Declarar DNI →
         </a>
       </div>
     );

@@ -1,5 +1,7 @@
 -- DIM welfare reports — Row Level Security
 -- -----------------------------------------
+-- NOTE (V0-4): REFERENCE ONLY. Source of truth is
+-- db/migrations/0086_track_rls_in_migrations.sql. No longer applied by bootstrap.
 -- Animal-cruelty / welfare denuncia system. Legal frame: Ley Nacional 14.346 (1954).
 -- Apply once per environment by pasting into Supabase Studio → SQL Editor.
 -- Idempotent — safe to re-run.

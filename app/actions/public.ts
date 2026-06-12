@@ -7,24 +7,21 @@
 // to the caller; the notification path uses Drizzle (bypasses RLS) to write
 // a notification row scoped to the pet's current owner.
 //
-// Lost & Found Fase 7: notifyOwnerOfFoundPetAction is rate-limited to one
-// submission per (IP, publicToken) pair within a 5-minute window to prevent
-// notification spam. The limiter is in-memory and per-worker; a shared store
-// (Redis / Upstash) is the recommended upgrade for multi-worker deployments.
+// Rate limiting: notifyOwnerOfFoundPetAction uses the persistent DB-backed
+// enforceRateLimit (rate_limit_buckets) keyed by (IP, publicToken) so the
+// limit is enforced cross-worker / cross cold-start on Vercel's multi-instance
+// serverless runtime. Limit: 1/min, 10/hour per (IP, token).
 
 import { db, notifications, ownerships, pets } from "@/db";
-import { makeMemoryRateLimiter } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
 export type PublicActionState = { ok: boolean; error: string | null };
 
-// Module-level singleton — survives across requests within the same worker
-// process. The 5-minute window matches the spec (§7.5).
-const foundPetNotifyLimiter = makeMemoryRateLimiter(5 * 60 * 1000);
-
 // @no-auth-required: anonymous finder submits the form via the public-finder
-// page. Rate-limited by (IP + publicToken) per 5 minutes to mitigate abuse.
+// page. Rate-limited by (IP + publicToken) via the persistent DB-backed limiter
+// to mitigate abuse across all Vercel workers. Limit: 1/min, 10/hour per key.
 export async function notifyOwnerOfFoundPetAction(
   publicToken: string,
   _previous: PublicActionState,
@@ -32,19 +29,24 @@ export async function notifyOwnerOfFoundPetAction(
 ): Promise<PublicActionState> {
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
-  // Lost & Found Fase 7 — rate limit: one submission per (IP + token) per 5min.
-  // Read the caller's IP from x-forwarded-for (set by Vercel / reverse proxy).
-  // Fall back to "unknown" if the header is absent (local dev, direct invocation).
+  // Read the trusted caller IP via callerIp() — prefers x-real-ip (edge-set),
+  // falls back to the LAST segment of x-forwarded-for (edge-appended hop).
+  // Never uses the first XFF segment, which is client-controlled and spoofable.
   const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  const callerIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "unknown";
-  const rateLimitKey = `found-notify:${callerIp}:${publicToken}`;
-  const rateResult = foundPetNotifyLimiter.check(rateLimitKey);
-  if (!rateResult.allowed) {
-    return {
-      ok: false,
-      error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-    };
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`found_notify:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
   }
 
   const finderName = String(formData.get("finderName") ?? "").trim();
@@ -85,17 +87,23 @@ export async function notifyOwnerOfFoundPetAction(
     ? `${safeName} dejó un mensaje: "${safeMessage}". Te podés contactar al ${safeContact}.`
     : `${safeName} encontró a ${pet.name}. Te podés contactar al ${safeContact}.`;
 
-  await db.insert(notifications).values({
-    userId: owner.userId,
-    notificationType: "pet_found_report",
-    title: `Alguien encontró a ${pet.name}`,
-    body,
-    severity: "urgent",
-    category: "perdidas",
-    relatedPetId: pet.id,
-    ctaLabel: "Ver mascota",
-    ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-  });
+  // Insert notification — best-effort; a failure must not surface an error to the
+  // anonymous finder (they already submitted successfully).
+  try {
+    await db.insert(notifications).values({
+      userId: owner.userId,
+      notificationType: "pet_found_report",
+      title: `Alguien encontró a ${pet.name}`,
+      body,
+      severity: "urgent",
+      category: "perdidas",
+      relatedPetId: pet.id,
+      ctaLabel: "Ver mascota",
+      ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+    });
+  } catch (e) {
+    console.error("notifications insert failed (notifyOwnerOfFoundPetAction did succeed)", e);
+  }
 
   return { ok: true, error: null };
 }

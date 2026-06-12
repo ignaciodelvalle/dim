@@ -91,6 +91,7 @@ const {
   organizations,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
   reminders,
@@ -668,9 +669,8 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
         name: seed.name,
         sex: seed.sex,
         color: seed.color,
-        microchipId: seed.microchipId,
-        microchipCountryCode: seed.microchipId ? "858" : null,
-        microchipImplantedAt: seed.microchipId ? new Date().toISOString().slice(0, 10) : null,
+        // Legacy chip columns omitted — ARCH-R; canonical row written to
+        // pet_identifications below.
         status: "active",
         jurisdictionProvince: "CABA",
         jurisdictionLocality: "CABA",
@@ -692,6 +692,39 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
       authorRole: "owner",
       payload: { source: "seed-script" },
     });
+
+    // Microchip: emit event + canonical pet_identifications row so the seed
+    // data stays re-derivable and the pet-cache drift harness sees zero drift.
+    // Legacy pets.* chip columns not written — ARCH-R.
+    if (seed.microchipId) {
+      const chip = seed.microchipId;
+      const chipNow = new Date();
+      await db.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "microchip_implanted",
+        occurredAt: chipNow,
+        recordedAt: chipNow,
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          chip_number: chip,
+          country_code: "858",
+          implanted_by: null,
+          location_on_body: null,
+          implant_date_known: true,
+        },
+      });
+      await db.insert(petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso",
+        code: chip,
+        recordedAt: chipNow.toISOString().slice(0, 10),
+        isoCountryCode: chip.slice(0, 3),
+        isoManufacturerCode: chip.slice(3, 7),
+        isoNationalId: chip.slice(7, 15),
+        isoCompliant: true,
+      });
+    }
 
     if (seed.withVaccine) {
       const dueAt = new Date(Date.now() + 365 * 24 * 3600 * 1000);
@@ -791,8 +824,8 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
         sex: seed.sex,
         color: seed.color,
         distinguishingFeatures: seed.distinguishingFeatures,
-        microchipId: seed.microchipId,
-        microchipCountryCode: seed.microchipId ? "858" : null,
+        // Legacy chip columns omitted — ARCH-R; canonical row written to
+        // pet_identifications below.
         status: "active",
         jurisdictionProvince: "Buenos Aires",
         jurisdictionLocality: "La Plata",
@@ -820,6 +853,44 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
         location_description: "Vía pública — La Plata",
       },
     });
+
+    // Microchip: emit event + canonical pet_identifications row.
+    // Legacy pets.* chip columns not written — ARCH-R.
+    // implant_date_known: true so the projection's microchipImplantedAt
+    // (formatDate(occurredAt)) matches the canonical row's recordedAt —
+    // both resolve to the same date and the pet-cache drift harness sees
+    // zero drift (ARCH-I).
+    if (seed.microchipId) {
+      const chip = seed.microchipId;
+      const chipNow = new Date();
+      await db.insert(petEvents).values({
+        petId: pet.id,
+        eventType: "microchip_implanted",
+        occurredAt: chipNow,
+        recordedAt: chipNow,
+        recordedByUserId: intakeActorId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: true,
+        payload: {
+          chip_number: chip,
+          country_code: "858",
+          implanted_by: null,
+          location_on_body: null,
+          implant_date_known: true,
+        },
+      });
+      await db.insert(petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso",
+        code: chip,
+        recordedAt: chipNow.toISOString().slice(0, 10),
+        isoCountryCode: chip.slice(0, 3),
+        isoManufacturerCode: chip.slice(3, 7),
+        isoNationalId: chip.slice(7, 15),
+        isoCompliant: true,
+      });
+    }
 
     log("OK", `shelter pet ${seed.name} (${pet.publicToken})`);
   }

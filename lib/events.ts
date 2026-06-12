@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 
+import type { EventType } from "@/db/schema";
 import { findDisease } from "@/lib/diseases";
+import { upcastPayload } from "@/lib/event-upcasters";
 import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 /**
@@ -25,7 +27,11 @@ export type EventPayloadSummary = {
 };
 
 export function eventPayloadSummary(eventType: string, payload: unknown): EventPayloadSummary {
-  const p = (payload ?? {}) as Record<string, unknown>;
+  // Bring every historical payload up to its latest schema version before any
+  // field is read. This is the primary read-path hook for the upcaster registry
+  // — all timeline and UI callers go through this function.
+  const upcasted = upcastPayload(eventType as EventType, payload);
+  const p = (upcasted ?? {}) as Record<string, unknown>;
   const str = (k: string): string | null => {
     const v = p[k];
     return typeof v === "string" && v.length > 0 ? v : null;
@@ -333,6 +339,20 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
     }
     case "ownership_claimed":
       return { primary: "Mascota reclamada", secondary: null };
+    case "custody_transfer_cancelled": {
+      const cancelledBy = str("cancelled_by");
+      const reason = str("reason");
+      const primaryMap: Record<string, string> = {
+        owner_reject: "Rechazada por el dueño/a",
+        actor_cancel: "Cancelada por quien la propuso",
+        org_reject: "Rechazada por la organización",
+        auto_cancel: "Cancelada automáticamente",
+      };
+      return {
+        primary: (cancelledBy && primaryMap[cancelledBy]) || "Propuesta cancelada",
+        secondary: reason,
+      };
+    }
     default:
       return { primary: null, secondary: null };
   }

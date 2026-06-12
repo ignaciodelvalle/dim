@@ -56,7 +56,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // maximumScale intentionally omitted — disabling zoom violates WCAG 1.4.4 (Resize Text).
+  // Ley 26.653 / Disp. ONTI 6/2019 mandates WCAG 2.1 AA for Argentine gov-adjacent systems.
   themeColor: "#ffffff",
 };
 
@@ -68,6 +69,13 @@ export default function RootLayout({
   return (
     <html lang="es-AR" className={lnFontVars}>
       <body>
+        {/* Skip-to-main — first focusable element; visible on keyboard focus (WCAG 2.4.1). */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-ln-azul focus:shadow-md focus:outline focus:outline-2 focus:outline-ln-azul"
+        >
+          Ir al contenido principal
+        </a>
         {children}
         <Toaster />
       </body>

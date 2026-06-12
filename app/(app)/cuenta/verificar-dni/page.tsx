@@ -49,12 +49,14 @@ export default async function VerificarDniPage({
 
       {/* Header */}
       <div className="mb-[28px]">
+        {/* Page title uses "Declarar" because DNI is trust-on-input (self-declared) until the
+            Mi Argentina OAuth integration lands. Avoids overclaiming identity assurance. */}
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Verificar DNI
+          Declarar DNI
         </h1>
         <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
-          Ingresá tu número de DNI para continuar. Este paso es requerido antes de enviar una
-          solicitud de rol en MiMAR.
+          Ingresá tu número de DNI para continuar. Este dato queda registrado en tu perfil y es
+          requerido antes de enviar una solicitud de rol en MiMAR.
         </p>
       </div>
 

@@ -13,6 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
@@ -126,13 +127,15 @@ export default async function GobAnalyticsExportPage({
       <OpCard>
         <OpCardHead title="Configurar export" />
         <OpCardBody>
-          <ExportFormClient
-            allowedProvinces={allowedProvinces}
-            localities={localities}
-            period={period}
-            from={from}
-            to={to}
-          />
+          <Suspense fallback={null}>
+            <ExportFormClient
+              allowedProvinces={allowedProvinces}
+              localities={localities}
+              period={period}
+              from={from}
+              to={to}
+            />
+          </Suspense>
         </OpCardBody>
       </OpCard>
     </div>

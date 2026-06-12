@@ -125,6 +125,9 @@ export async function closeEligibleObservations(
               body: "El período de 10 días terminó pero hubo síntomas compatibles con rabia durante la observación. Cierre profesional requerido (negativo o positivo).",
               relatedPetId: pet.id,
               relatedEventId: startedEvent.id,
+              // Authority recipient: surveillance hub (cannot open /mis-mascotas).
+              ctaLabel: "Ver vigilancia",
+              ctaUrl: "/gob/vigilancia",
             }));
             await repo.insertNotifications(
               authNotifications as Parameters<typeof repo.insertNotifications>[0],
@@ -199,6 +202,8 @@ export async function closeEligibleObservations(
               title: `Observación completada — ${pet.name}`,
               body: `La observación antirrábica de 10 días terminó automáticamente sin incidentes. ${pet.name} sigue normal.`,
               relatedPetId: pet.id,
+              ctaLabel: "Ver mascota",
+              ctaUrl: `/mis-mascotas/${pet.publicToken}`,
             },
           ];
           await repo.insertNotifications(

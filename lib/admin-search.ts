@@ -1,14 +1,24 @@
 // Search helpers for the admin pages (/admin/usuarios, /admin/organizaciones).
 //
-// Govt scope-limits hit only the organizations search because users have
-// no declared jurisdiction field today — spec §8 mentions filtering users
-// by "jurisdicción declarada" but that lives in the future. For Fase 3
-// govt sees the same user-search result set as admin; the action-buttons
-// per row are what enforce who-can-propose-what.
+// Govt scope for users (P1-2):
+//   A govt user should only see users who are meaningfully linked to their
+//   assigned jurisdiction(s). The most defensible link in the current schema
+//   is: the user owns at least one pet whose (jurisdictionProvince, jurisdictionLocality)
+//   matches one of the viewer's assignments. We JOIN profiles → ownerships →
+//   pets and apply the scope predicate. The alternative (profiles' own province
+//   field) was rejected because profiles have no jurisdiction columns — only
+//   personal accounts carry dniNumber/matricula data that is unrelated to
+//   geographic jurisdiction.
+//
+//   Consequence: users with zero pets (or pets with null jurisdiction) do NOT
+//   appear in a govt viewer's search. This is intentional — prefer showing LESS
+//   over showing cross-jurisdiction PII (security decision, see docs/qa/ui-flow-review-2026-06.md P1-2).
+//
+// Admin: universal scope (no predicate — same as before).
 
 import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 
-import { db, organizations, profiles } from "@/db";
+import { db, organizations, ownerships, pets, profiles } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
 
 export type UserSearchResult = {
@@ -20,6 +30,10 @@ export type UserSearchResult = {
   // Null for non-vet users.
   matriculaJurisdiccion: string | null;
 };
+
+export type UserSearchScope =
+  | { role: "admin" }
+  | { role: "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] };
 
 export type OrgSearchResult = {
   id: string;
@@ -40,17 +54,57 @@ const DEFAULT_LIST_LIMIT = 50;
 // Empty query returns a default list ordered by role priority then display
 // name, limited to DEFAULT_LIST_LIMIT rows so the page is always useful on
 // landing without PII search intent.
-export async function searchUsers(query: string): Promise<UserSearchResult[]> {
+//
+// `scope` controls jurisdiction filtering:
+//   - admin: no scope predicate — returns all users.
+//   - govt: scoped to users who own at least one pet in the viewer's jurisdiction
+//     (see module-level comment for the rationale). Govt with zero assignments
+//     returns an empty list immediately.
+export async function searchUsers(
+  query: string,
+  scope: UserSearchScope = { role: "admin" },
+): Promise<UserSearchResult[]> {
+  // Govt with no assignments must see nothing (prefer showing LESS).
+  if (scope.role === "govt" && scope.jurisdictions.length === 0) return [];
+
   const trimmed = query.trim();
+
+  // Build the jurisdiction scope predicate for govt viewers.
+  // We join profiles → ownerships → pets and filter on the pet's jurisdiction
+  // columns. This is a semi-join: DISTINCT ensures each user appears once even
+  // if they have multiple pets in the matching jurisdiction.
+  const scopeConditions: ReturnType<typeof and>[] = [];
+  if (scope.role === "govt") {
+    // At least one active ownership linking the user to a scoped pet.
+    // ownerships.role = 'owner' ensures we only count real owners (not caretakers).
+    // ownerships.endedAt IS NULL restricts to current owners.
+    const jurisdictionPairs = scope.jurisdictions.map((j) =>
+      and(eq(pets.jurisdictionProvince, j.province), eq(pets.jurisdictionLocality, j.locality)),
+    );
+    scopeConditions.push(
+      // profiles.id ∈ SELECT DISTINCT ownerUserId FROM ownerships JOIN pets ON ...
+      sql`${profiles.id} IN (
+        SELECT DISTINCT ${ownerships.ownerUserId}
+        FROM ${ownerships}
+        INNER JOIN ${pets} ON ${pets.id} = ${ownerships.petId}
+        WHERE ${ownerships.endedAt} IS NULL
+          AND ${ownerships.role} = 'owner'
+          AND (${or(...jurisdictionPairs)})
+      )`,
+    );
+  }
+
+  // Role sort priority: admin → govt → vet → owner (others sort last).
+  const rolePriority = sql`CASE ${profiles.role}
+    WHEN 'admin' THEN 1
+    WHEN 'govt'  THEN 2
+    WHEN 'vet'   THEN 3
+    WHEN 'owner' THEN 4
+    ELSE 5
+  END`;
+
   if (!trimmed) {
-    // Role sort priority: admin → govt → vet → owner (others sort last).
-    const rolePriority = sql`CASE ${profiles.role}
-      WHEN 'admin' THEN 1
-      WHEN 'govt'  THEN 2
-      WHEN 'vet'   THEN 3
-      WHEN 'owner' THEN 4
-      ELSE 5
-    END`;
+    const whereClause = scopeConditions.length > 0 ? and(...scopeConditions) : undefined;
     const rows = await db
       .select({
         id: profiles.id,
@@ -59,11 +113,20 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
       })
       .from(profiles)
+      .where(whereClause)
       .orderBy(rolePriority, profiles.displayName)
       .limit(DEFAULT_LIST_LIMIT);
     return rows;
   }
+
   const pattern = `%${trimmed}%`;
+  const textPredicate = or(
+    ilike(profiles.displayName, pattern),
+    ilike(profiles.dniNumber, pattern),
+  );
+  const whereClause =
+    scopeConditions.length > 0 ? and(textPredicate, ...scopeConditions) : textPredicate;
+
   const rows = await db
     .select({
       id: profiles.id,
@@ -72,20 +135,28 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
       matriculaJurisdiccion: profiles.matriculaJurisdiccion,
     })
     .from(profiles)
-    .where(or(ilike(profiles.displayName, pattern), ilike(profiles.dniNumber, pattern)))
+    .where(whereClause)
     .limit(SEARCH_LIMIT);
   return rows;
 }
 
+export type OrgVerifiedFilter = "pending" | "verified" | "all";
+
 // Search organizations. Admin sees all; govt sees only orgs whose
 // (jurisdiction_province, jurisdiction_locality) matches one of their
 // active assignments.
+//
+// `verifiedFilter` pushes the verified/unverified predicate into SQL so the
+// LIMIT is applied AFTER the filter — preventing the "Pendientes" tab from
+// silently truncating the queue when more than SEARCH_LIMIT orgs exist.
 export async function searchOrganizations(
   query: string,
   scope: { role: "admin" | "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] },
-): Promise<OrgSearchResult[]> {
+  verifiedFilter: OrgVerifiedFilter = "all",
+): Promise<{ items: OrgSearchResult[]; truncated: boolean }> {
   // Govt with zero assignments sees nothing; skip the query entirely.
-  if (scope.role === "govt" && scope.jurisdictions.length === 0) return [];
+  if (scope.role === "govt" && scope.jurisdictions.length === 0)
+    return { items: [], truncated: false };
 
   const trimmed = query.trim();
   const textPredicate = trimmed
@@ -108,12 +179,28 @@ export async function searchOrganizations(
           ),
         );
 
-  const where =
-    textPredicate && scopePredicate
-      ? and(textPredicate, scopePredicate)
-      : (textPredicate ?? scopePredicate);
+  const verifiedPredicate =
+    verifiedFilter === "pending"
+      ? eq(organizations.verified, false)
+      : verifiedFilter === "verified"
+        ? eq(organizations.verified, true)
+        : undefined;
 
-  return db
+  // Combine all predicates. and() with every defined clause produces a single
+  // SQL<unknown> that drizzle's .where() accepts cleanly.
+  const activeClauses = [textPredicate, scopePredicate, verifiedPredicate].filter(
+    (c): c is NonNullable<typeof c> => c !== undefined,
+  );
+  const where =
+    activeClauses.length === 0
+      ? undefined
+      : activeClauses.length === 1
+        ? activeClauses[0]
+        : and(...activeClauses);
+
+  // Fetch one extra row to detect truncation without a separate COUNT query.
+  const limit = SEARCH_LIMIT;
+  const rows = await db
     .select({
       id: organizations.id,
       displayName: organizations.displayName,
@@ -126,7 +213,10 @@ export async function searchOrganizations(
     })
     .from(organizations)
     .where(where)
-    .limit(SEARCH_LIMIT);
+    .limit(limit + 1);
+
+  const truncated = rows.length > limit;
+  return { items: truncated ? rows.slice(0, limit) : rows, truncated };
 }
 
 // Re-export for keep-it-tree-shakeable test imports.

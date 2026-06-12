@@ -39,7 +39,8 @@ const BASE_FIELDS = {
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => ({
-    get: (key: string) => (key === "x-forwarded-for" ? "10.0.0.1" : null),
+    // x-real-ip is the trusted edge IP — callerIp() prefers it over XFF.
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
   })),
 }));
 
@@ -63,12 +64,38 @@ vi.mock("@/lib/uploads", () => ({
 
 // ---------------------------------------------------------------------------
 // Mock: @/lib/rate-limit — allow by default; tests override per case.
+// The action now uses the persistent DB-backed enforceRateLimit (not
+// makeMemoryRateLimiter), so we mock enforceRateLimit directly.
+// vi.hoisted is used so MockRateLimitError is available both in the vi.mock
+// factory (which is hoisted) and in test bodies that need to throw it.
 // ---------------------------------------------------------------------------
 
-const mockRateLimitCheck = vi.fn((_key: string) => ({ allowed: true }));
-vi.mock("@/lib/rate-limit", () => ({
-  makeMemoryRateLimiter: () => ({ check: (key: string) => mockRateLimitCheck(key) }),
-}));
+const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
+  class MockRateLimitError extends Error {
+    resetAt: Date;
+    reason: string;
+    constructor(resetAt: Date, reason: string) {
+      super(`Rate limit exceeded: ${reason}`);
+      this.name = "RateLimitError";
+      this.resetAt = resetAt;
+      this.reason = reason;
+    }
+  }
+  return {
+    MockRateLimitError,
+    mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock("@/lib/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
+      mockEnforceRateLimit(endpoint, id, cfg),
+    RateLimitError: MockRateLimitError,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Mock: @/lib/supabase/server — no logged-in user by default.
@@ -183,7 +210,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     capturedNotificationInsert = null;
     capturedAttachmentInsert = null;
     idempotencyReturnEvent = false;
-    mockRateLimitCheck.mockReturnValue({ allowed: true });
+    mockEnforceRateLimit.mockResolvedValue(undefined);
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
     mockUpload.mockReset();
     mockUpload.mockResolvedValue({
@@ -402,12 +429,18 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(result.error).toContain("cuándo");
   });
 
-  // --- Rate limiting ---
+  // --- Rate limiting (persistent DB-backed enforceRateLimit) ---
 
-  it("returns ok:false when rate limit is exceeded", async () => {
+  it("returns ok:false when rate limit is exceeded (enforceRateLimit throws RateLimitError)", async () => {
     vi.resetModules();
     buildMockDb("lost");
-    mockRateLimitCheck.mockReturnValue({ allowed: false });
+    // Simulate the persistent limiter throwing a RateLimitError.
+    mockEnforceRateLimit.mockRejectedValue(
+      new MockRateLimitError(
+        new Date(Date.now() + 60_000),
+        "finder_possession:DIM-P0E-TEST-001:10.0.0.1:minute",
+      ),
+    );
 
     const { reportFinderInPossessionAction } = await import(
       "@/app/p/[publicToken]/encontre/action"

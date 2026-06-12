@@ -1,18 +1,48 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 
-import { startApplyIntentAction } from "@/app/actions/apply-intent";
+import { startApplyIntentFormAction } from "@/app/actions/apply-intent";
 
-// Client-side CTA wrapper. Server action either redirects (authed → form,
-// anon → signup) or returns `{ error }` (pet no longer listable, or
-// institutional account). On error we render the message in-place so the
-// visitor doesn't lose context.
+// Adoption CTA. Posts a real `<form action>` so the funnel works WITHOUT client
+// JS (the server action sets the apply-intent cookie + redirects on the server).
+// With JS on, useFormStatus drives the pending label and useActionState surfaces
+// the in-place error when the pet is no longer listable (or the account is
+// institutional) without losing context.
 //
-// Sprint 6 PR-054: also render a mobile-only sticky version of the CTA at
-// the viewport bottom so visitors don't have to scroll back up after reading
-// the full pet story. The inline button stays in place on desktop where the
-// CTA is already in-view.
+// Sprint 6 PR-054: a mobile-only sticky version of the CTA renders at the
+// viewport bottom so visitors don't have to scroll back up after reading the
+// full pet story. The inline button stays in place on desktop where the CTA is
+// already in-view. Both are independent forms posting the same server action.
+
+// Submit button — useFormStatus must be read from a child of the <form>.
+function SubmitButton({
+  className,
+  pendingLabel,
+  idleLabel,
+  siblingPending = false,
+}: {
+  className: string;
+  pendingLabel: string;
+  idleLabel: string;
+  /** Pending state shared across both CTA forms — disables this button while
+   *  the sibling form is submitting (useFormStatus alone is per-form). */
+  siblingPending?: boolean;
+}) {
+  const { pending } = useFormStatus();
+  const busy = pending || siblingPending;
+  return (
+    <button
+      type="submit"
+      disabled={busy}
+      className={className}
+      style={{ background: "var(--color-ln-azul)" }}
+    >
+      {busy ? pendingLabel : idleLabel}
+    </button>
+  );
+}
 
 export function ApplyButton({
   petToken,
@@ -24,42 +54,37 @@ export function ApplyButton({
   /** Pass false for anonymous visitors so the CTA copy reflects the auth gate. */
   isAuthenticated?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // isPending from useActionState covers BOTH forms (they share the action
+  // state), so submitting from one disables the other too — useFormStatus
+  // alone is per-form and would leave the sibling button active.
+  const [state, formAction, isPending] = useActionState(startApplyIntentFormAction, null);
+  const error = state && "error" in state ? state.error : null;
 
-  function onClick() {
-    setError(null);
-    startTransition(async () => {
-      const result = await startApplyIntentAction(petToken);
-      if (result && "error" in result) setError(result.error);
-    });
-  }
-
-  const buttonLabel = pending
-    ? "Procesando..."
-    : isAuthenticated
-      ? `Postular para adoptar a ${petName}`
-      : "Iniciá sesión para postular";
+  const inlineIdleLabel = isAuthenticated
+    ? `Postular para adoptar a ${petName}`
+    : "Iniciá sesión para postular";
+  const stickyIdleLabel = isAuthenticated
+    ? `Postularme a ${petName}`
+    : "Iniciá sesión para postular";
 
   return (
     <>
       {/* Inline CTA — visible on all viewports */}
-      <div
+      <form
+        action={formAction}
         className="rounded-[6px] border px-[24px] py-[20px] space-y-[10px]"
         style={{
           background: "var(--color-ln-card)",
           borderColor: "var(--color-ln-line-strong)",
         }}
       >
-        <button
-          type="button"
-          onClick={onClick}
-          disabled={pending}
+        <input type="hidden" name="petToken" value={petToken} />
+        <SubmitButton
           className="flex w-full items-center justify-center gap-[8px] rounded-[6px] border-0 px-[16px] py-[13px] text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
-          style={{ background: "var(--color-ln-azul)" }}
-        >
-          {buttonLabel}
-        </button>
+          pendingLabel="Procesando..."
+          idleLabel={inlineIdleLabel}
+          siblingPending={isPending}
+        />
         <p className="text-center text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
           El refugio responde en aproximadamente 5 días.
         </p>
@@ -71,11 +96,12 @@ export function ApplyButton({
             {error}
           </output>
         )}
-      </div>
+      </form>
 
       {/* Mobile-only sticky CTA at the viewport bottom. Hidden on desktop
           where the inline button above is already in view. */}
-      <div
+      <form
+        action={formAction}
         className="md:hidden fixed inset-x-0 bottom-0 z-30 px-[16px] pt-[12px] pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t"
         style={{
           background: "rgba(251,250,245,.95)",
@@ -83,20 +109,22 @@ export function ApplyButton({
           borderColor: "var(--color-ln-line)",
         }}
       >
-        <button
-          type="button"
-          onClick={onClick}
-          disabled={pending}
+        <input type="hidden" name="petToken" value={petToken} />
+        <SubmitButton
           className="block w-full rounded-[6px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-          style={{ background: "var(--color-ln-azul)" }}
-        >
-          {pending
-            ? "Procesando..."
-            : isAuthenticated
-              ? `Postularme a ${petName}`
-              : "Iniciá sesión para postular"}
-        </button>
-      </div>
+          pendingLabel="Procesando..."
+          idleLabel={stickyIdleLabel}
+          siblingPending={isPending}
+        />
+        {error && (
+          <output
+            className="mt-[6px] block text-center text-[12px]"
+            style={{ color: "var(--color-ln-err)" }}
+          >
+            {error}
+          </output>
+        )}
+      </form>
     </>
   );
 }

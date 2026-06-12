@@ -4,9 +4,11 @@
 // `useActionState` hook (React 19 / Next 15). Each action either redirects
 // on success or returns an error state so the form can re-render with it.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
+import { pgError } from "@/lib/db-errors";
+import { LEGAL_VERSION } from "@/lib/legal-version";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -126,15 +128,27 @@ export async function completeIdentityAction(
         // Store DNI as unverified. dniVerified stays false (its default).
         // The /cuenta/verificar-dni flow sets dniVerified=true with audit trail.
         ...(rawDni ? { dniNumber: rawDni } : {}),
+        // Persist provable consent (Ley 25.326 art. 5). The TOS/privacy checkbox
+        // is required in step 1 (signupAction) and step 2 is unreachable without
+        // it, so reaching here means consent was given. We record it on the same
+        // profile-finalization update — the first point with both an authenticated
+        // session and the profile row guaranteed to exist (created by the
+        // handle_new_user trigger). tosVersion captures WHAT was accepted.
+        // COALESCE preserves the original consent timestamp on retries — only
+        // writes now() when tos_accepted_at is currently NULL.
+        tosAcceptedAt: sql`COALESCE(${profiles.tosAcceptedAt}, now())`,
+        tosVersion: LEGAL_VERSION,
         updatedAt: new Date(),
       })
       .where(eq(profiles.id, user.id));
   } catch (err) {
-    const record = err as Record<string, unknown>;
+    // drizzle 0.45 wraps the pg error; pgError unwraps the `.cause` chain to
+    // the real postgres-js error carrying `code` / `constraint` / `detail`.
+    const info = pgError(err);
     if (
-      record.code === "23505" &&
-      (String(record.constraint_name ?? "").includes("dni") ||
-        String(record.detail ?? "").includes("dni_number"))
+      info?.code === "23505" &&
+      ((info.constraint ?? "").includes("dni") ||
+        String(info.raw.detail ?? "").includes("dni_number"))
     ) {
       return { error: "Ese DNI ya está registrado por otra cuenta." };
     }

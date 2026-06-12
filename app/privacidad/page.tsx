@@ -1,3 +1,4 @@
+import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/legal-version";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -26,7 +27,10 @@ export default function PrivacidadPage() {
           >
             Política de privacidad
           </h1>
-          <p className="text-sm text-[var(--color-ln-mute)]">Última actualización: junio 2025</p>
+          <p className="text-sm text-[var(--color-ln-mute)]">
+            Última actualización: {LEGAL_VERSION_LABEL}{" "}
+            <span className="text-[var(--color-ln-mute)]">(v{LEGAL_VERSION})</span>
+          </p>
         </header>
 
         <section className="space-y-3">
@@ -36,8 +40,9 @@ export default function PrivacidadPage() {
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
             MiMAR trata los datos personales de sus usuarios conforme a la{" "}
             <strong>Ley 25.326 de Protección de Datos Personales</strong> de la República Argentina
-            y su decreto reglamentario 1558/2001. La base de datos de usuarios está registrada ante
-            la Dirección Nacional de Protección de Datos Personales (DNPDP).
+            y su decreto reglamentario 1558/2001. MiMAR cumple las obligaciones de registro ante la
+            Agencia de Acceso a la Información Pública (AAIP) / Dirección Nacional de Protección de
+            Datos Personales (DNPDP) conforme lo establece la normativa vigente.
           </p>
         </section>
 
@@ -83,9 +88,16 @@ export default function PrivacidadPage() {
             Tus derechos (Art. 14 Ley 25.326)
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
-            Tenés derecho a acceder, rectificar, actualizar y suprimir tus datos personales. Para
-            ejercerlos, escribinos a la dirección de contacto indicada más abajo. Respondemos dentro
-            de los plazos que establece la ley.
+            Tenés derecho a acceder, rectificar, actualizar y suprimir tus datos personales. Desde
+            tu cuenta podés{" "}
+            <Link
+              href="/cuenta/privacidad"
+              className="underline underline-offset-4 hover:text-[var(--color-ln-azul)] transition-colors"
+            >
+              descargar una copia de tus datos o solicitar la eliminación de tu cuenta
+            </Link>
+            . Para otros ejercicios de derechos, escribinos a la dirección de contacto indicada más
+            abajo. Respondemos dentro de los plazos que establece la ley.
           </p>
         </section>
 

@@ -1,3 +1,4 @@
+import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/legal-version";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -25,7 +26,10 @@ export default function TerminosPage() {
           >
             Términos de uso
           </h1>
-          <p className="text-sm text-[var(--color-ln-mute)]">Última actualización: junio 2025</p>
+          <p className="text-sm text-[var(--color-ln-mute)]">
+            Última actualización: {LEGAL_VERSION_LABEL}{" "}
+            <span className="text-[var(--color-ln-mute)]">(v{LEGAL_VERSION})</span>
+          </p>
         </header>
 
         <section className="space-y-3">

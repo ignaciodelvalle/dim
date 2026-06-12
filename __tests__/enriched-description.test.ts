@@ -9,10 +9,10 @@
 //   5. Retroactive microchip with duplicate microchipId → fails (uniqueness), tx rolls back
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { db, ownerships, petEvents, petIdentifications, pets, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/publicToken";
 import type {
   DisclosurePrefsInput,
@@ -92,16 +92,15 @@ beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
 
   // Defensive: drop any leftover pet that owns one of the test microchips.
-  // The unique-when-present constraint will otherwise reject re-inserts on
-  // every retry.
-  const stale = await db
-    .select({ id: pets.id })
-    .from(pets)
-    .where(inArray(pets.microchipId, TEST_MICROCHIPS));
-  for (const { id } of stale) {
+  // ARCH-S: legacy pets.microchipId dropped — scan pet_identifications instead.
+  const pgArray = `{${TEST_MICROCHIPS.join(",")}}`;
+  const staleIds = (await db.execute(
+    sql`SELECT DISTINCT pet_id FROM pet_identifications WHERE code = ANY(${pgArray}::text[]) AND kind = 'microchip_iso'`,
+  )) as Array<{ pet_id: string }>;
+  for (const { pet_id: id } of staleIds) {
     await withMutationOverride(async (tx) => {
-      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${id}`);
-      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id = ${id}`);
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${id}::uuid`);
+      await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id = ${id}::uuid`);
       await tx.delete(pets).where(eq(pets.id, id));
     });
   }
@@ -135,6 +134,7 @@ afterAll(async () => {
 
 async function insertActivePet(
   suffix: string,
+  // ARCH-S: legacy pets.microchipId/tattooCode dropped — canonical rows inserted below.
   overrides: { microchipId?: string; tattooCode?: string } = {},
 ): Promise<{ petId: string; publicToken: string }> {
   const token = generatePublicToken();
@@ -149,10 +149,30 @@ async function insertActivePet(
       sex: "unknown",
       status: "active",
       potentiallyDangerousBreed: false,
-      ...(overrides.microchipId ? { microchipId: overrides.microchipId } : {}),
-      ...(overrides.tattooCode ? { tattooCode: overrides.tattooCode } : {}),
     })
     .returning();
+
+  if (overrides.microchipId) {
+    await db.insert(petIdentifications).values({
+      petId: pet.id,
+      kind: "microchip_iso",
+      code: overrides.microchipId,
+      recordedAt: now.toISOString().slice(0, 10),
+      isoCountryCode: overrides.microchipId.slice(0, 3),
+      isoManufacturerCode: overrides.microchipId.slice(3, 7),
+      isoNationalId: overrides.microchipId.slice(7, 15),
+      isoCompliant: true,
+    });
+  }
+
+  if (overrides.tattooCode) {
+    await db.insert(petIdentifications).values({
+      petId: pet.id,
+      kind: "tattoo",
+      code: overrides.tattooCode,
+      recordedAt: now.toISOString().slice(0, 10),
+    });
+  }
 
   await db.insert(ownerships).values({
     petId: pet.id,
@@ -214,7 +234,6 @@ describe("setPetLostWriter — with enriched description", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -249,7 +268,6 @@ describe("setPetLostWriter — with enriched description", () => {
     await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -286,7 +304,6 @@ describe("setPetLostWriter — without enriched description", () => {
     await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -322,7 +339,6 @@ describe("setPetLostWriter — without enriched description", () => {
     await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -362,7 +378,6 @@ describe("setPetLostWriter — enriched fields on a chipped pet", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: "982000411111111",
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -382,7 +397,19 @@ describe("setPetLostWriter — enriched fields on a chipped pet", () => {
     expect(updated.color).toBe("blanco con manchas negras");
     expect(updated.distinguishingFeatures).toBe("cicatriz en la pata delantera izquierda");
     // Chip was not overwritten (pet already had one, enrichedDescription.microchipId = null).
-    expect(updated.microchipId).toBe("982000411111111");
+    // ARCH-S: check canonical row, not pets.microchipId.
+    const [chipRow] = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+    expect(chipRow?.code).toBe("982000411111111");
   });
 });
 
@@ -406,7 +433,6 @@ describe("setPetLostWriter — retroactive microchip capture", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -422,7 +448,19 @@ describe("setPetLostWriter — retroactive microchip capture", () => {
 
     const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
     expect(updated.status).toBe("lost");
-    expect(updated.microchipId).toBe("982000422222222");
+    // ARCH-S: check canonical row, not pets.microchipId.
+    const [chipRow] = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+    expect(chipRow?.code).toBe("982000422222222");
 
     // A microchip_implanted event must have been inserted.
     const [chipEvent] = await db
@@ -454,8 +492,6 @@ describe("setPetLostWriter — retroactive microchip capture", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      // Pass the existing chip so the writer knows to skip retroactive capture.
-      petMicrochipId: "982000433333333",
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -469,9 +505,20 @@ describe("setPetLostWriter — retroactive microchip capture", () => {
 
     expect(result.error).toBeNull();
 
-    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
-    // Original chip preserved — new value ignored.
-    expect(updated.microchipId).toBe("982000433333333");
+    // ARCH-S: check canonical row, not pets.microchipId.
+    // Original chip preserved — new value ignored because pet already had one.
+    const [chipRow] = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+    expect(chipRow?.code).toBe("982000433333333");
 
     // No microchip_implanted event inserted.
     const chipEvents = await db
@@ -489,8 +536,18 @@ describe("setPetLostWriter — retroactive microchip capture", () => {
 describe("setPetLostWriter — retroactive microchip uniqueness", () => {
   it("returns an error and rolls back the transaction when microchipId is already taken", async () => {
     // First pet — will own the chip number.
+    // ARCH-S: insert canonical row, not legacy pets.microchipId.
     const { petId: existingPetId } = await insertActivePet("chip-owner");
-    await db.update(pets).set({ microchipId: "982000499999999" }).where(eq(pets.id, existingPetId));
+    await db.insert(petIdentifications).values({
+      petId: existingPetId,
+      kind: "microchip_iso",
+      code: "982000499999999",
+      recordedAt: new Date().toISOString().slice(0, 10),
+      isoCountryCode: "982",
+      isoManufacturerCode: "0004",
+      isoNationalId: "99999999",
+      isoCompliant: true,
+    });
 
     // Second pet — unchipped, will try to retroactively claim the same chip.
     const { petId: newPetId } = await insertActivePet("chip-collision");
@@ -507,7 +564,6 @@ describe("setPetLostWriter — retroactive microchip uniqueness", () => {
     const result = await setPetLostWriter({
       petId: newPetId,
       petStatus: "active",
-      petMicrochipId: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -525,7 +581,18 @@ describe("setPetLostWriter — retroactive microchip uniqueness", () => {
     // Transaction must have rolled back — pet status must still be 'active'.
     const [newPet] = await db.select().from(pets).where(eq(pets.id, newPetId));
     expect(newPet.status).toBe("active");
-    expect(newPet.microchipId).toBeNull();
+    // ARCH-S: no canonical chip row should have been inserted for newPet.
+    const chipRows = await db
+      .select({ id: petIdentifications.id })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, newPetId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(chipRows).toHaveLength(0);
 
     // No status_changed event must have been inserted.
     const lostEvents = await db
@@ -565,8 +632,6 @@ describe("setPetLostWriter — retroactive tattoo capture", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
-      petTattooCode: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -580,12 +645,29 @@ describe("setPetLostWriter — retroactive tattoo capture", () => {
 
     expect(result.error).toBeNull();
 
-    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
-    expect(updated.status).toBe("lost");
+    const [updatedPet] = await db.select().from(pets).where(eq(pets.id, petId));
+    expect(updatedPet.status).toBe("lost");
+    // ARCH-S: tattoo now lives in pet_identifications, not pets.tattooCode.
+    const [tattooRow] = await db
+      .select({
+        code: petIdentifications.code,
+        tattooLocation: petIdentifications.tattooLocation,
+        tattooDescription: petIdentifications.tattooDescription,
+      })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "tattoo"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+    expect(tattooRow).toBeDefined();
     // Code is normalized on write (uppercase + strip whitespace).
-    expect(updated.tattooCode).toBe("K9-2014");
-    expect(updated.tattooLocation).toBe("inner_ear_left");
-    expect(updated.tattooDescription).toBe("Criadero FCA");
+    expect(tattooRow?.code).toBe("K9-2014");
+    expect(tattooRow?.tattooLocation).toBe("inner_ear_left");
+    expect(tattooRow?.tattooDescription).toBe("Criadero FCA");
 
     const [tattooEvent] = await db
       .select({ payload: petEvents.payload })
@@ -621,8 +703,6 @@ describe("setPetLostWriter — retroactive tattoo capture", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
-      petTattooCode: "EXISTING-TATTOO",
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -636,9 +716,19 @@ describe("setPetLostWriter — retroactive tattoo capture", () => {
 
     expect(result.error).toBeNull();
 
-    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
-    // Existing tattoo is preserved — the new value is ignored.
-    expect(updated.tattooCode).toBe("EXISTING-TATTOO");
+    // ARCH-S: existing tattoo preserved in canonical row — new value ignored.
+    const [tattooRow] = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "tattoo"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+    expect(tattooRow?.code).toBe("EXISTING-TATTOO");
 
     const tattooEvents = await db
       .select({ id: petEvents.id })
@@ -665,8 +755,6 @@ describe("setPetLostWriter — retroactive tattoo capture", () => {
     const result = await setPetLostWriter({
       petId,
       petStatus: "active",
-      petMicrochipId: null,
-      petTattooCode: null,
       fromStatus: "active",
       recordedByUserId: ownerUserId,
       eventAuthorship: { authorRole: "owner" },
@@ -680,8 +768,18 @@ describe("setPetLostWriter — retroactive tattoo capture", () => {
 
     expect(result.error).toBeNull();
 
-    const [updated] = await db.select().from(pets).where(eq(pets.id, petId));
-    expect(updated.tattooCode).toBeNull();
+    // ARCH-S: no tattoo canonical row inserted.
+    const tattooRows = await db
+      .select({ id: petIdentifications.id })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "tattoo"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(tattooRows).toHaveLength(0);
 
     const tattooEvents = await db
       .select({ id: petEvents.id })

@@ -71,7 +71,10 @@ export async function rejectPetTransfer(
   try {
     await transaction(async (tx) => {
       const now = new Date();
-      await repo.updateTransferStatus(
+      // Conditional flip: only reject while still pending. Serializes against a
+      // concurrent accept — the loser sees zero rows and aborts rather than
+      // marking an already-accepted transfer as rejected.
+      const updatedRows = await repo.updateTransferStatus(
         {
           id: transfer.id,
           status: "rejected",
@@ -79,9 +82,13 @@ export async function rejectPetTransfer(
           // Parity: set toOwnerId to user.id if it was null (open invite).
           toOwnerId: transfer.toOwnerId ?? user.id,
           rejectionReason: input.reason ?? null,
+          expectedStatus: "pending",
         },
         tx as Parameters<typeof repo.updateTransferStatus>[1],
       );
+      if (updatedRows === 0) {
+        throw new Error("La transferencia ya no está pendiente.");
+      }
 
       pendingNotifications.push({
         userId: transfer.fromOwnerId,

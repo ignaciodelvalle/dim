@@ -24,7 +24,7 @@ import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
-import { makeMemoryRateLimiter } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -36,10 +36,9 @@ export type FinderInPossessionState = {
   warning?: string | null;
 };
 
-const possessionLimiter = makeMemoryRateLimiter(5 * 60 * 1000);
-
 // @no-auth-required: anonymous finder submits via /p/[token]/encontre.
-// Rate-limited by (IP + publicToken) per 5 minutes to mitigate abuse.
+// Rate-limited by (IP + publicToken) via the persistent DB-backed limiter so
+// the limit holds cross-worker / cross cold-start. Limit: 1/min, 10/hour per key.
 export async function reportFinderInPossessionAction(
   publicToken: string,
   _previous: FinderInPossessionState,
@@ -48,15 +47,20 @@ export async function reportFinderInPossessionAction(
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
   const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  const callerIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "unknown";
-  const rateLimitKey = `finder-possession:${callerIp}:${publicToken}`;
-  const rateResult = possessionLimiter.check(rateLimitKey);
-  if (!rateResult.allowed) {
-    return {
-      ok: false,
-      error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-    };
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`finder_possession:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
   }
 
   // Parse form fields.
@@ -307,8 +311,10 @@ export async function reportFinderInPossessionAction(
     severity: "urgent",
     category: "perdidas",
     relatedPetId: pet.id,
-    ctaLabel: "Ver eventos",
-    ctaUrl: `/mis-mascotas/${publicToken}/eventos`,
+    ctaLabel: "Ver mascota",
+    // When the pet is lost the cockpit IS /mis-mascotas/{token} and now surfaces
+    // possession/sighting reports — land the owner there so they can act (UI-4 fix 7).
+    ctaUrl: `/mis-mascotas/${publicToken}`,
   });
 
   return { ok: true, error: null, warning: photoWarning };

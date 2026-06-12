@@ -22,6 +22,7 @@ import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetPro
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSeal } from "@/components/ui/DocElements";
 import { LnStatusFlag } from "@/components/ui/StatusFlag";
+import { foundParticiple, lostThirdPersonPhrase } from "@/lib/format";
 import type { LostEpisode } from "@/lib/lost-mode";
 import { setPetFoundAction } from "@/src/modules/events/actions";
 import Link from "next/link";
@@ -31,6 +32,7 @@ type Props = {
     id: string;
     name: string;
     publicToken: string;
+    sex: string | null;
     discloseFirstNameWhenLost: boolean;
     disclosePhoneWhenLost: boolean;
     discloseEmailWhenLost: boolean;
@@ -64,7 +66,7 @@ export async function LostCockpit({
   };
 
   const publicUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar"}/p/${pet.publicToken}`;
-  const shareText = `🚨 ${pet.name} está perdid${pet.name.toLowerCase().endsWith("a") ? "a" : "o"}. Si la ves, por favor escanea su QR o contactanos.`;
+  const shareText = `🚨 ${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Si la ves, por favor escanea su QR o contactanos.`;
   const posterHref = `/mis-mascotas/${pet.publicToken}/cartel`;
   const publicHref = `/p/${pet.publicToken}`;
   const editLastSeenHref = `/mis-mascotas/${pet.publicToken}/perdida`;
@@ -174,7 +176,7 @@ export async function LostCockpit({
             {/* Title + meta */}
             <div className="min-w-0 flex-1">
               <h2 className="m-0 font-[var(--font-ln-serif)] text-[22px] font-semibold leading-tight tracking-[-0.01em] text-white">
-                {pet.name} está perdid{pet.name.toLowerCase().endsWith("a") ? "a" : "o"}
+                {pet.name} {lostThirdPersonPhrase(pet.sex)}
               </h2>
               <p className="mt-[3px] text-[12.5px] text-white/80">
                 Credencial pública en modo emergencia
@@ -189,7 +191,7 @@ export async function LostCockpit({
                 type="submit"
                 className="cursor-pointer rounded-[3px] border border-white bg-white px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-[var(--color-ln-seal)] transition-colors hover:bg-white/90"
               >
-                ✓ Marcar encontrad{pet.name.toLowerCase().endsWith("a") ? "a" : "o"}
+                ✓ Marcar {foundParticiple(pet.sex)}
               </button>
             </form>
           </div>
@@ -280,16 +282,16 @@ export async function LostCockpit({
           </div>
         </div>
 
-        {/* Footer — link to normal profile */}
+        {/* Footer — link to the public credential a finder would see. */}
         <div className="mt-[24px] text-center">
           <Link
-            href={`/mis-mascotas/${pet.publicToken}?status_override=normal`}
+            href={publicHref}
             className="font-[var(--font-ln-sans)] text-[13px] font-semibold text-[var(--color-ln-azul)] no-underline hover:underline"
           >
-            Ver perfil normal de {pet.name}
+            Ver credencial pública →
           </Link>
           <p className="mt-[4px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-            Cuando lo marques como encontrad{pet.name.toLowerCase().endsWith("a") ? "a" : "o"}{" "}
+            Es lo que ve quien escanea el QR. Cuando lo marques como {foundParticiple(pet.sex)}{" "}
             volvés acá automáticamente.
           </p>
         </div>

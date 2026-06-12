@@ -26,10 +26,12 @@ import {
   notifications,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
 } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
@@ -118,9 +120,8 @@ export async function lookupForClaimAction(input: {
     };
   }
 
-  // Tattoo path — pets.tattooCode is currently unique-by-app-code, not by DB
-  // constraint. lookupByChip equivalent for tattoos would belong in
-  // lib/chip-lookup, but for now we do the same shape inline.
+  // Tattoo path — look up via the canonical pet_identifications table
+  // (kind='tattoo', status='active'). Migration 0082 ensures completeness.
   const [row] = await db
     .select({
       petId: pets.id,
@@ -130,13 +131,20 @@ export async function lookupForClaimAction(input: {
       ownerUserId: ownerships.ownerUserId,
       ownerDisplayName: profiles.displayName,
     })
-    .from(pets)
+    .from(petIdentifications)
+    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
     .leftJoin(
       ownerships,
       and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),
     )
     .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-    .where(eq(pets.tattooCode, value))
+    .where(
+      and(
+        eq(petIdentifications.kind, "tattoo"),
+        eq(petIdentifications.code, value),
+        eq(petIdentifications.status, "active"),
+      ),
+    )
     .limit(1);
 
   if (!row) return { variant: "not_found" };
@@ -240,6 +248,26 @@ export async function submitClaimDisputeAction(
         reason: input.reason.trim(),
       });
 
+      // ARCH-E sequencing fix: create the case BEFORE inserting the raising
+      // event so the event row can carry case_id in the same transaction.
+      // pet_events.case_id is append-only (trigger-enforced) — a post-insert
+      // UPDATE is blocked without the GUC escape hatch.
+      // custodyDisputeId is backfilled by openDisputeFromEvent once the
+      // dispute row exists (passed via preCreatedCaseId).
+      const disputeCase = await openCase(
+        {
+          kind: "custody_dispute",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: pet.id,
+          jurisdictionProvince: pet.jurisdictionProvince ?? "",
+          jurisdictionLocality: pet.jurisdictionLocality ?? "",
+          openedByUserId: user.id,
+          openedByOrganizationId: null,
+          openedReason: "Custody dispute raised on pet — raised_by_role=owner",
+        },
+        tx,
+      );
+
       const [raisingEvent] = await tx
         .insert(petEvents)
         .values({
@@ -250,6 +278,7 @@ export async function submitClaimDisputeAction(
           recordedByUserId: user.id,
           authorRole: "owner",
           payload,
+          caseId: disputeCase.id,
         })
         .returning({ id: petEvents.id });
 
@@ -265,6 +294,7 @@ export async function submitClaimDisputeAction(
           { userId: ownership.ownerUserId, role: "current_owner" },
           { userId: user.id, role: "claimant_owner", positionSummary: input.reason.trim() },
         ],
+        preCreatedCaseId: disputeCase.id,
       });
       disputeToken = publicToken;
 

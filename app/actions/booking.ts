@@ -24,6 +24,7 @@ import { redirect } from "next/navigation";
 
 import { appointments, db, notifications, ownerships, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { matchesDbError } from "@/lib/db-errors";
 import { generateAppointmentToken } from "@/lib/publicToken";
 import { generateUniqueToken } from "@/lib/unique-token";
 
@@ -152,16 +153,14 @@ export async function bookSlotWriter(
 
 // Postgres 23514 = check_violation. The CHECK is named
 // `slot_bookings_within_capacity` (db/migrations/0008_scheduling_core.sql).
+// matchesDbError walks drizzle 0.45's `.cause` chain (the real pg error is no
+// longer top-level) and tests the constraint name against both the
+// constraint_name field and the pg error message.
 function isSlotCapacityViolation(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const record = err as Record<string, unknown>;
-  if (record.code !== "23514") return false;
-  const constraint = typeof record.constraint_name === "string" ? record.constraint_name : "";
-  const message = typeof record.message === "string" ? record.message : "";
-  return (
-    constraint === "slot_bookings_within_capacity" ||
-    message.includes("slot_bookings_within_capacity")
-  );
+  return matchesDbError(err, {
+    code: "23514",
+    constraint: /slot_bookings_within_capacity/,
+  });
 }
 
 // ============================================================================

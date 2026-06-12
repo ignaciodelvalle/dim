@@ -55,6 +55,12 @@ type UpdateTransferStatusArgs = {
   respondedAt?: Date;
   toOwnerId?: string | null;
   rejectionReason?: string | null;
+  /**
+   * When set, the UPDATE only fires for rows whose current status matches.
+   * Returns the number of rows actually updated so callers can detect a
+   * lost race (zero rows = another writer already moved the transfer).
+   */
+  expectedStatus?: "pending" | "accepted" | "rejected" | "expired" | "cancelled";
 };
 
 type InsertOwnerOwnershipArgs = {
@@ -206,6 +212,23 @@ export const TransfersRepository = {
   },
 
   /**
+   * Locks and reads a transfer row by id (SELECT ... FOR UPDATE) inside a tx.
+   * The row lock serializes concurrent accept/expire writers so the in-tx
+   * status re-check is authoritative (mirrors the FOR UPDATE pattern from
+   * app/actions/pet-claim.ts::submitFreeClaimAction). MUST be called with a
+   * transaction client.
+   */
+  async findTransferByIdForUpdate(id: string, tx: Tx): Promise<PetTransferRow | null> {
+    const [row] = await tx
+      .select()
+      .from(petTransfers)
+      .where(eq(petTransfers.id, id))
+      .limit(1)
+      .for("update");
+    return row ?? null;
+  },
+
+  /**
    * Finds a transfer with joined pet and sender profile data for the viewer page.
    * Auth is handled by the caller (use-case + action edge).
    */
@@ -232,11 +255,17 @@ export const TransfersRepository = {
 
   /**
    * Updates the status (and optional fields) of a pet transfer.
+   *
+   * When `expectedStatus` is provided, the UPDATE is guarded by a
+   * `status = expectedStatus` predicate so a row whose status was already
+   * flipped by a concurrent writer is left untouched. Returns the number of
+   * rows affected (0 = lost race) so the caller can abort instead of trusting
+   * a stale pre-tx read.
    */
-  async updateTransferStatus(args: UpdateTransferStatusArgs, tx?: Tx): Promise<void> {
+  async updateTransferStatus(args: UpdateTransferStatusArgs, tx?: Tx): Promise<number> {
     const client: DbOrTx = tx ?? db;
     const now = new Date();
-    await (client as typeof db)
+    const updated = await (client as typeof db)
       .update(petTransfers)
       .set({
         status: args.status,
@@ -245,7 +274,13 @@ export const TransfersRepository = {
         ...(args.rejectionReason !== undefined ? { rejectionReason: args.rejectionReason } : {}),
         updatedAt: now,
       })
-      .where(eq(petTransfers.id, args.id));
+      .where(
+        args.expectedStatus !== undefined
+          ? and(eq(petTransfers.id, args.id), eq(petTransfers.status, args.expectedStatus))
+          : eq(petTransfers.id, args.id),
+      )
+      .returning({ id: petTransfers.id });
+    return updated.length;
   },
 
   /**
@@ -485,6 +520,21 @@ export const TransfersRepository = {
       })
       .returning({ id: ownerships.id });
     return row;
+  },
+
+  /**
+   * Resolve an org's publicToken by id — for notification ctaUrls targeting the
+   * org portal (org members cannot read custody_transfer_handshake cases via
+   * /casos, so their CTAs must point inside /org/{token}/...). Null when missing.
+   */
+  async orgPublicTokenById(orgId: string, tx?: Tx): Promise<string | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return row?.publicToken ?? null;
   },
 
   /**

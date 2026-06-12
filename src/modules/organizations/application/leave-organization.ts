@@ -5,8 +5,8 @@
 //
 // Rules (exact parity with original):
 //   1. Find caller's own active membership.
-//   2. role=admin: tx + FOR UPDATE lock; last-admin guard; soft-delete.
-//   3. Non-admin: soft-delete directly (no tx needed).
+//   2. role=admin: tx + FOR UPDATE lock; last-admin guard; soft-delete + audit.
+//   3. Non-admin: soft-delete + audit in one tx.
 
 import { lastAdminBlocks } from "@/src/modules/organizations/domain/membership-state";
 import type {
@@ -20,7 +20,7 @@ import type { UseCaseResult } from "./types";
 // ---------------------------------------------------------------------------
 
 export interface LeaveOrganizationRepo
-  extends Pick<OrgRepository, "lockActiveAdmins" | "softLeave"> {
+  extends Pick<OrgRepository, "lockActiveAdmins" | "softLeave" | "insertAuditLog"> {
   findOwnActiveMembership(
     userId: string,
     organizationId: string,
@@ -77,14 +77,47 @@ export async function leaveOrganization(
         }
 
         await repo.softLeave(membership.id, e);
+        await repo.insertAuditLog(
+          {
+            actorUserId: input.userId,
+            action: "org_member_removed",
+            targetUserId: input.userId,
+            targetOrganizationId: input.organizationId,
+            payload: {
+              org_id: input.organizationId,
+              member_user_id: input.userId,
+              role: membership.role,
+              how: "self_leave",
+            },
+          },
+          e,
+        );
       });
     } catch (e) {
       if (lastAdminError) return { ok: false, error: lastAdminError };
       throw e;
     }
   } else {
-    // 3. Non-admin: soft-delete directly (no tx).
-    await repo.softLeave(membership.id);
+    // 3. Non-admin: soft-delete + audit in one tx.
+    await transaction(async (tx) => {
+      const e = tx as Exec;
+      await repo.softLeave(membership.id, e);
+      await repo.insertAuditLog(
+        {
+          actorUserId: input.userId,
+          action: "org_member_removed",
+          targetUserId: input.userId,
+          targetOrganizationId: input.organizationId,
+          payload: {
+            org_id: input.organizationId,
+            member_user_id: input.userId,
+            role: membership.role,
+            how: "self_leave",
+          },
+        },
+        e,
+      );
+    });
   }
 
   return { ok: true, value: undefined, notifications: [] };

@@ -284,6 +284,18 @@ describe("finalizeAdoption", () => {
     expect(r.notifications.some((n) => n.notificationType === "adoption_finalized")).toBe(true);
   });
 
+  it("every finalize notification carries category 'adoption' (UI-6)", async () => {
+    // Foster path produces the broadest set: adoption_finalized + foster_ended_by_adoption.
+    const repo = makeFakeRepo({
+      foster: makeFosterRow({ ownerUserId: "foster-user-1" }),
+      dniProfile: { id: "different-user-id" },
+    });
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+    const r = result as { ok: true; notifications: { category?: string | null }[] };
+    expect(r.notifications.length).toBeGreaterThan(0);
+    expect(r.notifications.every((n) => n.category === "adoption")).toBe(true);
+  });
+
   it("does NOT return adoption_finalized notification for stub adopter", async () => {
     // Stub: no existing DNI profile
     const repo = makeFakeRepo({ dniProfile: null });

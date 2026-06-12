@@ -4,6 +4,7 @@ import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { parseDateInput } from "@/lib/format";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -57,7 +58,9 @@ export async function replaceMicrochipVetAction(
 
   const { pet } = petRow;
 
-  if (!pet.microchipId) {
+  // ARCH-S: legacy pets.microchipId column dropped — read from canonical.
+  const canonicalIds = await fetchActiveIdentifications(pet.id);
+  if (!canonicalIds.microchip) {
     return { error: "Esta mascota no tiene microchip registrado." };
   }
 
@@ -86,7 +89,7 @@ export async function replaceMicrochipVetAction(
 
   const result = await replaceMicrochipForUser(user.id, {
     petId: pet.id,
-    previousChipNumber: pet.microchipId,
+    previousChipNumber: canonicalIds.microchip.code,
     newChipNumber,
     reason: reason as
       | "damaged"

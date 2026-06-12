@@ -6,6 +6,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -13,8 +14,8 @@ import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
+  computeDiseaseSummary,
   fetchCasesPerLocality,
-  fetchDiseaseSummary,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
@@ -37,8 +38,7 @@ export default async function GobVigilanciaPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const { since } = resolveAnalyticsPeriod(sp);
 
   // Resolve selected province ISO code (e.g. "AR-B") → ProvinceCode + canonical name.
   const selectedProvinceIso = sp.province ?? null;
@@ -80,13 +80,22 @@ export default async function GobVigilanciaPage({
     }
   }
 
-  const [metrics, signals, mapData, trend, summary] = await Promise.all([
+  // The disease summary always covers the last 30 days regardless of the
+  // period picker. When the period picker is also 30d, signals30d doubles
+  // as the signals panel data — no second DB round-trip needed.
+  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const periodMatchesSummary = sp.period === "30d" || !sp.period;
+
+  const [metrics, signals30d, mapData, trend, signalsPeriod] = await Promise.all([
     fetchVigilanciaMetrics(actor, filteredJurisdictions),
-    fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+    fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
     fetchCasesPerLocality(actor, filteredJurisdictions),
-    fetchZoonosisTrend(actor, filteredJurisdictions),
-    fetchDiseaseSummary(actor, filteredJurisdictions),
+    fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
+    periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
   ]);
+
+  const signals = signalsPeriod ?? signals30d;
+  const summary = computeDiseaseSummary(signals30d);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
@@ -143,6 +152,34 @@ export default async function GobVigilanciaPage({
         />
       )}
 
+      {/* Quick-access CTAs: zoonosis + investigaciones */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link
+          href="/gob/vigilancia/zoonosis"
+          className="flex items-center gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
+        >
+          <span className="text-[22px]" aria-hidden="true">
+            🦠
+          </span>
+          <div>
+            <p className="text-[13px] font-semibold text-ln-op-ink">Zoonosis</p>
+            <p className="text-[11px] text-ln-op-mute">Enfermedades transmisibles activas</p>
+          </div>
+        </Link>
+        <Link
+          href="/gob/vigilancia/investigaciones"
+          className="flex items-center gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
+        >
+          <span className="text-[22px]" aria-hidden="true">
+            🔬
+          </span>
+          <div>
+            <p className="text-[13px] font-semibold text-ln-op-ink">Investigaciones</p>
+            <p className="text-[11px] text-ln-op-mute">Casos bajo investigación activa</p>
+          </div>
+        </Link>
+      </div>
+
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
@@ -164,6 +201,7 @@ export default async function GobVigilanciaPage({
           label="Rábicas activas"
           value={String(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
+          href="/gob/vigilancia/zoonosis"
         />
         <OpKpi label="Pets hoy" value={String(metrics.petsRegisteredToday)} />
         <OpKpi label="Vacunaciones (7d)" value={String(metrics.vaccinationsThisWeek)} tone="ok" />

@@ -50,6 +50,15 @@ const Upcasters: Partial<Record<EventType, ReadonlyArray<Upcaster>>> = {
 };
 
 /**
+ * Returns the event types that have at least one registered upcaster.
+ * Intended for fitness-function tests that assert upcaster coverage stays in
+ * sync with schemas whose `payload_version` literal is > 1.
+ */
+export function registeredUpcasterTypes(): ReadonlyArray<EventType> {
+  return Object.keys(Upcasters) as EventType[];
+}
+
+/**
  * Apply registered upcasters to bring a payload up to the latest schema
  * version. No-op when no upcaster is registered for the event type or when
  * the payload is already at the latest version (i.e. the registry has no
@@ -78,7 +87,8 @@ export function upcastPayload(eventType: EventType, payload: unknown): unknown {
 
   // Apply upcasters from `startVersion - 1` (0-indexed) onwards. If
   // startVersion is already past the registry length there's nothing to do.
-  for (let i = startVersion - 1; i < upcasters.length; i++) {
+  // Clamp at 0 so a corrupt row (payload_version: 0) no-ops instead of throwing.
+  for (let i = Math.max(0, startVersion - 1); i < upcasters.length; i++) {
     current = upcasters[i](current);
   }
 

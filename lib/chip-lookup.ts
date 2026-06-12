@@ -1,9 +1,13 @@
 // Microchip cross-check helper.
 //
-// Reads from the polymorphic `pet_identifications` table (compliance PR 0).
-// The active chip row is joined back to its pet and owner. Previously this
-// helper queried `pets.microchip_id` directly; now it indirects through the
-// canonical identifier table so chip replacements preserve history.
+// Reads exclusively from the canonical `pet_identifications` table
+// (kind='microchip_iso', status='active'). The unique partial index guarantees
+// at most one active chip row per code, so there is always at most one match.
+//
+// Migration 0082 completed the backfill — no active pet has a chip in the
+// legacy pets.microchip_id column that is absent from pet_identifications.
+// The legacy fallback that existed here (compliance PR 0 transition shim) has
+// been removed in ARCH-Q now that canonical completeness is verified.
 
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -23,17 +27,11 @@ export type ChipLookupResult = {
 
 // Pure DB lookup — no auth, no session. Callers gate capability.
 // Reads from the canonical `pet_identifications` (kind='microchip_iso',
-// status='active'). The unique index guarantees at most one match.
-//
-// Transition shim (compliance PR 0): during this sprint we also fall back
-// to the legacy `pets.microchip_id` column if no canonical row matched.
-// Migration 0057 drops the legacy column and this fallback. The fallback
-// only fires when both `pets.microchip_id` and pet_identifications miss —
-// it cannot return phantom data because both lookups use the same code.
+// status='active'). The chip_unique partial index guarantees at most one match.
 export async function lookupByChip(microchipId: string): Promise<ChipLookupResult> {
   if (!microchipId) return null;
 
-  const [canonical] = await db
+  const [row] = await db
     .select({
       petId: pets.id,
       petPublicToken: pets.publicToken,
@@ -58,7 +56,6 @@ export async function lookupByChip(microchipId: string): Promise<ChipLookupResul
     )
     .limit(1);
 
-  const row = canonical ?? (await legacyChipFallback(microchipId));
   if (!row) return null;
 
   return {
@@ -72,25 +69,4 @@ export async function lookupByChip(microchipId: string): Promise<ChipLookupResul
     },
     ownerFirstName: row.ownerDisplayName ? row.ownerDisplayName.split(" ")[0] : null,
   };
-}
-
-async function legacyChipFallback(microchipId: string) {
-  const [row] = await db
-    .select({
-      petId: pets.id,
-      petPublicToken: pets.publicToken,
-      petName: pets.name,
-      petStatus: pets.status,
-      ownershipOwnerUserId: ownerships.ownerUserId,
-      ownerDisplayName: profiles.displayName,
-    })
-    .from(pets)
-    .leftJoin(
-      ownerships,
-      and(eq(ownerships.petId, pets.id), isNull(ownerships.endedAt), eq(ownerships.role, "owner")),
-    )
-    .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-    .where(eq(pets.microchipId, microchipId))
-    .limit(1);
-  return row ?? null;
 }

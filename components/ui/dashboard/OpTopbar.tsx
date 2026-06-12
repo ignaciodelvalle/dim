@@ -9,6 +9,12 @@ import { OpScopeChip } from "./OpScopeChip";
 type Props = {
   /** Breadcrumb trail. */
   crumbs?: CrumbItem[];
+  /**
+   * Optional override slot for breadcrumbs. When provided, renders instead
+   * of the default <OpCrumbs> built from `crumbs`. Supports client components
+   * (e.g. OrgBreadcrumbs which uses usePathname).
+   */
+  customCrumbs?: ReactNode;
   /** Scope chip config. */
   scope?: {
     code: string;
@@ -35,6 +41,7 @@ type Props = {
  */
 export function OpTopbar({
   crumbs,
+  customCrumbs,
   scope,
   actions,
   mobileNav,
@@ -54,8 +61,8 @@ export function OpTopbar({
         />
       )}
 
-      {/* Left: breadcrumbs */}
-      {crumbs && crumbs.length > 0 && <OpCrumbs items={crumbs} />}
+      {/* Left: breadcrumbs — customCrumbs takes precedence over static crumbs */}
+      {customCrumbs ? customCrumbs : crumbs && crumbs.length > 0 && <OpCrumbs items={crumbs} />}
 
       {/* Scope chip */}
       {scope && <OpScopeChip code={scope.code} label={scope.label} variant={scope.variant} />}

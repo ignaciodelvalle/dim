@@ -1,5 +1,6 @@
 "use client";
 
+import type { EventType } from "@/db/schema";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDateTime } from "@/lib/format";
 import Link from "next/link";
@@ -115,6 +116,7 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
       ) : (
         <ol className="space-y-3">
           {filteredEvents.map((event) => {
+            const eventType = event.eventType as EventType;
             const summary = eventPayloadSummary(event.eventType, event.payload);
             return (
               <li
@@ -128,7 +130,7 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
                   >
                     <div className="min-w-0 space-y-0.5">
                       <p className="font-medium text-[var(--color-ln-ink)]">
-                        {summary.primary ?? eventTypeLabel(event.eventType)}
+                        {summary.primary ?? eventTypeLabel(eventType)}
                       </p>
                       {summary.secondary && (
                         <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
@@ -142,7 +144,7 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="font-medium text-[var(--color-ln-ink)]">
-                        {summary.primary ?? eventTypeLabel(event.eventType)}
+                        {summary.primary ?? eventTypeLabel(eventType)}
                       </p>
                       {summary.secondary && (
                         <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>

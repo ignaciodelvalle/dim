@@ -74,6 +74,7 @@ export function LocationFields({
   inputNames,
   useMyLocationVariant = "secondary",
   allowAnonymous = false,
+  onLocationPresenceChange,
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -89,6 +90,10 @@ export function LocationFields({
   // True for anonymous public flows (PetSightingForm, DenunciaWizard).
   // Routes geocoding calls through the IP-rate-limited public actions.
   allowAnonymous?: boolean;
+  // Optional: notified whenever the field's location presence changes (true when
+  // any of jurisdiction / address / map point is set). Lets a parent warn on
+  // empty location without coupling to the uncontrolled hidden inputs (UI-7 B6).
+  onLocationPresenceChange?: (hasLocation: boolean) => void;
 }) {
   const isL2 = mode === "l2";
 
@@ -178,6 +183,19 @@ export function LocationFields({
 
     return () => clearTimeout(timer);
   }, [addressText, biasProvince, biasLocality, isL2, allowAnonymous]);
+
+  // Notify the parent whenever location presence changes (UI-7 B6). Presence =
+  // any of jurisdiction / address text / map point set.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onLocationPresenceChange is a stable callback from the parent; including it would loop on inline closures.
+  useEffect(() => {
+    if (!onLocationPresenceChange) return;
+    const hasLocation =
+      pickedProvince != null ||
+      pickedLocality != null ||
+      addressText.trim().length > 0 ||
+      point != null;
+    onLocationPresenceChange(hasLocation);
+  }, [pickedProvince, pickedLocality, addressText, point]);
 
   // Reverse geocoding (coords → address + jurisdiction). Fires on map gesture.
   async function handlePointChange(newPoint: { lat: number; lng: number }) {

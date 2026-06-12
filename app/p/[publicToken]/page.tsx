@@ -5,6 +5,13 @@
 //
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
+//
+// Security (V1-1): per-IP rate limit enforced before ANY data is fetched.
+// Limit: 30 req/min, 200 req/hour per IP. Generous enough that a real QR scan
+// (one person refreshing a single page) is never affected; tight enough to stop
+// enumeration of the 31^8 token keyspace from a single IP. On rate-limit the
+// page renders a soft throttle notice (not a 429 hard error) to preserve UX.
+// Token entropy widening is tracked as a follow-up (would invalidate existing tokens).
 
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
@@ -29,13 +36,40 @@ import {
   isPermanentCondition,
   permanentConditionShortLabel,
 } from "@/lib/permanent-conditions";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { Tier2MedicalView } from "./Tier2MedicalView";
+
+// The page calls headers() at runtime — mark it dynamic explicitly so Next.js
+// does not attempt to statically render it (matches the sibling encontre /
+// sighting pages that also carry this export).
+export const dynamic = "force-dynamic";
+
+// Per-IP limit for the public credential read path.
+// 60/min: generous enough for a legitimate user refreshing in a noisy carrier-
+//   grade NAT environment (many users behind one IP) or a viral lost-pet post
+//   getting rapid repeat scans from the same household.
+// 400/hr: proportionally raised from 200/hr to match the higher per-minute cap
+//   while still blocking sustained enumeration from a single IP.
+// A truly viral lost-pet QR gets scans from MANY different IPs, so per-IP
+// limiting never blocks that case even at these raised limits.
+const PUBLIC_TOKEN_PAGE_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
+
+async function callerIpFromHeaders(): Promise<string> {
+  try {
+    const reqHeaders = await headers();
+    return callerIp(reqHeaders);
+  } catch {
+    return "unknown";
+  }
+}
 
 export default async function PublicCredentialPage({
   params,
@@ -43,6 +77,18 @@ export default async function PublicCredentialPage({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
+
+  // V1-1: rate-limit per IP before touching any pet data. Renders a soft
+  // throttle notice (not a hard 500) so the page gracefully degrades.
+  const ip = await callerIpFromHeaders();
+  try {
+    await enforceRateLimit("public_token_page", ip, PUBLIC_TOKEN_PAGE_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return <ThrottleNotice />;
+    }
+    throw err;
+  }
 
   const [result] = await db
     .select({ pet: pets, photo: attachments })
@@ -55,29 +101,72 @@ export default async function PublicCredentialPage({
   const { pet, photo } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
-  // Tier 0 rollups — boolean indicators, never the raw data.
-  const vaccinations = await db
-    .select({ id: petEvents.id })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")));
-  const hasVaccinations = vaccinations.length > 0;
-  const hasMicrochip = !!pet.microchipId;
-  const hasTattoo = !!pet.tattooCode;
+  // ---------------------------------------------------------------------------
+  // Stage 1 — independent reads keyed only off pet.id, run concurrently.
+  // These were previously four sequential awaits (canonical ids, vaccination
+  // existence, latest-vaccination provenance, open custody episode). None
+  // depends on another's result, so a single Promise.all collapses four
+  // round-trips into one. This is the hottest public path (every QR scan), so
+  // the round-trip reduction is the biggest win here. The lost / tier2 / service
+  // -dog reads stay in later conditional stages because they gate on derived
+  // flags (isLost, tier2Active, species).
+  // ---------------------------------------------------------------------------
+  const [canonicalIds, vaccinationExists, latestVaccinationRows, openCustodyEpisodeRows] =
+    await Promise.all([
+      // Canonical identifier rows — boolean indicators + lost-branch display.
+      fetchActiveIdentifications(pet.id),
+      // Tier 0 vaccination rollup — only a boolean is needed, so LIMIT 1 instead
+      // of fetching the pet's entire vaccination history just to test existence.
+      db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
+        )
+        .limit(1),
+      // A.4: most recent vaccination's provenance to compute the confidence tier.
+      db
+        .select({
+          authorRole: petEvents.authorRole,
+          authorVerified: petEvents.authorVerified,
+          authorOrganizationId: petEvents.authorOrganizationId,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(1),
+      // DC13: open custody_episode opened by a sanitary_authority org.
+      db
+        .select({
+          caseId: cases.id,
+          authorityName: organizations.displayName,
+        })
+        .from(cases)
+        .innerJoin(
+          organizations,
+          and(
+            eq(organizations.id, cases.openedByOrganizationId),
+            eq(organizations.orgType, "sanitary_authority"),
+          ),
+        )
+        .where(
+          and(
+            eq(cases.primaryPetId, pet.id),
+            eq(cases.caseKind, "custody_episode"),
+            eq(cases.status, "open"),
+          ),
+        )
+        .limit(1),
+    ]);
 
-  // A.4: Confidence badge on public credential — only for institutional_verified
-  // or professional_verified (no shame on self_reported). Fetch the most recent
-  // vaccination's provenance to compute the tier.
-  const [latestVaccination] = await db
-    .select({
-      authorRole: petEvents.authorRole,
-      authorVerified: petEvents.authorVerified,
-      authorOrganizationId: petEvents.authorOrganizationId,
-      payload: petEvents.payload,
-    })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
+  const hasVaccinations = vaccinationExists.length > 0;
+  const hasMicrochip = canonicalIds.microchip !== null;
+  const hasTattoo = canonicalIds.tattoo !== null;
+
+  const [latestVaccination] = latestVaccinationRows;
 
   const latestVaccinationTier = latestVaccination
     ? computeConfidence({
@@ -107,29 +196,10 @@ export default async function PublicCredentialPage({
   // DC13: Public custody disclaimer — rendered when the pet has an open
   // custody_episode case opened by a sanitary_authority org (state seizure).
   // Discriminator: caseKind='custody_episode' + opener.orgType='sanitary_authority'.
-  // Never parsed from notes text — canonical discriminator only.
-  // No owner PII is exposed: only the authority name and a generic disclaimer.
-  const [openCustodyEpisode] = await db
-    .select({
-      caseId: cases.id,
-      authorityName: organizations.displayName,
-    })
-    .from(cases)
-    .innerJoin(
-      organizations,
-      and(
-        eq(organizations.id, cases.openedByOrganizationId),
-        eq(organizations.orgType, "sanitary_authority"),
-      ),
-    )
-    .where(
-      and(
-        eq(cases.primaryPetId, pet.id),
-        eq(cases.caseKind, "custody_episode"),
-        eq(cases.status, "open"),
-      ),
-    )
-    .limit(1);
+  // Never parsed from notes text — canonical discriminator only. No owner PII is
+  // exposed: only the authority name and a generic disclaimer. The query itself
+  // ran in the Stage 1 Promise.all above (it only needs pet.id).
+  const [openCustodyEpisode] = openCustodyEpisodeRows;
 
   const isUnderOfficialCustody = !!openCustodyEpisode;
 
@@ -270,33 +340,39 @@ export default async function PublicCredentialPage({
   } | null = null;
 
   if (isLost) {
-    const [ownerRow] = await db
-      .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
-      .from(ownerships)
-      .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-      .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-      .limit(1);
+    // Owner identity row and the last lost-event row are independent reads —
+    // batch them so the lost branch costs one round-trip instead of two.
+    const [ownerRows, latestLostEventRows] = await Promise.all([
+      db
+        .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
+        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        .limit(1),
+      // Last-known location from the most recent status_changed → lost event.
+      // Filtering on payload->>'to_status' = 'lost' so a later "found" event
+      // (to_status='active') does not eclipse the actual lost-event payload.
+      db
+        .select({
+          payload: petEvents.payload,
+          locationLat: petEvents.locationLat,
+          locationLng: petEvents.locationLng,
+          occurredAt: petEvents.occurredAt,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            eq(petEvents.eventType, "status_changed"),
+            sql`${petEvents.payload}->>'to_status' = 'lost'`,
+          ),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(1),
+    ]);
+    const [ownerRow] = ownerRows;
+    const [latestLostEvent] = latestLostEventRows;
 
-    // Last-known location from the most recent status_changed → lost event.
-    // Filtering on payload->>'to_status' = 'lost' so a later "found" event
-    // (to_status='active') does not eclipse the actual lost-event payload.
-    const [latestLostEvent] = await db
-      .select({
-        payload: petEvents.payload,
-        locationLat: petEvents.locationLat,
-        locationLng: petEvents.locationLng,
-        occurredAt: petEvents.occurredAt,
-      })
-      .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.petId, pet.id),
-          eq(petEvents.eventType, "status_changed"),
-          sql`${petEvents.payload}->>'to_status' = 'lost'`,
-        ),
-      )
-      .orderBy(desc(petEvents.occurredAt))
-      .limit(1);
     const payload = (latestLostEvent?.payload ?? {}) as Record<string, unknown>;
     // Prefer the canonical `location_description` key; fall back to the legacy
     // `last_known_location` for events written before the key rename.
@@ -386,12 +462,13 @@ export default async function PublicCredentialPage({
     // credentials never query this attachment to keep the data surface
     // minimal (D3 closed 2026-05-22 — code + location + photo are gated by
     // lost status, mirroring how the chip number is gated).
+    // Photo ID is sourced from the canonical tattoo row (ARCH-Q).
     let tattooPhotoUrl: string | null = null;
-    if (pet.tattooPhotoId) {
+    if (canonicalIds.tattoo?.photoId) {
       const [tattooPhoto] = await db
         .select({ storagePath: attachments.storagePath })
         .from(attachments)
-        .where(eq(attachments.id, pet.tattooPhotoId))
+        .where(eq(attachments.id, canonicalIds.tattoo.photoId))
         .limit(1);
       tattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
     }
@@ -402,6 +479,7 @@ export default async function PublicCredentialPage({
         <LostPublicCredential
           petName={pet.name}
           petPhotoUrl={photoUrl}
+          petSex={pet.sex}
           identityLine={identityLine}
           ownerFirstName={pet.discloseFirstNameWhenLost ? lostContext.ownerFirstName : null}
           ownerPhoneE164={pet.disclosePhoneWhenLost ? lostContext.phone : null}
@@ -415,9 +493,9 @@ export default async function PublicCredentialPage({
           lastSeenLat={pet.discloseLastLocationWhenLost ? lostContext.lostLat : null}
           lastSeenLng={pet.discloseLastLocationWhenLost ? lostContext.lostLng : null}
           lostSince={lostContext.lostSince ?? new Date()}
-          tattooCode={pet.tattooCode}
-          tattooLocation={pet.tattooLocation}
-          tattooDescription={pet.tattooDescription}
+          tattooCode={canonicalIds.tattoo?.code ?? null}
+          tattooLocation={canonicalIds.tattoo?.tattooLocation ?? null}
+          tattooDescription={canonicalIds.tattoo?.tattooDescription ?? null}
           tattooPhotoUrl={tattooPhotoUrl}
           lostDescription={lostContext.lostDescription}
         />
@@ -436,6 +514,7 @@ export default async function PublicCredentialPage({
 
   return (
     <main
+      id="main-content"
       className="min-h-screen"
       style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
     >
@@ -970,6 +1049,42 @@ export default async function PublicCredentialPage({
           </div>
         </div>
         {/* END CREDENTIAL CARD */}
+      </div>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ThrottleNotice — shown when a single IP exceeds the per-IP read limit.
+// Renders a friendly message instead of a hard error. Spanish (es-AR) copy
+// per project convention for user-facing copy on public surfaces.
+// ---------------------------------------------------------------------------
+
+function ThrottleNotice() {
+  return (
+    <main
+      id="main-content"
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+    >
+      <div
+        className="mx-auto max-w-[400px] px-[24px] py-[48px] text-center"
+        style={{ color: "var(--color-ln-ink)" }}
+      >
+        <p
+          style={{
+            fontFamily: "var(--font-ln-serif)",
+            fontSize: 18,
+            fontWeight: 600,
+            marginBottom: 12,
+          }}
+        >
+          Demasiadas consultas
+        </p>
+        <p style={{ fontSize: 14, color: "var(--color-ln-ink-2)", lineHeight: 1.6 }}>
+          Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
+          intentarlo.
+        </p>
       </div>
     </main>
   );

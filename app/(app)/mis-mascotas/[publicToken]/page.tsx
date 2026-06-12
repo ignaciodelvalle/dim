@@ -43,6 +43,7 @@
 // ---------------------------------------------------------------------------
 
 import { markAchievementSeenAction } from "@/app/actions/achievement-views";
+import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
 import { signTimelineAttachmentsForPet } from "@/app/actions/sign-timeline-attachments";
 import { AchievementsSection } from "@/components/AchievementsSection";
 import type { CredentialChip } from "@/components/AchievementsSection";
@@ -99,6 +100,7 @@ import {
   fetchPetWeightHistory,
 } from "@/lib/owner-dashboard";
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
@@ -620,6 +622,14 @@ export default async function PetDetailPage({
     ownershipRole = ownerRow?.role ?? null;
   }
 
+  // "Confirmar devolución" entry: only the legal owner sees it, and only when an
+  // actor (refugio/vecino) has a pending return proposal addressed to this owner.
+  // Reuses the same ARCH-B tri-check the /devolucion page enforces server-side.
+  let hasPendingReturnProposal = false;
+  if (accessPath === "owner" && ownershipRole === "owner") {
+    hasPendingReturnProposal = await fetchPendingReturnProposalForOwner(pet.id, user.id);
+  }
+
   // Emergency / vet contacts from the viewer's profile — only meaningful for
   // accessPath==="owner". Org-side access keeps the card empty (the org
   // viewer is not the pet's owner). J-followup wires these to the columns
@@ -702,12 +712,13 @@ export default async function PetDetailPage({
     const episode = await fetchLostEpisodeForPet(pet.id);
     const rawScans = await fetchLostScanEvents(pet.id, undefined, episode?.id ?? undefined);
 
-    // P0g: resolve signed URLs for sighting items that have a photoStoragePath.
-    // event-attachments is a private bucket so thumbnails need short-lived signed URLs.
-    // We use the SSR supabase client (owner is authenticated at this point).
+    // P0g: resolve signed URLs for sighting AND finder-in-possession items that
+    // carry a photoStoragePath. event-attachments is a private bucket so
+    // thumbnails need short-lived signed URLs. We use the SSR supabase client
+    // (owner is authenticated at this point).
     const scans = await Promise.all(
       rawScans.map(async (item) => {
-        if (item.kind === "sighting" && item.photoStoragePath) {
+        if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
           const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
           return { ...item, photoUrl: url };
         }
@@ -843,6 +854,7 @@ export default async function PetDetailPage({
     upcomingAppointments,
     weightHistory,
     historialCount,
+    canonicalIds,
   ] = await Promise.all([
     // Vaccine reminders for owner path only.
     accessPath === "owner"
@@ -889,6 +901,8 @@ export default async function PetDetailPage({
       .from(petEvents)
       .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
       .then((rows) => rows[0]?.value ?? 0),
+    // Canonical chip/tattoo identifiers (ARCH-Q).
+    fetchActiveIdentifications(pet.id),
   ]);
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
@@ -922,7 +936,7 @@ export default async function PetDetailPage({
   })();
 
   const heroTags: Array<{ key: string; label: string; variant?: "celeste" | "gray" }> = [];
-  if (pet.microchipId) heroTags.push({ key: "chip", label: "Microchip verificado" });
+  if (canonicalIds.microchip) heroTags.push({ key: "chip", label: "Microchip verificado" });
   if (pet.jurisdictionLocality)
     heroTags.push({ key: "loc", label: pet.jurisdictionLocality, variant: "gray" });
 
@@ -1024,7 +1038,7 @@ export default async function PetDetailPage({
           <ServiceDogCredentialCard
             petPublicToken={pet.publicToken}
             petName={pet.name}
-            microchipId={pet.microchipId}
+            microchipId={canonicalIds.microchip?.code ?? null}
             serviceDog={serviceDogRow}
             photoUrl={photoUrl}
           />
@@ -1129,7 +1143,24 @@ export default async function PetDetailPage({
                 {/* Estado actual */}
                 <LnSectionHead num="01" title="Estado de salud" />
                 <div data-section="current-state">
-                  <PetCurrentStateSection pet={pet} typedEvents={typedEvents} />
+                  <PetCurrentStateSection
+                    pet={pet}
+                    typedEvents={typedEvents}
+                    canonicalIds={{
+                      microchip: canonicalIds.microchip
+                        ? {
+                            code: canonicalIds.microchip.code,
+                            recordedAt: canonicalIds.microchip.recordedAt ?? null,
+                          }
+                        : null,
+                      tattoo: canonicalIds.tattoo
+                        ? {
+                            code: canonicalIds.tattoo.code ?? "",
+                            tattooLocation: canonicalIds.tattoo.tattooLocation ?? null,
+                          }
+                        : null,
+                    }}
+                  />
                 </div>
 
                 {/* Cuidados próximos */}
@@ -1161,7 +1192,7 @@ export default async function PetDetailPage({
                     pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
                     accessPath={accessPath === "org" ? "org" : "owner"}
                     ownershipRole={ownershipRole}
-                    hasPendingReturnProposal={false}
+                    hasPendingReturnProposal={hasPendingReturnProposal}
                   />
                 </div>
 
@@ -1240,10 +1271,12 @@ export default async function PetDetailPage({
                   <LnCardHead title="Identificación" />
                   <LnCardBody>
                     <div className="space-y-[10px] font-[var(--font-ln-mono)] text-[12px] leading-[1.9]">
-                      {pet.microchipId && (
+                      {canonicalIds.microchip && (
                         <>
                           <p className="text-[var(--color-ln-mute)]">MICROCHIP</p>
-                          <p className="mb-[6px] text-[var(--color-ln-ink)]">{pet.microchipId}</p>
+                          <p className="mb-[6px] text-[var(--color-ln-ink)]">
+                            {canonicalIds.microchip.code}
+                          </p>
                         </>
                       )}
                       <p className="text-[var(--color-ln-mute)]">LIBRETA</p>
@@ -1299,8 +1332,8 @@ export default async function PetDetailPage({
                 discloseEmailWhenLost: pet.discloseEmailWhenLost,
                 discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
                 allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
-                petHasMicrochip: !!pet.microchipId,
-                petHasTattoo: !!pet.tattooCode,
+                petHasMicrochip: canonicalIds.microchip !== null,
+                petHasTattoo: canonicalIds.tattoo !== null,
                 petColor: pet.color ?? null,
                 petDistinguishingFeatures: pet.distinguishingFeatures ?? null,
                 petJurisdictionProvince: pet.jurisdictionProvince ?? null,

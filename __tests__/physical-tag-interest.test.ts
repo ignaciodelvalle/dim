@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db, ownerships, pets, physicalTagInterest } from "@/db";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { generatePublicToken } from "@/lib/publicToken";
+import { expectDbError } from "./_helpers/expect-db-error";
 
 let petId: string;
 let userId: string;
@@ -86,9 +87,10 @@ describe("getPhysicalTagInterest", () => {
 describe("physical_tag_interest state machine (DB-level)", () => {
   it("(pet, user) uniqueness is enforced by the DB", async () => {
     await db.insert(physicalTagInterest).values({ petId, userId });
-    await expect(db.insert(physicalTagInterest).values({ petId, userId })).rejects.toThrow(
-      /duplicate key|unique/i,
-    );
+    // 23505 = unique_violation.
+    await expectDbError(db.insert(physicalTagInterest).values({ petId, userId }), {
+      code: "23505",
+    });
     await db
       .delete(physicalTagInterest)
       .where(and(eq(physicalTagInterest.petId, petId), eq(physicalTagInterest.userId, userId)));

@@ -30,6 +30,7 @@ import {
 } from "@/lib/libreta-sanitaria";
 import { fetchActiveRemindersForPet, fetchVaccinationHistory } from "@/lib/owner-dashboard";
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -100,7 +101,7 @@ export async function getLibretaTabData(
     photoUrl = petPhotoUrl(row?.storagePath);
   }
 
-  const [events, activeShares, activeReminders] = await Promise.all([
+  const [events, activeShares, activeReminders, identifications] = await Promise.all([
     db
       .select()
       .from(petEvents)
@@ -111,6 +112,7 @@ export async function getLibretaTabData(
       .from(libretaShareTokens)
       .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt))),
     fetchActiveRemindersForPet(user.id, pet.id),
+    fetchActiveIdentifications(pet.id),
   ]);
 
   const grouped = groupLibretaEvents(events) as Record<LibretaGroupKey, LibretaEventRow[]>;
@@ -131,9 +133,9 @@ export async function getLibretaTabData(
         species: pet.species,
         breed: pet.breed,
         sex: pet.sex,
-        microchipId: pet.microchipId,
-        tattooCode: pet.tattooCode,
-        tattooLocation: pet.tattooLocation,
+        microchipId: identifications.microchip?.code ?? null,
+        tattooCode: identifications.tattoo?.code ?? null,
+        tattooLocation: identifications.tattoo?.tattooLocation ?? null,
         publicToken: pet.publicToken,
       },
       photoUrl,

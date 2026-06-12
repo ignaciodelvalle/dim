@@ -21,6 +21,7 @@
 // form so users see the explanation before reaching the server action.
 
 import { db, notifications, ownerships, petEvents, profiles, reminders } from "@/db";
+import { matchesDbError } from "@/lib/db-errors";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -121,10 +122,12 @@ export async function claimStubProfileAction(
         .set({ dniNumber: dni, dniVerified: false })
         .where(eq(profiles.id, user.id));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error desconocido.";
-      if (message.includes("profiles_dni_unique_when_present")) {
+      // drizzle 0.45 wraps pg errors; matchesDbError walks the `.cause` chain to
+      // the real constraint name (no longer on the top-level message).
+      if (matchesDbError(err, { constraint: /profiles_dni_unique_when_present/ })) {
         return { error: "Ese DNI ya está en uso por otro perfil." };
       }
+      const message = err instanceof Error ? err.message : "Error desconocido.";
       return { error: `No se pudo guardar el DNI: ${message}` };
     }
     return { error: null };

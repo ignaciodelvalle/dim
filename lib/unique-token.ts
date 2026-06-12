@@ -19,9 +19,15 @@
 // to handle the race that pre-check leaves open.
 
 import { eq } from "drizzle-orm";
-import type { AnyPgTable, PgColumn } from "drizzle-orm/pg-core";
+import type { AnyPgTable, PgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
+// isUniqueViolation now lives in lib/db-errors.ts (single source of truth that
+// walks drizzle 0.45's `.cause` chain). Re-exported here for back-compat with
+// existing importers.
+import { isUniqueViolation } from "@/lib/db-errors";
+
+export { isUniqueViolation };
 
 const DEFAULT_MAX_RETRIES = 5;
 
@@ -53,27 +59,15 @@ export async function generateUniqueToken<TTable extends AnyPgTable>(
   const executor = options.executor ?? db;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const candidate = generator();
+    // drizzle 0.45 tightened `.from()` generics (TableLikeHasEmptySelection);
+    // a generic `AnyPgTable` can't be proven non-empty, so cast to the concrete
+    // PgTable the runtime always receives. Behavior is unchanged.
     const [existing] = await executor
       .select({ marker: column })
-      .from(table)
+      .from(table as PgTable)
       .where(eq(column, candidate))
       .limit(1);
     if (!existing) return candidate;
   }
   throw new Error(`generateUniqueToken: exhausted ${maxRetries} retries`);
-}
-
-interface PgErrorLike {
-  code?: unknown;
-}
-
-/** SQLSTATE 23505 = unique_violation. */
-export function isUniqueViolation(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  const code = (err as PgErrorLike).code;
-  if (code === "23505") return true;
-  // Drizzle/postgres-js sometimes nests the original error.
-  const cause = (err as { cause?: unknown }).cause;
-  if (cause && typeof cause === "object" && (cause as PgErrorLike).code === "23505") return true;
-  return false;
 }

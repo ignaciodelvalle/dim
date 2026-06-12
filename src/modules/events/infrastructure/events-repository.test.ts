@@ -213,48 +213,8 @@ describe("updateWeightProjection", () => {
   });
 });
 
-describe("updateMicrochipBackfill", () => {
-  it("sets pets.microchipId when currently null", async () => {
-    // Ensure it's null first
-    await db.update(pets).set({ microchipId: null }).where(eq(pets.id, petId));
-
-    await repo.updateMicrochipBackfill(petId, {
-      microchipId: "900182000123456",
-      microchipCountryCode: "ARG",
-      microchipImplantedAt: null,
-      microchipImplantedBy: null,
-      microchipLocation: null,
-    });
-
-    const [row] = await db
-      .select({ microchipId: pets.microchipId })
-      .from(pets)
-      .where(eq(pets.id, petId));
-
-    expect(row.microchipId).toBe("900182000123456");
-  });
-
-  it("does NOT overwrite when microchipId already set", async () => {
-    // Ensure it has a value
-    await db.update(pets).set({ microchipId: "EXISTING-CHIP" }).where(eq(pets.id, petId));
-
-    await repo.updateMicrochipBackfill(petId, {
-      microchipId: "900182000999999",
-      microchipCountryCode: null,
-      microchipImplantedAt: null,
-      microchipImplantedBy: null,
-      microchipLocation: null,
-    });
-
-    const [row] = await db
-      .select({ microchipId: pets.microchipId })
-      .from(pets)
-      .where(eq(pets.id, petId));
-
-    // Should still be the original value
-    expect(row.microchipId).toBe("EXISTING-CHIP");
-  });
-});
+// updateMicrochipBackfill removed in ARCH-R — legacy pets.microchipId column
+// no longer written by the application layer. Tests deleted accordingly.
 
 describe("updateStatusProjection", () => {
   it("sets pets.status to deceased and deceasedAt", async () => {
