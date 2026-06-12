@@ -1,6 +1,29 @@
 # Query & Page-Load Optimization — Findings and Fix Plan (2026-06)
 
-Status: **PLAN — pending approval. No fixes applied.**
+Status: **EXECUTED — all six batches shipped (PRs #529–#534, 2026-06-12/13).**
+
+## Results (A/B on identical machine conditions)
+
+**Queries per page** (deterministic census — `scripts/qa-query-census.ts`, app-role
+`pg_stat_statements` calls per page load, develop 9d809de vs PERF tip, same DB):
+
+| Page | develop | PERF tip | Δ |
+|---|---|---|---|
+| /inicio | 17 | 12 | −29% |
+| /gob | 25 | 22 | −12% |
+| /gob/maltrato | 11 | 8 | −27% |
+| /admin | 7 | 5 | −29% |
+| /org/[token] | 7 | 5 | −29% |
+| /mis-mascotas | 7 | 6 | −14% |
+| pet detail / notificaciones / cuenta | unchanged | unchanged | wins are parallelism (PERF-3), not count |
+
+**TTFB**: same-session A/B runs showed the gov cluster down 30–60% (e.g.
+/admin/sistema 1733→670 ms, /gob/casos 740→314, /gob/cola 794→560, /gob/usuarios
+778→535, /gob/perdidas 809→587 under heavy ambient load), but run-to-run machine
+noise that day was ±2× on untouched control pages — treat ms-level numbers as
+directional. The query-count table above is the reliable metric. PERF-1's index
+and write-amplification wins do not appear in either metric at seed scale; they
+are structural (verified via EXPLAIN index-usage checks).
 
 Method: three independent evidence sources gathered on the develop tip (9d809de):
 
